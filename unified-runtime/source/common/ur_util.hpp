@@ -59,15 +59,23 @@ int ur_duplicate_fd(int pid, int fd_in);
     defined(SANITIZER_THREAD)
 #define SANITIZER_ANY
 #endif
+
 ///////////////////////////////////////////////////////////////////////////////
+#if UR_USE_DEBUG_POSTFIX
+#define LIBRARY_NAME(NAME) NAME "d"
+#else
+#define LIBRARY_NAME(NAME) NAME
+#endif
+
 #if defined(_WIN32)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define MAKE_LIBRARY_NAME(NAME, VERSION) LIBRARY_NAME(NAME) ".dll"
 #define STATIC_LIBRARY_EXTENSION ".lib"
 #else
 #if defined(__APPLE__)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
+#define MAKE_LIBRARY_NAME(NAME, VERSION)                                       \
+  "lib" LIBRARY_NAME(NAME) "." VERSION ".dylib"
 #else
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
+#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" LIBRARY_NAME(NAME) ".so." VERSION
 #endif
 #define STATIC_LIBRARY_EXTENSION ".a"
 #endif
@@ -209,6 +217,7 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 /// @param env_var_name name of an environment variable to be parsed
 /// @param reject_empy whether to throw an error on discovering an empty value
 /// @param allow_duplicate whether to allow multiple pairs with the same key
+/// @param lower convert keys to lowercase
 /// @return std::optional with a possible map with parsed parameters as keys and
 ///         vectors of strings containing parsed values as keys.
 ///         Otherwise, optional is set to std::nullopt when the environment
@@ -217,7 +226,8 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 /// wrong format
 inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
                                               bool reject_empty = true,
-                                              bool allow_duplicate = false) {
+                                              bool allow_duplicate = false,
+                                              bool lower = false) {
   char main_delim = ';';
   char key_value_delim = ':';
   char values_delim = ',';
@@ -254,6 +264,10 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
       throw_wrong_format_map(env_var_name, *env_var);
     }
 
+    if (lower) {
+      std::transform(key.begin(), key.end(), key.begin(), tolower);
+    }
+
     std::vector<std::string> values_vec;
     std::stringstream values_ss(values);
     std::string value;
@@ -270,7 +284,7 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     if (map.find(key) != map.end()) {
       map[key].insert(map[key].end(), values_vec.begin(), values_vec.end());
     } else {
-      map[key] = values_vec;
+      map[key] = std::move(values_vec);
     }
   }
   return map;
@@ -533,5 +547,25 @@ static inline std::string groupDigits(Numeric numeric) {
 }
 
 template <typename T> Spinlock<Rc<T>> AtomicSingleton<T>::instance;
+
+inline bool isPointerAlignedTo(uint32_t Alignment, void *Ptr) {
+  return Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(Ptr) % Alignment == 0;
+}
+
+template <typename T, typename F, size_t... Is>
+std::array<T, sizeof...(Is)> createArrayOfHelper(F &&f,
+                                                 std::index_sequence<Is...>) {
+  return {(f(Is))...};
+}
+
+// Helper function to intialize std::array of non-default constructible
+// types. Calls provided ctor function (passing index to the array) to create
+// each element of the array.
+template <typename T, size_t N, typename F>
+std::array<T, N> createArrayOf(F &&ctor) {
+  return createArrayOfHelper<T, F>(std::forward<F>(ctor),
+                                   std::make_index_sequence<N>{});
+}
 
 #endif /* UR_UTIL_H */

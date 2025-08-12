@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_native_tan.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <native_tan.inc>
 #define __FLOAT_ONLY
+#define FUNCTION __spirv_ocl_native_tan
+#define __IMPL_FUNCTION(x) __clc_native_tan
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

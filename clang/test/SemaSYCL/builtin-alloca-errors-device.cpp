@@ -116,13 +116,13 @@ sycl::multi_ptr<ElementType, sycl::access::address_space::private_space, Decorat
 aligned_private_alloca_bad_7(sycl::kernel_handler &);
 
 // expected-error@+4 {{cannot redeclare builtin function 'private_alloca'}}
-// expected-note@+3 {{'private_alloca<float, size, sycl::access::decorated::no>' is a builtin with type 'multi_ptr<float, access::address_space::private_space, (decorated)0> (kernel_handler &)'}}
+// expected-note@+3 {{'private_alloca<float, size, sycl::access::decorated::no>' is a builtin with type 'multi_ptr<float, access::address_space::private_space, (sycl::access::decorated)0> (kernel_handler &)'}}
 template <>
 sycl::multi_ptr<float, sycl::access::address_space::private_space, sycl::access::decorated::no>
 sycl::ext::oneapi::experimental::private_alloca<float, size, sycl::access::decorated::no>(sycl::kernel_handler &h);
 
 // expected-error@+4 {{cannot redeclare builtin function 'aligned_private_alloca'}}
-// expected-note@+3 {{'aligned_private_alloca<float, 8UL, size, sycl::access::decorated::no>' is a builtin with type 'multi_ptr<float, access::address_space::private_space, (decorated)0> (kernel_handler &)'}}
+// expected-note@+3 {{'aligned_private_alloca<float, 8UL, size, sycl::access::decorated::no>' is a builtin with type 'multi_ptr<float, access::address_space::private_space, (sycl::access::decorated)0> (kernel_handler &)'}}
 template <>
 sycl::multi_ptr<float, sycl::access::address_space::private_space, sycl::access::decorated::no>
 sycl::ext::oneapi::experimental::aligned_private_alloca<float, alignof(float) * 2, size, sycl::access::decorated::no>(sycl::kernel_handler &h);
@@ -152,25 +152,25 @@ void test(sycl::kernel_handler &h) {
   // expected-error@+1 {{__builtin_intel_sycl_alloca expects to be passed an argument of type 'sycl::kernel_handler &'. Got 'const sycl::kernel_handler &'}}
   private_alloca_bad_5<float, size, sycl::access::decorated::yes>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<const float, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<const float, access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<const float, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<volatile float, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<volatile float, access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<volatile float, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<void, access::address_space::private_space, (decorated)1>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<void, access::address_space::private_space, (sycl::access::decorated)1>'}}
   sycl::ext::oneapi::experimental::private_alloca<void, size, sycl::access::decorated::yes>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int *(int), access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int *(int), access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<int *(int), size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int &, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int &, access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::private_alloca<int &, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'sycl::multi_ptr<float, sycl::access::address_space::local_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'sycl::multi_ptr<float, sycl::access::address_space::local_space, (sycl::access::decorated)0>'}}
   private_alloca_bad_6<float, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<non_trivial, access::address_space::private_space, (decorated)1>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<non_trivial, access::address_space::private_space, (sycl::access::decorated)1>'}}
   sycl::ext::oneapi::experimental::private_alloca<non_trivial, size, sycl::access::decorated::yes>(h);
 
   // expected-error@+1 {{__builtin_intel_sycl_alloca must be passed a specialization constant of integral value type as a template argument. Got 'int'}}
@@ -211,25 +211,25 @@ void test(sycl::kernel_handler &h) {
   // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align expects to be passed an argument of type 'sycl::kernel_handler &'. Got 'const sycl::kernel_handler &'}}
   aligned_private_alloca_bad_5<float, alignment, size, sycl::access::decorated::yes>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<const float, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<const float, access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::aligned_private_alloca<const float, alignment, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<volatile float, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<volatile float, access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::aligned_private_alloca<volatile float, alignment, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<void, access::address_space::private_space, (decorated)1>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<void, access::address_space::private_space, (sycl::access::decorated)1>'}}
   sycl::ext::oneapi::experimental::aligned_private_alloca<void, alignment, size, sycl::access::decorated::yes>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int *(int), access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int *(int), access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::aligned_private_alloca<int *(int), alignment, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int &, access::address_space::private_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<int &, access::address_space::private_space, (sycl::access::decorated)0>'}}
   sycl::ext::oneapi::experimental::aligned_private_alloca<int &, alignment, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'sycl::multi_ptr<float, sycl::access::address_space::local_space, (decorated)0>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'sycl::multi_ptr<float, sycl::access::address_space::local_space, (sycl::access::decorated)0>'}}
   aligned_private_alloca_bad_6<float, alignment, size, sycl::access::decorated::no>(h);
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<non_trivial, access::address_space::private_space, (decorated)1>'}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align can only return 'sycl::private_ptr' to a cv-unqualified trivial type. Got 'multi_ptr<non_trivial, access::address_space::private_space, (sycl::access::decorated)1>'}}
   sycl::ext::oneapi::experimental::aligned_private_alloca<non_trivial, alignment, size, sycl::access::decorated::yes>(h);
 
   // expected-error@+1 {{__builtin_intel_sycl_alloca_with_align must be passed a specialization constant of integral value type as a template argument. Got 'int'}}

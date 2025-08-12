@@ -1,4 +1,4 @@
-//==-- cluster_group_prop.hpp --- SYCL extension for event mode property ---==//
+//==-- event_mode_property.hpp --- SYCL extension for event mode property --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

@@ -20,29 +20,29 @@
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t, ur_device_handle_t,
     const ur_exp_command_buffer_desc_t *, ur_exp_command_buffer_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -52,8 +52,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -62,8 +62,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     const ur_exp_command_buffer_sync_point_t *, uint32_t,
     const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -72,8 +72,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -83,8 +83,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -94,8 +94,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const void *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -105,8 +105,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
     const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -117,8 +117,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
     const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -129,16 +129,16 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
     const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     ur_queue_handle_t, ur_exp_command_buffer_handle_t, uint32_t,
     const ur_event_handle_t *, ur_event_handle_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for the NativeCPU adapter.");
+  die("Experimental Command-buffer feature is not "
+      "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

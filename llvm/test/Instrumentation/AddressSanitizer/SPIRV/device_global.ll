@@ -6,8 +6,12 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 @dev_global = addrspace(1) global { [4 x i32] } zeroinitializer #0
+@0 = internal addrspace(1) global i32 0, align 4 ;nameless global
+@1 = internal addrspace(1) global i32 0, align 4 ;nameless global
 
 ; CHECK: @dev_global = addrspace(1) global { { [4 x i32] }, [16 x i8] }
+; CHECK: @nameless_global 
+; CHECK: @nameless_global.1
 ; CHECK: @__AsanDeviceGlobalMetadata = appending local_unnamed_addr addrspace(1) global [1 x { i64, i64, i64 }] [{ i64, i64, i64 } { i64 16, i64 32, i64 ptrtoint (ptr addrspace(1) @dev_global to i64) }]
 
 attributes #0 = { "sycl-device-global-size"="16" "sycl-device-image-scope" }

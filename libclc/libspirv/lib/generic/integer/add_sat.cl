@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <core/integer/clc_add_sat.h>
+#include <clc/integer/clc_add_sat.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <add_sat.inc>

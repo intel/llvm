@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_acos.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <acos.inc>
+#define FUNCTION __spirv_ocl_acos
+#define __IMPL_FUNCTION(x) __clc_acos
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

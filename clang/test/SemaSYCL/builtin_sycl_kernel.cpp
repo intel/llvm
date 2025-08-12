@@ -73,15 +73,15 @@ void foo() {
   constexpr bool b14 = __builtin_sycl_is_kernel(&sndrk_free_func1);
 
   // Test with function templates.
-  // expected-error@+1 {{1st argument must be a function pointer (was '<overloaded function type>')}}
+  // expected-error@+1 {{1st argument must be a function pointer type (was '<overloaded function type>')}}
   constexpr bool b15 = __builtin_sycl_is_kernel(&sndrk_free_func_tmpl1<int>);
-  // expected-error@+1 {{1st argument must be a function pointer (was '<overloaded function type>')}}
+  // expected-error@+1 {{1st argument must be a function pointer type (was '<overloaded function type>')}}
   constexpr bool b16 = __builtin_sycl_is_kernel(sndrk_free_func_tmpl1<int>);
   constexpr bool b17 = __builtin_sycl_is_kernel((void(*)(int *))sndrk_free_func_tmpl1<int>);  // Okay
 
 
   // Test with overloaded functions.
-  // expected-error@+1 {{1st argument must be a function pointer (was '<overloaded function type>')}}
+  // expected-error@+1 {{1st argument must be a function pointer type (was '<overloaded function type>')}}
   constexpr bool b18 = __builtin_sycl_is_kernel(ovl_free_func1);
   constexpr bool b19 = __builtin_sycl_is_kernel((void(*)(int *))ovl_free_func1);  // Okay
   constexpr bool b20 = __builtin_sycl_is_kernel((void(*)(int *, int))ovl_free_func1);  // Okay

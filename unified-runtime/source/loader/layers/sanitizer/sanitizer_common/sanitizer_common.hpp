@@ -34,6 +34,21 @@ inline constexpr bool IsPowerOfTwo(uptr x) {
   return (x & (x - 1)) == 0 && x != 0;
 }
 
+inline constexpr uptr RoundUpToPowerOfTwo(uptr x) {
+  if (x == 0)
+    return 1;
+  x--;
+  x |= x >> 1;
+  x |= x >> 2;
+  x |= x >> 4;
+  x |= x >> 8;
+  x |= x >> 16;
+  x |= x >> 32;
+  x++;
+  assert(IsPowerOfTwo(x));
+  return x;
+}
+
 inline constexpr uptr RoundUpTo(uptr Size, uptr boundary) {
   assert(IsPowerOfTwo(boundary));
   return (Size + boundary - 1) & ~(boundary - 1);
@@ -48,16 +63,12 @@ inline constexpr bool IsAligned(uptr a, uptr alignment) {
   return (a & (alignment - 1)) == 0;
 }
 
-// Valid redzone sizes are 16, 32, 64, ... 2048, so we encode them in 3 bits.
+// Valid redzone sizes are 16, 32, 64 ..., so we encode them in 3 bits.
 // We use adaptive redzones: for larger allocation larger redzones are used.
-inline constexpr uptr RZLog2Size(uptr rz_log) {
-  assert(rz_log < 8);
-  return 16 << rz_log;
-}
+inline constexpr uptr RZLog2Size(uptr rz_log) { return 16 << rz_log; }
 
 inline constexpr uptr RZSize2Log(uptr rz_size) {
   assert(rz_size >= 16);
-  assert(rz_size <= 2048);
   assert(IsPowerOfTwo(rz_size));
   uptr res = log2(rz_size) - 4;
   assert(rz_size == RZLog2Size(res));
@@ -114,18 +125,6 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
 
 // ================================================================
 
-// Trace an internal UR call; returns in case of an error.
-#define UR_CALL(Call)                                                          \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR ---> {}", #Call);                         \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR <--- {}({})", #Call, Result);             \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
-  }
-
 using BacktraceFrame = void *;
 using BacktraceInfo = std::string;
 
@@ -147,5 +146,17 @@ bool DontCoredumpRange(uptr Addr, uptr Size);
 void *GetMemFunctionPointer(const char *);
 
 std::string DemangleName(const std::string &name);
+
+// ================================================================
+
+// Sync with llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h
+enum SanitizedKernelFlags : uint32_t {
+  NO_CHECK = 0,
+  CHECK_GLOBALS = 1U << 1,
+  CHECK_LOCALS = 1U << 2,
+  CHECK_PRIVATES = 1U << 3,
+  CHECK_GENERICS = 1U << 4,
+  MSAN_TRACK_ORIGINS = 1U << 5,
+};
 
 } // namespace ur_sanitizer_layer

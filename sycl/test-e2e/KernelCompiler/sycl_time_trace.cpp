@@ -6,12 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: SYCL-RTC is not available for accelerator devices
-
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -23,8 +19,7 @@ int test_tracing() {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "

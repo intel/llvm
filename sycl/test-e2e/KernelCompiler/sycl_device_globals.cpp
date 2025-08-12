@@ -6,17 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator, opencl && gpu
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-// RUN: %{l0_leak_check} %{run} %t.out
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -54,7 +50,7 @@ int test_device_global() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = d.ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "
@@ -142,7 +138,7 @@ int test_error() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = d.ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     return 0;
   }

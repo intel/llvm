@@ -14,14 +14,15 @@ constexpr std::size_t group_size = 1;
 
 #ifdef USER_CODE_1
 
+class MyKernelA;
 void foo(sycl::queue &Q, int *data) {
   Q.submit([&](sycl::handler &cgh) {
     auto acc = sycl::local_accessor<int>(group_size, cgh);
-    cgh.parallel_for<class MyKernel>(
+    cgh.parallel_for<MyKernelA>(
         sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
           data[item.get_global_id()] = acc[item.get_local_id() + 1];
           // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Local Memory
-          // CHECK: READ of size 4 at kernel {{<.*MyKernel>}} LID(0, 0, 0) GID({{.*}}, 0, 0)
+          // CHECK: READ of size 4 at kernel {{<.*MyKernelA>}} LID(0, 0, 0) GID({{.*}}, 0, 0)
           // CHECK:   #0 {{.*}} {{.*multiple_source.cpp}}:[[@LINE-3]]
         });
   });
@@ -29,6 +30,7 @@ void foo(sycl::queue &Q, int *data) {
 
 #else // USER_CODE_2
 
+class MyKernelB;
 void foo(sycl::queue &Q, int *data);
 
 int main() {
@@ -37,7 +39,7 @@ int main() {
 
   Q.submit([&](sycl::handler &cgh) {
     auto acc = sycl::local_accessor<int>(group_size, cgh);
-    cgh.parallel_for<class MyKernel>(
+    cgh.parallel_for<MyKernelB>(
         sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
           data[item.get_global_id()] = acc[item.get_local_id()];
         });

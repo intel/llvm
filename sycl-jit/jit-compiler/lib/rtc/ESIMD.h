@@ -1,4 +1,4 @@
-//===-------------- ESIMD.h - Driver for ESIMD lowering -------------------===//
+//===- ESIMD.h - Driver for ESIMD lowering --------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_JIT_COMPILER_RTC_ESIMD_H
-#define SYCL_JIT_COMPILER_RTC_ESIMD_H
+#pragma once
 
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 
@@ -19,5 +18,3 @@ namespace jit_compiler {
 void lowerEsimdConstructs(llvm::module_split::ModuleDesc &MD, bool PerformOpts);
 
 } // namespace jit_compiler
-
-#endif // SYCL_JIT_COMPILER_RTC_ESIMD_H

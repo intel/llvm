@@ -26,6 +26,30 @@ using command_list_unique_handle =
                     std::function<void(::ze_command_list_handle_t)>>;
 } // namespace raii
 
+struct supported_extensions_descriptor_t {
+  supported_extensions_descriptor_t(bool ZeCopyOffloadExtensionSupported,
+                                    bool ZeMutableCmdListExtentionSupported)
+      : ZeCopyOffloadExtensionSupported(ZeCopyOffloadExtensionSupported),
+        ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported) {
+  }
+  bool ZeCopyOffloadExtensionSupported;
+  bool ZeMutableCmdListExtentionSupported;
+};
+
+struct command_list_desc_t {
+  command_list_desc_t() = default;
+  command_list_desc_t(bool IsInOrder, uint32_t Ordinal, bool CopyOffloadEnable,
+                      bool Mutable = false)
+      : IsInOrder(IsInOrder), Ordinal(Ordinal),
+        CopyOffloadEnable(CopyOffloadEnable), Mutable(Mutable) {}
+  bool IsInOrder;
+  uint32_t Ordinal;
+  bool CopyOffloadEnable;
+  // The mutable command lists are not supported by immediate command lists
+  // so this field will be ignored during creation of immediate command list
+  bool Mutable;
+};
+
 struct immediate_command_list_descriptor_t {
   ze_device_handle_t ZeDevice;
   bool IsInOrder;
@@ -42,6 +66,7 @@ struct regular_command_list_descriptor_t {
   bool IsInOrder;
   uint32_t Ordinal;
   bool CopyOffloadEnabled;
+  bool Mutable;
   bool operator==(const regular_command_list_descriptor_t &rhs) const;
 };
 
@@ -55,17 +80,15 @@ struct command_list_descriptor_hash_t {
 
 struct command_list_cache_t {
   command_list_cache_t(ze_context_handle_t ZeContext,
-                       bool ZeCopyOffloadExtensionSupported);
+                       supported_extensions_descriptor_t SupportedExtensions);
 
   raii::command_list_unique_handle
-  getImmediateCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
-                          uint32_t Ordinal, bool CopyOffloadEnable,
+  getImmediateCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc,
                           ze_command_queue_mode_t Mode,
                           ze_command_queue_priority_t Priority,
                           std::optional<uint32_t> Index = std::nullopt);
   raii::command_list_unique_handle
-  getRegularCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
-                        uint32_t Ordinal, bool CopyOffloadEnable);
+  getRegularCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc);
 
   // For testing purposes
   size_t getNumImmediateCommandLists();
@@ -74,6 +97,7 @@ struct command_list_cache_t {
 private:
   ze_context_handle_t ZeContext;
   bool ZeCopyOffloadExtensionSupported;
+  bool ZeMutableCmdListExtentionSupported;
   std::unordered_map<command_list_descriptor_t,
                      std::stack<raii::ze_command_list_handle_t>,
                      command_list_descriptor_hash_t>

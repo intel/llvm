@@ -24,7 +24,7 @@ template <size_t SGSize> struct KernelFunctorWithSGSizeProp {
       Acc[0] = SG.get_local_linear_range();
   }
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::sub_group_size<SGSize>};
   }

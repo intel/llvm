@@ -28,7 +28,7 @@ namespace ur_loader {
 struct ur_adapter_manifest {
   std::string name;
   std::string library;
-  ur_adapter_backend_t backend;
+  ur_backend_t backend;
   std::vector<ur_device_type_t> device_types;
 };
 

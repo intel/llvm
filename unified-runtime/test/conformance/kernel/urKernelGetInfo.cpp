@@ -77,6 +77,31 @@ TEST_P(urKernelGetInfoTest, SuccessContext) {
   ASSERT_EQ(context, property_value);
 }
 
+TEST_P(urKernelGetInfoTest, SuccessRoundtripContext) {
+  const ur_kernel_info_t property_name = UR_KERNEL_INFO_CONTEXT;
+  size_t property_size = 0;
+
+  ur_native_handle_t native_kernel;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urKernelGetNativeHandle(kernel, &native_kernel));
+
+  ur_kernel_handle_t from_native_kernel;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urKernelCreateWithNativeHandle(
+      native_kernel, context, program, nullptr, &from_native_kernel));
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(urKernelGetInfo(from_native_kernel,
+                                                   property_name, 0, nullptr,
+                                                   &property_size),
+                                   property_name);
+  ASSERT_EQ(property_size, sizeof(ur_context_handle_t));
+
+  ur_context_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urKernelGetInfo(from_native_kernel, property_name,
+                                 property_size, &property_value, nullptr));
+
+  ASSERT_EQ(property_value, context);
+}
+
 TEST_P(urKernelGetInfoTest, SuccessProgram) {
   const ur_kernel_info_t property_name = UR_KERNEL_INFO_PROGRAM;
   size_t property_size = 0;
@@ -91,6 +116,55 @@ TEST_P(urKernelGetInfoTest, SuccessProgram) {
                                  &property_value, nullptr));
 
   ASSERT_EQ(program, property_value);
+}
+
+TEST_P(urKernelGetInfoTest, SuccessRoundtripProgram) {
+  const ur_kernel_info_t property_name = UR_KERNEL_INFO_PROGRAM;
+  size_t property_size = sizeof(ur_program_handle_t);
+
+  ur_native_handle_t native_kernel;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urKernelGetNativeHandle(kernel, &native_kernel));
+
+  ur_kernel_handle_t from_native_kernel;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urKernelCreateWithNativeHandle(
+      native_kernel, context, program, nullptr, &from_native_kernel));
+
+  ur_program_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urKernelGetInfo(from_native_kernel, property_name,
+                                 property_size, &property_value, nullptr));
+
+  ASSERT_EQ(property_value, program);
+}
+
+TEST_P(urKernelGetInfoTest, SuccessRoundtripNullProgram) {
+  const ur_kernel_info_t property_name = UR_KERNEL_INFO_PROGRAM;
+  size_t property_size = sizeof(ur_program_handle_t);
+
+  ur_native_handle_t native_kernel;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urKernelGetNativeHandle(kernel, &native_kernel));
+
+  ur_kernel_handle_t from_native_kernel;
+  auto result = urKernelCreateWithNativeHandle(native_kernel, context, nullptr,
+                                               nullptr, &from_native_kernel);
+  if (result == UR_RESULT_ERROR_INVALID_NULL_HANDLE) {
+    GTEST_SKIP() << "Implementation requires a valid program";
+  }
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(result);
+
+  ur_program_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urKernelGetInfo(from_native_kernel, property_name,
+                                 property_size, &property_value, nullptr));
+
+  // We can't assume that the two program handles are equal (since creating the
+  // link to the UR structures has been severed by going through native handle,
+  // so just check the underlying native pointers
+  ur_native_handle_t original_program;
+  ur_native_handle_t new_program;
+  ASSERT_SUCCESS(urProgramGetNativeHandle(program, &original_program));
+  ASSERT_SUCCESS(urProgramGetNativeHandle(property_value, &new_program));
+  ASSERT_EQ(original_program, new_program);
 }
 
 TEST_P(urKernelGetInfoTest, SuccessAttributes) {
@@ -109,11 +183,10 @@ TEST_P(urKernelGetInfoTest, SuccessAttributes) {
   ASSERT_TRUE(uur::stringPropertyIsValid(property_value.data(), property_size));
 
   const std::string returned_attributes = std::string(property_value.data());
-  ur_platform_backend_t backend = UR_PLATFORM_BACKEND_FORCE_UINT32;
+  ur_backend_t backend = UR_BACKEND_FORCE_UINT32;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
-  if (backend == UR_PLATFORM_BACKEND_OPENCL ||
-      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend == UR_BACKEND_OPENCL || backend == UR_BACKEND_LEVEL_ZERO) {
     // Older intel drivers don't attach any default attributes and newer
     // ones force walk order to X/Y/Z using special attribute.
     ASSERT_TRUE(returned_attributes.empty() ||
@@ -125,8 +198,6 @@ TEST_P(urKernelGetInfoTest, SuccessAttributes) {
 }
 
 TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
-
   const ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_REGS;
   size_t property_size = 0;
 
@@ -143,7 +214,7 @@ TEST_P(urKernelGetInfoTest, SuccessNumRegs) {
 }
 
 TEST_P(urKernelGetInfoTest, SuccessSpillMemSize) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::OpenCL{});
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
 
   ur_kernel_info_t property_name = UR_KERNEL_INFO_SPILL_MEM_SIZE;
   size_t property_size = 0;

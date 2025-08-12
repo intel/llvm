@@ -1,6 +1,7 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/device_binary_image.hpp>
+#include <detail/device_global_map.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/MockDeviceImage.hpp>
@@ -12,27 +13,30 @@
 class ProgramManagerExposed : public sycl::detail::ProgramManager {
 public:
   std::unordered_multimap<sycl::kernel_id,
-                          sycl::detail::RTDeviceBinaryImage *> &
+                          const sycl::detail::RTDeviceBinaryImage *> &
   getKernelID2BinImage() {
     return m_KernelIDs2BinImage;
   }
 
-  std::unordered_map<std::string, sycl::kernel_id> &getKernelName2KernelID() {
+  std::unordered_map<sycl::detail::KernelNameStrT, sycl::kernel_id> &
+  getKernelName2KernelID() {
     return m_KernelName2KernelIDs;
   }
 
-  std::unordered_map<sycl::detail::RTDeviceBinaryImage *,
+  std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<sycl::kernel_id>>> &
   getBinImage2KernelId() {
     return m_BinImg2KernelIDs;
   }
 
-  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<sycl::detail::KernelNameStrT,
+                          const sycl::detail::RTDeviceBinaryImage *> &
   getServiceKernels() {
     return m_ServiceKernels;
   }
 
-  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<std::string,
+                          const sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
     return m_ExportedSymbolImages;
   }
@@ -44,7 +48,7 @@ public:
   }
 
   std::unordered_map<std::string,
-                     std::set<sycl::detail::RTDeviceBinaryImage *>> &
+                     std::set<const sycl::detail::RTDeviceBinaryImage *>> &
   getVFSet2BinImage() {
     return m_VFSet2BinImage;
   }
@@ -57,16 +61,17 @@ public:
     return NativePrograms;
   }
 
-  std::unordered_map<
-      const sycl::detail::RTDeviceBinaryImage *,
-      std::unordered_map<std::string, sycl::detail::KernelArgMask>> &
+  std::unordered_map<const sycl::detail::RTDeviceBinaryImage *,
+                     std::unordered_map<sycl::detail::KernelNameStrT,
+                                        sycl::detail::KernelArgMask>> &
   getEliminatedKernelArgMask() {
     return m_EliminatedKernelArgMasks;
   }
 
-  std::set<std::string> &getKernelUsesAssert() { return m_KernelUsesAssert; }
+  KernelUsesAssertSet &getKernelUsesAssert() { return m_KernelUsesAssert; }
 
-  std::unordered_map<std::string, int> &getKernelImplicitLocalArgPos() {
+  std::unordered_map<sycl::detail::KernelNameStrT, int> &
+  getKernelImplicitLocalArgPos() {
     return m_KernelImplicitLocalArgPos;
   }
 
@@ -81,16 +86,7 @@ public:
     return m_Ptr2HostPipe;
   }
 
-  std::unordered_map<std::string,
-                     std::unique_ptr<sycl::detail::DeviceGlobalMapEntry>> &
-  getDeviceGlobals() {
-    return m_DeviceGlobals;
-  }
-
-  std::unordered_map<const void *, sycl::detail::DeviceGlobalMapEntry *> &
-  getPtrToDeviceGlobal() {
-    return m_Ptr2DeviceGlobal;
-  }
+  sycl::detail::DeviceGlobalMap &getDeviceGlobals() { return m_DeviceGlobals; }
 };
 
 namespace {
@@ -308,15 +304,14 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
   EXPECT_EQ(PM.getKernelImplicitLocalArgPos().size(), ExpectedCount) << Comment;
 
   {
-    EXPECT_EQ(PM.getDeviceGlobals().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(
-        PM.getDeviceGlobals().count(generateRefName("A", "DeviceGlobal")) > 0)
+    sycl::detail::DeviceGlobalMap &DeviceGlobalMap = PM.getDeviceGlobals();
+    EXPECT_EQ(DeviceGlobalMap.size(), ExpectedCount) << Comment;
+    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("A", "DeviceGlobal")) > 0)
         << Comment;
-    EXPECT_TRUE(
-        PM.getDeviceGlobals().count(generateRefName("B", "DeviceGlobal")) > 0)
+    EXPECT_TRUE(DeviceGlobalMap.count(generateRefName("B", "DeviceGlobal")) > 0)
         << Comment;
+    EXPECT_EQ(DeviceGlobalMap.getPointerMap().size(), ExpectedCount) << Comment;
   }
-  EXPECT_EQ(PM.getPtrToDeviceGlobal().size(), ExpectedCount) << Comment;
 
   {
     EXPECT_EQ(PM.getHostPipes().size(), ExpectedCount) << Comment;
@@ -379,14 +374,14 @@ TEST(ImageRemoval, NativePrograms) {
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
   auto Ctx = Queue.get_context();
-  auto ProgramA = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                       sycl::detail::getSyclObjImpl(Dev),
+  auto ProgramA = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
+                                       *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("A", "Kernel"));
-  auto ProgramB = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                       sycl::detail::getSyclObjImpl(Dev),
+  auto ProgramB = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
+                                       *sycl::detail::getSyclObjImpl(Dev),
                                        generateRefName("B", "Kernel"));
-  std::ignore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
-                                     sycl::detail::getSyclObjImpl(Dev),
+  std::ignore = PM.getBuiltURProgram(*sycl::detail::getSyclObjImpl(Ctx),
+                                     *sycl::detail::getSyclObjImpl(Dev),
                                      generateRefName("C", "Kernel"));
 
   EXPECT_EQ(PM.getNativePrograms().size(),

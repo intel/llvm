@@ -3,38 +3,58 @@ name: Reusable SYCL Windows build workflow
 on:
   workflow_call:
     inputs:
+      cxx:
+        type: string
+        required: false
+        default: "cl"
       build_cache_suffix:
         type: string
         required: false
         default: "default"
-      build_configure_extra_args:
-        type: string
-        required: false
-      changes:
-        type: string
-        description: 'Filter matches for the changed files in the PR'
-        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
-        required: false
       ref:
         type: string
         required: False
-      artifact_archive_name:
+      build_configure_extra_args:
         type: string
-        default: llvm_sycl.tar.gz
+        required: false
+      build_target:
+        type: string
+        required: false
+        default: sycl-toolchain
+
+      changes:
+        type: string
+        description: 'Filter matches for the changed files in the PR'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
+        required: false
+
+      # Artifacts:
       retention-days:
         description: 'Artifacts retention period'
         type: string
         default: 3
-      compiler:
+
+      toolchain_artifact_filename:
+        type: string
+        default: llvm_sycl.tar.gz
+
+      release_toolchain_artifact:
         type: string
         required: false
-        default: "cl"
+        description: |
+          If provided, create an additional toolchain artifact without utilities
+          used for testing in it. File name of the archive is the same as in the
+          `toolchain_artifact` above.
+
+      e2e_binaries_artifact:
+        type: string
+        required: false
 
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
-      artifact_archive_name:
-        value: ${{ inputs.artifact_archive_name }}
+      toolchain_artifact_filename:
+        value: ${{ inputs.toolchain_artifact_filename }}
 
   workflow_dispatch:
     inputs:
@@ -44,7 +64,7 @@ on:
         options:
           - "[]"
           - '[sycl]'
-          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
       build_cache_suffix:
         type: choice
         options:
@@ -52,7 +72,12 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-      artifact_archive_name:
+      build_target:
+        type: choice
+        options:
+          - "sycl-toolchain"
+          - "all"
+      toolchain_artifact_filename:
         type: choice
         options:
           - 'llvm_sycl.tar.gz'
@@ -61,12 +86,12 @@ on:
         type: choice
         options:
           - 3
-      compiler:
+      cxx:
         type: choice
         options:
           - cl
           - icx
-          
+
 permissions: read-all
 
 jobs:
@@ -80,9 +105,8 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
-      continue-on-error: true
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
@@ -96,7 +120,7 @@ jobs:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -124,18 +148,17 @@ jobs:
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
-          "-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
-          "-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
+          "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
+          "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache ^
           -DCMAKE_C_COMPILER_LAUNCHER=ccache ^
-          -DLLVM_INSTALL_UTILS=ON ^
-          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
+          -DLLVM_INSTALL_UTILS=ON
     - name: Build
       id: build
       shell: bash
       run: |
-        cmake --build build --target sycl-toolchain
+        cmake --build build --target ${{ inputs.build_target }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       shell: bash
@@ -163,7 +186,7 @@ jobs:
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build build --target check-libdevice
     - name: Generate/diff new ABI symbols
@@ -179,12 +202,27 @@ jobs:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
         retention-days: ${{ inputs.retention-days }}
-    - name: Install
+    - name: Install sycl-toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: |
+        cmake --build build --target deploy-sycl-toolchain
+
+    - name: Pack toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      run: tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
+    - name: Upload toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.release_toolchain_artifact }}
+        path: ${{ inputs.toolchain_artifact_filename }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target deploy-sycl-toolchain
         cmake --build build --target utils/FileCheck/install
         cmake --build build --target utils/count/install
         cmake --build build --target utils/not/install
@@ -198,19 +236,37 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
-        tar -czf ${{ inputs.artifact_archive_name }} -C install .
+        tar -czf ${{ inputs.toolchain_artifact_filename }} -C install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_windows_default
-        path: ${{ inputs.artifact_archive_name }}
+        path: ${{ inputs.toolchain_artifact_filename }}
         retention-days: ${{ inputs.retention-days }}
+
+    - name: Setup SYCL toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: |
+        echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Build E2E tests
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: ./devops/actions/run-tests/windows/e2e
+      with:
+        ref: ${{ inputs.ref || github.sha }}
+        testing_mode: build-only
+        target_devices: all
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        extra_lit_opts: --param sycl_build_targets="spir"
+        cxx: ${{ inputs.cxx }}
+
     - name:  Detect hung tests
       if: always()
       shell: powershell
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"

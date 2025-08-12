@@ -32,12 +32,18 @@ struct MsanShadowMemory {
   virtual ur_result_t Destory() = 0;
 
   virtual uptr MemToShadow(uptr Ptr) = 0;
+  virtual uptr MemToOrigin(uptr Ptr) = 0;
 
   virtual ur_result_t
   EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
                       uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) = 0;
+
+  virtual ur_result_t EnqueuePoisonShadowWithOrigin(
+      ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
+      uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
+      ur_event_handle_t *OutEvent = nullptr) = 0;
 
   virtual ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo>) {
     return UR_RESULT_SUCCESS;
@@ -47,8 +53,8 @@ struct MsanShadowMemory {
                                        uptr &Begin, uptr &End) = 0;
 
   virtual ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue,
-                                         uint32_t NumWG, uptr &Begin,
-                                         uptr &End) = 0;
+                                         uint32_t NumSG, uptr *&Base,
+                                         uptr &Begin, uptr &End) = 0;
 
   ur_context_handle_t Context{};
 
@@ -86,12 +92,18 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
   ur_result_t Destory() override;
 
   uptr MemToShadow(uptr Ptr) override;
+  uptr MemToOrigin(uptr Ptr) override;
 
   ur_result_t
   EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
                       uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) override;
+
+  ur_result_t EnqueuePoisonShadowWithOrigin(
+      ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
+      uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
+      ur_event_handle_t *OutEvent = nullptr) override;
 
   ur_result_t AllocLocalShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
                                uptr &End) override {
@@ -100,8 +112,10 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
     return UR_RESULT_SUCCESS;
   }
 
-  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
-                                 uptr &End) override {
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr *&,
+                                 uptr &Begin, uptr &End) override {
+    // This is necessary as msan_rtl use it to check whether detecting private
+    // is enabled
     Begin = ShadowBegin;
     End = ShadowEnd;
     return UR_RESULT_SUCCESS;
@@ -122,22 +136,29 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) override final;
 
+  ur_result_t EnqueuePoisonShadowWithOrigin(
+      ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value, uint32_t Origin,
+      uint32_t NumEvents = 0, const ur_event_handle_t *EventWaitList = nullptr,
+      ur_event_handle_t *OutEvent = nullptr) override;
+
   ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
 
   ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                uptr &Begin, uptr &End) override final;
 
   ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint32_t NumWG,
-                                 uptr &Begin, uptr &End) override final;
+                                 uptr *&Base, uptr &Begin,
+                                 uptr &End) override final;
 
   virtual size_t GetShadowSize() = 0;
 
   virtual uptr GetStartAddress() { return 0; }
 
 private:
-  ur_result_t EnqueueMapShadow(ur_queue_handle_t Queue, uptr Ptr, uptr Size,
-                               std::vector<ur_event_handle_t> &EventWaitList,
-                               ur_event_handle_t *OutEvent);
+  ur_result_t
+  EnqueueVirtualMemMap(uptr VirtualBegin, uptr VirtualEnd,
+                       std::vector<ur_event_handle_t> &EventWaitList,
+                       ur_event_handle_t *OutEvent);
 
   std::unordered_map<
       uptr, std::pair<ur_physical_mem_handle_t,
@@ -146,25 +167,33 @@ private:
   ur_mutex VirtualMemMapsMutex;
 
   uptr LocalShadowOffset = 0;
-
   uptr PrivateShadowOffset = 0;
+  uptr PrivateBasePtr = 0;
 };
 
 // clang-format off
 /// Shadow Memory layout of GPU PVC device
 ///
 /// USM Allocation Range (56 bits)
-///   Host   USM : 0x0000_0000_0000_0000 ~ 0x00ff_ffff_ffff_ffff
-///   Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
+///   Host   USM : 0x00ff_f000_0000_0000 ~ 0x00ff_ffff_ffff_ffff
+///   Shared USM : 0x0000_7000_0000_0000 ~ 0x0000_7fff_ffff_ffff
 ///   Device USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
 ///
 /// Shadow Memory Mapping
-///   We support device USM only, because it's hard to do shadow propagation on host/shared USM which can be accessed by host code.
-///   MSan needs to reserve half of device USM as shadow memory and does 1:1 mapping.
-///     0xff00_0000_0000_0000 - MSAN_SHADOW_BASE      : "app-1"
-///     MSAN_SHADOW_BASE      - MSAN_SHADOW_END1      : "shadow-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_BASE == MSAN_SHADOW_BASE - 0xff00_0000_0000_0000)
-///     MSAN_SHADOW_END1      - MSAN_SHADOW_END2      : "shadow-2" (MSAN_SHADOW_END2 - MSAN_SHADOW_END1 == 0xff01_0000_0000_0000 - MSAN_SHADOW_END2)
-///     MSAN_SHADOW_END2      - 0xff01_0000_0000_0000 : "app-2"
+///     0xff00_0000_0000_0000 - MSAN_SHADOW_BASE       : "invalid"
+///     MSAN_SHADOW_BASE      - MSAN_SHADOW_END1       : "shadow-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_BASE = 0x2000_0000_0000)
+///     MSAN_SHADOW_END1      - MSAN_SHADOW_END2       : "origin-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_END2 = 0x2000_0000_0000)
+///     (gap)                                          :                                                  (0x1000_0000_0000)
+///     MSAN_SHADOW_END3      - MSAN_SHADOW_END4       : "origin-2" (MSAN_SHADOW_END4 - MSAN_SHADOW_END3 = 0x5000_0000_0000)
+///     MSAN_SHADOW_END4      - MSAN_SHADOW_END5       : "shadow-2" (MSAN_SHADOW_END5 - MSAN_SHADOW_END4 = 0x5000_0000_0000)
+///     MSAN_SHADOW_END5      - 0xff00_ffff_ffff_ffff  : "app"      (MSAN_SHADOW_END5 - MSAN_SHADOW_BASE = 0xF000_0000_0000)
+///
+///  here,
+///    - We assume "invalid" is not usable for user application (by observation)    
+///    - "shadow-1" and "origin-1" is use for host/shared USM
+///    - "shadow-2" and "origin-2" is used for device USM
+///    - "app" is device USM, the size of "app" is less than 0x5000_0000_0000_0000, so that it can be fully mapped to its shadow
+///    - "gap" is necessary, so that "app" can be mapped to its shadow
 // clang-format on
 struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
@@ -173,8 +202,9 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
 
   uptr MemToShadow(uptr Ptr) override;
+  uptr MemToOrigin(uptr Ptr) override;
 
-  size_t GetShadowSize() override { return 0x8000'0000'0000ULL; }
+  size_t GetShadowSize() override { return 0xf000'0000'0000ULL; }
 
   uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };
@@ -196,6 +226,7 @@ struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
   static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 48; }
 
   uptr MemToShadow(uptr Ptr) override;
+  uptr MemToOrigin(uptr Ptr) override;
 
   size_t GetShadowSize() override { return 0x4000'0000'0000ULL; }
 };

@@ -14,8 +14,7 @@
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
 // RUN: %clangxx -Wno-error=ignored-attributes %sycl_include -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -Xclang -verify-ignore-unexpected=note,warning %if preview-mode %{-Wno-unused-command-line-argument%}
-// RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out | FileCheck %s
-// CHECK: Passed
+// RUN: env SYCL_USE_KERNEL_SPV=%t.spv %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -45,11 +44,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (data == 6) {
-    std::cout << "Passed\n";
-    return 0;
-  } else {
-    std::cout << "Failed: " << data << "!= 6(gold)\n";
+  if (data != 6) {
+    std::cerr << "Failed: " << data << "!= 6(gold)\n";
     return 1;
   }
+
+  return 0;
 }

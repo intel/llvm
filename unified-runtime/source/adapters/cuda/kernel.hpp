@@ -17,6 +17,7 @@
 #include <cassert>
 #include <numeric>
 
+#include "common/ur_ref_count.hpp"
 #include "program.hpp"
 
 /// Implementation of a UR Kernel for CUDA
@@ -34,7 +35,7 @@
 /// A compiler pass converts the UR API local memory model into the
 /// CUDA shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : ur::cuda::handle_base {
   using native_type = CUfunction;
 
   native_type Function;
@@ -42,7 +43,7 @@ struct ur_kernel_handle_t_ {
   std::string Name;
   ur_context_handle_t Context;
   ur_program_handle_t Program;
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
@@ -253,29 +254,48 @@ struct ur_kernel_handle_t_ {
   ur_kernel_handle_t_(CUfunction Func, CUfunction FuncWithOffsetParam,
                       const char *Name, ur_program_handle_t Program,
                       ur_context_handle_t Context)
-      : Function{Func}, FunctionWithOffsetParam{FuncWithOffsetParam},
-        Name{Name}, Context{Context}, Program{Program}, RefCount{1} {
+      : handle_base(), Function{Func},
+        FunctionWithOffsetParam{FuncWithOffsetParam}, Name{Name},
+        Context{Context}, Program{Program} {
     urProgramRetain(Program);
     urContextRetain(Context);
-    /// Note: this code assumes that there is only one device per context
-    ur_result_t RetError = urKernelGetGroupInfo(
-        this, Program->getDevice(),
-        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
-    (void)RetError;
-    assert(RetError == UR_RESULT_SUCCESS);
-    /// Note: this code assumes that there is only one device per context
-    RetError = urKernelGetGroupInfo(
-        this, Program->getDevice(),
-        UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
-        sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
-    assert(RetError == UR_RESULT_SUCCESS);
-    /// Note: this code assumes that there is only one device per context
-    RetError = urKernelGetGroupInfo(
-        this, Program->getDevice(),
-        UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE,
-        sizeof(MaxLinearThreadsPerBlock), &MaxLinearThreadsPerBlock, nullptr);
-    assert(RetError == UR_RESULT_SUCCESS);
+
+    // Get reqd work group size
+    const auto &ReqdWGSizeMDMap = Program->KernelReqdWorkGroupSizeMD;
+    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(Name);
+    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
+      const auto ReqdWGSize = ReqdWGSizeMD->second;
+      ReqdThreadsPerBlock[0] = std::get<0>(ReqdWGSize);
+      ReqdThreadsPerBlock[1] = std::get<1>(ReqdWGSize);
+      ReqdThreadsPerBlock[2] = std::get<2>(ReqdWGSize);
+    } else {
+      ReqdThreadsPerBlock[0] = 0;
+      ReqdThreadsPerBlock[1] = 0;
+      ReqdThreadsPerBlock[2] = 0;
+    }
+
+    // Get max work group size
+    const auto &MaxWGSizeMDMap = Program->KernelMaxWorkGroupSizeMD;
+    const auto MaxWGSizeMD = MaxWGSizeMDMap.find(Name);
+    if (MaxWGSizeMD != MaxWGSizeMDMap.end()) {
+      const auto MaxWGSize = MaxWGSizeMD->second;
+      MaxThreadsPerBlock[0] = std::get<0>(MaxWGSize);
+      MaxThreadsPerBlock[1] = std::get<1>(MaxWGSize);
+      MaxThreadsPerBlock[2] = std::get<2>(MaxWGSize);
+    } else {
+      MaxThreadsPerBlock[0] = 0;
+      MaxThreadsPerBlock[1] = 0;
+      MaxThreadsPerBlock[2] = 0;
+    }
+
+    // Get max linear work group size
+    MaxLinearThreadsPerBlock = 0;
+    const auto MaxLinearWGSizeMD =
+        Program->KernelMaxLinearWorkGroupSizeMD.find(Name);
+    if (MaxLinearWGSizeMD != Program->KernelMaxLinearWorkGroupSizeMD.end()) {
+      MaxLinearThreadsPerBlock = MaxLinearWGSizeMD->second;
+    }
+
     UR_CHECK_ERROR(
         cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS, Func));
   }
@@ -284,12 +304,6 @@ struct ur_kernel_handle_t_ {
     urProgramRelease(Program);
     urContextRelease(Context);
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   native_type get() const noexcept { return Function; };
 

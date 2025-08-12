@@ -5,7 +5,7 @@
 // RUN: FileCheck %s --check-prefix=CHECK-EXPECTED-ERROR --input-file %t.out
 // CHECK-EXPECTED-ERROR: error: backend compiler failed build
 
-// XFAIL: !arch-intel_gpu_bmg_g21
+// XFAIL: *
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16416
 
 #include <stdio.h>

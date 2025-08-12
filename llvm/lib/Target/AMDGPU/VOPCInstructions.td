@@ -112,8 +112,8 @@ multiclass VOPC_Profile_t16<list<SchedReadWrite> sched, ValueType vt0, ValueType
     let Src1Mod = getSrcMod<Src1VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 0/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 0/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 0/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 0/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 0/*IsFake16*/>.ret;
   }
   def _fake16: VOPC_Profile<sched, vt0, vt1> {
     let IsTrue16 = 1;
@@ -138,8 +138,8 @@ multiclass VOPC_Profile_t16<list<SchedReadWrite> sched, ValueType vt0, ValueType
     let Src1Mod = getSrcMod<Src1VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 1/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 1/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 1/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 1/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 1/*IsFake16*/>.ret;
   }
 }
 
@@ -184,8 +184,8 @@ multiclass VOPC_NoSdst_Profile_t16<list<SchedReadWrite> sched, ValueType vt0, Va
     let Src1Mod = getSrcMod<Src1VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 0/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 0/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 0/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 0/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 0/*IsFake16*/>.ret;
   }
   def _fake16 : VOPC_NoSdst_Profile<sched, vt0, vt1> {
     let IsTrue16 = 1;
@@ -208,8 +208,8 @@ multiclass VOPC_NoSdst_Profile_t16<list<SchedReadWrite> sched, ValueType vt0, Va
     let Src1Mod = getSrcMod<Src1VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 1/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 1/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 1/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 1/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 1/*IsFake16*/>.ret;
   }
 }
 
@@ -389,10 +389,10 @@ multiclass VOPC_Pseudos <string opName,
     let SchedRW = P.Schedule;
     let isCompare = 1;
     let isCommutable = 1;
-    let AsmMatchConverter =
-        !if (P.HasOpSel, "cvtVOP3OpSel",
-             !if (!or(P.HasModifiers, P.HasOMod, P.HasIntClamp), "cvtVOP3",
-                  ""));
+    let AsmMatchConverter = !cond(
+        P.HasOpSel : "cvtVOP3OpSel",
+        !or(P.HasModifiers, P.HasOMod, P.HasIntClamp) : "cvtVOP3",
+        1 : "");
   }
 
   if P.HasExtSDWA then
@@ -454,6 +454,10 @@ multiclass VOPCX_Pseudos <string opName,
     let isCommutable = 1;
     let SubtargetPredicate = HasNoSdstCMPX;
     let IsVCMPX = 1;
+    let AsmMatchConverter = !cond(
+        P_NoSDst.HasOpSel : "cvtVOP3OpSel",
+        !or(P_NoSDst.HasModifiers, P_NoSDst.HasOMod, P_NoSDst.HasIntClamp) : "cvtVOP3",
+        1 : "");
   }
 
   if P_NoSDst.HasExtSDWA then
@@ -842,7 +846,7 @@ defm V_CMP_T_U32 : VOPC_I32 <"v_cmp_t_u32">;
 defm V_CMPX_F_U32 : VOPCX_I32 <"v_cmpx_f_u32">;
 defm V_CMPX_LT_U32 : VOPCX_I32 <"v_cmpx_lt_u32", "v_cmpx_gt_u32">;
 defm V_CMPX_EQ_U32 : VOPCX_I32 <"v_cmpx_eq_u32">;
-defm V_CMPX_LE_U32 : VOPCX_I32 <"v_cmpx_le_u32", "v_cmpx_le_u32">;
+defm V_CMPX_LE_U32 : VOPCX_I32 <"v_cmpx_le_u32", "v_cmpx_ge_u32">;
 defm V_CMPX_GT_U32 : VOPCX_I32 <"v_cmpx_gt_u32">;
 defm V_CMPX_NE_U32 : VOPCX_I32 <"v_cmpx_ne_u32">;
 defm V_CMPX_GE_U32 : VOPCX_I32 <"v_cmpx_ge_u32">;
@@ -925,8 +929,8 @@ multiclass VOPC_Class_Profile_t16<list<SchedReadWrite> sched> {
     let Src1Mod = getSrcMod<Src1VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 0/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 0/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 0/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 0/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 0/*IsFake16*/>.ret;
   }
   def _fake16 : VOPC_Class_Profile_Base<sched, f16, f16> {
     let IsTrue16 = 1;
@@ -951,8 +955,8 @@ multiclass VOPC_Class_Profile_t16<list<SchedReadWrite> sched> {
     let Src1Mod = getSrcMod<Src1VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 1/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 1/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 1/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 1/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 1/*IsFake16*/>.ret;
   }
 }
 
@@ -994,8 +998,8 @@ multiclass VOPC_Class_NoSdst_Profile_t16<list<SchedReadWrite> sched> {
     let Src1Mod = getSrcMod<Src1VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 1/*IsTrue16*/, 0/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 0/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 0/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 0/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 0/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 0/*IsFake16*/>.ret;
   }
   def _fake16 : VOPC_Class_NoSdst_Profile<sched, f16, f16> {
     let IsTrue16 = 1;
@@ -1018,8 +1022,8 @@ multiclass VOPC_Class_NoSdst_Profile_t16<list<SchedReadWrite> sched> {
     let Src1Mod = getSrcMod<Src1VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src2Mod = getSrcMod<Src2VT, 0/*IsTrue16*/, 1/*IsFake16*/>.ret;
     let Src0ModVOP3DPP = getSrc0ModVOP3DPP<Src0VT, DstVT, 1/*IsFake16*/>.ret;
-    let Src1ModVOP3DPP = getSrcModVOP3DPP<Src1VT, 1/*IsFake16*/>.ret;
-    let Src2ModVOP3DPP = getSrcModVOP3DPP<Src2VT, 1/*IsFake16*/>.ret;
+    let Src1ModVOP3DPP = getSrcModVOP3VC<Src1VT, 1/*IsFake16*/>.ret;
+    let Src2ModVOP3DPP = getSrcModVOP3VC<Src2VT, 1/*IsFake16*/>.ret;
   }
 }
 
@@ -1079,6 +1083,10 @@ multiclass VOPC_Class_Pseudos <string opName, VOPC_Profile p, bit DefExec,
              VCMPXNoSDstTable<1, opName#"_e64"> {
     let Defs = !if(DefExec, [EXEC], []);
     let SchedRW = p.Schedule;
+    let AsmMatchConverter = !cond(
+        p.HasOpSel : "cvtVOP3OpSel",
+        !or(p.HasModifiers, p.HasOMod, p.HasIntClamp) : "cvtVOP3",
+        1 : "");
   }
 
   if p.HasExtSDWA then
@@ -1127,6 +1135,10 @@ multiclass VOPCX_Class_Pseudos <string opName,
     let Defs = [EXEC];
     let SchedRW = P_NoSDst.Schedule;
     let SubtargetPredicate = HasNoSdstCMPX;
+    let AsmMatchConverter = !cond(
+       P_NoSDst.HasOpSel : "cvtVOP3OpSel",
+       !or(P_NoSDst.HasModifiers, P_NoSDst.HasOMod, P_NoSDst.HasIntClamp) : "cvtVOP3",
+       1 : "");
   }
 
   if P_NoSDst.HasExtSDWA then

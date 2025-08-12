@@ -6,14 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} env SYCL_UR_TRACE=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -38,8 +34,7 @@ int test_lifetimes() {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source "
                  "kernel bundle extension: "
@@ -52,14 +47,15 @@ int test_lifetimes() {
       ctx, syclex::source_language::sycl, SYCLSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
-  // CHECK: urProgramCreateWithIL{{.*}}phProgram{{.*}}([[PROG1:.*]]))
+  // Cuda/Hip programs will be created with Binary, spirv IL.
+  // CHECK: urProgramCreateWith{{IL|Binary}}{{.*}}phProgram{{.*}}([[PROG1:.*]]))
 
   {
     std::cout << "Scope1\n";
     // CHECK: Scope1
     exe_kb kbExe2 = syclex::build(kbSrc);
     // kbExe2 goes out of scope; its kernels are removed from program mananager.
-    // CHECK: urProgramCreateWithIL{{.*}}phProgram{{.*}}([[PROG2:.*]]))
+    // CHECK: urProgramCreateWith{{IL|Binary}}{{.*}}phProgram{{.*}}([[PROG2:.*]]))
     // CHECK: urProgramRelease{{.*}}[[PROG2]]
   }
   std::cout << "End Scope1\n";

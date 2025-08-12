@@ -34,8 +34,8 @@ TEST_P(urProgramBuildTest, BuildFailure) {
 
   ur_program_handle_t program = nullptr;
   std::shared_ptr<std::vector<char>> il_binary;
-  uur::KernelsEnvironment::instance->LoadSource("build_failure", platform,
-                                                il_binary);
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "build_failure", platform, il_binary));
   if (!il_binary) {
     // The build failure we are testing for happens at SYCL compile time on
     // AMD and Nvidia, so no binary exists to check for a build failure
@@ -46,11 +46,10 @@ TEST_P(urProgramBuildTest, BuildFailure) {
   // TODO: This seems to fail on opencl/device combination used in the Github
   // runners (`2023.16.12.0.12_195853.xmain-hotfix`). It segfaults, so we just
   // skip the test so other tests can run
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_platform_backend_t), &backend,
-                                   nullptr));
-  if (backend == UR_PLATFORM_BACKEND_OPENCL) {
+                                   sizeof(ur_backend_t), &backend, nullptr));
+  if (backend == UR_BACKEND_OPENCL) {
     GTEST_SKIP() << "Skipping opencl build failure test - segfaults on CI";
   }
 

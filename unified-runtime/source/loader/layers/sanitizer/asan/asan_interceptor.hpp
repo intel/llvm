@@ -16,10 +16,12 @@
 #include "asan_allocator.hpp"
 #include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
+#include "asan_quarantine.hpp"
 #include "asan_shadow.hpp"
 #include "asan_statistics.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_common/sanitizer_options.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -31,8 +33,6 @@
 
 namespace ur_sanitizer_layer {
 namespace asan {
-
-class Quarantine;
 
 struct AllocInfoList {
   std::vector<std::shared_ptr<AllocInfo>> List;
@@ -143,12 +143,22 @@ struct ContextInfo {
   std::vector<ur_device_handle_t> DeviceList;
   std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
 
+  ur_shared_mutex InternalQueueMapMutex;
+  std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
+      InternalQueueMap;
+
+  std::optional<Quarantine> m_Quarantine;
+
   AsanStatsWrapper Stats;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Context.pfnRetain(Context);
     assert(Result == UR_RESULT_SUCCESS);
+    if (getContext()->Options.MaxQuarantineSizeMB) {
+      m_Quarantine.emplace(getContext()->Options.MaxQuarantineSizeMB * 1024 *
+                           1024);
+    }
   }
 
   ~ContextInfo();
@@ -163,6 +173,8 @@ struct ContextInfo {
   }
 
   ur_usm_pool_handle_t getUSMPool();
+
+  ur_queue_handle_t getInternalQueue(ur_device_handle_t);
 };
 
 struct AsanRuntimeDataWrapper {
@@ -185,8 +197,9 @@ struct AsanRuntimeDataWrapper {
           Context, Device, nullptr, nullptr, sizeof(AsanRuntimeData),
           (void **)&DevicePtr);
       if (Result != UR_RESULT_SUCCESS) {
-        getContext()->logger.error(
-            "Failed to alloc device usm for asan runtime data: {}", Result);
+        UR_LOG_L(getContext()->logger, ERR,
+                 "Failed to alloc device usm for asan runtime data: {}",
+                 Result);
       }
     }
     return DevicePtr;
@@ -309,7 +322,7 @@ public:
     if (m_Adapters.find(Adapter) != m_Adapters.end()) {
       return UR_RESULT_SUCCESS;
     }
-    UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+    UR_CALL(getContext()->urDdiTable.Adapter.pfnRetain(Adapter));
     m_Adapters.insert(Adapter);
     return UR_RESULT_SUCCESS;
   }
@@ -344,7 +357,7 @@ public:
 
   void exitWithErrors() {
     m_NormalExit = false;
-    exit(1);
+    std::abort();
   }
 
   bool isNormalExit() { return m_NormalExit; }
@@ -395,8 +408,6 @@ private:
   /// Assumption: all USM chunks are allocated in one VA
   AllocationMap m_AllocationMap;
   ur_shared_mutex m_AllocationMapMutex;
-
-  std::unique_ptr<Quarantine> m_Quarantine;
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;

@@ -10,10 +10,10 @@
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 
-__CLC_NVVM_ATOMIC(int, i, int, i, xor, _Z17__spirv_AtomicXor)
-__CLC_NVVM_ATOMIC(long, l, long, l, xor, _Z17__spirv_AtomicXor)
-__CLC_NVVM_ATOMIC(unsigned int, j, int, i, xor, _Z17__spirv_AtomicXor)
-__CLC_NVVM_ATOMIC(unsigned long, m, long, l, xor, _Z17__spirv_AtomicXor)
+__CLC_NVVM_ATOMIC(int, int, i, xor, __spirv_AtomicXor)
+__CLC_NVVM_ATOMIC(long, long, l, xor, __spirv_AtomicXor)
+__CLC_NVVM_ATOMIC(unsigned int, int, i, xor, __spirv_AtomicXor)
+__CLC_NVVM_ATOMIC(unsigned long, long, l, xor, __spirv_AtomicXor)
 
 #undef __CLC_NVVM_ATOMIC_TYPES
 #undef __CLC_NVVM_ATOMIC

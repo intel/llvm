@@ -14,10 +14,17 @@
 #pragma once
 
 #include "sanitizer_common/sanitizer_libdevice.hpp"
+#include <cstddef>
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 namespace ur_sanitizer_layer {
 #endif // !__SPIR__ && !__SPIRV__
+
+constexpr unsigned MSAN_ORIGIN_GRANULARITY = 4U;
+
+constexpr uint32_t MSAN_MAX_WG_LOCAL = 1024;
+
+constexpr uint32_t MSAN_MAX_SG_PRIVATE = 32;
 
 struct MsanErrorReport {
   int Flag = 0;
@@ -37,20 +44,21 @@ struct MsanErrorReport {
 
   uint32_t AccessSize = 0;
   ErrorType ErrorTy = ErrorType::UNKNOWN;
-  uintptr_t Origin;
+  uint32_t Origin;
 };
 
 struct MsanLocalArgsInfo {
   uint64_t Size = 0;
 };
 
-struct MsanLaunchInfo {
+struct MsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
   uintptr_t GlobalShadowOffsetEnd = 0;
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
 
+  uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;
   uintptr_t PrivateShadowOffsetEnd = 0;
 

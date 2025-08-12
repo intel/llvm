@@ -9,11 +9,13 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
-#include "memory.hpp"
 #include <unordered_set>
 
-struct ur_kernel_handle_t_ : _ur_object {
+#include "common.hpp"
+#include "common/ur_ref_count.hpp"
+#include "memory.hpp"
+
+struct ur_kernel_handle_t_ : ur_object {
   ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
       : Context{nullptr}, Program{Program}, ZeKernel{nullptr},
         SubmissionsCount{0}, MemAllocs{} {
@@ -106,6 +108,8 @@ struct ur_kernel_handle_t_ : _ur_object {
   // Cache of the kernel properties.
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
   ZeCache<std::string> ZeKernelName;
+
+  ur::RefCount RefCount;
 };
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,

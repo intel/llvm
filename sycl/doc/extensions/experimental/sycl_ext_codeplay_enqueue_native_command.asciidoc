@@ -139,8 +139,10 @@ implementation supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|Initial version defining `handler::ext_codeplay_enqueue_native_command()`.
+
+|2
+|Addition of `interop_handler` methods for `sycl_ext_oneapi_graph` integration.
 |===
 
 === Additions to handler class
@@ -191,6 +193,11 @@ _{endnote}_]
 This section defines the interaction with the
 link:../experimental/sycl_ext_oneapi_graph.asciidoc[sycl_ext_oneapi_graph]
 extension.
+
+The APIs defined in this section of the extension specification are only
+available from version 2 of the extension. Usage of the APIs can be guarded in
+user code by checking the value of the <<feature-test-macro,
+feature test macro>>.
 
 The `interopCallable` object will be invoked during `command_graph::finalize()`
 when the backend object for the graph is available to give to the user as a

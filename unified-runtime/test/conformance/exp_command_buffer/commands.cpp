@@ -83,6 +83,10 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferCopyRectExp) {
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadExp) {
+  // No buffer read command in cl_khr_command_buffer
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   std::array<uint32_t, elements> host_data{};
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadExp(
       cmd_buf_handle, buffers[0], 0, allocation_size, host_data.data(), 0,
@@ -90,6 +94,10 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadExp) {
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadRectExp) {
+  // No buffer read command in cl_khr_command_buffer
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   std::array<uint32_t, elements> host_data{};
   ur_rect_offset_t origin{0, 0, 0};
   ur_rect_region_t region{4, 4, 1};
@@ -99,6 +107,10 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadRectExp) {
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferWriteExp) {
+  // No buffer write command in cl_khr_command_buffer
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   std::array<uint32_t, elements> host_data{};
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferWriteExp(
       cmd_buf_handle, buffers[0], 0, allocation_size, host_data.data(), 0,
@@ -107,6 +119,10 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferWriteExp) {
 
 TEST_P(urCommandBufferCommandsTest,
        urCommandBufferAppendMemBufferWriteRectExp) {
+  // No buffer write command in cl_khr_command_buffer
+  // See https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   std::array<uint32_t, elements> host_data{};
   ur_rect_offset_t origin{0, 0, 0};
   ur_rect_region_t region{4, 4, 1};
@@ -123,12 +139,18 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferFillExp) {
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
+  // No Prefetch command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
       cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr, 0,
       nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMAdviseExp) {
+  // No advise command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendUSMAdviseExp(
       cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr, 0,
       nullptr, nullptr, nullptr, nullptr));
@@ -210,4 +232,30 @@ TEST_P(urCommandBufferAppendKernelLaunchExpTest, FinalizeTwice) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   EXPECT_EQ_RESULT(urCommandBufferFinalizeExp(cmd_buf_handle),
                    UR_RESULT_ERROR_INVALID_OPERATION);
+}
+
+TEST_P(urCommandBufferAppendKernelLaunchExpTest, DuplicateSyncPoint) {
+  ur_exp_command_buffer_sync_point_t sync_point;
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+      cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
+      &local_size, 0, nullptr, 0, nullptr, 0, nullptr, &sync_point, nullptr,
+      nullptr));
+
+  // Test passing redundant sync-points
+  ur_exp_command_buffer_sync_point_t sync_points[2] = {sync_point, sync_point};
+  ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+      cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
+      &local_size, 0, nullptr, 2, sync_points, 0, nullptr, nullptr, nullptr,
+      nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+  int32_t *ptrZ = static_cast<int32_t *>(shared_ptrs[0]);
+  for (size_t i = 0; i < global_size; i++) {
+    uint32_t result = (A * i) + (i * 2);
+    ASSERT_EQ(result, ptrZ[i]);
+  }
 }

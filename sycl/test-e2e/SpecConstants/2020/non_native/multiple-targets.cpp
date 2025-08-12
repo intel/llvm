@@ -1,4 +1,4 @@
-// REQUIRES: opencl-aot, cpu, target-spir
+// REQUIRES: opencl-aot, cpu, target-spir, opencl-cpu-rt
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64 %S/Inputs/common.cpp -o %t_spv_cpu.out
 // RUN: %{run} %t_spv_cpu.out

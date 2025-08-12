@@ -50,6 +50,14 @@ T createSyclObjFromImpl(
   return T(ImplObj);
 }
 
+template <class T>
+T createSyclObjFromImpl(
+    std::add_lvalue_reference_t<typename std::remove_reference_t<
+        decltype(getSyclObjImpl(std::declval<T>()))>::element_type>
+        ImplRef) {
+  return createSyclObjFromImpl<T>(ImplRef.shared_from_this());
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

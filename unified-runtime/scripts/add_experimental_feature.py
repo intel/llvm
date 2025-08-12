@@ -1,11 +1,8 @@
-"""
-Copyright (C) 2023 Intel Corporation
-
-Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
-See LICENSE.TXT
-SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-"""
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
 import sys
@@ -37,7 +34,6 @@ def get_user_name_email_from_git_config():
 
 
 def main():
-
     argParser = argparse.ArgumentParser()
     argParser.add_argument(
         "name", help="must be lowercase and kebab case i.e. command-buffer", type=str

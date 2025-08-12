@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -7,10 +7,10 @@ import re
 import shutil
 from utils.utils import git_clone
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
-from .oneapi import get_oneapi
+from utils.oneapi import get_oneapi
 import shutil
 
 import os
@@ -18,38 +18,29 @@ import os
 
 class VelocityBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
 
     def name(self) -> str:
         return "Velocity Bench"
 
-    def setup(self):
+    def git_url(self) -> str:
+        return "https://github.com/oneapi-src/Velocity-Bench/"
+
+    def git_hash(self) -> str:
+        return "b22215c16f789100449c34bf4eaa3fb178983d69"
+
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
         self.repo_path = git_clone(
             self.directory,
             "velocity-bench-repo",
-            "https://github.com/oneapi-src/Velocity-Bench/",
-            "b22215c16f789100449c34bf4eaa3fb178983d69",
+            self.git_url(),
+            self.git_hash(),
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda":
-            return [
-                Hashtable(self),
-                Bitcracker(self),
-                CudaSift(self),
-                QuickSilver(self),
-                SobelFilter(self),
-            ]
-
         return [
             Hashtable(self),
             Bitcracker(self),
@@ -71,12 +62,30 @@ class VelocityBase(Benchmark):
         self.bin_name = bin_name
         self.unit = unit
 
+    def enabled(self) -> bool:
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return self.bench_name in [
+                "hashtable",
+                "bitcracker",
+                "cudaSift",
+                "QuickSilver",
+                "sobel_filter",
+            ]
+        return True
+
     def download_deps(self):
         return
 
     def extra_cmake_args(self) -> list[str]:
         if options.ur_adapter == "cuda":
             return [f"-DUSE_NVIDIA_BACKEND=YES", f"-DUSE_SM=80"]
+        if options.ur_adapter == "hip":
+            return [
+                f"-DUSE_AMD_BACKEND=YES",
+                f"-DUSE_AMDHIP_BACKEND={options.hip_arch}",
+            ]
         return []
 
     def ld_libraries(self) -> list[str]:
@@ -101,7 +110,7 @@ class VelocityBase(Benchmark):
 
         run(configure_command, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
         run(
-            f"cmake --build {build_path} -j",
+            f"cmake --build {build_path} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.ld_libraries(),
         )
@@ -115,7 +124,13 @@ class VelocityBase(Benchmark):
     def parse_output(self, stdout: str) -> float:
         raise NotImplementedError()
 
-    def run(self, env_vars) -> list[Result]:
+    def description(self) -> str:
+        return ""
+
+    def get_tags(self):
+        return ["SYCL", "application"]
+
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -123,7 +138,12 @@ class VelocityBase(Benchmark):
         ]
         command += self.bin_args()
 
-        result = self.run_bench(command, env_vars, ld_library=self.ld_libraries())
+        result = self.run_bench(
+            command,
+            env_vars,
+            ld_library=self.ld_libraries(),
+            run_unitrace=run_unitrace,
+        )
 
         return [
             Result(
@@ -131,8 +151,9 @@ class VelocityBase(Benchmark):
                 value=self.parse_output(result),
                 command=command,
                 env=env_vars,
-                stdout=result,
                 unit=self.unit,
+                git_url=self.vb.git_url(),
+                git_hash=self.vb.git_hash(),
             )
         ]
 
@@ -146,6 +167,12 @@ class Hashtable(VelocityBase):
 
     def name(self):
         return "Velocity-Bench Hashtable"
+
+    def description(self) -> str:
+        return (
+            "Measures hash table search performance using an efficient lock-free algorithm with linear probing. "
+            "Reports throughput in millions of keys processed per second. Higher values indicate better performance."
+        )
 
     def bin_args(self) -> list[str]:
         return ["--no-verify"]
@@ -162,6 +189,9 @@ class Hashtable(VelocityBase):
                 "{self.__class__.__name__}: Failed to parse keys per second from benchmark output."
             )
 
+    def get_tags(self):
+        return ["SYCL", "application", "throughput"]
+
 
 class Bitcracker(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -169,6 +199,13 @@ class Bitcracker(VelocityBase):
 
     def name(self):
         return "Velocity-Bench Bitcracker"
+
+    def description(self) -> str:
+        return (
+            "Password-cracking application for BitLocker-encrypted memory units. "
+            "Uses dictionary attack to find user or recovery passwords. "
+            "Measures total time required to process 60000 passwords."
+        )
 
     def bin_args(self) -> list[str]:
         self.data_path = os.path.join(self.vb.repo_path, "bitcracker", "hash_pass")
@@ -193,6 +230,9 @@ class Bitcracker(VelocityBase):
                 "{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
+    def get_tags(self):
+        return ["SYCL", "application", "throughput"]
+
 
 class SobelFilter(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -204,10 +244,18 @@ class SobelFilter(VelocityBase):
             "https://github.com/oneapi-src/Velocity-Bench/raw/main/sobel_filter/res/sobel_filter_data.tgz?download=",
             "sobel_filter_data.tgz",
             untar=True,
+            checksum="7fc62aa729792ede80ed8ae70fb56fa443d479139c5888ed4d4047b98caec106687a0f05886a9ced77922ccba7f65e66",
         )
 
     def name(self):
         return "Velocity-Bench Sobel Filter"
+
+    def description(self) -> str:
+        return (
+            "Popular RGB-to-grayscale image conversion technique that applies a gaussian filter "
+            "to reduce edge artifacts. Processes a large 32K x 32K image and measures "
+            "the time required to apply the filter."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -231,12 +279,15 @@ class SobelFilter(VelocityBase):
                 "{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
+    def get_tags(self):
+        return ["SYCL", "application", "image", "throughput"]
+
 
 class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if (
             "UR_L0_USE_IMMEDIATE_COMMANDLISTS" in env_vars
@@ -248,6 +299,13 @@ class QuickSilver(VelocityBase):
 
     def name(self):
         return "Velocity-Bench QuickSilver"
+
+    def description(self) -> str:
+        return (
+            "Solves a simplified dynamic Monte Carlo particle-transport problem used in HPC. "
+            "Replicates memory access patterns, communication patterns, and branching of Mercury workloads. "
+            "Reports a figure of merit in MMS/CTT where higher values indicate better performance."
+        )
 
     def lower_is_better(self):
         return False
@@ -271,6 +329,9 @@ class QuickSilver(VelocityBase):
                 "{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
+    def get_tags(self):
+        return ["SYCL", "application", "simulation", "throughput"]
+
 
 class Easywave(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -279,13 +340,21 @@ class Easywave(VelocityBase):
     def download_deps(self):
         self.download(
             "easywave",
-            "https://git.gfz-potsdam.de/id2/geoperil/easyWave/-/raw/master/data/examples.tar.gz",
+            "https://gitlab.oca.eu/AstroGeoGPM/eazyWave/-/raw/master/data/examples.tar.gz",
             "examples.tar.gz",
             untar=True,
+            checksum="3b0cd0efde10122934ba6db8451b8c41f4f95a3370fc967fc5244039ef42aae7e931009af1586fa5ed2143ade8ed47b1",
         )
 
     def name(self):
         return "Velocity-Bench Easywave"
+
+    def description(self) -> str:
+        return (
+            "A tsunami wave simulator used for researching tsunami generation and wave propagation. "
+            "Measures the elapsed time in milliseconds to simulate a specified tsunami event "
+            "based on real-world data."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -327,6 +396,9 @@ class Easywave(VelocityBase):
             os.path.join(options.benchmark_cwd, "easywave.log")
         )
 
+    def get_tags(self):
+        return ["SYCL", "application", "simulation"]
+
 
 class CudaSift(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -341,12 +413,22 @@ class CudaSift(VelocityBase):
     def name(self):
         return "Velocity-Bench CudaSift"
 
+    def description(self) -> str:
+        return (
+            "Implementation of the SIFT (Scale Invariant Feature Transform) algorithm "
+            "for detecting, describing, and matching local features in images. "
+            "Measures average processing time in milliseconds."
+        )
+
     def parse_output(self, stdout: str) -> float:
         match = re.search(r"Avg workload time = (\d+\.\d+) ms", stdout)
         if match:
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "image"]
 
 
 class DLCifar(VelocityBase):
@@ -364,6 +446,7 @@ class DLCifar(VelocityBase):
             "cifar-10-binary.tar.gz",
             untar=True,
             skip_data_dir=True,
+            checksum="974b1bd62da0cb3b7a42506d42b1e030c9a0cb4a0f2c359063f9c0e65267c48f0329e4493c183a348f44ddc462eaf814",
         )
         return
 
@@ -382,6 +465,13 @@ class DLCifar(VelocityBase):
     def name(self):
         return "Velocity-Bench dl-cifar"
 
+    def description(self) -> str:
+        return (
+            "Deep learning image classification workload based on the CIFAR-10 dataset "
+            "of 60,000 32x32 color images in 10 classes. Uses neural networks to "
+            "classify input images and measures total calculation time."
+        )
+
     def parse_output(self, stdout: str) -> float:
         match = re.search(
             r"dl-cifar - total time for whole calculation: (\d+\.\d+) s", stdout
@@ -390,6 +480,9 @@ class DLCifar(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference", "image"]
 
 
 class DLMnist(VelocityBase):
@@ -407,6 +500,7 @@ class DLMnist(VelocityBase):
             "train-images.idx3-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="f40eb179f7c3d2637e789663bde56d444a23e4a0a14477a9e6ed88bc39c8ad6eaff68056c0cd9bb60daf0062b70dc8ee",
         )
         self.download(
             "datasets",
@@ -414,6 +508,7 @@ class DLMnist(VelocityBase):
             "train-labels.idx1-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="ba9c11bf9a7f7c2c04127b8b3e568cf70dd3429d9029ca59b7650977a4ac32f8ff5041fe42bc872097487b06a6794e00",
         )
         self.download(
             "datasets",
@@ -421,6 +516,7 @@ class DLMnist(VelocityBase):
             "t10k-images.idx3-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="1bf45877962fd391f7abb20534a30fd2203d0865309fec5f87d576dbdbefdcb16adb49220afc22a0f3478359d229449c",
         )
         self.download(
             "datasets",
@@ -428,6 +524,7 @@ class DLMnist(VelocityBase):
             "t10k-labels.idx1-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="ccc1ee70f798a04e6bfeca56a4d0f0de8d8eeeca9f74641c1e1bfb00cf7cc4aa4d023f6ea1b40e79bb4707107845479d",
         )
 
     def extra_cmake_args(self):
@@ -444,6 +541,13 @@ class DLMnist(VelocityBase):
 
     def name(self):
         return "Velocity-Bench dl-mnist"
+
+    def description(self) -> str:
+        return (
+            "Digit recognition based on the MNIST database, one of the oldest and most popular "
+            "databases of handwritten digits. Uses neural networks to identify digits "
+            "and measures total calculation time."
+        )
 
     def bin_args(self):
         return ["-conv_algo", "ONEDNN_AUTO"]
@@ -464,6 +568,9 @@ class DLMnist(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference", "image"]
 
 
 class SVM(VelocityBase):
@@ -488,6 +595,13 @@ class SVM(VelocityBase):
     def name(self):
         return "Velocity-Bench svm"
 
+    def description(self) -> str:
+        return (
+            "Implementation of Support Vector Machine, a popular classical machine learning technique. "
+            "Uses supervised learning models with associated algorithms to analyze data "
+            "for classification and regression analysis. Measures total elapsed time."
+        )
+
     def bin_args(self):
         return [
             f"{self.code_path}/a9a",
@@ -500,3 +614,6 @@ class SVM(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference"]

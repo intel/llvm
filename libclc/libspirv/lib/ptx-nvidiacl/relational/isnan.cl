@@ -9,11 +9,11 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <relational.h>
+#include <libspirv/relational.h>
 
 _CLC_DEF _CLC_OVERLOAD bool __spirv_IsNan(float x) { return __nv_isnanf(x); }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsNan, float)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsNan, float)
 
 #ifdef cl_khr_fp64
 
@@ -21,7 +21,7 @@ _CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsNan, float)
 
 _CLC_DEF _CLC_OVERLOAD bool __spirv_IsNan(double x) { return __nv_isnand(x); }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsNan, double)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsNan, double)
 #endif
 
 #ifdef cl_khr_fp16
@@ -33,5 +33,5 @@ _CLC_DEF _CLC_OVERLOAD bool __spirv_IsNan(half x) {
   return __spirv_IsNan(f);
 }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsNan, half)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsNan, half)
 #endif

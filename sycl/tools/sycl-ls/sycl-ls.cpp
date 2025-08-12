@@ -19,12 +19,20 @@
 #include <sycl/sycl.hpp>
 
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <map>
-#include <stdlib.h>
+#include <sstream>
 #include <string>
 #include <vector>
 
+#ifdef __linux__
+#include <errno.h>
+#include <fcntl.h>
+#include <glob.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 #ifdef _WIN32
 #include <system_error>
 #include <windows.h>
@@ -126,6 +134,25 @@ std::array<int, 2> GetNumberOfSubAndSubSubDevices(const device &Device) {
   return {NumSubDevices, NumSubDevices * NumSubSubDevices};
 }
 
+/// Standard formatting of UUID numbers into a string
+/// e.g. "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+std::string formatUUID(detail::uuid_type UUID) {
+  std::ostringstream oss;
+  // Avoid locale issues with numbers
+  oss.imbue(std::locale::classic());
+  oss << std::hex << std::setfill('0');
+
+  assert((std::size(UUID) == 16) && "Invalid UUID length");
+  for (int i = 0u; i < 16; ++i) {
+    if ((i == 4) || (i == 6) || (i == 8) || (i == 10)) {
+      oss << "-";
+    }
+    oss << std::setw(2) << static_cast<int>(UUID[i]);
+  }
+
+  return oss.str();
+}
+
 static void printDeviceInfo(const device &Device, bool Verbose,
                             const std::string &Prepend) {
   auto DeviceVersion = Device.get_info<info::device::version>();
@@ -146,11 +173,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     // Get and print device UUID, if it is available.
     if (Device.has(aspect::ext_intel_device_info_uuid)) {
       auto UUID = Device.get_info<sycl::ext::intel::info::device::uuid>();
-      std::cout << Prepend << "UUID              : ";
-      for (int i = 0; i < 16; i++) {
-        std::cout << std::to_string(UUID[i]);
-      }
-      std::cout << std::endl;
+      std::cout << Prepend << "UUID              : " << formatUUID(UUID)
+                << std::endl;
     }
 
     // Get and print device ID, if it is available.
@@ -327,8 +351,30 @@ static int unsetFilterEnvVarsAndFork() {
 }
 #endif
 
-int main(int argc, char **argv) {
+static void checkRenderGroupPermission() {
+#ifdef __linux__
+  glob_t glob_result;
+  glob("/dev/dri/renderD*", 0, nullptr, &glob_result);
+  for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
+    const char *path = glob_result.gl_pathv[i];
+    int fd = open(path, O_RDWR);
+    if (fd < 0 && errno == EACCES) {
+      std::cerr << "WARNING: Unable to access " << path
+                << " due to permissions (EACCES).\n"
+                << "You might be missing the 'render' group locally.\n"
+                << "Try: sudo usermod -a -G render $USER\n"
+                << "Then log out and log back in.\n";
+      globfree(&glob_result);
+      break;
+    }
+    if (fd >= 0)
+      close(fd);
+  }
+  globfree(&glob_result);
+#endif
+}
 
+int main(int argc, char **argv) {
   if (argc == 1) {
     verbose = false;
     DiscardFilters = false;
@@ -343,6 +389,9 @@ int main(int argc, char **argv) {
         return printUsageAndExit();
     }
   }
+
+  if (verbose)
+    checkRenderGroupPermission();
 
   bool SuppressNumberPrinting = false;
   // Print warning and suppress printing device ids if any of
@@ -364,21 +413,21 @@ int main(int argc, char **argv) {
     if (DiscardFilters && FilterEnvVars.size())
       unsetFilterEnvVars();
 
-    // Store the original UR_LOG_LOADER environment variable and enable printing
-    // of any errors related to adapter loading.
-    const char *orig_ur_log_loader_var = std::getenv("UR_LOG_LOADER");
-    std::string orig_ur_log_loader_var_str;
-    if (orig_ur_log_loader_var != NULL)
-      orig_ur_log_loader_var_str.assign(orig_ur_log_loader_var);
-
-    setenv("UR_LOG_LOADER", "level:error;output:stderr", 1);
+    // In verbose mode, if UR logging has not already been enabled by the user,
+    // enable the printing of any errors related to adapter loading.
+    const char *ur_log_loader_var = std::getenv("UR_LOG_LOADER");
+    if (verbose && ur_log_loader_var == nullptr)
+      setenv("UR_LOG_LOADER", "level:info;output:stderr", 1);
 
     const auto &Platforms = platform::get_platforms();
 
-    if (orig_ur_log_loader_var == NULL)
+    if (verbose && ur_log_loader_var == nullptr) {
       unsetenv("UR_LOG_LOADER");
-    else
-      setenv("UR_LOG_LOADER", orig_ur_log_loader_var_str.c_str(), 1);
+    } else if (Platforms.size() == 0) {
+      std::cout
+          << "No platforms found - run with '--verbose' to get more details."
+          << std::endl;
+    }
 
     // Keep track of the number of devices per backend
     std::map<backend, size_t> DeviceNums;

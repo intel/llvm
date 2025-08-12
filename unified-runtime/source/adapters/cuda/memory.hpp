@@ -16,6 +16,7 @@
 #include <variant>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "queue.hpp"
 
@@ -310,12 +311,12 @@ public:
 /// is on a different device, marked by
 /// LastQueueWritingToMemObj->getDevice()
 ///
-struct ur_mem_handle_t_ {
+struct ur_mem_handle_t_ : ur::cuda::handle_base {
   // Context where the memory object is accessible
   ur_context_handle_t Context;
 
   /// Reference counting of the handler
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   // Original mem flags passed
   ur_mem_flags_t MemFlags;
@@ -345,7 +346,7 @@ struct ur_mem_handle_t_ {
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
   ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
                    BufferMem::AllocMode Mode, void *HostPtr, size_t Size)
-      : Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+      : handle_base(), Context{Ctxt}, MemFlags{MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
         Mem{std::in_place_type<BufferMem>, Ctxt, this, Mode, HostPtr, Size} {
     urContextRetain(Context);
@@ -353,7 +354,7 @@ struct ur_mem_handle_t_ {
 
   // Subbuffer constructor
   ur_mem_handle_t_(ur_mem_handle_t Parent, size_t SubBufferOffset)
-      : Context{Parent->Context}, RefCount{1}, MemFlags{Parent->MemFlags},
+      : handle_base(), Context{Parent->Context}, MemFlags{Parent->MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Parent->Context->Devices.size(),
                                            false),
         Mem{BufferMem{std::get<BufferMem>(Parent->Mem)}} {
@@ -376,7 +377,7 @@ struct ur_mem_handle_t_ {
   ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
                    ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
                    void *HostPtr)
-      : Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+      : handle_base(), Context{Ctxt}, MemFlags{MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
         Mem{std::in_place_type<SurfaceMem>,
             Ctxt,
@@ -392,6 +393,9 @@ struct ur_mem_handle_t_ {
     if (isBuffer() && isSubBuffer()) {
       urMemRelease(std::get<BufferMem>(Mem).Parent);
       return;
+    }
+    if (LastQueueWritingToMemObj != nullptr) {
+      urQueueRelease(LastQueueWritingToMemObj);
     }
     urContextRelease(Context);
   }
@@ -420,12 +424,6 @@ struct ur_mem_handle_t_ {
   }
 
   ur_context_handle_t getContext() const noexcept { return Context; }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   void setLastQueueWritingToMemObj(ur_queue_handle_t WritingQueue) {
     urQueueRetain(WritingQueue);

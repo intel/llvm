@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_fma.h>
 #include <libspirv/spirv.h>
 
-#include <math/clc_fma.h>
-#include <clc/math/math.h>
-
-#define __CLC_BODY <fma.inc>
+#define FUNCTION __spirv_ocl_fma
+#define __IMPL_FUNCTION(x) __clc_fma
+#define __CLC_BODY <clc/shared/ternary_def.inc>
 #include <clc/math/gentype.inc>

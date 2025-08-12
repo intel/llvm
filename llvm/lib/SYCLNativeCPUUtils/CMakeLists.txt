@@ -3,8 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
-  FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -21,10 +19,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   ipo
   )
 
-set(OCK_SOURCE_DIR "" CACHE PATH "Root of the local checkout of the oneAPI Construction Kit")
-set(OCK_GIT_REPO "" CACHE STRING "Git repository for the oneAPI Construction Kit FetchContent")
-set(OCK_GIT_TAG "" CACHE STRING "Git tag for the oneAPI Construction Kit FetchContent")
-option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Construction Kit source code" On)
 option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
 # Don't fetch OCK if Native CPU is not enabled.
@@ -33,49 +27,49 @@ if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
 endif()
 
 if(NATIVECPU_USE_OCK)
-  if(NATIVECPU_OCK_USE_FETCHCONTENT)
-    set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
-    # commit 652f9943b0bfcf61123a0f82b2bdd499738c5391
-    # Merge: c24c971bcb e0f02ae739
-    # Author: Colin Davidson <colin.davidson@codeplay.com>
-    # Date:   Fri Feb 28 15:59:50 2025 +0000
+  set(OCK_SEARCH_LOC "oneapi-construction-kit/compiler_passes")
+  if(NOT FETCHCONTENT_SOURCE_DIR_ONEAPI-CK)
+    find_path(OCK_SOURCE_DIR ${OCK_SEARCH_LOC} PATHS ${CMAKE_PREFIX_PATH})
+  endif()
+  if(OCK_SOURCE_DIR)
+    message(STATUS "Found system source location of oneAPI Construction Kit in ${OCK_SOURCE_DIR}")
+    set(OCK_SOURCE_DIR "${OCK_SOURCE_DIR}/${OCK_SEARCH_LOC}")
+    set(OCK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/oneapi-construction-kit")
+  else()
+    set(OCK_GIT_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
+    # commit d0a32d701e34b3285de7ce776ea36abfec673df7
+    # Merge: a9f848e0e8 56473a8c25
+    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
+    # Date:   Mon Jun 30 12:24:46 2025 +0100
     # 
-    #     Merge pull request #677 from coldav/colin/build_installed_llvm
+    #     Merge pull request #878 from hvdijk/specify-fuse-ld-lld
     #     
-    #     Change llvm over to a choice of install or cache, default PRs to install
-    set(OCK_GIT_INTERNAL_TAG 652f9943b0bfcf61123a0f82b2bdd499738c5391)
-
-    # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
-    if(OCK_GIT_REPO)
-      set(OCK_GIT_INTERNAL_REPO "${OCK_GIT_REPO}")
-    endif()
-    if(OCK_GIT_TAG)
-      set(OCK_GIT_INTERNAL_TAG "${OCK_GIT_TAG}")
-    endif()
+    #     [RefSi] Explicitly specify -fuse-ld=lld.
+    set(OCK_GIT_TAG d0a32d701e34b3285de7ce776ea36abfec673df7)
+   
     include(FetchContent)
     FetchContent_Declare(oneapi-ck
-     GIT_REPOSITORY "${OCK_GIT_INTERNAL_REPO}"
-     GIT_TAG "${OCK_GIT_INTERNAL_TAG}"
+     GIT_REPOSITORY "${OCK_GIT_REPO}"
+     GIT_TAG "${OCK_GIT_TAG}"
     )
     FetchContent_GetProperties(oneapi-ck)
     if(NOT oneapi-ck_POPULATED)
-      message(STATUS "Cloning oneAPI Construction Kit from ${OCK_GIT_INTERNAL_REPO}, tag ${OCK_GIT_INTERNAL_TAG}")
+      if(FETCHCONTENT_SOURCE_DIR_ONEAPI-CK)
+        message(STATUS "Using specified oneAPI Construction Kit repo location at ${FETCHCONTENT_SOURCE_DIR_ONEAPI-CK}")
+      else()
+        message(STATUS "Cloning oneAPI Construction Kit from ${OCK_GIT_REPO}, tag ${OCK_GIT_TAG}")
+      endif()
       FetchContent_Populate(oneapi-ck)
       message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
-      set(OCK_SOURCE_DIR_INTERNAL ${oneapi-ck_SOURCE_DIR}/compiler_passes)
-      set(OCK_BINARY_DIR_INTERNAL ${oneapi-ck_BINARY_DIR})
+      set(OCK_SOURCE_DIR ${oneapi-ck_SOURCE_DIR}/compiler_passes)
+      set(OCK_BINARY_DIR ${oneapi-ck_BINARY_DIR})
     endif()
-  elseif(OCK_SOURCE_DIR)
-    set(OCK_SOURCE_DIR_INTERNAL "${OCK_SOURCE_DIR}/compiler_passes")
-    set(OCK_BINARY_DIR_INTERNAL "${CMAKE_CURRENT_BINARY_DIR}/oneapi-construction-kit")
-  else()
-    message(FATAL_ERROR "NATIVECPU_OCK_USE_FETCHCONTENT is Off and OCK_SOURCE_DIR not set")
   endif()
 
   set(CA_ENABLE_API "cl" CACHE STRING "" FORCE)
   add_subdirectory(
-    ${OCK_SOURCE_DIR_INTERNAL}
-    ${OCK_BINARY_DIR_INTERNAL} EXCLUDE_FROM_ALL)
+    ${OCK_SOURCE_DIR}
+    ${OCK_BINARY_DIR} EXCLUDE_FROM_ALL)
 
   install(TARGETS compiler-pipeline
   EXPORT;LLVMExports

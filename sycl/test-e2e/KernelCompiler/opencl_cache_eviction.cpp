@@ -9,9 +9,6 @@
 // Tests on-disk cache and eviction with kernel_compiler.
 
 // REQUIRES: ocloc && (opencl || level_zero)
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: kernel_compiler is not available for accelerator
-// devices.
 
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
@@ -50,7 +47,7 @@ void test_build_and_run() {
   sycl::queue q{ctx, d};
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::opencl);
+      q.get_device().ext_oneapi_can_build(syclex::source_language::opencl);
   if (!ok) {
     std::cout << "Apparently this device does not support OpenCL C source "
                  "kernel bundle extension: "

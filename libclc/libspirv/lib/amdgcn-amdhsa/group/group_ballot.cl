@@ -12,8 +12,8 @@
 // from llvm/include/llvm/IR/InstrTypes.h
 #define ICMP_NE 33
 
-_CLC_DEF _CLC_CONVERGENT __clc_vec4_uint32_t
-_Z29__spirv_GroupNonUniformBallotib(int flag, bool predicate) {
+_CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_vec4_uint32_t
+__spirv_GroupNonUniformBallot(int flag, bool predicate) {
   // only support subgroup for now
   if (flag != Subgroup) {
     __builtin_trap();

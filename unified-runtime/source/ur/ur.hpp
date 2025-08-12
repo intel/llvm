@@ -18,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <variant>
@@ -25,7 +26,47 @@
 
 #include <ur_api.h>
 
+#include "logger/ur_logger.hpp"
 #include "ur_util.hpp"
+
+// Helper for one-liner validation
+#define UR_ASSERT(condition, error)                                            \
+  if (!(condition))                                                            \
+    return error;
+
+// Trace an internal UR call; returns in case of an error.
+#define UR_CALL(Call)                                                          \
+  {                                                                            \
+    if (PrintTrace)                                                            \
+      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
+    ur_result_t Result = (Call);                                               \
+    if (PrintTrace)                                                            \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, Result);                          \
+    if (Result != UR_RESULT_SUCCESS)                                           \
+      return Result;                                                           \
+  }
+
+// Trace an internal UR call; throw in case of an error.
+#define UR_CALL_THROWS(Call)                                                   \
+  {                                                                            \
+    if (PrintTrace)                                                            \
+      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
+    ur_result_t Result = (Call);                                               \
+    if (PrintTrace)                                                            \
+      UR_LOG(QUIET, "UR <--- {}({})", #Call, Result);                          \
+    if (Result != UR_RESULT_SUCCESS)                                           \
+      throw Result;                                                            \
+  }
+
+// Trace an internal UR call; ignore errors (useful in destructors).
+#define UR_CALL_NOCHECK(Call)                                                  \
+  {                                                                            \
+    if (PrintTrace)                                                            \
+      UR_LOG(QUIET, "UR ---> {}", #Call);                                      \
+    (void)(Call);                                                              \
+    if (PrintTrace)                                                            \
+      UR_LOG(QUIET, "UR <--- {}", #Call);                                      \
+  }
 
 template <class To, class From> To ur_cast(From Value) {
   // TODO: see if more sanity checks are possible.
@@ -40,11 +81,7 @@ template <> uint32_t inline ur_cast(uint64_t Value) {
   return CastedValue;
 }
 
-// TODO: promote all of the below extensions to the Unified Runtime
-//       and get rid of these ZER_EXT constants.
-const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
-    (ur_device_info_t)0x103D;
-
+// TODO: Promote the below extensions to the Unified Runtime?
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
 
@@ -63,7 +100,7 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
-  std::cerr << "die: " << Message << std::endl;
+  UR_LOG(QUIET, "ur_die: {}", Message);
   std::terminate();
 }
 
@@ -144,27 +181,6 @@ public:
   }
 };
 
-/// SpinLock is a synchronization primitive, that uses atomic variable and
-/// causes thread trying acquire lock wait in loop while repeatedly check if
-/// the lock is available.
-///
-/// One important feature of this implementation is that std::atomic<bool> can
-/// be zero-initialized. This allows SpinLock to have trivial constructor and
-/// destructor, which makes it possible to use it in global context (unlike
-/// std::mutex, that doesn't provide such guarantees).
-class SpinLock {
-public:
-  void lock() {
-    while (MLock.test_and_set(std::memory_order_acquire)) {
-      std::this_thread::yield();
-    }
-  }
-  void unlock() { MLock.clear(std::memory_order_release); }
-
-private:
-  std::atomic_flag MLock = ATOMIC_FLAG_INIT;
-};
-
 // The wrapper for immutable data.
 // The data is initialized only once at first access (via ->) with the
 // initialization function provided in Init. All subsequent access to
@@ -190,13 +206,10 @@ template <class T> struct ZeCache : private T {
   T *operator->() { return &get(); }
 };
 
-// Helper for one-liner validation
-#define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
+struct ur_dditable_t;
 
 // TODO: populate with target agnostic handling of UR platforms
-struct _ur_platform {};
+struct ur_platform {};
 
 // Controls tracing UR calls from within the UR itself.
 extern bool PrintTrace;
@@ -204,6 +217,19 @@ extern bool PrintTrace;
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
 namespace ur {
+
+// Base class for handles, stores the ddi table used by the loader to
+// dispatch to the correct adapter implementation of entry points.
+template <typename getddi> struct handle_base {
+  const ur_dditable_t *ddi_table = nullptr;
+
+  handle_base() { ddi_table = getddi::value(); };
+
+  // Handles are non-copyable.
+  handle_base(const handle_base &) = delete;
+  handle_base &operator=(const handle_base &) = delete;
+};
+
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
@@ -232,8 +258,7 @@ template <typename T>
 ur_result_t getInfo(size_t param_value_size, void *param_value,
                     size_t *param_value_size_ret, T value) {
 
-  auto assignment = [](void *param_value, T value, size_t value_size) {
-    std::ignore = value_size;
+  auto assignment = [](void *param_value, T value, size_t /*value_size*/) {
     *static_cast<T *>(param_value) = value;
   };
 

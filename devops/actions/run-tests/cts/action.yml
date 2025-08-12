@@ -4,9 +4,6 @@ inputs:
   ref:
     description: "Commit SHA or branch to checkout tests"
     required: true
-  cts_exclude_ref:
-    description: "Commit SHA or branch to checkout the cts_exclude_filter dir"
-    required: true
   extra_cmake_args:
     required: false
   cts_testing_mode:
@@ -21,18 +18,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-  - name: Checkout cts_exclude_filter folder
-    uses: actions/checkout@v4
-    with:
-      ref: ${{ inputs.cts_exclude_ref }}
-      path: cts_exclude
-      sparse-checkout: |
-        sycl/cts_exclude_filter
-  - name: Move sycl to root
-    shell: bash
-    run: |
-      mv cts_exclude/sycl .
-      rm -rf cts_exclude
   - name: Checkout SYCL CTS tests
     if: inputs.cts_testing_mode != 'run-only'
     uses: ./devops/actions/cached_checkout
@@ -58,16 +43,16 @@ runs:
         if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
           cts_exclude_filter=$PWD/sycl/cts_exclude_filter/compfails
         elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/OCL_CPU
+          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_OCL_CPU
         elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
+          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_L0_GPU
         fi
 
         # List excluded SYCL CTS categories:
         # SYCL_CTS_EXCLUDE_TEST_CATEGORIES - Optional file specifying a list
         # of test categories to be excluded from the build.
         echo "::group::Excluded test categories"
-        cat $cts_exclude_filter
+        [ -f "$cts_exclude_filter" ] && cat "$cts_exclude_filter"
         echo "::endgroup::"
       fi
 
@@ -120,7 +105,7 @@ runs:
   # If the suite was built on another machine then the build contains the full
   # set of tests. We have special files to filter out some test categories,
   # see "sycl/cts_exclude_filter/*". Each configuration has its own file, e.g.
-  # there is "cts_exclude_filter/OCL_CPU" for opencl:cpu device. Therefore,
+  # there is "cts_exclude_filter/LINUX_OCL_CPU" for opencl:cpu device. Therefore,
   # these files may differ from each other, so when there is a pre-built set of
   # tests, we need to filter it according to the filter-file.
   - name: Filter SYCL CTS test categories
@@ -129,16 +114,18 @@ runs:
     run: |
       cts_exclude_filter=""
       if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/OCL_CPU
+        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_OCL_CPU
       elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
+        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/LINUX_L0_GPU
       fi
 
-      while IFS= read -r line; do
-        if [[ $line != \#* ]]; then
-          rm "./build-cts/bin/test_$line"
-        fi
-      done < "$cts_exclude_filter"
+      if [ -f "$cts_exclude_filter" ]; then
+        while IFS= read -r line; do
+          if [[ $line != \#* ]]; then
+            rm "./build-cts/bin/test_$line"
+          fi
+        done < "$cts_exclude_filter"
+      fi
 
   - name: Run SYCL CTS tests
     # Proceed with execution even if the previous two steps did not succeed.

@@ -12,28 +12,12 @@
 #include <ur_api.h>
 #include <ur_print.hpp>
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
 #include <cuda.h>
 #include <memory>
 #include <unordered_set>
-
-// Trace an internal UR call
-#define UR_TRACE(Call)                                                         \
-  {                                                                            \
-    ur_result_t Result;                                                        \
-    UR_CALL(Call, Result);                                                     \
-  }
-
-// Trace an internal UR call and return the result to the user.
-#define UR_CALL(Call, Result)                                                  \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
-    Result = (Call);                                                           \
-    if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, Result);                         \
-  }
 
 enum class CommandType {
   Kernel,
@@ -50,44 +34,15 @@ enum class CommandType {
   USMAdvise
 };
 
-// Command handle that can be returned from command append entry-points.
-// Implemented as an abstract base class that handles for the specific
-// command types derive from.
-struct ur_exp_command_buffer_command_handle_t_ {
-  ur_exp_command_buffer_command_handle_t_(
-      ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
-      CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes)
-      : CommandBuffer(CommandBuffer), Node(Node), SignalNode(SignalNode),
-        WaitNodes(WaitNodes) {}
+struct null_command_data {};
 
-  virtual ~ur_exp_command_buffer_command_handle_t_() {}
-
-  virtual CommandType getCommandType() const noexcept = 0;
-
-  // Parent UR command-buffer.
-  ur_exp_command_buffer_handle_t CommandBuffer;
-  // Node created in graph for the command.
-  CUgraphNode Node;
-  // An optional EventRecordNode that's a successor of Node to signal
-  // dependent commands outwith the command-buffer.
-  CUgraphNode SignalNode;
-  // Optional list of EventWait Nodes to wait on commands from outside of the
-  // command-buffer.
-  std::vector<CUgraphNode> WaitNodes;
-};
-
-struct kernel_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  kernel_command_handle(
-      ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-      CUgraphNode Node, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
-      const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
-      const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
-      ur_kernel_handle_t *KernelAlternatives, CUgraphNode SignalNode,
-      const std::vector<CUgraphNode> &WaitNodes);
-
-  CommandType getCommandType() const noexcept override {
-    return CommandType::Kernel;
-  }
+struct kernel_command_data {
+  kernel_command_data(ur_kernel_handle_t Kernel, CUDA_KERNEL_NODE_PARAMS Params,
+                      uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
+                      const size_t *GlobalWorkSizePtr,
+                      const size_t *LocalWorkSizePtr,
+                      uint32_t NumKernelAlternatives,
+                      ur_kernel_handle_t *KernelAlternatives);
 
   void setGlobalOffset(const size_t *GlobalWorkOffsetPtr) {
     const size_t CopySize = sizeof(size_t) * WorkDim;
@@ -139,148 +94,46 @@ struct kernel_command_handle : ur_exp_command_buffer_command_handle_t_ {
   size_t LocalWorkSize[3];
 };
 
-struct usm_memcpy_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  usm_memcpy_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                            CUgraphNode Node, CUgraphNode SignalNode,
-                            const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::USMMemcpy;
-  }
-};
-
-struct usm_fill_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  usm_fill_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                          CUgraphNode Node, CUgraphNode SignalNode,
-                          const std::vector<CUgraphNode> &WaitNodes,
-                          const std::vector<CUgraphNode> &DecomposedNodes = {})
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes),
-        DecomposedNodes(std::move(DecomposedNodes)) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::USMFill;
-  }
-
-  // If this fill command was decomposed into multiple nodes, this vector
-  // contains all of those nodes in the order they were added to the graph.
-  // Currently unused but will be required for updating in future.
+struct fill_command_data {
   std::vector<CUgraphNode> DecomposedNodes;
 };
 
-struct buffer_copy_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  buffer_copy_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                             CUgraphNode Node, CUgraphNode SignalNode,
-                             const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferCopy;
-  }
+// Command handle that can be returned from command append entry-points.
+// The type of the command is specified by a CommandType field, with
+// additional command-type-specific data stored in the CommandData enum.
+struct ur_exp_command_buffer_command_handle_t_ : ur::cuda::handle_base {
+  using command_data_type_t =
+      std::variant<null_command_data, kernel_command_data, fill_command_data>;
+
+  ur_exp_command_buffer_command_handle_t_(
+      CommandType Type, ur_exp_command_buffer_handle_t CommandBuffer,
+      CUgraphNode Node, CUgraphNode SignalNode,
+      const std::vector<CUgraphNode> &WaitNodes,
+      command_data_type_t Data = null_command_data{})
+      : handle_base(), CommandBuffer(CommandBuffer), Node(Node),
+        SignalNode(SignalNode), WaitNodes(WaitNodes), Type(Type),
+        CommandData(Data) {}
+
+  // Parent UR command-buffer.
+  ur_exp_command_buffer_handle_t CommandBuffer;
+  // Node created in graph for the command.
+  CUgraphNode Node;
+  // An optional EventRecordNode that's a successor of Node to signal
+  // dependent commands outwith the command-buffer.
+  CUgraphNode SignalNode;
+  // Optional list of EventWait Nodes to wait on commands from outside of the
+  // command-buffer.
+  std::vector<CUgraphNode> WaitNodes;
+
+  CommandType Type;
+  command_data_type_t CommandData;
 };
 
-struct buffer_copy_rect_command_handle
-    : ur_exp_command_buffer_command_handle_t_ {
-  buffer_copy_rect_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                                  CUgraphNode Node, CUgraphNode SignalNode,
-                                  const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferCopyRect;
-  }
-};
-
-struct buffer_read_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  buffer_read_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                             CUgraphNode Node, CUgraphNode SignalNode,
-                             const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferRead;
-  }
-};
-
-struct buffer_read_rect_command_handle
-    : ur_exp_command_buffer_command_handle_t_ {
-  buffer_read_rect_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                                  CUgraphNode Node, CUgraphNode SignalNode,
-                                  const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferReadRect;
-  }
-};
-
-struct buffer_write_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  buffer_write_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                              CUgraphNode Node, CUgraphNode SignalNode,
-                              const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferWrite;
-  }
-};
-
-struct buffer_write_rect_command_handle
-    : ur_exp_command_buffer_command_handle_t_ {
-  buffer_write_rect_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                                   CUgraphNode Node, CUgraphNode SignalNode,
-                                   const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferWriteRect;
-  }
-};
-
-struct buffer_fill_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  buffer_fill_command_handle(
-      ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
-      CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes,
-      const std::vector<CUgraphNode> &DecomposedNodes = {})
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes),
-        DecomposedNodes(std::move(DecomposedNodes)) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::MemBufferFill;
-  }
-
-  // If this fill command was decomposed into multiple nodes, this vector
-  // contains all of those nodes in the order they were added to the graph.
-  // Currently unused but will be required for updating in future.
-  std::vector<CUgraphNode> DecomposedNodes;
-};
-
-struct usm_prefetch_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  usm_prefetch_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                              CUgraphNode Node, CUgraphNode SignalNode,
-                              const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::USMPrefetch;
-  }
-};
-
-struct usm_advise_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  usm_advise_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                            CUgraphNode Node, CUgraphNode SignalNode,
-                            const std::vector<CUgraphNode> &WaitNodes)
-      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
-  CommandType getCommandType() const noexcept override {
-    return CommandType::USMAdvise;
-  }
-};
-
-struct ur_exp_command_buffer_handle_t_ {
+struct ur_exp_command_buffer_handle_t_ : ur::cuda::handle_base {
 
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
-                                  ur_device_handle_t Device, bool IsUpdatable);
+                                  ur_device_handle_t Device, bool IsUpdatable,
+                                  bool IsInOrder);
 
   ~ur_exp_command_buffer_handle_t_();
 
@@ -321,27 +174,25 @@ struct ur_exp_command_buffer_handle_t_ {
     return SyncPoint;
   }
 
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
-
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
   // Device associated with this command-buffer
   ur_device_handle_t Device;
   // Whether commands in the command-buffer can be updated
   bool IsUpdatable;
+  // Whether commands in the command-buffer are in-order.
+  bool IsInOrder;
   // Cuda Graph handle
   CUgraph CudaGraph;
   // Cuda Graph Exec handle
   CUgraphExec CudaGraphExec = nullptr;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
-  // Map of sync_points to ur_events
-  std::unordered_map<ur_exp_command_buffer_sync_point_t, CUgraphNode>
-      SyncPoints;
+  // Ordered map of sync_points to ur_events, so that we can find the last
+  // node added to an in-order command-buffer.
+  std::map<ur_exp_command_buffer_sync_point_t, CUgraphNode> SyncPoints;
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;

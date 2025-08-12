@@ -9,23 +9,58 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
+#include <set>
 
+#include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "enqueued_pool.hpp"
+#include "event.hpp"
 #include "ur_api.h"
 #include "ur_pool_manager.hpp"
-#include <set>
+#include "usm.hpp"
 #include <umf_helpers.hpp>
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
 struct UsmPool {
-  UsmPool(umf::pool_unique_handle_t Pool) : UmfPool(std::move(Pool)) {}
+  UsmPool(ur_usm_pool_handle_t UrPool, umf::pool_unique_handle_t UmfPool);
+  // Parent pool.
+  ur_usm_pool_handle_t UrPool;
   umf::pool_unique_handle_t UmfPool;
+  // 'AsyncPool' needs to be declared after 'UmfPool' so its destructor is
+  // invoked first.
   EnqueuedPool AsyncPool;
 };
 
-struct ur_usm_pool_handle_t_ : _ur_object {
+struct AllocationStats {
+public:
+  enum UpdateType {
+    INCREASE,
+    DECREASE,
+  };
+
+  void update(UpdateType Type, size_t Size) {
+    if (Type == INCREASE) {
+      AllocatedMemorySize += Size;
+      size_t Current = AllocatedMemorySize.load();
+      size_t Peak = PeakAllocatedMemorySize.load();
+      if (Peak < Current) {
+        PeakAllocatedMemorySize.store(Current);
+      }
+    } else if (Type == DECREASE) {
+      AllocatedMemorySize -= Size;
+    }
+  }
+
+  size_t getCurrent() { return AllocatedMemorySize.load(); }
+  size_t getPeak() { return PeakAllocatedMemorySize.load(); }
+
+private:
+  std::atomic_size_t AllocatedMemorySize{0};
+  std::atomic_size_t PeakAllocatedMemorySize{0};
+};
+
+struct ur_usm_pool_handle_t_ : ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc, bool IsProxy = false);
   ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
@@ -34,6 +69,7 @@ struct ur_usm_pool_handle_t_ : _ur_object {
   ur_result_t allocate(ur_context_handle_t Context, ur_device_handle_t Device,
                        const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
                        size_t Size, void **RetMem);
+  ur_result_t free(void *Mem, umf_memory_pool_handle_t hPool);
 
   std::optional<std::pair<void *, ur_event_handle_t>>
   allocateEnqueued(ur_queue_handle_t Queue, ur_device_handle_t Device,
@@ -44,12 +80,18 @@ struct ur_usm_pool_handle_t_ : _ur_object {
   UsmPool *getPoolByHandle(const umf_memory_pool_handle_t Pool);
   void cleanupPools();
   void cleanupPoolsForQueue(ur_queue_handle_t Queue);
+  size_t getTotalReservedSize();
+  size_t getPeakReservedSize();
+  size_t getTotalUsedSize();
+  size_t getPeakUsedSize();
 
   ur_context_handle_t Context;
+  ur::RefCount RefCount;
 
 private:
   UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
+  AllocationStats AllocStats;
 };
 
 // Exception type to pass allocation errors
@@ -77,9 +119,10 @@ protected:
   virtual ur_result_t allocateImpl(void **, size_t, uint32_t) = 0;
 
 public:
-  virtual void get_last_native_error(const char **ErrMsg, int32_t *ErrCode) {
-    std::ignore = ErrMsg;
+  virtual umf_result_t get_last_native_error(const char ** /*ErrMsg*/,
+                                             int32_t *ErrCode) {
     *ErrCode = static_cast<int32_t>(getLastStatusRef());
+    return UMF_RESULT_SUCCESS;
   };
   virtual umf_result_t initialize(ur_context_handle_t, ur_device_handle_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
@@ -90,40 +133,34 @@ public:
   virtual umf_result_t free(void *, size_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  virtual umf_result_t get_min_page_size(void *, size_t *) {
+  virtual umf_result_t get_min_page_size(const void *, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
   virtual umf_result_t get_recommended_page_size(size_t, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  virtual umf_result_t purge_lazy(void *, size_t) {
+  virtual umf_result_t ext_get_ipc_handle_size(size_t *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_get_ipc_handle(const void *, size_t, void *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_put_ipc_handle(void *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_open_ipc_handle(void *, void **) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_close_ipc_handle(void *, size_t) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t ext_ctl(umf_ctl_query_source_t, const char *, void *,
+                               size_t, umf_ctl_query_type_t, va_list) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t get_name(const char **) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  virtual umf_result_t purge_force(void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  };
-  virtual umf_result_t allocation_merge(void *, void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t allocation_split(void *, size_t, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t get_ipc_handle_size(size_t *) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t get_ipc_handle(const void *, size_t, void *) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t put_ipc_handle(void *) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t open_ipc_handle(void *, void **) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual umf_result_t close_ipc_handle(void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  }
-  virtual const char *get_name() { return ""; };
   virtual ~USMMemoryProviderBase() = default;
 };
 
@@ -131,23 +168,33 @@ public:
 class L0MemoryProvider : public USMMemoryProviderBase {
 private:
   // Min page size query function for L0MemoryProvider.
-  umf_result_t GetL0MinPageSize(void *Mem, size_t *PageSize);
+  umf_result_t GetL0MinPageSize(const void *Mem, size_t *PageSize);
   size_t MinPageSize = 0;
   bool MinPageSizeCached = false;
+  AllocationStats AllocStats;
 
 public:
   umf_result_t initialize(ur_context_handle_t Ctx,
                           ur_device_handle_t Dev) override;
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr) override;
   umf_result_t free(void *Ptr, size_t Size) override;
-  umf_result_t get_min_page_size(void *, size_t *) override;
+  umf_result_t get_min_page_size(const void *, size_t *) override;
   // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
-  const char *get_name() override { return "Level Zero"; };
-  umf_result_t get_ipc_handle_size(size_t *) override;
-  umf_result_t get_ipc_handle(const void *, size_t, void *) override;
-  umf_result_t put_ipc_handle(void *) override;
-  umf_result_t open_ipc_handle(void *, void **) override;
-  umf_result_t close_ipc_handle(void *, size_t) override;
+  umf_result_t get_name(const char **name) override {
+    if (!name) {
+      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    *name = "Level Zero";
+    return UMF_RESULT_SUCCESS;
+  };
+  umf_result_t ext_get_ipc_handle_size(size_t *) override;
+  umf_result_t ext_get_ipc_handle(const void *, size_t, void *) override;
+  umf_result_t ext_put_ipc_handle(void *) override;
+  umf_result_t ext_open_ipc_handle(void *, void **) override;
+  umf_result_t ext_close_ipc_handle(void *, size_t) override;
+  umf_result_t ext_ctl(umf_ctl_query_source_t, const char *, void *, size_t,
+                       umf_ctl_query_type_t, va_list) override;
 };
 
 // Allocation routines for shared memory type
@@ -187,17 +234,13 @@ public:
     return UMF_RESULT_SUCCESS;
   }
   void *malloc(size_t Size) noexcept { return aligned_malloc(Size, 0); }
-  void *calloc(size_t Num, size_t Size) noexcept {
-    std::ignore = Num;
-    std::ignore = Size;
+  void *calloc(size_t /*Num*/, size_t /*Size*/) noexcept {
 
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return nullptr;
   }
-  void *realloc(void *Ptr, size_t Size) noexcept {
-    std::ignore = Ptr;
-    std::ignore = Size;
+  void *realloc(void * /*Ptr*/, size_t /*Size*/) noexcept {
 
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
@@ -211,8 +254,7 @@ public:
     }
     return Ptr;
   }
-  size_t malloc_usable_size(void *Ptr) noexcept {
-    std::ignore = Ptr;
+  size_t malloc_usable_size(void * /*Ptr*/) noexcept {
 
     // Currently not needed
     return 0;

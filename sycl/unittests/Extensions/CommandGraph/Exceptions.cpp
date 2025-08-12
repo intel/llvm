@@ -213,6 +213,42 @@ void addImagesCopies(experimental::detail::modifiable_command_graph &G,
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind, usm::alloc AllocKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size, [[maybe_unused]] void *Ptr) {
+  // simple alloc
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr =
+            sycl::ext::oneapi::experimental::async_malloc(CGH, AllocKind, Size);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc(Q, AllocKind, Size);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr =
+            sycl::ext::oneapi::experimental::async_malloc(CGH, AllocKind, Size);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::feature_not_supported);
+}
 } // anonymous namespace
 
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
@@ -245,11 +281,11 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   Graph2.begin_recording({Queue});
 
   auto Node = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph2.end_recording();
 
   auto Event = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   Graph.begin_recording(Queue);
 
@@ -404,9 +440,9 @@ TEST_F(CommandGraphTest, WorkGroupScratchMemoryCheck) {
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // Set up some nodes in the graph
   auto NodeA = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto NodeB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   // Test error on calling make_edge when a queue is recording to the graph
   Graph.begin_recording(Queue);
@@ -439,7 +475,7 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   experimental::command_graph<experimental::graph_state::modifiable> GraphOther{
       Queue.get_context(), Queue.get_device()};
   auto NodeOther = GraphOther.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
 
   ASSERT_THROW(
       {
@@ -466,20 +502,20 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
   // state.
 
   auto CheckGraphStructure = [&]() {
-    auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
-    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
-    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+    experimental::detail::graph_impl &GraphImpl = *getSyclObjImpl(Graph);
+    experimental::detail::node_impl &NodeAImpl = *getSyclObjImpl(NodeA);
+    experimental::detail::node_impl &NodeBImpl = *getSyclObjImpl(NodeB);
 
-    ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-    ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(), NodeAImpl);
+    ASSERT_EQ(GraphImpl.MRoots.size(), 1lu);
+    ASSERT_EQ(*GraphImpl.MRoots.begin(), &NodeAImpl);
 
-    ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
-    ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
-    ASSERT_EQ(NodeAImpl->MSuccessors.front().lock(), NodeBImpl);
+    ASSERT_EQ(NodeAImpl.MSuccessors.size(), 1lu);
+    ASSERT_EQ(NodeAImpl.MPredecessors.size(), 0lu);
+    ASSERT_EQ(NodeAImpl.MSuccessors.front(), &NodeBImpl);
 
-    ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
-    ASSERT_EQ(NodeBImpl->MPredecessors.front().lock(), NodeAImpl);
+    ASSERT_EQ(NodeBImpl.MSuccessors.size(), 0lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.size(), 1lu);
+    ASSERT_EQ(NodeBImpl.MPredecessors.front(), &NodeAImpl);
   };
   // Make a normal edge
   ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));
@@ -562,9 +598,9 @@ TEST_F(CommandGraphTest, InvalidHostAccessor) {
 TEST_F(CommandGraphTest, ProfilingException) {
   Graph.begin_recording(Queue);
   auto Event1 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   auto Event2 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   try {
@@ -581,7 +617,7 @@ TEST_F(CommandGraphTest, ProfilingException) {
 TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
   Graph.begin_recording(Queue);
   auto Event1 = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   Graph.end_recording(Queue);
 
   // Checks exception thrown if profiling is requested while profiling has
@@ -616,9 +652,9 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
   try {
     Graph.begin_recording(Queue);
     auto Event1 = Queue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
-                                     cluster_launch_property,
-                                     [&](sycl::nd_item<1> it) {});
+      cgh.parallel_for<TestKernel>(sycl::nd_range<1>({4096}, {32}),
+                                   cluster_launch_property,
+                                   [&](sycl::nd_item<1> it) {});
     });
     Queue.wait();
     Graph.end_recording(Queue);
@@ -714,9 +750,7 @@ TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
 TEST_F(CommandGraphTest, DynamicCommandGroupWrongGraph) {
   experimental::command_graph Graph1{Queue.get_context(), Queue.get_device()};
   experimental::command_graph Graph2{Queue.get_context(), Queue.get_device()};
-  auto CGF = [&](sycl::handler &CGH) {
-    CGH.single_task<TestKernel<>>([]() {});
-  };
+  auto CGF = [&](sycl::handler &CGH) { CGH.single_task<TestKernel>([]() {}); };
 
   experimental::dynamic_command_group DynCG(Graph2, {CGF});
   ASSERT_THROW(Graph1.add(DynCG), sycl::exception);
@@ -870,4 +904,34 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
   ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// host and shared allocations are not currently supported by graphs, checks for
+// correct exception behaviour.
+TEST_F(CommandGraphTest, AsyncAllocKindExceptionCheck) {
+  auto Context = Queue.get_context();
+  auto Device = Queue.get_device();
+
+  void *Ptr1 = nullptr;
+  void *Ptr2 = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::host>(Graph, Queue,
+                                                               1024, Ptr1);
+  addAsyncAlloc<OperationPath::RecordReplay, usm::alloc::shared>(Graph, Queue,
+                                                                 1024, Ptr1);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr2);
+  addAsyncAlloc<OperationPath::Shortcut, usm::alloc::shared>(Graph, Queue, 1024,
+                                                             Ptr2);
+
+  Graph.end_recording();
+
+  void *Ptr3 = nullptr;
+  void *Ptr4 = nullptr;
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::host>(Graph, Queue, 1024,
+                                                           Ptr3);
+  addAsyncAlloc<OperationPath::Explicit, usm::alloc::shared>(Graph, Queue, 1024,
+                                                             Ptr4);
 }

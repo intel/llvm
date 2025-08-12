@@ -269,6 +269,8 @@ using urEnqueueMemImageCopyMultiDeviceTest =
 UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urEnqueueMemImageCopyMultiDeviceTest);
 
 TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
   ur_mem_handle_t dstImage1D = nullptr;
   ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
                                   &desc1D, nullptr, &dstImage1D));
@@ -288,7 +290,7 @@ TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
                                        origin, region3D, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
 
   // The remaining queues do blocking reads from the image1D/2D/3D. Since the
   // queues target different devices this checks that any devices memory has

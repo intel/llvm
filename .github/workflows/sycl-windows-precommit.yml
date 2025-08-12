@@ -21,8 +21,16 @@ on:
     - '.github/workflows/sycl-macos-*.yml'
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly-launch.yml'
+    - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
+    - 'devops/compat_ci_exclude.sycl-rel-6_2'
+    - 'unified-runtime/examples/**'
+    - 'unified-runtime/scripts/**'
+    - 'unified-runtime/test/**'
+    - 'unified-runtime/third_party/**'
+    - 'unified-runtime/tools/**'
 
 permissions: read-all
 
@@ -43,8 +51,9 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
+      e2e_binaries_artifact: sycl_windows_e2ebin
 
-  e2e:
+  run_prebuilt_e2e_tests:
     needs: build
     # Continue if build was successful.
     if: |
@@ -63,4 +72,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      target_devices: "level_zero:gpu"
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      e2e_testing_mode: run-only
+      e2e_binaries_artifact: sycl_windows_e2ebin

@@ -369,7 +369,7 @@ ur_result_t urQueueGetInfo(
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(Queue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Queue->RefCount.load()});
+    return ReturnValue(uint32_t{Queue->RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(Queue->Properties);
   case UR_QUEUE_INFO_SIZE:
@@ -455,7 +455,8 @@ ur_result_t urQueueGetInfo(
     return ReturnValue(true);
   }
   default:
-    logger::error(
+    UR_LOG(
+        ERR,
         "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
         ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -592,13 +593,16 @@ ur_result_t urQueueRetain(
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
     Queue->RefCountExternal++;
   }
-  Queue->RefCount.increment();
+  Queue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urQueueRelease(
     /// [in] handle of the queue object to release
     ur_queue_handle_t Queue) {
+  if (!checkL0LoaderTeardown())
+    return UR_RESULT_SUCCESS;
+
   std::vector<ur_event_handle_t> EventListToCleanup;
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
@@ -608,11 +612,9 @@ ur_result_t urQueueRelease(
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      static_cast<void>(Queue->RefCount.decrementAndTest());
+      static_cast<void>(Queue->RefCount.release());
       return UR_RESULT_SUCCESS;
     }
-
-    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
 
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
@@ -626,6 +628,14 @@ ur_result_t urQueueRelease(
     // Make sure all commands get executed.
     if (Res == UR_RESULT_SUCCESS)
       UR_CALL(Queue->synchronize());
+
+    // Cleanup the allocations from 'AsyncPool' made by this queue.
+    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+    std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
+    for (auto &Pool : Queue->Context->UsmPoolHandles) {
+      Pool->cleanupPoolsForQueue(Queue);
+    }
+    ContextLock.unlock();
 
     // Destroy all the fences created associated with this queue.
     for (auto it = Queue->CommandListMap.begin();
@@ -648,11 +658,16 @@ ur_result_t urQueueRelease(
       // runtime. Destroy only if a queue is healthy. Destroying a fence may
       // cause a hang otherwise.
       // If the fence is a nullptr we are using immediate commandlists.
-      if (Queue->Healthy && it->second.ZeFence != nullptr) {
+      if (Queue->Healthy && it->second.ZeFence != nullptr &&
+          checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
       if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
         std::scoped_lock<ur_mutex> Lock(
@@ -676,7 +691,7 @@ ur_result_t urQueueRelease(
           // A non-reusable comamnd list that came from a make_queue call is
           // destroyed since it cannot be recycled.
           ze_command_list_handle_t ZeCommandList = it->first;
-          if (ZeCommandList) {
+          if (ZeCommandList && checkL0LoaderTeardown()) {
             ZE2UR_CALL(zeCommandListDestroy, (ZeCommandList));
           }
         }
@@ -781,8 +796,8 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumEntries,
-                                        &Platform, nullptr));
+  UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumEntries, &Platform,
+                                        nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
@@ -800,7 +815,6 @@ ur_result_t urQueueCreateWithNativeHandle(
       ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
           ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-      (*RetQueue)->IsInteropNativeHandle = true;
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -900,6 +914,11 @@ ur_result_t urQueueFinish(
   }
 
   Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+  std::shared_lock<ur_shared_mutex> ContextLock(Queue->Context->Mutex);
+  for (auto &Pool : Queue->Context->UsmPoolHandles) {
+    Pool->cleanupPoolsForQueue(Queue);
+  }
+  ContextLock.unlock();
 
   return UR_RESULT_SUCCESS;
 }
@@ -909,30 +928,6 @@ ur_result_t urQueueFlush(
     ur_queue_handle_t Queue) {
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
   return Queue->executeAllOpenCommandLists();
-}
-
-ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hKernel;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pLocalWorkSize;
-  std::ignore = numPropsInLaunchPropList;
-  std::ignore = launchPropList;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 } // namespace ur::level_zero
@@ -1011,9 +1006,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            logger::error("UR_L0_COPY_BATCH_SIZE: failed to parse value");
+            UR_LOG(ERR, "UR_L0_COPY_BATCH_SIZE: failed to parse value")
           else
-            logger::error("UR_L0_BATCH_SIZE: failed to parse value");
+            UR_LOG(ERR, "UR_L0_BATCH_SIZE: failed to parse value")
           break;
         }
         switch (Ord) {
@@ -1036,20 +1031,19 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          logger::error("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
-                        "#{}: {}",
-                        (int)Ord, (int)Val);
+          UR_LOG(ERR, "UR_L0_COPY_BATCH_SIZE: dynamic batch param #{}: {}",
+                 (int)Ord, (int)Val)
         else
-          logger::error("UR_L0_BATCH_SIZE: dynamic batch param #{}: {}",
-                        (int)Ord, (int)Val);
+          UR_LOG(ERR, "UR_L0_BATCH_SIZE: dynamic batch param #{}: {}", (int)Ord,
+                 (int)Val)
       };
 
     } else {
       // Negative batch sizes are silently ignored.
       if (IsCopy)
-        logger::warning("UR_L0_COPY_BATCH_SIZE: ignored negative value");
+        UR_LOG(WARN, "UR_L0_COPY_BATCH_SIZE: ignored negative value")
       else
-        logger::warning("UR_L0_BATCH_SIZE: ignored negative value");
+        UR_LOG(WARN, "UR_L0_BATCH_SIZE: ignored negative value")
     }
   }
   return Config;
@@ -1198,11 +1192,15 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
   this->CounterBasedEventsEnabled =
-      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
+      UsingImmCmdLists && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents() &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
   this->InterruptBasedEventsEnabled =
-      isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
+      isLowPowerEvents() && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/);
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1225,7 +1223,7 @@ void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
           ZeCommandListBatchConfig.NumTimesClosedFullThreshold) {
     if (QueueBatchSize < ZeCommandListBatchConfig.DynamicSizeMax) {
       QueueBatchSize += ZeCommandListBatchConfig.DynamicSizeStep;
-      logger::debug("Raising QueueBatchSize to {}", QueueBatchSize);
+      UR_LOG(DEBUG, "Raising QueueBatchSize to {}", QueueBatchSize);
     }
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
@@ -1252,7 +1250,7 @@ void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
     QueueBatchSize = CommandBatch.OpenCommandList->second.size() - 1;
     if (QueueBatchSize < 1)
       QueueBatchSize = 1;
-    logger::debug("Lowering QueueBatchSize to {}", QueueBatchSize);
+    UR_LOG(DEBUG, "Lowering QueueBatchSize to {}", QueueBatchSize);
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
@@ -1279,7 +1277,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
   // So, disable it for modes where we print PI traces. Printing
   // traces incurs much different timings than real execution
   // ansyway, and many regression tests use it.
-  //
   bool CurrentlyEmpty = !PrintTrace && this->LastCommandEvent == nullptr;
 
   // The list can be empty if command-list only contains signals of proxy
@@ -1318,7 +1315,8 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         die("executeCommandList: OpenCommandList should be equal to"
             "null or CommandList");
 
-      if (CommandList->second.size() < CommandBatch.QueueBatchSize) {
+      if (CommandList->second.size() < CommandBatch.QueueBatchSize &&
+          !IsBlocking) {
         CommandBatch.OpenCommandList = CommandList;
         return UR_RESULT_SUCCESS;
       }
@@ -1391,7 +1389,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           if (!Event->HostVisibleEvent) {
             Event->HostVisibleEvent =
                 reinterpret_cast<ur_event_handle_t>(HostVisibleEvent);
-            HostVisibleEvent->RefCount.increment();
+            HostVisibleEvent->RefCount.retain();
           }
         }
 
@@ -1552,7 +1550,7 @@ ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
 }
 
 void ur_queue_handle_t_::active_barriers::add(ur_event_handle_t &Event) {
-  Event->RefCount.increment();
+  Event->RefCount.retain();
   Events.push_back(Event);
 }
 
@@ -1590,7 +1588,7 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
-  if (!Queue->RefCount.decrementAndTest())
+  if (!Queue->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   for (auto &Cache : Queue->EventCaches) {
@@ -1605,26 +1603,30 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            if (!Queue->IsInteropNativeHandle ||
-                (Queue->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+            if (checkL0LoaderTeardown()) {
               auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
               // Gracefully handle the case that L0 was already unloaded.
-              if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+              if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                               ZeResult != ZE_RESULT_ERROR_UNKNOWN))
                 return ze2urResult(ZeResult);
+              if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+                ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+              }
             }
           }
   }
 
   Queue->clearEndTimeRecordings();
 
-  logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
-                "NumTimesClosedEarly {}",
-                Queue->ComputeCommandBatch.NumTimesClosedFull,
-                Queue->ComputeCommandBatch.NumTimesClosedEarly);
-  logger::debug(
-      "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
-      Queue->CopyCommandBatch.NumTimesClosedFull,
-      Queue->CopyCommandBatch.NumTimesClosedEarly);
+  UR_LOG(DEBUG,
+         "urQueueRelease(compute) NumTimesClosedFull {}, "
+         "NumTimesClosedEarly {}",
+         Queue->ComputeCommandBatch.NumTimesClosedFull,
+         Queue->ComputeCommandBatch.NumTimesClosedEarly);
+  UR_LOG(DEBUG,
+         "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
+         Queue->CopyCommandBatch.NumTimesClosedFull,
+         Queue->CopyCommandBatch.NumTimesClosedEarly);
 
   delete Queue;
 
@@ -1919,7 +1921,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
     CommandList->second.append(*Event);
-    (*Event)->RefCount.increment();
+    (*Event)->RefCount.retain();
   }
 
   // We need to increment the reference counter here to avoid ur_queue_handle_t
@@ -1927,7 +1929,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // urEventRelease requires access to the associated ur_queue_handle_t.
   // In urEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  Queue->RefCount.increment();
+  Queue->RefCount.retain();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -1959,7 +1961,7 @@ void ur_queue_handle_t_::CaptureIndirectAccesses() {
         // SubmissionsCount turns to 0. We don't want to know how many times
         // allocation was retained by each submission.
         if (Pair.second)
-          Elem.second.RefCount.increment();
+          Elem.second.RefCount.retain();
       }
     }
     Kernel->SubmissionsCount++;
@@ -2241,10 +2243,11 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
-                "(round robin in [{}, {}]) priority = {}",
-                ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
-                LowerIndex, UpperIndex, Priority);
+  UR_LOG(DEBUG,
+         "[getZeQueue]: create queue ordinal = {}, index = {} "
+         "(round robin in [{}, {}]) priority = {}",
+         ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+         UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -2297,12 +2300,15 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
   bool IsInOrderList = false;
-  if (Device->useDriverInOrderLists() && isInOrderQueue()) {
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      isInOrderQueue()) {
     ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_IN_ORDER;
     IsInOrderList = true;
   }
 
-  logger::debug(
+  UR_LOG(
+      DEBUG,
       "create command list ordinal: {}, type: regular, device: {}, inOrder: {}",
       QueueGroupOrdinal, Device->ZeDevice, IsInOrderList);
 
@@ -2334,7 +2340,7 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
     return UR_RESULT_SUCCESS;
 
   // Create a wait-list and retain events.
-  _ur_ze_event_list_t ActiveBarriersWaitList;
+  ur_ze_event_list_t ActiveBarriersWaitList;
   UR_CALL(ActiveBarriersWaitList.createAndRetainUrZeEventList(
       ActiveBarriers.vector().size(), ActiveBarriers.vector().data(),
       reinterpret_cast<ur_queue_handle_t>(this), UseCopyEngine));
@@ -2361,10 +2367,11 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
   Event->WaitList = ActiveBarriersWaitList;
   Event->OwnNativeHandle = true;
 
-  // If there are more active barriers, insert a barrier on the command-list. We
-  // do not need an event for finishing so we pass nullptr.
+  // If there are more active barriers, insert a barrier on the command-list.
+  // We need to signal the current active barrier event otherwise we will leak
+  // the Event object when we replace the active barrier.
   ZE2UR_CALL(zeCommandListAppendBarrier,
-             (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
+             (CmdList->first, Event->ZeEvent, ActiveBarriersWaitList.Length,
               ActiveBarriersWaitList.ZeEventList));
   return UR_RESULT_SUCCESS;
 }
@@ -2434,7 +2441,9 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue()) {
+  if (Queue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      Queue->isInOrderQueue()) {
     isInOrderList = true;
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
@@ -2468,14 +2477,15 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   // If cache didn't contain a command list, create one.
   if (!ZeCommandList) {
-    logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
-                  "(round robin in [{}, {}]) priority = {}",
-                  ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
-                  LowerIndex, UpperIndex, Priority);
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice,
-                  isInOrderList);
+    UR_LOG(DEBUG,
+           "[getZeQueue]: create queue ordinal = {}, index = {} "
+           "(round robin in [{}, {}]) priority = {}",
+           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+           UpperIndex, Priority);
+    UR_LOG(DEBUG,
+           "create command list ordinal: {}, type: immediate, device: "
+           "{}, inOrder: {}",
+           ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice, isInOrderList);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,

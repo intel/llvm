@@ -360,6 +360,7 @@ private:
   StructType *SyclDescTy = nullptr;
   StructType *SyclPropSetTy = nullptr;
   StructType *SyclPropTy = nullptr;
+  PointerType *PtrTy = nullptr;
 
   /// Records all added device binary images per offload kind.
   llvm::DenseMap<OffloadKind, std::unique_ptr<SameKindPack>> Packs;
@@ -392,7 +393,7 @@ private:
   std::unique_ptr<SymPropReader> MySymPropReader;
 
   IntegerType *getSizeTTy() {
-    switch (M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(C))) {
+    switch (M.getDataLayout().getPointerTypeSize(getPtrTy())) {
     case 4u:
       return Type::getInt32Ty(C);
     case 8u:
@@ -409,7 +410,7 @@ private:
   std::pair<Constant *, Constant *>
   addStructArrayToModule(ArrayRef<Constant *> ArrayData, Type *ElemTy) {
 
-    auto *PtrTy = llvm::PointerType::getUnqual(C);
+    auto *PtrTy = getPtrTy();
 
     if (ArrayData.size() == 0) {
       auto *NullPtr = Constant::getNullValue(PtrTy);
@@ -441,13 +442,11 @@ private:
   // };
   StructType *getEntryTy() {
     if (!EntryTy)
-      EntryTy = StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
-                                   PointerType::getUnqual(C), getSizeTTy(),
+      EntryTy = StructType::create("__tgt_offload_entry", getPtrTy(),
+                                   getPtrTy(), getSizeTTy(),
                                    Type::getInt32Ty(C), Type::getInt32Ty(C));
     return EntryTy;
   }
-
-  PointerType *getEntryPtrTy() { return PointerType::getUnqual(getEntryTy()); }
 
   // struct __tgt_device_image {
   //   void *ImageStart;
@@ -457,14 +456,9 @@ private:
   // };
   StructType *getDeviceImageTy() {
     if (!ImageTy)
-      ImageTy = StructType::create("__tgt_device_image", PointerType::getUnqual(C),
-                                   PointerType::getUnqual(C), getEntryPtrTy(),
-                                   getEntryPtrTy());
+      ImageTy = StructType::create("__tgt_device_image", getPtrTy(), getPtrTy(),
+                                   getPtrTy(), getPtrTy());
     return ImageTy;
-  }
-
-  PointerType *getDeviceImagePtrTy() {
-    return PointerType::getUnqual(getDeviceImageTy());
   }
 
   // struct __tgt_bin_desc {
@@ -476,13 +470,8 @@ private:
   StructType *getBinDescTy() {
     if (!DescTy)
       DescTy = StructType::create("__tgt_bin_desc", Type::getInt32Ty(C),
-                                  getDeviceImagePtrTy(), getEntryPtrTy(),
-                                  getEntryPtrTy());
+                                  getPtrTy(), getPtrTy(), getPtrTy());
     return DescTy;
-  }
-
-  PointerType *getBinDescPtrTy() {
-    return PointerType::getUnqual(getBinDescTy());
   }
 
   // DeviceImageStructVersion change log:
@@ -505,18 +494,14 @@ private:
     if (!SyclPropTy) {
       SyclPropTy = StructType::create(
           {
-              PointerType::getUnqual(C), // Name
-              PointerType::getUnqual(C), // ValAddr
-              Type::getInt32Ty(C),   // Type
-              Type::getInt64Ty(C)    // ValSize
+              getPtrTy(),          // Name
+              getPtrTy(),          // ValAddr
+              Type::getInt32Ty(C), // Type
+              Type::getInt64Ty(C)  // ValSize
           },
           "_pi_device_binary_property_struct");
     }
     return SyclPropTy;
-  }
-
-  PointerType *getSyclPropPtrTy() {
-    return PointerType::getUnqual(getSyclPropTy());
   }
 
   // struct _pi_device_binary_property_set_struct {
@@ -529,17 +514,13 @@ private:
     if (!SyclPropSetTy) {
       SyclPropSetTy = StructType::create(
           {
-              PointerType::getUnqual(C), // Name
-              getSyclPropPtrTy(),    // PropertiesBegin
-              getSyclPropPtrTy()     // PropertiesEnd
+              getPtrTy(), // Name
+              getPtrTy(), // PropertiesBegin
+              getPtrTy()  // PropertiesEnd
           },
           "_pi_device_binary_property_set_struct");
     }
     return SyclPropSetTy;
-  }
-
-  PointerType *getSyclPropSetPtrTy() {
-    return PointerType::getUnqual(getSyclPropSetTy());
   }
 
   // SYCL specific image descriptor type.
@@ -581,28 +562,30 @@ private:
     if (!SyclImageTy) {
       SyclImageTy = StructType::create(
           {
-              Type::getInt16Ty(C),   // Version
-              Type::getInt8Ty(C),    // OffloadKind
-              Type::getInt8Ty(C),    // Format
-              PointerType::getUnqual(C), // DeviceTargetSpec
-              PointerType::getUnqual(C), // CompileOptions
-              PointerType::getUnqual(C), // LinkOptions
-              PointerType::getUnqual(C), // ManifestStart
-              PointerType::getUnqual(C), // ManifestEnd
-              PointerType::getUnqual(C), // ImageStart
-              PointerType::getUnqual(C), // ImageEnd
-              getEntryPtrTy(),       // EntriesBegin
-              getEntryPtrTy(),       // EntriesEnd
-              getSyclPropSetPtrTy(), // PropertySetBegin
-              getSyclPropSetPtrTy()  // PropertySetEnd
+              Type::getInt16Ty(C), // Version
+              Type::getInt8Ty(C),  // OffloadKind
+              Type::getInt8Ty(C),  // Format
+              getPtrTy(),          // DeviceTargetSpec
+              getPtrTy(),          // CompileOptions
+              getPtrTy(),          // LinkOptions
+              getPtrTy(),          // ManifestStart
+              getPtrTy(),          // ManifestEnd
+              getPtrTy(),          // ImageStart
+              getPtrTy(),          // ImageEnd
+              getPtrTy(),          // EntriesBegin
+              getPtrTy(),          // EntriesEnd
+              getPtrTy(),          // PropertySetBegin
+              getPtrTy()           // PropertySetEnd
           },
           "__tgt_device_image");
     }
     return SyclImageTy;
   }
 
-  PointerType *getSyclDeviceImagePtrTy() {
-    return PointerType::getUnqual(getSyclDeviceImageTy());
+  PointerType *getPtrTy() {
+    PointerType *&Ty = PtrTy;
+    Ty = Ty ? Ty : PointerType::getUnqual(C);
+    return Ty;
   }
 
   const uint16_t BinDescStructVersion = 1;
@@ -623,19 +606,15 @@ private:
     if (!SyclDescTy) {
       SyclDescTy = StructType::create(
           {
-              Type::getInt16Ty(C),       // Version
-              Type::getInt16Ty(C),       // NumDeviceImages
-              getSyclDeviceImagePtrTy(), // DeviceImages
-              getEntryPtrTy(),           // HostEntriesBegin
-              getEntryPtrTy()            // HostEntriesEnd
+              Type::getInt16Ty(C), // Version
+              Type::getInt16Ty(C), // NumDeviceImages
+              getPtrTy(),          // DeviceImages
+              getPtrTy(),          // HostEntriesBegin
+              getPtrTy()           // HostEntriesEnd
           },
           "__tgt_bin_desc");
     }
     return SyclDescTy;
-  }
-
-  PointerType *getSyclBinDescPtrTy() {
-    return PointerType::getUnqual(getSyclBinDescTy());
   }
 
   Expected<MemoryBuffer *> loadFile(llvm::StringRef Name) {
@@ -649,11 +628,10 @@ private:
   }
 
   Function *addDeclarationForNativeCPU(StringRef Name) {
-    static FunctionType *NativeCPUFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
-    static FunctionType *NativeCPUBuiltinTy = FunctionType::get(
-        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
+    static FunctionType *NativeCPUFuncTy =
+        FunctionType::get(Type::getVoidTy(C), {getPtrTy(), getPtrTy()}, false);
+    static FunctionType *NativeCPUBuiltinTy =
+        FunctionType::get(getPtrTy(), {getPtrTy()}, false);
     FunctionType *FTy;
     if (Name.starts_with("__dpcpp_nativecpu"))
       FTy = NativeCPUBuiltinTy;
@@ -678,9 +656,8 @@ private:
     //   char *kernelname;
     //   unsigned char *kernel_ptr;
     // };
-    StructType *NCPUEntryT = StructType::create(
-        {PointerType::getUnqual(C), PointerType::getUnqual(C)},
-        "__nativecpu_entry");
+    StructType *NCPUEntryT =
+        StructType::create({getPtrTy(), getPtrTy()}, "__nativecpu_entry");
     SmallVector<Constant *, 5> NativeCPUEntries;
     for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
       auto *NewDecl = addDeclarationForNativeCPU(*LI);
@@ -692,7 +669,7 @@ private:
     // Add an empty entry that we use as end iterator
     static auto *NativeCPUEndStr =
         addStringToModule("__nativecpu_end", "__ncpu_end_str");
-    auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
+    auto *NullPtr = llvm::ConstantPointerNull::get(getPtrTy());
     NativeCPUEntries.push_back(
         ConstantStruct::get(NCPUEntryT, {NativeCPUEndStr, NullPtr}));
 
@@ -790,13 +767,13 @@ private:
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
     if (EntriesFile.empty() && !MySymPropReader) {
-      auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
+      auto *NullPtr = Constant::getNullValue(getPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
+    auto *NullPtr = Constant::getNullValue(getPtrTy());
 
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
@@ -851,7 +828,7 @@ private:
       switch (Prop.second.getType()) {
       case llvm::util::PropertyValue::UINT32: {
         // for known scalar types ValAddr is null, ValSize keeps the value
-        PropValAddr = Constant::getNullValue(PointerType::getUnqual(C));
+        PropValAddr = Constant::getNullValue(getPtrTy());
         PropValSize =
             ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
         break;
@@ -917,7 +894,7 @@ private:
       PropRegistry = MySymPropReader->getPropRegistry();
     } else {
       if (PropRegistryFile.empty()) {
-        auto *NullPtr = Constant::getNullValue(llvm::PointerType::getUnqual(C));
+        auto *NullPtr = Constant::getNullValue(getPtrTy());
         return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
       }
       // load the property registry file
@@ -1036,12 +1013,12 @@ private:
       }
     } else {
       // Host entry table is not used in SYCL
-      EntriesB = Constant::getNullValue(getEntryPtrTy());
-      EntriesE = Constant::getNullValue(getEntryPtrTy());
+      EntriesB = Constant::getNullValue(getPtrTy());
+      EntriesE = Constant::getNullValue(getPtrTy());
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
-    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
+    auto *NullPtr = Constant::getNullValue(getPtrTy());
     Constant *ZeroZero[] = {Zero, Zero};
 
     // Create initializer for the images array.
@@ -1101,7 +1078,7 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin;
-      if (Img.Tgt == "native_cpu") {
+      if (Triple(Img.Tgt).isNativeCPU()) {
         auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
         if (!FBinOrErr)
           return FBinOrErr.takeError();
@@ -1113,9 +1090,13 @@ private:
         if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
           return createStringError(
               inconvertibleErrorCode(),
-              "'--offload-compress' option is specified but zstd "
-              "is not available. The device image will not be "
-              "compressed.");
+              "'--offload-compress' is specified but the compiler is "
+              "built without zstd support.\n"
+              "If you are using a custom DPC++ build, please refer to "
+              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+              "GetStartedGuide.md#build-dpc-toolchain-with-device-image-"
+              "compression-support"
+              " for more information on how to build with zstd support.");
         }
 
         // Don't compress if the user explicitly specifies the binary image
@@ -1266,10 +1247,8 @@ private:
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
-        /*isVarArg=*/false);
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
+                                        /*isVarArg=*/false);
     FunctionCallee RegFuncC =
         M.getOrInsertFunction(Kind == OffloadKind::SYCL ? "__sycl_register_lib"
                                                         : "__tgt_register_lib",
@@ -1297,10 +1276,8 @@ private:
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        Kind == OffloadKind::SYCL ? getSyclBinDescPtrTy() : getBinDescPtrTy(),
-        /*isVarArg=*/false);
+    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getPtrTy(),
+                                          /*isVarArg=*/false);
     FunctionCallee UnRegFuncC = M.getOrInsertFunction(
         Kind == OffloadKind::SYCL ? "__sycl_unregister_lib"
                                   : "__tgt_unregister_lib",
@@ -1325,7 +1302,7 @@ public:
       MySymPropReader =
           std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
 
-    M.setTargetTriple(Target);
+    M.setTargetTriple(Triple(Target));
     // Look for llvm-objcopy in the same directory, from which
     // clang-offload-wrapper is invoked. This helps OpenMP offload
     // LIT tests.

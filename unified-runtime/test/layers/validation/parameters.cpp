@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// COM: This test doesn't have any filecheck rules
+// RUN: %use-mock %validate parameters-test
+
 #include "fixtures.hpp"
 
 TEST_F(valPlatformsTest, testUrPlatformGetApiVersion) {

@@ -15,13 +15,20 @@
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
 
-extern __DPCPP_SYCL_EXTERNAL void *memcpy(void *dest, const void *src,
-                                          size_t n);
-extern __DPCPP_SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
-extern __DPCPP_SYCL_EXTERNAL int memcmp(const void *s1, const void *s2,
-                                        size_t n);
-extern __DPCPP_SYCL_EXTERNAL int rand();
-extern __DPCPP_SYCL_EXTERNAL void srand(unsigned int seed);
+extern __DPCPP_SYCL_EXTERNAL_LIBC void *memcpy(void *dest, const void *src,
+                                               size_t n);
+extern __DPCPP_SYCL_EXTERNAL_LIBC void *memset(void *dest, int c, size_t n);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int memcmp(const void *s1, const void *s2,
+                                             size_t n);
+extern __DPCPP_SYCL_EXTERNAL_LIBC size_t strlen(const char *s);
+extern __DPCPP_SYCL_EXTERNAL_LIBC char *strcpy(char *dest, const char *src);
+extern __DPCPP_SYCL_EXTERNAL_LIBC char *strncpy(char *dest, const char *src,
+                                                size_t n);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int strcmp(const char *s1, const char *s2);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int strncmp(const char *s1, const char *s2,
+                                              size_t n);
+extern __DPCPP_SYCL_EXTERNAL_LIBC int rand();
+extern __DPCPP_SYCL_EXTERNAL_LIBC void srand(unsigned int seed);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,
@@ -633,11 +640,16 @@ __imf_vimin_s16x2_relu(unsigned int x, unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_vimin_s32_relu(int x, int y);
 }
 #ifdef __GLIBC__
+namespace std {
+extern __DPCPP_SYCL_EXTERNAL_LIBC void
+__glibcxx_assert_fail(const char *file, int line, const char *func,
+                      const char *cond) noexcept;
+} // namespace std
 extern "C" {
-extern __DPCPP_SYCL_EXTERNAL void __assert_fail(const char *expr,
-                                                const char *file,
-                                                unsigned int line,
-                                                const char *func);
+extern __DPCPP_SYCL_EXTERNAL_LIBC void __assert_fail(const char *expr,
+                                                     const char *file,
+                                                     unsigned int line,
+                                                     const char *func);
 }
 #elif defined(_WIN32)
 extern "C" {
@@ -647,8 +659,8 @@ extern "C" {
 //       APIs used by STL, such as _Cosh, are undocumented, even though
 //       they are open-sourced. Recognizing them as builtins is not
 //       straightforward currently.
-extern __DPCPP_SYCL_EXTERNAL void _wassert(const wchar_t *wexpr,
-                                           const wchar_t *wfile, unsigned line);
+extern __DPCPP_SYCL_EXTERNAL_LIBC void
+_wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line);
 }
 #endif
 #endif // __SYCL_DEVICE_ONLY__

@@ -6,37 +6,38 @@
 ;;
 ;;===----------------------------------------------------------------------===//
 
-#if __clang_major__ >= 7
-target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1-ni:7"
-#else
-target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5-G1-ni:7"
-#endif
-
 ; Function Attrs: nounwind readnone speculatable
 declare i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
 
-define hidden i64 @_Z22__spirv_GlobalOffset_xv() nounwind alwaysinline {
+define hidden i64 @_Z27__spirv_BuiltInGlobalOffseti(i32 %dim) nounwind alwaysinline {
 entry:
+  switch i32 %dim, label %return [
+    i32 0, label %sw.bb
+    i32 1, label %sw.bb1
+    i32 2, label %sw.bb3
+  ]
+
+sw.bb:                                            ; preds = %entry
   %0 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
   %1 = load i32, i32 addrspace(5)* %0, align 4
   %zext = zext i32 %1 to i64
-  ret i64 %zext
-}
+  br label %return
 
-define hidden i64 @_Z22__spirv_GlobalOffset_yv() nounwind alwaysinline {
-entry:
-  %0 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
-  %arrayidx = getelementptr inbounds i32, i32 addrspace(5)* %0, i64 1
-  %1 = load i32, i32 addrspace(5)* %arrayidx, align 4
-  %zext = zext i32 %1 to i64
-  ret i64 %zext
-}
+sw.bb1:                                           ; preds = %entry
+  %2 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
+  %arrayidx = getelementptr inbounds i32, i32 addrspace(5)* %2, i64 1
+  %3 = load i32, i32 addrspace(5)* %arrayidx, align 4
+  %zext2 = zext i32 %3 to i64
+  br label %return
 
-define hidden i64 @_Z22__spirv_GlobalOffset_zv() nounwind alwaysinline {
-entry:
-  %0 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
-  %arrayidx = getelementptr inbounds i32, i32 addrspace(5)* %0, i64 2
-  %1 = load i32, i32 addrspace(5)* %arrayidx, align 4
-  %zext = zext i32 %1 to i64
-  ret i64 %zext
+sw.bb3:                                           ; preds = %entry
+  %4 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
+  %arrayidx2 = getelementptr inbounds i32, i32 addrspace(5)* %4, i64 2
+  %5 = load i32, i32 addrspace(5)* %arrayidx2, align 4
+  %zext3 = zext i32 %5 to i64
+  br label %return
+
+return:                                           ; preds = %entry, %sw.bb3, %sw.bb1, %sw.bb
+  %retval = phi i64 [ %zext, %sw.bb ], [ %zext2, %sw.bb1 ], [ %zext3, %sw.bb3 ], [ 0, %entry ]
+  ret i64 %retval
 }

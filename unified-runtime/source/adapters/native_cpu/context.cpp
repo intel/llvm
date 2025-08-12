@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
-#include <tuple>
 
 #include "ur/ur.hpp"
 #include "ur_api.h"
@@ -19,9 +18,8 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     [[maybe_unused]] uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-    const ur_context_properties_t *pProperties,
+    const ur_context_properties_t * /*pProperties*/,
     ur_context_handle_t *phContext) {
-  std::ignore = pProperties;
   assert(DeviceCount == 1);
 
   // TODO: Proper error checking.
@@ -65,34 +63,24 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
-    ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  std::ignore = hContext;
-  std::ignore = phNativeContext;
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextGetNativeHandle(ur_context_handle_t /*hContext*/,
+                         ur_native_handle_t * /*phNativeContext*/) {
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext, ur_adapter_handle_t hAdapter,
-    uint32_t numDevices, const ur_device_handle_t *phDevices,
-    const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) {
-  std::ignore = hNativeContext;
-  std::ignore = hAdapter;
-  std::ignore = numDevices;
-  std::ignore = phDevices;
-  std::ignore = pProperties;
-  std::ignore = phContext;
+    ur_native_handle_t /*hNativeContext*/, ur_adapter_handle_t /*hAdapter*/,
+    uint32_t /*numDevices*/, const ur_device_handle_t * /*phDevices*/,
+    const ur_context_native_properties_t * /*pProperties*/,
+    ur_context_handle_t * /*phContext*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
-    ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
-    void *pUserData) {
-  std::ignore = hContext;
-  std::ignore = pfnDeleter;
-  std::ignore = pUserData;
+    ur_context_handle_t /*hContext*/,
+    ur_context_extended_deleter_t /*pfnDeleter*/, void * /*pUserData*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

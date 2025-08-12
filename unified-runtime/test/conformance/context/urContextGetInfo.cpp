@@ -42,6 +42,27 @@ TEST_P(urContextGetInfoTest, SuccessDevices) {
   ASSERT_EQ(property_value, device);
 }
 
+TEST_P(urContextGetInfoTest, SuccessRoundtripDevices) {
+  const ur_context_info_t property_name = UR_CONTEXT_INFO_DEVICES;
+  size_t property_size = sizeof(ur_device_handle_t);
+
+  ur_native_handle_t native_context;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urContextGetNativeHandle(context, &native_context));
+
+  ur_context_handle_t from_native_context;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
+      native_context, adapter, 1, &device, nullptr, &from_native_context));
+
+  ur_device_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urContextGetInfo(from_native_context, property_name,
+                                  property_size, &property_value, nullptr));
+
+  size_t devices_count = property_size / sizeof(ur_device_handle_t);
+  ASSERT_EQ(devices_count, 1);
+  ASSERT_EQ(property_value, device);
+}
+
 TEST_P(urContextGetInfoTest, SuccessUSMMemCpy2DSupport) {
   const ur_context_info_t property_name = UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT;
   size_t property_size = 0;

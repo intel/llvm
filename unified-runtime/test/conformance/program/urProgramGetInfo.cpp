@@ -51,6 +51,25 @@ TEST_P(urProgramGetInfoTest, SuccessContext) {
   ASSERT_EQ(property_value, context);
 }
 
+TEST_P(urProgramGetInfoTest, SuccessRoundtripContext) {
+  const ur_program_info_t property_name = UR_PROGRAM_INFO_CONTEXT;
+  size_t property_size = sizeof(ur_context_handle_t);
+
+  ur_native_handle_t native_program;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urProgramGetNativeHandle(program, &native_program));
+
+  ur_program_handle_t from_native_program;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithNativeHandle(
+      native_program, context, nullptr, &from_native_program));
+
+  ur_context_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urProgramGetInfo(from_native_program, property_name,
+                                  property_size, &property_value, nullptr));
+
+  ASSERT_EQ(property_value, context);
+}
+
 TEST_P(urProgramGetInfoTest, SuccessNumDevices) {
   size_t property_size = 0;
   const ur_program_info_t property_name = UR_PROGRAM_INFO_NUM_DEVICES;
@@ -134,6 +153,10 @@ TEST_P(urProgramGetInfoTest, SuccessBinarySizes) {
 }
 
 TEST_P(urProgramGetInfoTest, SuccessBinaries) {
+  // Not implemented correctly on these targets - they copy their own pointer into the output rather than copying the
+  // binary
+  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+
   size_t binary_sizes_len = 0;
   std::vector<char> property_value(0);
 
@@ -156,11 +179,14 @@ TEST_P(urProgramGetInfoTest, SuccessBinaries) {
       urProgramGetInfo(program, UR_PROGRAM_INFO_BINARIES, sizeof(binaries[0]),
                        binaries, nullptr),
       UR_PROGRAM_INFO_BINARIES);
+
+  // We assume that there is at least 1 non-zero byte in the binary
+  bool nonzero_found = std::any_of(property_value.begin(), property_value.end(),
+                                   [](char c) { return c != 0; });
+  ASSERT_TRUE(nonzero_found);
 }
 
 TEST_P(urProgramGetInfoTest, SuccessNumKernels) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
-
   size_t property_size = 0;
   const ur_program_info_t property_name = UR_PROGRAM_INFO_NUM_KERNELS;
 

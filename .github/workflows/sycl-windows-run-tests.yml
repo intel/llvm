@@ -34,21 +34,16 @@ on:
         required: False
         description: |
           Commit SHA or branch to checkout the intel/llvm repo.
-      devops_ref:
-        type: string
-        required: False
-        description: |
-          Commit SHA or branch to checkout the devops directory.
       tests_ref:
         type: string
         required: False
         description: Commit SHA or branch to checkout e2e/cts tests.
 
-      sycl_toolchain_artifact:
+      toolchain_artifact:
         type: string
         default: 'sycl_windows_default'
         required: False
-      sycl_toolchain_archive:
+      toolchain_artifact_filename:
         type: string
         default: ''
         required: False
@@ -58,10 +53,19 @@ on:
         default: '{}'
         required: False
 
-      compiler:
+      cxx:
         type: string
         required: false
         default: "cl"
+
+      e2e_testing_mode:
+        type: string
+        default: "full"
+
+      e2e_binaries_artifact:
+        type: string
+        default: ''
+        required: False
 
       cts_testing_mode:
         description: |
@@ -92,9 +96,8 @@ jobs:
     - name:  Detect hung tests
       if: always()
       shell: powershell
-      continue-on-error: true
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
@@ -103,13 +106,13 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.devops_ref|| inputs.repo_ref || github.sha }}
+          sycl/cts_exclude_filter
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
     - name: Setup oneAPI env
       uses: ./devops/actions/setup_windows_oneapi_env
-      if: ${{ always() && !cancelled() && inputs.compiler == 'icx' }}
+      if: ${{ always() && !cancelled() && inputs.cxx == 'icx' }}
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -117,22 +120,24 @@ jobs:
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
-    - uses: ./devops/actions/cached_checkout
+    - uses: actions/checkout@v4
       if: inputs.tests_selector == 'e2e'
       with:
         path: llvm
         ref: ${{ inputs.repo_ref || github.sha }}
-        cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
+        sparse-checkout: |
+          llvm/utils/lit
+          sycl/test-e2e          
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.sycl_toolchain_artifact }}
+        name: ${{ inputs.toolchain_artifact }}
     - name: Extract SYCL toolchain
       shell: bash
       run: |
         mkdir install
-        tar -xf ${{ inputs.sycl_toolchain_archive }} -C install
-        rm ${{ inputs.sycl_toolchain_archive }}
+        tar -xf ${{ inputs.toolchain_artifact_filename }} -C install
+        rm ${{ inputs.toolchain_artifact_filename }}
     - name: Setup SYCL toolchain
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -141,29 +146,26 @@ jobs:
         sycl-ls
     - run: |
         sycl-ls --verbose
-    - name: Configure E2E with Level Zero target
+
+    - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
-      shell: cmd
-      run: |
-        mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
-    - name: Run End-to-End tests
-      if: inputs.tests_selector == 'e2e'
-      shell: bash
-      run: |
-        # Run E2E tests.
-        if [[ ${{inputs.compiler}} == 'icx' ]]; then
-           export LIT_FILTER_OUT="compile_on_win_with_mdd"
-        fi
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
-        cmake --build build-e2e --target check-sycl-e2e
+      uses: ./devops/actions/run-tests/windows/e2e
+      timeout-minutes: 60
+      with:
+        ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
+        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
+        testing_mode: ${{ inputs.e2e_testing_mode }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        target_devices: ${{ inputs.target_devices }}
+        extra_lit_opts: ${{ inputs.extra_lit_opts }}
+        retention-days: ${{ inputs.artifact_retention_days }}
+        cxx: ${{ inputs.cxx }}
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/windows/cts
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
-        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
@@ -174,7 +176,7 @@ jobs:
       if: always()
       shell: powershell
       run: |
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"      
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1" -Headers @{Authorization = "Bearer ${{ github.token }}"}
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"

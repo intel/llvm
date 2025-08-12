@@ -30,7 +30,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
 
   // Add some nodes to the graph for testing and test after each addition.
   auto RootA = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   {
     auto GraphRoots = Graph.get_root_nodes();
     auto GraphNodes = Graph.get_nodes();
@@ -38,7 +38,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
     ASSERT_EQ(GraphNodes.size(), 1lu);
   }
   auto RootB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   {
     auto GraphRoots = Graph.get_root_nodes();
     auto GraphNodes = Graph.get_nodes();
@@ -46,7 +46,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
     ASSERT_EQ(GraphNodes.size(), 2lu);
   }
   auto NodeA = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(RootA, RootB)});
   {
     auto GraphRoots = Graph.get_root_nodes();
@@ -55,7 +55,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
     ASSERT_EQ(GraphNodes.size(), 3lu);
   }
   auto NodeB = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); },
       {experimental::property::node::depends_on(RootB)});
   {
     auto GraphRoots = Graph.get_root_nodes();
@@ -64,7 +64,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
     ASSERT_EQ(GraphNodes.size(), 4lu);
   }
   auto RootC = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   {
     auto GraphRoots = Graph.get_root_nodes();
     auto GraphNodes = Graph.get_nodes();
@@ -89,8 +89,7 @@ TEST_F(CommandGraphTest, GetNodeQueries) {
 
   // Check ordering of all nodes is correct
   for (size_t i = 0; i < GraphNodes.size(); i++) {
-    ASSERT_EQ(sycl::detail::getSyclObjImpl(GraphNodes[i]),
-              sycl::detail::getSyclObjImpl(NodeList[i]));
+    ASSERT_EQ(&*getSyclObjImpl(GraphNodes[i]), &*getSyclObjImpl(NodeList[i]));
   }
 }
 
@@ -101,7 +100,7 @@ TEST_F(CommandGraphTest, NodeTypeQueries) {
   int *PtrB = malloc_device<int>(16, Queue);
 
   auto NodeKernel = Graph.add(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   ASSERT_EQ(NodeKernel.get_type(), experimental::node_type::kernel);
 
   auto NodeMemcpy = Graph.add(

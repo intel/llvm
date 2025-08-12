@@ -13,12 +13,12 @@ using namespace sycl;
 // Global buffer accessor.
 //----------------------------------------------------------------------------//
 
-SYCL_EXTERNAL void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer> Acc) {
+SYCL_EXTERNAL void hostAcc(accessor<int, 1, access::mode::read, access::target::device> Acc) {
   (void)Acc.get_size();
 }
-// CHECK:      0 | class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>
-// CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer> > (base) (empty)
+// CHECK:      0 | class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device>
+// CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::device, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device> > (base) (empty)
 // CHECK-NEXT: 0 |   class sycl::detail::AccessorImplDevice<1> impl
 // CHECK-NEXT: 0 |     class sycl::id<1> Offset
 // CHECK-NEXT: 0 |       class sycl::detail::array<> (base)
@@ -29,7 +29,7 @@ SYCL_EXTERNAL void hostAcc(accessor<int, 1, access::mode::read, access::target::
 // CHECK-NEXT: 16 |     class sycl::range<> MemRange
 // CHECK-NEXT: 16 |       class sycl::detail::array<> (base)
 // CHECK-NEXT: 16 |         size_t[1] common_array
-// CHECK-NEXT: 24 |   union sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>
+// CHECK-NEXT: 24 |   union sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device>
 // CHECK-NEXT: 24 |     ConcreteASPtrType MData
 // CHECK-NEXT:     | [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT:     |  nvsize=32, nvalign=8]

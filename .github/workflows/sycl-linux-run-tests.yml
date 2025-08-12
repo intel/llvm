@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Three possible options: "e2e", "cts", and "compute-benchmarks".
+          Three possible options: "e2e", "cts", and "benchmarks".
         type: string
         default: "e2e"
 
@@ -37,37 +37,34 @@ on:
 
       repo_ref:
         type: string
-        required: True
-        description: |
-          Commit SHA or branch to checkout the intel/llvm repo.
-      devops_ref:
-        type: string
         required: False
         description: |
-          Commit SHA or branch to checkout the devops directory.
+          Commit SHA or branch to checkout the intel/llvm repo.
       tests_ref:
         type: string
         required: False
         description: Commit SHA or branch to checkout e2e/cts tests.
 
-      sycl_toolchain_artifact:
+      toolchain_artifact:
         type: string
         default: ''
         required: False
-      sycl_toolchain_archive:
+      toolchain_artifact_filename:
         type: string
         default: ''
         required: False
-      sycl_toolchain_decompress_command:
+      toolchain_decompress_command:
         type: string
         default: ''
         required: False
 
       e2e_binaries_artifact:
         description: |
-          Must be set if `e2e_testing_mode` is equal to `run-only` and the
-          artifact must exist. Can be set in other modes resulting in artifact
-          upload.
+          When set in modes other than `run-only` results in artifact upload.
+          For `run-only` mode, if specified, means downloading pre-built
+          binaries from the artifact. If set to special value `in-container`
+          then the binaries are expected to be stored in the container image
+          instead of coming from an artifact.
         type: string
         default: ''
         required: False
@@ -82,9 +79,6 @@ on:
         type: string
         default: 1
 
-      reset_intel_gpu:
-        type: string
-        required: False
       install_igc_driver:
         type: string
         required: False
@@ -114,6 +108,39 @@ on:
         default: ''
         required: False
 
+      benchmark_upload_results:
+        description: |
+          Set to true to upload results to git repository storing benchmarking
+          results.
+        type: string
+        default: 'false'
+        required: False
+      benchmark_save_name:
+        description: |
+          Save name to use for benchmark results: Save names are stored in
+          metadata of result file, and are used to identify benchmark results in
+          the same series (e.g. same configuration, same device, etc.).
+
+          Note: Currently, benchmark result filenames are in the format of
+          <benchmark_save_name>_<Device>_<Backend>_YYYYMMDD_HHMMSS.json
+        type: string
+        default: ''
+        required: False
+      benchmark_preset:
+        description: |
+          Name of benchmark preset to run.
+
+          See /devops/scripts/benchmarks/presets.py for all presets available.
+        type: string
+        default: 'Minimal'
+        required: False
+      benchmark_dry_run:
+        description: |
+          Whether or not to fail the workflow upon a regression.
+        type: string
+        default: 'false'
+        required: False
+
   workflow_dispatch:
     inputs:
       runner:
@@ -131,6 +158,8 @@ on:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2'
+          - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3'
           - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
@@ -153,7 +182,11 @@ on:
         options:
           - e2e
           - cts
-          - compute-benchmarks
+          - benchmarks
+      toolchain_release_tag:
+        description: |
+          Tag of a "Nightly" release at https://github.com/intel/llvm/releases.
+        default: ''
 
       env:
         description: |
@@ -171,19 +204,12 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      reset_intel_gpu:
-        description: |
-          Reset Intel GPUs
-        type: choice
-        options:
-          - false
-          - true
-
       e2e_testing_mode:
         type: choice
         options:
           - "full"
           - "build-only"
+          - "run-only"
 
 permissions:
   contents: read
@@ -199,31 +225,15 @@ jobs:
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - name: Reset Intel GPU
-      if: inputs.reset_intel_gpu == 'true'
-      shell: bash      
-      run: |
-        if [[ '${{ inputs.runner }}' == '["Linux", "bmg"]' ]]; then
-          sudo bash -c 'echo 0000:05:00.0 > /sys/bus/pci/drivers/xe/unbind'
-          sudo bash -c 'echo 1 > /sys/bus/pci/devices/0000:05:00.0/reset'
-          sudo bash -c 'echo 0000:05:00.0 > /sys/bus/pci/drivers/xe/bind'
-        else
-          sudo mount -t debugfs none /sys/kernel/debug
-          base_dir="/sys/kernel/debug/dri"
-
-          for dir in "$base_dir"/*; do
-           if [ -f "$dir/i915_wedged" ]; then
-            sudo bash -c 'echo 1 > $0/i915_wedged' $dir
-           fi
-          done
-        fi
     - uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.devops_ref || inputs.repo_ref }}
         sparse-checkout: |
           devops
+          sycl/cts_exclude_filter
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
+    - name: Reset Intel GPU
+      uses: ./devops/actions/reset_gpu
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -251,21 +261,17 @@ jobs:
         comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
     - name: Download SYCL toolchain
-      if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
+      if: inputs.toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.sycl_toolchain_artifact }}
-    - name: Debug prints [workflow_run]
-      if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
-      run: |
-        pwd
-        ls
+        name: ${{ inputs.toolchain_artifact }}
     - name: Download SYCL toolchain [workflow_run]
-      if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
+      # NOTE: This is for `sycl-linux-precommit-aws.yml`.
+      if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'
       uses: actions/github-script@v7
       with:
         script: |
-          const name = '${{ inputs.sycl_toolchain_artifact }}'
+          const name = '${{ inputs.toolchain_artifact }}'
           let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
              owner: context.repo.owner,
              repo: context.repo.repo,
@@ -283,18 +289,29 @@ jobs:
           let fs = require('fs');
           fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/` + name + '.zip', Buffer.from(download.data));
     - name: Unzip artifact [workflow_run]
-      if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
+      if: inputs.toolchain_artifact != '' && github.event_name == 'workflow_run'
       run: |
         pwd
         ls
-        unzip ${{ inputs.sycl_toolchain_artifact }}.zip
-        rm ${{ inputs.sycl_toolchain_artifact }}.zip
+        unzip ${{ inputs.toolchain_artifact }}.zip
+        rm ${{ inputs.toolchain_artifact }}.zip
     - name: Extract/Setup SYCL toolchain
-      if: inputs.sycl_toolchain_artifact != ''
+      if: inputs.toolchain_artifact != ''
       run: |
         mkdir toolchain
-        tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
-        rm -f ${{ inputs.sycl_toolchain_archive }}
+        tar -I '${{ inputs.toolchain_decompress_command }}' -xf ${{ inputs.toolchain_artifact_filename }} -C toolchain
+        rm -f ${{ inputs.toolchain_artifact_filename }}
+        echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+        echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+    - name: Download SYCL toolchain using release tag
+      if: inputs.toolchain_release_tag != ''
+      env:
+        TAG: ${{ inputs.toolchain_release_tag }}
+      shell: bash
+      run: |
+        mkdir toolchain
+        wget "https://github.com/intel/llvm/releases/download/$TAG/sycl_linux.tar.gz"
+        tar xf sycl_linux.tar.gz -C toolchain
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls
@@ -308,6 +325,7 @@ jobs:
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/e2e
+      timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
@@ -320,20 +338,27 @@ jobs:
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/cts
+      # Normally this job takes less than 10m. But sometimes it hangs up and
+      # reaches the 360m limit. Set a lower limit to free up the runner earlier.
+      timeout-minutes: 35
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
-        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Run compute-benchmarks on SYCL
-      if: inputs.tests_selector == 'compute-benchmarks'
+    - name: Run benchmarks
+      if: inputs.tests_selector == 'benchmarks'
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
+        save_name: ${{ inputs.benchmark_save_name }}
+        preset: ${{ inputs.benchmark_preset }}
+        dry_run: ${{ inputs.benchmark_dry_run }}
+        build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

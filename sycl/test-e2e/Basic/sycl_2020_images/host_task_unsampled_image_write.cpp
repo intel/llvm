@@ -2,6 +2,9 @@
 // TODO: Consider moving to sycl/test as this is device-independent.
 // RUN: %{run-unfiltered-devices} %t.out
 
+// UNSUPPORTED: windows && gpu-intel-gen12 && (!build-mode && run-mode)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18085
+
 // Tests for direct read of unsampled_image using host accessors.
 
 #include "common.hpp"

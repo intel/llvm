@@ -1,0 +1,22 @@
+RUN: %trace --json hello_world | FileCheck %s -DVER=%ur-version
+
+REQUIRES: tracing
+
+CHECK: {
+CHECK-NEXT:  "traceEvents": [
+CHECK-NEXT: Platform initialized.
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urAdapterGet",            "args": "(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = {{.*}} (1))"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urAdapterGet",            "args": "(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr)"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urPlatformGet",            "args": "(.hAdapter = {{.*}}, .NumEntries = 0, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (1))"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urPlatformGet",            "args": "(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}} {{{.*}}}, .pNumPlatforms = {{.*}} (1))"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urPlatformGetApiVersion",            "args": "(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.12))"        },
+CHECK-NEXT: API version: [[VER]]
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urDeviceGet",            "args": "(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1))"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urDeviceGet",            "args": "(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}} {{{.*}}}, .pNumDevices = nullptr)"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urDeviceGetInfo",            "args": "(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 4, .pPropValue = {{.*}} (UR_DEVICE_TYPE_GPU), .pPropSizeRet = nullptr)"        },
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urDeviceGetInfo",            "args": "(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = 1023, .pPropValue = {{.*}} (Mock Device), .pPropSizeRet = nullptr)"        },
+CHECK-NEXT: Found a Mock Device gpu.
+CHECK-NEXT: {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urAdapterRelease",            "args": "(.hAdapter = {{.*}})"        },
+CHECK-NEXT: {"name": "", "cat": "", "ph": "", "pid": "", "tid": "", "ts": ""}
+CHECK-NEXT: ]
+CHECK-NEXT: }

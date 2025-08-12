@@ -26,8 +26,8 @@ entry:
 ;.
 ; CHECK: @_ZTS14example_kernel_shared_mem = external addrspace(3) global [0 x i8], align 4
 ;.
-; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel(
-; CHECK-SAME: i32 [[TMP0:%.*]], ptr addrspace(1) alignstack(8) [[B:%.*]], i32 [[C:%.*]]) {
+; CHECK-LABEL: define ptx_kernel alignstack(8) void @_ZTS14example_kernel(
+; CHECK-SAME: i32 [[TMP0:%.*]], ptr addrspace(1) alignstack(8) [[B:%.*]], i32 [[C:%.*]]) #[[ATTR0:[0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 [[TMP0]]
 ; CHECK-NEXT:    [[A:%.*]] = bitcast ptr addrspace(3) [[TMP1]] to ptr addrspace(3)
@@ -37,8 +37,8 @@ entry:
 ; CHECK-NEXT:    ret void
 ;
 ;.
+; CHECK: attributes #[[ATTR0]] = { "nvvm.maxntid"="256,64,256" }
+;.
 ; CHECK: [[META0:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
-; CHECK: [[META1:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"maxntidx", i32 256, !"dummy", i32 1, !"maxntidy", i32 64}
-; CHECK: [[META3:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"maxntidz", i32 256}
-; CHECK: [[META4:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"dummy", i32 1}
+; CHECK: [[META1:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"dummy", i32 1}
 ;.

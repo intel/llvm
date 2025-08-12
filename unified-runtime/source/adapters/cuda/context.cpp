@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "platform.hpp"
 #include "usm.hpp"
 
 #include <cassert>
@@ -35,18 +36,10 @@ ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
 }
 
 /// Create a UR CUDA context.
-///
-/// By default creates a scoped context and keeps the last active CUDA context
-/// on top of the CUDA context stack.
-/// With the __SYCL_PI_CONTEXT_PROPERTIES_CUDA_PRIMARY key/id and a value of
-/// PI_TRUE creates a primary CUDA context and activates it on the CUDA context
-/// stack.
-///
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-                const ur_context_properties_t *pProperties,
+                const ur_context_properties_t * /*pProperties*/,
                 ur_context_handle_t *phContext) {
-  std::ignore = pProperties;
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
@@ -73,7 +66,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(hContext->getDevices().data(),
                        hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hContext->getReferenceCount());
+    return ReturnValue(hContext->RefCount.getCount());
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(true);
@@ -90,21 +83,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (hContext->decrementReferenceCount() > 0) {
-    return UR_RESULT_SUCCESS;
+  if (hContext->RefCount.release()) {
+    hContext->invokeExtendedDeleters();
+    delete hContext;
   }
-  hContext->invokeExtendedDeleters();
-
-  std::unique_ptr<ur_context_handle_t_> Context{hContext};
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  assert(hContext->getReferenceCount() > 0);
+  assert(hContext->RefCount.getCount() > 0);
 
-  hContext->incrementReferenceCount();
+  hContext->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 

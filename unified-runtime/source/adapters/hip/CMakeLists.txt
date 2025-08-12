@@ -75,6 +75,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
@@ -110,12 +111,21 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     # Import HIP runtime library
     add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
-    set_target_properties(
-    rocmdrv PROPERTIES
-        IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamdhip64.so"
-        INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
-        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
-    )
+    if(WIN32)
+      set_target_properties(
+      rocmdrv PROPERTIES
+          IMPORTED_IMPLIB                      "${UR_HIP_LIB_DIR}/amdhip64.lib"
+          INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+      )
+    else()
+      set_target_properties(
+      rocmdrv PROPERTIES
+          IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamdhip64.so"
+          INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+      )
+    endif()
 
     if(UR_ENABLE_COMGR)
         set(UR_COMGR_VERSION5_HEADER "${UR_HIP_INCLUDE_DIR}/amd_comgr/amd_comgr.h")
@@ -148,6 +158,7 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::umf
+    ur_common
     rocmdrv
     )
 

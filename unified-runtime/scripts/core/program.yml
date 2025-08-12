@@ -227,7 +227,7 @@ analogue:
 details:
     - "The application may call this function from simultaneous threads."
     - "Following a successful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
-    - "If a non-success code is returned and `phProgram` is not `nullptr`, it will contain an unspecified program or `nullptr`. Implementations may use the build log of this program (accessible via $xProgramGetBuildInfo) to provide an error log for the linking failure."
+    - "If a non-success code is returned, adapters may store a program in `phProgram`. This program should only be used with `$xProgramGetBuildInfo` to get the build log for the failure. Adapters which do not do not support producing build logs must set this value to `nullptr`."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -385,7 +385,7 @@ etors:
     - name: BINARY_SIZES
       desc: "[size_t[]] Return program binary sizes for each device."
     - name: BINARIES
-      desc: "[unsigned char[]] Return program binaries for all devices for this Program. These are not null-terminated."
+      desc: "[unsigned char *[]] Write program binaries into caller-provided buffers for each device. These are not null-terminated."
     - name: NUM_KERNELS
       desc: "[size_t][optional-query] Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES

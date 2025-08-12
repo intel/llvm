@@ -5,6 +5,12 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
+		urAdapterSetLoggerCallback;
+		urAdapterSetLoggerCallbackLevel;
+		urBindlessImagesFreeMappedLinearMemoryExp;
+		urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+		urBindlessImagesGetImageSampledHandleSupportExp;
+		urBindlessImagesGetImageUnsampledHandleSupportExp;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -20,6 +26,7 @@
 		urBindlessImagesSampledImageCreateExp;
 		urBindlessImagesSampledImageHandleDestroyExp;
 		urBindlessImagesSignalExternalSemaphoreExp;
+		urBindlessImagesSupportsImportingHandleTypeExp;
 		urBindlessImagesUnsampledImageCreateExp;
 		urBindlessImagesUnsampledImageHandleDestroyExp;
 		urBindlessImagesWaitExternalSemaphoreExp;
@@ -63,14 +70,12 @@
 		urDeviceRetain;
 		urDeviceSelectBinary;
 		urEnqueueCommandBufferExp;
-		urEnqueueCooperativeKernelLaunchExp;
 		urEnqueueDeviceGlobalVariableRead;
 		urEnqueueDeviceGlobalVariableWrite;
 		urEnqueueEventsWait;
 		urEnqueueEventsWaitWithBarrier;
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueKernelLaunch;
-		urEnqueueKernelLaunchCustomExp;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
 		urEnqueueMemBufferFill;
@@ -105,6 +110,7 @@
 		urEventRetain;
 		urEventSetCallback;
 		urEventWait;
+		urGetAdapterProcAddrTable;
 		urGetBindlessImagesExpProcAddrTable;
 		urGetCommandBufferExpProcAddrTable;
 		urGetContextProcAddrTable;
@@ -112,10 +118,9 @@
 		urGetEnqueueExpProcAddrTable;
 		urGetEnqueueProcAddrTable;
 		urGetEventProcAddrTable;
-		urGetGlobalProcAddrTable;
-		urGetKernelExpProcAddrTable;
 		urGetKernelProcAddrTable;
 		urGetMemProcAddrTable;
+		urGetMemoryExportExpProcAddrTable;
 		urGetPhysicalMemProcAddrTable;
 		urGetPlatformProcAddrTable;
 		urGetProgramExpProcAddrTable;
@@ -142,7 +147,7 @@
 		urKernelSetArgValue;
 		urKernelSetExecInfo;
 		urKernelSetSpecializationConstants;
-		urKernelSuggestMaxCooperativeGroupCountExp;
+		urKernelSuggestMaxCooperativeGroupCount;
 		urLoaderConfigCreate;
 		urLoaderConfigEnableLayer;
 		urLoaderConfigGetInfo;
@@ -162,6 +167,9 @@
 		urMemImageGetInfo;
 		urMemRelease;
 		urMemRetain;
+		urMemoryExportAllocExportableMemoryExp;
+		urMemoryExportExportMemoryHandleExp;
+		urMemoryExportFreeExportableMemoryExp;
 		urPhysicalMemCreate;
 		urPhysicalMemGetInfo;
 		urPhysicalMemRelease;
@@ -172,16 +180,22 @@
 		urPlatformGetBackendOption;
 		urPlatformGetInfo;
 		urPlatformGetNativeHandle;
-		urPrintAdapterBackend;
 		urPrintAdapterGetInfoParams;
 		urPrintAdapterGetLastErrorParams;
 		urPrintAdapterGetParams;
 		urPrintAdapterInfo;
 		urPrintAdapterReleaseParams;
 		urPrintAdapterRetainParams;
+		urPrintAdapterSetLoggerCallbackLevelParams;
+		urPrintAdapterSetLoggerCallbackParams;
 		urPrintApiVersion;
+		urPrintBackend;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
+		urPrintBindlessImagesFreeMappedLinearMemoryExpParams;
+		urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams;
+		urPrintBindlessImagesGetImageSampledHandleSupportExpParams;
+		urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
 		urPrintBindlessImagesImageCopyExpParams;
 		urPrintBindlessImagesImageFreeExpParams;
@@ -197,6 +211,7 @@
 		urPrintBindlessImagesSampledImageCreateExpParams;
 		urPrintBindlessImagesSampledImageHandleDestroyExpParams;
 		urPrintBindlessImagesSignalExternalSemaphoreExpParams;
+		urPrintBindlessImagesSupportsImportingHandleTypeExpParams;
 		urPrintBindlessImagesUnsampledImageCreateExpParams;
 		urPrintBindlessImagesUnsampledImageHandleDestroyExpParams;
 		urPrintBindlessImagesWaitExternalSemaphoreExpParams;
@@ -267,13 +282,11 @@
 		urPrintDeviceType;
 		urPrintDeviceUsmAccessCapabilityFlags;
 		urPrintEnqueueCommandBufferExpParams;
-		urPrintEnqueueCooperativeKernelLaunchExpParams;
 		urPrintEnqueueDeviceGlobalVariableReadParams;
 		urPrintEnqueueDeviceGlobalVariableWriteParams;
 		urPrintEnqueueEventsWaitParams;
 		urPrintEnqueueEventsWaitWithBarrierExtParams;
 		urPrintEnqueueEventsWaitWithBarrierParams;
-		urPrintEnqueueKernelLaunchCustomExpParams;
 		urPrintEnqueueKernelLaunchParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
@@ -334,8 +347,7 @@
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
 		urPrintExpImageCopyRegion;
-		urPrintExpLaunchProperty;
-		urPrintExpLaunchPropertyId;
+		urPrintExpImageMemType;
 		urPrintExpPeerInfo;
 		urPrintExpSamplerAddrModes;
 		urPrintExpSamplerCubemapFilterMode;
@@ -366,6 +378,9 @@
 		urPrintKernelGetSuggestedLocalWorkSizeParams;
 		urPrintKernelGroupInfo;
 		urPrintKernelInfo;
+		urPrintKernelLaunchPropertiesFlags;
+		urPrintKernelLaunchProperty;
+		urPrintKernelLaunchPropertyId;
 		urPrintKernelNativeProperties;
 		urPrintKernelReleaseParams;
 		urPrintKernelRetainParams;
@@ -377,7 +392,7 @@
 		urPrintKernelSetExecInfoParams;
 		urPrintKernelSetSpecializationConstantsParams;
 		urPrintKernelSubGroupInfo;
-		urPrintKernelSuggestMaxCooperativeGroupCountExpParams;
+		urPrintKernelSuggestMaxCooperativeGroupCountParams;
 		urPrintLoaderConfigCreateParams;
 		urPrintLoaderConfigEnableLayerParams;
 		urPrintLoaderConfigGetInfoParams;
@@ -388,6 +403,7 @@
 		urPrintLoaderConfigSetMockingEnabledParams;
 		urPrintLoaderInitParams;
 		urPrintLoaderTearDownParams;
+		urPrintLoggerLevel;
 		urPrintMapFlags;
 		urPrintMemBufferCreateParams;
 		urPrintMemBufferCreateWithNativeHandleParams;
@@ -403,6 +419,9 @@
 		urPrintMemReleaseParams;
 		urPrintMemRetainParams;
 		urPrintMemType;
+		urPrintMemoryExportAllocExportableMemoryExpParams;
+		urPrintMemoryExportExportMemoryHandleExpParams;
+		urPrintMemoryExportFreeExportableMemoryExpParams;
 		urPrintMemoryOrderCapabilityFlags;
 		urPrintMemoryScopeCapabilityFlags;
 		urPrintPhysicalMemCreateParams;
@@ -412,7 +431,6 @@
 		urPrintPhysicalMemProperties;
 		urPrintPhysicalMemReleaseParams;
 		urPrintPhysicalMemRetainParams;
-		urPrintPlatformBackend;
 		urPrintPlatformCreateWithNativeHandleParams;
 		urPrintPlatformGetApiVersionParams;
 		urPrintPlatformGetBackendOptionParams;
@@ -480,6 +498,7 @@
 		urPrintUsmAdviceFlags;
 		urPrintUsmAllocInfo;
 		urPrintUsmAllocLocationDesc;
+		urPrintUsmContextMemcpyExpParams;
 		urPrintUsmDesc;
 		urPrintUsmDeviceAllocParams;
 		urPrintUsmDeviceDesc;
@@ -495,6 +514,7 @@
 		urPrintUsmP2pEnablePeerAccessExpParams;
 		urPrintUsmP2pPeerAccessGetInfoExpParams;
 		urPrintUsmPitchedAllocExpParams;
+		urPrintUsmPoolBufferDesc;
 		urPrintUsmPoolCreateExpParams;
 		urPrintUsmPoolCreateParams;
 		urPrintUsmPoolDesc;
@@ -509,7 +529,7 @@
 		urPrintUsmPoolReleaseParams;
 		urPrintUsmPoolRetainParams;
 		urPrintUsmPoolSetDevicePoolExpParams;
-		urPrintUsmPoolSetThresholdExpParams;
+		urPrintUsmPoolSetInfoExpParams;
 		urPrintUsmPoolTrimToExpParams;
 		urPrintUsmReleaseExpParams;
 		urPrintUsmSharedAllocParams;
@@ -555,6 +575,7 @@
 		urSamplerGetNativeHandle;
 		urSamplerRelease;
 		urSamplerRetain;
+		urUSMContextMemcpyExp;
 		urUSMDeviceAlloc;
 		urUSMFree;
 		urUSMGetMemAllocInfo;
@@ -571,7 +592,7 @@
 		urUSMPoolRelease;
 		urUSMPoolRetain;
 		urUSMPoolSetDevicePoolExp;
-		urUSMPoolSetThresholdExp;
+		urUSMPoolSetInfoExp;
 		urUSMPoolTrimToExp;
 		urUSMReleaseExp;
 		urUSMSharedAlloc;

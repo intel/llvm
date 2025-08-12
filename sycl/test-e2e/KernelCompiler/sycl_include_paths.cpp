@@ -6,18 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
 // REQUIRES: aspect-usm_device_allocations
 
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
-
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-NOCWD
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-NOCWD
 
 // COM: Run test again in a directory that contains a different version of
 //      `header1.hpp`
-// RUN: cd %S/include/C ; %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
+// RUN: cd %S/include/C ; %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -73,8 +69,7 @@ int test_include_paths(const std::string &baseDir) {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  bool ok = q.get_device().ext_oneapi_can_build(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "Apparently this device does not support `sycl` source kernel "
                  "bundle extension: "

@@ -4,6 +4,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v1 ZE_ENABLE_TRACING_LAYER=1 ./ze_calls-test
+// UNSUPPORTED: static-link
+// UNSUPPORTED: system-windows
+// REQUIRES: v1
+
 #include "uur/fixtures.h"
 #include "uur/raii.h"
 

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/cg.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 #include <detail/sycl_mem_obj_i.hpp>
@@ -18,6 +19,7 @@
 #include <queue>
 #include <set>
 #include <shared_mutex>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -176,6 +178,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
 class exec_graph_impl;
 class node_impl;
+class nodes_range;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 class queue_impl;
@@ -183,12 +186,9 @@ class event_impl;
 class context_impl;
 class DispatchHostTask;
 
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
-using QueueIdT = std::hash<std::shared_ptr<detail::queue_impl>>::result_type;
 using CommandPtr = std::unique_ptr<Command>;
 
 /// Memory Object Record
@@ -198,10 +198,11 @@ using CommandPtr = std::unique_ptr<Command>;
 ///
 /// \ingroup sycl_graph
 struct MemObjRecord {
-  MemObjRecord(ContextImplPtr Ctx, std::size_t LeafLimit,
+  MemObjRecord(context_impl *Ctx, std::size_t LeafLimit,
                LeavesCollection::AllocateDependencyF AllocateDependency)
       : MReadLeaves{this, LeafLimit, AllocateDependency},
-        MWriteLeaves{this, LeafLimit, AllocateDependency}, MCurContext{Ctx} {}
+        MWriteLeaves{this, LeafLimit, std::move(AllocateDependency)},
+        MCurContext{Ctx ? Ctx->shared_from_this() : nullptr} {}
   // Contains all allocation commands for the memory object.
   std::vector<AllocaCommandBase *> MAllocaCommands;
 
@@ -212,7 +213,11 @@ struct MemObjRecord {
   LeavesCollection MWriteLeaves;
 
   // The context which has the latest state of the memory object.
-  ContextImplPtr MCurContext;
+  std::shared_ptr<context_impl> MCurContext;
+  context_impl *getCurContext() { return MCurContext.get(); }
+  void setCurContext(context_impl *Ctx) {
+    MCurContext = Ctx ? Ctx->shared_from_this() : nullptr;
+  }
 
   // The mode this object can be accessed from the host (host_accessor).
   // Valid only if the current usage is on host.
@@ -374,9 +379,10 @@ public:
   /// directly to the queue.
   /// \param Dependencies Optional list of dependency
   /// sync points when enqueuing to a command buffer.
-  /// \return an event object to wait on for command group completion.
+  /// \return an event object to wait on for command group completion. It can
+  /// be a discarded event.
   EventImplPtr addCG(
-      std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+      std::unique_ptr<detail::CG> CommandGroup, queue_impl &Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
       const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
@@ -399,7 +405,7 @@ public:
   ///        (e.g., in case of a non-blocking read from a pipe), and the value
   ///        it's pointing to is then set according to the outcome.
 
-  void waitForEvent(const EventImplPtr &Event, bool *Success = nullptr);
+  void waitForEvent(event_impl &Event, bool *Success = nullptr);
 
   /// Removes buffer from the graph.
   ///
@@ -453,13 +459,13 @@ public:
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   ur_kernel_handle_t completeSpecConstMaterialization(
-      QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
-      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
+      queue_impl &Queue, const RTDeviceBinaryImage *BinImage,
+      KernelNameStrRefT KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
-  void enqueueCommandForCG(EventImplPtr NewEvent,
+  void enqueueCommandForCG(event_impl &Event,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
 
@@ -472,17 +478,12 @@ public:
   /// \param Events List of events that this update operation depends on
   EventImplPtr addCommandGraphUpdate(
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Nodes,
-      const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+      ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+      std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
-  static bool
-  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  const ContextImplPtr &Context);
-  static bool
-  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  const ContextImplPtr &Context);
+  static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
+                                              context_impl &Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -519,10 +520,9 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void
-  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
-                           ReadLockT &GraphReadLock,
-                           std::vector<Command *> &ToCleanUp);
+  static void enqueueUnblockedCommands(events_range ToEnqueue,
+                                       ReadLockT &GraphReadLock,
+                                       std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
@@ -554,9 +554,8 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                   const QueueImplPtr &Queue, std::vector<Command *> &ToEnqueue,
-                   bool EventNeeded,
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup, queue_impl *Queue,
+                   std::vector<Command *> &ToEnqueue, bool EventNeeded,
                    ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
                    const std::vector<ur_exp_command_buffer_sync_point_t>
                        &Dependencies = {});
@@ -594,7 +593,7 @@ protected:
     /// used when the user provides a "secondary" queue to the submit method
     /// which may be used when the command fails to enqueue/execute in the
     /// primary queue.
-    void rescheduleCommand(Command *Cmd, const QueueImplPtr &Queue);
+    void rescheduleCommand(Command *Cmd, queue_impl *Queue);
 
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
@@ -602,7 +601,7 @@ protected:
 
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
-    MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
+    MemObjRecord *getOrInsertMemObjRecord(queue_impl *Queue,
                                           const Requirement *Req);
 
     /// Decrements leaf counters for all leaves of the record.
@@ -647,10 +646,8 @@ protected:
     /// \param ToEnqueue List of commands which need to be enqueued.
     Command *addCommandGraphUpdate(
         ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-        std::vector<
-            std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-            Nodes,
-        const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+        ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+        std::vector<Requirement *> Requirements,
         std::vector<detail::EventImplPtr> &Events,
         std::vector<Command *> &ToEnqueue);
 
@@ -667,7 +664,7 @@ protected:
     /// \param Req is a Requirement describing destination.
     /// \param Queue is a queue that is bound to target context.
     Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
-                              const QueueImplPtr &Queue,
+                              queue_impl *Queue,
                               std::vector<Command *> &ToEnqueue);
 
     // Inserts commands required to remap the memory object to its current host
@@ -678,13 +675,13 @@ protected:
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
-                           const QueueImplPtr &Queue,
+                           queue_impl *Queue,
                            std::vector<Command *> &ToEnqueue);
 
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
                                        const Requirement *Req,
-                                       const ContextImplPtr &Context);
+                                       context_impl *Context);
 
     EmptyCommand *addEmptyCmd(Command *Cmd,
                               const std::vector<Requirement *> &Req,
@@ -698,7 +695,7 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context,
+                                        context_impl *Context,
                                         bool AllowConst = true);
 
     friend class Command;
@@ -711,7 +708,7 @@ protected:
     /// If none found, creates new one.
     AllocaCommandBase *
     getOrCreateAllocaForReq(MemObjRecord *Record, const Requirement *Req,
-                            const QueueImplPtr &Queue,
+                            queue_impl *Queue,
                             std::vector<Command *> &ToEnqueue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
@@ -824,8 +821,7 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(const EventImplPtr &Event,
-                             ReadLockT &GraphReadLock,
+    static void waitForEvent(event_impl &Event, ReadLockT &GraphReadLock,
                              std::vector<Command *> &ToCleanUp,
                              bool LockTheLock = true, bool *Success = nullptr);
 

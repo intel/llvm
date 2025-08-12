@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include "uur/checks.h"
 #include "uur/known_failure.h"
 
 using urEventGetProfilingInfoTest = uur::event::urEventTest;
@@ -91,8 +92,8 @@ TEST_P(urEventGetProfilingInfoTest, SuccessCommandComplete) {
 }
 
 TEST_P(urEventGetProfilingInfoTest, Success) {
-  // AMD devices may report a "start" time before the "submit" time
-  UUR_KNOWN_FAILURE_ON(uur::HIP{});
+  // AMD/CUDA devices may report a "start" time before the "submit" time
+  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
 
   // If a and b are supported, asserts that a <= b
   auto test_timing = [=](ur_profiling_info_t a, ur_profiling_info_t b) {
@@ -128,6 +129,30 @@ TEST_P(urEventGetProfilingInfoTest, Success) {
               UR_PROFILING_INFO_COMMAND_COMPLETE);
 }
 
+TEST_P(urEventGetProfilingInfoTest, ReleaseEventAfterQueueRelease) {
+  void *ptr;
+  ASSERT_SUCCESS(
+      urUSMSharedAlloc(context, device, nullptr, nullptr, 1024 * 1024, &ptr));
+
+  // Enqueue an operation to keep the device busy
+  uint8_t pattern = 0xFF;
+  ur_event_handle_t event1;
+  ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(uint8_t), &pattern,
+                                  1024 * 1024, 0, nullptr, &event1));
+
+  ASSERT_SUCCESS(urQueueRelease(queue));
+  queue = nullptr;
+
+  uint64_t queuedTime = 0;
+  auto ret = urEventGetProfilingInfo(event1, UR_PROFILING_INFO_COMMAND_QUEUED,
+                                     sizeof(uint64_t), &queuedTime, nullptr);
+  ASSERT_TRUE(ret == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION ||
+              ret == UR_RESULT_SUCCESS);
+
+  ASSERT_SUCCESS(urEventRelease(event1));
+  ASSERT_SUCCESS(urUSMFree(context, ptr));
+}
+
 TEST_P(urEventGetProfilingInfoTest, InvalidNullHandle) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
@@ -155,8 +180,9 @@ TEST_P(urEventGetProfilingInfoTest, InvalidValue) {
 
   const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
   size_t property_size = 0;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, property_name, 0, nullptr,
-                                         &property_size));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      property_name);
   ASSERT_NE(property_size, 0);
 
   uint64_t property_value = 0;
@@ -197,8 +223,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEventGetProfilingInfoForWaitWithBarrier);
 
 TEST_P(urEventGetProfilingInfoForWaitWithBarrier, Success) {
   uint64_t submit_value = 0;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_START,
-                                         size, &submit_value, nullptr));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_START, size,
+                              &submit_value, nullptr),
+      UR_PROFILING_INFO_COMMAND_START);
   ASSERT_NE(submit_value, 0);
 
   uint64_t complete_value = 0;

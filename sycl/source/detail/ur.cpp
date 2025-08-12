@@ -13,7 +13,7 @@
 /// \ingroup sycl_ur
 
 #include "ur.hpp"
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
@@ -49,11 +49,11 @@ namespace pi {
 void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
-  const auto &impl = getSyclObjImpl(context);
-  const auto &Adapter = impl->getAdapter();
-  Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
-      impl->getHandleRef(),
-      reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
+  context_impl &Ctx = *getSyclObjImpl(context);
+  adapter_impl &Adapter = Ctx.getAdapter();
+  Adapter.call<UrApiKind::urContextSetExtendedDeleter>(
+      Ctx.getHandleRef(), reinterpret_cast<ur_context_extended_deleter_t>(func),
+      user_data);
 }
 } // namespace pi
 
@@ -77,19 +77,27 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 
 ur_code_location_t codeLocationCallback(void *);
 
+void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
+                      [[maybe_unused]] void *userData) {
+  if (level == UR_LOGGER_LEVEL_WARN) {
+    std::cerr << msg << std::endl;
+  }
+}
+
 namespace ur {
 bool trace(TraceLevel Level) {
   auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
-std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<adapter_impl *> &
+initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
@@ -110,9 +118,15 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
-#define CHECK_UR_SUCCESS(Call) __SYCL_CHECK_UR_CODE_NO_EXC(Call)
+#define CHECK_UR_SUCCESS(Call)                                                 \
+  {                                                                            \
+    if (ur_result_t error = Call) {                                            \
+      std::cerr << "UR adapter initialization failed: "                        \
+                << sycl::detail::codeToString(error) << std::endl;             \
+    }                                                                          \
+  }
 
   UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
   auto loaderConfigCreate =
@@ -138,6 +152,11 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
   auto adapterGetInfo =
       adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterSetLoggerCallback>
+      adapterSetLoggerCallbackInfo;
+  auto adapterSetLoggerCallback =
+      adapterSetLoggerCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
@@ -189,22 +208,24 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0u, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
-  auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
+  auto UrToSyclBackend = [](ur_backend_t backend) -> sycl::backend {
     switch (backend) {
-    case UR_ADAPTER_BACKEND_LEVEL_ZERO:
+    case UR_BACKEND_LEVEL_ZERO:
       return backend::ext_oneapi_level_zero;
-    case UR_ADAPTER_BACKEND_OPENCL:
+    case UR_BACKEND_OPENCL:
       return backend::opencl;
-    case UR_ADAPTER_BACKEND_CUDA:
+    case UR_BACKEND_CUDA:
       return backend::ext_oneapi_cuda;
-    case UR_ADAPTER_BACKEND_HIP:
+    case UR_BACKEND_HIP:
       return backend::ext_oneapi_hip;
-    case UR_ADAPTER_BACKEND_NATIVE_CPU:
+    case UR_BACKEND_NATIVE_CPU:
       return backend::ext_oneapi_native_cpu;
+    case UR_BACKEND_OFFLOAD:
+      return backend::ext_oneapi_offload;
     default:
       // Throw an exception, this should be unreachable.
       CHECK_UR_SUCCESS(UR_RESULT_ERROR_INVALID_ENUMERATION)
@@ -213,12 +234,18 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   };
 
   for (const auto &UrAdapter : adapters) {
-    ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
+    ur_backend_t adapterBackend = UR_BACKEND_UNKNOWN;
     CHECK_UR_SUCCESS(adapterGetInfo(UrAdapter, UR_ADAPTER_INFO_BACKEND,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+    Adapters.emplace_back(new adapter_impl(UrAdapter, syclBackend));
+
+    const char *env_value = std::getenv("UR_LOG_CALLBACK");
+    if (env_value == nullptr || std::string(env_value) != "disabled") {
+      CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
+                                                nullptr, UR_LOGGER_LEVEL_WARN));
+    }
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -258,25 +285,24 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
 }
 
 // Get the adapter serving given backend.
-template <backend BE> const AdapterPtr &getAdapter() {
-  static AdapterPtr *Adapter = nullptr;
+template <backend BE> adapter_impl &getAdapter() {
+  static adapter_impl *Adapter = nullptr;
   if (Adapter)
     return *Adapter;
 
-  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
-  for (auto &P : Adapters)
+  for (auto &P : ur::initializeUr())
     if (P->hasBackend(BE)) {
-      Adapter = &P;
+      Adapter = P;
       return *Adapter;
     }
 
   throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template const AdapterPtr &getAdapter<backend::opencl>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
+template adapter_impl &getAdapter<backend::opencl>();
+template adapter_impl &getAdapter<backend::ext_oneapi_level_zero>();
+template adapter_impl &getAdapter<backend::ext_oneapi_cuda>();
+template adapter_impl &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

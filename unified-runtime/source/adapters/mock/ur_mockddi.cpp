@@ -262,12 +262,106 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallback
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_adapter_set_logger_callback_params_t params = {
+      &hAdapter, &pfnLoggerCallback, &pUserData, &level};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urAdapterSetLoggerCallback"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urAdapterSetLoggerCallback"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urAdapterSetLoggerCallback"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallbackLevel
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_adapter_set_logger_callback_level_params_t params = {&hAdapter, &level};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urAdapterSetLoggerCallbackLevel"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urAdapterSetLoggerCallbackLevel"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urAdapterSetLoggerCallbackLevel"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -281,8 +375,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     uint32_t *pNumPlatforms) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_platform_get_params_t params = {&phAdapters, &NumAdapters, &NumEntries,
-                                     &phPlatforms, &pNumPlatforms};
+  ur_platform_get_params_t params = {&hAdapter, &NumEntries, &phPlatforms,
+                                     &pNumPlatforms};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urPlatformGet"));
@@ -2635,6 +2729,9 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2650,7 +2747,8 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   ur_result_t result = UR_RESULT_SUCCESS;
 
   ur_virtual_mem_granularity_get_info_params_t params = {
-      &hContext, &hDevice, &propName, &propSize, &pPropValue, &pPropSizeRet};
+      &hContext, &hDevice,    &allocationSize, &propName,
+      &propSize, &pPropValue, &pPropSizeRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -4722,6 +4820,71 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCount
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCount(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] number of dimensions, from 1 to 3, to specify the work-group
+    /// work-items
+    uint32_t workDim,
+    /// [in] pointer to an array of workDim unsigned values that specify the
+    /// number of local work-items forming a work-group that will execute the
+    /// kernel function.
+    const size_t *pLocalWorkSize,
+    /// [in] size of dynamic shared memory, for each work-group, in bytes,
+    /// that will be used when the kernel is launched
+    size_t dynamicSharedMemorySize,
+    /// [out] pointer to maximum number of groups
+    uint32_t *pGroupCountRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_kernel_suggest_max_cooperative_group_count_params_t params = {
+      &hKernel,
+      &hDevice,
+      &workDim,
+      &pLocalWorkSize,
+      &dynamicSharedMemorySize,
+      &pGroupCountRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urKernelSuggestMaxCooperativeGroupCount"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urKernelSuggestMaxCooperativeGroupCount"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urKernelSuggestMaxCooperativeGroupCount"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     /// [in] handle of the queue object
@@ -5489,8 +5652,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// [in] number of dimensions, from 1 to 3, to specify the global and
     /// work-group work-items
     uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
+    /// [in][optional] pointer to an array of workDim unsigned values that
+    /// specify the offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkOffset,
     /// [in] pointer to an array of workDim unsigned values that specify the
     /// number of global work-items in workDim that will execute the kernel
@@ -5501,6 +5664,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     /// execute the kernel function.
     /// If nullptr, the runtime implementation will choose the work-group size.
     const size_t *pLocalWorkSize,
+    /// [in] size of the launch prop list
+    uint32_t numPropsInLaunchPropList,
+    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
+    /// of launch properties
+    const ur_kernel_launch_property_t *launchPropList,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5521,6 +5689,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                               &pGlobalWorkOffset,
                                               &pGlobalWorkSize,
                                               &pLocalWorkSize,
+                                              &numPropsInLaunchPropList,
+                                              &launchPropList,
                                               &numEventsInWaitList,
                                               &phEventWaitList,
                                               &phEvent};
@@ -7640,55 +7810,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolSetThresholdExp
-__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_pool_set_threshold_exp_params_t params = {&hContext, &hDevice, &hPool,
-                                                   &newThreshold};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUSMPoolSetThresholdExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urUSMPoolSetThresholdExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUSMPoolSetThresholdExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
 __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     /// [in] handle of the context object
@@ -7779,6 +7900,55 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urUSMPoolGetInfoExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_pool_set_info_exp_params_t params = {&hPool, &propName, &pPropValue,
+                                              &propSize};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMPoolSetInfoExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMPoolSetInfoExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMPoolSetInfoExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -8271,15 +8441,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     const ur_image_format_t *pImageFormat,
     /// [in] pointer to image description
     const ur_image_desc_t *pImageDesc,
-    /// [in] sampler to be used
-    ur_sampler_handle_t hSampler,
+    /// [in] pointer to sampler description to be used
+    const ur_sampler_desc_t *pSamplerDesc,
     /// [out][alloc] pointer to handle of image object created
     ur_exp_image_native_handle_t *phImage) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
   ur_bindless_images_sampled_image_create_exp_params_t params = {
-      &hContext,   &hDevice,  &hImageMem, &pImageFormat,
-      &pImageDesc, &hSampler, &phImage};
+      &hContext,   &hDevice,      &hImageMem, &pImageFormat,
+      &pImageDesc, &pSamplerDesc, &phImage};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -8450,6 +8620,186 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback(
           "urBindlessImagesImageGetInfoExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
+    ur_bool_t *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_memory_handle_type_support_exp_params_t params =
+      {&hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+       &imageMemHandleType, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageMemoryHandleTypeSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageMemoryHandleTypeSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageMemoryHandleTypeSupportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    ur_bool_t *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_unsampled_handle_support_exp_params_t params = {
+      &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+      &imageMemHandleType, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageUnsampledHandleSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageUnsampledHandleSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageUnsampledHandleSupportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageSampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    ur_bool_t *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_sampled_handle_support_exp_params_t params = {
+      &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+      &imageMemHandleType, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageSampledHandleSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageSampledHandleSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageSampledHandleSupportExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -8778,6 +9128,108 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback(
           "urBindlessImagesReleaseExternalMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesFreeMappedLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in][release] pointer to mapped linear memory region to be freed
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_free_mapped_linear_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesFreeMappedLinearMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesFreeMappedLinearMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesFreeMappedLinearMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesSupportsImportingHandleTypeExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] type of external memory handle
+    ur_exp_external_mem_type_t memHandleType,
+    /// [out] whether the device supports importing the specified external
+    /// memory handle type
+    ur_bool_t *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_supports_importing_handle_type_exp_params_t params = {
+      &hDevice, &memHandleType, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesSupportsImportingHandleTypeExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -9248,8 +9700,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t *phKernelAlternatives,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9343,8 +9795,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9435,8 +9887,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9530,8 +9982,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9624,8 +10076,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const void *pSrc,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9717,8 +10169,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     void *pDst,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9820,8 +10272,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     size_t dstSlicePitch,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -9931,8 +10383,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     void *pSrc,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -10041,8 +10493,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     void *pDst,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -10141,8 +10593,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     size_t size,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -10233,8 +10685,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -10323,8 +10775,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_usm_advice_flags_t advice,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
@@ -10418,8 +10870,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     ur_exp_command_buffer_handle_t hChildCommandBuffer,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
-    /// [in][optional] A list of sync points that this command depends on. May
-    /// be ignored if command-buffer is in-order.
+    /// [in][optional] A list of sync points that this command depends on.
+    /// Will be ignored if command-buffer is in-order.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     /// [out][optional] Sync point associated with this command.
     ur_exp_command_buffer_sync_point_t *pSyncPoint) try {
@@ -10784,158 +11236,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_enqueue_cooperative_kernel_launch_exp_params_t params = {
-      &hQueue,
-      &hKernel,
-      &workDim,
-      &pGlobalWorkOffset,
-      &pGlobalWorkSize,
-      &pLocalWorkSize,
-      &numEventsInWaitList,
-      &phEventWaitList,
-      &phEvent};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urEnqueueCooperativeKernelLaunchExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urEnqueueCooperativeKernelLaunchExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    // optional output handle
-    if (phEvent) {
-      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
-    }
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urEnqueueCooperativeKernelLaunchExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
-__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] number of dimensions, from 1 to 3, to specify the work-group
-    /// work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of local work-items forming a work-group that will execute the
-    /// kernel function.
-    const size_t *pLocalWorkSize,
-    /// [in] size of dynamic shared memory, for each work-group, in bytes,
-    /// that will be used when the kernel is launched
-    size_t dynamicSharedMemorySize,
-    /// [out] pointer to maximum number of groups
-    uint32_t *pGroupCountRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_kernel_suggest_max_cooperative_group_count_exp_params_t params = {
-      &hKernel,
-      &hDevice,
-      &workDim,
-      &pLocalWorkSize,
-      &dynamicSharedMemorySize,
-      &pGroupCountRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urKernelSuggestMaxCooperativeGroupCountExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urKernelSuggestMaxCooperativeGroupCountExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urKernelSuggestMaxCooperativeGroupCountExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -11005,61 +11305,29 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchCustomExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function. If nullptr, the runtime implementation
-    /// will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][range(0, numPropsInLaunchPropList)] pointer to a list of launch
-    /// properties
-    const ur_exp_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution. If nullptr,
-    /// the numEventsInWaitList must be 0, indicating that no wait event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) try {
+/// @brief Intercept function for urMemoryExportAllocExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_enqueue_kernel_launch_custom_exp_params_t params = {
-      &hQueue,
-      &hKernel,
-      &workDim,
-      &pGlobalWorkOffset,
-      &pGlobalWorkSize,
-      &pLocalWorkSize,
-      &numPropsInLaunchPropList,
-      &launchPropList,
-      &numEventsInWaitList,
-      &phEventWaitList,
-      &phEvent};
+  ur_memory_export_alloc_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &alignment, &size, &handleTypeToExport, &ppMem};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
-          "urEnqueueKernelLaunchCustomExp"));
+          "urMemoryExportAllocExportableMemoryExp"));
   if (beforeCallback) {
     result = beforeCallback(&params);
     if (result != UR_RESULT_SUCCESS) {
@@ -11069,15 +11337,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
   auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_replace_callback(
-          "urEnqueueKernelLaunchCustomExp"));
+          "urMemoryExportAllocExportableMemoryExp"));
   if (replaceCallback) {
     result = replaceCallback(&params);
   } else {
 
-    // optional output handle
-    if (phEvent) {
-      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
-    }
     result = UR_RESULT_SUCCESS;
   }
 
@@ -11087,7 +11351,112 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback(
-          "urEnqueueKernelLaunchCustomExp"));
+          "urMemoryExportAllocExportableMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportFreeExportableMemoryExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_free_exportable_memory_exp_params_t params = {
+      &hContext, &hDevice, &pMem};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportFreeExportableMemoryExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemoryExportExportMemoryHandleExp
+__urdlllocal ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_memory_export_export_memory_handle_exp_params_t params = {
+      &hContext, &hDevice, &handleTypeToExport, &pMem, &pMemHandleRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urMemoryExportExportMemoryHandleExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urMemoryExportExportMemoryHandleExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -11246,6 +11615,55 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urProgramLinkExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_context_memcpy_exp_params_t params = {&hContext, &pDst, &pSrc, &size};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMContextMemcpyExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMContextMemcpyExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMContextMemcpyExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -11644,23 +12062,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
 } // namespace driver
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Global table
+/// @brief Exported function for filling application's Adapter table
 ///        with current process' addresses
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
     /// [in] API version requested
     ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
-    ur_global_dditable_t *pDdiTable) try {
+    ur_adapter_dditable_t *pDdiTable) try {
   if (nullptr == pDdiTable)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -11669,15 +12085,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  pDdiTable->pfnAdapterGet = driver::urAdapterGet;
+  pDdiTable->pfnGet = driver::urAdapterGet;
 
-  pDdiTable->pfnAdapterRelease = driver::urAdapterRelease;
+  pDdiTable->pfnRelease = driver::urAdapterRelease;
 
-  pDdiTable->pfnAdapterRetain = driver::urAdapterRetain;
+  pDdiTable->pfnRetain = driver::urAdapterRetain;
 
-  pDdiTable->pfnAdapterGetLastError = driver::urAdapterGetLastError;
+  pDdiTable->pfnGetLastError = driver::urAdapterGetLastError;
 
-  pDdiTable->pfnAdapterGetInfo = driver::urAdapterGetInfo;
+  pDdiTable->pfnGetInfo = driver::urAdapterGetInfo;
+
+  pDdiTable->pfnSetLoggerCallback = driver::urAdapterSetLoggerCallback;
+
+  pDdiTable->pfnSetLoggerCallbackLevel =
+      driver::urAdapterSetLoggerCallbackLevel;
 
   return result;
 } catch (...) {
@@ -11725,6 +12146,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
   pDdiTable->pfnImageGetInfoExp = driver::urBindlessImagesImageGetInfoExp;
 
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      driver::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      driver::urBindlessImagesGetImageUnsampledHandleSupportExp;
+
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      driver::urBindlessImagesGetImageSampledHandleSupportExp;
+
   pDdiTable->pfnMipmapGetLevelExp = driver::urBindlessImagesMipmapGetLevelExp;
 
   pDdiTable->pfnMipmapFreeExp = driver::urBindlessImagesMipmapFreeExp;
@@ -11740,6 +12170,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
   pDdiTable->pfnReleaseExternalMemoryExp =
       driver::urBindlessImagesReleaseExternalMemoryExp;
+
+  pDdiTable->pfnFreeMappedLinearMemoryExp =
+      driver::urBindlessImagesFreeMappedLinearMemoryExp;
+
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      driver::urBindlessImagesSupportsImportingHandleTypeExp;
 
   pDdiTable->pfnImportExternalSemaphoreExp =
       driver::urBindlessImagesImportExternalSemaphoreExp;
@@ -11984,8 +12420,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  pDdiTable->pfnKernelLaunchCustomExp = driver::urEnqueueKernelLaunchCustomExp;
-
   pDdiTable->pfnUSMDeviceAllocExp = driver::urEnqueueUSMDeviceAllocExp;
 
   pDdiTable->pfnUSMSharedAllocExp = driver::urEnqueueUSMSharedAllocExp;
@@ -11995,9 +12429,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMFreeExp = driver::urEnqueueUSMFreeExp;
 
   pDdiTable->pfnCommandBufferExp = driver::urEnqueueCommandBufferExp;
-
-  pDdiTable->pfnCooperativeKernelLaunchExp =
-      driver::urEnqueueCooperativeKernelLaunchExp;
 
   pDdiTable->pfnTimestampRecordingExp = driver::urEnqueueTimestampRecordingExp;
 
@@ -12105,34 +12536,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetSpecializationConstants =
       driver::urKernelSetSpecializationConstants;
 
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's KernelExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_kernel_exp_dditable_t *pDdiTable) try {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (driver::d_context.version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
-      driver::urKernelSuggestMaxCooperativeGroupCountExp;
+  pDdiTable->pfnSuggestMaxCooperativeGroupCount =
+      driver::urKernelSuggestMaxCooperativeGroupCount;
 
   return result;
 } catch (...) {
@@ -12181,6 +12586,41 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
   pDdiTable->pfnGetInfo = driver::urMemGetInfo;
 
   pDdiTable->pfnImageGetInfo = driver::urMemImageGetInfo;
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's MemoryExportExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_memory_export_exp_dditable_t *pDdiTable) try {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (driver::d_context.version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      driver::urMemoryExportAllocExportableMemoryExp;
+
+  pDdiTable->pfnFreeExportableMemoryExp =
+      driver::urMemoryExportFreeExportableMemoryExp;
+
+  pDdiTable->pfnExportMemoryHandleExp =
+      driver::urMemoryExportExportMemoryHandleExp;
 
   return result;
 } catch (...) {
@@ -12499,12 +12939,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnPoolDestroyExp = driver::urUSMPoolDestroyExp;
 
-  pDdiTable->pfnPoolSetThresholdExp = driver::urUSMPoolSetThresholdExp;
-
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
       driver::urUSMPoolGetDefaultDevicePoolExp;
 
   pDdiTable->pfnPoolGetInfoExp = driver::urUSMPoolGetInfoExp;
+
+  pDdiTable->pfnPoolSetInfoExp = driver::urUSMPoolSetInfoExp;
 
   pDdiTable->pfnPoolSetDevicePoolExp = driver::urUSMPoolSetDevicePoolExp;
 
@@ -12513,6 +12953,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolTrimToExp = driver::urUSMPoolTrimToExp;
 
   pDdiTable->pfnPitchedAllocExp = driver::urUSMPitchedAllocExp;
+
+  pDdiTable->pfnContextMemcpyExp = driver::urUSMContextMemcpyExp;
 
   pDdiTable->pfnImportExp = driver::urUSMImportExp;
 
@@ -12638,7 +13080,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-
-#if defined(__cplusplus)
 }
-#endif

@@ -1,5 +1,11 @@
-// for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: target-nvidia || target-amd || ze_debug
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
+// compilation of the kernel, but for CUDA the failure is not thrown, but comes
+// from ptxas that crashes clang. The JIT part is not relevant, because the
+// flow is such that the AOT compilation still happens, it’s just that if we
+// request JIT, it will do the thing again at the run time.
+//
+// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU -o %t_gpu.out

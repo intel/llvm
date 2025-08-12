@@ -43,14 +43,12 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
-
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
-only when using the CUDA backend.  Attempting to use this extension in
-kernels that run on other devices or backends will not work. 
-Be aware that the compiler may not be able to issue a diagnostic to
-warn you if this happens.
+This extension is currently implemented in {dpcpp} only for GPU devices. CUDA,
+HIP, and LevelZero backends are supported. Not all image and interoperability
+features may be supported on all backends. We provide device aspects which users
+can query to check support for specific features.
 
 == Overview
 
@@ -258,6 +256,78 @@ a given level of a mipmap, with valid dimension values for that level, and the
 type of the returned `image_descriptor` will be `image_type::standard`.
 
 Only array image types support more than one array layer.
+
+==== Querying image support
+
+Not all devices support all combinations of image channel type, the number of 
+channels, the type of backing memory, and dimensionality. We provide functions
+to query device support for the allocation and creation of images for a given
+`image_descriptor` and the type of backing memory.
+
+===== Querying image memory support
+
+Before allocating memory for an image, the user may first query whether their
+desired image backing memory type is supported by the device.
+
+The following query returns a vector of supported `image_memory_handle_type`s
+based on the properties of a given `image_descriptor`.
+
+The `image_memory_handle_type::usm_pointer` relates to USM allocations, while
+the `image_memory_handle_type::opaque_handle` relates to memory allocations of
+the `image_mem_handle` type.
+
+If the returned vector is empty, this indicates that the device does not support
+allocating or creating images for the specified `image_descriptor`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+enum class image_memory_handle_type : /* unspecified */ {
+  usm_pointer,
+  opaque_handle
+};
+
+std::vector<image_memory_handle_type> 
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice, 
+                         const sycl::context &syclContext);
+
+std::vector<image_memory_handle_type> 
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue);
+}
+```
+
+===== Querying image handle support
+
+In order to query what types of image handles are supported for a combination
+of a given `image_descriptor` and `image_memory_handle_type`, the user should
+use the `is_image_handle_supported` query.
+
+The template parameter passed to this query should be either 
+`unsampled_image_handle` or `sampled_image_handle`.
+
+The boolean value returned from the query indicates whether the device supports
+creating the given image handle type (sampled or unsampled) given the specified
+`image_descriptor` and `image_memory_handle_type`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+template <typename ImageHandleType>
+bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::device &syclDevice,
+                          const sycl::context &syclContext);
+
+template <typename ImageHandleType>
+bool
+is_image_handle_supported(const image_descriptor &imageDescriptor,
+                          image_memory_handle_type imageMemoryHandleType,
+                          const sycl::queue &syclQueue);
+}
+```
 
 === Allocating image memory
 
@@ -1265,51 +1335,63 @@ For the forms that take a USM pointer, the image memory must also have been
 allocated within the same context and device of the `queue`. The USM memory 
 must be accessible on the queue's device.
 
-The `ext_oneapi_copy` function variants that don't take offsets and extents may 
-fail in the following scenarios:
+The `ext_oneapi_copy` function variants that do not take offsets and extents
+must ensure that the following conditions are met:
 
-1. The `Src` and `Dest` memory was not allocated on the same device and 
-context of the queue.
+1. The `Src` and `Dest` memory was allocated on the same device and context.
 
-2. The `Src` and `Dest` memory regions, where `Src` or `Dest` can be either 
-on the host or device, do not have the same memory capacity, where the capacity 
-is calculate from the `width`, `height`, `depth`, `channel_order`, and 
+2. The `Src` and `Dest` memory regions, where `Src` or `Dest` can be either
+on the host or device, have the same memory capacity, where the capacity
+is calculated from the `width`, `height`, `depth`, `channel_order`, and
 `channel_type` members of the `image_descriptor` parameter.
 
-The `ext_oneapi_copy` function variants that do take offsets and extents may 
-fail in the following scenarios:
+The `ext_oneapi_copy` function variants that do take offsets and extents must
+ensure that the following conditions are met. If a condition names a specific
+parameter, it is only applicable to the function variants that take that
+parameter.
 
-1. The `Src` and `Dest` memory was not allocated on the same device and 
-context of the queue.
+1. The `Src` and `Dest` memory was allocated on the same device and context.
 
-2. The image descriptor passed does not match the image descriptor used to 
-allocate the image on the device.
+2. The image descriptors passed match the image descriptors used to allocate
+the image's memory on the device.
 
-3. the `CopyExtent` describes a memory region larger than that which was 
-allocated on either the host or the device.
+3. The `CopyExtent` describes a memory region that is not larger than that which
+was allocated on either the host or the device.
 
-4. The `HostExtent` describes a memory region larger than that which was 
-allocated on the host.
+4. The `HostExtent` describes a memory region that is not larger than that which
+was allocated on the host.
 
-5. The `SrcExtent` describes a memory region larger than that which was 
-allocated, where `Src` can be either the host or device.
+5. The `SrcExtent` describes a memory region that is not larger than that which
+was allocated, where `Src` can be either on the host or on the device.
 
-6. The `DestExtent` describes a memory region larger than that which was 
-allocated, where `Dest` can be either the host or device.
+6. The `DestExtent` describes a memory region that is not larger than that which
+was allocated, where `Dest` can be either on the host or on the device.
 
-7. If `SrcOffset + CopyExtent` moves the memory sub-region outside the bounds 
-of the memory described by `Src`, irrespective of whether `Src` is on the host 
-or the device.
+7. The `DeviceRowPitch` adheres to the alignment requirements outlined in the
+"Pitch alignment restrictions and queries" section.
 
-8. If `DestOffset + CopyExtent` moves the memory sub-region outside the bounds 
-of the memory described by `Dest`, irrespective of whether `Dest` is on the 
-host or the device.
-
-9. The `DeviceRowPitch` does not adhere to the alignment requirements 
-outlined in section "Pitch alignment restrictions and queries"
-
-10. The value of `DeviceRowPitch` is smaller than the width of the image on 
+8. The `DeviceRowPitch` is greater than or equal to the width of the image on
 the device.
+
+9. For the relevant dimensions, `SrcOffset + CopyExtent` does not move the
+memory sub-region outside the bounds of the memory described by `Src`, 
+irrespective of whether `Src` is on the host or the device. The relevant
+dimensions are `x` for 1D images; `x` and `y` for 2D images; and `x`, `y`, and
+`z` for 3D images. `x`, `y`, and `z` correspond to indices `0`, `1`, and `2` of
+the `SrcOffset` and `CopyExtent` parameters, respectively.
+
+10. For the relevant dimensions, `DestOffset + CopyExtent` does not move the
+memory sub-region outside the bounds of the memory described by `Dest`,
+irrespective of whether `Dest` is on the host or the device. The relevant
+dimensions are `x` for 1D images, `x` and `y` for 2D images, and `x`, `y`, and
+`z` for 3D images. `x`, `y`, and `z` correspond to indices `0`, `1`, and `2` of
+the `SrcOffset` and `CopyExtent` parameters, respectively.
+
+11. The `CopyExtent`'s' `x`, `y`, and `z` dimensions must not be `0`. They must
+be greater than or equal to `1`. Even if the image is 1D or 2D, the remaining
+non-relevant dimension's values must be set to `1` in the `CopyExtent`
+parameter.
+
 
 If copying of an image fails, `ext_oneapi_copy` will throw a `sycl::exception` 
 with error code `sycl::errc::invalid`, and relay an error message back to the 
@@ -1461,8 +1543,6 @@ construct `ImageHandle` using an `image_descriptor` with member
 `image_type::gather`. Calling `gather_image` on an `ImageHandle` constructed
 with `image_descriptor::num_channels < 4` will result in undefined behavior.
 
-====
-
 === Recognized standard types [[recognized_standard_types]]
 
 For the purposes of this extension, the following are classified as recognized 
@@ -1474,8 +1554,6 @@ standard types.
   `2`, or `3`
 
 Any other types are classified as user-defined types.
-
-===
 
 ==== User-defined types
 
@@ -2004,6 +2082,8 @@ enum class external_mem_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_resource = 2,
+  dma_buf = 3,
+  win32_nt_dx11_resource = 4,
 };
 
 // Descriptor templated on specific resource type
@@ -2025,10 +2105,14 @@ for Windows NT resource handles.
 The user must populate the `external_mem_descriptor` with the appropriate 
 `ResourceType` values, a `handle_type`, and the size of the external memory in 
 bytes, before they can then import that memory into SYCL through 
-`import_external_memory`. Note that some handle types can only be used in 
-combination with certain resource types, for example the `opaque_fd` handle type
-is only used on Linux systems and is only compatible with the `resource_fd` 
-resource type.
+`import_external_memory`.
+
+Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd`
+and `dma_buf` handle types are only used on Linux systems
+and are only compatible with the `resource_fd` resource type.
+The handle types supported by the device can be queried using the
+`supports_importing_handle_type` device query.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -2069,6 +2153,10 @@ void *map_external_linear_memory(
     uint64_t size, uint64_t offset,
     const sycl::queue &syclQueue);
 }
+
+bool supports_importing_handle_type(
+    external_mem_handle_type externMemHandleType,
+    const sycl::device &syclDevice);
 ```
 
 The resulting `external_mem` can then be mapped, where the resulting type 
@@ -2077,6 +2165,10 @@ the same way as memory allocated through `alloc_image_mem`,
 `pitched_alloc_device`, or another USM allocation method. The `ext_oneapi_copy` 
 operations also work with imported memory mapped to `image_mem_handle` and 
 `void *` types.
+
+An `external_mem` handle can only be mapped to a single `image_mem_handle` or
+`void *` at any one time. Attempting to map a single `external_mem` handle to
+more than one `image_mem_handle` or `void *` is considered undefined behaviour.
 
 When calling `create_image` with an `image_mem_handle` or `void *` mapped from 
 an external memory object, the user must ensure that the image descriptor they 
@@ -2093,11 +2185,41 @@ the external API. The current supported importable image types are `standard`
 and `mipmap`. Attempting to import other image types will result in undefined 
 behaviour.
 
-Once a user has finished operating on imported memory, they must ensure that 
-they destroy the imported memory handle through `release_external_memory`.
+Once a user has finished operating on mapped memory, they must ensure that they
+unmap that memory.
 
-`release_external_memory` can only accept `external_mem` objects that were
-created through `import_external_memory`.
+Memory mapped using `map_external_image_memory` should be unmapped using
+`unmap_external_image_memory`. The `image_type` parameter passed to this
+function must reflect the `image_type` of the image descriptor used when the
+memory was originally mapped. Passing an `image_type` value different to that of
+the value used in the image descriptor when the memory was originally mapped
+will result in undefined behaviour.
+
+Memory mapped using `map_external_linear_memory` should be unmapped using
+`unmap_external_linear_memory`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                 image_type imageType,
+                                 const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+void unmap_external_image_memory(image_mem_handle mappedImageMem,
+                                 image_type imageType,
+                                 const sycl::queue &syclQueue);
+
+void unmap_external_linear_memory(void *mappedLinearMem,
+                                 const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+void unmap_external_linear_memory(void *mappedLinearMem,
+                                  const sycl::queue &syclQueue);
+}
+```
+
+Once all memory mapped from a given `external_mem` handle has been unmapped,
+and the user has finished operating on the external memory, they should then
+release the `externa_mem` handle using `release_external_memory`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -2109,9 +2231,6 @@ void release_external_memory(external_mem externalMem,
                              const sycl::queue &syclQueue);
 }
 ```
-
-Destroying or freeing any imported memory through `image_mem_free` or 
-`sycl::free` will result in undefined behavior.
 
 === Importing external semaphores [[importing_external_semaphores]]
 
@@ -2378,13 +2497,6 @@ include::../../../test-e2e/bindless_images/examples/example_5_sample_cubemap.cpp
 include::../../../test-e2e/bindless_images/examples/example_6_import_memory_and_semaphores.cpp[lines=14..-1]
 ```
 
-== Implementation notes
-
-The current DPC++ prototype only implements the proposal for the CUDA backend,
-however we are actively exploring Level Zero with SPIR-V.
-We are looking at other backend as well in order to ensure the extension can 
-work across different backends.
-
 == Issues
 
 === No dependency tracking
@@ -2411,12 +2523,6 @@ There are dimension specific limitations:
 The ability to create an image with 3 channels depends on the backend.
 There is currently no way to query a backend whether it supports this feature.
 This query should be added in a later revision of the proposal.
-
-=== Not supported yet
-
-These features still need to be handled:
-
-* Level Zero and SPIR-V support
 
 == Revision History
 
@@ -2637,3 +2743,11 @@ These features still need to be handled:
 |6.8|2025-03-13| - Add support for importing timeline semaphores.
 |6.9|2025-03-18| - Add new `gather` image type and the accompanying
                    `gather_image` function.
+|6.10|2025-05-09| - Add `unmap_external_image_memory` and 
+                    `unmap_external_linear_memory` APIs.
+                  - Clarify how and when external memory should be unmapped.
+|6.11|2025-06-16| - Add `external_mem_handle_type::dma_buf`
+                  - Add `supports_importing_handle_type`
+|6.12|2025-07-03| - Add `win32_nt_dx11_resource` enum entry to
+                    `external_mem_handle_type` for Direct3D 11 memory interop.
+|======================

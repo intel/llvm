@@ -14,12 +14,12 @@
 /// metrics and events.
 
 #include "xpti/xpti_trace_framework.hpp"
-#include "hash_table7.hpp"
 #include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
+#include <emhash/hash_table7.hpp>
 
 #include <algorithm>
 #include <array>
@@ -82,9 +82,44 @@ static thread_local xpti_tracepoint_t *g_tls_tracepoint_scope_data;
 /// Default stream for the trace framework, if none is provided by the user.
 constexpr const char *g_default_stream = "xpti.framework";
 
+/// @brief Flag to ensure the default stream is initialized only once.
+/// @details Used with `std::call_once` to initialize the default stream in a
+/// thread-safe manner.
 static std::once_flag g_initialize_default_stream_flag;
 
+/// @brief Flag to ensure the default stream is finalized only once.
+/// @details Used with `std::call_once` to finalize the default stream in a
+/// thread-safe manner.
+static std::once_flag g_finalize_default_stream_flag;
+
+/// @brief Flag to ensure strict hash mode is initialized only once.
+/// @details
+/// Used with std::call_once to initialize the strict hash mode in a thread-safe
+/// manner.
+static std::once_flag g_use_strict_hash_flag;
+
+/// @brief Global flag indicating whether strict hash mode is enabled.
+/// @details
+/// When set to true, the framework uses strict hash checking for payloads or
+/// events. Defaults to false.
+static bool g_use_strict_hash = false;
+
 namespace xpti {
+namespace hash {
+/// @brief Computes the FNV-1a hash for a std::string.
+/// @param str The input string.
+/// @return The 32-bit FNV-1a hash value.
+uint32_t fnv1a(const std::string &str) {
+  constexpr uint32_t INIT_VALUE = 2166136261u;
+  constexpr uint32_t LARGE_PRIME = 16777619u;
+  uint32_t hash = INIT_VALUE;
+  for (char c : str) {
+    hash ^= static_cast<uint8_t>(c);
+    hash *= LARGE_PRIME;
+  }
+  return hash;
+}
+} // namespace hash
 /// @var env_subscribers
 /// @brief A constant character pointer initialized with the string
 /// "XPTI_SUBSCRIBERS". This variable represents the environment variable name
@@ -143,6 +178,7 @@ struct PayloadReferenceImpl : xpti_payload_t {
     MPayload.source_file = Payload->source_file;
     MPayload.line_no = Payload->line_no;
     MPayload.column_no = Payload->column_no;
+    MPayload.code_ptr_va = Payload->code_ptr_va;
     MPayload.internal = Payload->internal;
     MPayload.flags = Payload->flags;
     MPayload.uid.p1 = Payload->uid.p1;
@@ -196,9 +232,9 @@ struct TracePointImpl : xpti_payload_t,
   /// @brief Event data for the trace point.
   xpti::trace_event_data_t MEvent;
   /// @brief Cached Function string ID for the trace point.
-  int32_t MFuncID = xpti::invalid_id;
+  uint32_t MFuncID = xpti::invalid_id<>;
   /// @brief Cached File string ID for the trace point.
-  int32_t MFileID = xpti::invalid_id;
+  uint32_t MFileID = xpti::invalid_id<>;
   /// @brief Iterator for the metadata associated with the trace point.
   xpti::metadata_t::iterator MCurr;
 
@@ -226,17 +262,19 @@ struct TracePointImpl : xpti_payload_t,
     if (!Payload || !xpti::is_valid_payload(Payload) ||
         (UID.p1 == 0 && UID.p2 == 0))
       return;
-    MUId = UID;
+    MUId.p1 = UID.p1;
+    MUId.p2 = UID.p2;
+    MUId.instance = UID.instance;
     MPayload.name = Payload->name;
     MPayload.source_file = Payload->source_file;
     MPayload.line_no = Payload->line_no;
     MPayload.column_no = Payload->column_no;
+    MPayload.code_ptr_va = Payload->code_ptr_va;
     MPayload.flags = Payload->flags;
 
-    xpti::framework::uid_object_t UidHelper(MUId);
+    xpti::framework::uid_object_t UidHelper(UID);
     MFuncID = UidHelper.functionId();
     MFileID = UidHelper.fileId();
-
     MPayload.uid.p1 = Payload->uid.p1 =
         XPTI_PACK32_RET64(MFileID, MPayload.line_no);
     MPayload.uid.p2 = Payload->uid.p2 = XPTI_PACK32_RET64(0, MFuncID);
@@ -566,11 +604,16 @@ private:
 /// This is a single point for managing tracepoints.
 class Tracepoints {
 public:
+  struct PayloadCache {
+    xpti::payload_t Payload;
+    std::string Function;
+    std::string File;
+  };
   /// @typedef uid_entry_t
   /// @brief A type alias for a pair containing an xpti::payload_t and an
   /// xpti::safe_uint64_t. This type is used to store a payload and a
   /// thread-safe unsigned 64-bit integer that tracks the instance.
-  using uid_entry_t = std::pair<xpti::payload_t, uint64_t>;
+  using uid_entry_t = std::pair<PayloadCache, uint64_t>;
 
   /// @typedef uid_payload_lut
   /// @brief A type alias for an unordered map from uid_t to uid_entry_t.
@@ -578,7 +621,7 @@ public:
   /// identifiers (uids) to their corresponding payload entries. Since we plan
   /// to keep the payload information until the end of the application lifetime,
   /// we should be able to use the references.
-  using uid_payload_lut = std::unordered_map<xpti::uid128_t, uid_entry_t>;
+  using uid_payload_lut = phmap::node_hash_map<xpti::uid128_t, uid_entry_t>;
 
   /// @typedef uid_instances_t
   /// @brief Defines a hash map for managing tracepoint instances by their
@@ -936,7 +979,7 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     string_id_t KeyID = MStringTableRef.add(Key);
-    if (KeyID == xpti::invalid_id) {
+    if (KeyID == xpti::invalid_id<string_id_t>) {
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
     }
 
@@ -1019,17 +1062,41 @@ public:
     // provided, then we will have Key.p1 populated.
     std::unique_lock<std::shared_mutex> Lock(MPayloadMutex);
     auto &PayloadEntry = MPayloads[Key];
-    if (PayloadEntry.first.flags == 0) {
+    if (PayloadEntry.first.Payload.flags == 0) {
 #ifdef XPTI_STATISTICS
       MInsertions++;
 #endif
       // We are seeing this UID for the first time, so we can update the
       // Payload information and set the instance to 1
-      PayloadEntry.first = *Payload;
-      PayloadEntry.first.uid.p3 = 1;
-      PayloadEntry.first.internal = xpti::invalid_uid;
+      if (g_use_strict_hash) {
+        // If we are using the strict hash, then we will copy the payload
+        // information into the payload entry and set the payload pointer to the
+        // payload entry as the function name and the file name have been
+        // registered in the staring table and we have the invariant string
+        // associated with it.
+        PayloadEntry.first.Payload = *Payload;
+      } else {
+        if (Payload->name) {
+          PayloadEntry.first.Function = Payload->name;
+          PayloadEntry.first.Payload.name = PayloadEntry.first.Function.c_str();
+        }
+
+        if (Payload->source_file) {
+          PayloadEntry.first.File = Payload->source_file;
+          PayloadEntry.first.Payload.source_file =
+              PayloadEntry.first.File.c_str();
+        }
+
+        PayloadEntry.first.Payload.line_no = Payload->line_no;
+        PayloadEntry.first.Payload.column_no = Payload->column_no;
+        PayloadEntry.first.Payload.flags = Payload->flags;
+        PayloadEntry.first.Payload.uid.p1 = Payload->uid.p1;
+        PayloadEntry.first.Payload.uid.p2 = Payload->uid.p2;
+      }
+      PayloadEntry.first.Payload.uid.p3 = 1;
+      PayloadEntry.first.Payload.internal = xpti::invalid_uid;
       Key.instance = PayloadEntry.second = 1;
-      PayloadEntry.first.flags |=
+      PayloadEntry.first.Payload.flags |=
           static_cast<uint64_t>(xpti::payload_flag_t::PayloadRegistered);
       Payload->flags |=
           static_cast<uint64_t>(xpti::payload_flag_t::PayloadRegistered);
@@ -1039,7 +1106,7 @@ public:
     }
     // Now, we need to create the actually payload for this instance that we
     // will be passing back to the caller
-    return PayloadInstance{Key, &PayloadEntry.first};
+    return PayloadInstance{Key, &PayloadEntry.first.Payload};
   }
 
   /// @brief Registers a new tracepoint with the given payload.
@@ -1171,25 +1238,63 @@ public:
     uint64_t FileId = 0, FuncId = 0;
     int LineNo = 0, ColNo = 0;
 
-    // If the payload's function name is available, add it to the string table
-    // and get its id
-    if ((Payload->flags &
-         static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable))) {
-      // Add the kernel name/function name to the string table
-      FuncId = MStringTableRef.add(Payload->name, &Payload->name);
-    }
+    if (g_use_strict_hash) {
+      // If the payload's function name is available, add it to the string table
+      // and get its id
+      if ((Payload->flags &
+           static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable))) {
+        // Add the kernel name/function name to the string table
+        FuncId = MStringTableRef.add(Payload->name, &Payload->name);
+      }
 
-    // If the payload's source file is available, add it to the string table
-    // and get its id Also, get the line number and column number from the
-    // payload
-    if ((Payload->flags &
-         static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
-      // Add source file information ot string table
-      FileId = MStringTableRef.add(Payload->source_file, &Payload->source_file);
-      LineNo = Payload->line_no;
-      ColNo = Payload->column_no;
-    }
+      // If the payload's source file is available, add it to the string table
+      // and get its id
+      if ((Payload->flags &
+           static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
+        // Add source file information ot string table
 
+        // MStringTableRef.add returns a string_id_t which is an int32_t and can
+        // be negative, but negative values are unexpected in this context.
+        int32_t PFileId =
+            MStringTableRef.add(Payload->source_file, &Payload->source_file);
+
+        assert(PFileId >= 0 && "FileId can't be negative");
+        FileId = static_cast<uint64_t>(PFileId);
+      }
+    } else {
+      // If the payload's function name is available, generate a fast hash as
+      // its ID; Since reverse lookup is not necessary for callback functions,
+      // we have avoided using the string tables
+      if ((Payload->flags &
+           static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable))) {
+        // Add the kernel name/function name to the string table
+        FuncId = xpti::hash::fnv1a(Payload->name);
+      } else {
+        Payload->name = xpti::g_unknown_function;
+        Payload->flags |=
+            static_cast<uint64_t>(xpti::payload_flag_t::NameAvailable);
+        // If the function name is not available, we will use the global unknown
+        FuncId = xpti::hash::fnv1a(Payload->name);
+      }
+
+      // If the payload's source file is available, generate a fast hash as its
+      // ID; Since reverse lookup is not necessary for callback functions, we
+      // have avoided using the string tables
+      if ((Payload->flags &
+           static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable))) {
+        // Add source file information ot string table
+        FileId = xpti::hash::fnv1a(Payload->source_file);
+      } else {
+        Payload->source_file = xpti::g_unknown_file;
+        Payload->flags |=
+            static_cast<uint64_t>(xpti::payload_flag_t::SourceFileAvailable);
+        // If the source file is not available, we will use the global unknown
+        FileId = xpti::hash::fnv1a(Payload->source_file);
+      }
+    }
+    // Get the line number and column number from the payload
+    LineNo = Payload->line_no;
+    ColNo = Payload->column_no;
     UId = xpti::make_uid128(FileId, FuncId, LineNo, ColNo);
     // Update the fields of Payload that will remain invariant and is for use
     // by legacy API that deals with 64-bit universal IDs
@@ -1379,15 +1484,15 @@ public:
   /// @brief Maps a trace type to its associated callback entries.
   /// @details This unordered map uses a uint16_t as the key to represent the
   /// trace point type, and cb_entries_t to store the associated callbacks.
-  using cb_t = std::unordered_map<uint16_t, cb_entries_t>;
+  using cb_t = phmap::flat_hash_map<uint16_t, cb_entries_t>;
 
   /// @typedef stream_cb_t
   /// @brief Maps a stream ID to its corresponding callbacks for different
   /// trace types
-  /// @details This unordered map uses a uint16_t as the key for the stream
-  /// ID, and cb_t to map the stream to registered callbacks for each trace
-  /// type
-  using stream_cb_t = std::unordered_map<uint16_t, cb_t>;
+  /// @details This unordered map uses the xpti::stream_id_t as the key for the
+  /// stream ID, and cb_t to map the stream to registered callbacks for each
+  /// trace type
+  using stream_cb_t = emhash7::HashMap<xpti::stream_id_t, cb_t>;
 
   /// @typedef statistics_t
   /// @brief Keeps track of statistics, typically counts, associated with
@@ -1396,22 +1501,25 @@ public:
   /// the type of statistical data and usually not defined by default. To
   /// enable it, XPTI_STATISTICS has to be defined while compiling the
   /// frmaework library.
-  using statistics_t = std::unordered_map<uint16_t, uint64_t>;
+  using statistics_t = emhash7::HashMap<uint16_t, uint64_t>;
   /// @typedef trace_flags_t
   /// @brief Maps an trace type to a boolean flag indicating its state.
   /// @details This unordered map uses a uint16_t as the key for the trace
   /// type, and a boolean value to indicate whether callbacks are registered
   /// for this trace type (e.g., registered or unregisterted/no callback).
-  using trace_flags_t = std::unordered_map<uint16_t, bool>;
+  using trace_flags_t = phmap::flat_hash_map<uint16_t, bool>;
 
   /// @typedef stream_flags_t
   /// @brief Maps a stream ID to its corresponding trace flags for different
   /// trace point types.
-  /// @details This unordered map uses a uint8_t as the key for trace type,
-  /// and trace_flags_t to map the trace type to their boolean that indiciates
-  /// whether a callback has been registered for this trace type in the given
-  /// stream.
-  using stream_flags_t = std::unordered_map<uint8_t, trace_flags_t>;
+  /// @details This unordered map uses the xpti::stream_id_t as the key for
+  /// trace type, and trace_flags_t to map the trace type to their boolean that
+  /// indiciates whether a callback has been registered for this trace type in
+  /// the given stream.
+  using stream_flags_t = emhash7::HashMap<xpti::stream_id_t, trace_flags_t>;
+
+  Notifications(size_t size = 512)
+      : MCallbacksByStream(size), MStreamFlags(size) {}
 
   /// @brief Registers a callback function for a specific trace type and stream
   /// ID.
@@ -1440,7 +1548,8 @@ public:
   ///         previously unregistered and is now re-enabled.
   ///
 
-  xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t registerCallback(xpti::stream_id_t StreamID,
+                                  uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
@@ -1456,12 +1565,15 @@ public:
       }
     }
 #endif
+    {
+      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      // Get the flags for the stream
+      auto &TraceFlags = MStreamFlags[StreamID];
+      TraceFlags[TraceType] = true; // Set the trace type flag to true
+    }
     // If reader-writer locks were emplyed, this is where the writer lock can
     // be used
     std::unique_lock<std::shared_mutex> Lock(MCBsLock);
-    auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
-                                               // stream ID
-    TraceFlags[TraceType] = true; // Set the trace type flag to true
 
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
@@ -1525,19 +1637,22 @@ public:
   ///         `xpti::result_t::XPTI_RESULT_NOTFOUND` if the callback is not
   ///         found for the specified trace type and stream ID.
 
-  xpti::result_t unregisterCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID,
+                                    uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
+    {
+      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
+                                                 // stream ID
+      TraceFlags[TraceType] = false; // Set the trace type flag to false
+    }
     // Since we do not remove the callback function when they are unregistered
     // and only reset the flag, the writer lock is not held for very long; use
     // writer lock here.
     std::unique_lock<std::shared_mutex> Lock(MCBsLock);
-    auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
-                                               // stream ID
-    TraceFlags[TraceType] = false; // Set the trace type flag to false
-
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       //  What we get is a concurrent_hash_map
@@ -1583,16 +1698,18 @@ public:
   /// modifying the callbacks and stream flags. If the implementation evolves to
   /// use reader-writer locks, a reader lock should be used where appropriate.
 
-  xpti::result_t unregisterStream(uint8_t StreamID) {
+  xpti::result_t unregisterStream(xpti::stream_id_t StreamID) {
+    {
+      std::unique_lock<std::shared_mutex> Lock(MFlagsLock);
+      // Get the trace flags for the stream
+      MStreamFlags.erase(StreamID);
+    }
     // If there are no callbacks registered for the requested stream ID, we
     // return not found; use reader lock here if the implementation moves to
     // reader-writer locks.
     std::unique_lock<std::shared_mutex> Lock(MCBsLock);
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
-
-    // Get the trace flags for the stream
-    MStreamFlags.erase(StreamID);
 
     auto &StreamCBs = MCallbacksByStream[StreamID]; // thread-safe
     // Disable all callbacks registered for the stream represented by StreamID
@@ -1621,10 +1738,11 @@ public:
   /// @return Returns true if the trace type ihas subscribers in the stream;
   /// otherwise, returns false.
 
-  bool checkSubscribed(uint16_t StreamID, uint16_t TraceType) {
+  bool checkSubscribed(xpti::stream_id_t StreamID, uint16_t TraceType) {
     if (StreamID == 0)
       return false;
 
+    std::shared_lock<std::shared_mutex> Lock(MFlagsLock);
     // Instead of checking the MCallbacksByStream to see if there are
     // registered callbacks for a given stream/trace type query, we check
     // this against a shadow data structure that sets a boolean flag equals
@@ -1686,7 +1804,8 @@ public:
   ///       function also updates the event occurrence count in a thread-safe
   ///       manner.
 
-  xpti::result_t notifySubscribers(uint16_t StreamID, uint16_t TraceType,
+  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID,
+                                   uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
@@ -1791,6 +1910,7 @@ private:
 #endif
   stream_cb_t MCallbacksByStream;
   mutable std::shared_mutex MCBsLock;
+  mutable std::shared_mutex MFlagsLock;
   std::mutex MStatsLock;
   statistics_t MStats;
   stream_flags_t MStreamFlags;
@@ -1846,6 +1966,7 @@ public:
   Framework()
       : MUniversalIDs(1), MTracepoints(MStringTableRef), MTraceEnabled(false) {
     //  Load all subscribers on construction
+
     MSubscribers.loadFromEnvironmentVariable();
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
@@ -2029,7 +2150,26 @@ public:
     return MTracepoints.addMetadata(Event, Key, ValueID);
   }
 
-  /// @brief Wrapper for creating a trace event
+  ///
+  /// @brief Creates a new trace event with the specified payload and
+  /// attributes.
+  ///
+  /// @details
+  /// This function allocates and initializes a new trace event using the
+  /// provided payload, instance number, event type, and activity type. It sets
+  /// the appropriate flags to indicate the availability of event and activity
+  /// types. If the payload or instance number is invalid, or if event creation
+  /// fails, the function returns nullptr.
+  ///
+  /// @param Payload Pointer to the payload describing the tracepoint context.
+  /// @param InstanceNo Pointer to a variable holding the instance number for
+  /// the event. This value is returned to the caller and can be used to
+  /// identify the specific occurrence of the event.
+  /// @param EventType The type of the event (e.g., algorithm, barrier, etc.).
+  /// @param ActivityType The activity type associated with the event.
+  /// @return Pointer to the newly created trace event data, or nullptr on
+  /// failure.
+  ///
   xpti::trace_event_data_t *newEvent(const xpti::payload_t *Payload,
                                      uint64_t *InstanceNo, uint16_t EventType,
                                      xpti::trace_activity_type_t ActivityType) {
@@ -2054,6 +2194,19 @@ public:
     MTracepoints.releaseEvent(event);
   }
 
+  ///
+  /// @brief Finds and returns a trace event by its universal ID.
+  ///
+  /// @details
+  /// This function attempts to locate a trace event associated with the given
+  /// 64-bit universal ID. If the ID is invalid or does not correspond to a
+  /// valid trace point, the function returns nullptr. Otherwise, it returns a
+  /// pointer to the associated trace event data.
+  ///
+  /// @param UniversalID The 64-bit universal identifier for the trace event.
+  /// @return Pointer to the associated trace_event_data_t if found and valid,
+  /// nullptr otherwise.
+  ///
   inline const xpti::trace_event_data_t *findEvent(uint64_t UniversalID) {
     if (UniversalID == xpti::invalid_uid)
       return nullptr;
@@ -2070,10 +2223,39 @@ public:
     return nullptr;
   }
 
+  ///
+  /// @brief Looks up and returns a trace event by its universal ID.
+  ///
+  /// @details
+  /// Searches for a trace event associated with the specified 64-bit universal
+  /// ID. If the ID is valid and corresponds to an existing trace event, a
+  /// pointer to the associated xpti_trace_event_t is returned. Otherwise,
+  /// nullptr is returned.
+  ///
+  /// @param UId The 64-bit universal identifier for the trace event.
+  /// @return Pointer to the associated xpti_trace_event_t if found, nullptr
+  /// otherwise.
+  ///
   inline const xpti_trace_event_t *lookupEvent(uint64_t UId) {
     return MTracepoints.lookupEventData(UId);
   }
 
+  ///
+  /// @brief Initializes a trace stream with the specified parameters.
+  ///
+  /// @details
+  /// Sets up the subscriber infrastructure for the given stream name and
+  /// version information. If either the stream name or version string is null,
+  /// the function returns XPTI_RESULT_INVALIDARG. Otherwise, it initializes the
+  /// subscribers for the stream and returns XPTI_RESULT_SUCCESS.
+  ///
+  /// @param Stream Name of the stream to initialize.
+  /// @param MajorRevision Major version number of the stream interface.
+  /// @param MinorRevision Minor version number of the stream interface.
+  /// @param VersionString Version string describing the stream.
+  /// @return xpti::result_t XPTI_RESULT_SUCCESS on success,
+  /// XPTI_RESULT_INVALIDARG on invalid arguments.
+  ///
   xpti::result_t initializeStream(const char *Stream, uint32_t MajorRevision,
                                   uint32_t MinorRevision,
                                   const char *VersionString) {
@@ -2086,14 +2268,36 @@ public:
   }
 
   uint8_t registerStream(const char *StreamName) {
-    return (uint8_t)MStreamStringTable.add(StreamName);
+    xpti::string_id_t StreamID = MStreamStringTable.add(StreamName);
+
+    // string_id_t is uint32_t while return type is uint8_t, so we need to
+    // check if the ID is valid and fits into uint8_t.
+    if (StreamID == xpti::invalid_id<xpti::string_id_t>)
+      return xpti::invalid_id<uint8_t>;
+    else {
+      assert(StreamID < std::numeric_limits<uint8_t>::max() &&
+             "StreamID exceeds the maximum value for uint8_t");
+      return static_cast<uint8_t>(StreamID);
+    }
   }
 
+  ///
+  /// @brief Closes all active trace streams.
+  ///
+  /// @details
+  /// Iterates through all currently open trace streams and performs the
+  /// necessary cleanup and resource deallocation for each. After this function
+  /// is called, no trace streams will remain open.
+  ///
   void closeAllStreams() {
     auto Table = MStreamStringTable.table();
     StringTable::st_reverse_t::iterator it;
     for (it = Table.begin(); it != Table.end(); ++it) {
+#ifndef XPTI_USE_VECTOR_LOOKUP
       xptiFinalize(it->second);
+#else
+      xptiFinalize(*it);
+#endif
     }
   }
 
@@ -2102,12 +2306,22 @@ public:
   }
 
   uint8_t registerVendor(const char *StreamName) {
-    return (uint8_t)MVendorStringTable.add(StreamName);
+    xpti::string_id_t StreamID = MVendorStringTable.add(StreamName);
+
+    // string_id_t is uint32_t while return type is uint8_t, so we need to
+    // check if the ID is valid and fits into uint8_t.
+    if (StreamID == xpti::invalid_id<xpti::string_id_t>)
+      return xpti::invalid_id<uint8_t>;
+    else {
+      assert(StreamID < std::numeric_limits<uint8_t>::max() &&
+             "StreamID exceeds the maximum value for uint8_t");
+      return static_cast<uint8_t>(StreamID);
+    }
   }
 
   string_id_t registerString(const char *String, char **TableString) {
     if (!TableString || !String)
-      return xpti::invalid_id;
+      return xpti::invalid_id<string_id_t>;
 
     *TableString = 0;
 
@@ -2119,14 +2333,14 @@ public:
   }
 
   const char *lookupString(string_id_t ID) {
-    if (ID < 0)
+    if (ID == xpti::invalid_id<string_id_t>)
       return nullptr;
     return MStringTableRef.query(ID);
   }
 
   object_id_t registerObject(const char *Object, size_t Size, uint8_t Type) {
     if (!Object)
-      return xpti::invalid_id;
+      return xpti::invalid_id<object_id_t>;
 
     return MObjectTable.insert(std::string_view(Object, Size), Type);
   }
@@ -2166,8 +2380,8 @@ public:
 
   xpti_tracepoint_t *registerTracepoint(const char *FuncName,
                                         const char *FileName, uint32_t LineNo,
-                                        uint32_t ColumnNo) {
-    xpti::payload_t Payload(FuncName, FileName, LineNo, ColumnNo, nullptr);
+                                        uint32_t ColumnNo, void *CodePtrVa) {
+    xpti::payload_t Payload(FuncName, FileName, LineNo, ColumnNo, CodePtrVa);
     if (!xpti::is_valid_payload(&Payload))
       Payload = xpti::unknown_payload();
 
@@ -2187,26 +2401,28 @@ public:
     return MTracepoints.deleteTracepoint(Tracepoint);
   }
 
-  const xpti_tracepoint_t *registerTracepointScope(const char *FuncName,
-                                                   const char *FileName,
-                                                   uint32_t LineNo,
-                                                   uint32_t ColumnNo) {
+  const xpti_tracepoint_t *
+  registerTracepointScope(const char *FuncName, const char *FileName,
+                          uint32_t LineNo, uint32_t ColumnNo, void *CodePtrVa) {
     g_tls_temp_scope_data =
-        registerTracepoint(FuncName, FileName, LineNo, ColumnNo);
+        registerTracepoint(FuncName, FileName, LineNo, ColumnNo, CodePtrVa);
     return g_tls_temp_scope_data;
   }
 
-  xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t registerCallback(xpti::stream_id_t StreamID,
+                                  uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.registerCallback(StreamID, TraceType, cbFunc);
   }
 
-  xpti::result_t unregisterCallback(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t unregisterCallback(xpti::stream_id_t StreamID,
+                                    uint16_t TraceType,
                                     xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.unregisterCallback(StreamID, TraceType, cbFunc);
   }
 
-  xpti::result_t notifySubscribers(uint8_t StreamID, uint16_t TraceType,
+  xpti::result_t notifySubscribers(xpti::stream_id_t StreamID,
+                                   uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
@@ -2290,6 +2506,9 @@ public:
   }
 
   static Framework &instance() {
+    // Using std::call_once has the same overhead as the original approach
+    // std::call_once(g_initialize_framework_flag,
+    //               [&]() { MInstance = new Framework(); });
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     std::atomic_thread_fence(std::memory_order_acquire);
     if (TmpFramework == nullptr) {
@@ -2299,6 +2518,14 @@ public:
         TmpFramework = new Framework();
         std::atomic_thread_fence(std::memory_order_release);
         MInstance.store(TmpFramework, std::memory_order_relaxed);
+        // Get the environment variable for strict hash usage
+        // This is done only once, so we use std::call_once to ensure thread
+        // safety and avoid multiple evaluations.
+        std::call_once(g_use_strict_hash_flag, [&]() {
+          auto strict_hash =
+              g_helper.getEnvironmentVariable("XPTI_USE_STRICT_HASH");
+          g_use_strict_hash = strict_hash.size() > 0;
+        });
       }
     }
 
@@ -2309,6 +2536,11 @@ private:
   friend void ::xptiFrameworkFinalize();
 
   static void release() {
+    // Using std::call_once has the same overhead as the original approach
+    // std::call_once(g_release_framework_flag, [&]() {
+    //   delete MInstance;
+    //   MInstance = nullptr;
+    // });
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     MInstance.store(nullptr, std::memory_order_relaxed);
     delete TmpFramework;
@@ -2482,7 +2714,10 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *Stream, uint32_t maj,
 /// when the stream is no longer in use.
 
 XPTI_EXPORT_API void xptiFinalize(const char *Stream) {
-  xpti::Framework::instance().finalizeStream(Stream);
+  auto &FW = xpti::Framework::instance();
+  std::call_once(g_finalize_default_stream_flag,
+                 [&]() { FW.finalizeStream(g_default_stream); });
+  FW.finalizeStream(Stream);
 }
 
 /// @brief Retrieves the 64-bit universal ID for the current scope, if published
@@ -2828,7 +3063,7 @@ XPTI_EXPORT_API xpti::result_t xptiUnregisterStream(const char *StreamName) {
 /// (such as a loop or function) or a task, with the framework. Once registered,
 /// the payload can be associated with various performance events or traces,
 /// enabling detailed performance analysis and debugging. This will however be
-/// deprecated in favor od xptiCreateTracepoint() which combines
+/// deprecated in favor of xptiCreateTracepoint() which combines
 /// xptiRegisterPayload and xptiMakeEvent to ensure data consistency in the new
 /// architecture.
 ///
@@ -2879,6 +3114,11 @@ XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
 /// the line specified by LineNo where the tracepoint is created. This offers
 /// even more precise location information within the code.
 ///
+/// @param CodePtrVa A pointer to the virtual address of the code where the
+/// tracepoint is created. This is useful for low-level tracing and debugging,
+/// allowing tools to directly reference the code location in memory. This
+/// pointer can be null if the code pointer is not available or not needed.
+///
 /// @return Returns a pointer to the created `xpti_tracepoint_t` structure,
 /// which contains the metadata for the tracepoint. If the tracepoint cannot be
 /// created (e.g., due to memory constraints), a null pointer is returned.
@@ -2889,12 +3129,11 @@ XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
 /// scoped classes such as tracepoint_scope_t will automatically create a trace
 /// point and delete it when it goes out of scope.
 ///
-XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *FuncName,
-                                                        const char *FileName,
-                                                        uint32_t LineNo,
-                                                        uint32_t ColumnNo) {
+XPTI_EXPORT_API xpti_tracepoint_t *
+xptiCreateTracepoint(const char *FuncName, const char *FileName,
+                     uint32_t LineNo, uint32_t ColumnNo, void *CodePtrVa) {
   auto &FW = xpti::Framework::instance();
-  return FW.registerTracepoint(FuncName, FileName, LineNo, ColumnNo);
+  return FW.registerTracepoint(FuncName, FileName, LineNo, ColumnNo, CodePtrVa);
 }
 
 /// @brief Deletes a tracepoint that was previously created.
@@ -3069,7 +3308,7 @@ xptiQueryPayload(xpti::trace_event_data_t *LookupObject) {
 /// efficient and do not introduce significant performance overhead.
 
 XPTI_EXPORT_API xpti::result_t
-xptiRegisterCallback(uint8_t StreamID, uint16_t TraceType,
+xptiRegisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                      xpti::tracepoint_callback_api_t cbFunc) {
   return xpti::Framework::instance().registerCallback(StreamID, TraceType,
                                                       cbFunc);
@@ -3097,7 +3336,7 @@ xptiRegisterCallback(uint8_t StreamID, uint16_t TraceType,
 /// error code indicating the reason for failure.
 
 XPTI_EXPORT_API xpti::result_t
-xptiUnregisterCallback(uint8_t StreamID, uint16_t TraceType,
+xptiUnregisterCallback(xpti::stream_id_t StreamID, uint16_t TraceType,
                        xpti::tracepoint_callback_api_t cbFunc) {
   return xpti::Framework::instance().unregisterCallback(StreamID, TraceType,
                                                         cbFunc);
@@ -3134,7 +3373,7 @@ xptiUnregisterCallback(uint8_t StreamID, uint16_t TraceType,
 /// relevant subscribers, or an error code indicating the reason for failure.
 
 XPTI_EXPORT_API xpti::result_t
-xptiNotifySubscribers(uint8_t StreamID, uint16_t TraceType,
+xptiNotifySubscribers(xpti::stream_id_t StreamID, uint16_t TraceType,
                       xpti::trace_event_data_t *Parent,
                       xpti::trace_event_data_t *Object, uint64_t InstanceNo,
                       const void *TemporalUserData) {
@@ -3175,7 +3414,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 /// specified stream and trace type. Returns `true` if tracing is enabled, and
 /// `false` otherwise.
 
-XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(xpti::stream_id_t stream,
+                                           uint16_t ttype) {
   return xpti::Framework::instance().checkTraceEnabled(stream, ttype);
 }
 
@@ -3241,19 +3481,63 @@ XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {
   xpti::Framework::instance().setTraceEnabled(YesOrNo);
 }
 
+/// @brief Looks up and returns a trace event by its universal ID.
+///
+/// @details
+/// Retrieves a pointer to the trace event associated with the specified 64-bit
+/// universal ID. Returns nullptr if the ID does not correspond to a valid
+/// event.
+///
+/// @param UId The 64-bit universal identifier for the trace event.
+/// @return Pointer to the associated xpti_trace_event_t if found, nullptr
+/// otherwise.
+
 XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t UId) {
   auto &FW = xpti::Framework::instance();
   return FW.lookupEvent(UId);
 }
+
+/// @brief Looks up and returns a payload by its universal ID.
+///
+/// @details
+/// Retrieves a pointer to the payload associated with the specified 64-bit
+/// universal ID. Returns nullptr if the ID does not correspond to a valid
+/// payload.
+///
+/// @param uid The 64-bit universal identifier for the payload.
+/// @return Pointer to the associated xpti_payload_t if found, nullptr
+/// otherwise.
 
 XPTI_EXPORT_API const xpti_payload_t *xptiLookupPayload(uint64_t uid) {
   auto &FW = xpti::Framework::instance();
   return FW.lookupPayload(uid);
 }
 
+/// @brief Retrieves the current thread-local tracepoint scope data.
+///
+/// @details
+/// Returns a pointer to the thread-local tracepoint scope data structure, which
+/// may be used for managing scope-specific tracing information in the current
+/// thread.
+///
+/// @return Pointer to the current thread-local xpti_tracepoint_t, or nullptr if
+/// not set.
+
 XPTI_EXPORT_API const xpti_tracepoint_t *xptiGetTracepointScopeData() {
   return g_tls_tracepoint_scope_data;
 }
+
+/// @brief Sets the thread-local tracepoint scope data.
+///
+/// @details
+/// Associates the provided tracepoint scope data with the current thread. This
+/// function is typically used to manage scope-specific tracing information on a
+/// per-thread basis.
+///
+/// @param Data Pointer to the xpti_tracepoint_t structure to set as the current
+/// thread's scope data.
+/// @return xpti::result_t Returns XPTI_RESULT_SUCCESS on success, or an
+/// appropriate error code on failure.
 
 XPTI_EXPORT_API xpti::result_t
 xptiSetTracepointScopeData(xpti_tracepoint_t *Data) {
@@ -3268,41 +3552,127 @@ xptiSetTracepointScopeData(xpti_tracepoint_t *Data) {
   return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
 
+/// @brief Unsets the thread-local tracepoint scope data.
+///
+/// @details
+/// Clears the current thread's tracepoint scope data by resetting the
+/// thread-local tracepoint pointer to nullptr and the thread-local universal ID
+/// to an invalid value. This is typically used to clean up or reset tracing
+/// state for the current thread.
+
 XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
   g_tls_uid = xpti::invalid_uid;
   g_tls_tracepoint_scope_data = nullptr;
 }
 
+/// @brief Registers a new tracepoint scope with the provided source location
+/// information.
+///
+/// @details
+/// Creates and registers a tracepoint scope using the specified function name,
+/// source file name, line number, column number, and code pointer address. This
+/// information is used to uniquely identify and track the scope of traced code
+/// regions for profiling or debugging purposes.
+///
+/// @param FuncName   Name of the function or kernel associated with the
+/// tracepoint.
+/// @param FileName   Name of the source file where the tracepoint is located.
+/// @param LineNo     Line number in the source file.
+/// @param ColumnNo   Column number in the source file.
+/// @param CodePtrVa  Pointer to the code location (virtual address) associated
+/// with this tracepoint.
+/// @return Pointer to the registered xpti_tracepoint_t structure, or nullptr on
+/// failure.
+
 XPTI_EXPORT_API const xpti_tracepoint_t *
 xptiRegisterTracepointScope(const char *FuncName, const char *FileName,
-                            uint32_t LineNo, uint32_t ColumnNo) {
-  return xpti::Framework::instance().registerTracepointScope(FuncName, FileName,
-                                                             LineNo, ColumnNo);
+                            uint32_t LineNo, uint32_t ColumnNo,
+                            void *CodePtrVa) {
+  return xpti::Framework::instance().registerTracepointScope(
+      FuncName, FileName, LineNo, ColumnNo, CodePtrVa);
 }
+
+/// @brief Enables or disables tracepoint scope self-notification.
+///
+/// @details
+/// Sets a global flag to control whether tracepoints notify themselves when
+/// hit. When enabled, tracepoints will generate notifications for their own
+/// scope, which can be useful for debugging or generating detailed trace
+/// information.
+///
+/// @param enableOrDisable Set to true to enable self-notification, false to
+/// disable.
 
 XPTI_EXPORT_API void
 xptiEnableTracepointScopeNotification(bool enableOrDisable) {
   xpti::g_tracepoint_self_notify = enableOrDisable;
 }
 
+/// @brief Checks if tracepoint scope self-notification is enabled.
+///
+/// @details
+/// Returns the current state of the global flag controlling tracepoint scope
+/// self-notification. If enabled, tracepoints will notify themselves when hit,
+/// which can be useful for debugging or generating detailed trace information.
+///
+/// @return true if self-notification is enabled, false otherwise.
+
 XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
   return xpti::g_tracepoint_self_notify;
 }
 
-XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
+/// @brief Retrieves the default stream ID used by the XPTI framework.
+///
+/// @details
+/// Returns the unique identifier associated with the default trace stream.
+/// This ID is used internally to distinguish the default stream from other
+/// user-defined or vendor-defined streams.
+///
+/// @return The default stream ID as an 8-bit unsigned integer.
+
+XPTI_EXPORT_API xpti::stream_id_t xptiGetDefaultStreamID() {
   return xpti::g_default_stream_id;
 }
 
-XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t DefaultStreamId) {
+/// @brief Sets the default stream ID used by the XPTI framework.
+///
+/// @details
+/// Updates the global default stream identifier to the specified value. This ID
+/// will be used as the default for trace events and streams unless explicitly
+/// overridden elsewhere.
+///
+/// @param DefaultStreamId The new default stream ID to set.
+/// @return xpti::result_t Returns XPTI_RESULT_SUCCESS on success, or an
+/// appropriate error code on failure.
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultStreamID(xpti::stream_id_t DefaultStreamId) {
   if ((int8_t)DefaultStreamId < 0)
     return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
   xpti::g_default_stream_id = DefaultStreamId;
   return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
+/// @brief Retrieves the default event type used by the XPTI framework.
+///
+/// @details
+/// Returns the default event type that is used when no specific event type is
+/// provided during event creation. This type is used to categorize events into
+/// different types for easier management and analysis.
+
 XPTI_EXPORT_API xpti::trace_event_type_t xptiGetDefaultEventType() {
   return xpti::g_default_event_type;
 }
+
+/// @brief Sets the default event type used by the XPTI framework.
+/// @details
+/// Updates the global default event type to the specified value. This type will
+/// be used as the default for trace events unless explicitly overridden during
+/// event creation.
+/// @param DefaultEventType The new default event type to set.
+/// @return xpti::result_t Returns XPTI_RESULT_SUCCESS on success, or an
+/// appropriate error code on failure. If the provided event type is invalid,
+/// it returns XPTI_RESULT_INVALIDARG.
 
 XPTI_EXPORT_API xpti::result_t
 xptiSetDefaultEventType(xpti::trace_event_type_t DefaultEventType) {
@@ -3313,9 +3683,24 @@ xptiSetDefaultEventType(xpti::trace_event_type_t DefaultEventType) {
   return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
 
+/// @brief Retrieves the default trace type used by the XPTI framework.
+/// @details
+/// Returns the default trace type that is used when no specific trace type is
+/// provided during event creation. This type is used to categorize trace events
+/// into different types for easier management and analysis.
 XPTI_EXPORT_API xpti::trace_point_type_t xptiGetDefaultTraceType() {
   return xpti::g_default_trace_type;
 }
+
+/// @brief Sets the default trace type used by the XPTI framework.
+/// @details
+/// Updates the global default trace type to the specified value. This type will
+/// be used as the default for trace events unless explicitly overridden during
+/// event creation.
+/// @param DefaultTraceType The new default trace type to set.
+/// @return xpti::result_t Returns XPTI_RESULT_SUCCESS on success, or an
+/// appropriate error code on failure. If the provided trace type is invalid,
+/// it returns XPTI_RESULT_INVALIDARG.
 
 XPTI_EXPORT_API xpti::result_t
 xptiSetDefaultTraceType(xpti::trace_point_type_t DefaultTraceType) {
@@ -3325,6 +3710,14 @@ xptiSetDefaultTraceType(xpti::trace_point_type_t DefaultTraceType) {
   xpti::g_default_trace_type = DefaultTraceType;
   return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
+
+/// @brief Releases a trace event data structure.
+/// @details
+/// This function is used to release a trace event data structure that was
+/// previously created or retrieved. It is important to call this function to
+/// properly manage memory and avoid leaks in the XPTI framework.
+/// @param Event A pointer to the `xpti::trace_event_data_t` structure to be
+/// released.
 
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *Event) {
   return xpti::Framework::instance().releaseEvent(Event);

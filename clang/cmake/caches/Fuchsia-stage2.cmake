@@ -190,8 +190,8 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
 
     # Enable FatLTO for Linux and baremetal runtimes
-    set(RUNTIMES_${target}_LLVM_ENABLE_LTO ON CACHE BOOL "")
-    set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO ON CACHE BOOL "")
+    set(RUNTIMES_${target}_LLVM_ENABLE_LTO OFF CACHE BOOL "")
+    set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO OFF CACHE BOOL "")
 
     # Use .build-id link.
     list(APPEND RUNTIME_BUILD_ID_LINK "${target}")
@@ -276,8 +276,8 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
 
     # Enable FatLTO for Fuchsia runtimes
-    set(RUNTIMES_${target}_LLVM_ENABLE_LTO ON CACHE BOOL "")
-    set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO ON CACHE BOOL "")
+    set(RUNTIMES_${target}_LLVM_ENABLE_LTO OFF CACHE BOOL "")
+    set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO OFF CACHE BOOL "")
 
     # Use .build-id link.
     list(APPEND RUNTIME_BUILD_ID_LINK "${target}")
@@ -362,7 +362,6 @@ foreach(target armv6m-none-eabi;armv7m-none-eabi;armv7em-none-eabi;armv8m.main-n
   set(RUNTIMES_${target}_LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_STATIC ON CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_SHARED_OUTPUT_NAME "c++-shared" CACHE STRING "")
-  set(RUNTIMES_${target}_LIBCXX_LIBC "llvm-libc" CACHE STRING "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_RANDOM_DEVICE OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_LOCALIZATION OFF CACHE BOOL "")
@@ -376,10 +375,11 @@ foreach(target armv6m-none-eabi;armv7m-none-eabi;armv7em-none-eabi;armv8m.main-n
   set(RUNTIMES_${target}_LLVM_INCLUDE_TESTS OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_ASSERTIONS OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "libc;libcxx" CACHE STRING "")
+  set(RUNTIMES_${target}_RUNTIMES_USE_LIBC "llvm-libc" CACHE STRING "")
 
   # Enable FatLTO for baremetal runtimes
-  set(RUNTIMES_${target}_LLVM_ENABLE_LTO ON CACHE BOOL "")
-  set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO ON CACHE BOOL "")
+  set(RUNTIMES_${target}_LLVM_ENABLE_LTO OFF CACHE BOOL "")
+  set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO OFF CACHE BOOL "")
 endforeach()
 
 foreach(target riscv32-unknown-elf)
@@ -417,7 +417,6 @@ foreach(target riscv32-unknown-elf)
   set(RUNTIMES_${target}_LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_STATIC ON CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_SHARED_OUTPUT_NAME "c++-shared" CACHE STRING "")
-  set(RUNTIMES_${target}_LIBCXX_LIBC "llvm-libc" CACHE STRING "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_RANDOM_DEVICE OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_LOCALIZATION OFF CACHE BOOL "")
@@ -431,10 +430,11 @@ foreach(target riscv32-unknown-elf)
   set(RUNTIMES_${target}_LLVM_INCLUDE_TESTS OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_ASSERTIONS OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "libc;libcxx" CACHE STRING "")
+  set(RUNTIMES_${target}_RUNTIMES_USE_LIBC "llvm-libc" CACHE STRING "")
 
   # Enable FatLTO for baremetal runtimes
-  set(RUNTIMES_${target}_LLVM_ENABLE_LTO ON CACHE BOOL "")
-  set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO ON CACHE BOOL "")
+  set(RUNTIMES_${target}_LLVM_ENABLE_LTO OFF CACHE BOOL "")
+  set(RUNTIMES_${target}_LLVM_ENABLE_FATLTO OFF CACHE BOOL "")
 endforeach()
 
 set(LLVM_BUILTIN_TARGETS "${BUILTIN_TARGETS}" CACHE STRING "")

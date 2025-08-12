@@ -63,15 +63,15 @@ public:
   template <typename U> optional &operator=(const optional<U> &Other) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = Other;
-    new (Storage) T(Other.Value);
+    ContainsValue = Other.has_value();
+    new (Storage) T(Other.value());
     return *this;
   }
   template <typename U> optional &operator=(optional<U> &&Other) noexcept {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = Other;
-    new (Storage) T(std::move(Other.Value));
+    ContainsValue = Other.has_value();
+    new (Storage) T(std::move(Other.value()));
     return *this;
   }
 
@@ -94,7 +94,7 @@ public:
   template <typename U> optional &operator=(const std::optional<U> &Other) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = Other;
+    ContainsValue = Other.has_value();
     if (Other)
       new (Storage) T(*Other);
     return *this;

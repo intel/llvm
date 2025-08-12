@@ -14,6 +14,11 @@ struct testParametersFill {
 struct urCommandBufferFillCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<testParametersFill> {
   void SetUp() override {
+    // This test fails due to a bug in the Level-Zero driver, it can be
+    // reenabled after CI machines get their drivers updated
+    // https://github.com/intel/llvm/issues/17856
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersFill>::SetUp());
@@ -48,7 +53,8 @@ struct urCommandBufferFillCommandsTest
             testParametersFill>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, size_t verify_size) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const size_t verify_size) {
     size_t pattern_index = 0;
     for (size_t i = 0; i < verify_size; ++i) {
       ASSERT_EQ(output[i], pattern[pattern_index])
@@ -104,6 +110,9 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     printFillTestString<urCommandBufferFillCommandsTest>);
 
 TEST_P(urCommandBufferFillCommandsTest, Buffer) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
@@ -122,7 +131,37 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
   verifyData(output, size);
 }
 
+TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
+  // No buffer read command in cl_khr_command_buffer
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
+      cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
+      0, nullptr, &sync_point, nullptr, nullptr));
+
+  std::vector<uint8_t> output(size, 1);
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadExp(
+      cmd_buf_handle, buffer, 0, size, output.data(), 1, &sync_point, 0,
+      nullptr, nullptr, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
+  verifyData(output, size);
+}
+
 TEST_P(urCommandBufferFillCommandsTest, USM) {
+  if (pattern_size > 128) {
+    // clCommandSVMMemFillKHR returns an error according to the spec if pattern
+    // size is not one of {1, 2, 4, 8, 16, 32, 64, 128}
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  }
+
   ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
       cmd_buf_handle, device_ptr, pattern.data(), pattern_size, size, 0,
       nullptr, 0, nullptr, &sync_point, nullptr, nullptr));

@@ -3,6 +3,7 @@
 
 #include <sycl/aspects.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 int main() {
   sycl::queue Queue;

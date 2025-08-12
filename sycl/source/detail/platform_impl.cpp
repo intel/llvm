@@ -11,7 +11,6 @@
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/platform_info.hpp>
 #include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
@@ -31,42 +30,62 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
-
-PlatformImplPtr
+platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const AdapterPtr &Adapter) {
-  PlatformImplPtr Result;
+                                     adapter_impl &Adapter) {
+  std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
         GlobalHandler::instance().getPlatformMapMutex());
 
-    std::vector<PlatformImplPtr> &PlatformCache =
+    std::vector<std::shared_ptr<platform_impl>> &PlatformCache =
         GlobalHandler::instance().getPlatformCache();
 
     // If we've already seen this platform, return the impl
     for (const auto &PlatImpl : PlatformCache) {
       if (PlatImpl->getHandleRef() == UrPlatform)
-        return PlatImpl;
+        return *PlatImpl;
     }
 
-    // Otherwise make the impl
-    Result = std::make_shared<platform_impl>(UrPlatform, Adapter);
+    // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
+    // needs a bit of help...
+    struct creator : platform_impl {
+      creator(ur_platform_handle_t APlatform, adapter_impl &AAdapter)
+          : platform_impl(APlatform, AAdapter) {}
+    };
+    Result = std::make_shared<creator>(UrPlatform, Adapter);
     PlatformCache.emplace_back(Result);
   }
 
-  return Result;
+  return *Result;
 }
 
-PlatformImplPtr
+platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const AdapterPtr &Adapter) {
+                                       adapter_impl &Adapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Adapter->call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
-                                            sizeof(Plt), &Plt, nullptr);
+  Adapter.call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
+                                           sizeof(Plt), &Plt, nullptr);
   return getOrMakePlatformImpl(Plt, Adapter);
+}
+
+context_impl &platform_impl::khr_get_default_context() {
+  GlobalHandler &GH = GlobalHandler::instance();
+  // Keeping the default context for platforms in the global cache to avoid
+  // shared_ptr based circular dependency between platform and context classes
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>
+      &PlatformToDefaultContextCache = GH.getPlatformToDefaultContextCache();
+
+  std::lock_guard<std::mutex> Lock{GH.getPlatformToDefaultContextCacheMutex()};
+
+  auto It = PlatformToDefaultContextCache.find(this);
+  if (PlatformToDefaultContextCache.end() == It)
+    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
+        {this, detail::getSyclObjImpl(context{get_devices()})});
+
+  return *It->second;
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -100,11 +119,11 @@ static bool IsBannedPlatform(platform Platform) {
 // replace uses of this with a helper in adapter object, the adapter
 // objects will own the ur adapter handles and they'll need to pass them to
 // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
+std::vector<platform> platform_impl::getAdapterPlatforms(adapter_impl &Adapter,
                                                          bool Supported) {
   std::vector<platform> Platforms;
 
-  auto UrPlatforms = Adapter->getUrPlatforms();
+  auto UrPlatforms = Adapter.getUrPlatforms();
 
   if (UrPlatforms.empty()) {
     return Platforms;
@@ -114,12 +133,17 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
     platform Platform = detail::createSyclObjFromImpl<platform>(
         getOrMakePlatformImpl(UrPlatform, Adapter));
     const bool IsBanned = IsBannedPlatform(Platform);
-    const bool HasAnyDevices =
-        !Platform.get_devices(info::device_type::all).empty();
+    bool HasAnyDevices = false;
+
+    // Platform.get_devices() increments the device count for the platform
+    // and if the platform is banned (like OpenCL for AMD), it can cause
+    // incorrect device numbering, when used with ONEAPI_DEVICE_SELECTOR.
+    if (!IsBanned)
+      HasAnyDevices = !Platform.get_devices(info::device_type::all).empty();
 
     if (!Supported) {
       if (IsBanned || !HasAnyDevices) {
-        Platforms.push_back(Platform);
+        Platforms.push_back(std::move(Platform));
       }
     } else {
       if (IsBanned) {
@@ -131,7 +155,7 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
       if (HasAnyDevices) {
-        Platforms.push_back(Platform);
+        Platforms.push_back(std::move(Platform));
       }
     }
   }
@@ -144,12 +168,12 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
-  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
-  std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
+  std::vector<adapter_impl *> &Adapters = ur::initializeUr();
+  std::vector<std::pair<platform, adapter_impl *>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
   for (auto &Adapter : Adapters) {
-    const auto &AdapterPlatforms = getAdapterPlatforms(Adapter);
+    const auto &AdapterPlatforms = getAdapterPlatforms(*Adapter);
     for (const auto &P : AdapterPlatforms) {
       PlatformsWithAdapter.push_back({P, Adapter});
     }
@@ -166,7 +190,7 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // This initializes a function-local variable whose destructor is invoked as
   // the SYCL shared library is first being unloaded.
-  GlobalHandler::registerEarlyShutdownHandler();
+  GlobalHandler::registerStaticVarShutdownHandler();
 
   return Platforms;
 }
@@ -208,10 +232,10 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   std::vector<int> original_indices;
 
   // Find out backend of the platform
-  ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
   MAdapter->call<UrApiKind::urPlatformGetInfo>(
-      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
-      &UrBackend, nullptr);
+      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
+      nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
   int InsertIDx = 0;
@@ -286,26 +310,22 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   return original_indices;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   return getDeviceImplHelper(UrDevice);
 }
 
-std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
-    ur_device_handle_t UrDevice,
-    const std::shared_ptr<platform_impl> &PlatformImpl) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(UrDevice);
-  if (Result)
-    return Result;
+  if (device_impl *Result = getDeviceImplHelper(UrDevice))
+    return *Result;
 
   // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, PlatformImpl);
-  MDeviceCache.emplace_back(Result);
+  MDevices.emplace_back(std::make_shared<device_impl>(
+      UrDevice, *this, device_impl::private_tag{}));
 
-  return Result;
+  return *MDevices.back();
 }
 
 static bool supportsAffinityDomain(const device &dev,
@@ -330,7 +350,7 @@ static bool supportsPartitionProperty(const device &dev,
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
     ods_target_list *OdsTargetList, const std::vector<int> &original_indices,
-    PlatformImplPtr PlatformImpl) {
+    platform_impl &PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
   constexpr info::partition_affinity_domain affinityDomain =
@@ -339,7 +359,7 @@ static std::vector<device> amendDeviceAndSubDevices(
   std::vector<device> FinalResult;
   // (Only) when amending sub-devices for ONEAPI_DEVICE_SELECTOR, all
   // sub-devices are treated as root.
-  TempAssignGuard<bool> TAG(PlatformImpl->MAlwaysRootDevice, true);
+  TempAssignGuard<bool> TAG(PlatformImpl.MAlwaysRootDevice, true);
 
   for (unsigned i = 0; i < DeviceList.size(); i++) {
     // device has already been screened. The question is whether it should be a
@@ -474,7 +494,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   uint32_t NumDevices = 0;
   MAdapter->call<UrApiKind::urDeviceGet>(MPlatform, UrDeviceType,
-                                         0, // CP info::device_type::all
+                                         0u, // CP info::device_type::all
                                          nullptr, &NumDevices);
   const backend Backend = getBackend();
 
@@ -484,13 +504,13 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+    std::vector<adapter_impl *> &Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
-                           [&Platform = MPlatform](AdapterPtr &Adapter) {
+                           [&Platform = MPlatform](adapter_impl *&Adapter) {
                              return Adapter->containsUrPlatform(Platform);
                            });
     if (It != Adapters.end()) {
-      AdapterPtr &Adapter = *It;
+      adapter_impl *&Adapter = *It;
       std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
       Adapter->adjustLastDeviceId(MPlatform);
     }
@@ -510,7 +530,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(UrDevices, MPlatform, MAdapter);
+    applyAllowList(UrDevices, MPlatform, *MAdapter);
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -523,13 +543,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
-  std::transform(
-      UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
-      [PlatformImpl](const ur_device_handle_t UrDevice) -> device {
-        return detail::createSyclObjFromImpl<device>(
-            PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));
-      });
+  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, *MAdapter);
+  std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
+                 [&PlatformImpl](const ur_device_handle_t UrDevice) -> device {
+                   return detail::createSyclObjFromImpl<device>(
+                       PlatformImpl.getOrMakeDeviceImpl(UrDevice));
+                 });
 
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
@@ -549,9 +568,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_platform_info_string_impl(
-      MPlatform, getAdapter(),
-      detail::UrInfoCode<info::platform::extensions>::value);
+
+  std::string AllExtensionNames = urGetInfoString<UrApiKind::urPlatformGetInfo>(
+      *this, detail::UrInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -561,15 +580,10 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle = 0;
-  Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
-}
-
-template <typename Param>
-typename Param::return_type platform_impl::get_info() const {
-  return get_platform_info<Param>(this->getHandleRef(), getAdapter());
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -633,22 +647,13 @@ bool platform_impl::has(aspect Aspect) const {
   return true;
 }
 
-std::shared_ptr<device_impl>
-platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
-  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
-    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
-      if (Device->getHandleRef() == UrDevice)
-        return Device;
-    }
+device_impl *platform_impl::getDeviceImplHelper(ur_device_handle_t UrDevice) {
+  for (const std::shared_ptr<device_impl> &Device : MDevices) {
+    if (Device->getHandleRef() == UrDevice)
+      return Device.get();
   }
   return nullptr;
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnT platform_impl::get_info<info::platform::Desc>() const;
-
-#include <sycl/info/platform_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace _V1

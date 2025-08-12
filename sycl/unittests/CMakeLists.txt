@@ -1,12 +1,13 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
-include_directories(${BOOST_UNORDERED_INCLUDE_DIRS})
 
 foreach(flag_var
     CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
     CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
+
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
@@ -41,7 +42,6 @@ add_subdirectory(pipes)
 add_subdirectory(program_manager)
 add_subdirectory(assert)
 add_subdirectory(Extensions)
-add_subdirectory(windows)
 add_subdirectory(event)
 add_subdirectory(buffer)
 add_subdirectory(context_device)
@@ -56,7 +56,7 @@ if (LLVM_ENABLE_ZSTD)
 endif()
 
 # TODO Enable xpti tests for Windows
-if (NOT WIN32)
+if (SYCL_ENABLE_XPTI_TRACING AND NOT WIN32)
     add_subdirectory(xpti_trace)
 endif()
 add_subdirectory(sampler)

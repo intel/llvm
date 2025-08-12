@@ -10,6 +10,7 @@
 
 #include <ur/ur.hpp>
 
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 
 /// Implementation of samplers for HIP
@@ -25,8 +26,8 @@
 /// |     4 3 2      | addressing mode 1
 /// |       1        | filter mode
 /// |       0        | normalize coords
-struct ur_sampler_handle_t_ {
-  std::atomic_uint32_t RefCount;
+struct ur_sampler_handle_t_ : ur::hip::handle_base {
+  ur::RefCount RefCount;
   uint32_t Props;
   float MinMipmapLevelClamp;
   float MaxMipmapLevelClamp;
@@ -34,13 +35,7 @@ struct ur_sampler_handle_t_ {
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)
-      : RefCount(1), Props(0), Context(Context) {}
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+      : handle_base(), Props(0), Context(Context) {}
 
   ur_bool_t isNormalizedCoords() const noexcept {
     return static_cast<ur_bool_t>(Props & 0b1);

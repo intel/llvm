@@ -24,7 +24,7 @@ __urdlllocal ur_result_t context_t::ddiInit() {
 
   if (UR_RESULT_SUCCESS == result) {
     result =
-        urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Global);
+        urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -62,12 +62,12 @@ __urdlllocal ur_result_t context_t::ddiInit() {
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = urGetKernelExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                         &urDdiTable.KernelExp);
+    result = urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Mem);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Mem);
+    result = urGetMemoryExportExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                               &urDdiTable.MemoryExportExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

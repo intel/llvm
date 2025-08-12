@@ -1,165 +1,22 @@
-// REQUIRES: aspect-ext_oneapi_bindless_images
+// REQUIRES: aspect-ext_oneapi_external_memory_import
 // REQUIRES: windows
 
-// DEFINE: %{link-flags}=%if cl_options %{ /clang:-ld3d12 /clang:-ldxgi /clang:-ldxguid %} %else %{ -ld3d12 -ldxgi -ldxguid %}
-// RUN: %{build} %{link-flags} -o %t.out %if target-spir %{ -DDISABLE_UNORM_TESTS %}
+// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
+//                       when importing memory
+
+// RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
 #include "read_write_unsampled.h"
-#include "../helpers/common.hpp"
 
-static DXGI_FORMAT toDXGIFormat(int NChannels,
-                                sycl::image_channel_type channelType) {
-  switch (channelType) {
-  case sycl::image_channel_type::snorm_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_SNORM;
-    case 2:
-      return DXGI_FORMAT_R8G8_SNORM;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_SNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::snorm_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_SNORM;
-    case 2:
-      return DXGI_FORMAT_R16G16_SNORM;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_SNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unorm_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_UNORM;
-    case 2:
-      return DXGI_FORMAT_R8G8_UNORM;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_UNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unorm_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_UNORM;
-    case 2:
-      return DXGI_FORMAT_R16G16_UNORM;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_UNORM;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unorm_short_565:
-    return DXGI_FORMAT_B5G6R5_UNORM;
-  case sycl::image_channel_type::unorm_short_555:
-    return DXGI_FORMAT_B5G5R5A1_UNORM;
-  case sycl::image_channel_type::unorm_int_101010:
-    return DXGI_FORMAT_R10G10B10A2_UNORM;
-  case sycl::image_channel_type::signed_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_SINT;
-    case 2:
-      return DXGI_FORMAT_R8G8_SINT;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_SINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::signed_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_SINT;
-    case 2:
-      return DXGI_FORMAT_R16G16_SINT;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_SINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::signed_int32:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R32_SINT;
-    case 2:
-      return DXGI_FORMAT_R32G32_SINT;
-    case 4:
-      return DXGI_FORMAT_R32G32B32A32_SINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unsigned_int8:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R8_UINT;
-    case 2:
-      return DXGI_FORMAT_R8G8_UINT;
-    case 4:
-      return DXGI_FORMAT_R8G8B8A8_UINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unsigned_int16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_UINT;
-    case 2:
-      return DXGI_FORMAT_R16G16_UINT;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_UINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::unsigned_int32:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R32_UINT;
-    case 2:
-      return DXGI_FORMAT_R32G32_UINT;
-    case 4:
-      return DXGI_FORMAT_R32G32B32A32_UINT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::fp16:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R16_FLOAT;
-    case 2:
-      return DXGI_FORMAT_R16G16_FLOAT;
-    case 4:
-      return DXGI_FORMAT_R16G16B16A16_FLOAT;
-    default:
-      break;
-    }
-  case sycl::image_channel_type::fp32:
-    switch (NChannels) {
-    case 1:
-      return DXGI_FORMAT_R32_FLOAT;
-    case 2:
-      return DXGI_FORMAT_R32G32_FLOAT;
-    case 4:
-      return DXGI_FORMAT_R32G32B32A32_FLOAT;
-    default:
-      break;
-    }
-  default:
-    break;
-  }
-  std::cerr << "Unsupported image_channel_type in toDXGIFormat\n";
-  exit(-1);
-}
-
-DX12SYCLDevice::DX12SYCLDevice() {
-  m_syclQueue = sycl::queue{m_syclDevice, {sycl::property::queue::in_order{}}};
+DX12SYCLDevice::DX12SYCLDevice()
+    : m_syclQueue{{sycl::property::queue::in_order{}}},
+      m_syclDevice{m_syclQueue.get_device()} {
+  initDX12Device();
+  initDX12CommandList();
 }
 
 void DX12SYCLDevice::initDX12Device() {
@@ -168,7 +25,8 @@ void DX12SYCLDevice::initDX12Device() {
                                    IID_PPV_ARGS(&m_dx12Factory)));
 
   // Get the hardware adapter for a suitable GPU.
-  getDX12Adapter(m_dx12Factory.Get(), &m_dx12HardwareAdapter);
+  m_dx12HardwareAdapter = getDXGIHardwareAdapter<dx_version::DX12>(
+      m_dx12Factory.Get(), m_syclDevice.get_info<sycl::info::device::name>());
 
   // Create a device from our hardware adapter.
   ThrowIfFailed(D3D12CreateDevice(m_dx12HardwareAdapter.Get(),
@@ -191,38 +49,6 @@ void DX12SYCLDevice::initDX12CommandList() {
   ThrowIfFailed(m_dx12Device->CreateCommandList(
       0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_dx12CommandAllocator.Get(), NULL,
       IID_PPV_ARGS(&m_dx12CommandList)));
-}
-
-void DX12SYCLDevice::getDX12Adapter(IDXGIFactory2 *pFactory,
-                                    IDXGIAdapter1 **ppAdapter) {
-  ComPtr<IDXGIAdapter1> adapter;
-  *ppAdapter = nullptr;
-
-  // Find a suitable hardware adapter.
-  uint32_t adapterIndex = 0;
-  HRESULT adapterFound = pFactory->EnumAdapters1(adapterIndex, &adapter);
-  while (adapterFound != DXGI_ERROR_NOT_FOUND) {
-    DXGI_ADAPTER_DESC1 desc;
-    adapter->GetDesc1(&desc);
-
-    if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
-      // We don't want a software adapter.
-
-      // Check to see if the adapter supports Direct3D 12, but don't create the
-      // actual device yet.
-      if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0,
-                                      _uuidof(ID3D12Device), nullptr))) {
-        break;
-      }
-    }
-
-    // Increment adapter index and find the next adapter.
-    adapterIndex++;
-    pFactory->EnumAdapters1(adapterIndex, &adapter);
-  }
-
-  // Set the returned adapter.
-  *ppAdapter = adapter.Detach();
 }
 
 template <int NDims, typename DType, int NChannels>
@@ -685,8 +511,8 @@ void DX12InteropTest<NDims, DType, NChannels>::cleanupDX12() {
 
   // Clean up opened handles
   if (m_sharedSemaphoreHandle != INVALID_HANDLE_VALUE)
-    CloseHandle(m_sharedSemaphoreHandle);
-  CloseHandle(m_sharedMemoryHandle);
+    CloseNTHandle(m_sharedSemaphoreHandle);
+  CloseNTHandle(m_sharedMemoryHandle);
   CloseHandle(m_dx12FenceEvent);
 
   // ComPtr handles will be destroyed automatically.
@@ -696,8 +522,22 @@ template <int NDims, typename DType, int NChannels>
 static bool
 runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
         sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
+
+  syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
+
+  // Verify ability to allocate the above image descriptor.
+  // E.g. LevelZero does not support `unorm` channel types.
+  if (!bindless_helpers::memoryAllocationSupported(
+          syclImageDesc, syclexp::image_memory_handle_type::opaque_handle,
+          device.getSyclQueue())) {
+    // We cannot allocate the image memory, skip the test.
+    std::cout << "Memory allocation unsupported. Skipping test.\n";
+    return true;
+  }
+
   DX12InteropTest<NDims, DType, NChannels> interopTestInstance(
       device, channelType, globalSize, localSize);
+
   interopTestInstance.initDX12Resources();
   interopTestInstance.callSYCLKernel();
   bool validated = interopTestInstance.validateOutput();
@@ -722,8 +562,6 @@ runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
 
 int main() {
   DX12SYCLDevice device;
-  device.initDX12Device();
-  device.initDX12CommandList();
 
   bool validated = true;
 
@@ -732,10 +570,8 @@ int main() {
   validated &=
       runTest<1, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
                               globalSize1, localSize1);
-#ifndef DISABLE_UNORM_TESTS
   validated &= runTest<1, uint8_t, 4>(
       device, sycl::image_channel_type::unorm_int8, globalSize1, localSize1);
-#endif
   validated &= runTest<1, float, 1>(device, sycl::image_channel_type::fp32,
                                     globalSize1, localSize1);
   validated &= runTest<1, sycl::half, 2>(device, sycl::image_channel_type::fp16,
@@ -753,10 +589,8 @@ int main() {
   validated &=
       runTest<2, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
                               globalSize2[0], {16, 16});
-#ifndef DISABLE_UNORM_TESTS
   validated &= runTest<2, uint8_t, 4>(
       device, sycl::image_channel_type::unorm_int8, globalSize2[1], {16, 8});
-#endif
   validated &= runTest<2, float, 1>(device, sycl::image_channel_type::fp32,
                                     globalSize2[2], {16, 8});
   validated &= runTest<2, sycl::half, 2>(device, sycl::image_channel_type::fp16,
@@ -777,10 +611,8 @@ int main() {
   validated &=
       runTest<3, uint32_t, 1>(device, sycl::image_channel_type::unsigned_int32,
                               globalSize3[0], {16, 16, 1});
-#ifndef DISABLE_UNORM_TESTS
   validated &= runTest<3, uint8_t, 4>(
       device, sycl::image_channel_type::unorm_int8, globalSize3[1], {16, 8, 2});
-#endif
   validated &= runTest<3, float, 1>(device, sycl::image_channel_type::fp32,
                                     globalSize3[2], {16, 8, 1});
   validated &= runTest<3, sycl::half, 2>(device, sycl::image_channel_type::fp16,

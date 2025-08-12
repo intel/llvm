@@ -1,9 +1,12 @@
 // This test checks edge cases handling for std::exp(std::complex<T>) used
 // in SYCL kernels.
 
+// This include should happen before <sycl/detail/core.hpp> or otherwise NAN
+// may not be constexpr on some Windows configurations. See intel/llvm#19114
+#include <cmath>
+
 #include <sycl/detail/core.hpp>
 
-#include <cmath>
 #include <complex>
 #include <type_traits>
 

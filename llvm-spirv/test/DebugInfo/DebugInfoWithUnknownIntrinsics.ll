@@ -5,8 +5,8 @@
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
 
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+all --spirv-allow-unknown-intrinsics --experimental-debuginfo-iterators=1
-; RUN: llvm-spirv -r %t.spv -o %t.bc --experimental-debuginfo-iterators=1
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+all --spirv-allow-unknown-intrinsics
+; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
 

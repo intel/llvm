@@ -14,21 +14,10 @@
 
 #include <array>       // for array
 #include <cstddef>     // for size_t
-#include <tuple>       // for tuple
 #include <type_traits> // for true_type, false_type
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-template <class T> struct is_fixed_size_group : std::false_type {};
-
-template <class T>
-inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
-
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-class SwizzleOp;
-} // namespace detail
 
 template <int Dimensions> class group;
 struct sub_group;
@@ -62,6 +51,10 @@ template <class T>
 inline constexpr bool is_user_constructed_group_v =
     is_user_constructed_group<T>::value;
 
+template <typename ParentGroup> class tangle;
+template <typename ParentGroup> class fragment;
+template <size_t ChunkSize, typename ParentGroup> class chunk;
+
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
 
@@ -90,6 +83,25 @@ struct is_generic_group
 template <typename T>
 inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
+template <typename Group> struct is_tangle : std::false_type {};
+template <typename ParentGroup>
+struct is_tangle<sycl::ext::oneapi::experimental::tangle<ParentGroup>>
+    : std::true_type {};
+template <typename Group> constexpr bool is_tangle_v = is_tangle<Group>::value;
+
+template <typename Group> struct is_fragment : std::false_type {};
+template <typename ParentGroup>
+struct is_fragment<sycl::ext::oneapi::experimental::fragment<ParentGroup>>
+    : std::true_type {};
+template <typename Group>
+constexpr bool is_fragment_v = is_fragment<Group>::value;
+
+template <typename Group> struct is_chunk : std::false_type {};
+template <size_t ChunkSize, typename ParentGroup>
+struct is_chunk<sycl::ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
+    : std::true_type {};
+template <typename Group> constexpr bool is_chunk_v = is_chunk<Group>::value;
+
 namespace half_impl {
 class half;
 }
@@ -114,10 +126,11 @@ inline constexpr bool is_group_helper_v =
 } // namespace ext::oneapi::experimental
 
 namespace detail {
-// Type for Intel device UUID extension.
+// Types for Intel's device UUID and device LUID extension.
 // For details about this extension, see
 // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
 using uuid_type = std::array<unsigned char, 16>;
+using luid_type = std::array<unsigned char, 8>;
 
 template <typename T, typename R> struct copy_cv_qualifiers;
 
@@ -154,12 +167,20 @@ template <typename T, size_t N> struct get_elem_type_unqual<marray<T, N>> {
 template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
   using type = T;
 };
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
+                                      OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
+#else
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct get_elem_type_unqual<detail::hide_swizzle_from_adl::Swizzle<
+    IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = DataT;
+};
+#endif
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>

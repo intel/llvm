@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ./command_list_cache-test
+// REQUIRES: v2
+
 #include "command_list_cache.hpp"
 #include "context.hpp"
 
@@ -31,7 +34,8 @@ struct CommandListCacheTest : public uur::urContextTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
-  v2::command_list_cache_t cache(context->getZeHandle(), false);
+  v2::supported_extensions_descriptor_t supportedExtensions(false, false);
+  v2::command_list_cache_t cache(context->getZeHandle(), supportedExtensions);
 
   bool IsInOrder = false;
   uint32_t Ordinal = 0;
@@ -45,16 +49,20 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 
   std::unordered_set<ze_command_list_handle_t> regCmdLists;
   std::unordered_set<ze_command_list_handle_t> immCmdLists;
-
+  v2::command_list_desc_t desc;
+  desc.IsInOrder = IsInOrder;
+  desc.Ordinal = Ordinal;
+  desc.CopyOffloadEnable = true;
+  desc.Mutable = false;
   // get command lists from the cache
   for (int i = 0; i < numListsPerType; ++i) {
-    regCmdListOwners.emplace_back(cache.getRegularCommandList(
-        device->ZeDevice, IsInOrder, Ordinal, true));
+    regCmdListOwners.emplace_back(
+        cache.getRegularCommandList(device->ZeDevice, desc));
     auto [it, _] = regCmdLists.emplace(regCmdListOwners.back().get());
     ASSERT_TRUE(*it != nullptr);
 
-    immCmdListOwners.emplace_back(cache.getImmediateCommandList(
-        device->ZeDevice, IsInOrder, Ordinal, true, Mode, Priority));
+    immCmdListOwners.emplace_back(
+        cache.getImmediateCommandList(device->ZeDevice, desc, Mode, Priority));
     std::tie(it, _) = immCmdLists.emplace(immCmdListOwners.back().get());
     ASSERT_TRUE(*it != nullptr);
   }
@@ -65,12 +73,11 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 
   // verify we get back the same command lists
   for (int i = 0; i < numListsPerType; ++i) {
-    auto regCmdList =
-        cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal, true);
+    auto regCmdList = cache.getRegularCommandList(device->ZeDevice, desc);
     ASSERT_TRUE(regCmdList != nullptr);
 
-    auto immCmdList = cache.getImmediateCommandList(
-        device->ZeDevice, IsInOrder, Ordinal, true, Mode, Priority);
+    auto immCmdList =
+        cache.getImmediateCommandList(device->ZeDevice, desc, Mode, Priority);
     ASSERT_TRUE(immCmdList != nullptr);
 
     ASSERT_EQ(regCmdLists.erase(regCmdList.get()), 1);
@@ -83,7 +90,8 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
-  v2::command_list_cache_t cache(context->getZeHandle(), false);
+  v2::supported_extensions_descriptor_t supportedExtensions(false, false);
+  v2::command_list_cache_t cache(context->getZeHandle(), supportedExtensions);
 
   uint32_t numQueueGroups = 0;
   ASSERT_EQ(zeDeviceGetCommandQueueGroupProperties(device->ZeDevice,
@@ -109,8 +117,12 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
     // verify list creation with specific indexes
     for (uint32_t Index = 0; Index < QueueGroupProperties[Ordinal].numQueues;
          Index++) {
-      auto CommandList = cache.getImmediateCommandList(
-          device->ZeDevice, IsInOrder, Ordinal, true, Mode, Priority, Index);
+      v2::command_list_desc_t desc;
+      desc.IsInOrder = IsInOrder;
+      desc.Ordinal = Ordinal;
+      desc.CopyOffloadEnable = true;
+      auto CommandList = cache.getImmediateCommandList(device->ZeDevice, desc,
+                                                       Mode, Priority, Index);
 
       ze_device_handle_t ZeDevice;
       auto Ret = zeCommandListGetDeviceHandle(CommandList.get(), &ZeDevice);
@@ -137,10 +149,13 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
       }
     }
 
+    v2::command_list_desc_t desc;
+    desc.IsInOrder = IsInOrder;
+    desc.Ordinal = Ordinal;
+    desc.CopyOffloadEnable = true;
     // verify list creation without an index
-    auto CommandList =
-        cache.getImmediateCommandList(device->ZeDevice, IsInOrder, Ordinal,
-                                      true, Mode, Priority, std::nullopt);
+    auto CommandList = cache.getImmediateCommandList(
+        device->ZeDevice, desc, Mode, Priority, std::nullopt);
 
     ze_device_handle_t ZeDevice;
     auto Ret = zeCommandListGetDeviceHandle(CommandList.get(), &ZeDevice);

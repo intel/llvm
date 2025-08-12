@@ -28,7 +28,6 @@ namespace detail {
 // Forward declaration
 class kernel_bundle_impl;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
 class kernel_impl {
 public:
@@ -40,8 +39,8 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
-              KernelBundleImplPtr KernelBundleImpl,
+  kernel_impl(Managed<ur_kernel_handle_t> &&Kernel, context_impl &Context,
+              kernel_bundle_impl *KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
@@ -50,9 +49,9 @@ public:
   /// \param Kernel is a valid UrKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
-              DeviceImageImplPtr DeviceImageImpl,
-              KernelBundleImplPtr KernelBundleImpl,
+  kernel_impl(Managed<ur_kernel_handle_t> &&Kernel, context_impl &ContextImpl,
+              std::shared_ptr<device_image_impl> &&DeviceImageImpl,
+              const kernel_bundle_impl &KernelBundleImpl,
               const KernelArgMask *ArgMask, ur_program_handle_t Program,
               std::mutex *CacheMutex);
 
@@ -76,13 +75,13 @@ public:
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
-                                                           &nativeHandle);
+    getAdapter().call<UrApiKind::urKernelGetNativeHandle>(MKernel,
+                                                          &nativeHandle);
     __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
@@ -115,6 +114,9 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // This function is unused and should be removed in the next ABI breaking.
+
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue.
   ///
@@ -122,6 +124,7 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type ext_oneapi_get_info(queue Queue) const;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue and values.
@@ -195,11 +198,7 @@ public:
   typename Param::return_type ext_oneapi_get_info(queue Queue,
                                                   const range<1> &WG) const;
 
-  /// Get a constant reference to a raw kernel object.
-  ///
-  /// \return a constant reference to a valid UrKernel instance with raw
-  /// kernel object.
-  const ur_kernel_handle_t &getHandleRef() const { return MKernel; }
+  ur_kernel_handle_t getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -207,13 +206,16 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
-  const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
+  bool isInteropOrSourceBased() const noexcept;
+  bool hasSYCLMetadata() const noexcept;
+
+  device_image_impl &getDeviceImage() const { return *MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
-    const AdapterPtr &Adapter = MContext->getAdapter();
+    adapter_impl &Adapter = MContext->getAdapter();
 
     ur_native_handle_t NativeKernel = 0;
-    Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+    Adapter.call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     if (MContext->getBackend() == backend::opencl)
       __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
@@ -226,28 +228,30 @@ public:
   bool isInterop() const { return MIsInterop; }
 
   ur_program_handle_t getProgramRef() const { return MProgram; }
-  ContextImplPtr getContextImplPtr() const { return MContext; }
+  context_impl &getContextImpl() const { return *MContext; }
 
-  std::mutex &getNoncacheableEnqueueMutex() {
+  std::mutex &getNoncacheableEnqueueMutex() const {
     return MNoncacheableEnqueueMutex;
   }
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
   std::mutex *getCacheMutex() const { return MCacheMutex; }
+  std::string_view getName() const;
 
 private:
-  ur_kernel_handle_t MKernel = nullptr;
-  const ContextImplPtr MContext;
+  Managed<ur_kernel_handle_t> MKernel;
+  const std::shared_ptr<context_impl> MContext;
   const ur_program_handle_t MProgram = nullptr;
   bool MCreatedFromSource = true;
-  const DeviceImageImplPtr MDeviceImageImpl;
+  const std::shared_ptr<device_image_impl> MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
   bool MIsInterop = false;
-  std::mutex MNoncacheableEnqueueMutex;
+  mutable std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
+  mutable std::string MName;
 
-  bool isBuiltInKernel(const device &Device) const;
+  bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
 
   /// Check if the occupancy limits are exceeded for the given kernel launch
@@ -260,6 +264,9 @@ private:
   size_t queryMaxNumWorkGroups(queue Queue,
                                const range<Dimensions> &WorkGroupSize,
                                size_t DynamicLocalMemorySize) const;
+
+  void enableUSMIndirectAccess() const;
+  std::optional<unsigned> getFreeFuncKernelArgSize() const;
 };
 
 template <int Dimensions>
@@ -299,9 +306,13 @@ template <typename Param>
 inline typename Param::return_type kernel_impl::get_info() const {
   static_assert(is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
-  if constexpr (std::is_same_v<Param, info::kernel::num_args>)
+  if constexpr (std::is_same_v<Param, info::kernel::num_args>) {
+    // if kernel is a free function, we need to get num_args from integration
+    // header, stored in program manager
+    if (std::optional<unsigned> FFArgSize = getFreeFuncKernelArgSize())
+      return *FFArgSize;
     checkIfValidForNumArgsInfoQuery();
-
+  }
   return get_kernel_info<Param>(this->getHandleRef(), getAdapter());
 }
 
@@ -317,7 +328,7 @@ kernel_impl::get_info(const device &Device) const {
                     Param, info::kernel_device_specific::global_work_size>) {
     bool isDeviceCustom = Device.get_info<info::device::device_type>() ==
                           info::device_type::custom;
-    if (!isDeviceCustom && !isBuiltInKernel(Device))
+    if (!isDeviceCustom && !isBuiltInKernel(*getSyclObjImpl(Device)))
       throw exception(
           sycl::make_error_code(errc::invalid),
           "info::kernel_device_specific::global_work_size descriptor may only "
@@ -350,7 +361,7 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
     throw exception(sycl::make_error_code(errc::invalid),
                     "The launch work-group size cannot be zero.");
 
-  const auto &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   const auto &Handle = getHandleRef();
   auto Device = Queue.get_device();
   auto DeviceHandleRef = sycl::detail::getSyclObjImpl(Device)->getHandleRef();
@@ -363,15 +374,16 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
     WG[2] = WorkGroupSize[2];
 
   uint32_t GroupCount{0};
-  if (auto Result = Adapter->call_nocheck<
-                    UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
-          Handle, DeviceHandleRef, Dimensions, WG, DynamicLocalMemorySize,
-          &GroupCount);
+  if (auto Result =
+          Adapter
+              .call_nocheck<UrApiKind::urKernelSuggestMaxCooperativeGroupCount>(
+                  Handle, DeviceHandleRef, Dimensions, WG,
+                  DynamicLocalMemorySize, &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
       Result != UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE) {
     // The feature is supported and the group size is valid. Check for other
     // errors and throw if any.
-    Adapter->checkUrResult(Result);
+    Adapter.checkUrResult(Result);
     return GroupCount;
   }
 
@@ -433,18 +445,21 @@ inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
       getAdapter());
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// These functions are unused and should be removed in the next ABI breaking.
+
 template <>
 inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     return_type
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_work_group_size>(
         queue Queue) const {
-  const auto &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   const auto DeviceNativeHandle =
       getSyclObjImpl(Queue.get_device())->getHandleRef();
 
   size_t KernelWGSize = 0;
-  Adapter->call<UrApiKind::urKernelGetGroupInfo>(
+  Adapter.call<UrApiKind::urKernelGetGroupInfo>(
       MKernel, DeviceNativeHandle, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
       sizeof(size_t), &KernelWGSize, nullptr);
   return KernelWGSize;
@@ -484,6 +499,8 @@ ADD_TEMPLATE_METHOD_SPEC(3)
 
 #undef ADD_TEMPLATE_METHOD_SPEC
 
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 #define ADD_TEMPLATE_METHOD_SPEC(QueueSpec, Num, Kind, Reg)                    \
   template <>                                                                  \
   inline typename syclex::info::kernel_queue_specific::QueueSpec::return_type  \
@@ -493,13 +510,13 @@ ADD_TEMPLATE_METHOD_SPEC(3)
     if (WG.size() == 0)                                                        \
       throw exception(sycl::make_error_code(errc::invalid),                    \
                       "The work-group size cannot be zero.");                  \
-    const auto &Adapter = getAdapter();                                        \
+    adapter_impl &Adapter = getAdapter();                                      \
     const auto DeviceNativeHandle =                                            \
         getSyclObjImpl(Queue.get_device())->getHandleRef();                    \
     uint32_t KernelSubWGSize = 0;                                              \
-    Adapter->call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,           \
-                                   sizeof(uint32_t), &KernelSubWGSize,         \
-                                   nullptr);                                   \
+    Adapter.call<UrApiKind::Kind>(MKernel, DeviceNativeHandle, Reg,            \
+                                  sizeof(uint32_t), &KernelSubWGSize,          \
+                                  nullptr);                                    \
     return KernelSubWGSize;                                                    \
   }
 

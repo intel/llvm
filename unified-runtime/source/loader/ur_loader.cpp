@@ -37,7 +37,7 @@ ur_result_t context_t::init() {
   // a specific adapter library. Don't load any static adapters.
   if (!adapter_registry.adaptersForceLoaded()) {
     auto &level_zero = platforms.emplace_back(nullptr);
-    ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable.ur);
+    ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable);
   }
 #endif
 

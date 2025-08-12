@@ -52,7 +52,7 @@ template <size_t I> struct KernelFunctorWithMaxWGSizeProp {
   void operator()(nd_item<1>) const {}
   void operator()(item<1>) const {}
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::max_linear_work_group_size<I>};
   }

@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -8,32 +8,35 @@ import io
 from pathlib import Path
 from utils.utils import download, git_clone
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
-from .oneapi import get_oneapi
+from utils.oneapi import get_oneapi
 import os
 
 
 class LlamaCppBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
 
     def name(self) -> str:
         return "llama.cpp bench"
 
-    def setup(self):
+    def git_url(self) -> str:
+        return "https://github.com/ggerganov/llama.cpp"
+
+    def git_hash(self) -> str:
+        return "916c83bfe7f8b08ada609c3b8e583cf5301e594b"
+
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
         repo_path = git_clone(
             self.directory,
             "llamacpp-repo",
-            "https://github.com/ggerganov/llama.cpp",
-            "1ee9eea094fe5846c7d8d770aa7caa749d246b23",
+            self.git_url(),
+            self.git_hash(),
         )
 
         self.models_dir = os.path.join(self.directory, "models")
@@ -41,8 +44,9 @@ class LlamaCppBench(Suite):
 
         self.model = download(
             self.models_dir,
-            "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
-            "Phi-3-mini-4k-instruct-q4.gguf",
+            "https://huggingface.co/ggml-org/DeepSeek-R1-Distill-Qwen-1.5B-Q4_0-GGUF/resolve/main/deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
+            "deepseek-r1-distill-qwen-1.5b-q4_0.gguf",
+            checksum="791f6091059b653a24924b9f2b9c3141c8f892ae13fff15725f77a2bf7f9b1b6b71c85718f1e9c0f26c2549aba44d191",
         )
 
         self.oneapi = get_oneapi()
@@ -57,27 +61,22 @@ class LlamaCppBench(Suite):
             f"-DGGML_SYCL=ON",
             f"-DCMAKE_C_COMPILER=clang",
             f"-DCMAKE_CXX_COMPILER=clang++",
-            f"-DDNNL_DIR={self.oneapi.dnn_cmake()}",
+            f"-DDNNL_GPU_VENDOR=INTEL",
             f"-DTBB_DIR={self.oneapi.tbb_cmake()}",
-            f'-DCMAKE_CXX_FLAGS=-I"{self.oneapi.mkl_include()}"',
-            f"-DCMAKE_SHARED_LINKER_FLAGS=-L{self.oneapi.compiler_lib()} -L{self.oneapi.mkl_lib()}",
+            f"-DDNNL_DIR={self.oneapi.dnn_cmake()}",
+            f"-DSYCL_COMPILER=ON",
+            f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
         ]
-        print(f"{self.__class__.__name__}: Run {configure_command}")
+
         run(configure_command, add_sycl=True)
-        print(f"{self.__class__.__name__}: Run cmake --build {self.build_path} -j")
+
         run(
-            f"cmake --build {self.build_path} -j",
+            f"cmake --build {self.build_path} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.oneapi.ld_libraries(),
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda":
-            return []
-
         return [LlamaBench(self)]
 
 
@@ -86,16 +85,37 @@ class LlamaBench(Benchmark):
         super().__init__(bench.directory, bench)
         self.bench = bench
 
+    def enabled(self):
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return False
+        return True
+
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.build_path, "bin", "llama-bench")
 
+    def model(self):
+        return "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
+
     def name(self):
-        return f"llama.cpp"
+        return f"llama.cpp {self.model()}"
+
+    def description(self) -> str:
+        return (
+            "Performance testing tool for llama.cpp that measures LLM inference speed in tokens per second. "
+            "Runs both prompt processing (initial context processing) and text generation benchmarks with "
+            f"different batch sizes. Higher values indicate better performance. Uses the {self.model()} "
+            "quantized model and leverages SYCL with oneDNN for acceleration."
+        )
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference", "throughput"]
 
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             "--output",
@@ -104,18 +124,27 @@ class LlamaBench(Benchmark):
             "128",
             "-p",
             "512",
-            "-b",
-            "128,256,512",
+            "-pg",
+            "0,0",
+            "-sm",
+            "none",
+            "-ngl",
+            "99",
             "--numa",
             "isolate",
             "-t",
-            "56",  # TODO: use only as many threads as numa node 0 has cpus
+            "8",
+            "--mmap",
+            "0",
             "--model",
             f"{self.bench.model}",
         ]
 
         result = self.run_bench(
-            command, env_vars, ld_library=self.bench.oneapi.ld_libraries()
+            command,
+            env_vars,
+            ld_library=self.bench.oneapi.ld_libraries(),
+            run_unitrace=run_unitrace,
         )
         parsed = self.parse_output(result)
         results = []
@@ -128,8 +157,9 @@ class LlamaBench(Benchmark):
                     value=mean,
                     command=command,
                     env=env_vars,
-                    stdout=result,
                     unit="token/s",
+                    git_url=self.bench.git_url(),
+                    git_hash=self.bench.git_hash(),
                 )
             )
         return results

@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18910
+
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 

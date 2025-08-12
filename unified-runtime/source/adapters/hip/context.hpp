@@ -11,7 +11,9 @@
 
 #include <set>
 
+#include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
@@ -76,7 +78,7 @@ typedef void (*ur_context_extended_deleter_t)(void *UserData);
 ///  between native allocations for devices in the same \c ur_context_handle_t_
 ///  if necessary.
 ///
-struct ur_context_handle_t_ {
+struct ur_context_handle_t_ : ur::hip::handle_base {
 
   struct deleter_data {
     ur_context_extended_deleter_t Function;
@@ -87,16 +89,18 @@ struct ur_context_handle_t_ {
 
   std::vector<ur_device_handle_t> Devices;
 
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
-    for (auto &Dev : Devices) {
-      urDeviceRetain(Dev);
-    }
+      : handle_base(), Devices{Devs, Devs + NumDevices} {
+    UR_CHECK_ERROR(urAdapterRetain(ur::hip::adapter));
   };
 
-  ~ur_context_handle_t_() {}
+  ~ur_context_handle_t_() {
+    UR_CHECK_ERROR(urAdapterRelease(ur::hip::adapter));
+  }
+
+  ur_context_handle_t_(const ur_context_handle_t_ &) = delete;
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);
@@ -121,12 +125,6 @@ struct ur_context_handle_t_ {
     assert(It != Devices.end());
     return std::distance(Devices.begin(), It);
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   void addPool(ur_usm_pool_handle_t Pool);
 
