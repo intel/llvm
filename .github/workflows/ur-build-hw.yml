@@ -100,13 +100,15 @@ jobs:
         build_type: [Release]
         compiler: [{c: gcc, cxx: g++}]
         # sanitize input: enforce run_tests to be either "ON" or "OFF"
-        run_tests: ${{ inputs.run_tests == "ON" && "ON" || "OFF" }}
-        artifact: {
-          name: "ur_adapter_${{inputs.adapter_name}}",
-          archive_name: "ur_adapter_${{inputs.adapter_name}}.tar.zst",
-          compress_command: "zstd -9",
-          decompress_command: "zstd",
-        }
+        run_tests: ["${{ inputs.run_tests == 'ON' && 'ON' || 'OFF' }}"]
+        artifact: [
+          {
+            name: "ur_adapter_${{inputs.adapter_name}}",
+            archive_name: "ur_adapter_${{inputs.adapter_name}}.tar.zst",
+            compress_command: "zstd -9",
+            decompress_command: "zstd",
+          }
+        ]
 
     runs-on: ${{inputs.runner_name}}
     container:
