@@ -17,8 +17,7 @@ using namespace sycl;
 constexpr size_t N = 512;
 
 int main() {
-
-  auto Devs = platform(gpu_selector_v).get_devices(info::device_type::gpu);
+  auto Devs = platform().get_devices();
 
   if (Devs.size() < 2) {
     std::cout << "Cannot test P2P capabilities, at least two devices are "
