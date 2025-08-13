@@ -1035,14 +1035,13 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
           << "CUDA" << Arch;
       return llvm::DenseSet<llvm::StringRef>();
     }
-
-    if (Kind == Action::OFK_OpenMP && !IsNVIDIAOffloadArch(ID) &&
-        !IsAMDOffloadArch(ID)) {
-      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
-          << "OpenMP" << Arch;
+    if (Kind == Action::OFK_OpenMP &&
+        (IsIntelCPUOffloadArch(ID) || IsIntelGPUOffloadArch(ID) ||
+         ID == OffloadArch::UNKNOWN || ID == OffloadArch::UNUSED)) {
+      C.getDriver().Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
+          << Arch;
       return llvm::DenseSet<llvm::StringRef>();
     }
-
     if (ID == OffloadArch::UNKNOWN || ID == OffloadArch::UNUSED) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "offload" << Arch;
@@ -1374,9 +1373,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!Inserted) {
       Diag(clang::diag::warn_drv_offload_target_duplicate)
           << Target << TripleIt->second;
-      return false;
+      return true;
     }
-    return true;
+    return false;
   };
 
   std::multiset<llvm::StringRef> Triples;
@@ -1385,32 +1384,21 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         C.getInputArgs().getAllArgValues(options::OPT_offload_targets_EQ);
     llvm::Triple TT;
     for (llvm::StringRef Target : ArgValues) {
-      if(IsSYCL) {
+      if (IsSYCL) {
+        StringRef TargetTripleString(Target);
         if (Target.starts_with("intel_gpu_"))
-          TT = getSYCLDeviceTriple("spir64_gen");
+          TargetTripleString = "spir64_gen";
         else if (Target.starts_with("nvidia_gpu_"))
-          TT = getSYCLDeviceTriple("nvptx64-nvidia-cuda");
+          TargetTripleString = "nvptx64-nvidia-cuda";
         else if (Target.starts_with("amd_gpu_"))
-          TT = getSYCLDeviceTriple("amdgcn-amd-amdhsa");
-        else
-          TT = getSYCLDeviceTriple(Target);
-        std::string NormalizedName =
-            C.getDriver().getSYCLDeviceTriple(Target).normalize();
-        auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-        if (!Inserted) {
-          Diag(clang::diag::warn_drv_offload_target_duplicate)
-              << Target << TripleIt->second;
+          TargetTripleString = "amdgcn-amd-amdhsa";
+
+        // Check for duplicate target triple strings
+        // before inserting in Triples.
+        if (isDuplicateTargetTripleString(Target))
           continue;
-        }
-        // duplicate check
-        /*    bool Inserted = isDuplicateTargetTripleString(Target);
-            if (!Inserted)
-                continue;
-        */
-        Triples.insert(C.getInputArgs().MakeArgString(TT.normalize()));
-      }
-      else
+        Triples.insert(C.getInputArgs().MakeArgString(TargetTripleString));
+      } else
         Triples.insert(C.getInputArgs().MakeArgString(Target));
     }
 
@@ -1426,6 +1414,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     }
   }
 
+  FoundNormalizedTriples.clear();
   // Build an offloading toolchain for every requested target and kind.
   for (StringRef Target : Triples) {
     // OpenMP offloading requires a compatible libomp.
@@ -1469,21 +1458,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         continue;
       }
       // Check for duplicate target triple strings.
-      if (Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) {
-        std::string NormalizedName =
-            C.getDriver().getSYCLDeviceTriple(Target).normalize();
-        auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-        if (!Inserted) {
-          Diag(clang::diag::warn_drv_offload_target_duplicate)
-              << Target << TripleIt->second;
-          continue;
-        }
-        /*         bool Inserted = isDuplicateTargetTripleString(Target);
-                  if (!Inserted)
-                      continue;
-        */
-      }
+      if ((Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) &&
+          isDuplicateTargetTripleString(Target))
+        continue;
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
                                      C.getDefaultToolChain().getTriple());
