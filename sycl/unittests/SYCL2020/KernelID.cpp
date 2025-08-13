@@ -17,7 +17,9 @@
 class TestKernel1;
 class TestKernel2;
 class TestKernel3;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 class ServiceKernel1;
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -37,12 +39,14 @@ struct KernelInfo<TestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "KernelID_TestKernel3"; }
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() {
     return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
   }
 };
+#endif
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -50,9 +54,11 @@ struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
 static sycl::unittest::MockDeviceImage Imgs[2] = {
     sycl::unittest::generateDefaultImage(
         {"KernelID_TestKernel1", "KernelID_TestKernel3"}),
-    sycl::unittest::generateDefaultImage(
-        {"KernelID_TestKernel2",
-         "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
+    sycl::unittest::generateDefaultImage({
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1",
+#endif
+        "KernelID_TestKernel2"})};
 static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
@@ -74,6 +80,7 @@ TEST(KernelID, AllProgramKernelIds) {
   }
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 TEST(KernelID, NoServiceKernelIds) {
   const char *ServiceKernel1Name =
       sycl::detail::KernelInfo<ServiceKernel1>::getName();
@@ -87,6 +94,7 @@ TEST(KernelID, NoServiceKernelIds) {
 
   EXPECT_TRUE(NoFoundServiceKernelID);
 }
+#endif
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
   sycl::unittest::UrMock<> Mock;
