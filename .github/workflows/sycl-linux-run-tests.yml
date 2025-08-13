@@ -37,7 +37,7 @@ on:
 
       repo_ref:
         type: string
-        required: True
+        required: False
         description: |
           Commit SHA or branch to checkout the intel/llvm repo.
       tests_ref:
@@ -60,9 +60,11 @@ on:
 
       e2e_binaries_artifact:
         description: |
-          Must be set if `e2e_testing_mode` is equal to `run-only` and the
-          artifact must exist. Can be set in other modes resulting in artifact
-          upload.
+          When set in modes other than `run-only` results in artifact upload.
+          For `run-only` mode, if specified, means downloading pre-built
+          binaries from the artifact. If set to special value `in-container`
+          then the binaries are expected to be stored in the container image
+          instead of coming from an artifact.
         type: string
         default: ''
         required: False
@@ -156,6 +158,8 @@ on:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2'
+          - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3'
           - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
@@ -205,6 +209,7 @@ on:
         options:
           - "full"
           - "build-only"
+          - "run-only"
 
 permissions:
   contents: read
@@ -353,6 +358,7 @@ jobs:
         save_name: ${{ inputs.benchmark_save_name }}
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
+        build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

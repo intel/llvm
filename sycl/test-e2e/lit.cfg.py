@@ -382,9 +382,13 @@ with test_env():
     else:
         config.substitutions.append(("%level_zero_options", ""))
 
-if lit_config.params.get("test-preview-mode", "False") != "False":
+test_preview = lit_config.params.get("test-preview-mode")
+if test_preview is not None and test_preview not in ["True", "False"]:
+    lit_config.fatal("test-preview-mode must be unset or set to True/False")
+
+if test_preview == "True":
     config.available_features.add("preview-mode")
-else:
+elif test_preview is None:
     # Check for sycl-preview library
     check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
     with open_check_file(check_preview_breaking_changes_file) as fp:
@@ -958,6 +962,19 @@ elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hp
     lit_config.note("Using installed device config file")
     config.available_features.add("device-config-file")
     config.substitutions.append(("%device_config_file_include_flag", ""))
+
+# Check for sycl-jit library
+if config.test_mode != "build-only":
+    if platform.system() == "Linux":
+        if os.path.exists(os.path.join(config.sycl_libs_dir, "libsycl-jit.so")):
+            config.available_features.add("sycl-jit")
+    elif platform.system() == "Windows":
+        if os.path.exists(os.path.join(config.dpcpp_bin_dir, "sycl-jit.dll")):
+            config.available_features.add("sycl-jit")
+    if "sycl-jit" not in config.available_features:
+        lit_config.note(
+            "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
+        )
 
 # That has to be executed last so that all device-independent features have been
 # discovered already.

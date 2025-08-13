@@ -3,15 +3,15 @@
 // Test that checks max_concurrency attribute support on function.
 
 // Tests for incorrect argument values for Intel FPGA max_concurrency function attribute.
-[[intel::max_concurrency]] void one() {} // expected-error {{'max_concurrency' attribute takes one argument}}
+[[intel::max_concurrency]] void one() {} // expected-error {{'intel::max_concurrency' attribute takes one argument}}
 
-[[intel::max_concurrency(5)]] int a; // expected-error{{'max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
+[[intel::max_concurrency(5)]] int a; // expected-error{{'intel::max_concurrency' attribute only applies to 'for', 'while', 'do' statements, and functions}}
 
 [[intel::max_concurrency("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
 
-[[intel::max_concurrency(-1)]] void func1() {} // expected-error{{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
+[[intel::max_concurrency(-1)]] void func1() {} // expected-error{{'intel::max_concurrency' attribute requires a non-negative integral compile time constant expression}}
 
-[[intel::max_concurrency(0, 1)]] void func2() {} // expected-error{{'max_concurrency' attribute takes one argument}}
+[[intel::max_concurrency(0, 1)]] void func2() {} // expected-error{{'intel::max_concurrency' attribute takes one argument}}
 
 // Tests for Intel FPGA max_concurrency function attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
@@ -24,33 +24,33 @@
 // Diagnostic is emitted because the arguments mismatch.
 [[intel::max_concurrency(2)]] // expected-note {{previous attribute is here}}
 [[intel::max_concurrency(4)]] void
-func5() {} // expected-warning@-1 {{attribute 'max_concurrency' is already applied with different arguments}}
+func5() {} // expected-warning@-1 {{attribute 'intel::max_concurrency' is already applied with different arguments}}
 
 [[intel::max_concurrency(1)]] void func6(); // expected-note {{previous attribute is here}}
-[[intel::max_concurrency(3)]] void func6(); // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
+[[intel::max_concurrency(3)]] void func6(); // expected-warning {{attribute 'intel::max_concurrency' is already applied with different arguments}}
 
 // Tests for Intel FPGA max_concurrency and disable_loop_pipelining function attributes compatibility.
-// expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
+// expected-error@+2 {{'intel::max_concurrency' and 'intel::disable_loop_pipelining' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::disable_loop_pipelining]] [[intel::max_concurrency(2)]] void func7();
 
-// expected-error@+2 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
+// expected-error@+2 {{'intel::disable_loop_pipelining' and 'intel::max_concurrency' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::max_concurrency(4)]] [[intel::disable_loop_pipelining]] void func8();
 
-// expected-error@+3 {{'disable_loop_pipelining' and 'max_concurrency' attributes are not compatible}}
+// expected-error@+3 {{'intel::disable_loop_pipelining' and 'intel::max_concurrency' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::max_concurrency(4)]] void func9();
 [[intel::disable_loop_pipelining]] void func9();
 
 // Tests that check template parameter support for Intel FPGA initiation_interval function attributes
 template <int N>
-[[intel::max_concurrency(N)]] void func10(); // expected-error {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
+[[intel::max_concurrency(N)]] void func10(); // expected-error {{'intel::max_concurrency' attribute requires a non-negative integral compile time constant expression}}
 
 template <int size>
 [[intel::max_concurrency(10)]] void func11(); // expected-note {{previous attribute is here}}
 template <int size>
-[[intel::max_concurrency(size)]] void func11() {} // expected-warning {{attribute 'max_concurrency' is already applied with different arguments}}
+[[intel::max_concurrency(size)]] void func11() {} // expected-warning {{attribute 'intel::max_concurrency' is already applied with different arguments}}
 
 void checkTemplates() {
   func10<4>();  // OK
