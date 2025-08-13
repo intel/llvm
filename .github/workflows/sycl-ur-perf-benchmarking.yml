@@ -115,7 +115,7 @@ jobs:
     with:
       # Only 2 adapters supported currently, level_zero and level_zero_v2:
       adapter_name: ${{ inputs.backend == 'level_zero_v2:gpu' && 'level_zero_v2' || 'level_zero' }}
-      runner_name: '["Linux", "build"]'
+      runner: '["Linux", "build"]'
       static_loader: 'OFF'
       static_adapter: 'OFF'
       docker_image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'

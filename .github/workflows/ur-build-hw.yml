@@ -10,7 +10,7 @@ on:
         required: false
         type: string
         default: ""
-      runner_name:
+      runner:
         required: true
         type: string
       static_loader:
@@ -48,7 +48,7 @@ on:
         required: false
         type: string
         default: ""
-      runner_name:
+      runner:
         required: true
         type: string
       static_loader:
@@ -110,7 +110,7 @@ jobs:
           }
         ]
 
-    runs-on: ${{inputs.runner_name}}
+    runs-on: ${{ fromJSON(inputs.runner) }}
     container:
       image: ${{ inputs.docker_image }}
       options: ${{ inputs.image_options }}
