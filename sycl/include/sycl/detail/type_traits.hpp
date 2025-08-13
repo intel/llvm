@@ -79,7 +79,10 @@ struct is_group<group<Dimensions>> : std::true_type {};
 
 template <typename T> struct is_sub_group : std::false_type {};
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct is_sub_group<ext::oneapi::sub_group> : std::true_type {};
+#endif
+
 template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
