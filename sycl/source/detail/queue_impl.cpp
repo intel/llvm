@@ -438,13 +438,10 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
   return Args;
 }
 
-detail::EventImplPtr
-queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
-            const v1::SubmissionInfo &SubmitInfo,
-            const v1::KernelRuntimeInfo &KRInfo,
-            bool CallerNeedsEvent,
-            const detail::code_location &CodeLoc,
-            bool IsTopCodeLoc) {
+detail::EventImplPtr queue_impl::submit_direct_impl(
+    const NDRDescT &NDRDesc, const v1::SubmissionInfo &SubmitInfo,
+    const v1::KernelRuntimeInfo &KRInfo, bool CallerNeedsEvent,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   (void)SubmitInfo;
 
   std::unique_ptr<detail::CG> CommandGroup;
@@ -483,36 +480,33 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
   // Barrier and un-enqueued commands synchronization for out or order queue
   if (!isInOrder()) {
     MMissedCleanupRequests.unset(
-      [&](MissedCleanupRequestsType &MissedCleanupRequests) {
-        for (auto &UpdatedGraph : MissedCleanupRequests)
-          doUnenqueuedCommandCleanup(UpdatedGraph);
-        MissedCleanupRequests.clear();
-      });
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
 
-    if (MDefaultGraphDeps.LastBarrier && !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
+    if (MDefaultGraphDeps.LastBarrier &&
+        !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
       CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
     }
   }
 
   Args = extractArgsAndReqsFromLambda(KRInfo.GetKernelFuncPtr(),
-    KRInfo.KernelParamDescGetter(), KRInfo.KernelNumArgs());
+                                      KRInfo.KernelParamDescGetter(),
+                                      KRInfo.KernelNumArgs());
 
   CommandGroup.reset(new detail::CGExecKernel(
-      std::move(NDRDesc),
-      KRInfo.HostKernel(),
+      std::move(NDRDesc), KRInfo.HostKernel(),
       nullptr, // MKernel
       nullptr, // MKernelBundle
-      std::move(CGData),
-      std::move(Args),
-      toKernelNameStrT(KRInfo.KernelName()),
-      KRInfo.KernelNameBasedCachePtr(),
-      std::move(StreamStorage),
-      std::move(AuxiliaryResources),
-      detail::CGType::Kernel,
+      std::move(CGData), std::move(Args), toKernelNameStrT(KRInfo.KernelName()),
+      KRInfo.KernelNameBasedCachePtr(), std::move(StreamStorage),
+      std::move(AuxiliaryResources), detail::CGType::Kernel,
       UR_KERNEL_CACHE_CONFIG_DEFAULT,
       false, // MKernelIsCooperative
       false, // MKernelUsesClusterLaunch
-      0, // MKernelWorkGroupMemorySize
+      0,     // MKernelWorkGroupMemorySize
       CodeLoc));
 
   CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;

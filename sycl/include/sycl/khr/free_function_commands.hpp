@@ -155,7 +155,7 @@ void launch_grouped(const queue &q, range<1> r, range<1> size,
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   submit(std::move(q), ext::oneapi::experimental::empty_properties_t{},
-    nd_range<1>(r, size), k);
+         nd_range<1>(r, size), k);
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -169,7 +169,7 @@ void launch_grouped(const queue &q, range<2> r, range<2> size,
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   submit(std::move(q), ext::oneapi::experimental::empty_properties_t{},
-    nd_range<2>(r, size), k);
+         nd_range<2>(r, size), k);
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -183,7 +183,7 @@ void launch_grouped(const queue &q, range<3> r, range<3> size,
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   submit(std::move(q), ext::oneapi::experimental::empty_properties_t{},
-    nd_range<3>(r, size), k);
+         nd_range<3>(r, size), k);
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },

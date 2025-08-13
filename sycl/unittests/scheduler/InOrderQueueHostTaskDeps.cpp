@@ -182,13 +182,12 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
-      ExecutedCommands.push_back(
-        {CommandType::HOST_TASK, 0});
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0});
     });
   });
 
-  event Ev2 = InOrderQueue.parallel_for<TestKernel>(nd_range<1>{range{32}, range{32}},
-    [](nd_item<1>) {});
+  event Ev2 = InOrderQueue.parallel_for<TestKernel>(
+      nd_range<1>{range{32}, range{32}}, [](nd_item<1>) {});
 
   {
     std::unique_lock<std::mutex> lk(CvMutex);
