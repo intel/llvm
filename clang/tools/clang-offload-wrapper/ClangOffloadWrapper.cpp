@@ -629,18 +629,10 @@ private:
     return AutoGcBufs.back().get();
   }
 
-  /// Adds Native CPU declarations to the module so that they can be
-  /// referenced in the binary.
-  Function *addDeclarationForNativeCPU(StringRef Name) {
-    FunctionType *FTy =
-        FunctionType::get(Type::getVoidTy(C), {getPtrTy(), getPtrTy()}, false);
-    auto FCalle = M.getOrInsertFunction(
-        sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
-    Function *F = dyn_cast<Function>(FCalle.getCallee());
-    if (F == nullptr)
-      report_fatal_error("Unexpected callee");
-    return F;
-  }
+  template <class T, class T2>
+  friend auto sycl::utils::addDeclarationsForNativeCPU<T>(
+      T &, const std::optional<util::PropertySet> &p, const MemoryBuffer *,
+      LLVMContext &, Module &, const T2 &f, StructType *) -> decltype(f(*p));
 
   /// Adds declarations of NativeCPU kernels to the binary in a format so that
   /// the NativeCPU UR adapter can extract the pointers and invoke the kernels.
@@ -651,79 +643,13 @@ private:
     if (!MBOrErr)
       return MBOrErr.takeError();
     MemoryBuffer *MB = *MBOrErr;
-    // the Native CPU UR adapter expects the BinaryStart field to point to
-    //
-    // struct nativecpu_program {
-    //   nativecpu_entry *entries;
-    //   ur_program_properties_t *properties;
-    // };
-    //
-    // where "entries" is an array of:
-    //
-    // struct nativecpu_entry {
-    //   char *kernelname;
-    //   unsigned char *kernel_ptr;
-    // };
-    StructType *NCPUProgramT =
-        StructType::create({getPtrTy(), getPtrTy()}, "nativecpu_program");
-    StructType *NCPUEntryT =
-        StructType::create({getPtrTy(), getPtrTy()}, "__nativecpu_entry");
-    SmallVector<Constant *, 5> NativeCPUEntries;
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
-      auto *NewDecl = addDeclarationForNativeCPU(*LI);
-      NativeCPUEntries.push_back(ConstantStruct::get(
-          NCPUEntryT,
-          {addStringToModule(*LI, "__ncpu_function_name"), NewDecl}));
-    }
 
-    // Add an empty entry that we use as end iterator
-    auto *NativeCPUEndStr =
-        addStringToModule("__nativecpu_end", "__ncpu_end_str");
-    auto *NullPtr = llvm::ConstantPointerNull::get(getPtrTy());
-    NativeCPUEntries.push_back(
-        ConstantStruct::get(NCPUEntryT, {NativeCPUEndStr, NullPtr}));
-
-    // Create the constant array containing the {kernel name, function pointers}
-    // pairs
-    ArrayType *ATy = ArrayType::get(NCPUEntryT, NativeCPUEntries.size());
-    Constant *CA = ConstantArray::get(ATy, NativeCPUEntries);
-    auto *GVar = new GlobalVariable(M, CA->getType(), true,
-                                    GlobalVariable::InternalLinkage, CA,
-                                    "__sycl_native_cpu_decls");
-    auto *EntriesBegin = ConstantExpr::getGetElementPtr(
-        GVar->getValueType(), GVar, getSizetConstPair(0u, 0u));
-
-    // Add Native CPU specific properties to the nativecpu_program struct
-    Constant *PropValue = NullPtr;
-    if (NativeCPUProps.has_value()) {
-      auto PropsOrErr = addSYCLPropertySetToModule(*NativeCPUProps);
-      if (!PropsOrErr)
-        return PropsOrErr.takeError();
-      auto *Category = addStringToModule(
-          sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS, "SYCL_PropSetName");
-      auto S =
-          ConstantStruct::get(getSyclPropSetTy(), Category,
-                              PropsOrErr.get().first, PropsOrErr.get().second);
-      auto T = addStructArrayToModule({S}, getSyclPropSetTy());
-      PropValue = T.first;
-    }
-
-    // Create the nativecpu_program struct.
-    // We add it to a ConstantArray of length 1 because the SYCL runtime expects
-    // a non-zero sized binary image, and this allows it to point the end of the
-    // binary image to the end of the array.
-    auto *Program =
-        ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
-    ArrayType *ProgramATy = ArrayType::get(NCPUProgramT, 1);
-    Constant *CPA = ConstantArray::get(ProgramATy, {Program});
-    auto *ProgramGVar =
-        new GlobalVariable(M, ProgramATy, true, GlobalVariable::InternalLinkage,
-                           CPA, "__sycl_native_cpu_program");
-    auto *ProgramBegin = ConstantExpr::getGetElementPtr(
-        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 0u));
-    auto *ProgramEnd = ConstantExpr::getGetElementPtr(
-        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 1u));
-    return std::make_pair(ProgramBegin, ProgramEnd);
+    auto addPropertySetToModule = [this](auto p) {
+      return this->addSYCLPropertySetToModule(p);
+    };
+    return sycl::utils::addDeclarationsForNativeCPU(
+        *this, NativeCPUProps, MB, C, M, addPropertySetToModule,
+        getSyclPropSetTy());
   }
 
   // Adds a global readonly variable that is initialized by given data to the
