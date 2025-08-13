@@ -7,7 +7,7 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
-add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)

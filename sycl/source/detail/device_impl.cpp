@@ -23,7 +23,7 @@ namespace detail {
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                          device_impl::private_tag)
-    : MDevice(Device), MPlatform(Platform.shared_from_this()),
+    : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
                       ? nullptr
@@ -32,16 +32,15 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
       MCache{*this} {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
-  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
+  getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
   try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    const AdapterPtr &Adapter = getAdapter();
-    ur_result_t Err =
-        Adapter->call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
-    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter->getBackend());
+    adapter_impl &Adapter = getAdapter();
+    ur_result_t Err = Adapter.call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
+    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter.getBackend());
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
@@ -107,9 +106,34 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  std::string AllExtensionNames = get_info_impl<UR_DEVICE_INFO_EXTENSIONS>();
+  if (ExtensionName.empty())
+    return false;
 
-  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+  const std::string AllExtensionNames{
+      get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
+
+  size_t FoundExtPos = AllExtensionNames.find(ExtensionName);
+  while (FoundExtPos != std::string::npos) {
+    // If the extension name was found, we need to ensure it is not a partial
+    // match. That is, the following must hold:
+    //  * The match must be at the start of the list of names or have a
+    //    whitespace before it and
+    //  * the match must end at the end of the list of names or have a
+    //    whitespace after it.
+    bool IsStartOrTerminated =
+        FoundExtPos == 0 || AllExtensionNames[FoundExtPos - 1] == ' ';
+    bool IsEndOrTerminated =
+        FoundExtPos + ExtensionName.size() == AllExtensionNames.size() ||
+        AllExtensionNames[FoundExtPos + ExtensionName.size()] == ' ';
+    if (IsStartOrTerminated && IsEndOrTerminated)
+      return true;
+
+    // If the match was partial, the extension name could still be later in the
+    // list. As such, search for the next match and recheck.
+    FoundExtPos = AllExtensionNames.find(ExtensionName,
+                                         FoundExtPos + ExtensionName.size());
+  }
+  return false;
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
@@ -123,8 +147,8 @@ std::vector<device> device_impl::create_sub_devices(
     size_t SubDevicesCount) const {
   std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
   uint32_t ReturnedSubDevices = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
       MDevice, Properties, SubDevicesCount, SubDevices.data(),
       &ReturnedSubDevices);
   if (ReturnedSubDevices != SubDevicesCount) {
@@ -140,7 +164,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_ur_device));
+                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -270,9 +294,9 @@ std::vector<device> device_impl::create_sub_devices(
   Properties.pProperties = &Prop;
 
   uint32_t SubDevicesCount = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
-      MDevice, &Properties, 0, nullptr, &SubDevicesCount);
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+      MDevice, &Properties, 0u, nullptr, &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
@@ -295,17 +319,17 @@ std::vector<device> device_impl::create_sub_devices() const {
   Properties.PropCount = 1;
 
   uint32_t SubDevicesCount = 0;
-  const AdapterPtr &Adapter = getAdapter();
-  Adapter->call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0, nullptr,
-                                              &SubDevicesCount);
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0u, nullptr,
+                                             &SubDevicesCount);
 
   return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 ur_native_handle_t device_impl::getNative() const {
-  auto Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle;
-  Adapter->call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
   if (getBackend() == backend::opencl) {
     __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
   }
@@ -327,7 +351,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
   auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
                                     uint64_t *DeviceTime, uint64_t *HostTime) {
     auto Result =
-        getAdapter()->call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
+        getAdapter().call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
             Device, DeviceTime, HostTime);
     if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
       // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
@@ -339,7 +363,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
               "Device and/or backend does not support querying timestamp."),
           UR_RESULT_ERROR_INVALID_OPERATION);
     } else {
-      getAdapter()->checkUrResult<errc::feature_not_supported>(Result);
+      getAdapter().checkUrResult<errc::feature_not_supported>(Result);
     }
   };
 
@@ -372,11 +396,9 @@ uint64_t device_impl::getCurrentDeviceTime() {
 bool device_impl::extOneapiCanBuild(
     ext::oneapi::experimental::source_language Language) {
   try {
-    // Get the shared_ptr to this object from the platform that owns it.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return sycl::ext::oneapi::experimental::detail::
         is_source_kernel_bundle_supported(Language,
-                                          std::vector<device_impl *>{&Self});
+                                          std::vector<device_impl *>{this});
 
   } catch (sycl::exception &) {
     return false;
@@ -387,11 +409,10 @@ bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
   try {
     // Currently only SYCL language is supported for compiling.
-    device_impl &Self = MPlatform->getOrMakeDeviceImpl(MDevice);
     return Language == ext::oneapi::experimental::source_language::sycl &&
            sycl::ext::oneapi::experimental::detail::
                is_source_kernel_bundle_supported(
-                   Language, std::vector<device_impl *>{&Self});
+                   Language, std::vector<device_impl *>{this});
   } catch (sycl::exception &) {
     return false;
   }

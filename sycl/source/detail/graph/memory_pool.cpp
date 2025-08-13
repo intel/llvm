@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_pool.hpp"
+#include "detail/virtual_mem.hpp"
 #include "graph_impl.hpp"
 
 #include <optional>
@@ -19,10 +20,8 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
-void *
-graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
-                       const std::vector<std::shared_ptr<node_impl>> &DepNodes,
-                       const std::shared_ptr<memory_pool_impl> &MemPool) {
+void *graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
+                             nodes_range DepNodes, memory_pool_impl *MemPool) {
   // We are potentially modifying contents of this memory pool and the owning
   // graph, so take a lock here.
   graph_impl::WriteLock Lock(MGraph.MMutex);
@@ -41,10 +40,12 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
   switch (AllocType) {
   case usm::alloc::device: {
 
-    auto &CtxImpl = sycl::detail::getSyclObjImpl(MContext);
-    auto &Adapter = CtxImpl->getAdapter();
+    const context_impl &CtxImpl = *getSyclObjImpl(MContext);
+    const adapter_impl &Adapter = CtxImpl.getAdapter();
+    const device_impl &DeviceImpl = *getSyclObjImpl(MDevice);
 
-    size_t Granularity = get_mem_granularity(MDevice, MContext);
+    const size_t Granularity = get_mem_granularity_for_allocation_size(
+        DeviceImpl, CtxImpl, granularity_mode::recommended, Size);
     uintptr_t StartPtr = 0;
     size_t AlignedSize = alignByteSize(Size, Granularity);
     // See if we can find an allocation to reuse
@@ -58,10 +59,10 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
     }
 
     // If no allocation could be reused, do a new virtual reservation
-    Adapter->call<sycl::errc::runtime,
-                  sycl::detail::UrApiKind::urVirtualMemReserve>(
-        CtxImpl->getHandleRef(), reinterpret_cast<void *>(StartPtr),
-        AlignedSize, &Alloc);
+    Adapter.call<sycl::errc::runtime,
+                 sycl::detail::UrApiKind::urVirtualMemReserve>(
+        CtxImpl.getHandleRef(), reinterpret_cast<void *>(StartPtr), AlignedSize,
+        &Alloc);
 
     AllocInfo.Size = AlignedSize;
     AllocInfo.Ptr = Alloc;
@@ -81,9 +82,9 @@ graph_mem_pool::malloc(size_t Size, usm::alloc AllocType,
 }
 
 std::optional<graph_mem_pool::alloc_info>
-graph_mem_pool::tryReuseExistingAllocation(
-    size_t Size, usm::alloc AllocType, bool ReadOnly,
-    const std::vector<std::shared_ptr<node_impl>> &DepNodes) {
+graph_mem_pool::tryReuseExistingAllocation(size_t Size, usm::alloc AllocType,
+                                           bool ReadOnly,
+                                           nodes_range DepNodes) {
   // If we have no dependencies this is a no-op because allocations must connect
   // to a free node for reuse to be possible.
   if (DepNodes.empty()) {
@@ -116,25 +117,16 @@ graph_mem_pool::tryReuseExistingAllocation(
   // free nodes. We do this in a breadth-first approach because we want to find
   // the shortest path to a reusable allocation.
 
-  std::queue<std::weak_ptr<node_impl>> NodesToCheck;
-
   // Add all the dependent nodes to the queue, they will be popped first
-  for (auto &Dep : DepNodes) {
-    NodesToCheck.push(Dep);
-  }
+  auto NodesToCheck = DepNodes.to<std::queue<node_impl *>>();
 
   // Called when traversing over nodes to check if the current node is a free
   // node for one of the available allocations. If it is we populate AllocInfo
   // with the allocation to be reused.
   auto CheckNodeEqual =
-      [&CompatibleAllocs](const std::shared_ptr<node_impl> &CurrentNode)
-      -> std::optional<alloc_info> {
+      [&CompatibleAllocs](node_impl &CurrentNode) -> std::optional<alloc_info> {
     for (auto &Alloc : CompatibleAllocs) {
-      const auto &AllocFreeNode = Alloc.LastFreeNode;
-      // Compare control blocks without having to lock AllocFreeNode to check
-      // for node equality
-      if (!CurrentNode.owner_before(AllocFreeNode) &&
-          !AllocFreeNode.owner_before(CurrentNode)) {
+      if (&CurrentNode == Alloc.LastFreeNode) {
         return Alloc;
       }
     }
@@ -142,9 +134,9 @@ graph_mem_pool::tryReuseExistingAllocation(
   };
 
   while (!NodesToCheck.empty()) {
-    auto CurrentNode = NodesToCheck.front().lock();
+    node_impl &CurrentNode = *NodesToCheck.front();
 
-    if (CurrentNode->MTotalVisitedEdges > 0) {
+    if (CurrentNode.MTotalVisitedEdges > 0) {
       continue;
     }
 
@@ -152,13 +144,13 @@ graph_mem_pool::tryReuseExistingAllocation(
     // for any of the allocations which are free for reuse. We should not bother
     // checking nodes that are not free nodes, so we continue and check their
     // predecessors.
-    if (CurrentNode->MNodeType == node_type::async_free) {
+    if (CurrentNode.MNodeType == node_type::async_free) {
       std::optional<alloc_info> AllocFound = CheckNodeEqual(CurrentNode);
       if (AllocFound) {
         // Reset visited nodes tracking
         MGraph.resetNodeVisitedEdges();
         // Reset last free node for allocation
-        MAllocations.at(AllocFound.value().Ptr).LastFreeNode.reset();
+        MAllocations.at(AllocFound.value().Ptr).LastFreeNode = nullptr;
         // Remove found allocation from the free list
         MFreeAllocations.erase(std::find(MFreeAllocations.begin(),
                                          MFreeAllocations.end(),
@@ -168,22 +160,21 @@ graph_mem_pool::tryReuseExistingAllocation(
     }
 
     // Add CurrentNode predecessors to queue
-    for (auto &Pred : CurrentNode->MPredecessors) {
-      NodesToCheck.push(Pred);
+    for (node_impl &Pred : CurrentNode.predecessors()) {
+      NodesToCheck.push(&Pred);
     }
 
     // Mark node as visited
-    CurrentNode->MTotalVisitedEdges = 1;
+    CurrentNode.MTotalVisitedEdges = 1;
     NodesToCheck.pop();
   }
 
   return std::nullopt;
 }
 
-void graph_mem_pool::markAllocationAsAvailable(
-    void *Ptr, const std::shared_ptr<node_impl> &FreeNode) {
+void graph_mem_pool::markAllocationAsAvailable(void *Ptr, node_impl &FreeNode) {
   MFreeAllocations.push_back(Ptr);
-  MAllocations.at(Ptr).LastFreeNode = FreeNode;
+  MAllocations.at(Ptr).LastFreeNode = &FreeNode;
 }
 
 } // namespace detail

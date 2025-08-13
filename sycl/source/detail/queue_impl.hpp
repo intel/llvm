@@ -135,7 +135,7 @@ public:
       int Idx = get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
       int NumIndices =
-          createSyclObjFromImpl<device>(Device)
+          Device
               .get_info<ext::intel::info::device::max_compute_queue_indices>();
       if (Idx < 0 || Idx >= NumIndices)
         throw sycl::exception(
@@ -194,12 +194,12 @@ public:
              private_tag)
       : MDevice([&]() -> device_impl & {
           ur_device_handle_t DeviceUr{};
-          const AdapterPtr &Adapter = Context.getAdapter();
+          adapter_impl &Adapter = Context.getAdapter();
           // TODO catch an exception and put it to list of asynchronous
           // exceptions
-          Adapter->call<UrApiKind::urQueueGetInfo>(
-              UrQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr,
-              nullptr);
+          Adapter.call<UrApiKind::urQueueGetInfo>(UrQueue, UR_QUEUE_INFO_DEVICE,
+                                                  sizeof(DeviceUr), &DeviceUr,
+                                                  nullptr);
           device_impl *Device = Context.findMatchingDeviceImpl(DeviceUr);
           if (Device == nullptr) {
             throw sycl::exception(
@@ -255,7 +255,7 @@ public:
 #endif
       throw_asynchronous();
       auto status =
-          getAdapter()->call_nocheck<UrApiKind::urQueueRelease>(MQueue);
+          getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
       // which the UR should convert to SUCCESS code. But that isn't always
       // working on Windows. This is a temporary workaround until that is fixed.
@@ -263,7 +263,7 @@ public:
       // ->call<>() instead of ->call_nocheck<>() above.
       if (status != UR_RESULT_SUCCESS &&
           status != UR_RESULT_ERROR_UNINITIALIZED) {
-        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter()->getBackend());
+        __SYCL_CHECK_UR_CODE_NO_EXC(status, getAdapter().getBackend());
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -274,8 +274,8 @@ public:
 
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
-                                                          &nativeHandle);
+    getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
+                                                         &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -285,7 +285,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
+  adapter_impl &getAdapter() const { return MContext->getAdapter(); }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<context_impl> &getContextImplPtr() const {
@@ -325,7 +325,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    getAdapter()->call<UrApiKind::urQueueFlush>(MQueue);
+    getAdapter().call<UrApiKind::urQueueFlush>(MQueue);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -487,7 +487,6 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice.getHandleRef();
-    const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -503,8 +502,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    Adapter->call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
-                                            &Queue);
+    getAdapter().call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
+                                                &Queue);
 
     return Queue;
   }
@@ -665,8 +664,8 @@ public:
   EventImplPtr insertMarkerEvent() {
     auto ResEvent = detail::event_impl::create_device_event(*this);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
-                                                       nullptr, &UREvent);
+    getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
+                                                      nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
@@ -690,7 +689,7 @@ protected:
     queue_impl &Queue = Handler.impl->get_queue();
     auto ResEvent = detail::event_impl::create_device_event(Queue);
     ur_event_handle_t UREvent = nullptr;
-    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+    getAdapter().call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         Queue.getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
@@ -727,8 +726,8 @@ protected:
       return false;
 
     if (MDefaultGraphDeps.LastEventPtr != nullptr &&
-        !Scheduler::CheckEventReadiness(*MContext,
-                                        MDefaultGraphDeps.LastEventPtr))
+        !Scheduler::areEventsSafeForSchedulerBypass(
+            {*MDefaultGraphDeps.LastEventPtr}, *MContext))
       return false;
 
     MNoLastEventMode.store(true, std::memory_order_relaxed);
@@ -747,7 +746,8 @@ protected:
 
     auto Event = parseEvent(Handler.finalize());
 
-    if (Event && !Scheduler::CheckEventReadiness(*MContext, Event)) {
+    if (Event &&
+        !Scheduler::areEventsSafeForSchedulerBypass({*Event}, *MContext)) {
       MDefaultGraphDeps.LastEventPtr = Event;
       MNoLastEventMode.store(false, std::memory_order_relaxed);
     }
@@ -951,14 +951,16 @@ protected:
                           MemMngrFuncT MemMngrFunc,
                           MemMngrArgTs &&...MemOpArgs);
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   // When instrumentation is enabled emits trace event for wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(const detail::code_location &CodeLoc,
-                              std::string &Name, int32_t StreamID,
+                              std::string &Name, xpti::stream_id_t StreamID,
                               uint64_t &iid);
   // Uses events generated by the Prolog and emits wait done event
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
-                             int32_t StreamID, uint64_t IId);
+                             xpti::stream_id_t StreamID, uint64_t IId);
+#endif
 
   // We need to emit a queue_create notification when a queue object is created
   void constructorNotification();

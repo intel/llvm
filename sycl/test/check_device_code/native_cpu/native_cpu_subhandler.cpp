@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -O2 -g -fexceptions  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
+// RUN: %clangxx -fsycl-device-only -fno-sycl-libspirv -Wno-unsafe-libspirv-not-linked -O2 -g -fexceptions  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
 // RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 
 // Checks that the subhandler is correctly emitted in the module

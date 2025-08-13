@@ -8,12 +8,19 @@
 
 #include "DeviceCompilation.h"
 #include "ESIMD.h"
+#include "JITBinaryInfo.h"
+#include "translation/Translation.h"
 
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
+#include <clang/Driver/CudaInstallationDetector.h>
+#include <clang/Driver/Driver.h>
+#include <clang/Driver/LazyDetector.h>
 #include <clang/Driver/Options.h>
+#include <clang/Driver/RocmInstallationDetector.h>
+#include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
@@ -38,6 +45,7 @@
 #include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
+#include <llvm/TargetParser/TargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -52,6 +60,7 @@ using namespace llvm::opt;
 using namespace llvm::sycl;
 using namespace llvm::module_split;
 using namespace llvm::util;
+using namespace llvm::vfs;
 using namespace jit_compiler;
 
 #ifdef _GNU_SOURCE
@@ -312,7 +321,7 @@ public:
 } // anonymous namespace
 
 static void adjustArgs(const InputArgList &UserArgList,
-                       const std::string &DPCPPRoot,
+                       const std::string &DPCPPRoot, BinaryFormat Format,
                        SmallVectorImpl<std::string> &CommandLine) {
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
@@ -324,6 +333,17 @@ static void adjustArgs(const InputArgList &UserArgList,
   // claim them here to tell the driver they're used later. Hence, suppress the
   // unused argument warning.
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+
+  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+    auto [CPU, Features] =
+        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+    (void)Features;
+    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                               : "amdgcn-amd-amdhsa";
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+  }
 
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
@@ -361,10 +381,9 @@ static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
       });
 }
 
-Expected<std::string>
-jit_compiler::calculateHash(InMemoryFile SourceFile,
-                            View<InMemoryFile> IncludeFiles,
-                            const InputArgList &UserArgList) {
+Expected<std::string> jit_compiler::calculateHash(
+    InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+    const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
   const std::string &DPCPPRoot = getDPCPPRoot();
@@ -373,7 +392,7 @@ jit_compiler::calculateHash(InMemoryFile SourceFile,
   }
 
   SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+  adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
 
   FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
@@ -399,11 +418,10 @@ jit_compiler::calculateHash(InMemoryFile SourceFile,
   return createStringError("Calculating source hash failed");
 }
 
-Expected<ModuleUPtr>
-jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
-                                View<InMemoryFile> IncludeFiles,
-                                const InputArgList &UserArgList,
-                                std::string &BuildLog, LLVMContext &Context) {
+Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
+    InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+    const InputArgList &UserArgList, std::string &BuildLog,
+    LLVMContext &Context, BinaryFormat Format) {
   TimeTraceScope TTS{"compileDeviceCode"};
 
   const std::string &DPCPPRoot = getDPCPPRoot();
@@ -412,7 +430,7 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   }
 
   SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+  adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
 
   FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
@@ -430,12 +448,22 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   return createStringError(BuildLog);
 }
 
-// This function is a simplified copy of the device library selection process in
-// `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
-// (no AoT, no third-party GPUs, no native CPU). Keep in sync!
+// This function is a simplified copy of the device library selection process
+// in `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V, or
+// GPU targets (no AoT, no native CPU). Keep in sync!
 static bool getDeviceLibraries(const ArgList &Args,
                                SmallVectorImpl<std::string> &LibraryList,
-                               DiagnosticsEngine &Diags) {
+                               DiagnosticsEngine &Diags, BinaryFormat Format) {
+  // For CUDA/HIP we only need devicelib, early exit here.
+  if (Format == BinaryFormat::PTX) {
+    LibraryList.push_back(
+        Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    return false;
+  } else if (Format == BinaryFormat::AMDGCN) {
+    LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+    return false;
+  }
+
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
     StringRef DeviceLibOption;
@@ -540,7 +568,8 @@ static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
 
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
-                                        std::string &BuildLog) {
+                                        std::string &BuildLog,
+                                        BinaryFormat Format) {
   TimeTraceScope TTS{"linkDeviceLibraries"};
 
   const std::string &DPCPPRoot = getDPCPPRoot();
@@ -555,10 +584,28 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                           /* ShouldOwnClient=*/false);
 
   SmallVector<std::string> LibNames;
-  bool FoundUnknownLib = getDeviceLibraries(UserArgList, LibNames, Diags);
+  const bool FoundUnknownLib =
+      getDeviceLibraries(UserArgList, LibNames, Diags, Format);
   if (FoundUnknownLib) {
     return createStringError("Could not determine list of device libraries: %s",
                              BuildLog.c_str());
+  }
+  const bool IsCudaHIP =
+      Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
+  if (IsCudaHIP) {
+    // Based on the OS and the format decide on the version of libspirv.
+    // NOTE: this will be problematic if cross-compiling between OSes.
+    std::string Libclc{"clc/"};
+    Libclc.append(
+#ifdef _WIN32
+        "remangled-l32-signed_char.libspirv-"
+#else
+        "remangled-l64-signed_char.libspirv-"
+#endif
+    );
+    Libclc.append(Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda.bc"
+                                              : "amdgcn-amd-amdhsa.bc");
+    LibNames.push_back(Libclc);
   }
 
   LLVMContext &Context = Module.getContext();
@@ -574,6 +621,62 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
                                LibPath.c_str(), BuildLog.c_str());
+    }
+  }
+
+  // For GPU targets we need to link against vendor provided libdevice.
+  if (IsCudaHIP) {
+    Triple T{Module.getTargetTriple()};
+    Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
+    auto [CPU, Features] =
+        Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
+    (void)Features;
+    // Helper lambda to link modules.
+    auto LinkInLib = [&](const StringRef LibDevice) -> Error {
+      ModuleUPtr LibDeviceModule;
+      if (auto Error = loadBitcodeLibrary(LibDevice, Context)
+                           .moveInto(LibDeviceModule)) {
+        return Error;
+      }
+      if (Linker::linkModules(Module, std::move(LibDeviceModule),
+                              Linker::LinkOnlyNeeded)) {
+        return createStringError("Unable to link libdevice: %s",
+                                 BuildLog.c_str());
+      }
+      return Error::success();
+    };
+    SmallVector<std::string, 12> LibDeviceFiles;
+    if (Format == BinaryFormat::PTX) {
+      // For NVPTX we can get away with CudaInstallationDetector.
+      LazyDetector<CudaInstallationDetector> CudaInstallation{D, T,
+                                                              UserArgList};
+      auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
+      if (LibDevice.empty()) {
+        return createStringError("Unable to find Cuda libdevice");
+      }
+      LibDeviceFiles.push_back(LibDevice);
+    } else {
+      LazyDetector<RocmInstallationDetector> RocmInstallation{D, T,
+                                                              UserArgList};
+      RocmInstallation->detectDeviceLibrary();
+      StringRef CanonArch =
+          llvm::AMDGPU::getArchNameAMDGCN(llvm::AMDGPU::parseArchAMDGCN(CPU));
+      StringRef LibDeviceFile = RocmInstallation->getLibDeviceFile(CanonArch);
+      auto CommonBCLibs = RocmInstallation->getCommonBitcodeLibs(
+          UserArgList, LibDeviceFile, CPU, Action::OFK_SYCL,
+          /*NeedsASanRT=*/false);
+      if (CommonBCLibs.empty()) {
+        return createStringError("Unable to find ROCm bitcode libraries");
+      }
+      for (auto &Lib : CommonBCLibs) {
+        LibDeviceFiles.push_back(Lib.Path);
+      }
+    }
+    for (auto &LibDeviceFile : LibDeviceFiles) {
+      // llvm::Error converts to false on success.
+      if (auto Error = LinkInLib(LibDeviceFile)) {
+        return Error;
+      }
     }
   }
 

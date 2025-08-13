@@ -5,6 +5,8 @@
 
 import argparse
 
+from utils.logger import log
+
 presets: dict[str, list[str]] = {
     "Full": [
         "BenchDNN",
@@ -72,13 +74,13 @@ def main():
     if args.command == "query":
         if args.preset_to_query in presets:
             if not args.quiet:
-                print(f"Benchmark suites to be ran in {args.preset_to_query}:")
+                log.info(f"Benchmark suites to be ran in {args.preset_to_query}:")
                 for suite in presets[args.preset_to_query]:
-                    print(suite)
+                    log.info(suite)
             exit(0)
         else:
             if not args.quiet:
-                print(f"Error: No preset named '{args.preset_to_query}'.")
+                log.error(f"Error: No preset named '{args.preset_to_query}'.")
             exit(1)
 
 

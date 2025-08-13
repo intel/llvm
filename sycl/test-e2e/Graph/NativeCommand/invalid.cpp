@@ -2,10 +2,7 @@
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
-// REQUIRES: cuda
-
-// XFAIL: preview-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18911
+// REQUIRES: target-nvidia
 
 // Test that interop_handle::ext_codeplay_get_native_graph() throws if no
 // backend graph object is available.

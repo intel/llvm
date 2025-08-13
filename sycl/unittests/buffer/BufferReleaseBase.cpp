@@ -20,9 +20,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   sycl::detail::buffer_impl *RawBufferImplPtr = NULL;
   {
     sycl::buffer<int, 1> Buf(1);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    RawBufferImplPtr = BufImpl.get();
+    RawBufferImplPtr = &*sycl::detail::getSyclObjImpl(Buf);
     MockCmd = addCommandToBuffer(Buf, Q);
   }
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
@@ -57,9 +55,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
         sycl::usm_allocator<int, sycl::usm::alloc::shared>;
     AllocatorTypeTest allocator(Q);
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    RawBufferImplPtr = BufImpl.get();
+    RawBufferImplPtr = &*sycl::detail::getSyclObjImpl(Buf);
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
@@ -78,9 +74,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
     using AllocatorTypeTest = sycl::buffer_allocator<int>;
     AllocatorTypeTest allocator;
     sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    RawBufferImplPtr = BufImpl.get();
+    RawBufferImplPtr = &*sycl::detail::getSyclObjImpl(Buf);
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
@@ -185,9 +179,7 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
   {
     std::vector<int> data{3, 4};
     sycl::buffer<int, 1> Buf(data.begin(), data.end());
-    std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-        sycl::detail::getSyclObjImpl(Buf);
-    RawBufferImplPtr = BufImpl.get();
+    RawBufferImplPtr = &*sycl::detail::getSyclObjImpl(Buf);
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
@@ -218,10 +210,8 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   sycl::buffer<int, 1> Buf(1);
   sycl::detail::Requirement MockReq = getMockRequirement(Buf);
   sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-      sycl::detail::getSyclObjImpl(Q).get(), &MockReq);
+      &*sycl::detail::getSyclObjImpl(Q), &MockReq);
 
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(Context);
   MockCmdWithReleaseTracking *ReadCmd = nullptr;
   MockCmdWithReleaseTracking *WriteCmd = nullptr;
   ReadCmd =

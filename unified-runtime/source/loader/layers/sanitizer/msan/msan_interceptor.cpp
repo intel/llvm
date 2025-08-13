@@ -530,10 +530,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
              LocalWorkSize[Dim];
   }
 
-  uint64_t NumWI = 1;
+  uint64_t NumWILocal = 1;
   for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
-    NumWI *= LaunchInfo.GlobalWorkSize[Dim];
+    NumWILocal *= LocalWorkSize[Dim];
   }
+
+  size_t SGSize = GetSubGroupSize(Kernel, DeviceInfo->Handle);
+  uint32_t NumSG = ((NumWILocal + SGSize - 1) / SGSize) * NumWG;
 
   // Write shadow memory offset for local memory
   if (KernelInfo.IsCheckLocals) {
@@ -558,13 +561,13 @@ ur_result_t MsanInterceptor::prepareLaunch(
   // Write shadow memory offset for private memory
   if (KernelInfo.IsCheckPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
-            Queue, NumWI, NumWG, LaunchInfo.Data.Host.PrivateBase,
+            Queue, NumSG, LaunchInfo.Data.Host.PrivateBase,
             LaunchInfo.Data.Host.PrivateShadowOffset,
             LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, WARN,
                "Failed to allocate shadow memory for private memory, "
-               "maybe the number of workgroup ({}) is too large",
-               NumWG);
+               "maybe the number of subgroup ({}) is too large",
+               NumSG);
       UR_LOG_L(getContext()->logger, WARN,
                "Skip checking private memory of kernel <{}>",
                GetKernelName(Kernel));
@@ -572,8 +575,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
     } else {
       UR_LOG_L(
           getContext()->logger, DEBUG,
-          "ShadowMemory(Private, WorkGroup={}, PrivateBase={}, Shadow={} - {})",
-          NumWG, (void *)LaunchInfo.Data.Host.PrivateBase,
+          "ShadowMemory(Private, SubGroup={}, PrivateBase={}, Shadow={} - {})",
+          NumSG, (void *)LaunchInfo.Data.Host.PrivateBase,
           (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
           (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
     }

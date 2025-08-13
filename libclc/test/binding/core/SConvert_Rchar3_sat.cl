@@ -21,26 +21,11 @@ test___spirv_SConvert_Rchar3_sat(__clc_vec3_int16_t args_0) {
 }
 
 __attribute__((overloadable)) __clc_vec3_int8_t
-test___spirv_SConvert_Rchar3_sat(__clc_vec3_uint16_t args_0) {
-  return __spirv_SConvert_Rchar3_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec3_int8_t
 test___spirv_SConvert_Rchar3_sat(__clc_vec3_int32_t args_0) {
   return __spirv_SConvert_Rchar3_sat(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec3_int8_t
-test___spirv_SConvert_Rchar3_sat(__clc_vec3_uint32_t args_0) {
-  return __spirv_SConvert_Rchar3_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec3_int8_t
 test___spirv_SConvert_Rchar3_sat(__clc_vec3_int64_t args_0) {
-  return __spirv_SConvert_Rchar3_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec3_int8_t
-test___spirv_SConvert_Rchar3_sat(__clc_vec3_uint64_t args_0) {
   return __spirv_SConvert_Rchar3_sat(args_0);
 }

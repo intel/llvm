@@ -3578,6 +3578,12 @@ QualType QualType::getNonLValueExprType(const ASTContext &Context) const {
   return *this;
 }
 
+bool FunctionType::getCFIUncheckedCalleeAttr() const {
+  if (const auto *FPT = getAs<FunctionProtoType>())
+    return FPT->hasCFIUncheckedCallee();
+  return false;
+}
+
 StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   switch (CC) {
   case CC_C:
@@ -3606,14 +3612,12 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
     return "aarch64_vector_pcs";
   case CC_AArch64SVEPCS:
     return "aarch64_sve_pcs";
-  case CC_AMDGPUKernelCall:
-    return "amdgpu_kernel";
   case CC_IntelOclBicc:
     return "intel_ocl_bicc";
   case CC_SpirFunction:
     return "spir_function";
-  case CC_OpenCLKernel:
-    return "opencl_kernel";
+  case CC_DeviceKernel:
+    return "device_kernel";
   case CC_Swift:
     return "swiftcall";
   case CC_SwiftAsync:
@@ -3669,6 +3673,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
   FunctionTypeBits.HasExtParameterInfos = !!epi.ExtParameterInfos;
   FunctionTypeBits.Variadic = epi.Variadic;
   FunctionTypeBits.HasTrailingReturn = epi.HasTrailingReturn;
+  FunctionTypeBits.CFIUncheckedCallee = epi.CFIUncheckedCallee;
 
   if (epi.requiresFunctionProtoTypeExtraBitfields()) {
     FunctionTypeBits.HasExtraBitfields = true;
@@ -3936,6 +3941,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
 
   ID.AddInteger((EffectCount << 3) | (HasConds << 2) |
                 (epi.AArch64SMEAttributes << 1) | epi.HasTrailingReturn);
+  ID.AddInteger(epi.CFIUncheckedCallee);
 
   for (unsigned Idx = 0; Idx != EffectCount; ++Idx) {
     ID.AddInteger(epi.FunctionEffects.Effects[Idx].toOpaqueInt32());
@@ -3981,10 +3987,9 @@ CountAttributedType::CountAttributedType(
   CountAttributedTypeBits.NumCoupledDecls = CoupledDecls.size();
   CountAttributedTypeBits.CountInBytes = CountInBytes;
   CountAttributedTypeBits.OrNull = OrNull;
-  auto *DeclSlot = getTrailingObjects<TypeCoupledDeclRefInfo>();
+  auto *DeclSlot = getTrailingObjects();
+  llvm::copy(CoupledDecls, DeclSlot);
   Decls = llvm::ArrayRef(DeclSlot, CoupledDecls.size());
-  for (unsigned i = 0; i != CoupledDecls.size(); ++i)
-    DeclSlot[i] = CoupledDecls[i];
 }
 
 StringRef CountAttributedType::getAttributeName(bool WithMacroPrefix) const {
@@ -4013,18 +4018,17 @@ StringRef CountAttributedType::getAttributeName(bool WithMacroPrefix) const {
 }
 
 TypedefType::TypedefType(TypeClass tc, const TypedefNameDecl *D,
-                         QualType Underlying, QualType can)
-    : Type(tc, can, toSemanticDependence(can->getDependence())),
+                         QualType UnderlyingType, bool HasTypeDifferentFromDecl)
+    : Type(tc, UnderlyingType.getCanonicalType(),
+           toSemanticDependence(UnderlyingType->getDependence())),
       Decl(const_cast<TypedefNameDecl *>(D)) {
-  assert(!isa<TypedefType>(can) && "Invalid canonical type");
-  TypedefBits.hasTypeDifferentFromDecl = !Underlying.isNull();
+  TypedefBits.hasTypeDifferentFromDecl = HasTypeDifferentFromDecl;
   if (!typeMatchesDecl())
-    *getTrailingObjects<QualType>() = Underlying;
+    *getTrailingObjects() = UnderlyingType;
 }
 
 QualType TypedefType::desugar() const {
-  return typeMatchesDecl() ? Decl->getUnderlyingType()
-                           : *getTrailingObjects<QualType>();
+  return typeMatchesDecl() ? Decl->getUnderlyingType() : *getTrailingObjects();
 }
 
 UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
@@ -4033,14 +4037,14 @@ UsingType::UsingType(const UsingShadowDecl *Found, QualType Underlying,
       Found(const_cast<UsingShadowDecl *>(Found)) {
   UsingBits.hasTypeDifferentFromDecl = !Underlying.isNull();
   if (!typeMatchesDecl())
-    *getTrailingObjects<QualType>() = Underlying;
+    *getTrailingObjects() = Underlying;
 }
 
 QualType UsingType::getUnderlyingType() const {
   return typeMatchesDecl()
              ? QualType(
                    cast<TypeDecl>(Found->getTargetDecl())->getTypeForDecl(), 0)
-             : *getTrailingObjects<QualType>();
+             : *getTrailingObjects();
 }
 
 QualType MacroQualifiedType::desugar() const { return getUnderlyingType(); }
@@ -4146,7 +4150,7 @@ PackIndexingType::PackIndexingType(QualType Canonical, QualType Pattern,
       Pattern(Pattern), IndexExpr(IndexExpr), Size(Expansions.size()),
       FullySubstituted(FullySubstituted) {
 
-  llvm::uninitialized_copy(Expansions, getTrailingObjects<QualType>());
+  llvm::uninitialized_copy(Expansions, getTrailingObjects());
 }
 
 UnsignedOrNone PackIndexingType::getSelectedIndex() const {
@@ -4326,7 +4330,7 @@ bool AttributedType::isCallingConv() const {
   case attr::VectorCall:
   case attr::AArch64VectorPcs:
   case attr::AArch64SVEPcs:
-  case attr::AMDGPUKernelCall:
+  case attr::DeviceKernel:
   case attr::Pascal:
   case attr::MSABI:
   case attr::SysVABI:
@@ -4369,7 +4373,7 @@ SubstTemplateTypeParmType::SubstTemplateTypeParmType(QualType Replacement,
   SubstTemplateTypeParmTypeBits.HasNonCanonicalUnderlyingType =
       Replacement != getCanonicalTypeInternal();
   if (SubstTemplateTypeParmTypeBits.HasNonCanonicalUnderlyingType)
-    *getTrailingObjects<QualType>() = Replacement;
+    *getTrailingObjects() = Replacement;
 
   SubstTemplateTypeParmTypeBits.Index = Index;
   SubstTemplateTypeParmTypeBits.Final = Final;
@@ -4872,15 +4876,6 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
                                       ->getCanonicalTypeInternal());
   case Type::HLSLInlineSpirv:
     return LinkageInfo::external();
-    {
-      const auto *ST = cast<HLSLInlineSpirvType>(T);
-      LinkageInfo LV = LinkageInfo::external();
-      for (auto &Operand : ST->getOperands()) {
-        if (Operand.isConstant() || Operand.isType())
-          LV.merge(computeTypeLinkageInfo(Operand.getResultType()));
-      }
-      return LV;
-    }
   }
 
   llvm_unreachable("unhandled type class");

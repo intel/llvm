@@ -3,12 +3,15 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+
 from pathlib import Path
+
 from .base import Suite, Benchmark
 from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
+from utils.logger import log
 from .benchdnn_list import get_bench_dnn_list
 
 
@@ -55,7 +58,7 @@ class OneDnnBench(Suite):
                 )
         return benchmarks
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -129,7 +132,7 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars):
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -148,11 +151,12 @@ class OneDnnBenchmark(Benchmark):
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
+            run_unitrace=run_unitrace,
+            extra_unitrace_opt=["--chrome-dnn-logging"],
         )
         result_value = self._extract_time(output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Output: {output}")
+        log.debug(f"[{self.name()}] Output: {output}")
 
         return [
             Result(
@@ -161,7 +165,6 @@ class OneDnnBenchmark(Benchmark):
                 unit="ms",
                 command=command,
                 env=env_vars,
-                stdout=output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )

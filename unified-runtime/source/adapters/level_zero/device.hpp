@@ -16,10 +16,12 @@
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
@@ -242,17 +244,23 @@ struct ur_device_handle_t_ : ur_object {
 
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
+
+  ur::RefCount RefCount;
 };
 
 inline std::vector<ur_device_handle_t>
 CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
   std::vector<ur_device_handle_t> DevicesAndSubDevices;
+  std::unordered_set<ur_device_handle_t> Seen;
   std::function<void(const std::vector<ur_device_handle_t> &)>
       CollectDevicesAndSubDevicesRec =
           [&](const std::vector<ur_device_handle_t> &Devices) {
             for (auto &Device : Devices) {
-              DevicesAndSubDevices.push_back(Device);
-              CollectDevicesAndSubDevicesRec(Device->SubDevices);
+              // Only add device if has not been seen before.
+              if (Seen.insert(Device).second) {
+                DevicesAndSubDevices.push_back(Device);
+                CollectDevicesAndSubDevicesRec(Device->SubDevices);
+              }
             }
           };
   CollectDevicesAndSubDevicesRec(Devices);

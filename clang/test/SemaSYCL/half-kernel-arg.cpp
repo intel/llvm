@@ -17,7 +17,7 @@ int main() {
   });
 }
 
-// CHECK: {{.*}}kernel_half{{.*}} 'void (sycl::half)'
+// CHECK: {{.*}}kernel_half{{.*}} 'void (sycl::half) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}} used _arg_HostHalf 'sycl::half':'sycl::detail::half_impl::half'
 // // Check that lambda field of half type is initialized
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'

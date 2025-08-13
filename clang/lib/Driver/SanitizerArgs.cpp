@@ -741,7 +741,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                         options::OPT_fno_sanitize_merge_handlers_EQ);
   MergeKinds &= Kinds;
 
-  // Parse -fno-sanitize-top-hot flags
+  // Parse -fno-fsanitize-skip-hot-cutoff flags
   SkipHotCutoffs = parseSanitizeSkipHotCutoffArgs(D, Args, DiagnoseErrors);
 
   // Parse -f(no-)?sanitize-annotate-debug-info flags
@@ -1158,9 +1158,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         !TC.getTriple().isAndroid() && !TC.getTriple().isOSFuchsia();
   }
 
-  LinkRuntimes =
-      Args.hasFlag(options::OPT_fsanitize_link_runtime,
-                   options::OPT_fno_sanitize_link_runtime, LinkRuntimes);
+  LinkRuntimes = Args.hasFlag(options::OPT_fsanitize_link_runtime,
+                              options::OPT_fno_sanitize_link_runtime,
+                              !Args.hasArg(options::OPT_r));
 
   // Parse -link-cxx-sanitizer flag.
   LinkCXXRuntimes = D.CCCIsCXX();
@@ -1297,6 +1297,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack-dynamic-alloca=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-use-after-return=never");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-instrument-dynamic-allocas=0");
 
       if (!RecoverableSanitizers.empty())
         CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +

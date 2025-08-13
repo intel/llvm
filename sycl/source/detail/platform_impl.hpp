@@ -35,19 +35,16 @@ class platform_impl : public std::enable_shared_from_this<platform_impl> {
   /// Constructs platform_impl from a UR platform handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
-  /// \param AAdapter is a plug-in handle.
+  /// \param Adapter is a plug-in handle.
   //
   // Platforms can only be created under `GlobalHandler`'s ownership via
   // `platform_impl::getOrMakePlatformImpl` method.
-  explicit platform_impl(ur_platform_handle_t APlatform,
-                         const adapter_impl *AAdapter)
-      : MPlatform(APlatform) {
-
-    MAdapter = const_cast<AdapterPtr>(AAdapter);
+  explicit platform_impl(ur_platform_handle_t APlatform, adapter_impl &Adapter)
+      : MPlatform(APlatform), MAdapter(&Adapter) {
 
     // Find out backend of the platform
     ur_backend_t UrBackend = UR_BACKEND_UNKNOWN;
-    AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
+    Adapter.call_nocheck<UrApiKind::urPlatformGetInfo>(
         APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_backend_t), &UrBackend,
         nullptr);
     MBackend = convertUrBackend(UrBackend);
@@ -105,18 +102,18 @@ public:
   /// Get backend option.
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
-    const auto &Adapter = getAdapter();
+    adapter_impl &Adapter = getAdapter();
     ur_result_t Err =
-        Adapter->call_nocheck<UrApiKind::urPlatformGetBackendOption>(
+        Adapter.call_nocheck<UrApiKind::urPlatformGetBackendOption>(
             MPlatform, frontend_option, backend_option);
-    Adapter->checkUrResult(Err);
+    Adapter.checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
-                                                             &nativeHandle);
+    getAdapter().call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
+                                                            &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
@@ -139,7 +136,7 @@ public:
   static std::vector<platform> get_platforms();
 
   // \return the Adapter associated with this platform.
-  const AdapterPtr &getAdapter() const { return MAdapter; }
+  adapter_impl &getAdapter() const { return *MAdapter; }
 
   /// Gets the native handle of the SYCL platform.
   ///
@@ -183,7 +180,7 @@ public:
   /// \param Adapter is the UR adapter providing the backend for the platform
   /// \return the platform_impl representing the UR platform
   static platform_impl &getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                              const adapter_impl &Adapter);
+                                              adapter_impl &Adapter);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -195,7 +192,7 @@ public:
   /// platform
   /// \return the platform_impl that contains the input device
   static platform_impl &getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                                const adapter_impl &Adapter);
+                                                adapter_impl &Adapter);
 
   context_impl &khr_get_default_context();
 
@@ -207,7 +204,7 @@ private:
   device_impl *getDeviceImplHelper(ur_device_handle_t UrDevice);
 
   // Helper to get the vector of platforms supported by a given UR adapter
-  static std::vector<platform> getAdapterPlatforms(AdapterPtr &Adapter,
+  static std::vector<platform> getAdapterPlatforms(adapter_impl &Adapter,
                                                    bool Supported = true);
 
   // Helper to filter reportable devices in the platform
@@ -219,7 +216,7 @@ private:
   ur_platform_handle_t MPlatform = 0;
   backend MBackend;
 
-  AdapterPtr MAdapter;
+  adapter_impl *MAdapter;
 
   std::vector<std::shared_ptr<device_impl>> MDevices;
   friend class GlobalHandler;

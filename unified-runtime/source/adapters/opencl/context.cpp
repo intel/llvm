@@ -108,7 +108,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
     return ReturnValue(&hContext->Devices[0], hContext->DeviceCount);
   }
   case UR_CONTEXT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hContext->getReferenceCount());
+    return ReturnValue(hContext->RefCount.getCount());
   }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -117,7 +117,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (hContext->decrementReferenceCount() == 0) {
+  if (hContext->RefCount.release()) {
     delete hContext;
   }
 
@@ -126,7 +126,7 @@ urContextRelease(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  hContext->incrementReferenceCount();
+  hContext->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 

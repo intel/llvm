@@ -369,7 +369,7 @@ ur_result_t urQueueGetInfo(
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(Queue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Queue->RefCount.load()});
+    return ReturnValue(uint32_t{Queue->RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(Queue->Properties);
   case UR_QUEUE_INFO_SIZE:
@@ -593,7 +593,7 @@ ur_result_t urQueueRetain(
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
     Queue->RefCountExternal++;
   }
-  Queue->RefCount.increment();
+  Queue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -612,7 +612,7 @@ ur_result_t urQueueRelease(
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      static_cast<void>(Queue->RefCount.decrementAndTest());
+      static_cast<void>(Queue->RefCount.release());
       return UR_RESULT_SUCCESS;
     }
 
@@ -1389,7 +1389,7 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
           if (!Event->HostVisibleEvent) {
             Event->HostVisibleEvent =
                 reinterpret_cast<ur_event_handle_t>(HostVisibleEvent);
-            HostVisibleEvent->RefCount.increment();
+            HostVisibleEvent->RefCount.retain();
           }
         }
 
@@ -1550,7 +1550,7 @@ ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
 }
 
 void ur_queue_handle_t_::active_barriers::add(ur_event_handle_t &Event) {
-  Event->RefCount.increment();
+  Event->RefCount.retain();
   Events.push_back(Event);
 }
 
@@ -1588,7 +1588,7 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
-  if (!Queue->RefCount.decrementAndTest())
+  if (!Queue->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   for (auto &Cache : Queue->EventCaches) {
@@ -1921,7 +1921,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
     CommandList->second.append(*Event);
-    (*Event)->RefCount.increment();
+    (*Event)->RefCount.retain();
   }
 
   // We need to increment the reference counter here to avoid ur_queue_handle_t
@@ -1929,7 +1929,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // urEventRelease requires access to the associated ur_queue_handle_t.
   // In urEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  Queue->RefCount.increment();
+  Queue->RefCount.retain();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
@@ -1961,7 +1961,7 @@ void ur_queue_handle_t_::CaptureIndirectAccesses() {
         // SubmissionsCount turns to 0. We don't want to know how many times
         // allocation was retained by each submission.
         if (Pair.second)
-          Elem.second.RefCount.increment();
+          Elem.second.RefCount.retain();
       }
     }
     Kernel->SubmissionsCount++;

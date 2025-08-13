@@ -21,11 +21,11 @@ namespace detail {
 
 // RAII object for keeping ownership of a UR event.
 struct OwnedUrEvent {
-  OwnedUrEvent(const AdapterPtr &Adapter)
-      : MEvent{std::nullopt}, MAdapter{Adapter} {}
-  OwnedUrEvent(ur_event_handle_t Event, const AdapterPtr &Adapter,
+  OwnedUrEvent(adapter_impl &Adapter)
+      : MEvent{std::nullopt}, MAdapter{&Adapter} {}
+  OwnedUrEvent(ur_event_handle_t Event, adapter_impl &Adapter,
                bool TakeOwnership = false)
-      : MEvent(Event), MAdapter(Adapter) {
+      : MEvent(Event), MAdapter(&Adapter) {
     // If it is not instructed to take ownership, retain the event to share
     // ownership of it.
     if (!TakeOwnership)
@@ -65,7 +65,7 @@ struct OwnedUrEvent {
 
 private:
   std::optional<ur_event_handle_t> MEvent;
-  const AdapterPtr &MAdapter;
+  adapter_impl *MAdapter;
 };
 
 namespace ur {

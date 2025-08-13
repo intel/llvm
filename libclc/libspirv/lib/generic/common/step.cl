@@ -6,29 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/common/clc_step.h>
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
-
-#define STEP_DEF(TYPE, TYPOSTFIX)                                              \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_ocl_step(TYPE edge, TYPE x) {            \
-    return x < edge ? 0.0##TYPOSTFIX : 1.0##TYPOSTFIX;                         \
-  }                                                                            \
-  _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, TYPE, __spirv_ocl_step, TYPE,  \
-                        TYPE)
-
-STEP_DEF(float, f)
-
-#ifdef cl_khr_fp64
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-STEP_DEF(double, )
-
-#endif
-
-#ifdef cl_khr_fp16
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-STEP_DEF(half, h)
-
-#endif
+#define FUNCTION __spirv_ocl_step
+#define __IMPL_FUNCTION(x) __clc_step
+#define __CLC_BODY <clc/shared/binary_def.inc>
+#include <clc/math/gentype.inc>

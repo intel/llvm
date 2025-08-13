@@ -72,15 +72,16 @@ context::context(const std::vector<device> &DeviceList,
     impl = detail::context_impl::create(DeviceList, AsyncHandler, PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
 
   ur_context_handle_t hContext = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClContext);
-  Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
-      nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
+  Adapter.call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Adapter.getUrAdapter(), 0u, nullptr, nullptr, &hContext);
 
-  impl = detail::context_impl::create(hContext, AsyncHandler, *Adapter);
+  impl = detail::context_impl::create(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>

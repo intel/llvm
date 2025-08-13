@@ -172,7 +172,7 @@ sycl::event operation(sycl::queue q) {
 
   ze_event_handle_t l0_event = getEvent();
   auto sycl_event = sycl::make_event<sycl::backend::ext_oneapi_level_zero>(
-      {l0_event, sycl::ext::oneapi::level_zero::ownership::keep},
+      {l0_event, sycl::ext::oneapi::level_zero::ownership::transfer},
       q.get_context());
 
   zeEventHostSignal(l0_event);
@@ -286,5 +286,12 @@ int main(int argc, char *argv[]) {
     std::cout << E.what() << std::endl;
     return 1;
   }
+
+  ops.clear();
+  old_ops.clear();
+
+  zeEventPoolDestroy(event_pool);
+  zeContextDestroy(context);
+
   return 0;
 }

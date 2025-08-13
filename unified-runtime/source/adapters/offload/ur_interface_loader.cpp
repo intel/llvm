@@ -86,13 +86,13 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     return result;
   }
   pDdiTable->pfnBuild = urProgramBuild;
-  pDdiTable->pfnCompile = nullptr;
+  pDdiTable->pfnCompile = urProgramCompile;
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
-  pDdiTable->pfnCreateWithIL = nullptr;
+  pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = nullptr;
   pDdiTable->pfnGetFunctionPointer = nullptr;
-  pDdiTable->pfnGetGlobalVariablePointer = nullptr;
+  pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
   pDdiTable->pfnLink = nullptr;
@@ -168,10 +168,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnDeviceGlobalVariableRead = nullptr;
-  pDdiTable->pfnDeviceGlobalVariableWrite = nullptr;
-  pDdiTable->pfnEventsWait = nullptr;
-  pDdiTable->pfnEventsWaitWithBarrier = nullptr;
+  pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
+  pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
+  pDdiTable->pfnEventsWait = urEnqueueEventsWait;
+  pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = nullptr;
   pDdiTable->pfnMemBufferCopyRect = nullptr;

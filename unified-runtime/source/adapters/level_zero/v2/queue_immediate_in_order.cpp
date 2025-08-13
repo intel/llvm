@@ -60,7 +60,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hDevice);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{RefCount.load()});
+    return ReturnValue(uint32_t{RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(flags);
   case UR_QUEUE_INFO_SIZE:
@@ -90,9 +90,13 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
-    ur_queue_native_desc_t * /*pDesc*/, ur_native_handle_t *phNativeQueue) {
+    ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
       commandListManager.get_no_lock()->getZeCommandList());
+  if (pDesc && pDesc->pNativeData) {
+    // pNativeData == isImmediateQueue
+    *(reinterpret_cast<int32_t *>(pDesc->pNativeData)) = 1;
+  }
   return UR_RESULT_SUCCESS;
 }
 

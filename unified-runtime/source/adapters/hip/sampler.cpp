@@ -44,7 +44,7 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
 
   switch (propName) {
   case UR_SAMPLER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hSampler->getReferenceCount());
+    return ReturnValue(hSampler->RefCount.getCount());
   case UR_SAMPLER_INFO_CONTEXT:
     return ReturnValue(hSampler->Context);
   case UR_SAMPLER_INFO_NORMALIZED_COORDS: {
@@ -67,19 +67,19 @@ ur_result_t urSamplerGetInfo(ur_sampler_handle_t hSampler,
 }
 
 ur_result_t urSamplerRetain(ur_sampler_handle_t hSampler) {
-  hSampler->incrementReferenceCount();
+  hSampler->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urSamplerRelease(ur_sampler_handle_t hSampler) {
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  if (hSampler->getReferenceCount() == 0) {
+  if (hSampler->RefCount.getCount() == 0) {
     return UR_RESULT_ERROR_INVALID_SAMPLER;
   }
 
   // decrement ref count. If it is 0, delete the sampler.
-  if (hSampler->decrementReferenceCount() == 0) {
+  if (hSampler->RefCount.release()) {
     delete hSampler;
   }
 

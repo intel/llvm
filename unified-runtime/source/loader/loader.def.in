@@ -26,6 +26,7 @@ EXPORTS
 	urBindlessImagesSampledImageCreateExp
 	urBindlessImagesSampledImageHandleDestroyExp
 	urBindlessImagesSignalExternalSemaphoreExp
+	urBindlessImagesSupportsImportingHandleTypeExp
 	urBindlessImagesUnsampledImageCreateExp
 	urBindlessImagesUnsampledImageHandleDestroyExp
 	urBindlessImagesWaitExternalSemaphoreExp
@@ -119,6 +120,7 @@ EXPORTS
 	urGetEventProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
+	urGetMemoryExportExpProcAddrTable
 	urGetPhysicalMemProcAddrTable
 	urGetPlatformProcAddrTable
 	urGetProgramExpProcAddrTable
@@ -165,6 +167,9 @@ EXPORTS
 	urMemImageGetInfo
 	urMemRelease
 	urMemRetain
+	urMemoryExportAllocExportableMemoryExp
+	urMemoryExportExportMemoryHandleExp
+	urMemoryExportFreeExportableMemoryExp
 	urPhysicalMemCreate
 	urPhysicalMemGetInfo
 	urPhysicalMemRelease
@@ -206,6 +211,7 @@ EXPORTS
 	urPrintBindlessImagesSampledImageCreateExpParams
 	urPrintBindlessImagesSampledImageHandleDestroyExpParams
 	urPrintBindlessImagesSignalExternalSemaphoreExpParams
+	urPrintBindlessImagesSupportsImportingHandleTypeExpParams
 	urPrintBindlessImagesUnsampledImageCreateExpParams
 	urPrintBindlessImagesUnsampledImageHandleDestroyExpParams
 	urPrintBindlessImagesWaitExternalSemaphoreExpParams
@@ -413,6 +419,9 @@ EXPORTS
 	urPrintMemReleaseParams
 	urPrintMemRetainParams
 	urPrintMemType
+	urPrintMemoryExportAllocExportableMemoryExpParams
+	urPrintMemoryExportExportMemoryHandleExpParams
+	urPrintMemoryExportFreeExportableMemoryExpParams
 	urPrintMemoryOrderCapabilityFlags
 	urPrintMemoryScopeCapabilityFlags
 	urPrintPhysicalMemCreateParams

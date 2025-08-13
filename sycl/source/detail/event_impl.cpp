@@ -48,7 +48,7 @@ event_impl::~event_impl() {
   try {
     auto Handle = this->getHandle();
     if (Handle)
-      getAdapter()->call<UrApiKind::urEventRelease>(Handle);
+      getAdapter().call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
@@ -59,7 +59,7 @@ void event_impl::waitInternal(bool *Success) {
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
-        getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
+        getAdapter().call_nocheck<UrApiKind::urEventWait>(1, &Handle);
     // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
     // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
     // closed).
@@ -68,7 +68,7 @@ void event_impl::waitInternal(bool *Success) {
          Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
       *Success = false;
     else {
-      getAdapter()->checkUrResult(Err);
+      getAdapter().checkUrResult(Err);
       if (Success != nullptr)
         *Success = true;
     }
@@ -85,11 +85,11 @@ void event_impl::waitInternal(bool *Success) {
 
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
-    Event->wait(Event);
+    Event->wait();
   for (const std::weak_ptr<event_impl> &WeakEventPtr :
        MWeakPostCompleteEvents) {
     if (EventImplPtr Event = WeakEventPtr.lock())
-      Event->wait(Event);
+      Event->wait();
   }
 }
 
@@ -148,7 +148,7 @@ context_impl &event_impl::getContextImpl() {
   return *MContext;
 }
 
-const AdapterPtr &event_impl::getAdapter() {
+adapter_impl &event_impl::getAdapter() {
   initContextIfNeeded();
   return MContext->getAdapter();
 }
@@ -166,7 +166,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext,
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;
-  getAdapter()->call<UrApiKind::urEventGetInfo>(
+  getAdapter().call<UrApiKind::urEventGetInfo>(
       this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
       &TempContext, nullptr);
 
@@ -220,10 +220,11 @@ void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
 }
 
-void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+void *event_impl::instrumentationProlog(std::string &Name,
+                                        xpti::stream_id_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
@@ -258,14 +259,13 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
-#endif
   return TraceEvent;
 }
 
 void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
-                                       int32_t StreamID, uint64_t IId) const {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+                                       xpti::stream_id_t StreamID,
+                                       uint64_t IId) const {
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
         TelemetryEvent))
@@ -275,11 +275,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
       (xpti::trace_event_data_t *)TelemetryEvent;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
-#endif
 }
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
-void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
-                      bool *Success) {
+void event_impl::wait(bool *Success) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -294,7 +293,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
   void *TelemetryEvent = nullptr;
   uint64_t IId = 0;
   std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  xpti::stream_id_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
@@ -304,16 +303,15 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
     // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(Self, Success);
+    detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
 }
 
-void event_impl::wait_and_throw(
-    std::shared_ptr<sycl::detail::event_impl> Self) {
-  wait(Self);
+void event_impl::wait_and_throw() {
+  wait();
 
   if (std::shared_ptr<queue_impl> SubmittedQueue = MSubmittedQueue.lock())
     SubmittedQueue->throw_asynchronous();
@@ -519,19 +517,19 @@ ur_native_handle_t event_impl::getNative() {
     return {};
   initContextIfNeeded();
 
-  auto Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   auto Handle = getHandle();
   if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
-    Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
-        0, TempContext, &NativeProperties, &UREvent);
+    Adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
+        0u, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }
   ur_native_handle_t OutHandle;
-  Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
+  Adapter.call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
   if (MContext->getBackend() == backend::opencl)
     __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
   return OutHandle;
@@ -569,11 +567,11 @@ void event_impl::flushIfNeeded(queue_impl *UserQueue) {
 
   // Check if the task for this event has already been submitted.
   ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
-  getAdapter()->call<UrApiKind::urEventGetInfo>(
+  getAdapter().call<UrApiKind::urEventGetInfo>(
       Handle, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(ur_event_status_t),
       &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {
-    getAdapter()->call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
+    getAdapter().call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }
@@ -616,7 +614,7 @@ bool event_impl::isCompleted() {
          info::event_command_status::complete;
 }
 
-void event_impl::setCommand(void *Cmd) { MCommand = Cmd; }
+void event_impl::setCommand(Command *Cmd) { MCommand = Cmd; }
 
 } // namespace detail
 } // namespace _V1

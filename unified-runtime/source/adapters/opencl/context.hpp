@@ -11,6 +11,7 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "device.hpp"
 
 #include <vector>
@@ -20,8 +21,8 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   native_type CLContext;
   std::vector<ur_device_handle_t> Devices;
   uint32_t DeviceCount;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
+  ur::RefCount RefCount;
 
   ur_context_handle_t_(native_type Ctx, uint32_t DevCount,
                        const ur_device_handle_t *phDevices)
@@ -30,14 +31,7 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
       Devices.emplace_back(phDevices[i]);
       urDeviceRetain(phDevices[i]);
     }
-    RefCount = 1;
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   static ur_result_t makeWithNative(native_type Ctx, uint32_t DevCount,
                                     const ur_device_handle_t *phDevices,

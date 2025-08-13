@@ -7,10 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
-// REQUIRES: aspect-usm_device_allocations
-
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
+// REQUIRES: sycl-jit, aspect-usm_device_allocations
 
 // -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out

@@ -4,11 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-from utils.utils import download, run
-from options import options
 import os
 import hashlib
 import glob
+
+from utils.utils import download, run
+from utils.logger import log
+from options import options
 
 
 class OneAPI:
@@ -46,12 +48,12 @@ class OneAPI:
 
     def install_package(self, name, version, url, checksum):
         if self.check_install(version):
-            print(f"OneAPI {name} version {version} already installed, skipping.")
+            log.info(f"OneAPI {name} version {version} already installed, skipping.")
             return
         package_name = f"package_{name}_{version}.sh"
         package_path = os.path.join(self.oneapi_dir, f"{package_name}")
         if Path(package_path).exists():
-            print(f"{package_path} exists, skipping download of oneAPI package...")
+            log.info(f"{package_path} exists, skipping download of oneAPI package...")
         else:
             package = download(
                 self.oneapi_dir, url, f"{package_name}", checksum=checksum
@@ -61,9 +63,11 @@ class OneAPI:
                 f"sh {package_path} -a -s --eula accept --install-dir {self.oneapi_dir} --instance {self.oneapi_instance_id}"
             )
         except:
-            print(f"OneAPI {name} version {version} installation likely exists already")
+            log.warning(
+                f"OneAPI {name} version {version} installation likely exists already"
+            )
             return
-        print(f"OneAPI {name} version {version} installation complete")
+        log.info(f"OneAPI {name} version {version} installation complete")
 
     def package_dir(self, package, dir):
         return os.path.join(self.oneapi_dir, package, "latest", dir)
@@ -107,7 +111,6 @@ class OneAPI:
 
 
 oneapi_instance = None
-
 
 def get_oneapi() -> OneAPI:  # oneAPI singleton
     if not hasattr(get_oneapi, "instance"):

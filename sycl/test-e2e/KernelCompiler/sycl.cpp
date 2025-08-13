@@ -6,17 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
-// REQUIRES: aspect-usm_device_allocations
-
-// UNSUPPORTED: accelerator
-// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
+// REQUIRES: sycl-jit, aspect-usm_device_allocations
 
 // RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out
-
-// XFAIL: preview-mode && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -111,15 +104,14 @@ auto constexpr DeviceLibrariesSource = R"===(
 #include <sycl/sycl.hpp>
 #include <cmath>
 #include <complex>
-#include <sycl/ext/intel/math.hpp>
 
 extern "C" SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
 void device_libs_kernel(float *ptr) {
   // Extension list: llvm/lib/SYCLLowerIR/SYCLDeviceLibReqMask.cpp
 
-  // cl_intel_devicelib_assert is not available for opencl:gpu; skip testing it.
-  // Only test the fp32 variants of complex, math and imf to keep this test
+  // cl_intel_devicelib_assert is not available for opencl:gpu; skip testing
+  // it. Only test the fp32 variants of complex and math to keep this test
   // device-agnostic.
   
   // cl_intel_devicelib_math
@@ -131,14 +123,8 @@ void device_libs_kernel(float *ptr) {
   // cl_intel_devicelib_cstring
   ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));
 
-  // cl_intel_devicelib_imf
-  ptr[3] = sycl::ext::intel::math::sqrt(ptr[3] * 2);
-
-  // cl_intel_devicelib_imf_bf16
-  ptr[4] = sycl::ext::intel::math::float2bfloat16(ptr[4] * 0.5f);
-
   // cl_intel_devicelib_bfloat16
-  ptr[5] = sycl::ext::oneapi::bfloat16{ptr[5] / 0.25f};
+  ptr[3] = sycl::ext::oneapi::bfloat16{ptr[3] / 0.25f};
 }
 )===";
 
@@ -359,7 +345,7 @@ int test_device_libraries(sycl::queue q) {
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
-  constexpr size_t nElem = 6;
+  constexpr size_t nElem = 4;
   float *ptr = sycl::malloc_shared<float>(nElem, q);
   for (int i = 0; i < nElem; ++i)
     ptr[i] = 1.0f;
@@ -484,7 +470,7 @@ int test_error(sycl::queue q) {
     // yas!
     assert(e.code() == sycl::errc::build);
     assert(std::string(e.what()).find(
-               "error: expected ';' at end of declaration") !=
+               "error: use of undeclared identifier 'no'") !=
            std::string::npos);
   }
   return 0;

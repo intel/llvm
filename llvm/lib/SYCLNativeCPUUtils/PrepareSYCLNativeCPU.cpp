@@ -161,6 +161,8 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
   if (!OldF->isDeclaration())
     CloneFunctionInto(NewF, OldF, VMap,
                       CloneFunctionChangeType::LocalChangesOnly, ReturnInst);
+  if (StateArgTLS == nullptr)
+    NewF->addParamAttr(Args.size() - 1, llvm::Attribute::NoAlias);
   return NewF;
 }
 

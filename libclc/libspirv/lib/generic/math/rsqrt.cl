@@ -6,36 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_rsqrt.h>
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
+#define FUNCTION __spirv_ocl_rsqrt
+#define __IMPL_FUNCTION(x) __clc_rsqrt
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_rsqrt(float x) {
-  return 1.0f / __spirv_ocl_sqrt(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_rsqrt, float);
-
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_OVERLOAD _CLC_DEF double __spirv_ocl_rsqrt(double x) {
-  return 1.0 / __spirv_ocl_sqrt(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_rsqrt, double);
-
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_rsqrt(half x) {
-  return 1.0f / __spirv_ocl_sqrt((float)x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_rsqrt, half);
-
-#endif
+#include <clc/math/gentype.inc>

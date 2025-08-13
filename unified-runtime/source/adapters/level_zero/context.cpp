@@ -61,7 +61,7 @@ ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
     ur_context_handle_t Context) {
-  Context->RefCount.increment();
+  Context->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -113,7 +113,7 @@ ur_result_t urContextGetInfo(
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(Context->Devices.size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Context->RefCount.load()});
+    return ReturnValue(uint32_t{Context->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(uint8_t{UseMemcpy2DOperations});
@@ -251,7 +251,7 @@ ur_device_handle_t ur_context_handle_t_::getRootDevice() const {
 // from the list of tracked contexts.
 ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
 
-  if (!Context->RefCount.decrementAndTest())
+  if (!Context->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (IndirectAccessTrackingEnabled) {
@@ -407,14 +407,71 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     bool ProfilingEnabled, ur_device_handle_t Device,
     bool CounterBasedEventEnabled, bool UsingImmCmdList,
     bool InterruptBasedEventEnabled) {
-  // Lock while updating event pool machinery.
-  std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
   ze_device_handle_t ZeDevice = nullptr;
-
   if (Device) {
     ZeDevice = Device->ZeDevice;
   }
+
+  if (DisableEventsCaching) {
+    // Skip all cache handling, always create a new pool
+    ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
+        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
+
+    ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
+        ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
+    eventSyncMode.syncModeFlags =
+        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
+        ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+
+    ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
+    ZeEventPoolDesc.count = MaxNumEventsPerPool;
+    ZeEventPoolDesc.flags = 0;
+    ZeEventPoolDesc.pNext = nullptr;
+    if (HostVisible)
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    if (ProfilingEnabled)
+      ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}",
+           ZeEventPoolDesc.flags);
+    if (CounterBasedEventEnabled) {
+      if (UsingImmCmdList) {
+        counterBasedExt.flags = ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE;
+      } else {
+        counterBasedExt.flags =
+            ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
+      }
+      UR_LOG(DEBUG, "ze_event_pool_desc_t counter based flags set to: {}",
+             counterBasedExt.flags);
+      if (InterruptBasedEventEnabled) {
+        counterBasedExt.pNext = &eventSyncMode;
+      }
+      ZeEventPoolDesc.pNext = &counterBasedExt;
+    } else if (InterruptBasedEventEnabled) {
+      ZeEventPoolDesc.pNext = &eventSyncMode;
+    }
+
+    std::vector<ze_device_handle_t> ZeDevices;
+    if (ZeDevice) {
+      ZeDevices.push_back(ZeDevice);
+    } else {
+      std::for_each(Devices.begin(), Devices.end(),
+                    [&](const ur_device_handle_t &D) {
+                      ZeDevices.push_back(D->ZeDevice);
+                    });
+    }
+
+    ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
+                                   ZeDevices.size(), &ZeDevices[0], &Pool));
+    Index = 0;
+    NumEventsAvailableInEventPool[Pool] = MaxNumEventsPerPool - 1;
+    NumEventsUnreleasedInEventPool[Pool] = 1;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // --- Normal cache-based logic below ---
+  std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
+
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
       HostVisible, ProfilingEnabled, CounterBasedEventEnabled, UsingImmCmdList,
       InterruptBasedEventEnabled, ZeDevice);
@@ -423,6 +480,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
       if (DisableEventsCaching) {
         // Remove full pool from the cache if events caching is disabled.
+        ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePoolCache->front()));
         ZePoolCache->erase(ZePoolCache->begin());
       } else {
         // If event caching is enabled then we don't destroy events so there is

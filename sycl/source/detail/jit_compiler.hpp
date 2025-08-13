@@ -13,6 +13,7 @@
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
+#include <JITBinaryInfo.h>
 #include <Materializer.h>
 #include <RTC.h>
 #endif // SYCL_EXT_JIT_ENABLE
@@ -27,6 +28,7 @@ struct RTCDevImgInfo;
 struct RTCBundleInfo;
 template <typename T> class DynArray;
 using JITEnvVar = DynArray<char>;
+enum class BinaryFormat : uint32_t;
 } // namespace jit_compiler
 
 namespace sycl {
@@ -45,7 +47,8 @@ public:
   std::pair<sycl_device_binaries, std::string> compileSYCL(
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-      const std::vector<std::string> &UserArgs, std::string *LogPtr);
+      const std::vector<std::string> &UserArgs, std::string *LogPtr,
+      ::jit_compiler::BinaryFormat Format);
 
   void destroyDeviceBinaries(sycl_device_binaries Binaries);
 

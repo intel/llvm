@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ur_print.hpp>
@@ -109,9 +110,6 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
     registerSyncPoint(SyncPoint, std::move(HIPNode));
     return SyncPoint;
   }
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -125,9 +123,6 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
   hipGraph_t HIPGraph;
   // HIP Graph Exec handle
   hipGraphExec_t HIPGraphExec = nullptr;
-  // Atomic variable counting the number of reference to this command_buffer
-  // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCount;
   // Track the event of the current graph execution. This extra synchronization
   // is needed because HIP (unlike CUDA) does not seem to synchronize with other
   // executions of the same graph during hipGraphLaunch and hipExecGraphDestroy.
@@ -142,4 +137,6 @@ struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
   // Handles to individual commands in the command-buffer
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
+
+  ur::RefCount RefCount;
 };

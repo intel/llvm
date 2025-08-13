@@ -29,9 +29,8 @@ pipe_base::get_pipe_name_impl(const void *HostPipePtr) {
 
 __SYCL_EXPORT bool pipe_base::wait_non_blocking(const event &E) {
   bool Success = false;
-  std::shared_ptr<sycl::detail::event_impl> EImpl =
-      sycl::detail::getSyclObjImpl(E);
-  EImpl->wait(EImpl, &Success);
+  sycl::detail::event_impl &EImpl = *sycl::detail::getSyclObjImpl(E);
+  EImpl.wait(&Success);
   return Success;
 }
 

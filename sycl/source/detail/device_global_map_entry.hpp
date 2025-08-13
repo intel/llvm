@@ -39,12 +39,12 @@ struct DeviceGlobalUSMMem {
 
   // Gets the initialization event if it exists. If not the OwnedUrEvent
   // will contain no event.
-  OwnedUrEvent getInitEvent(const AdapterPtr &Adapter);
+  OwnedUrEvent getInitEvent(adapter_impl &Adapter);
 
 private:
   void *MPtr;
   std::mutex MInitEventMutex;
-  std::optional<ur_event_handle_t> MInitEvent;
+  ur_event_handle_t MInitEvent = nullptr;
 
   friend struct DeviceGlobalMapEntry;
 };
