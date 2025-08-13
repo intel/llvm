@@ -221,7 +221,7 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     if (!ext_oneapi_can_access_peer(peer))
-      throw sycl::exception(make_error_code(errc::invalid),
+      throw sycl::exception(make_error_code(errc::feature_not_supported),
                             "Peer access is not allowed between the devices.");
     detail::adapter_impl &Adapter = impl->getAdapter();
     Adapter.call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
