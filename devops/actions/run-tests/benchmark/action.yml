@@ -32,6 +32,15 @@ inputs:
   dry_run:
     type: string
     required: False
+  ur_artifact:
+    type: string
+    required: False
+  ur_artifact_filename:
+    type: string
+    required: False
+  ur_decompress_command:
+    type: string
+    required: False
 
 runs:
   using: "composite"
@@ -95,19 +104,20 @@ runs:
       ZE_AFFINITY_MASK=0
       echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
 
-  # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
-  # DPC++ doesn't ship with these files. The easiest way of obtaining these
-  # files is to build from scratch.
-  #
-  # TODO This is not the best place for this. We should come up with
-  # alternatives. A suggestion: Output UR builds as artifacts in ur_build_hw.yml
-  # and unpack it here instead.
-  #
-  # If we insist on not building the UR again, sycl_linux_build.yml can be
-  # modified output the entire sycl build dir as an artifact, in which the
-  # intermediate files required can be stitched together from the build files.
-  # However, this is not exactly "clean" or "fun to maintain"...
+  - name: Download UR build archive
+    if: inputs.toolchain_artifact != ''
+    uses: actions/download-artifact@v4
+    with:
+      name: ${{ inputs.ur_artifact }}
+  - name: Extract/Setup UR build archive
+    if: inputs.toolchain_artifact != ''
+    run: |
+      mkdir -p ur/install
+      tar -I '${{ inputs.ur_decompress_command }}' -xf ${{ inputs.ur_artifact_filename }} -C ur/install
+      rm -f ${{ inputs.ur_artifact_filename }}
+      # echo LD_LIBRARY_PATH=$PWD/ur/install/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
   - name: Build Unified Runtime
+    if: inputs.ur_artifact == ''
     shell: bash
     run: |
       # Sparse-checkout UR at build ref:

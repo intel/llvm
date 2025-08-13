@@ -140,6 +140,18 @@ on:
         type: string
         default: 'false'
         required: False
+      ur_artifact:
+        type: string
+        default: ''
+        required: False
+      ur_artifact_filename:
+        type: string
+        default: ''
+        required: False
+      ur_decompress_command:
+        type: string
+        default: ''
+        required: False
 
   workflow_dispatch:
     inputs:
@@ -359,6 +371,9 @@ jobs:
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
         build_ref: ${{ inputs.repo_ref }}
+        ur_artifact: ${{ inputs.ur_artifact }}
+        ur_artifact_filename: ${{ inputs.ur_artifact_filename }}
+        ur_decompress_command: ${{ inputs.ur_decompress_command }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

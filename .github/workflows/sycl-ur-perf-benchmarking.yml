@@ -107,12 +107,24 @@ jobs:
       cc: clang
       cxx: clang++
       changes: '[]'
-
       toolchain_artifact: sycl_linux_prod_noassert
+
+  build_ur:
+    name: Build UR
+    uses: ./.github/workflows/ur-build-hw.yml
+    with:
+      # Only 2 adapters supported currently, level_zero and level_zero_v2:
+      adapter_name: ${{ inputs.backend == 'level_zero_v2:gpu' && 'level_zero_v2' || 'level_zero' }}
+      runner_name: '["Linux", "build"]'
+      static_loader: 'OFF'
+      static_adapter: 'OFF'
+      docker_image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
+      image_options: "-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN"
+      run_tests: 'OFF'
 
   run_benchmarks_build:
     name: Run Benchmarks on Build
-    needs: [ build_sycl ]
+    needs: [ build_sycl, build_ur ]
     strategy:
       matrix:
         include:
@@ -137,3 +149,6 @@ jobs:
       toolchain_artifact: ${{ needs.build_sycl.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build_sycl.outputs.toolchain_decompress_command }}
+      ur_artifact: ${{ needs.build_ur.outputs.artifact }}
+      ur_artifact_filename: ${{ needs.build_ur.outputs.artifact_filename }}
+      ur_decompress_command: ${{ needs.build_ur.outputs.decompress_command }}
