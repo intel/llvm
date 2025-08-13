@@ -4097,12 +4097,14 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   void addArrayElementInit(FieldDecl *FD, QualType T) {
-    Expr *ArrParam = ArrayParamBases.pop_back_val();
-    Expr *RCE = createReinterpretCastExpr(
-        createGetAddressOf(ArrParam),
-        SemaSYCLRef.getASTContext().getPointerType(T));
-    Expr *Initializer = createDerefOp(RCE);
-    addFieldInit(FD, T, (T->isPointerType()) ? ArrParam : Initializer);
+    Expr *Initializer = ArrayParamBases.pop_back_val();
+    if (!T->isPointerType()) {
+      Expr *RCE = createReinterpretCastExpr(
+          createGetAddressOf(Initializer),
+          SemaSYCLRef.getASTContext().getPointerType(T));
+      Initializer = createDerefOp(RCE);
+    }
+    addFieldInit(FD, T, Initializer);
   }
 
   // This function is recursive in order to handle
