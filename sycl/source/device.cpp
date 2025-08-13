@@ -220,6 +220,9 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
+    if (!ext_oneapi_can_access_peer(peer))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Peer access is not allowed between the devices.");
     detail::adapter_impl &Adapter = impl->getAdapter();
     Adapter.call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
   }
@@ -255,9 +258,14 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   }();
   detail::adapter_impl &Adapter = impl->getAdapter();
   int value = 0;
-  Adapter.call<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
-      Device, Peer, UrAttr, sizeof(int), &value, nullptr);
+  auto Err =
+      Adapter.call_nocheck<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
+          Device, Peer, UrAttr, sizeof(int), &value, nullptr);
 
+  // If the backend doesn't support P2P access, neither does its devices.
+  if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    return false;
+  checkUrResult<errc>(Err);
   return value == 1;
 }
 

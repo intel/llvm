@@ -49,8 +49,8 @@ This extension is implemented and fully supported by DPC++.
 This extension is currently implemented in DPC++ for all GPU devices and
 backends; however, only the CUDA, HIP and Level Zero backends allows peer to
 peer memory access. Other backends report false from the
-`ext_oneapi_can_access_peer` query. Peer-Peer memory access is only possible
-between two devices from the same backend.
+`ext_oneapi_can_access_peer` query, unless both devices are the same. Peer
+memory access is only possible between two devices from the same SYCL platform.
 
 == Overview
 
@@ -153,13 +153,17 @@ functions may access USM device allocations on the peer device subject to the
 normal rules about context as described in the core SYCL specification.
 If this device does not support peer access (as defined by
 `peer_access::access_supported`), throws an `exception` with the
-`errc::feature_not_supported` error code. If access is already enabled,
-throws an exception with the `errc::invalid` error code.
+`errc::feature_not_supported` error code.
+
+Calling this function with `peer` for which access has already been enabled will
+result in undefined behavior.
 
 
 |void ext_oneapi_disable_peer_access(const device &peer)
-|Disables access to the peer device's memory from this device. If peer access
-is not enabled, throws an `exception` with the `errc::invalid` error code.
+|Disables access to the peer device's memory from this device.
+
+Calling this function with `peer` for which access is not enabled will result in
+undefined behavior.
 
 |===
 
