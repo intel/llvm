@@ -24,6 +24,16 @@ int main() {
   auto zedev = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(dev);
   ze_device_properties_t device_properties{};
   device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed with error code: " << result << std::endl;
+    return 1;
+  }
+
   zeDeviceGetProperties(zedev, &device_properties);
   std::stringstream uuid_l0;
   for (int i = 0; i < ZE_MAX_DEVICE_UUID_SIZE; ++i)

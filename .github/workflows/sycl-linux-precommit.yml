@@ -83,7 +83,8 @@ jobs:
     name: Read compatibility testing exclude list
     runs-on: [Linux, build]
     outputs:
-      FILTER: ${{ steps.result.outputs.FILTER }}
+      FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
+      FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -96,7 +97,8 @@ jobs:
       run: |
         # Transform to format expected by `llvm-lit --filter-out "pattern1|pattern2|..."`.
         # First, remove comments/empty lines, then join lines with "|" as separator.
-        echo FILTER="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
+        echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
+        echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
 
   run_prebuilt_e2e_tests:
     needs: [build, detect_changes, compat_read_exclude]
@@ -147,7 +149,13 @@ jobs:
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
-            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER }}"'
+            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
+            e2e_binaries_artifact: 'in-container'
+          - name: ABI compatibility against sycl-rel-6_3
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
+            target_devices: level_zero:gpu
+            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
             e2e_binaries_artifact: 'in-container'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
