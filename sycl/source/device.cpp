@@ -265,7 +265,7 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   // If the backend doesn't support P2P access, neither does its devices.
   if (Err == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     return false;
-  checkUrResult<errc>(Err);
+  Adapter.checkUrResult(Err);
   return value == 1;
 }
 
