@@ -25,6 +25,7 @@ template <typename... PropsT> class accessor_property_list;
 } // namespace ext::oneapi
 namespace detail {
 class PropertyValidator;
+class SYCLMemObjT;
 } // namespace detail
 
 /// Objects of the property_list class are containers for the SYCL properties
@@ -58,12 +59,18 @@ public:
     return has_property_helper<PropT>();
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED("add_or_replace_accessor_properties() is not part of the "
+                    "SYCL API and will be removed in the future.")
   void add_or_replace_accessor_properties(const property_list &PropertyList) {
     add_or_replace_accessor_properties_helper(PropertyList.MPropsWithData);
   }
+  __SYCL_DEPRECATED("delete_accessor_property() is not part of the SYCL API "
+                    "and will be removed in the future.")
   void delete_accessor_property(const sycl::detail::PropWithDataKind &Kind) {
     delete_accessor_property_helper(Kind);
   }
+#endif
 
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
@@ -73,9 +80,19 @@ private:
       std::vector<std::shared_ptr<detail::PropertyWithDataBase>> PropsWithData)
       : sycl::detail::PropertyListBase(DataLessProps, PropsWithData) {}
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void add_or_replace_accessor_properties(const property_list &PropertyList) {
+    add_or_replace_accessor_properties_helper(PropertyList.MPropsWithData);
+  }
+  void delete_accessor_property(const sycl::detail::PropWithDataKind &Kind) {
+    delete_accessor_property_helper(Kind);
+  }
+#endif
+
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
   friend class detail::PropertyValidator;
+  friend class detail::SYCLMemObjT;
 };
 
 namespace detail {
