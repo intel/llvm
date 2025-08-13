@@ -12,6 +12,12 @@ DiscardEvents/invalid_event_exceptions.cpp
 # Throw exception instead of returning garbage
 Basic/info.cpp
 
+# https://github.com/intel/llvm/pull/19238 removed the device aspect
+# corresponding to the opportunistic_group support, in favor of it being merged
+# into the fragment_group aspect. Since this was a full refactoring and renaming
+# of an experimental extension, we accept the breaking change.
+NonUniformGroups/opportunistic_group.cpp
+
 # Likely OK, but need author to provide justification, get approval/confirmation
 # from someone:
 
@@ -28,12 +34,6 @@ KernelAndProgram/disable-caching.cpp
 # E2E binaries, but do we really need to provide backward compatibility for
 # binaries built with sanitizers?
 Sanitizer
-
-# https://github.com/intel/llvm/pull/19238 removed the device aspect
-# corresponding to the opportunistic_group support, in favor of it being merged
-# into the fragment_group aspect. Since this was a full refactoring and renaming
-# of an experimental extension, we accept the breaking change.
-NonUniformGroups/opportunistic_group.cpp
 
 # https://github.com/intel/llvm/pull/17955, experimental extension
 AsyncAlloc/device/async_alloc_from_pool.cpp
