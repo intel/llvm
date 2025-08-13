@@ -965,9 +965,11 @@ protected:
               bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 #endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::vector<ArgDesc> extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams);
+#endif
 
   /// Performs command group submission to the queue.
   ///
@@ -986,6 +988,18 @@ protected:
                                    const v1::SubmissionInfo &SubmitInfo);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Performs kernel submission to the queue.
+  ///
+  /// \param NDRDesc is an NDRange descriptor
+  /// \param SubmitInfo is additional optional information for the submission.
+  /// \param KRInfo is a descriptor of the kernel
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
   detail::EventImplPtr submit_direct_impl(const NDRDescT &NDRDesc,
                                           const v1::SubmissionInfo &SubmitInfo,
                                           const v1::KernelRuntimeInfo &KRInfo,
