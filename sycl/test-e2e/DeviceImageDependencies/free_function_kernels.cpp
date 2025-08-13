@@ -1,7 +1,7 @@
 // Ensure -fsycl-allow-device-dependencies can work with free function kernels.
 
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -o %t.out -fsycl-allow-device-image-dependencies
+// RUN: %{build} --save-temps -o %t.out -fsycl-allow-device-image-dependencies
 // RUN: %{run} %t.out
 
 #include <iostream>
