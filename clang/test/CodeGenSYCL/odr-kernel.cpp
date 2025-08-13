@@ -8,6 +8,7 @@
 #include "sycl.hpp"
 
 // CHECK-DAG: define weak_odr spir_kernel void @_ZTS13FunctorInline
+// CHECK-DAG: define weak_odr spir_kernel void @_ZTS14FunctorInline2
 // CHECK-DAG: define dso_local spir_kernel void @_ZTS15FunctorNoInline
 // CHECK-DAG: define dso_local spir_kernel void @_ZTSZ4mainE10KernelName
 // CHECK-DAG: define dso_local spir_kernel void @_Z32__sycl_kernel_FreeFunctionKernelv
@@ -17,6 +18,12 @@ class FunctorInline {
 public:
   void operator()(sycl::id<1>) const {}
 };
+
+class FunctorInline2 {
+public:
+  void operator()(sycl::id<1>) const;
+};
+inline void FunctorInline2::operator()(sycl::id<1>) const {}
 
 class FunctorNoInline {
 public:
@@ -51,6 +58,11 @@ int main() {
 
   q.submit([&](sycl::handler &cgh) {
     FunctorInline f;
+    cgh.parallel_for(sycl::range<1>(1024), f);
+  });
+
+  q.submit([&](sycl::handler &cgh) {
+    FunctorInline2 f;
     cgh.parallel_for(sycl::range<1>(1024), f);
   });
 
