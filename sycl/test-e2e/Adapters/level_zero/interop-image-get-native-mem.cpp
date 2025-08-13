@@ -51,7 +51,7 @@ int main() {
   // initialized.
   ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
   if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeInit failed" << std::endl;
+    std::cout << "zeInit failed with error code: " << result << std::endl;
     return 1;
   }
 
