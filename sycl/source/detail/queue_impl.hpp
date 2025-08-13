@@ -21,9 +21,6 @@
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
 #include <sycl/context.hpp>
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/detail/assert_happened.hpp>
-#endif
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
@@ -67,9 +64,6 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
-#endif
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
@@ -346,19 +340,10 @@ public:
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
                const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc, bool IsTopCodeLoc
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-               ,
-               const SubmitPostProcessF *PostProcess = nullptr
-#endif
-  ) {
+               const detail::code_location &Loc, bool IsTopCodeLoc) {
     event ResEvent;
     v1::SubmissionInfo SI{};
     SI.SecondaryQueue() = SecondQueue;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (PostProcess)
-      SI.PostProcessorFunc() = *PostProcess;
-#endif
     return submit_with_event(CGF, SI, Loc, IsTopCodeLoc);
   }
 
@@ -875,46 +860,6 @@ protected:
 
     return EventRetImpl;
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  template <typename HandlerType = handler>
-  void handlerPostProcess(HandlerType &Handler,
-                          const optional<SubmitPostProcessF> &PostProcessorFunc,
-                          event &Event) {
-    bool IsKernel = Handler.getType() == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert =
-          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.data(),
-              Handler.impl->MKernelNameBasedCachePtr);
-
-    auto &PostProcess = *PostProcessorFunc;
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-  }
-
-  /// Performs command group submission to the queue.
-  ///
-  /// \param CGF is a function object containing command group.
-  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
-  ///        same as this.
-  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
-  ///        same as this.
-  /// \param CallerNeedsEvent is a boolean indicating whether the event is
-  ///        required by the user after the call.
-  /// \param Loc is the code location of the submit call (default argument)
-  /// \param SubmitInfo is additional optional information for the submission.
-  /// \return a SYCL event representing submitted command group.
-  detail::EventImplPtr
-  submit_impl(const detail::type_erased_cgfo_ty &CGF,
-              const std::shared_ptr<queue_impl> &PrimaryQueue,
-              const std::shared_ptr<queue_impl> &SecondaryQueue,
-              bool CallerNeedsEvent, const detail::code_location &Loc,
-              bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// Performs command group submission to the queue.
   ///

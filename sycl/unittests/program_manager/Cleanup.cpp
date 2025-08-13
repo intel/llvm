@@ -29,14 +29,6 @@ public:
     return m_BinImg2KernelIDs;
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::unordered_multimap<sycl::detail::KernelNameStrT,
-                          const sycl::detail::RTDeviceBinaryImage *> &
-  getServiceKernels() {
-    return m_ServiceKernels;
-  }
-#endif
-
   std::unordered_multimap<std::string,
                           const sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
@@ -148,14 +140,8 @@ using PipeC = sycl::ext::intel::experimental::pipe<PipeIDC, int, 10>;
 sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
   sycl::unittest::MockPropertySet PropSet;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::initializer_list<std::string> KernelNames{
-      generateRefName(ImageId, "Kernel"),
-      generateRefName(ImageId, "__sycl_service_kernel__")};
-#else
   std::initializer_list<std::string> KernelNames{
       generateRefName(ImageId, "Kernel")};
-#endif
   const std::vector<std::string> ExportedSymbols{
       generateRefName(ImageId, "Exported")};
   const std::vector<std::string> ImportedSymbols{
@@ -271,17 +257,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
         << Comment;
   }
   EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedCount) << Comment;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  {
-    EXPECT_EQ(PM.getServiceKernels().size(), ExpectedCount) << Comment;
-    EXPECT_TRUE(PM.getServiceKernels().count(
-                    generateRefName("A", "__sycl_service_kernel__")) > 0)
-        << Comment;
-    EXPECT_TRUE(PM.getServiceKernels().count(
-                    generateRefName("B", "__sycl_service_kernel__")) > 0)
-        << Comment;
-  }
-#endif
   {
     EXPECT_EQ(PM.getExportedSymbolImages().size(), ExpectedCount) << Comment;
     EXPECT_TRUE(PM.getExportedSymbolImages().count(

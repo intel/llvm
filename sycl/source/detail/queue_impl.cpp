@@ -342,9 +342,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                         !SubmitInfo.PostProcessorFunc() &&
-#endif
                          !Streams.size();
 
   if (noLastEventPath) {
@@ -376,16 +373,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     }
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  if (SubmitInfo.PostProcessorFunc()) {
-    // All the submission functions using post processing are event based
-    // functions
-    assert(EventImpl);
-    event Event = createSyclObjFromImpl<event>(EventImpl);
-    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
-  }
-#endif
-
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
@@ -406,18 +393,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   return EventImpl;
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-detail::EventImplPtr
-queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                        const std::shared_ptr<queue_impl> & /*PrimaryQueue*/,
-                        const std::shared_ptr<queue_impl> &SecondaryQueue,
-                        bool CallerNeedsEvent, const detail::code_location &Loc,
-                        bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo) {
-  return submit_impl(CGF, SecondaryQueue.get(), CallerNeedsEvent, Loc,
-                     IsTopCodeLoc, SubmitInfo);
-}
-#endif
 
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,

@@ -14,9 +14,6 @@
 #include <sycl/async_handler.hpp>             // for async_handler
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/detail/assert_happened.hpp>
-#endif
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
@@ -69,29 +66,13 @@ namespace detail {
 class queue_impl;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-inline event submitAssertCapture(const queue &, event &, queue *,
-                                 const detail::code_location &);
-
-// Function to postprocess submitted command
-// Arguments:
-// bool IsKernel - true if the submitted command was kernel, false otherwise
-// bool KernelUsesAssert - true if submitted kernel uses assert, only
-//                         meaningful when IsKernel is true
-// event &Event - event after which post processing should be executed
 using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
-#endif
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct SubmissionInfoImpl;
 
 class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo();
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
-#endif
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
@@ -125,15 +106,7 @@ public:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   SubmissionInfo(const detail::SubmissionInfo &SI)
-      : MPostProcessorFunc(SI.PostProcessorFunc()),
-        MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
-
-  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
-    return MPostProcessorFunc;
-  }
-  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
-    return MPostProcessorFunc;
-  }
+      : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
 #endif
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
@@ -149,9 +122,6 @@ public:
   }
 
 private:
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
-#endif
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
@@ -434,15 +404,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return submit_with_event(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, CodeLoc);
-#else
-    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-        sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
-#endif
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -460,15 +424,9 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return submit_with_event(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
-#else
-    return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-        sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
-#endif
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3720,11 +3678,7 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename PropertiesT>
-#else
-  template <bool UseFallbackAssert, typename PropertiesT>
-#endif
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
                           queue *SecondaryQueuePtr,
@@ -3735,22 +3689,6 @@ private:
     ProcessSubmitProperties(Props, SI);
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if constexpr (UseFallbackAssert)
-      SI.PostProcessorFunc() =
-          [this, &SecondaryQueuePtr,
-           &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
-            if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-                KernelUsesAssert && !device_has(aspect::accelerator)) {
-              // __devicelib_assert_fail isn't supported by Device-side Runtime
-              // Linking against fallback impl of __devicelib_assert_fail is
-              // performed by program manager class
-              // Fallback assert isn't supported for FPGA
-              submitAssertCapture(*this, E, SecondaryQueuePtr,
-                                  TlsCodeLocCapture.query());
-            }
-          };
-#endif
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
@@ -3766,11 +3704,7 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename PropertiesT>
-#else
-  template <bool UseFallbackAssert, typename PropertiesT>
-#endif
   event submit_with_event(PropertiesT Props,
                           const detail::type_erased_cgfo_ty &CGF,
                           const detail::code_location &CodeLoc =
@@ -3778,21 +3712,6 @@ private:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::v1::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if constexpr (UseFallbackAssert)
-      SI.PostProcessorFunc() = [this, &TlsCodeLocCapture](bool IsKernel,
-                                                          bool KernelUsesAssert,
-                                                          event &E) {
-        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert && !device_has(aspect::accelerator)) {
-          // __devicelib_assert_fail isn't supported by Device-side Runtime
-          // Linking against fallback impl of __devicelib_assert_fail is
-          // performed by program manager class
-          // Fallback assert isn't supported for FPGA
-          submitAssertCapture(*this, E, nullptr, TlsCodeLocCapture.query());
-        }
-      };
-#endif
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
@@ -3807,28 +3726,15 @@ private:
   // UseFallBackAssert as template param vs `#if` in function body is necessary
   // to prevent ODR-violation between TUs built with different fallback assert
   // modes.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename PropertiesT>
-#else
-  template <bool UseFallbackAssert, typename PropertiesT>
-#endif
   void submit_without_event(PropertiesT Props,
                             const detail::type_erased_cgfo_ty &CGF,
                             const detail::code_location &CodeLoc) const {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if constexpr (UseFallbackAssert) {
-      // If post-processing is needed, fall back to the regular submit.
-      // TODO: Revisit whether we can avoid this.
-      submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
-    } else
-#endif
-    {
-      detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-      detail::v1::SubmissionInfo SI{};
-      ProcessSubmitProperties(Props, SI);
-      submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
-                                TlsCodeLocCapture.isToplevel());
-    }
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
+    submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
+                              TlsCodeLocCapture.isToplevel());
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -3974,104 +3880,3 @@ template <> struct __SYCL_EXPORT hash<sycl::queue> {
   size_t operator()(const sycl::queue &Q) const;
 };
 } // namespace std
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#if __SYCL_USE_FALLBACK_ASSERT
-// Explicitly request format macros
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS 1
-#endif
-#include <cinttypes>
-
-namespace sycl {
-inline namespace _V1 {
-
-namespace detail {
-#define __SYCL_ASSERT_START 1
-
-namespace __sycl_service_kernel__ {
-class AssertInfoCopier;
-} // namespace __sycl_service_kernel__
-
-/**
- * Submit copy task for assert failure flag and host-task to check the flag
- * \param Event kernel's event to depend on i.e. the event represents the
- *              kernel to check for assertion failure
- * \param SecondaryQueue secondary queue for submit process, null if not used
- * \returns host tasks event
- *
- * This method doesn't belong to queue class to overcome msvc behaviour due to
- * which it gets compiled and exported without any integration header and, thus,
- * with no proper KernelInfo instance.
- */
-event submitAssertCapture(const queue &Self, event &Event,
-                          queue *SecondaryQueue,
-                          const detail::code_location &CodeLoc) {
-  buffer<detail::AssertHappened, 1> Buffer{1};
-
-  event CopierEv, CheckerEv, PostCheckerEv;
-  auto CopierCGF = [&](handler &CGH) {
-    CGH.depends_on(Event);
-
-    auto Acc = Buffer.get_access<access::mode::write>(CGH);
-
-    CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
-#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
-      __devicelib_assert_read(&Acc[0]);
-#else
-      (void)Acc;
-#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
-    });
-  };
-  auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {
-    CGH.depends_on(CopierEv);
-    using mode = access::mode;
-    using target = access::target;
-
-    auto Acc = Buffer.get_access<mode::read, target::host_buffer>(CGH);
-
-    CGH.host_task([=] {
-      const detail::AssertHappened *AH = &Acc[0];
-
-      // Don't use assert here as msvc will insert reference to __imp__wassert
-      // which won't be properly resolved in separate compile use-case
-#ifndef NDEBUG
-      if (AH->Flag == __SYCL_ASSERT_START)
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Internal Error. Invalid value in assert description.");
-#endif
-
-      if (AH->Flag) {
-        const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
-        const char *File = AH->File[0] ? AH->File : "<unknown file>";
-        const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
-
-        fprintf(stderr,
-                "%s:%d: %s: global id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64
-                "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
-                "Assertion `%s` failed.\n",
-                File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
-                AH->LID1, AH->LID2, Expr);
-        fflush(stderr);
-        abort(); // no need to release memory as it's abort anyway
-      }
-    });
-  };
-
-  CopierEv = Self.submit_with_event<true>(
-      sycl::ext::oneapi::experimental::empty_properties_t{}, CopierCGF,
-      SecondaryQueue, CodeLoc);
-  CheckerEv = Self.submit_with_event<true>(
-      sycl::ext::oneapi::experimental::empty_properties_t{}, CheckerCGF,
-      SecondaryQueue, CodeLoc);
-
-  return CheckerEv;
-}
-#undef __SYCL_ASSERT_START
-} // namespace detail
-
-} // namespace _V1
-} // namespace sycl
-#endif // __SYCL_USE_FALLBACK_ASSERT
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES

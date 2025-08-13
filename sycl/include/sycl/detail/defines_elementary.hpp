@@ -94,23 +94,10 @@
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// Helper macro to identify if fallback assert is needed
-#if defined(SYCL_FALLBACK_ASSERT)
-#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
-#else
-#define __SYCL_USE_FALLBACK_ASSERT 0
-#endif
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 // MSVC doesn't support #warning and we cannot use other methods to report a
 // warning from inside a system header (which SYCL is considered to be).
 #if defined(SYCL_FALLBACK_ASSERT) && (!defined(_MSC_VER) || defined(__clang__))
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #warning "SYCL_FALLBACK_ASSERT has been removed and no longer has any effect."
-#else
-#warning "SYCL_FALLBACK_ASSERT is deprecated."
-#endif
 #endif
 
 #if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
