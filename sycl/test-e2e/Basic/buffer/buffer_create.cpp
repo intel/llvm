@@ -1,6 +1,11 @@
 // REQUIRES: gpu,level_zero,level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// Because we initialize L0 driver directly in the test before UR L0 adapter
+// does that, we need to explicitly set the right environment variables instead
+// of using UR_L0_DEBUG shortcut
+// RUN: env ZEL_ENABLE_LOADER_LOGGING=1 ZEL_LOADER_LOGGING_LEVEL=trace \
+// RUN:     ZEL_LOADER_LOG_CONSOLE=1 ZE_ENABLE_VALIDATION_LAYER=1 \
+// RUN: %{run} %t.out 2>&1 | FileCheck %s
 // UNSUPPORTED: ze_debug
 
 #include <iostream>
@@ -16,7 +21,7 @@ int main() {
   // initialized.
   ze_result_t result = zeInit(0);
   if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeInit failed" << std::endl;
+    std::cout << "zeInit failed with error code: " << result << std::endl;
     return 1;
   }
 

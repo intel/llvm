@@ -23,7 +23,7 @@ int main() {
   // Init L0
   ze_result_t result = zeInit(0);
   if (result != ZE_RESULT_SUCCESS) {
-    std::cout << "zeInit failed" << std::endl;
+    std::cout << "zeInit failed with error code: " << result << std::endl;
     return 1;
   }
 
