@@ -21,7 +21,7 @@ int main() {
   if (D1 == D2) {
     std::cout << "There are no devices from different platforms. Skipping."
               << std::endl;
-    return 1;
+    return 0;
   }
 
   assert(!D1.ext_oneapi_can_access_peer(D2));
