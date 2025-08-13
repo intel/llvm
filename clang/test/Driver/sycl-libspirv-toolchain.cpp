@@ -29,10 +29,10 @@
 // CHECK-CUDA: "-cc1"{{.*}} "-fcuda-is-device"
 // CHECK-CUDA-NOT: "-mlink-builtin-bitcode" "{{.*}}.libspirv-{{.*}}.bc"
 //
-// The path to the remangled libspirv bitcode file is determined by the installation directory
+// The path to the remangled libspirv bitcode file is determined by the installation directory and `/share/clc/` is part of the path.
 // RUN: %clang -### -ccc-install-dir %{install_dir}  -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
-// RUN: | FileCheck %s -DINSTALL_DIR=%{install_dir} -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-DIR
-// CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[INSTALL_DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
+// RUN: | FileCheck %s -DINSTALL_DIR=%{install_dir} --check-prefixes=CHECK-DIR
+// CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[INSTALL_DIR]]{{.*[\\/]}}share{{.*}}clc{{.*}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
 //
 // The `-###` option disables file existence checks
 // DEFINE: %{nonexistent_dir} = %/S/Inputs/SYCL/does_not_exist/lib/clang/resource_dir
