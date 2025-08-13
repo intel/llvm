@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64 -emit-llvm -disable-llvm-passes %s -o %t.ll
 // RUN: opt < %t.ll -passes=deadargelim-sycl -S | FileCheck %s
 
+// This test verifies that the dead argument elimination optimization pass does not affect
+// free function kernels.
+
 // CHECK-NOT: !sycl_kernel_omit_args
 
 __attribute__((sycl_device))
