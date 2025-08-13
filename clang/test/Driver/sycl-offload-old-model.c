@@ -78,13 +78,13 @@
 
 // RUN:   %clang -### -ccc-print-phases -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES-GPU %s
-// CHK-DUPLICATES-GPU: warning: SYCL offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+// CHK-DUPLICATES-GPU: warning: offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// No duplicate warning should be emitted for 'like' triples but different
 /// arch targets.
 // RUN:   %clang -### -ccc-print-phases -fsycl --no-offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DIFF-GPU %s
-// CHK-DIFF-GPU-NOT: warning: SYCL offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+// CHK-DIFF-GPU-NOT: warning: offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// ###########################################################################
 

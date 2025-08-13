@@ -1036,6 +1036,13 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
       return llvm::DenseSet<llvm::StringRef>();
     }
 
+    if (Kind == Action::OFK_OpenMP && !IsNVIDIAOffloadArch(ID) &&
+        !IsAMDOffloadArch(ID)) {
+      C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
+          << "OpenMP" << Arch;
+      return llvm::DenseSet<llvm::StringRef>();
+    }
+
     if (ID == OffloadArch::UNKNOWN || ID == OffloadArch::UNUSED) {
       C.getDriver().Diag(clang::diag::err_drv_offload_bad_gpu_arch)
           << "offload" << Arch;
@@ -1358,6 +1365,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Get the list of requested offloading toolchains. If they were not
   // explicitly specified we will infer them based on the offloading language
   // and requested architectures.
+  llvm::StringMap<StringRef> FoundNormalizedTriples;
+  auto isDuplicateTargetTripleString = [&](llvm::StringRef Target) -> bool {
+    std::string NormalizedName =
+        C.getDriver().getSYCLDeviceTriple(Target).normalize();
+    auto [TripleIt, Inserted] =
+        FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+    if (!Inserted) {
+      Diag(clang::diag::warn_drv_offload_target_duplicate)
+          << Target << TripleIt->second;
+      return false;
+    }
+    return true;
+  };
+
   std::multiset<llvm::StringRef> Triples;
   if (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ)) {
     std::vector<std::string> ArgValues =
@@ -1366,14 +1387,28 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     for (llvm::StringRef Target : ArgValues) {
       if(IsSYCL) {
         if (Target.starts_with("intel_gpu_"))
-        Triples.insert(
-            C.getInputArgs().MakeArgString("spir64_gen-unknown-unknown"));
+          TT = getSYCLDeviceTriple("spir64_gen");
         else if (Target.starts_with("nvidia_gpu_"))
-          Triples.insert(C.getInputArgs().MakeArgString("nvptx64-nvidia-cuda"));
+          TT = getSYCLDeviceTriple("nvptx64-nvidia-cuda");
         else if (Target.starts_with("amd_gpu_"))
-          Triples.insert(C.getInputArgs().MakeArgString("amdgcn-amd-amdhsa"));
+          TT = getSYCLDeviceTriple("amdgcn-amd-amdhsa");
         else
-          Triples.insert(C.getInputArgs().MakeArgString(Target));
+          TT = getSYCLDeviceTriple(Target);
+        std::string NormalizedName =
+            C.getDriver().getSYCLDeviceTriple(Target).normalize();
+        auto [TripleIt, Inserted] =
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+        if (!Inserted) {
+          Diag(clang::diag::warn_drv_offload_target_duplicate)
+              << Target << TripleIt->second;
+          continue;
+        }
+        // duplicate check
+        /*    bool Inserted = isDuplicateTargetTripleString(Target);
+            if (!Inserted)
+                continue;
+        */
+        Triples.insert(C.getInputArgs().MakeArgString(TT.normalize()));
       }
       else
         Triples.insert(C.getInputArgs().MakeArgString(Target));
@@ -1392,7 +1427,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   }
 
   // Build an offloading toolchain for every requested target and kind.
-  llvm::StringMap<StringRef> FoundNormalizedTriples;
   for (StringRef Target : Triples) {
     // OpenMP offloading requires a compatible libomp.
     if (Kinds.contains(Action::OFK_OpenMP)) {
@@ -1435,13 +1469,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         continue;
       }
       // Check for duplicate target triple strings.
-      std::string NormalizedName = TT.normalize();
-      auto [TripleIt, Inserted] =
-          FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-      if (!Inserted) {
-        Diag(clang::diag::warn_drv_offload_target_duplicate)
-            << Target << TripleIt->second;
-        continue;
+      if (Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) {
+        std::string NormalizedName =
+            C.getDriver().getSYCLDeviceTriple(Target).normalize();
+        auto [TripleIt, Inserted] =
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+        if (!Inserted) {
+          Diag(clang::diag::warn_drv_offload_target_duplicate)
+              << Target << TripleIt->second;
+          continue;
+        }
+        /*         bool Inserted = isDuplicateTargetTripleString(Target);
+                  if (!Inserted)
+                      continue;
+        */
       }
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
@@ -1456,6 +1497,28 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       }
 
       C.addOffloadDeviceToolChain(&TC, Kind);
+    }
+  }
+  // Perform any additional SYCL specific behaviors that are tied to expected
+  // triples.
+  if (Kinds.contains(Action::OFK_SYCL)) {
+    // Add the default toolchain for SYCL if it is not already added when using
+    // the old offloading model.
+    if (!C.getArgs().hasFlag(options::OPT_offload_new_driver,
+                             options::OPT_no_offload_new_driver, false)) {
+      // Make vector of triples.
+      SmallVector<llvm::Triple, 4> Triples;
+      for (auto &TripleString : FoundNormalizedTriples) {
+        llvm::Triple T(TripleString.getKey());
+        Triples.push_back(T);
+      }
+      if (addSYCLDefaultTriple(C, Triples)) {
+        llvm::Triple TT =
+            llvm::Triple(getSYCLDeviceTriple(getDefaultSYCLArch(C)));
+        auto &TC = getOffloadToolChain(C.getInputArgs(), Action::OFK_SYCL, TT,
+                                       C.getDefaultToolChain().getTriple());
+        C.addOffloadDeviceToolChain(&TC, Action::OFK_SYCL);
+      }
     }
   }
 }
