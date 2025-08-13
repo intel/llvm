@@ -480,7 +480,19 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
     CGData.MEvents.push_back(LastEvent);
   }
 
-  // TODO UnenqueuedCmdEvents for out of order queue
+  // Barrier and un-enqueued commands synchronization for out or order queue
+  if (!isInOrder()) {
+    MMissedCleanupRequests.unset(
+      [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+        for (auto &UpdatedGraph : MissedCleanupRequests)
+          doUnenqueuedCommandCleanup(UpdatedGraph);
+        MissedCleanupRequests.clear();
+      });
+
+    if (MDefaultGraphDeps.LastBarrier && !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
+      CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
+    }
+  }
 
   Args = extractArgsAndReqsFromLambda(KRInfo.GetKernelFuncPtr(),
     KRInfo.KernelParamDescGetter(), KRInfo.KernelNumArgs());
@@ -511,6 +523,11 @@ queue_impl::submit_direct_impl(const NDRDescT &NDRDesc,
   // Sync with the last event for in order queue
   if (isInOrder() && !EventImpl->isDiscarded()) {
     LastEvent = EventImpl;
+  }
+
+  // Barrier and un-enqueued commands synchronization for out or order queue
+  if (!isInOrder() && !EventImpl->isEnqueued()) {
+    MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
   return CallerNeedsEvent ? EventImpl : nullptr;

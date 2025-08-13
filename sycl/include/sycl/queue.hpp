@@ -3727,6 +3727,7 @@ private:
     }
   }
 
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<
         std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
@@ -3734,7 +3735,6 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   template <typename KernelName, typename PropertiesT, typename KernelType,
             int Dims>
   void ProcessKernelRuntimeInfo(
