@@ -459,6 +459,12 @@ protected:
   /// \ref Sync::getGlobalLock() while holding this mutex.
   std::mutex m_KernelIDsMutex;
 
+  /// Keeps track of binary image to kernel name reference count.
+  /// Used for checking if the last image referencing the kernel name
+  /// is removed in order to trigger cleanup of kernel name based information.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_map<KernelNameStrT, int> m_KernelNameRefCount;
+
   /// Caches all exported symbols to allow faster lookup when excluding these
   /// from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
