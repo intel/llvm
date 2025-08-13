@@ -28,7 +28,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   case UR_EVENT_INFO_COMMAND_TYPE:
     return ReturnValue(hEvent->getCommandType());
   case UR_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(hEvent->getReferenceCount());
+    return ReturnValue(hEvent->RefCount.getCount());
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS:
     return ReturnValue(hEvent->getExecutionStatus());
   case UR_EVENT_INFO_CONTEXT:
@@ -69,7 +69,7 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  hEvent->incrementReferenceCount();
+  hEvent->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
