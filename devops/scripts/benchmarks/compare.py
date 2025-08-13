@@ -46,24 +46,6 @@ class BenchmarkHistoricAverage:
     # TODO Ensure ONEAPI_DEVICE_SELECTOR? GPU name itself?
 
 
-class OutputFile:
-    """
-    Represents a text file to output, but only output the file when manually
-    specified.
-    """
-
-    def __init__(self, output_path: str):
-        self.output_path = output_path
-        self.output_content = []
-
-    def write_file(self):
-        with open(self.output_path, "w") as f:
-            f.write("\n".join(self.output_content))
-
-    def println(self, text: str):
-        self.output_content.append(text)
-
-
 class Compare:
     """Class containing logic for comparisons between results"""
 
@@ -358,8 +340,14 @@ if __name__ == "__main__":
     parser_avg.add_argument(
         "--regression-filter",
         type=str,
-        help="If provided, only regressions matching provided regex will cause exit status 1.",
+        help="If provided, only regressions in tests matching provided regex will cause exit status 1.",
         default=None,
+    )
+    parser_avg.add_argument(
+        "--regression-filter-type",
+        type=str,
+        help="Name to use in logging for tests that fall within the filter defined by --regression-filter; i.e. if --regression-filter filters for SYCL benchmarks, --regression-filter-type could be 'SYCL'.",
+        default="filtered",
     )
     parser_avg.add_argument(
         "--dry-run",
@@ -368,8 +356,9 @@ if __name__ == "__main__":
     )
     parser_avg.add_argument(
         "--produce-github-summary",
-        action="store_true",
-        help="Produce a github CI summary file.",
+        type=str,
+        help="Create a github CI summary file using the provided filename",
+        default="",
     )
 
     args = parser.parse_args()
@@ -388,14 +377,24 @@ if __name__ == "__main__":
             args.avg_type, args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
+        # Initialize github summary variables:
+        if args.produce_github_summary:
+            gh_summary = []
+
+            filter_type_capitalized = (
+                args.regression_filter_type[0].upper() + args.regression_filter_type[1:]
+            )
+
+            def write_summary_to_file(summary: list[str]):
+                with open(args.produce_github_summary, 'w') as f:
+                    f.write("\n".join(summary))
+
+
         # Not all regressions are of concern: if a filter is provided, filter
         # regressions using filter
         regressions_ignored = []
         regressions_of_concern = []
         if args.regression_filter is not None:
-            if args.produce_github_summary:
-                gh_summary = OutputFile("github_summary.md")
-
             filter_pattern = re.compile(args.regression_filter)
             for test in regressions:
                 if filter_pattern.search(test["name"]):
@@ -404,7 +403,7 @@ if __name__ == "__main__":
                     regressions_ignored.append(test)
 
         def print_regression(entry: dict, is_warning: bool = False):
-            """Print an entry outputted from Compare.to_hist
+            """Print an entry outputted from Compare.to_hist[github_summary.md")
 
             Args:
                 entry (dict): The entry to print
@@ -417,80 +416,68 @@ if __name__ == "__main__":
             log_func(f"-- Delta: {entry['delta']}")
             log_func("")
             if args.produce_github_summary:
-                gh_summary.println(f"#### {entry['name']}:")
-                gh_summary.println(
+                gh_summary.append(f"#### {entry['name']}:")
+                gh_summary.append(
                     f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
                 )
-                gh_summary.println(f"- Run result: {entry['value']}")
-                gh_summary.println(f"- Delta: {entry['delta']}")
-                gh_summary.println("")
+                gh_summary.append(f"- Run result: {entry['value']}")
+                gh_summary.append(f"- Delta: {round(entry['delta']*100, 2)}% ({entry['delta']})")
+                gh_summary.append("")
 
         if improvements:
             log.info("#")
             log.info("# Improvements:")
             log.info("#")
             if args.produce_github_summary:
-                gh_summary.println("### Improvements")
-                gh_summary.println(
+                gh_summary.append(f"### Improvements")
+                gh_summary.append(
                     f"<details><summary>{len(improvements)} improved tests:</summary>"
                 )
-                gh_summary.println("")
+                gh_summary.append("")
             for test in improvements:
                 print_regression(test)
             if args.produce_github_summary:
-                gh_summary.println("</details>")
-                gh_summary.println("")
+                gh_summary.append("</details>")
+                gh_summary.append("")
         if regressions_ignored:
             log.info("#")
-            log.info("# Regressions (filtered out by regression-filter):")
+            log.info("# Regressions (filtered out by --regression-filter):")
             log.info("#")
             if args.produce_github_summary:
-                gh_summary.println("### Regressions")
-                gh_summary.println(
-                    f"<details><summary>{len(regressions_ignored)} non CI-failing regressions:</summary>"
+                gh_summary.append(f"### Non-{filter_type_capitalized} Regressions")
+                gh_summary.append(
+                    f"<details><summary>{len(regressions_ignored)} non-{args.regression_filter_type} regressions:</summary>"
                 )
-                gh_summary.println("")
+                gh_summary.append("")
             for test in regressions_ignored:
                 print_regression(test)
             if args.produce_github_summary:
-                gh_summary.println("</details>")
-                gh_summary.println("")
+                gh_summary.append("</details>")
+                gh_summary.append("")
         if regressions_of_concern:
             log.warning("#")
             log.warning("# Regressions:")
             log.warning("#")
             if args.produce_github_summary:
-                gh_summary.println("### SYCL-Specific Regressions")
-                gh_summary.println(
-                    "Regressions pertaining to non-experimental "
-                    "SYCL benchmarks. These regressions warrant "
-                    "a CI failure: "
+                gh_summary.append(f"### {filter_type_capitalized} Regressions")
+                gh_summary.append(
+                    f"{len(regressions_of_concern)} {args.regression_filter_type} regressions. These regressions warrant a CI failure:"
                 )
-                gh_summary.println(
-                    f"<details><summary>{len(regressions_of_concern)} CI-failing regressions:</summary>"
-                )
-                gh_summary.println("")
+                gh_summary.append("")
             for test in regressions_of_concern:
                 print_regression(test, is_warning=True)
             if args.produce_github_summary:
-                gh_summary.println("</details>")
-                gh_summary.println("")
+                gh_summary.append("")
 
             if not args.dry_run:
                 if args.produce_github_summary:
-                    gh_summary.println("### Failed benchmarks:")
-                    gh_summary.println("")
-                    for test in regressions_of_concern:
-                        gh_summary.println(
-                            f"- {test['name']}: Delta {round(test['delta']*100, 2)}%"
-                        )
-                    gh_summary.write_file()
+                    write_summary_to_file(gh_summary)
                 exit(1)  # Exit 1 to trigger github test failure
 
         log.info("No unexpected regressions found!")
         if args.produce_github_summary:
-            gh_summary.println("No unexpected regressions found!")
-            gh_summary.write_file()
+            gh_summary.append("No unexpected regressions found!")
+            write_summary_to_file(gh_summary)
 
     else:
         log.error("Unsupported operation: exiting.")

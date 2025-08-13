@@ -170,7 +170,7 @@ runs:
         --results-dir "./llvm-ci-perf-results/results/" \
         --regression-filter '^[a-z_]+_sycl ' \
         --verbose \
-        --produce-github-summary \
+        --produce-github-summary "github_summary.md" \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
       echo "-----"
