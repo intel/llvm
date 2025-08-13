@@ -28,6 +28,7 @@ struct ESIMDProcessingOptions {
   bool LowerESIMD = false;
   bool SplitESIMD = false;
   unsigned OptLevel = 0;
+  bool ForceDisableESIMDOpt = false;
 };
 
 /// Lowers ESIMD constructs after separation from regular SYCL code.

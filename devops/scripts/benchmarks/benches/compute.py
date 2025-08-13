@@ -42,6 +42,7 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
 class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
+        self.submit_graph_num_kernels = [4, 10, 32]
 
     def name(self) -> str:
         return "Compute Benchmarks"
@@ -50,9 +51,9 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
+        return "c9e135d4f26dd6badd83009f92f25d6285fc1e21"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -72,6 +73,8 @@ class ComputeBench(Suite):
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
+            f"-DCMAKE_CXX_COMPILER=clang++",
+            f"-DCMAKE_C_COMPILER=clang",
         ]
 
         if options.ur_adapter == "cuda":
@@ -143,6 +146,18 @@ class ComputeBench(Suite):
                         range_min=base_metadata.range_min,
                     )
 
+        # Add metadata for all SubmitGraph group variants
+        base_metadata = metadata["SubmitGraph"]
+        for order in ["in order", "out of order"]:
+            for completion in ["", " with completion"]:
+                for events in ["", " using events"]:
+                    for num_kernels in self.submit_graph_num_kernels:
+                        group_name = f"SubmitGraph {order}{completion}{events}, {num_kernels} kernels"
+                        metadata[group_name] = BenchmarkMetadata(
+                            type="group",
+                            tags=base_metadata.tags,
+                        )
+
         return metadata
 
     def benchmarks(self) -> list[Benchmark]:
@@ -191,17 +206,31 @@ class ComputeBench(Suite):
 
             # Add GraphApiSubmitGraph benchmarks
             for in_order_queue in [0, 1]:
-                for num_kernels in [4, 10, 32]:
+                benches.append(
+                    GraphApiSubmitGraph(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        self.submit_graph_num_kernels[-1],
+                        0,
+                        useEvents=0,
+                        useHostTasks=1,
+                    )
+                )
+                for num_kernels in self.submit_graph_num_kernels:
                     for measure_completion_time in [0, 1]:
-                        benches.append(
-                            GraphApiSubmitGraph(
-                                self,
-                                runtime,
-                                in_order_queue,
-                                num_kernels,
-                                measure_completion_time,
+                        for use_events in [0, 1]:
+                            benches.append(
+                                GraphApiSubmitGraph(
+                                    self,
+                                    runtime,
+                                    in_order_queue,
+                                    num_kernels,
+                                    measure_completion_time,
+                                    use_events,
+                                    useHostTasks=0,
+                                )
                             )
-                        )
 
         # Add other benchmarks
         benches += [
@@ -303,6 +332,10 @@ class ComputeBenchmark(Benchmark):
         # Check if the specific runtime is enabled (or no specific runtime required)
         return self.runtime is None or self.runtime in self.enabled_runtimes()
 
+    def name(self):
+        """Returns the name of the benchmark, can be overridden."""
+        return self.bench_name
+
     def bin_args(self) -> list[str]:
         return []
 
@@ -320,7 +353,7 @@ class ComputeBenchmark(Benchmark):
     def description(self) -> str:
         return ""
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
@@ -331,7 +364,11 @@ class ComputeBenchmark(Benchmark):
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
 
-        result = self.run_bench(command, env_vars)
+        result = self.run_bench(
+            command,
+            env_vars,
+            run_unitrace=run_unitrace,
+        )
         parsed_results = self.parse_output(result)
         ret = []
         for label, median, stddev, unit in parsed_results:
@@ -808,22 +845,34 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         ]
 
 
-# TODO: once L0 SubmitGraph exists, this needs to be cleaned up split benchmarks into more groups,
-# set all the parameters (UseEvents 0/1) and
-# unify the benchmark naming scheme with SubmitKernel.
 class GraphApiSubmitGraph(ComputeBenchmark):
     def __init__(
-        self, bench, runtime: RUNTIMES, inOrderQueue, numKernels, measureCompletionTime
+        self,
+        bench,
+        runtime: RUNTIMES,
+        inOrderQueue,
+        numKernels,
+        measureCompletionTime,
+        useEvents,
+        useHostTasks,
     ):
         self.inOrderQueue = inOrderQueue
         self.numKernels = numKernels
         self.measureCompletionTime = measureCompletionTime
+        self.useEvents = useEvents
+        self.useHostTasks = useHostTasks
+        self.ioq_str = "in order" if self.inOrderQueue else "out of order"
+        self.measure_str = (
+            " with measure completion" if self.measureCompletionTime else ""
+        )
+        self.use_events_str = f" with events" if self.useEvents else ""
+        self.host_tasks_str = f" use host tasks" if self.useHostTasks else ""
         super().__init__(
             bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph", runtime
         )
 
     def explicit_group(self):
-        return f"SubmitGraph, numKernels: {self.numKernels}"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
 
     def description(self) -> str:
         return (
@@ -832,10 +881,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph, numKernels {self.numKernels}, ioq {self.inOrderQueue}, measureCompletion {self.measureCompletionTime}"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
 
     def get_tags(self):
         return [
@@ -854,8 +903,9 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--InOrderQueue={self.inOrderQueue}",
             "--Profiling=0",
             "--KernelExecutionTime=1",
-            "--UseEvents=0",  # not all implementations support UseEvents=1
+            f"--UseEvents={self.useEvents}",
             "--UseExplicit=0",
+            f"--UseHostTasks={self.useHostTasks}",
         ]
 
 

@@ -6,13 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: aspect-usm_device_allocations
+// REQUIRES: sycl-jit, aspect-usm_device_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
-
-// XFAIL: preview-mode && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -473,7 +470,7 @@ int test_error(sycl::queue q) {
     // yas!
     assert(e.code() == sycl::errc::build);
     assert(std::string(e.what()).find(
-               "error: expected ';' at end of declaration") !=
+               "error: use of undeclared identifier 'no'") !=
            std::string::npos);
   }
   return 0;

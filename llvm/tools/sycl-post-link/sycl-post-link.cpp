@@ -175,6 +175,10 @@ cl::opt<bool> OptLevelO3("O3",
                          cl::desc("Optimization level 3. Similar to clang -O3"),
                          cl::cat(PostLinkCat));
 
+cl::opt<bool> ForceDisableESIMDOpt("force-disable-esimd-opt", cl::Hidden,
+                                   cl::desc("Force no optimizations."),
+                                   cl::cat(PostLinkCat));
+
 cl::opt<module_split::IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional,
     cl::init(module_split::SPLIT_NONE),
@@ -612,7 +616,8 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
                                       AllowDeviceImageDependencies,
                                       LowerEsimd,
                                       SplitEsimd,
-                                      getOptLevel()};
+                                      getOptLevel(),
+                                      ForceDisableESIMDOpt};
     auto ModulesOrErr =
         handleESIMD(std::move(MDesc), Options, Modified, SplitOccurred);
     CHECK_AND_EXIT(ModulesOrErr.takeError());

@@ -20,7 +20,7 @@ int main() {
 }
 
 // Check declaration of the test kernel
-// CHECK: FunctionDecl {{.*}}SamplerLambda{{.*}} 'void (sampler_t)'
+// CHECK: FunctionDecl {{.*}}SamplerLambda{{.*}} 'void (sampler_t) __attribute__((device_kernel))'
 //
 // Check parameters of the test kernel
 // CHECK: ParmVarDecl {{.*}} used [[_arg_sampler:[0-9a-zA-Z_]+]] 'sampler_t'

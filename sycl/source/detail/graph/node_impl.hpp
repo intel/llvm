@@ -749,37 +749,13 @@ private:
   }
 };
 
-struct nodes_deref_impl {
-  template <typename T> static node_impl &dereference(T &Elem) {
-    using Ty = std::decay_t<decltype(Elem)>;
-    if constexpr (std::is_same_v<Ty, std::weak_ptr<node_impl>>) {
-      // This assumes that weak_ptr doesn't actually manage lifetime and
-      // the object is guaranteed to be alive (which seems to be the
-      // assumption across all graph code).
-      return *Elem.lock();
-    } else if constexpr (std::is_same_v<Ty, node>) {
-      return *getSyclObjImpl(Elem);
-    } else {
-      return *Elem;
-    }
-  }
-};
-
 template <typename... ContainerTy>
 using nodes_iterator_impl =
-    variadic_iterator<nodes_deref_impl, node,
-                      typename ContainerTy::const_iterator...>;
+    variadic_iterator<node, typename ContainerTy::const_iterator...>;
 
 using nodes_iterator = nodes_iterator_impl<
     std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
-    // Next one is temporary. It looks like `weak_ptr`s aren't
-    // used for the actual lifetime management and the objects are
-    // always guaranteed to be alive. Once the code is cleaned
-    // from `weak_ptr`s this alternative should be removed too.
-    std::vector<std::weak_ptr<node_impl>>,
-    //
     std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
-    //
     std::list<node_impl *>, std::vector<node>>;
 
 class nodes_range : public iterator_range<nodes_iterator> {
