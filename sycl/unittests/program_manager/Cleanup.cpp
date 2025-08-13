@@ -148,9 +148,14 @@ using PipeC = sycl::ext::intel::experimental::pipe<PipeIDC, int, 10>;
 sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId) {
   sycl::unittest::MockPropertySet PropSet;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::initializer_list<std::string> KernelNames{
       generateRefName(ImageId, "Kernel"),
       generateRefName(ImageId, "__sycl_service_kernel__")};
+#else
+  std::initializer_list<std::string> KernelNames{
+      generateRefName(ImageId, "Kernel")};
+#endif
   const std::vector<std::string> ExportedSymbols{
       generateRefName(ImageId, "Exported")};
   const std::vector<std::string> ImportedSymbols{

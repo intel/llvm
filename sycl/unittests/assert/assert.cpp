@@ -394,6 +394,9 @@ static void setupMockForInterop(sycl::unittest::UrMock<> &Mock,
       &TestInteropKernel::redefinedProgramGetBuildInfo);
 }
 
+// Fallback assert is deprecated and is removed under preview.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+
 #ifndef _WIN32
 void ChildProcess(int StdErrFD) {
   static constexpr int StandardStdErrFD = 2;
@@ -506,7 +509,6 @@ TEST(Assert, TestPositive) {
 #endif // _WIN32
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 TEST(Assert, TestAssertServiceKernelHidden) {
   const char *AssertServiceKernelName = sycl::detail::KernelInfo<
       sycl::detail::__sycl_service_kernel__::AssertInfoCopier>::getName();
