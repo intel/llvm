@@ -35,7 +35,7 @@ define weak_odr void @ESIMDKernel(float %arg1, float %arg2) !sycl_explicit_simd 
 ; The following two tests ensure that dead arguments are not eliminated
 ; from a free function kernel.
 
-define weak_odr spir_kernel void @FreeFuncKernelSingleTask(float %arg1, float %arg2) {
+define weak_odr spir_kernel void @FreeFuncKernelSingleTask(float %arg1, float %arg2) "sycl-single-task-kernel"="0" {
 ; CHECK-LABEL: define {{[^@]+}}@FreeFuncKernelSingleTask
 ; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) {
 ; CHECK-NEXT: call void @foo(float [[ARG1]])
