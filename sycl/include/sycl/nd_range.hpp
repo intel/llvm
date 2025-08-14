@@ -16,7 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace ext::oneapi::experimental {
-  class RangesRefT;
+class RangesRefT;
 }
 
 /// Defines the iteration domain of both the work-groups and the overall

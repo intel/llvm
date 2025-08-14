@@ -1,4 +1,4 @@
-//==-------- rangesref.hpp --- SYCL iteration with reference to ranges --------==//
+//==-------- rangesref.hpp --- SYCL iteration with reference to ranges -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,22 +25,19 @@ public:
 
   template <int Dims_>
   RangesRefT(sycl::range<Dims_> &GlobalSizes, sycl::range<Dims_> &LocalSizes)
-      : GlobalSize(&(GlobalSizes[0])),
-    LocalSize(&(LocalSizes[0])),
-    Dims{size_t(Dims_)} {}
+      : GlobalSize(&(GlobalSizes[0])), LocalSize(&(LocalSizes[0])),
+        Dims{size_t(Dims_)} {}
 
   // to support usage in sycl::ext::oneapi::experimental::submit_with_event()
   template <int Dims_>
   RangesRefT(sycl::nd_range<Dims_> &ExecutionRange)
       : GlobalSize(&ExecutionRange.globalSize[0]),
-    LocalSize(&ExecutionRange.localSize[0]),
-    GlobalOffset(&ExecutionRange.offset[0]),
-    Dims{size_t(Dims_)} {}
+        LocalSize(&ExecutionRange.localSize[0]),
+        GlobalOffset(&ExecutionRange.offset[0]), Dims{size_t(Dims_)} {}
 
   template <int Dims_>
   RangesRefT(sycl::range<Dims_> &Range)
-      : GlobalSize(&(Range[0])),
-    Dims{size_t(Dims_)} {}
+      : GlobalSize(&(Range[0])), Dims{size_t(Dims_)} {}
 
   RangesRefT &operator=(const RangesRefT &Desc) = default;
   RangesRefT &operator=(RangesRefT &&Desc) = default;
@@ -52,5 +49,5 @@ public:
 };
 
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
