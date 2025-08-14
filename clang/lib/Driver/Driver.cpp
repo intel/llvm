@@ -5744,13 +5744,6 @@ class OffloadingActionBuilder final {
           SmallString<128> LibName(LLCandidate);
           llvm::sys::path::append(LibName, DeviceLib);
           if (llvm::sys::fs::exists(LibName)) {
-            // NativeCPU currently only needs libsycl-nativecpu_utils and
-            // libclc, so temporarily skip other device libs in invocation.
-            // Todo: remove once NativeCPU tests the other libraries.
-            if (isNativeCPU &&
-                !LibName.str().contains("libsycl-nativecpu_utils"))
-              continue;
-
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
@@ -5775,7 +5768,7 @@ class OffloadingActionBuilder final {
         }
       }
 
-      if (!NumOfDeviceLibLinked)
+      if (!NumOfDeviceLibLinked && !TC->getTriple().isNVPTX())
         return false;
 
       // For NVPTX we need to also link libclc at the same stage that we link
