@@ -169,6 +169,7 @@ runs:
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
         --regression-filter '^[a-z_]+_sycl ' \
+        --regression-filter-type 'SYCL' \
         --verbose \
         --produce-github-summary "github_summary.md" \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
