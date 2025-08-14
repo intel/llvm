@@ -80,7 +80,7 @@ jobs:
   build-win:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
+      build_configure_extra_args: '-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off --disable-jit --no-assertions --add_security_flags=sanitize'
       pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
