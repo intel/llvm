@@ -273,7 +273,8 @@ void GlobalHandler::releaseDefaultContexts() {
 // a low priority destructor.
 struct StaticVarShutdownHandler {
   StaticVarShutdownHandler(const StaticVarShutdownHandler &) = delete;
-  StaticVarShutdownHandler &operator=(const StaticVarShutdownHandler &) = delete;
+  StaticVarShutdownHandler &
+  operator=(const StaticVarShutdownHandler &) = delete;
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
