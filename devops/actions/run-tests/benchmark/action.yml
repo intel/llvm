@@ -105,12 +105,12 @@ runs:
       echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
 
   - name: Download UR build archive
-    if: inputs.toolchain_artifact != ''
+    if: inputs.ur_artifact != ''
     uses: actions/download-artifact@v4
     with:
       name: ${{ inputs.ur_artifact }}
   - name: Extract/Setup UR build archive
-    if: inputs.toolchain_artifact != ''
+    if: inputs.ur_artifact != ''
     shell: bash
     run: |
       mkdir -p ur/install
