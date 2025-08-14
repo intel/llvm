@@ -29,8 +29,8 @@ int main() {
   return 0;
 }
 
-// CHECK: define dso_local spir_kernel void @{{.*}}test_kernel1() #0 {{.*}} !pipeline_kernel ![[NUM5:[0-9]+]]
-// CHECK: define dso_local spir_kernel void @{{.*}}test_kernel2() #0 {{.*}} ![[NUM4:[0-9]+]]
-// CHECK: define dso_local spir_kernel void @{{.*}}test_kernel3() #0 {{.*}} !pipeline_kernel ![[NUM5]]
+// CHECK: define weak_odr spir_kernel void @{{.*}}test_kernel1() #0 {{.*}} !pipeline_kernel ![[NUM5:[0-9]+]]
+// CHECK: define weak_odr spir_kernel void @{{.*}}test_kernel2() #0 {{.*}} ![[NUM4:[0-9]+]]
+// CHECK: define weak_odr spir_kernel void @{{.*}}test_kernel3() #0 {{.*}} !pipeline_kernel ![[NUM5]]
 // CHECK: ![[NUM4]] = !{}
 // CHECK: ![[NUM5]] = !{i32 0}
