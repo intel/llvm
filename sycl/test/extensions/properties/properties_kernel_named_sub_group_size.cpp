@@ -3,22 +3,40 @@
 // expected-no-diagnostics
 #include <sycl/sycl.hpp>
 
+struct SGSizePrimaryKernelFunctor {
+  SGSizePrimaryKernelFunctor() {}
+
+  void operator()(sycl::nd_item<1>) const {}
+
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::sub_group_size_primary};
+  }
+};
+
+struct SGSizeAutoKernelFunctor {
+  SGSizeAutoKernelFunctor() {}
+
+  void operator()(sycl::nd_item<1>) const {}
+
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::sub_group_size_automatic};
+  }
+};
+
 int main() {
-  sycl::queue q;
-  sycl::nd_range<1> ndr{6, 2};
+  sycl::queue Q;
+  sycl::nd_range<1> NDRange{6, 2};
 
-  // CHECK: spir_kernel void @{{.*}}Kernel1()
+  // CHECK: spir_kernel void @{{.*}}SGSizePrimaryKernelFunctor()
   // CHECK-SAME: !intel_reqd_sub_group_size ![[SGSizeAttr:[0-9]+]]
-  sycl::ext::oneapi::experimental::properties P1{
-      sycl::ext::oneapi::experimental::sub_group_size_primary};
-  q.parallel_for<class Kernel1>(ndr, P1, [=](auto id) {});
+  Q.parallel_for(NDRange, SGSizePrimaryKernelFunctor{});
 
-  // CHECK: spir_kernel void @{{.*}}Kernel2()
+  // CHECK: spir_kernel void @{{.*}}SGSizeAutoKernelFunctor()
   // CHECK-NOT: intel_reqd_sub_group_size
   // CHECK-SAME: {
-  sycl::ext::oneapi::experimental::properties P2{
-      sycl::ext::oneapi::experimental::sub_group_size_automatic};
-  q.parallel_for<class Kernel2>(ndr, P2, [=](auto id) {});
+  Q.parallel_for(NDRange, SGSizeAutoKernelFunctor{});
 }
 
 // CHECK: ![[SGSizeAttr]] = !{i32 -1}
