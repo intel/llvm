@@ -131,8 +131,8 @@ auto addDeclarationsForNativeCPU(
         "SYCL_PropSetName");
     auto S =
         ConstantStruct::get(SyclPropSetTy, Category, Props.first, Props.second);
-    auto T = Wrapp.addStructArrayToModule({S}, SyclPropSetTy);
-    PropValue = T.first;
+    auto Temp = Wrapp.addStructArrayToModule({S}, SyclPropSetTy);
+    PropValue = Temp.first;
   }
 
   // Create the nativecpu_program struct.
