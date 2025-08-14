@@ -2308,6 +2308,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, LI);
   }
 
+  case OpImage: {
+    auto *Inst = static_cast<SPIRVImage *>(BV);
+    SPIRVValue *SampledImage = Inst->getOperand(0);
+    auto *SampledInst = static_cast<SPIRVSampledImage *>(SampledImage);
+    return mapValue(BV, transValue(SampledInst->getOperand(0), F, BB));
+  }
+
   case OpAccessChain:
   case OpInBoundsAccessChain:
   case OpPtrAccessChain:

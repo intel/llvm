@@ -1056,7 +1056,6 @@ private:
 _SPIRV_OP(Nop)
 _SPIRV_OP(SourceContinued)
 _SPIRV_OP(TypeRuntimeArray)
-_SPIRV_OP(Image)
 _SPIRV_OP(ImageTexelPointer)
 _SPIRV_OP(ImageSampleDrefImplicitLod)
 _SPIRV_OP(ImageSampleDrefExplicitLod)
