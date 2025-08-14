@@ -39,15 +39,6 @@ AsyncAlloc/device/ooo_queue_async_alloc_from_pool.cpp
 
 # Need more investigation by the author:
 
-# https://github.com/intel/llvm/pull/18314
-Assert/assert_in_kernels.cpp
-Assert/assert_in_multiple_tus.cpp
-Assert/assert_in_multiple_tus_one_ndebug.cpp
-Assert/assert_in_one_kernel.cpp
-Assert/assert_in_simultaneous_kernels.cpp
-Assert/assert_in_simultaneously_multiple_tus.cpp
-Assert/assert_in_simultaneously_multiple_tus_one_ndebug.cpp
-
 # https://github.com/intel/llvm/pull/17442
 KernelCompiler/opencl.cpp
 KernelCompiler/opencl_cache_eviction.cpp
