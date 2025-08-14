@@ -2170,7 +2170,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           m_VFSet2BinImage.erase(It);
       }
     }
-  
+
     m_DeviceGlobals.eraseEntries(Img);
 
     {

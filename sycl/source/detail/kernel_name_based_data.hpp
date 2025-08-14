@@ -24,9 +24,9 @@ using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
 
 struct FastKernelCacheVal {
   Managed<ur_kernel_handle_t> MKernelHandle; /* UR kernel. */
-  std::mutex *MMutex;                  /* Mutex guarding this kernel. When
-                                     caching is disabled, the pointer is
-                                     nullptr. */
+  std::mutex *MMutex;                        /* Mutex guarding this kernel. When
+                                           caching is disabled, the pointer is
+                                           nullptr. */
   const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
   Managed<ur_program_handle_t> MProgramHandle; /* UR program handle
                                     corresponding to this kernel. */
