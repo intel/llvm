@@ -1,5 +1,9 @@
 // REQUIRES: linux && preview-breaking-changes-supported && !aspect-ext_oneapi_native_assert
 //
+// L0 does not currently abort after synchronizing with a failing kernel. 
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-TRACKER: GSD-11097
+//
 // RUN: %{build} -fpreview-breaking-changes -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 //

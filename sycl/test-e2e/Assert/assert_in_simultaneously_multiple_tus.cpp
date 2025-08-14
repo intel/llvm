@@ -4,7 +4,7 @@
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -Wno-error=#warnings -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
+// RUN: %{build} -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero adapter to avoid releasing memory

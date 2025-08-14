@@ -8,9 +8,10 @@
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
-
-// Test requires at least this version of the Intel GPU driver on Arc.
-// REQUIRES-INTEL-DRIVER: lin: 31294
+//
+// L0 does not currently abort after synchronizing with a failing kernel. 
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-TRACKER: GSD-11097
 
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -Wno-error=#warnings -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if fpga %{ --check-prefix=CHECK-ACC %}
