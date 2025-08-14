@@ -306,6 +306,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // Back to the D3D11 process
   ThrowIfFailed(keyedMutex->ReleaseSync(d3d11ProgramState.key));
 
+  printf("HERE\n");
   // Read-back and verify
   int errc = 1;
   if (ComPtr<ID3D11Resource> resource; SUCCEEDED(texture.As(&resource))) {
@@ -315,6 +316,7 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
       errc = 0;
     }
   }
+  printf("errc = %d\n", errc);
 
   // cleanup of the shared handle.
   CloseNTHandle(sharedHandle);
@@ -350,18 +352,23 @@ int main() {
 #else
   const sycl::range<1> globalSize1D{4096};
 #endif
+  printf("Running 1D texture interop tests...\n");
   errors += runTest<1, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize1D, sycl::range{256});
+  printf("Running 1D texture interop tests with unorm_int8...\n");
   errors += runTest<1, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize1D, sycl::range{256});
+  printf("Running 1D texture interop tests with fp32...\n");
   errors += runTest<1, float, 1>(d3d11ProgramState, syclQueue,
                                  sycl::image_channel_type::fp32, globalSize1D,
                                  sycl::range{256});
+  printf("Running 1D texture interop tests with fp16...\n");
   errors += runTest<1, sycl::half, 2>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize1D, sycl::range{256});
+  printf("Running 1D texture interop tests with fp16 and 4 channels...\n");
   errors += runTest<1, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize1D, sycl::range{256});
@@ -376,18 +383,23 @@ int main() {
       sycl::range{1024, 1024}, sycl::range{1920, 1080}, sycl::range{1920, 1080},
       sycl::range{1280, 720}, sycl::range{1280, 720}};
 #endif
+  printf("Running 2D texture interop tests...\n");
   errors += runTest<2, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize2D[0], sycl::range{16, 16});
+  printf("Running 2D texture interop tests with unorm_int8...\n");
   errors += runTest<2, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize2D[1], sycl::range{16, 8});
+  printf("Running 2D texture interop tests with fp32...\n");
   errors += runTest<2, float, 1>(d3d11ProgramState, syclQueue,
                                  sycl::image_channel_type::fp32,
                                  globalSize2D[2], sycl::range{16, 8});
+  printf("Running 2D texture interop tests with fp16...\n");
   errors += runTest<2, sycl::half, 2>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize2D[3], sycl::range{16, 16});
+  printf("Running 2D texture interop tests with fp16 and 4 channels...\n");
   errors += runTest<2, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize2D[4], sycl::range{16, 16});
@@ -403,18 +415,23 @@ int main() {
       sycl::range{1920, 1080, 8}, sycl::range{1280, 720, 4},
       sycl::range{1280, 720, 4}};
 #endif
+  printf("Running 3D texture interop tests...\n");
   errors += runTest<3, uint32_t, 1>(d3d11ProgramState, syclQueue,
                                     sycl::image_channel_type::unsigned_int32,
                                     globalSize3D[0], sycl::range{16, 16, 1});
+  printf("Running 3D texture interop tests with unorm_int8...\n");
   errors += runTest<3, uint8_t, 4>(d3d11ProgramState, syclQueue,
                                    sycl::image_channel_type::unorm_int8,
                                    globalSize3D[1], sycl::range{16, 8, 2});
+  printf("Running 3D texture interop tests with fp32...\n");
   errors += runTest<3, float, 1>(d3d11ProgramState, syclQueue,
                                  sycl::image_channel_type::fp32,
                                  globalSize3D[2], sycl::range{16, 8, 1});
+  printf("Running 3D texture interop tests with fp16...\n");
   errors += runTest<3, sycl::half, 2>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[3], sycl::range{16, 16, 1});
+  printf("Running 3D texture interop tests with fp16 and 4 channels...\n");
   errors += runTest<3, sycl::half, 4>(d3d11ProgramState, syclQueue,
                                       sycl::image_channel_type::fp16,
                                       globalSize3D[4], sycl::range{16, 16, 1});
