@@ -49,11 +49,6 @@ AsyncAlloc/device/ooo_queue_async_alloc_from_pool.cpp
 
 # Need more investigation by the author:
 
-# https://github.com/intel/llvm/pull/17442
-KernelCompiler/opencl.cpp
-KernelCompiler/opencl_cache_eviction.cpp
-KernelCompiler/opencl_queries.cpp
-
 # https://github.com/intel/llvm/pull/18403 (pulldown, so probably offload-tools
 # team should be looking into this)
 DeviceImageDependencies/NewOffloadDriver/dynamic.cpp
