@@ -953,7 +953,7 @@ getSystemOffloadArchs(Compilation &C, Action::OffloadKind Kind) {
 
   SmallVector<std::string> GPUArchs;
   if (llvm::ErrorOr<std::string> Executable =
-          llvm::sys::findProgramByName(Program)) {
+          llvm::sys::findProgramByName(Program, {C.getDriver().Dir})) {
     llvm::SmallVector<StringRef> Args{*Executable};
     if (Kind == Action::OFK_HIP)
       Args.push_back("--only=amdgpu");
@@ -1072,7 +1072,9 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
     Arg *A = new Arg(Opt, C.getArgs().getArgString(Index), Index,
                      C.getArgs().MakeArgString(Triple.split("-").first),
                      C.getArgs().MakeArgString("--offload-arch=" + Arch));
+    A->claim();
     C.getArgs().append(A);
+    C.getArgs().AddSynthesizedArg(A);
     Triples.insert(Triple);
   }
 
