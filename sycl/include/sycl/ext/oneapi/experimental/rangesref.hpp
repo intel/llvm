@@ -45,7 +45,7 @@ public:
   const size_t *GlobalSize = nullptr;
   const size_t *LocalSize = nullptr;
   const size_t *GlobalOffset = nullptr;
-  const size_t Dims = 0;
+  size_t Dims = 0;
 };
 
 } // namespace ext::oneapi::experimental
