@@ -111,6 +111,7 @@ runs:
       name: ${{ inputs.ur_artifact }}
   - name: Extract/Setup UR build archive
     if: inputs.toolchain_artifact != ''
+    shell: bash
     run: |
       mkdir -p ur/install
       tar -I '${{ inputs.ur_decompress_command }}' -xf ${{ inputs.ur_artifact_filename }} -C ur/install
