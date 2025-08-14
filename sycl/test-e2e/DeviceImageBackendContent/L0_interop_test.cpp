@@ -20,6 +20,12 @@ extern "C" SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 }
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  assert(result == ZE_RESULT_SUCCESS);
+
   sycl::queue q;
   sycl::context ctxt = q.get_context();
   sycl::device d = ctxt.get_devices()[0];
