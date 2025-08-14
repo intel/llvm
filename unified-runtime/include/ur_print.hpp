@@ -3113,6 +3113,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
     break;
+  case UR_DEVICE_INFO_SUB_GROUP_PRIMARY_SIZE_EXP:
+    os << "UR_DEVICE_INFO_SUB_GROUP_PRIMARY_SIZE_EXP";
+    break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
     break;
@@ -5238,6 +5241,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     ur::details::printFlag<ur_exp_device_2d_block_array_capability_flag_t>(
         os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_SUB_GROUP_PRIMARY_SIZE_EXP: {
+    const uint32_t *tptr = (const uint32_t *)ptr;
+    if (sizeof(uint32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
 
     os << ")";
   } break;

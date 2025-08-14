@@ -1,0 +1,24 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental device descriptor for querying the primary sub-group size"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enum to $x_device_info_t to query primary sub-group size."
+name: $x_device_info_t
+etors:
+    - name: SUB_GROUP_PRIMARY_SIZE_EXP
+      value: "0x2023"
+      desc: "[uint32_t][optional-query] return a 32-bit unsigned integer representing the primary sub-group size of the device."
+
