@@ -1,4 +1,4 @@
-//==--------------------- kernel_name_based_cache.hpp ----------------------==//
+//==--------------------- get_kernel_name_based_data.hpp -------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,21 +14,22 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-class KernelNameBasedCacheT;
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+class KernelNameBasedCacheT;
 __SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();
 #endif
-__SYCL_EXPORT KernelNameBasedCacheT *
-createKernelNameBasedCache(detail::ABINeutralKernelNameStrRefT MKernelName);
 
-// Retrieves a cache pointer unique to a kernel name type that can be used to
-// avoid kernel name based lookup in the runtime.
+class KernelNameBasedData;
+
+__SYCL_EXPORT KernelNameBasedData *
+getKernelNameBasedDataImpl(detail::ABINeutralKernelNameStrRefT KernelName);
+
+// Retrieves and caches a data pointer to avoid kernel name based lookup
+// overhead.
 template <typename KernelNameT>
-KernelNameBasedCacheT *
-getKernelNameBasedCache(detail::ABINeutralKernelNameStrRefT KernelName) {
-  static KernelNameBasedCacheT *Instance =
-      createKernelNameBasedCache(KernelName);
+KernelNameBasedData *
+getKernelNameBasedData(detail::ABINeutralKernelNameStrRefT KernelName) {
+  static KernelNameBasedData *Instance = getKernelNameBasedDataImpl(KernelName);
   return Instance;
 }
 

@@ -1084,7 +1084,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName, KernelNameBasedCacheT &KernelNameBasedCache,
+    KernelNameStrRefT KernelName, KernelNameBasedData &KernelNameBasedData,
     const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
@@ -1095,7 +1095,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     if (auto KernelCacheValPtr = Cache.tryToGetKernelFast(
-            KernelName, UrDevice, KernelNameBasedCache.getKernelSubcache())) {
+            KernelName, UrDevice, KernelNameBasedData.getKernelSubcache())) {
       return KernelCacheValPtr;
     }
   }
@@ -1148,7 +1148,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
       KernelArgMaskPair.first.retain(), &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
   Cache.saveKernel(KernelName, UrDevice, ret_val,
-                   KernelNameBasedCache.getKernelSubcache());
+                   KernelNameBasedData.getKernelSubcache());
   return ret_val;
 }
 
@@ -1820,17 +1820,17 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
   return {};
 }
 
-KernelNameBasedCacheT *
-ProgramManager::createKernelNameBasedCache(KernelNameStrRefT KernelName) {
-  auto Result = m_KernelNameBasedCaches.try_emplace(KernelName, KernelName);
+KernelNameBasedData *
+ProgramManager::createKernelNameBasedData(KernelNameStrRefT KernelName) {
+  auto Result = m_KernelNameBasedDatas.try_emplace(KernelName, KernelName);
   assert(Result.second && "Kernel name based cache instance already exists");
   return &Result.first->second;
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-KernelNameBasedCacheT *
-ProgramManager::getOrCreateKernelNameBasedCache(KernelNameStrRefT KernelName) {
-  auto Result = m_KernelNameBasedCaches.try_emplace(KernelName, KernelName);
+KernelNameBasedData *
+ProgramManager::getOrCreateKernelNameBasedData(KernelNameStrRefT KernelName) {
+  auto Result = m_KernelNameBasedDatas.try_emplace(KernelName, KernelName);
   return &Result.first->second;
 }
 #endif
@@ -2242,7 +2242,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         // share lifetime.
         m_KernelUsesAssert.erase(Name);
         m_KernelImplicitLocalArgPos.erase(Name);
-        m_KernelNameBasedCaches.erase(Name);
+        m_KernelNameBasedDatas.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
         if (Name2IDIt != m_KernelName2KernelIDs.end())
           m_KernelName2KernelIDs.erase(Name2IDIt);

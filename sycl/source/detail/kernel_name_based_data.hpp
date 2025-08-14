@@ -1,4 +1,4 @@
-//==-------------------- kernel_name_based_cache_t.hpp ---------------------==//
+//==---------------------- kernel_name_based_data.hpp ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -80,12 +80,12 @@ struct FastKernelSubcacheT {
 // This class is used for caching kernel name based information.
 // Pointers to instances of this class are stored in header function templates
 // as a static variable to avoid repeated runtime lookup overhead.
-class KernelNameBasedCacheT {
+class KernelNameBasedData {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedCacheT() = default;
+  KernelNameBasedData() = default;
 #endif
-  KernelNameBasedCacheT(KernelNameStrRefT KernelName);
+  KernelNameBasedData(KernelNameStrRefT KernelName);
 
   void init(KernelNameStrRefT KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

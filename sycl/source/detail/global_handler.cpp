@@ -14,7 +14,7 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
+#include <detail/kernel_name_based_data.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -251,10 +251,11 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<KernelNameBasedCacheT> &KernelNameBasedCaches =
-      getOrCreate(MKernelNameBasedCaches);
-  LockGuard LG{MKernelNameBasedCaches.Lock};
-  return &KernelNameBasedCaches.emplace_back();
+  static std::deque<KernelNameBasedData> &KernelNameBasedDataStorage =
+      getOrCreate(MKernelNameBasedDataStorage);
+  LockGuard LG{MKernelNameBasedDataStorage.Lock};
+  return reinterpret_cast<KernelNameBasedCacheT *>(
+      &KernelNameBasedDataStorage.emplace_back());
 }
 #endif
 
@@ -393,7 +394,7 @@ void shutdown_late() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Cache stores handles to the adapter, so clear it before
   // releasing adapters.
-  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
+  Handler->MKernelNameBasedDataStorage.Inst.reset(nullptr);
 #endif
 
   // Clear the adapters and reset the instance if it was there.

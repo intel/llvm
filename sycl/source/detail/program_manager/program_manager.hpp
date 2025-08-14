@@ -13,7 +13,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
+#include <detail/kernel_name_based_data.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -201,7 +201,7 @@ public:
   FastKernelCacheValPtr
   getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
-                    KernelNameBasedCacheT &KernelNameBasedCache,
+                    KernelNameBasedData &KernelNameBasedData,
                     const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
@@ -376,12 +376,11 @@ public:
   std::optional<int>
   kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
 
-  KernelNameBasedCacheT *
-  createKernelNameBasedCache(KernelNameStrRefT KernelName);
+  KernelNameBasedData *createKernelNameBasedData(KernelNameStrRefT KernelName);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedCacheT *
-  getOrCreateKernelNameBasedCache(KernelNameStrRefT KernelName);
+  KernelNameBasedData *
+  getOrCreateKernelNameBasedData(KernelNameStrRefT KernelName);
 #endif
 
   std::set<const RTDeviceBinaryImage *>
@@ -542,8 +541,8 @@ protected:
 
   // Map for storing kernel name based caches. Runtime lookup should only be
   // performed for ABI compatibility and user library unloading.
-  std::unordered_map<KernelNameStrT, KernelNameBasedCacheT>
-      m_KernelNameBasedCaches;
+  std::unordered_map<KernelNameStrT, KernelNameBasedData>
+      m_KernelNameBasedDatas;
 
   // Sanitizer type used in device image
   SanitizerType m_SanitizerFoundInImage;

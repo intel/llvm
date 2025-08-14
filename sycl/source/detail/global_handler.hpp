@@ -29,7 +29,10 @@ class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 class KernelNameBasedCacheT;
+class KernelNameBasedData;
+#endif
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -135,7 +138,7 @@ private:
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  InstWithLock<std::deque<KernelNameBasedCacheT>> MKernelNameBasedCaches;
+  InstWithLock<std::deque<KernelNameBasedData>> MKernelNameBasedDataStorage;
 #endif
 };
 } // namespace detail
