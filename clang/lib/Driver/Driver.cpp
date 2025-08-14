@@ -997,7 +997,6 @@ inferOffloadToolchains(Compilation &C, Action::OffloadKind Kind) {
                                 options::OPT_no_offload_new_driver, false)) {
     C.getDriver().Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
     return llvm::DenseSet<llvm::StringRef>();
-    ;
   }
   std::set<std::string> Archs;
   for (Arg *A : C.getInputArgs()) {
