@@ -630,7 +630,7 @@ private:
   }
 
   template <class T, class T2>
-  friend auto sycl::utils::addDeclarationsForNativeCPU<T>(
+  friend auto sycl::utils::addDeclarationsForNativeCPU(
       T &, const std::optional<util::PropertySet> &p, const MemoryBuffer *,
       LLVMContext &, Module &, const T2 &f, StructType *) -> decltype(f(*p));
 
