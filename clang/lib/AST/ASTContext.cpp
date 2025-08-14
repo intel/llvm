@@ -12824,7 +12824,8 @@ static GVALinkage adjustGVALinkageForAttributes(const ASTContext &Context,
     if (Context.shouldExternalize(D))
       return GVA_StrongExternal;
   } else if (Context.getLangOpts().SYCLIsDevice &&
-             D->hasAttr<DeviceKernelAttr>()) {
+             (D->hasAttr<DeviceKernelAttr>() &&
+              D->getAttr<DeviceKernelAttr>()->isImplicit())) {
     if (L == GVA_DiscardableODR)
       return GVA_StrongODR;
   }

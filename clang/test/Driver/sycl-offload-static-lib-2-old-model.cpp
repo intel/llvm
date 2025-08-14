@@ -246,7 +246,7 @@
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}llvm-spirv{{.*}} "-o" "[[OBJLIST:.+\.txt]]"{{.*}} "[[LIST]]"
 // STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}clang{{.*}} "-o" "[[PTXLIST:.+]]" "-x" "ir" "[[LIST]]"
 // STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}ptxas{{.*}} "--output-file" "[[CUBINLIST:.+]]"{{.*}}  "[[PTXLIST]]"
-// STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}fatbin{{.*}} "--create" "[[OBJLIST:.+]]"{{.*}} "--image={{.*}}[[PTXLIST]]" "--image={{.*}}[[CUBINLIST]]"
+// STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}fatbin{{.*}} "--create" "[[OBJLIST:.+]]"{{.*}} "--image3={{.*}}[[PTXLIST]]" "--image3={{.*}}[[CUBINLIST]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[TABLE1:.+\.table]]" "[[TABLE]]" "[[OBJLIST]]"
 // STATIC_LIB_NOSRC: clang-offload-wrapper{{.*}} "-o=[[BCFILE2:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}}"-target=[[TARGET]]" "-kind=sycl" "-batch" "[[TABLE1]]"
 // STATIC_LIB_NOSRC: clang{{.*}} "-c" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"

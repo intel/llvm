@@ -1,7 +1,4 @@
 // RUN: %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-//
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19409
 
 // Tests for warnings when propagated aspects do not match the aspects available
 // in a function, as specified through the 'sycl::device_has' property.

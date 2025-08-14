@@ -38,8 +38,10 @@ template <typename Group> struct group_scope;
 
 namespace ext::oneapi {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // forward decalre sycl::ext::oneapi::sub_group
 struct sub_group;
+#endif
 
 // defining `group_ballot` here to make predicate default `true`
 // need to forward declare sub_group_mask first
@@ -360,8 +362,11 @@ ext::oneapi::sub_group_mask commonGroupBallotImpl(Group G, bool Predicate) {
           Val, __spirv_BuiltInSubgroupMaxSize());
   // For sub-groups we do not need to apply the mask, but for others it will
   // split converging groups accordingly.
-  if constexpr (!std::is_same_v<std::decay_t<Group>, ext::oneapi::sub_group> &&
-                !std::is_same_v<std::decay_t<Group>, sycl::sub_group>)
+  if constexpr (
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+      !std::is_same_v<std::decay_t<Group>, ext::oneapi::sub_group> &&
+#endif
+      !std::is_same_v<std::decay_t<Group>, sycl::sub_group>)
     Mask &= sycl::detail::GetMask(G);
   return Mask;
 }
