@@ -13,7 +13,6 @@
 
 #include <tuple> // for _Swallow_assign, ignore
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
@@ -35,4 +34,3 @@ private:
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
-#endif
