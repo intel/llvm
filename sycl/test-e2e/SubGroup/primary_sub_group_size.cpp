@@ -1,7 +1,11 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/named_sub_group_sizes.hpp>
+#include <sycl/sub_group.hpp>
+#include <sycl/usm.hpp>
 
 struct SGSizePrimaryKernelFunctor {
   SGSizePrimaryKernelFunctor(uint32_t *OutPtr) : Out{OutPtr} {}
@@ -21,7 +25,7 @@ struct SGSizePrimaryKernelFunctor {
 int main() {
   sycl::queue Q;
 
-  uint32_t *OutPtr = sycl::malloc<uint32_t>(1, Q);
+  uint32_t *OutPtr = sycl::malloc_shared<uint32_t>(1, Q);
   Q.parallel_for(sycl::nd_range<1>{1, 1}, SGSizePrimaryKernelFunctor{OutPtr})
       .wait();
 
