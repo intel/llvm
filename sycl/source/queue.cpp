@@ -221,27 +221,29 @@ void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
   submit_without_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
-event queue::submit_impl_and_postprocess(
-    std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
-    const detail::SubmitPostProcessF &) {
+event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                         const detail::code_location &CodeLoc,
+                                         const detail::SubmitPostProcessF &) {
   return submit_with_event_impl(std::move(CGH), {}, CodeLoc, true);
 }
-event queue::submit_impl_and_postprocess(
-    std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
-    const detail::SubmitPostProcessF &, bool IsTopCodeLoc) {
+event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                         const detail::code_location &CodeLoc,
+                                         const detail::SubmitPostProcessF &,
+                                         bool IsTopCodeLoc) {
   return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
-event queue::submit_impl_and_postprocess(
-    std::function<void(handler &)> CGH, queue SecondQueue,
-    const detail::code_location &CodeLoc,
-    const detail::SubmitPostProcessF &) {
+event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                         queue SecondQueue,
+                                         const detail::code_location &CodeLoc,
+                                         const detail::SubmitPostProcessF &) {
   return impl->submit(CGH, SecondQueue.impl, CodeLoc, true);
 }
-event queue::submit_impl_and_postprocess(
-    std::function<void(handler &)> CGH, queue SecondQueue,
-    const detail::code_location &CodeLoc,
-    const detail::SubmitPostProcessF &, bool IsTopCodeLoc) {
+event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                         queue SecondQueue,
+                                         const detail::code_location &CodeLoc,
+                                         const detail::SubmitPostProcessF &,
+                                         bool IsTopCodeLoc) {
   return impl->submit(CGH, SecondQueue.impl, CodeLoc, IsTopCodeLoc);
 }
 
