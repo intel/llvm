@@ -36,6 +36,7 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
@@ -745,8 +746,9 @@ event handler::finalize() {
                                              MCodeLoc));
     break;
   case detail::CGType::PrefetchUSM:
-    CommandGroup.reset(new detail::CGPrefetchUSM(
-        MDstPtr, MLength, std::move(impl->CGData), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGPrefetchUSM(MDstPtr, MLength, std::move(impl->CGData),
+                                  impl->MPrefetchType, MCodeLoc));
     break;
   case detail::CGType::AdviseUSM:
     CommandGroup.reset(new detail::CGAdviseUSM(MDstPtr, MLength, impl->MAdvice,
@@ -1499,6 +1501,16 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
+  impl->MPrefetchType = ext::oneapi::experimental::prefetch_type::device;
+  setType(detail::CGType::PrefetchUSM);
+}
+
+void handler::prefetch(const void *Ptr, size_t Count,
+                       ext::oneapi::experimental::prefetch_type Type) {
+  throwIfActionIsCreated();
+  MDstPtr = const_cast<void *>(Ptr);
+  MLength = Count;
+  impl->MPrefetchType = Type;
   setType(detail::CGType::PrefetchUSM);
 }
 
