@@ -386,9 +386,8 @@ if __name__ == "__main__":
             )
 
             def write_summary_to_file(summary: list[str]):
-                with open(args.produce_github_summary, 'w') as f:
+                with open(args.produce_github_summary, "w") as f:
                     f.write("\n".join(summary))
-
 
         # Not all regressions are of concern: if a filter is provided, filter
         # regressions using filter
@@ -421,7 +420,9 @@ if __name__ == "__main__":
                     f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
                 )
                 gh_summary.append(f"- Run result: {entry['value']}")
-                gh_summary.append(f"- Delta: {round(entry['delta']*100, 2)}% ({entry['delta']})")
+                gh_summary.append(
+                    f"- Delta: {round(entry['delta']*100, 2)}% ({entry['delta']})"
+                )
                 gh_summary.append("")
 
         if improvements:
