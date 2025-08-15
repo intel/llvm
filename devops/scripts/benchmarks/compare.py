@@ -474,14 +474,14 @@ if __name__ == "__main__":
             if not args.dry_run:
                 if args.produce_github_summary:
                     with open(options.github_summary_filename, "w") as f:
-                        f.write("\n".join(summary))
+                        f.write("\n".join(gh_summary))
                 exit(1)  # Exit 1 to trigger Github test failure
 
         log.info("No unexpected regressions found!")
         if args.produce_github_summary:
             gh_summary.append("No unexpected regressions found!")
             with open(options.github_summary_filename, "w") as f:
-                f.write("\n".join(summary))
+                f.write("\n".join(gh_summary))
 
     else:
         log.error("Unsupported operation: exiting.")
