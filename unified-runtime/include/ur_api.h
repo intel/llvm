@@ -1908,6 +1908,8 @@ typedef enum ur_device_type_t {
   UR_DEVICE_TYPE_MCA = 6,
   /// Vision Processing Unit
   UR_DEVICE_TYPE_VPU = 7,
+  /// Generic custom device type
+  UR_DEVICE_TYPE_CUSTOM = 8,
   /// @cond
   UR_DEVICE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond

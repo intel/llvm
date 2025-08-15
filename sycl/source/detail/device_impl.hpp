@@ -596,6 +596,7 @@ public:
         return device_type::accelerator;
       case UR_DEVICE_TYPE_MCA:
       case UR_DEVICE_TYPE_VPU:
+      case UR_DEVICE_TYPE_CUSTOM:
         return device_type::custom;
       default: {
         assert(false);
