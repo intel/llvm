@@ -120,8 +120,8 @@ jobs:
       - id: sanitize
         run: |
           # Validate user inputs:
+          # usage: check_if_nonempty <var> <regex to check var against> <err message>
           check_nonempty() {
-            # usage: check_if_nonempty <var> <regex to check var against> <err message>
             [ -z "$1" ] && return
             if [ -z "$(echo "$1" | grep -P "$2")" ]; then
               echo "$3"
