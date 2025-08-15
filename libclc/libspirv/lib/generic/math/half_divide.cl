@@ -6,10 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_half_divide.h>
 #include <libspirv/spirv.h>
 
-#define divide(x, y) (x / y)
+#define __FLOAT_ONLY
+#define FUNCTION __spirv_ocl_half_divide
+#define __IMPL_FUNCTION(x) __clc_half_divide
+#define __CLC_BODY <clc/shared/binary_def.inc>
 
-#define __CLC_BUILTIN divide
-#define __CLC_FUNCTION __spirv_ocl_half_divide
-#include <clc/math/binary_builtin.inc>
+#include <clc/math/gentype.inc>
