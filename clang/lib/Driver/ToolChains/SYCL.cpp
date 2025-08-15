@@ -508,6 +508,20 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
+  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
+      "libsycl-fallback-bfloat16"};
+  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
+      "libsycl-native-bfloat16"};
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs && !NoOffloadLib) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
   return LibraryList;
 }
 
