@@ -2424,6 +2424,9 @@ typedef enum ur_device_info_t {
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
+  /// [uint32_t][optional-query] return the primary sub-group size of the
+  /// device.
+  UR_DEVICE_INFO_SUB_GROUP_PRIMARY_SIZE_EXP = 0x2023,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,

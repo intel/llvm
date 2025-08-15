@@ -2527,6 +2527,21 @@ TEST_P(urDeviceGetInfoTest, Success2DBlockArrayCapabilities) {
             0);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessSubGroupPrimarySize) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = SUB_GROUP_PRIMARY_SIZE_EXP;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(uint32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_USE_NATIVE_ASSERT;
