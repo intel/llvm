@@ -127,6 +127,7 @@ jobs:
     outputs:
       artifact: ${{ steps.pack_artifact.outputs.artifact }}
       artifact_filename: ${{ steps.pack_artifact.outputs.artifact_filename }}
+      decompress_command: ${{ steps.pack_artifact.outputs.decompress_command }}
 
     steps:
     # TODO:
