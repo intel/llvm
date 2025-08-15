@@ -41,13 +41,40 @@ struct ur_program_handle_t_ : RefCounted {
   std::unordered_map<std::string, native_cpu::WGSize_t>
       KernelMaxWorkGroupSizeMD;
   std::unordered_map<std::string, uint64_t> KernelMaxLinearWorkGroupSizeMD;
+  std::unordered_map<std::string, bool> KernelIsNDRangeMD;
 };
 
-// The nativecpu_entry struct is also defined as LLVM-IR in the
+// These structs are also defined as LLVM-IR in the
 // clang-offload-wrapper tool. The two definitions need to match,
 // therefore any change to this struct needs to be reflected in the
 // offload-wrapper.
+
 struct nativecpu_entry {
   const char *kernelname;
   const unsigned char *kernel_ptr;
+};
+
+typedef enum {
+  PI_PROPERTY_TYPE_INT32,
+  PI_PROPERTY_TYPE_STRING
+} pi_property_type;
+
+struct _pi_device_binary_property_struct {
+  char *Name;
+  void *ValAddr;
+  pi_property_type Type;
+  uint64_t ValSize;
+};
+
+// TODO These property structs are taken from clang-offload-wrapper,
+// perhaps we could define something that fits better our purposes?
+struct _pi_device_binary_property_set_struct {
+  char *Name;
+  _pi_device_binary_property_struct *PropertiesBegin;
+  _pi_device_binary_property_struct *PropertiesEnd;
+};
+
+struct nativecpu_program {
+  nativecpu_entry *entries;
+  _pi_device_binary_property_set_struct *properties;
 };
