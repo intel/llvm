@@ -1,19 +1,17 @@
 // UNSUPPORTED: cuda || hip
 // UNSUPPORTED-TRACKER: CMPLRLLVM-69415
 
-// REQUIRES: level_zero
-
 // DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
 
 // clang-format off
-// IMPORTANT   -DSO_PATH='R"(%T)"'   WTF ??
+// IMPORTANT   -DSO_PATH='R"(%T)"'
 //              We need to capture %T, the build directory, in a string
 //              and the normal STRINGIFY() macros hack won't work.
 //              Because on Windows, the path delimiters are \, 
 //              which C++ preprocessor converts to escape sequences, 
 //              which becomes a nightmare.
-//              SO the hack here is to put heredoc in the definition
+//              So the hack here is to put heredoc in the definition
 //              and use single quotes, which Python forgivingly accepts.  
 // clang-format on 
  

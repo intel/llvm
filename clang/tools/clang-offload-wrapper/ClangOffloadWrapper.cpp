@@ -1333,7 +1333,6 @@ private:
     RegBuilder.CreateRetVoid();
 
     // Add this function to global destructors.
-    // Match priority of __tgt_register_lib
     appendToGlobalCtors(M, RegFunc, /*Priority*/ 1);
   }
 
