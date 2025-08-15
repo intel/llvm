@@ -453,6 +453,13 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     return LibraryList;
   }
 
+  // Ignore no-offloadlib for NativeCPU device library, it provides some
+  // critical builtins which must be linked with user's device image.
+  if (TargetTriple.isNativeCPU()) {
+    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
+    return LibraryList;
+  }
+
   using SYCLDeviceLibsList = SmallVector<StringRef, 8>;
   const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
                                              "libsycl-complex",
@@ -489,14 +496,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
   };
 
-  // nativecpu only needs libsycl-nativecpu_utils.
-  const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
-      "libsycl-nativecpu_utils"};
-  if (TargetTriple.isNativeCPU()) {
-    addLibraries(SYCLNativeCpuDeviceLibs);
-    return LibraryList;
-  }
-
   if (!NoOffloadLib)
     addLibraries(SYCLDeviceLibs);
 
@@ -505,7 +504,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
       "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
       "libsycl-itt-stubs"};
-  addLibraries(SYCLDeviceAnnotationLibs);
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
 
   return LibraryList;
 }
