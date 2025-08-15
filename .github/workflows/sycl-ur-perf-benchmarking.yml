@@ -121,6 +121,7 @@ jobs:
       docker_image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options: "-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN"
       run_tests: 'OFF'
+      product_artifact: 'ON'
 
   run_benchmarks_build:
     name: Run Benchmarks on Build

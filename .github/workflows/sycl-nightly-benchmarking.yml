@@ -21,8 +21,22 @@ jobs:
       toolchain_artifact: sycl_linux_default
       toolchain_artifact_filename: sycl_linux.tar.gz
 
+  build_ur:
+    name: Build UR
+    uses: ./.github/workflows/ur-build-hw.yml
+    with:
+      adapter_name: 'level_zero'
+      other_adapter_name: 'level_zero_v2'
+      runner: '["Linux", "build"]'
+      static_loader: 'OFF'
+      static_adapter: 'OFF'
+      docker_image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
+      image_options: "-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN"
+      run_tests: 'OFF'
+      product_artifact: 'ON'
+
   run-sycl-benchmarks:
-    needs: [ubuntu2204_build]
+    needs: [ubuntu2204_build, build_ur]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -49,4 +63,7 @@ jobs:
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.toolchain_decompress_command }}
+      ur_artifact: ${{ needs.build_ur.outputs.artifact }}
+      ur_artifact_filename: ${{ needs.build_ur.outputs.artifact_filename }}
+      ur_decompress_command: ${{ needs.build_ur.outputs.decompress_command }}
 

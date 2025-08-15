@@ -33,6 +33,10 @@ on:
         required: false
         type: string
         default: "ON"
+      produce_artifact:
+        required: false
+        type: string
+        default: "OFF"
     outputs:
       artifact:
         value: ${{ jobs.adapter_build_hw.outputs.artifact }}
@@ -71,6 +75,10 @@ on:
         required: false
         type: string
         default: "ON"
+      produce_artifact:
+        required: false
+        type: string
+        default: "OFF"
 
 permissions: read-all
 
@@ -103,8 +111,8 @@ jobs:
         run_tests: ["${{ inputs.run_tests == 'ON' && 'ON' || 'OFF' }}"]
         artifact: [
           {
-            name: "ur_adapter_${{inputs.adapter_name}}",
-            archive_name: "ur_adapter_${{inputs.adapter_name}}.tar.zst",
+            name: "ur_adapter_${{inputs.adapter_name}}_${{inputs.other_adapter_name}}",
+            archive_name: "ur_adapter_${{inputs.adapter_name}}_${{inputs.other_adapter_name}}.tar.zst",
             compress_command: "zstd -9",
             decompress_command: "zstd",
           }
@@ -209,7 +217,7 @@ jobs:
 
     - name: Pack UR build
       id: pack_artifact
-      if: ${{ steps.build_ur.conclusion == 'success' && steps.install_ur.conclusion == 'success' }}
+      if: ${{ inputs.produce_artifact == 'ON' && steps.build_ur.conclusion == 'success' && steps.install_ur.conclusion == 'success' }}
       run: |
         tar -I '${{ matrix.artifact.compress_command }}' \
             -cf '${{ matrix.artifact.archive_name }}' -C ./install .
@@ -217,7 +225,7 @@ jobs:
         echo "artifact_filename=${{ matrix.artifact.archive_name }}" >> $GITHUB_OUTPUT
         echo "decompress_command=${{ matrix.artifact.decompress_command }}" >> $GITHUB_OUTPUT
     - name: Upload UR build
-      if: ${{ steps.build_ur.conclusion == 'success' && steps.install_ur.conclusion == 'success' }}
+      if: ${{ inputs.produce_artifact == 'ON' && steps.build_ur.conclusion == 'success' && steps.install_ur.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact.name }}
