@@ -236,6 +236,12 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
 
 bool device::ext_oneapi_can_access_peer(const device &peer,
                                         ext::oneapi::peer_access attr) {
+  // Peer access cannot be granted across platforms, but the handles could
+  // potentially mimic device handles from other adapters, so we need to avoid
+  // calling the adapters with handles from other platforms.
+  if (peer.get_platform() != get_platform())
+    return false;
+
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
 
