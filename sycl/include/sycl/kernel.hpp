@@ -280,11 +280,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::kernel> {
-  size_t operator()(const sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_impl>>()(
-        sycl::detail::getSyclObjImpl(Kernel));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::kernel>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel> {};

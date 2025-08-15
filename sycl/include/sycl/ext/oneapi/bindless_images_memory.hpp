@@ -117,13 +117,7 @@ enum class image_memory_handle_type : unsigned int {
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::image_mem> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::image_mem &image_mem) const {
-    return hash<std::shared_ptr<
-        sycl::ext::oneapi::experimental::detail::image_mem_impl>>()(
-        sycl::detail::getSyclObjImpl(image_mem));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::image_mem>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::image_mem> {};
