@@ -39,10 +39,6 @@ SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
                                                const llvm::Triple &TargetTriple,
                                                bool IsSpirvAOT);
 
-SmallVector<std::string, 8>
-getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
-                         bool IsSpirvAOT);
-
 // Populates the SYCL device traits macros.
 void populateSYCLDeviceTraitsMacrosArgs(
     Compilation &C, const llvm::opt::ArgList &Args,

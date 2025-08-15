@@ -426,109 +426,11 @@ static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
   return false;
 }
 
-SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
-                         bool IsSpirvAOT) {
-  SmallVector<std::string, 8> LibraryList;
-  const llvm::opt::ArgList &Args = C.getArgs();
-  if (Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
-                      options::OPT_fno_sycl_device_lib_EQ) ||
-      Args.getLastArg(options::OPT_fsycl_device_lib_jit_link,
-                      options::OPT_fno_sycl_device_lib_jit_link))
-    return getDeviceLibrariesLegacy(C, TargetTriple, IsSpirvAOT);
-
-  bool NoOffloadLib =
-      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
-  if (TargetTriple.isNVPTX()) {
-    if (!NoOffloadLib)
-      LibraryList.push_back(
-          Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
-    return LibraryList;
-  }
-
-  if (TargetTriple.isAMDGCN()) {
-    if (!NoOffloadLib)
-      LibraryList.push_back(
-          Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
-    return LibraryList;
-  }
-
-  // Ignore no-offloadlib for NativeCPU device library, it provides some
-  // critical builtins which must be linked with user's device image.
-  if (TargetTriple.isNativeCPU()) {
-    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
-    return LibraryList;
-  }
-
-  using SYCLDeviceLibsList = SmallVector<StringRef, 8>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
-                                             "libsycl-complex-fp64",
-                                             "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
-#if defined(_WIN32)
-                                             "libsycl-msvc-math",
-#endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-cassert",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
-                                             "libsycl-fallback-imf",
-                                             "libsycl-fallback-imf-fp64",
-                                             "libsycl-fallback-imf-bf16"};
-  bool IsWindowsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
-  StringRef LibSuffix = ".bc";
-  if (IsNewOffload)
-    // For new offload model, we use packaged .bc files.
-    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
-  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
-    for (const StringRef &Lib : LibsList) {
-      SmallString<128> LibName(Lib);
-      llvm::sys::path::replace_extension(LibName, LibSuffix);
-      LibraryList.push_back(Args.MakeArgString(LibName));
-    }
-  };
-
-  if (!NoOffloadLib)
-    addLibraries(SYCLDeviceLibs);
-
-  // ITT annotation libraries are linked in separately whenever the device
-  // code instrumentation is enabled.
-  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
-      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
-      "libsycl-itt-stubs"};
-  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
-    addLibraries(SYCLDeviceAnnotationLibs);
-
-  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
-      "libsycl-fallback-bfloat16"};
-  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
-      "libsycl-native-bfloat16"};
-  bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
-  if (NeedBfloatLibs && !NoOffloadLib) {
-    // Add native or fallback bfloat16 library.
-    if (NativeBfloatLibs)
-      addLibraries(SYCLDeviceBfloat16NativeLib);
-    else
-      addLibraries(SYCLDeviceBfloat16FallbackLib);
-  }
-
-  return LibraryList;
-}
-
 // TODO: remove getDeviceLibrariesLegacy when we remove deprecated options
 // related to sycl device library link.
-SmallVector<std::string, 8> SYCL::getDeviceLibrariesLegacy(
-    const Compilation &C, const llvm::Triple &TargetTriple, bool IsSpirvAOT) {
+static SmallVector<std::string, 8>
+getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
+                         bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
@@ -833,6 +735,105 @@ SmallVector<std::string, 8> SYCL::getDeviceLibrariesLegacy(
 
   if (TargetTriple.isNativeCPU())
     addLibraries(SYCLNativeCpuDeviceLibs);
+
+  return LibraryList;
+}
+
+SmallVector<std::string, 8>
+SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+                         bool IsSpirvAOT) {
+  SmallVector<std::string, 8> LibraryList;
+  const llvm::opt::ArgList &Args = C.getArgs();
+  if (Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                      options::OPT_fno_sycl_device_lib_EQ) ||
+      Args.getLastArg(options::OPT_fsycl_device_lib_jit_link,
+                      options::OPT_fno_sycl_device_lib_jit_link))
+    return getDeviceLibrariesLegacy(C, TargetTriple, IsSpirvAOT);
+
+  bool NoOffloadLib =
+      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+  if (TargetTriple.isNVPTX()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    return LibraryList;
+  }
+
+  if (TargetTriple.isAMDGCN()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+    return LibraryList;
+  }
+
+  // Ignore no-offloadlib for NativeCPU device library, it provides some
+  // critical builtins which must be linked with user's device image.
+  if (TargetTriple.isNativeCPU()) {
+    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
+    return LibraryList;
+  }
+
+  using SYCLDeviceLibsList = SmallVector<StringRef, 8>;
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
+                                             "libsycl-complex",
+                                             "libsycl-complex-fp64",
+                                             "libsycl-cmath",
+                                             "libsycl-cmath-fp64",
+#if defined(_WIN32)
+                                             "libsycl-msvc-math",
+#endif
+                                             "libsycl-imf",
+                                             "libsycl-imf-fp64",
+                                             "libsycl-imf-bf16",
+                                             "libsycl-fallback-cassert",
+                                             "libsycl-fallback-cstring",
+                                             "libsycl-fallback-complex",
+                                             "libsycl-fallback-complex-fp64",
+                                             "libsycl-fallback-cmath",
+                                             "libsycl-fallback-cmath-fp64",
+                                             "libsycl-fallback-imf",
+                                             "libsycl-fallback-imf-fp64",
+                                             "libsycl-fallback-imf-bf16"};
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
+  StringRef LibSuffix = ".bc";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+    for (const StringRef &Lib : LibsList) {
+      SmallString<128> LibName(Lib);
+      llvm::sys::path::replace_extension(LibName, LibSuffix);
+      LibraryList.push_back(Args.MakeArgString(LibName));
+    }
+  };
+
+  if (!NoOffloadLib)
+    addLibraries(SYCLDeviceLibs);
+
+  // ITT annotation libraries are linked in separately whenever the device
+  // code instrumentation is enabled.
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
+      "libsycl-fallback-bfloat16"};
+  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
+      "libsycl-native-bfloat16"};
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs && !NoOffloadLib) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
 
   return LibraryList;
 }
