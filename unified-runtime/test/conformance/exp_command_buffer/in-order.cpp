@@ -101,7 +101,7 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
     if (hints) {
       ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
           in_order_cb, device_ptrs[0], allocation_size,
-          UR_USM_MIGRATION_FLAG_DEFAULT, 0, nullptr, 0, nullptr, nullptr,
+          UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0, nullptr, 0, nullptr, nullptr,
           nullptr, nullptr));
     }
 
@@ -124,7 +124,7 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
     if (hints) {
       ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
           in_order_cb, device_ptrs[0], allocation_size,
-          UR_USM_MIGRATION_FLAG_DEFAULT, 0, nullptr, 0, nullptr, nullptr,
+          UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0, nullptr, 0, nullptr, nullptr,
           nullptr, nullptr));
     }
 

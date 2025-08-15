@@ -149,6 +149,8 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
+
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
                                  size_t size);
@@ -2626,6 +2628,16 @@ public:
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param Type is type of prefetch, i.e. fetch to device or fetch to host.
+  void prefetch(const void *Ptr, size_t Count,
+                ext::oneapi::experimental::prefetch_type Type);
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
