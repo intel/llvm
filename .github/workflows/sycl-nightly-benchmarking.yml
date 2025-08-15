@@ -33,7 +33,7 @@ jobs:
       docker_image: 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options: "-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN"
       run_tests: 'OFF'
-      product_artifact: 'ON'
+      produce_artifact: 'ON'
 
   run-sycl-benchmarks:
     needs: [ubuntu2204_build, build_ur]
