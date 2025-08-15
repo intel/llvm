@@ -6,14 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: aspect-usm_shared_allocations
+// REQUIRES: sycl-jit, aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{l0_leak_check} %{run} %t.out
-
-// XFAIL: preview-mode && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

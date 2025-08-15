@@ -11,7 +11,6 @@
 #include "command_list_manager.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
-#include "../sampler.hpp"
 #include "../ur_interface_loader.hpp"
 #include "command_buffer.hpp"
 #include "context.hpp"
@@ -284,10 +283,22 @@ ur_result_t ur_command_list_manager::appendUSMFill(
 }
 
 ur_result_t ur_command_list_manager::appendUSMPrefetch(
-    const void *pMem, size_t size, ur_usm_migration_flags_t /*flags*/,
+    const void *pMem, size_t size, ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMPrefetch");
+
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    UR_LOG(WARN,
+           "appendUSMPrefetch: L0v2 does not support prefetch to host yet");
+    break;
+  default:
+    UR_LOG(ERR, "appendUSMPrefetch: invalid USM migration flag");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
   auto [pWaitEvents, numWaitEvents] =
@@ -297,9 +308,11 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (zeCommandList.get(), numWaitEvents, pWaitEvents));
   }
-  // TODO: figure out how to translate "flags"
-  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-             (zeCommandList.get(), pMem, size));
+  // TODO: Support migration flags after L0 backend support is added
+  if (flags == UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+               (zeCommandList.get(), pMem, size));
+  }
   if (zeSignalEvent) {
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (zeCommandList.get(), zeSignalEvent));
@@ -894,19 +907,66 @@ ur_result_t ur_command_list_manager::bindlessImagesImageCopyExp(
 }
 
 ur_result_t ur_command_list_manager::bindlessImagesWaitExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t /*hSemaphore*/, bool /*hasWaitValue*/,
-    uint64_t /*waitValue*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
+    uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
+  auto hPlatform = hContext->getPlatform();
+  if (!hPlatform->ZeExternalSemaphoreExt.Supported == false ||
+      !hPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ze_external_semaphore_wait_params_ext_t waitParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
+  waitParams.value = hasWaitValue ? waitValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+  ZE2UR_CALL(hPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendWaitExternalSemaphoresExp,
+             (zeCommandList.get(), 1, &hExtSemaphore, &waitParams,
+              zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_command_list_manager::bindlessImagesSignalExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t /*hSemaphore*/, bool /*hasSignalValue*/,
-    uint64_t /*signalValue*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
+    uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
+  auto hPlatform = hContext->getPlatform();
+  if (!hPlatform->ZeExternalSemaphoreExt.Supported == false ||
+      !hPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ze_external_semaphore_signal_params_ext_t signalParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
+  signalParams.value = hasSignalValue ? signalValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+
+  ZE2UR_CALL(hPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendSignalExternalSemaphoresExp,
+             (zeCommandList.get(), 1, &hExtSemaphore, &signalParams,
+              zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_command_list_manager::appendNativeCommandExp(
@@ -974,62 +1034,5 @@ ur_result_t ur_command_list_manager::releaseSubmittedKernels() {
     UR_CALL(hKernel->release());
   }
   submittedKernels.clear();
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExp(
-    ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t phEvent) {
-  TRACK_SCOPE_LATENCY(
-      "ur_queue_immediate_in_order_t::enqueueKernelLaunchWithArgsExp");
-  {
-    std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-    for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
-      switch (pArgs[argIndex].type) {
-      case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
-                                     pArgs[argIndex].size, nullptr, nullptr));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-        UR_CALL(hKernel->setArgValue(pArgs[argIndex].index,
-                                     pArgs[argIndex].size, nullptr,
-                                     pArgs[argIndex].value.value));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-        UR_CALL(hKernel->setArgPointer(pArgs[argIndex].index, nullptr,
-                                       pArgs[argIndex].value.pointer));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
-        // TODO: import helper for converting ur flags to internal equivalent
-        UR_CALL(hKernel->addPendingMemoryAllocation(
-            {pArgs[argIndex].value.memObjTuple.hMem,
-             ur_mem_buffer_t::device_access_mode_t::read_write,
-             pArgs[argIndex].index}));
-        break;
-      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        UR_CALL(
-            hKernel->setArgValue(argIndex, sizeof(void *), nullptr,
-                                 &pArgs[argIndex].value.sampler->ZeSampler));
-        break;
-      }
-      default:
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
-      }
-    }
-  }
-
-  UR_CALL(appendKernelLaunch(hKernel, workDim, pGlobalWorkOffset,
-                             pGlobalWorkSize, pLocalWorkSize,
-                             numPropsInLaunchPropList, launchPropList,
-                             numEventsInWaitList, phEventWaitList, phEvent));
-
-  recordSubmittedKernel(hKernel);
-
   return UR_RESULT_SUCCESS;
 }

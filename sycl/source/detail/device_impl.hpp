@@ -1452,22 +1452,17 @@ public:
     CASE(ext_intel_esimd) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
     }
-    CASE(ext_oneapi_ballot_group) {
+    CASE(ext_oneapi_fragment) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_fixed_size_group) {
+    CASE(ext_oneapi_chunk) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_opportunistic_group) {
-      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
-             (this->getBackend() == backend::ext_oneapi_cuda);
-    }
-    CASE(ext_oneapi_tangle_group) {
+    CASE(ext_oneapi_tangle) {
       // TODO: tangle_group is not currently supported for CUDA devices. Add
       // when implemented.
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||

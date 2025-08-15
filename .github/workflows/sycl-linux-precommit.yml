@@ -44,20 +44,23 @@ jobs:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
+    name: Self build
     needs: [detect_changes]
     if: always() && success()
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
       build_cache_root: "/__w/"
-      build_artifact_suffix: "default"
       build_cache_suffix: "default"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
       changes: ${{ needs.detect_changes.outputs.filters }}
-      e2e_binaries_artifact: sycl_e2e_bin_default
+
+      toolchain_artifact: sycl_linux_default
+      e2e_binaries_artifact: e2e_bin
+      e2e_binaries_preview_artifact: e2e_bin_preview
 
   # If a PR changes CUDA adapter, run the build on Ubuntu 22.04 as well.
   # Ubuntu 22.04 container has CUDA 12.1 installed while Ubuntu 24.0 image
@@ -70,13 +73,35 @@ jobs:
     with:
       build_ref: ${{ github.sha }}
       build_cache_root: "/__w/"
-      build_artifact_suffix: "ubuntu22"
       build_cache_suffix: "ubuntu22"
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
       changes: ${{ needs.detect_changes.outputs.filters }}
 
+      toolchain_artifact: sycl_linux_ubuntu22
+
+  compat_read_exclude:
+    name: Read compatibility testing exclude list
+    runs-on: [Linux, build]
+    outputs:
+      FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
+      FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          devops/
+    - name: Register cleanup after job is finished
+      uses: ./devops/actions/cleanup
+    - id: result
+      shell: bash
+      run: |
+        # Transform to format expected by `llvm-lit --filter-out "pattern1|pattern2|..."`.
+        # First, remove comments/empty lines, then join lines with "|" as separator.
+        echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
+        echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
+
   run_prebuilt_e2e_tests:
-    needs: [build, detect_changes]
+    needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -84,9 +109,7 @@ jobs:
         include:
           - name: GEN 12 Integrated
             runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param gpu-intel-gen12=True
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
@@ -98,58 +121,56 @@ jobs:
             extra_lit_opts: -j 1
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-            extra_lit_opts: --param matrix-xmx8=True
-          - name: E2E tests with dev igc on Intel Arc A-Series Graphics
+          - name: Dev IGC / Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            extra_lit_opts: --param matrix-xmx8=True
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
-          - name: E2E tests on Intel Ponte Vecchio GPU
+          - name: Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Dev IGC on Intel Ponte Vecchio GPU
+          - name: Dev IGC / Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;level_zero_v2:gpu
-          - name: SPIR-V Backend / Intel Battlemage Graphics
-            runner: '["Linux", "bmg"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            extra_lit_opts: --param spirv-backend=True
-            e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
+            target_devices: level_zero_v1:gpu;level_zero_v2:gpu
           - name: Preview Mode
             runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
-            e2e_binaries_artifact: sycl_e2e_bin_default_preview
+            e2e_binaries_artifact: e2e_bin_preview
+          - name: ABI compatibility against sycl-rel-6_2
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
+            target_devices: level_zero:gpu
+            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
+            e2e_binaries_artifact: 'in-container'
+          - name: ABI compatibility against sycl-rel-6_3
+            runner: '["Linux", "pvc"]'
+            image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
+            target_devices: level_zero:gpu
+            extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_3 }}"'
+            e2e_binaries_artifact: 'in-container'
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'sycl_e2e_bin_default' }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'e2e_bin' }}
       e2e_testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
@@ -185,9 +206,9 @@ jobs:
       benchmark_preset: 'Minimal'
       benchmark_dry_run: true
       repo_ref: ${{ github.sha }}
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
 
   test-perf:
     needs: [build, detect_changes]
@@ -224,6 +245,6 @@ jobs:
 
       repo_ref: ${{ github.sha }}
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}

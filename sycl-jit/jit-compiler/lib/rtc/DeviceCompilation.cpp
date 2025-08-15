@@ -15,8 +15,11 @@
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
+#include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
+#include <clang/Driver/LazyDetector.h>
 #include <clang/Driver/Options.h>
+#include <clang/Driver/RocmInstallationDetector.h>
 #include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -42,6 +45,7 @@
 #include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
+#include <llvm/TargetParser/TargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -183,8 +187,7 @@ public:
     assert(!hasExecuted() && "Action should only be invoked on a single file");
 
     // Create a compiler instance to handle the actual work.
-    CompilerInstance Compiler(std::move(Invocation),
-                              std::move(PCHContainerOps));
+    CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
     Compiler.setFileManager(Files);
     // Suppress summary with number of warnings and errors being printed to
     // stdout.
@@ -623,66 +626,56 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
-    std::string Argv0 = DPCPPRoot + "/bin/clang++";
     Triple T{Module.getTargetTriple()};
-    IntrusiveRefCntPtr<OverlayFileSystem> OFS{
-        new OverlayFileSystem{getRealFileSystem()}};
-    IntrusiveRefCntPtr<InMemoryFileSystem> VFS{new InMemoryFileSystem};
-    std::string CppFileName{"a.cpp"};
-    VFS->addFile(CppFileName, /*ModificationTime=*/0,
-                 MemoryBuffer::getMemBuffer("", ""));
-    OFS->pushOverlay(VFS);
-    Driver D{Argv0, T.getTriple(), Diags, "dpcpp compiler driver", OFS};
-
-    SmallVector<std::string> CommandLine;
-    CommandLine.push_back(Argv0);
-    adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
-    CommandLine.push_back(CppFileName);
-    SmallVector<const char *> CommandLineCStr(CommandLine.size());
-    llvm::transform(CommandLine, CommandLineCStr.begin(),
-                    [](const auto &S) { return S.c_str(); });
-
-    Compilation *C = D.BuildCompilation(CommandLineCStr);
-    if (!C) {
-      return createStringError("Unable to construct driver for CUDA/HIP");
-    }
-
-    const ToolChain *OffloadTC =
-        C->getSingleOffloadToolChain<Action::OFK_SYCL>();
-    InputArgList EmptyArgList;
-    auto Archs =
-        D.getOffloadArchs(*C, EmptyArgList, Action::OFK_SYCL, OffloadTC);
-    assert(Archs.size() == 1 &&
-           "Offload toolchain should be configured to single architecture");
-    StringRef CPU = *Archs.begin();
-
-    // Pass only `-march=` or `-mcpu=` with the GPU arch determined by the
-    // driver to `getDeviceLibs`.
-    DerivedArgList CPUArgList{EmptyArgList};
-    if (Format == BinaryFormat::PTX) {
-      CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_march_EQ),
-                              CPU);
-    } else {
-      CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_mcpu_EQ), CPU);
-    }
-
-    SmallVector<ToolChain::BitCodeLibraryInfo, 12> CommonDeviceLibs =
-        OffloadTC->getDeviceLibs(CPUArgList, Action::OffloadKind::OFK_SYCL);
-    if (CommonDeviceLibs.empty()) {
-      return createStringError("Unable to find common device libraries");
-    }
-
-    for (auto &Lib : CommonDeviceLibs) {
-      ModuleUPtr LibModule;
-      if (auto Error =
-              loadBitcodeLibrary(Lib.Path, Context).moveInto(LibModule)) {
+    Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
+    auto [CPU, Features] =
+        Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
+    (void)Features;
+    // Helper lambda to link modules.
+    auto LinkInLib = [&](const StringRef LibDevice) -> Error {
+      ModuleUPtr LibDeviceModule;
+      if (auto Error = loadBitcodeLibrary(LibDevice, Context)
+                           .moveInto(LibDeviceModule)) {
         return Error;
       }
-
-      if (Linker::linkModules(Module, std::move(LibModule),
+      if (Linker::linkModules(Module, std::move(LibDeviceModule),
                               Linker::LinkOnlyNeeded)) {
-        return createStringError("Unable to link device library %s: %s",
-                                 Lib.Path.c_str(), BuildLog.c_str());
+        return createStringError("Unable to link libdevice: %s",
+                                 BuildLog.c_str());
+      }
+      return Error::success();
+    };
+    SmallVector<std::string, 12> LibDeviceFiles;
+    if (Format == BinaryFormat::PTX) {
+      // For NVPTX we can get away with CudaInstallationDetector.
+      LazyDetector<CudaInstallationDetector> CudaInstallation{D, T,
+                                                              UserArgList};
+      auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
+      if (LibDevice.empty()) {
+        return createStringError("Unable to find Cuda libdevice");
+      }
+      LibDeviceFiles.push_back(LibDevice);
+    } else {
+      LazyDetector<RocmInstallationDetector> RocmInstallation{D, T,
+                                                              UserArgList};
+      RocmInstallation->detectDeviceLibrary();
+      StringRef CanonArch =
+          llvm::AMDGPU::getArchNameAMDGCN(llvm::AMDGPU::parseArchAMDGCN(CPU));
+      StringRef LibDeviceFile = RocmInstallation->getLibDeviceFile(CanonArch);
+      auto CommonBCLibs = RocmInstallation->getCommonBitcodeLibs(
+          UserArgList, LibDeviceFile, CPU, Action::OFK_SYCL,
+          /*NeedsASanRT=*/false);
+      if (CommonBCLibs.empty()) {
+        return createStringError("Unable to find ROCm bitcode libraries");
+      }
+      for (auto &Lib : CommonBCLibs) {
+        LibDeviceFiles.push_back(Lib.Path);
+      }
+    }
+    for (auto &LibDeviceFile : LibDeviceFiles) {
+      // llvm::Error converts to false on success.
+      if (auto Error = LinkInLib(LibDeviceFile)) {
+        return Error;
       }
     }
   }

@@ -15,8 +15,15 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::this_thread {
 
 namespace detail {
-inline sycl::device &get_current_device_ref() {
-  static thread_local sycl::device current_device{sycl::default_selector_v};
+using namespace sycl::detail;
+// Underlying `std::shared_ptr<device_impl>`'s lifetime is tied to the
+// `global_handler`, so a subsequent `lock()` is expected to be successful when
+// used from user app. We still go through `std::weak_ptr` here because our own
+// unittests are linked statically against SYCL RT objects and have to implement
+// some hacks to emulate the lifetime management done by the `global_handler`.
+inline std::weak_ptr<device_impl> &get_current_device_impl() {
+  static thread_local std::weak_ptr<device_impl> current_device{
+      getSyclObjImpl(sycl::device{sycl::default_selector_v})};
   return current_device;
 }
 } // namespace detail
@@ -28,7 +35,8 @@ inline sycl::device &get_current_device_ref() {
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
 inline sycl::device get_current_device() {
-  return detail::get_current_device_ref();
+  return detail::createSyclObjFromImpl<device>(
+      detail::get_current_device_impl().lock());
 }
 
 /// @brief Sets the current default device to `dev` for the calling host thread.
@@ -36,7 +44,7 @@ inline sycl::device get_current_device() {
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
 inline void set_current_device(sycl::device dev) {
-  detail::get_current_device_ref() = dev;
+  detail::get_current_device_impl() = detail::getSyclObjImpl(dev);
 }
 
 } // namespace ext::oneapi::experimental::this_thread

@@ -966,7 +966,7 @@ public:
                                               const Twine &Name = "");
 
   /// Create a call to llvm.vscale.<Ty>().
-  LLVM_ABI Value *CreateVScale(Type *Ty, const Twine &Name = "") {
+  Value *CreateVScale(Type *Ty, const Twine &Name = "") {
     return CreateIntrinsic(Intrinsic::vscale, {Ty}, {}, {}, Name);
   }
 
@@ -1581,10 +1581,14 @@ public:
     return Accum;
   }
 
-  Value *CreateOr(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateOr(Value *LHS, Value *RHS, const Twine &Name = "",
+                  bool IsDisjoint = false) {
     if (auto *V = Folder.FoldBinOp(Instruction::Or, LHS, RHS))
       return V;
-    return Insert(BinaryOperator::CreateOr(LHS, RHS), Name);
+    return Insert(
+        IsDisjoint ? BinaryOperator::CreateDisjoint(Instruction::Or, LHS, RHS)
+                   : BinaryOperator::CreateOr(LHS, RHS),
+        Name);
   }
 
   Value *CreateOr(Value *LHS, const APInt &RHS, const Twine &Name = "") {

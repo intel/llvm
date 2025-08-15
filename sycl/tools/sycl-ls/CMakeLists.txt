@@ -14,7 +14,6 @@ target_compile_definitions(sycl-ls PRIVATE SYCL_DISABLE_IMAGE_ASPECT_WARNING SYC
 target_link_libraries(sycl-ls
   PRIVATE
     ${sycl_lib}
-    OpenCL-Headers
     UnifiedRuntime-Headers
 )
 if (WIN32)

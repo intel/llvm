@@ -33,6 +33,9 @@ int main() {
                         matrix_combinations>();
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].atype != matrix_type::fp16)
+      continue;
+
     if (combinations[i].nsize == 0) { // Intel AMX
       test<half, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
            layout::ext_intel_packed, 2>();

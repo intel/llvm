@@ -91,7 +91,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = nullptr;
-  pDdiTable->pfnGetFunctionPointer = nullptr;
+  pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
   pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
@@ -170,8 +170,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   }
   pDdiTable->pfnDeviceGlobalVariableRead = urEnqueueDeviceGlobalVariableRead;
   pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
-  pDdiTable->pfnEventsWait = nullptr;
-  pDdiTable->pfnEventsWaitWithBarrier = nullptr;
+  pDdiTable->pfnEventsWait = urEnqueueEventsWait;
+  pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = nullptr;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
@@ -383,7 +383,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnTimestampRecordingExp = nullptr;
   pDdiTable->pfnNativeCommandExp = nullptr;
-  pDdiTable->pfnKernelLaunchWithArgsExp = urEnqueueKernelLaunchWithArgsExp;
 
   return UR_RESULT_SUCCESS;
 }
