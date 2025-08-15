@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 //
 // Tests platform::get_devices for each device type.
