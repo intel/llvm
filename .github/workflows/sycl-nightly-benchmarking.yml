@@ -25,8 +25,8 @@ jobs:
     name: Build UR
     uses: ./.github/workflows/ur-build-hw.yml
     with:
-      adapter_name: 'level_zero'
-      other_adapter_name: 'level_zero_v2'
+      adapter_name: 'L0'
+      other_adapter_name: 'L0_V2'
       runner: '["Linux", "build"]'
       static_loader: 'OFF'
       static_adapter: 'OFF'

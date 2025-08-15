@@ -114,7 +114,7 @@ jobs:
     uses: ./.github/workflows/ur-build-hw.yml
     with:
       # Only 2 adapters supported currently, level_zero and level_zero_v2:
-      adapter_name: ${{ inputs.backend == 'level_zero_v2:gpu' && 'level_zero_v2' || 'level_zero' }}
+      adapter_name: ${{ inputs.backend == 'level_zero_v2:gpu' && 'L0_V2' || 'L0' }}
       runner: '["Linux", "build"]'
       static_loader: 'OFF'
       static_adapter: 'OFF'
