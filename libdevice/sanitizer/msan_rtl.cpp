@@ -212,16 +212,16 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_CPU__)
   shadow_ptr = MemToShadow_CPU(addr);
 #else
-  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
+  if (GetDeviceTy() == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
+  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
     shadow_ptr = MemToShadow_DG2(addr, as);
   } else {
     shadow_ptr = GetMsanLaunchInfo->CleanShadow;
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
-                                  GetMsanLaunchInfo->DeviceTy));
+    MSAN_DEBUG(
+        __spirv_ocl_printf(__msan_print_unsupport_device_type, GetDeviceTy()));
   }
 #endif
 
@@ -269,17 +269,17 @@ inline uptr MemToOrigin(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_CPU__)
   origin_ptr = MemToOrigin_CPU(addr);
 #else
-  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
+  if (GetDeviceTy() == DeviceType::CPU) {
     origin_ptr = MemToOrigin_CPU(aligned_addr);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
     origin_ptr = MemToOrigin_PVC(aligned_addr, as);
-  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
+  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
     origin_ptr = MemToOrigin_DG2(aligned_addr, as);
   } else {
     // Return clean shadow (0s) by default
     origin_ptr = GetMsanLaunchInfo->CleanShadow;
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
-                                  GetMsanLaunchInfo->DeviceTy));
+    MSAN_DEBUG(
+        __spirv_ocl_printf(__msan_print_unsupport_device_type, GetDeviceTy()));
   }
 #endif
 
@@ -719,8 +719,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
 static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
     "[kernel] __msan_set_private_base(sid=%llu): %p\n";
 
-DEVICE_EXTERN_C_NOINLINE void
-__msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
+inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
   const size_t sid = SubGroupLinearId();
   if (!GetMsanLaunchInfo || sid >= MSAN_MAX_SG_PRIVATE ||
       GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
@@ -732,6 +731,19 @@ __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
   }
   SubGroupBarrier();
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
+#if defined(__LIBDEVICE_CPU__)
+  return;
+#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
+  SetPrivateBaseImpl(ptr);
+#else
+  if (GetDeviceTy() == DeviceType::CPU)
+    return;
+  SetPrivateBaseImpl(ptr);
+#endif
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_strided_copy_unsupport_type[] =
