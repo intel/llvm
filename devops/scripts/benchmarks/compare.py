@@ -356,9 +356,8 @@ if __name__ == "__main__":
     )
     parser_avg.add_argument(
         "--produce-github-summary",
-        type=str,
-        help="Create a github CI summary file using the provided filename",
-        default="",
+        action="store_true",
+        help=f"Create a summary file '{options.github_summary_filename}' for Github workflow summaries.",
     )
 
     args = parser.parse_args()
@@ -377,17 +376,13 @@ if __name__ == "__main__":
             args.avg_type, args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
-        # Initialize github summary variables:
+        # Initialize Github summary variables:
         if args.produce_github_summary:
             gh_summary = []
 
             filter_type_capitalized = (
                 args.regression_filter_type[0].upper() + args.regression_filter_type[1:]
             )
-
-            def write_summary_to_file(summary: list[str]):
-                with open(args.produce_github_summary, "w") as f:
-                    f.write("\n".join(summary))
 
         # Not all regressions are of concern: if a filter is provided, filter
         # regressions using filter
@@ -402,7 +397,7 @@ if __name__ == "__main__":
                     regressions_ignored.append(test)
 
         def print_regression(entry: dict, is_warning: bool = False):
-            """Print an entry outputted from Compare.to_hist[github_summary.md")
+            """Print an entry outputted from Compare.to_hist()
 
             Args:
                 entry (dict): The entry to print
@@ -421,6 +416,12 @@ if __name__ == "__main__":
                 )
                 gh_summary.append(f"- Run result: {entry['value']}")
                 gh_summary.append(
+                    # Since we are dealing with floats, our deltas have a lot
+                    # of decimal places. For easier readability, we round our
+                    # deltas and format our Github summary output as:
+                    #
+                    # Delta: <rounded number>% (<full number>)
+                    #
                     f"- Delta: {round(entry['delta']*100, 2)}% ({entry['delta']})"
                 )
                 gh_summary.append("")
@@ -472,13 +473,15 @@ if __name__ == "__main__":
 
             if not args.dry_run:
                 if args.produce_github_summary:
-                    write_summary_to_file(gh_summary)
-                exit(1)  # Exit 1 to trigger github test failure
+                    with open(options.github_summary_filename, "w") as f:
+                        f.write("\n".join(summary))
+                exit(1)  # Exit 1 to trigger Github test failure
 
         log.info("No unexpected regressions found!")
         if args.produce_github_summary:
             gh_summary.append("No unexpected regressions found!")
-            write_summary_to_file(gh_summary)
+            with open(options.github_summary_filename, "w") as f:
+                f.write("\n".join(summary))
 
     else:
         log.error("Unsupported operation: exiting.")
