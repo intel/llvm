@@ -492,29 +492,28 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   }
 
   ur_device_type_t UrDeviceType = [DeviceType]() {
-  switch (DeviceType) {
-  case info::device_type::all:
-    return UR_DEVICE_TYPE_ALL;
-  case info::device_type::gpu:
-    return UR_DEVICE_TYPE_GPU;
-  case info::device_type::cpu:
-    return UR_DEVICE_TYPE_CPU;
-  case info::device_type::accelerator:
-    return UR_DEVICE_TYPE_FPGA;
-  case info::device_type::automatic:
-    return UR_DEVICE_TYPE_DEFAULT;
-  default:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Unknown device type.");
-  }
+    switch (DeviceType) {
+    case info::device_type::all:
+      return UR_DEVICE_TYPE_ALL;
+    case info::device_type::gpu:
+      return UR_DEVICE_TYPE_GPU;
+    case info::device_type::cpu:
+      return UR_DEVICE_TYPE_CPU;
+    case info::device_type::accelerator:
+      return UR_DEVICE_TYPE_FPGA;
+    case info::device_type::automatic:
+      return UR_DEVICE_TYPE_DEFAULT;
+    default:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Unknown device type.");
+    }
   }();
   getDevicesImplHelper(UrDeviceType, Res);
   return Res;
 }
 
-void
-platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
-                                    std::vector<device> &OutVec) const {
+void platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
+                                         std::vector<device> &OutVec) const {
   size_t InitialOutVecSize = OutVec.size();
 
   uint32_t NumDevices = 0;
