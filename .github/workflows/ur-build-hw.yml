@@ -42,6 +42,8 @@ on:
         value: ${{ jobs.adapter_build_hw.outputs.artifact }}
       artifact_filename:
         value: ${{ jobs.adapter_build_hw.outputs.artifact_filename }}
+      decompress_command:
+        value: ${{ jobs.adapter_build_hw.outputs.decompress_command }}
 
   workflow_dispatch:
     inputs:
