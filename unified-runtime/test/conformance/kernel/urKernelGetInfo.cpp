@@ -28,6 +28,9 @@ TEST_P(urKernelGetInfoTest, SuccessFunctionName) {
 }
 
 TEST_P(urKernelGetInfoTest, SuccessNumArgs) {
+  // Not implementable on liboffload
+  UUR_KNOWN_FAILURE_ON(uur::Offload{});
+
   const ur_kernel_info_t property_name = UR_KERNEL_INFO_NUM_ARGS;
   size_t property_size = 0;
 
@@ -245,22 +248,22 @@ TEST_P(urKernelGetInfoTest, InvalidEnumeration) {
 
 TEST_P(urKernelGetInfoTest, InvalidSizeZero) {
   size_t property_size = 0;
-  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr,
-                                 &property_size));
+  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
+                                 nullptr, &property_size));
 
   std::vector<char> property_value(property_size);
-  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0,
+  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
                                    property_value.data(), nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urKernelGetInfoTest, InvalidSizeSmall) {
   size_t property_size = 0;
-  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr,
-                                 &property_size));
+  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
+                                 nullptr, &property_size));
 
   std::vector<char> property_value(property_size);
-  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
+  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME,
                                    property_value.size() - 1,
                                    property_value.data(), nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
@@ -268,17 +271,17 @@ TEST_P(urKernelGetInfoTest, InvalidSizeSmall) {
 
 TEST_P(urKernelGetInfoTest, InvalidNullPointerPropValue) {
   size_t property_size = 0;
-  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr,
-                                 &property_size));
-  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS,
+  ASSERT_SUCCESS(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
+                                 nullptr, &property_size));
+  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME,
                                    property_size, nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urKernelGetInfoTest, InvalidNullPointerPropSizeRet) {
-  ASSERT_EQ_RESULT(
-      urKernelGetInfo(kernel, UR_KERNEL_INFO_NUM_ARGS, 0, nullptr, nullptr),
-      UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  ASSERT_EQ_RESULT(urKernelGetInfo(kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0,
+                                   nullptr, nullptr),
+                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urKernelGetInfoTest, KernelNameCorrect) {
