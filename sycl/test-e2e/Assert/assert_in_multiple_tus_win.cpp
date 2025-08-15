@@ -1,6 +1,6 @@
 // REQUIRES: windows
 //
-// L0 does not currently abort after synchronizing with a failing kernel. 
+// L0 does not currently abort after synchronizing with a failing kernel.
 // UNSUPPORTED: level_zero
 // UNSUPPORTED-TRACKER: GSD-11097
 //
