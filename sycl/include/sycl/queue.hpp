@@ -74,6 +74,9 @@ class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo();
 
+  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
+  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
+
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
 
@@ -107,6 +110,13 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   SubmissionInfo(const detail::SubmissionInfo &SI)
       : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
+
+  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
+    return MPostProcessorFunc;
+  }
+  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
+    return MPostProcessorFunc;
+  }
 #endif
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
@@ -122,6 +132,9 @@ public:
   }
 
 private:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+#endif
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;

@@ -25,6 +25,20 @@ namespace detail {
 SubmissionInfo::SubmissionInfo()
     : impl{std::make_shared<SubmissionInfoImpl>()} {}
 
+optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() {
+  // No longer in use, but needs to be exposed for use in SYCL programs built
+  // with the old headers.
+  static optional<SubmitPostProcessF> DoNotUsePostProcessorFunc;
+  return DoNotUsePostProcessorFunc;
+}
+
+const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
+  // No longer in use, but needs to be exposed for use in SYCL programs built
+  // with the old headers.
+  static optional<SubmitPostProcessF> DoNotUsePostProcessorFunc;
+  return DoNotUsePostProcessorFunc;
+}
+
 std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
   return impl->MSecondaryQueue;
 }
