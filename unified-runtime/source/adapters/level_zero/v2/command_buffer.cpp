@@ -14,6 +14,7 @@
 #include "../ur_interface_loader.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"
+// #include "ur_api.h"
 
 namespace {
 
@@ -129,6 +130,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   // It is not allowed to append to command list from multiple threads.
   auto commandListLocked = commandListManager.lock();
+
   UR_ASSERT(!isFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
 
   if (!isInOrder) {

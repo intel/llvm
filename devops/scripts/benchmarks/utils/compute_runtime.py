@@ -203,16 +203,20 @@ class ComputeRuntime:
             # Remove -Werror...
             replace_in_file(cmakelists_path, r"\s-Werror(?:=[a-zA-Z]*)?", "")
 
-            log.info("Building Compute Runtime...")
-            extra_config_args = [
-                "-DNEO_ENABLE_i915_PRELIM_DETECTION=1",
-                "-DNEO_ENABLE_I915_PRELIM_DETECTION=1",
-                "-DNEO_SKIP_UNIT_TESTS=1",
-                f"-DGMM_DIR={self.gmmlib}",
-                f"-DLEVEL_ZERO_ROOT={self.level_zero}",
-            ]
-            if options.build_igc:
-                extra_config_args.append(f"-DIGC_DIR={self.igc}")
+        log.info("Building Compute Runtime...")
+        configure_command = [
+            "cmake",
+            f"-B {self.compute_runtime_build}",
+            f"-S {self.compute_runtime_repo}",
+            "-DCMAKE_BUILD_TYPE=Debug",
+            "-DNEO_ENABLE_i915_PRELIM_DETECTION=1",
+            "-DNEO_ENABLE_I915_PRELIM_DETECTION=1",
+            "-DNEO_SKIP_UNIT_TESTS=1",
+            f"-DGMM_DIR={self.gmmlib}",
+            f"-DLEVEL_ZERO_ROOT={self.level_zero}",
+        ]
+        if options.build_igc:
+            configure_command.append(f"-DIGC_DIR={self.igc}")
 
             project.configure(extra_args=extra_config_args)
             project.build()

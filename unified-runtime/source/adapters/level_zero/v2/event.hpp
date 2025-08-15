@@ -68,7 +68,9 @@ public:
 
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
+  void setBatch(int64_t batch_generation);
   void setCommandType(ur_command_t commandType);
+  void runBatch();
 
   void reset();
   ze_event_handle_t getZeEvent() const;
@@ -97,6 +99,8 @@ public:
 
   // Get the type of the command that this event is associated with
   ur_command_t getCommandType() const;
+
+  int64_t getBatch() const;
 
   // Get the device associated with this event
   ur_device_handle_t getDevice() const;
@@ -129,6 +133,8 @@ protected:
   // queue and commandType that this event is associated with, set by enqueue
   // commands
   ur_queue_t_ *hQueue = nullptr;
+  // default for non-batched queues
+  int64_t batch_generation = -1;
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   ur_device_handle_t hDevice = nullptr;
 
