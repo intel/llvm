@@ -64,12 +64,11 @@ const char *SYCLInstallationDetector::findLibspirvPath(
   const SmallString<64> Basename =
       getLibSpirvBasename(DeviceTriple, HostTriple);
   auto searchAt = [&](StringRef Path, const Twine &a = "", const Twine &b = "",
-                      const Twine &c = "") -> const char * {
+                      bool HashHashHashEnabled = false) -> const char * {
     SmallString<128> LibraryPath(Path);
-    llvm::sys::path::append(LibraryPath, a, b, c, Basename);
+    llvm::sys::path::append(LibraryPath, a, b, "", Basename);
 
-    if (Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH) ||
-        llvm::sys::fs::exists(LibraryPath))
+    if (HashHashHashEnabled || llvm::sys::fs::exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;
@@ -81,7 +80,9 @@ const char *SYCLInstallationDetector::findLibspirvPath(
       return R;
 
     // Expected path w/ install.
-    if (const char *R = searchAt(IC, "share", "clc"))
+    bool HashHashHashEnabled = (&IC == &InstallationCandidates.back()) &&
+                               Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH);
+    if (const char *R = searchAt(IC, "share", "clc", HashHashHashEnabled))
       return R;
   }
 
