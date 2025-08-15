@@ -7015,7 +7015,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
                IRB.getInt32(Src->getType()->getPointerAddressSpace()),
                IRB.getInt32(ElementSize), NumElements, Stride});
-        } else if (FuncName.contains("__sycl_getComposite2020SpecConstantValue")) {
+        } else if (FuncName.contains(
+                       "__sycl_getComposite2020SpecConstantValue")) {
           // clang-format off
           // Handle builtin functions like "_Z40__sycl_getComposite2020SpecConstantValue"
           // Structs which are larger than 64b will be returned via sret arguments
