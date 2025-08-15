@@ -37,7 +37,7 @@ define weak_odr void @ESIMDKernel(float %arg1, float %arg2) !sycl_explicit_simd 
 
 define weak_odr spir_kernel void @FreeFuncKernelSingleTask(float %arg1, float %arg2) "sycl-single-task-kernel"="0" {
 ; CHECK-LABEL: define {{[^@]+}}@FreeFuncKernelSingleTask
-; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) {
+; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) #[[SINGLE_TASK_ATTR]] {
 ; CHECK-NEXT: call void @foo(float [[ARG1]])
 ; CHECK-NEXT: ret void
 ;
