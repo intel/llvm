@@ -17,6 +17,125 @@ let annotationsOptions = new Map(); // Global options map for annotations
 let archivedDataLoaded = false;
 let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 
+// Toggle configuration and abstraction
+//
+// HOW TO ADD A NEW TOGGLE:
+// 1. Add HTML checkbox to index.html:
+//    <label><input type="checkbox" id="my-toggle">My Toggle</label>
+//
+// 2. Add configuration below:
+//    'my-toggle': {
+//        defaultValue: false,              // true = enabled by default, false = disabled by default
+//        urlParam: 'myParam',              // Name shown in URL (?myParam=true)
+//        invertUrlParam: false,            // false = normal behavior, true = legacy inverted logic
+//        onChange: function(isEnabled) {  // Function called when toggle state changes
+//            // Your logic here
+//            updateURL();                  // Always call this to update the browser URL
+//        }
+//    }
+//
+// 3. (Optional) Add helper function for cleaner, more readable code:
+//    function isMyToggleEnabled() { return isToggleEnabled('my-toggle'); }
+//
+//    This lets you write: if (isMyToggleEnabled()) { ... }
+//    Instead of:         if (isToggleEnabled('my-toggle')) { ... }
+//
+
+const toggleConfigs = {
+    'show-notes': {
+        defaultValue: true,
+        urlParam: 'notes',
+        invertUrlParam: true, // Store false in URL when enabled (legacy behavior)
+        onChange: function(isEnabled) {
+            document.querySelectorAll('.benchmark-note').forEach(note => {
+                note.style.display = isEnabled ? 'block' : 'none';
+            });
+            updateURL();
+        }
+    },
+    'show-unstable': {
+        defaultValue: false,
+        urlParam: 'unstable',
+        invertUrlParam: false,
+        onChange: function(isEnabled) {
+            document.querySelectorAll('.benchmark-unstable').forEach(warning => {
+                warning.style.display = isEnabled ? 'block' : 'none';
+            });
+            filterCharts();
+        }
+    },
+    'custom-range': {
+        defaultValue: false,
+        urlParam: 'customRange',
+        invertUrlParam: false,
+        onChange: function(isEnabled) {
+            updateCharts();
+        }
+    },
+    'show-archived-data': {
+        defaultValue: false,
+        urlParam: 'archived',
+        invertUrlParam: false,
+        onChange: function(isEnabled) {
+            if (isEnabled) {
+                loadArchivedData();
+            } else {
+                if (archivedDataLoaded) {
+                    location.reload();
+                }
+            }
+            updateURL();
+        }
+    }
+};
+
+// Generic toggle helper functions
+function isToggleEnabled(toggleId) {
+    const toggle = document.getElementById(toggleId);
+    return toggle ? toggle.checked : toggleConfigs[toggleId]?.defaultValue || false;
+}
+
+function setupToggle(toggleId, config) {
+    const toggle = document.getElementById(toggleId);
+    if (!toggle) return;
+
+    // Set up event listener
+    toggle.addEventListener('change', function() {
+        config.onChange(toggle.checked);
+    });
+
+    // Initialize from URL params if present
+    const urlParam = getQueryParam(config.urlParam);
+    if (urlParam !== null) {
+        const urlValue = urlParam === 'true';
+        // Handle inverted URL params (like notes where false means enabled)
+        toggle.checked = config.invertUrlParam ? !urlValue : urlValue;
+    } else {
+        // Use default value
+        toggle.checked = config.defaultValue;
+    }
+}
+
+function updateToggleURL(toggleId, config, url) {
+    const isEnabled = isToggleEnabled(toggleId);
+
+    if (config.invertUrlParam) {
+        // For inverted params, store in URL when disabled
+        if (isEnabled) {
+            url.searchParams.delete(config.urlParam);
+        } else {
+            url.searchParams.set(config.urlParam, 'false');
+        }
+    } else {
+        // For normal params, store in URL when enabled
+        if (!isEnabled) {
+            url.searchParams.delete(config.urlParam);
+        } else {
+            url.searchParams.set(config.urlParam, 'true');
+        }
+    }
+}
+
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
 
@@ -627,30 +746,10 @@ function updateURL() {
         url.searchParams.delete('runs');
     }
 
-    // Add toggle states to URL
-    if (isNotesEnabled()) {
-        url.searchParams.delete('notes');
-    } else {
-        url.searchParams.set('notes', 'false');
-    }
-
-    if (!isUnstableEnabled()) {
-        url.searchParams.delete('unstable');
-    } else {
-        url.searchParams.set('unstable', 'true');
-    }
-
-    if (!isCustomRangesEnabled()) {
-        url.searchParams.delete('customRange');
-    } else {
-        url.searchParams.set('customRange', 'true');
-    }
-
-    if (!isArchivedDataEnabled()) {
-        url.searchParams.delete('archived');
-    } else {
-        url.searchParams.set('archived', 'true');
-    }
+    // Update toggle states in URL using the generic helper
+    Object.entries(toggleConfigs).forEach(([toggleId, config]) => {
+        updateToggleURL(toggleId, config, url);
+    });
 
     history.replaceState(null, '', url);
 }
@@ -949,94 +1048,26 @@ function setupSuiteFilters() {
 }
 
 function isNotesEnabled() {
-    const notesToggle = document.getElementById('show-notes');
-    return notesToggle.checked;
+    return isToggleEnabled('show-notes');
 }
 
 function isUnstableEnabled() {
-    const unstableToggle = document.getElementById('show-unstable');
-    return unstableToggle.checked;
+    return isToggleEnabled('show-unstable');
 }
 
 function isCustomRangesEnabled() {
-    const rangesToggle = document.getElementById('custom-range');
-    return rangesToggle.checked;
+    return isToggleEnabled('custom-range');
 }
 
 function isArchivedDataEnabled() {
-    const archivedDataToggle = document.getElementById('show-archived-data');
-    return archivedDataToggle.checked;
+    return isToggleEnabled('show-archived-data');
 }
 
 function setupToggles() {
-    const notesToggle = document.getElementById('show-notes');
-    const unstableToggle = document.getElementById('show-unstable');
-    const customRangeToggle = document.getElementById('custom-range');
-    const archivedDataToggle = document.getElementById('show-archived-data');
-
-    notesToggle.addEventListener('change', function () {
-        // Update all note elements visibility
-        document.querySelectorAll('.benchmark-note').forEach(note => {
-            note.style.display = isNotesEnabled() ? 'block' : 'none';
-        });
-        updateURL();
+    // Set up all toggles using the configuration
+    Object.entries(toggleConfigs).forEach(([toggleId, config]) => {
+        setupToggle(toggleId, config);
     });
-
-    unstableToggle.addEventListener('change', function () {
-        // Update all unstable warning elements visibility
-        document.querySelectorAll('.benchmark-unstable').forEach(warning => {
-            warning.style.display = isUnstableEnabled() ? 'block' : 'none';
-        });
-        filterCharts();
-    });
-
-    customRangeToggle.addEventListener('change', function () {
-        // redraw all charts
-        updateCharts();
-    });
-
-    // Add event listener for archived data toggle
-    if (archivedDataToggle) {
-        archivedDataToggle.addEventListener('change', function() {
-            if (archivedDataToggle.checked) {
-                loadArchivedData();
-            } else {
-                if (archivedDataLoaded) {
-                    // Reload the page to reset
-                    location.reload();
-                }
-            }
-            updateURL();
-        });
-    }
-
-    // Initialize from URL params if present
-    const notesParam = getQueryParam('notes');
-    const unstableParam = getQueryParam('unstable');
-    const archivedParam = getQueryParam('archived');
-
-    if (notesParam !== null) {
-        let showNotes = notesParam === 'true';
-        notesToggle.checked = showNotes;
-    }
-
-    if (unstableParam !== null) {
-        let showUnstable = unstableParam === 'true';
-        unstableToggle.checked = showUnstable;
-    }
-
-    const customRangesParam = getQueryParam('customRange');
-    if (customRangesParam !== null) {
-        customRangeToggle.checked = customRangesParam === 'true';
-    }
-
-    if (archivedDataToggle && archivedParam !== null) {
-        archivedDataToggle.checked = archivedParam === 'true';
-
-        if (archivedDataToggle.checked) {
-            loadArchivedData();
-        }
-    }
 }
 
 function setupTagFilters() {
@@ -1154,9 +1185,10 @@ function initializeCharts() {
     // Setup UI components
     setupRunSelector();
     setupSuiteFilters();
-    setupTagFilters();
     setupToggles();
     initializePlatformTab();
+    // Setup tag filters after everything else is ready
+    setupTagFilters();
 
     // Apply URL parameters
     const regexParam = getQueryParam('regex');
