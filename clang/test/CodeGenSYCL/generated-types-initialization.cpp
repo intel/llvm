@@ -38,7 +38,7 @@ int main() {
   });
   return 0;
 }
-// CHECK: define dso_local spir_kernel void @{{.*}}basic(ptr noundef byval(%struct.__generated_B) align 8 %_arg_Obj)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}basic(ptr noundef byval(%struct.__generated_B) align 8 %_arg_Obj)
 //
 // Kernel object clone.
 // CHECK: %[[K:[a-zA-Z0-9_.]+]] = alloca %class.anon
@@ -54,7 +54,7 @@ int main() {
 // Kernel body call.
 // CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) %[[K_as_cast]])
 
-// CHECK: define dso_local spir_kernel void @{{.*}}nns(ptr noundef byval(%struct.__generated_B.0) align 8 %_arg_NNSObj)
+// CHECK: define {{.*}}spir_kernel void @{{.*}}nns(ptr noundef byval(%struct.__generated_B.0) align 8 %_arg_NNSObj)
 //
 // Kernel object clone.
 // CHECK: %[[NNSK:[a-zA-Z0-9_.]+]] = alloca %class.anon.2

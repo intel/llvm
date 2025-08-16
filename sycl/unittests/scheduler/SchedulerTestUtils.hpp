@@ -222,7 +222,7 @@ class MockHandler : public sycl::handler {
 public:
   MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
       : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
-            Queue, nullptr, CallerNeedsEvent)) {}
+            Queue, CallerNeedsEvent)) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;

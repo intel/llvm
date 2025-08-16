@@ -5722,6 +5722,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
 ///         + If `pFunctionName` could be located, but its address couldn't be
 ///         retrieved.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the backend does not support querying function pointers.
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
     ur_device_handle_t hDevice,
@@ -8616,18 +8618,20 @@ typedef enum ur_map_flag_t {
 #define UR_MAP_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Map flags
+/// @brief USM migration flags, indicating the direction data is migrated in
 typedef uint32_t ur_usm_migration_flags_t;
 typedef enum ur_usm_migration_flag_t {
-  /// Default migration TODO: Add more enums!
-  UR_USM_MIGRATION_FLAG_DEFAULT = UR_BIT(0),
+  /// Migrate data from host to device
+  UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE = UR_BIT(0),
+  /// Migrate data from device to host
+  UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST = UR_BIT(1),
   /// @cond
   UR_USM_MIGRATION_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_usm_migration_flag_t;
 /// @brief Bit Mask for validating ur_usm_migration_flags_t
-#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffe
+#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to map a region of the buffer object into the host
@@ -11893,7 +11897,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,

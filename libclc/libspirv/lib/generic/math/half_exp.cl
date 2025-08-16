@@ -6,8 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_half_exp.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BUILTIN __spirv_ocl_exp
-#define __CLC_FUNCTION __spirv_ocl_half_exp
-#include <clc/math/unary_builtin_scalarize.inc>
+#define __FLOAT_ONLY
+#define FUNCTION __spirv_ocl_half_exp
+#define __IMPL_FUNCTION(x) __clc_half_exp
+#define __CLC_BODY <clc/shared/unary_def.inc>
+
+#include <clc/math/gentype.inc>

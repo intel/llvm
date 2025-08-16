@@ -12,6 +12,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -108,7 +109,7 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
   return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
+      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 } // namespace detail
 
@@ -369,15 +370,17 @@ void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
       CodeLoc);
 }
 
-inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes) {
-  CGH.prefetch(Ptr, NumBytes);
+inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
+                     prefetch_type Type = prefetch_type::device) {
+  CGH.prefetch(Ptr, NumBytes, Type);
 }
 
 inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
+                     prefetch_type Type = prefetch_type::device,
                      const sycl::detail::code_location &CodeLoc =
                          sycl::detail::code_location::current()) {
   submit(
-      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes); },
+      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, Type); },
       CodeLoc);
 }
 

@@ -2980,7 +2980,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
-            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3291,7 +3292,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event);
+            Prefetch->getLength(), std::move(RawEvents), Event,
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 

@@ -397,14 +397,19 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
-  void *getDst() { return MDst; }
-  size_t getLength() { return MLength; }
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() const { return MDst; }
+  size_t getLength() const { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() const {
+    return MPrefetchType;
+  }
 };
 
 /// "Advise USM" command group class.

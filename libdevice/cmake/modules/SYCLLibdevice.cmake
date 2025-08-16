@@ -616,12 +616,10 @@ add_devicelibs(libsycl-fallback-cmath-fp64
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
-  FILETYPES "${filetypes_no_spv}"
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
-  FILETYPES "${filetypes_no_spv}"
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 
