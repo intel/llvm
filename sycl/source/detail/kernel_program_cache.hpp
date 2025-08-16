@@ -11,7 +11,7 @@
 #include "sycl/exception.hpp"
 #include <detail/config.hpp>
 #include <detail/kernel_arg_mask.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
+#include <detail/kernel_name_based_data.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/unordered_multimap.hpp>
 #include <sycl/detail/common.hpp>
@@ -219,25 +219,18 @@ public:
 
   class FastKernelSubcacheWrapper {
   public:
-    FastKernelSubcacheWrapper(FastKernelSubcacheT *CachePtr,
+    FastKernelSubcacheWrapper(FastKernelSubcacheT &Subcache,
                               ur_context_handle_t UrContext)
-        : MSubcachePtr{CachePtr}, MUrContext{UrContext} {
-      if (!MSubcachePtr) {
-        MOwnsSubcache = true;
-        MSubcachePtr = new FastKernelSubcacheT();
-      }
-    }
+        : MSubcachePtr{&Subcache}, MUrContext{UrContext} {}
     FastKernelSubcacheWrapper(const FastKernelSubcacheWrapper &) = delete;
     FastKernelSubcacheWrapper(FastKernelSubcacheWrapper &&Other)
-        : MSubcachePtr{Other.MSubcachePtr}, MOwnsSubcache{Other.MOwnsSubcache},
-          MUrContext{Other.MUrContext} {
+        : MSubcachePtr{Other.MSubcachePtr}, MUrContext{Other.MUrContext} {
       Other.MSubcachePtr = nullptr;
     }
     FastKernelSubcacheWrapper &
     operator=(const FastKernelSubcacheWrapper &) = delete;
     FastKernelSubcacheWrapper &operator=(FastKernelSubcacheWrapper &&Other) {
       MSubcachePtr = Other.MSubcachePtr;
-      MOwnsSubcache = Other.MOwnsSubcache;
       MUrContext = Other.MUrContext;
       Other.MSubcachePtr = nullptr;
       return *this;
@@ -246,11 +239,6 @@ public:
     ~FastKernelSubcacheWrapper() {
       if (!MSubcachePtr)
         return;
-
-      if (MOwnsSubcache) {
-        delete MSubcachePtr;
-        return;
-      }
 
       // Single subcache might be used by different contexts.
       // Remove all entries from the subcache that are associated with the
@@ -267,8 +255,7 @@ public:
     FastKernelSubcacheT &get() { return *MSubcachePtr; }
 
   private:
-    FastKernelSubcacheT *MSubcachePtr = nullptr;
-    bool MOwnsSubcache = false;
+    FastKernelSubcacheT *MSubcachePtr;
     ur_context_handle_t MUrContext = nullptr;
   };
 
@@ -455,18 +442,9 @@ public:
 
   FastKernelCacheValPtr
   tryToGetKernelFast(KernelNameStrRefT KernelName, ur_device_handle_t Device,
-                     FastKernelSubcacheT *KernelSubcacheHint) {
-    FastKernelCacheWriteLockT Lock(MFastKernelCacheMutex);
-    if (!KernelSubcacheHint) {
-      auto It = MFastKernelCache.try_emplace(
-          KernelName,
-          FastKernelSubcacheWrapper(KernelSubcacheHint, getURContext()));
-      KernelSubcacheHint = &It.first->second.get();
-    }
-
-    const FastKernelSubcacheEntriesT &SubcacheEntries =
-        KernelSubcacheHint->Entries;
-    FastKernelSubcacheReadLockT SubcacheLock{KernelSubcacheHint->Mutex};
+                     FastKernelSubcacheT &KernelSubcache) {
+    const FastKernelSubcacheEntriesT &SubcacheEntries = KernelSubcache.Entries;
+    FastKernelSubcacheReadLockT SubcacheLock{KernelSubcache.Mutex};
     ur_context_handle_t Context = getURContext();
     const FastKernelCacheKeyT RequiredKey(Device, Context);
     // Search for the kernel in the subcache.
@@ -484,7 +462,7 @@ public:
 
   void saveKernel(KernelNameStrRefT KernelName, ur_device_handle_t Device,
                   const FastKernelCacheValPtr &CacheVal,
-                  FastKernelSubcacheT *KernelSubcacheHint) {
+                  FastKernelSubcacheT &KernelSubcache) {
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
       // Save kernel in fast cache only if the corresponding program is also
@@ -504,15 +482,13 @@ public:
     // if no insertion took place, then some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
-    auto It = MFastKernelCache.try_emplace(
-        KernelName,
-        FastKernelSubcacheWrapper(KernelSubcacheHint, getURContext()));
-    KernelSubcacheHint = &It.first->second.get();
+    MFastKernelCache.try_emplace(
+        KernelName, FastKernelSubcacheWrapper(KernelSubcache, getURContext()));
 
-    FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcacheHint->Mutex};
+    FastKernelSubcacheWriteLockT SubcacheLock{KernelSubcache.Mutex};
     ur_context_handle_t Context = getURContext();
-    KernelSubcacheHint->Entries.emplace_back(
-        FastKernelCacheKeyT(Device, Context), CacheVal);
+    KernelSubcache.Entries.emplace_back(FastKernelCacheKeyT(Device, Context),
+                                        CacheVal);
   }
 
   // Expects locked program cache

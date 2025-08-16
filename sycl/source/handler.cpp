@@ -538,6 +538,16 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    if (impl->MKernelNameBasedDataPtr) {
+      impl->MKernelNameBasedDataPtr->initIfNeeded(
+          toKernelNameStrT(MKernelName));
+    } else {
+      impl->MKernelNameBasedDataPtr =
+          detail::ProgramManager::getInstance().getOrCreateKernelNameBasedData(
+              toKernelNameStrT(MKernelName));
+    }
+#endif
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
         getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
@@ -611,10 +621,8 @@ event handler::finalize() {
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
-        bool KernelUsesAssert =
-            !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(
-                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
+        bool KernelUsesAssert = !(MKernel && MKernel->isInterop()) &&
+                                impl->MKernelNameBasedDataPtr->usesAssert();
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -635,7 +643,7 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedCachePtr,
+              MKernelName.data(), impl->MKernelNameBasedDataPtr,
               impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
               impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
@@ -652,7 +660,7 @@ event handler::finalize() {
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
-            impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
+            impl->MKernelNameBasedDataPtr, RawEvents, ResultEvent.get(),
             nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
@@ -713,7 +721,7 @@ event handler::finalize() {
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
+        impl->MKernelNameBasedDataPtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -2594,9 +2602,18 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  impl->MKernelNameBasedCachePtr = KernelNameBasedCachePtr;
+  setKernelNameBasedDataPtr(
+      reinterpret_cast<sycl::detail::KernelNameBasedData *>(
+          KernelNameBasedCachePtr));
+}
+#endif
+
+void handler::setKernelNameBasedDataPtr(
+    sycl::detail::KernelNameBasedData *KernelNameBasedDataPtr) {
+  impl->MKernelNameBasedDataPtr = KernelNameBasedDataPtr;
 }
 
 void handler::setKernelInfo(

@@ -244,7 +244,7 @@ public:
   bool MKernelHasSpecialCaptures = true;
 
   // A pointer to a kernel name based cache retrieved on the application side.
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+  KernelNameBasedData *MKernelNameBasedDataPtr = nullptr;
 };
 
 } // namespace detail
