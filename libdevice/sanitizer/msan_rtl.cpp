@@ -671,7 +671,7 @@ __msan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
                                 "__msan_unpoison_shadow_dynamic_local"));
 }
 
-static __SYCL_CONSTANT__ const char __msan_print_set_shadow_private[] =
+static __SYCL_CONSTANT__ const char __msan_print_set_shadow[] =
     "[kernel] __msan_set_value(beg=%p, end=%p, val=%02X)\n";
 
 // We outline the function of setting shadow memory of private memory, because
@@ -684,8 +684,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(__SYCL_PRIVATE__ void *ptr,
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_poison_stack"));
 
   auto shadow_address = MemToShadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
-                                (void *)shadow_address,
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow, (void *)shadow_address,
                                 (void *)(shadow_address + size), 0xff));
 
   if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
@@ -704,8 +703,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
       __spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_stack"));
 
   auto shadow_address = MemToShadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
-                                (void *)shadow_address,
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow, (void *)shadow_address,
                                 (void *)(shadow_address + size), 0x0));
 
   if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
@@ -714,6 +712,26 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
 
   MSAN_DEBUG(
       __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_stack"));
+}
+
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow(uptr ptr, uint32_t as,
+                                                     uptr size) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(
+      __spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_shadow"));
+
+  auto shadow_address = MemToShadow(ptr, as);
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow, (void *)shadow_address,
+                                (void *)(shadow_address + size), 0x0));
+
+  if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
+    Memset((__SYCL_GLOBAL__ char *)shadow_address, 0, size);
+  }
+
+  MSAN_DEBUG(
+      __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_shadow"));
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
