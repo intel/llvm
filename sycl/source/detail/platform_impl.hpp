@@ -203,6 +203,9 @@ public:
 private:
   device_impl *getDeviceImplHelper(ur_device_handle_t UrDevice);
 
+  void getDevicesImplHelper(ur_device_type_t UrDeviceType,
+                            std::vector<device> &OutVec) const;
+
   // Helper to get the vector of platforms supported by a given UR adapter
   static std::vector<platform> getAdapterPlatforms(adapter_impl &Adapter,
                                                    bool Supported = true);

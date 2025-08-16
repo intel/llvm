@@ -399,22 +399,25 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
         Device, UR_DEVICE_INFO_TYPE, sizeof(UrDevType), &UrDevType, nullptr);
     // TODO need mechanism to do these casts, there's a bunch of this sort of
     // thing
-    sycl::info::device_type DeviceType = info::device_type::all;
-    switch (UrDevType) {
-    default:
-    case UR_DEVICE_TYPE_ALL:
-      DeviceType = info::device_type::all;
-      break;
-    case UR_DEVICE_TYPE_GPU:
-      DeviceType = info::device_type::gpu;
-      break;
-    case UR_DEVICE_TYPE_CPU:
-      DeviceType = info::device_type::cpu;
-      break;
-    case UR_DEVICE_TYPE_FPGA:
-      DeviceType = info::device_type::accelerator;
-      break;
-    }
+    sycl::info::device_type DeviceType = [UrDevType]() {
+      switch (UrDevType) {
+      default:
+      case UR_DEVICE_TYPE_ALL:
+        return info::device_type::all;
+      case UR_DEVICE_TYPE_GPU:
+        return info::device_type::gpu;
+      case UR_DEVICE_TYPE_CPU:
+        return info::device_type::cpu;
+      case UR_DEVICE_TYPE_FPGA:
+        return info::device_type::accelerator;
+      case UR_DEVICE_TYPE_CUSTOM:
+      case UR_DEVICE_TYPE_MCA:
+      case UR_DEVICE_TYPE_VPU:
+        return info::device_type::custom;
+      case UR_DEVICE_TYPE_DEFAULT:
+        return info::device_type::automatic;
+      }
+    }();
     for (const auto &SyclDeviceType :
          getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
       if (SyclDeviceType.second == DeviceType) {

@@ -2609,6 +2609,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value) {
   case UR_DEVICE_TYPE_VPU:
     os << "UR_DEVICE_TYPE_VPU";
     break;
+  case UR_DEVICE_TYPE_CUSTOM:
+    os << "UR_DEVICE_TYPE_CUSTOM";
+    break;
   default:
     os << "unknown enumerator";
     break;
