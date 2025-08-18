@@ -32,6 +32,7 @@ KernelCompiler/opencl_queries.cpp
 # to a bug in the L0 drivers, one test causes the implementation to continue
 # after assertions are triggered. We allow this regression while the drivers bug
 # gets addressed.
+# See GSD-11097.
 Assert/assert_in_kernels.cpp
 
 # Likely OK, but need author to provide justification, get approval/confirmation
