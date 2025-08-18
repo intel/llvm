@@ -51,7 +51,7 @@ inline __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
 
 inline DeviceType GetDeviceTy() {
   return static_cast<DeviceType>(
-      __spirv_SpecConstant(SpecConstantDeviceTyID, 0));
+      __spirv_SpecConstant(SPEC_CONSTANT_DEVICE_TYPE_ID, 0));
 }
 
 template <typename T> T Memset(T ptr, int value, size_t size) {

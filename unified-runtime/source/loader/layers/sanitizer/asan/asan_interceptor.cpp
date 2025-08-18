@@ -646,7 +646,7 @@ ur_result_t AsanInterceptor::insertProgram(ur_program_handle_t Program) {
   auto CI = getContextInfo(GetContext(Program));
   auto DI = getDeviceInfo(CI->DeviceList[0]);
   ur_specialization_constant_info_t SpecConstantInfo{
-      SpecConstantDeviceTyID, sizeof(DeviceType), &DI->Type};
+      SPEC_CONSTANT_DEVICE_TYPE_ID, sizeof(DeviceType), &DI->Type};
   ur_result_t URes =
       getContext()->urDdiTable.Program.pfnSetSpecializationConstants(
           Program, 1, &SpecConstantInfo);
