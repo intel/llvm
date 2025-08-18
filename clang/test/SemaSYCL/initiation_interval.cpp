@@ -3,15 +3,15 @@
 // Test that checks initiation_interval attribute support on function.
 
 // Tests for incorrect argument values for Intel FPGA initiation_interval function attribute.
-[[intel::initiation_interval]] void one() {} // expected-error {{'initiation_interval' attribute takes one argument}}
+[[intel::initiation_interval]] void one() {} // expected-error {{'intel::initiation_interval' attribute takes one argument}}
 
-[[intel::initiation_interval(5)]] int a; // expected-error{{'initiation_interval' attribute only applies to 'for', 'while', 'do' statements, and functions}}
+[[intel::initiation_interval(5)]] int a; // expected-error{{'intel::initiation_interval' attribute only applies to 'for', 'while', 'do' statements, and functions}}
 
 [[intel::initiation_interval("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
 
-[[intel::initiation_interval(-1)]] void func1() {} // expected-error{{'initiation_interval' attribute requires a positive integral compile time constant expression}}
+[[intel::initiation_interval(-1)]] void func1() {} // expected-error{{'intel::initiation_interval' attribute requires a positive integral compile time constant expression}}
 
-[[intel::initiation_interval(0, 1)]] void func2() {} // expected-error{{'initiation_interval' attribute takes one argument}}
+[[intel::initiation_interval(0, 1)]] void func2() {} // expected-error{{'intel::initiation_interval' attribute takes one argument}}
 
 // Tests for Intel FPGA initiation_interval function attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
@@ -24,33 +24,33 @@
 
 // Diagnostic is emitted because the arguments mismatch.
 [[intel::initiation_interval(2)]]                  // expected-note {{previous attribute is here}}
-[[intel::initiation_interval(4)]] void func5() {}  // expected-warning {{attribute 'initiation_interval' is already applied with different arguments}}
+[[intel::initiation_interval(4)]] void func5() {}  // expected-warning {{attribute 'intel::initiation_interval' is already applied with different arguments}}
 
 [[intel::initiation_interval(1)]] void func6(); // expected-note {{previous attribute is here}}
-[[intel::initiation_interval(3)]] void func6(); // expected-warning {{attribute 'initiation_interval' is already applied with different arguments}}
+[[intel::initiation_interval(3)]] void func6(); // expected-warning {{attribute 'intel::initiation_interval' is already applied with different arguments}}
 
 // Tests for Intel FPGA initiation_interval and disable_loop_pipelining attributes compatibility checks.
-// expected-error@+2 {{'initiation_interval' and 'disable_loop_pipelining' attributes are not compatible}}
+// expected-error@+2 {{'intel::initiation_interval' and 'intel::disable_loop_pipelining' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::disable_loop_pipelining]] [[intel::initiation_interval(2)]] void func7();
 
-// expected-error@+2 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
+// expected-error@+2 {{'intel::disable_loop_pipelining' and 'intel::initiation_interval' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] [[intel::disable_loop_pipelining]] void func8();
 
-// expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
+// expected-error@+3 {{'intel::disable_loop_pipelining' and 'intel::initiation_interval' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::initiation_interval(4)]] void func9();
 [[intel::disable_loop_pipelining]] void func9();
 
 // Tests that check template parameter support for Intel FPGA initiation_interval function attributes
 template <int N>
-[[intel::initiation_interval(N)]] void func10(); // expected-error 2{{'initiation_interval' attribute requires a positive integral compile time constant expression}}
+[[intel::initiation_interval(N)]] void func10(); // expected-error 2{{'intel::initiation_interval' attribute requires a positive integral compile time constant expression}}
 
 template <int size>
 [[intel::initiation_interval(10)]] void func11();     // expected-note {{previous attribute is here}}
 template <int size>
-[[intel::initiation_interval(size)]] void func11() {} // expected-warning {{attribute 'initiation_interval' is already applied with different arguments}}
+[[intel::initiation_interval(size)]] void func11() {} // expected-warning {{attribute 'intel::initiation_interval' is already applied with different arguments}}
 
 void checkTemplates() {
   func10<4>();  // OK

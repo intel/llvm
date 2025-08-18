@@ -9806,6 +9806,17 @@ ObjCInterfaceDecl *ASTContext::getObjCProtocolDecl() const {
   return ObjCProtocolClassDecl;
 }
 
+PointerAuthQualifier ASTContext::getObjCMemberSelTypePtrAuth() {
+  if (!getLangOpts().PointerAuthObjcInterfaceSel)
+    return PointerAuthQualifier();
+  return PointerAuthQualifier::Create(
+      getLangOpts().PointerAuthObjcInterfaceSelKey,
+      /*isAddressDiscriminated=*/true, SelPointerConstantDiscriminator,
+      PointerAuthenticationMode::SignAndAuth,
+      /*isIsaPointer=*/false,
+      /*authenticatesNullValues=*/false);
+}
+
 //===----------------------------------------------------------------------===//
 // __builtin_va_list Construction Functions
 //===----------------------------------------------------------------------===//
@@ -12813,7 +12824,8 @@ static GVALinkage adjustGVALinkageForAttributes(const ASTContext &Context,
     if (Context.shouldExternalize(D))
       return GVA_StrongExternal;
   } else if (Context.getLangOpts().SYCLIsDevice &&
-             D->hasAttr<DeviceKernelAttr>()) {
+             (D->hasAttr<DeviceKernelAttr>() &&
+              D->getAttr<DeviceKernelAttr>()->isImplicit())) {
     if (L == GVA_DiscardableODR)
       return GVA_StrongODR;
   }
