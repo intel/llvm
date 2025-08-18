@@ -1692,9 +1692,8 @@ void ToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-ToolChain::getDeviceLibs(
-    const ArgList &DriverArgs,
-    const Action::OffloadKind DeviceOffloadingKind) const {
+ToolChain::getDeviceLibs(const ArgList &DriverArgs,
+                         const Action::OffloadKind DeviceOffloadingKind) const {
   return {};
 }
 

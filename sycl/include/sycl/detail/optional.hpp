@@ -22,6 +22,15 @@ template <typename T> class optional {
 public:
   constexpr optional() noexcept {}
   constexpr optional(std::nullopt_t) noexcept : optional() {}
+  constexpr optional(const optional &Other)
+      : ContainsValue{Other.ContainsValue} {
+    if (Other.ContainsValue)
+      new (Storage) T(Other.value());
+  }
+  constexpr optional(optional &&Other) : ContainsValue{Other.ContainsValue} {
+    new (Storage) T(std::move(Other.value()));
+    Other.ContainsValue = false;
+  }
 
   template <typename U>
   constexpr optional(const optional<U> &Other)
@@ -57,6 +66,21 @@ public:
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
     ContainsValue = false;
+    return *this;
+  }
+
+  optional &operator=(const optional<T> &Other) {
+    if (has_value())
+      reinterpret_cast<T *>(Storage)->~T();
+    ContainsValue = Other.has_value();
+    new (Storage) T(Other.value());
+    return *this;
+  }
+  optional &operator=(optional<T> &&Other) noexcept {
+    if (has_value())
+      reinterpret_cast<T *>(Storage)->~T();
+    ContainsValue = Other.has_value();
+    new (Storage) T(std::move(Other.value()));
     return *this;
   }
 

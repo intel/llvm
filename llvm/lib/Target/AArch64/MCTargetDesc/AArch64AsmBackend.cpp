@@ -67,7 +67,7 @@ public:
     // Fixup kinds from raw relocation types and .reloc directives force
     // relocations and do not need these fields.
     if (mc::isRelocation(Kind))
-      return MCAsmBackend::getFixupKindInfo(FK_NONE);
+      return {};
 
     if (Kind < FirstTargetFixupKind)
       return MCAsmBackend::getFixupKindInfo(Kind);
@@ -84,8 +84,6 @@ public:
 
   bool fixupNeedsRelaxation(const MCFixup &Fixup,
                             uint64_t Value) const override;
-  void relaxInstruction(MCInst &Inst,
-                        const MCSubtargetInfo &STI) const override;
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override;
 
@@ -144,7 +142,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, const MCValue &Target,
                                  uint64_t Value, MCContext &Ctx,
                                  const Triple &TheTriple, bool IsResolved) {
   int64_t SignedValue = static_cast<int64_t>(Value);
-  switch (Fixup.getTargetKind()) {
+  switch (Fixup.getKind()) {
   default:
     llvm_unreachable("Unknown fixup kind!");
   case AArch64::fixup_aarch64_pcrel_adr_imm21:
@@ -419,7 +417,7 @@ static bool shouldForceRelocation(const MCFixup &Fixup) {
   // same page as the ADRP and the instruction should encode 0x0. Assuming the
   // section isn't 0x1000-aligned, we therefore need to delegate this decision
   // to the linker -- a relocation!
-  return Fixup.getTargetKind() == AArch64::fixup_aarch64_pcrel_adrp_imm21;
+  return Fixup.getKind() == AArch64::fixup_aarch64_pcrel_adrp_imm21;
 }
 
 void AArch64AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
@@ -433,7 +431,7 @@ void AArch64AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   if (mc::isRelocation(Kind))
     return;
 
-  if (Fixup.getTargetKind() == FK_Data_8 && TheTriple.isOSBinFormatELF()) {
+  if (Fixup.getKind() == FK_Data_8 && TheTriple.isOSBinFormatELF()) {
     auto RefKind = static_cast<AArch64::Specifier>(Target.getSpecifier());
     AArch64::Specifier SymLoc = AArch64::getSymbolLoc(RefKind);
     if (SymLoc == AArch64::S_AUTH || SymLoc == AArch64::S_AUTHADDR) {
@@ -490,7 +488,7 @@ void AArch64AsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   AArch64::Specifier RefKind =
       static_cast<AArch64::Specifier>(Target.getSpecifier());
   if (AArch64::getSymbolLoc(RefKind) == AArch64::S_SABS ||
-      (!RefKind && Fixup.getTargetKind() == AArch64::fixup_aarch64_movw)) {
+      (!RefKind && Fixup.getKind() == AArch64::fixup_aarch64_movw)) {
     // If the immediate is negative, generate MOVN else MOVZ.
     // (Bit 30 = 0) ==> MOVN, (Bit 30 = 1) ==> MOVZ.
     if (SignedValue < 0)
@@ -507,11 +505,6 @@ bool AArch64AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
   //
   // Relax if the value is too big for a (signed) i8.
   return int64_t(Value) != int64_t(int8_t(Value));
-}
-
-void AArch64AsmBackend::relaxInstruction(MCInst &Inst,
-                                         const MCSubtargetInfo &STI) const {
-  llvm_unreachable("AArch64AsmBackend::relaxInstruction() unimplemented");
 }
 
 bool AArch64AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,

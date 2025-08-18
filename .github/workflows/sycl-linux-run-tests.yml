@@ -62,8 +62,9 @@ on:
         description: |
           When set in modes other than `run-only` results in artifact upload.
           For `run-only` mode, if specified, means downloading pre-built
-          binaries from the artifact, otherwise they are expected to be part of
-          the container.
+          binaries from the artifact. If set to special value `in-container`
+          then the binaries are expected to be stored in the container image
+          instead of coming from an artifact.
         type: string
         default: ''
         required: False
@@ -158,6 +159,7 @@ on:
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
           - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2'
+          - 'ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3'
           - 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'
       image_options:
         description: |
@@ -356,6 +358,7 @@ jobs:
         save_name: ${{ inputs.benchmark_save_name }}
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
+        build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

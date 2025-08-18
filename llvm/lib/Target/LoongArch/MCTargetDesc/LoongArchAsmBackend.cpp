@@ -72,7 +72,7 @@ MCFixupKindInfo LoongArchAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
   // Fixup kinds from .reloc directive are like R_LARCH_NONE. They
   // do not require any extra processing.
   if (mc::isRelocation(Kind))
-    return MCAsmBackend::getFixupKindInfo(FK_NONE);
+    return {};
 
   if (Kind < FirstTargetFixupKind)
     return MCAsmBackend::getFixupKindInfo(Kind);
@@ -90,7 +90,7 @@ static void reportOutOfRangeError(MCContext &Ctx, SMLoc Loc, unsigned N) {
 
 static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
                                  MCContext &Ctx) {
-  switch (Fixup.getTargetKind()) {
+  switch (Fixup.getKind()) {
   default:
     llvm_unreachable("Unknown fixup kind");
   case FK_Data_1:
@@ -157,7 +157,7 @@ void LoongArchAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   MCContext &Ctx = getContext();
 
   // Fixup leb128 separately.
-  if (Fixup.getTargetKind() == FK_Data_leb128)
+  if (Fixup.getKind() == FK_Data_leb128)
     return fixupLeb128(Ctx, Fixup, Data, Value);
 
   // Apply any target-specific value adjustments.
@@ -247,7 +247,7 @@ bool LoongArchAsmBackend::shouldInsertFixupForCodeAlign(MCAssembler &Asm,
 
 bool LoongArchAsmBackend::shouldForceRelocation(const MCFixup &Fixup,
                                                 const MCValue &Target) {
-  switch (Fixup.getTargetKind()) {
+  switch (Fixup.getKind()) {
   default:
     return STI.hasFeature(LoongArch::FeatureRelax);
   case FK_Data_1:
@@ -265,23 +265,17 @@ getRelocPairForSize(unsigned Size) {
   default:
     llvm_unreachable("unsupported fixup size");
   case 6:
-    return std::make_pair(MCFixupKind(ELF::R_LARCH_ADD6),
-                          MCFixupKind(ELF::R_LARCH_SUB6));
+    return std::make_pair(ELF::R_LARCH_ADD6, ELF::R_LARCH_SUB6);
   case 8:
-    return std::make_pair(MCFixupKind(ELF::R_LARCH_ADD8),
-                          MCFixupKind(ELF::R_LARCH_SUB8));
+    return std::make_pair(ELF::R_LARCH_ADD8, ELF::R_LARCH_SUB8);
   case 16:
-    return std::make_pair(MCFixupKind(ELF::R_LARCH_ADD16),
-                          MCFixupKind(ELF::R_LARCH_SUB16));
+    return std::make_pair(ELF::R_LARCH_ADD16, ELF::R_LARCH_SUB16);
   case 32:
-    return std::make_pair(MCFixupKind(ELF::R_LARCH_ADD32),
-                          MCFixupKind(ELF::R_LARCH_SUB32));
+    return std::make_pair(ELF::R_LARCH_ADD32, ELF::R_LARCH_SUB32);
   case 64:
-    return std::make_pair(MCFixupKind(ELF::R_LARCH_ADD64),
-                          MCFixupKind(ELF::R_LARCH_SUB64));
+    return std::make_pair(ELF::R_LARCH_ADD64, ELF::R_LARCH_SUB64);
   case 128:
-    return std::make_pair(MCFixupKind(ELF::R_LARCH_ADD_ULEB128),
-                          MCFixupKind(ELF::R_LARCH_SUB_ULEB128));
+    return std::make_pair(ELF::R_LARCH_ADD_ULEB128, ELF::R_LARCH_SUB_ULEB128);
   }
 }
 

@@ -281,7 +281,6 @@ void HIPAMDToolChain::addClangTargetOptions(
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
-
 }
 
 llvm::opt::DerivedArgList *
@@ -381,9 +380,8 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 }
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-HIPAMDToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs,
-    const Action::OffloadKind DeviceOffloadingKind) const {
+HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
+                               Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
                           true) ||

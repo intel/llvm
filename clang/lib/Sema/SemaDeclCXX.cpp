@@ -13339,7 +13339,7 @@ NamedDecl *Sema::BuildUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
     LookupResult Previous(*this, UsingEnumName, LookupUsingDeclName,
                           RedeclarationKind::ForVisibleRedeclaration);
 
-    LookupName(Previous, S);
+    LookupQualifiedName(Previous, CurContext);
 
     for (NamedDecl *D : Previous)
       if (UsingEnumDecl *UED = dyn_cast<UsingEnumDecl>(D))
@@ -16572,12 +16572,8 @@ static inline bool CheckOperatorNewDeleteTypes(
   if (IsPotentiallyTypeAware) {
     // We don't emit this diagnosis for template instantiations as we will
     // have already emitted it for the original template declaration.
-    if (!FnDecl->isTemplateInstantiation()) {
-      unsigned DiagID = SemaRef.getLangOpts().CPlusPlus26
-                            ? diag::warn_cxx26_type_aware_allocators
-                            : diag::ext_cxx26_type_aware_allocators;
-      SemaRef.Diag(FnDecl->getLocation(), DiagID);
-    }
+    if (!FnDecl->isTemplateInstantiation())
+      SemaRef.Diag(FnDecl->getLocation(), diag::warn_ext_type_aware_allocators);
 
     if (OperatorKind == AllocationOperatorKind::New) {
       SizeParameterIndex = 1;
@@ -18926,7 +18922,8 @@ void Sema::ActOnCXXEnterDeclInitializer(Scope *S, Decl *D) {
       VD && (VD->mightBeUsableInConstantExpressions(Context)))
     InConstexprVarInit = true;
   PushExpressionEvaluationContext(
-      ExpressionEvaluationContext::PotentiallyEvaluated, D);
+      ExpressionEvaluationContext::PotentiallyEvaluated, D,
+      ExpressionEvaluationContextRecord::EK_VariableInit);
 }
 
 void Sema::ActOnCXXExitDeclInitializer(Scope *S, Decl *D) {
@@ -18936,37 +18933,16 @@ void Sema::ActOnCXXExitDeclInitializer(Scope *S, Decl *D) {
     ExitDeclaratorContext(S);
 
   if (auto *VD = dyn_cast<VarDecl>(D)) {
-    if (VD->isUsableInConstantExpressions(Context) ||
-        VD->hasConstantInitialization()) {
-      if (getLangOpts().CPlusPlus23) {
-        // An expression or conversion is 'manifestly constant-evaluated' if it
-        // is:
-        // [...]
-        // - the initializer of a variable that is usable in constant
-        // expressions or
-        //   has constant initialization.
-        // An expression or conversion is in an 'immediate function context' if
-        // it is potentially evaluated and either:
-        // [...]
-        // - it is a subexpression of a manifestly constant-evaluated expression
-        //   or conversion.
-        ExprEvalContexts.back().InImmediateFunctionContext = true;
-      }
-    } else {
+    if (!VD->isUsableInConstantExpressions(Context) &&
+        !VD->hasConstantInitialization()) {
       for (auto &DDEntry : MaybeDeviceDeferredDiags)
         for (auto &DD : DDEntry.second)
           DeviceDeferredDiags[DDEntry.first].push_back(DD);
     }
     MaybeDeviceDeferredDiags.clear();
   }
-
   InConstexprVarInit = false;
-  // Unless the initializer is in an immediate function context (as determined
-  // above), this will evaluate all contained immediate function calls as
-  // constant expressions. If the initializer IS an immediate function context,
-  // the initializer has been determined to be a constant expression, and all
-  // such evaluations will be elided (i.e., as if we "knew the whole time" that
-  // it was a constant expression).
+
   PopExpressionEvaluationContext();
 }
 
