@@ -813,6 +813,8 @@ public:
   Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
                                     unsigned AddressSpace);
 
+  static bool isSupportedBuiltIn(StringRef Name);
+
   operator bool() const { return IsSPIRV; }
 
 private:
@@ -823,8 +825,6 @@ private:
   void instrumentKernelsMetadata(int TrackOrigins);
   void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
   void instrumentPrivateBase(Function &F);
-  bool isSupportedBuiltIn(StringRef Name);
-
   void initializeRetVecMap(Function *F);
   void initializeKernelCallerMap(Function *F);
 
