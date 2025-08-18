@@ -2,6 +2,12 @@
 Matrix/joint_matrix_bf16_fill_k_cache_arg_dim.cpp
 Matrix/joint_matrix_bf16_fill_k_cache_runtime_dim.cpp
 
+# https://github.com/intel/llvm/pull/18310 removed fallback assertions, but due
+# to a bug in the L0 drivers, one test causes the implementation to continue
+# after assertions are triggered. We allow this regression while the drivers bug
+# gets addressed.
+Assert/assert_in_kernels.cpp
+
 # Likely OK, but need author to provide justification, get approval/confirmation
 # from someone:
 
