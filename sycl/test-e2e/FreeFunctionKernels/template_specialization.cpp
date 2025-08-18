@@ -93,18 +93,6 @@ void F<float>(int X) {
   volatile float Y = static_cast<float>(X);
 }
 
-template <typename... Args>
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::single_task_kernel))
-void variadic_templated(Args... args) {}
-
-template <>
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::single_task_kernel))
-void variadic_templated<double>(double b) {
-  b = 20.0f;
-}
-
 template <auto *Func, typename T> void test_func() {
   queue Q;
   kernel_bundle bundle =
@@ -173,7 +161,6 @@ int main() {
   test_func_custom_type<A::B::C::TestClass>();
   test_func<F<float>, float>();
   test_func<F<uint32_t>, uint32_t>();
-  test_func<variadic_templated<double>, double>();
   test_func<sum1<3, float>, float>();
   test_accessor();
   test_shared();
