@@ -43,7 +43,6 @@ struct ur_event_handle_t_ : RefCounted {
 
   ur_command_t getCommandType() const { return command_type; }
 
-  // todo: get rid of this function
   void set_futures(native_cpu::tasksinfo_t &&fs) {
     std::lock_guard<std::mutex> lock(mutex);
     futures = std::move(fs);
