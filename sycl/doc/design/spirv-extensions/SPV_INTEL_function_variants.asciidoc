@@ -529,7 +529,7 @@ If the *{spec_capability_name}* capability is declared:
 . For *{conditional_entry_point_name}* and *{conditional_capability_name}*, the same validation rules apply as to their unconditional counterparts, with the exception that a module can contain multiple *{conditional_entry_point_name}* instructions with the same name and 'Execution Model'.
 
 . *{conditional_copy_name}*:
-.. Exactly one 'Condition' must be *true*.
+.. At least one 'Condition' must be *true*.
 .. The types of 'Operand' operands must not be *OpTypeVoid* and must match the 'Result Type'.
 .. All 'Condition X' operands must be results of specialization constant of a scalar 'Boolean type'.
 
