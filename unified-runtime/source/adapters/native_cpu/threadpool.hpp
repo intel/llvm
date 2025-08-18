@@ -266,7 +266,6 @@ class TBB_TasksInfo {
 public:
   void wait_all() { tp->wait_all(); }
   TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
-  static constexpr bool CanWaitInThread() { return false; }
 };
 
 template <>
