@@ -121,6 +121,4 @@
 // RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch=gfx10_3_generic %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=ERROR %s
 
-// ERROR: error: SYCL target is invalid: 'gfx10_3_generic'
-
-
+// ERROR: error: unsupported offload gpu architecture: gfx10_3_generic
