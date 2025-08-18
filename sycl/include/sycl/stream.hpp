@@ -1308,4 +1308,4 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
 template <>
 struct std::hash<sycl::stream>
     : public sycl::detail::sycl_obj_hash<sycl::stream,
-                                         true /*UnsupportedOnDevice*/> {};
+                                         false /*SupportedOnDevice*/> {};

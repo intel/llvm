@@ -59,9 +59,12 @@ T createSyclObjFromImpl(
   return createSyclObjFromImpl<T>(ImplRef.shared_from_this());
 }
 
-template <typename T, bool UnsupportedOnDevice = false> struct sycl_obj_hash {
+template <typename T, bool SupportedOnDevice = true> struct sycl_obj_hash {
   size_t operator()(const T &Obj) const {
-    if constexpr (UnsupportedOnDevice) {
+    if constexpr (SupportedOnDevice) {
+      auto &Impl = sycl::detail::getSyclObjImpl(Obj);
+      return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
+    } else {
 #ifdef __SYCL_DEVICE_ONLY__
       (void)Obj;
       return 0;
@@ -69,9 +72,6 @@ template <typename T, bool UnsupportedOnDevice = false> struct sycl_obj_hash {
       auto &Impl = sycl::detail::getSyclObjImpl(Obj);
       return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
 #endif
-    } else {
-      auto &Impl = sycl::detail::getSyclObjImpl(Obj);
-      return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
     }
   }
 };

@@ -149,4 +149,4 @@ struct image_sampler {
 template <>
 struct std::hash<sycl::sampler>
     : public sycl::detail::sycl_obj_hash<sycl::sampler,
-                                         true /*UnsupportedOnDevice*/> {};
+                                         false /*SupportedOnDevice*/> {};

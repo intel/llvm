@@ -1364,7 +1364,7 @@ struct std::hash<
     : public sycl::detail::sycl_obj_hash<
           sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
                                          AccessTarget>,
-          true /*UnsupportedOnDevice*/> {};
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
 struct std::hash<
@@ -1377,7 +1377,7 @@ template <typename DataT, int Dimensions, sycl::image_target AccessTarget>
 struct std::hash<sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>>
     : public sycl::detail::sycl_obj_hash<
           sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>,
-          true /*UnsupportedOnDevice*/> {};
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions>
 struct std::hash<sycl::host_sampled_image_accessor<DataT, Dimensions>>

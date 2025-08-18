@@ -2945,16 +2945,16 @@ struct std::hash<
     : public sycl::detail::sycl_obj_hash<
           sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
                          IsPlaceholder>,
-          true /*UnsupportedOnDevice*/> {};
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
 struct std::hash<sycl::host_accessor<DataT, Dimensions, AccessMode>>
     : public sycl::detail::sycl_obj_hash<
           sycl::host_accessor<DataT, Dimensions, AccessMode>,
-          true /*UnsupportedOnDevice*/> {};
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions>
 struct std::hash<sycl::local_accessor<DataT, Dimensions>>
     : public sycl::detail::sycl_obj_hash<
           sycl::local_accessor<DataT, Dimensions>,
-          true /*UnsupportedOnDevice*/> {};
+          false /*SupportedOnDevice*/> {};
