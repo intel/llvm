@@ -19,6 +19,13 @@ options may help:
   libraries (`libclc` and `libdevice`), it normally uses the compiler from the
   same build, but debug clang is quite slow so using a separate release clang
   can be worth it.
+- `-DLLVM_OPTIMIZED_TABLEGEN=ON`: Build the tablegen tools separately in release
+  mode. Debug tablegen tools are quite slow so using release mode versions can
+  significantly speed up the build.
+
+For more information on any of the `LLVM_` variables, or possibly other helpful
+options, refer to the [LLVM CMake
+documentation](https://llvm.org/docs/CMake.html#llvm-related-variables).
 
 ## Tracing the SYCL runtime
 
@@ -33,7 +40,8 @@ the SYCL runtime, which can help understand runtime behavior:
 
 ### Clang Driver
 
-- `-###`: Prints each command emitted by the clang driver during compilation.
+- `-###`: Prints each command emitted by the clang driver during compilation
+  without running them.
   - Can be used to manually replay a compilation command step-by-step to narrow
     down where a crash happened.
 
@@ -42,7 +50,8 @@ the SYCL runtime, which can help understand runtime behavior:
 LLVM has a number of ways to debug LLVM IR passes and lower, the following
 options illustrate a few of them:
 
-- `-save-temps`: Dump all compilation intermediary files.
+- `-save-temps`: Dump all compilation intermediary files. Adding `-v` will also
+  print the sub-commands generating the intermediary files.
 - `-mllvm -print-after-all`: Dump modules before and after each pass of the compilation pipeline
   - Often produces a huge amount of data but can be helpful to track down where
     something is introduced in the IR or assembly.
@@ -60,8 +69,10 @@ options illustrate a few of them:
   - In LLVM it can be defined as follows `#define DEBUG_TYPE "regalloc"`, this
     hooks into `-debug-only` allowing you to enable debug output for the pass
     defined in that file and any other that uses the same string as
-    `DEBUG_TYPE`. For example `-mllvm -debug-only=regalloc` will enable
-    debug output for all the register allocation passes.
+    `DEBUG_TYPE`. For example `-mllvm -debug-only=regalloc` will enable debug
+    output for all the register allocation passes. For more details on this
+    refer to the [LLVM
+    documentation](https://www.llvm.org/docs/ProgrammersManual.html#the-llvm-debug-macro-and-debug-option).
 
 ## Extracting device code
 
