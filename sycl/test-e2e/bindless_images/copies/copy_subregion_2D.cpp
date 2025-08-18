@@ -1,5 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: cuda
+// XFAIL: linux && arch-intel_gpu_acm_g10
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20004
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 

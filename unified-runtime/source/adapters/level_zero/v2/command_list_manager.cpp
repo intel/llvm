@@ -894,16 +894,19 @@ ur_result_t ur_command_list_manager::bindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t phEvent) {
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   return bindlessImagesHandleCopyFlags(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, getZeCommandList(),
-      zeSignalEvent, waitListView.num, waitListView.handles);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      getZeCommandList(), zeSignalEvent, waitListView.num,
+      waitListView.handles);
 }
 
 ur_result_t ur_command_list_manager::bindlessImagesWaitExternalSemaphoreExp(
