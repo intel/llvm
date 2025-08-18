@@ -28,17 +28,13 @@ KernelCompiler/opencl.cpp
 KernelCompiler/opencl_cache_eviction.cpp
 KernelCompiler/opencl_queries.cpp
 
+# https://github.com/intel/llvm/pull/18565 changed place and number of
+# ur(Kernel|Program)(Retain|Release) calls and simultaneously changed the test.
+# So the old test is incompatible with the new library and vice versa.
+KernelAndProgram/disable-caching.cpp
+
 # Likely OK, but need author to provide justification, get approval/confirmation
 # from someone:
-
-# https://github.com/intel/llvm/pull/18565
-# This one should have probably be done in multiple PRs, first improving the
-# test's CHECKs and then making an actual functional change.
-#
-# Based on the title, I'd expect to see reduction in number of ur*retain/release
-# calls, but it only moves a few ur*release CHECKs, so I'll let the author
-# update this explanation.
-KernelAndProgram/disable-caching.cpp
 
 # https://github.com/intel/llvm/pull/18253 broke at least some of the pre-built
 # E2E binaries, but do we really need to provide backward compatibility for
