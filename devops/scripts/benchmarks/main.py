@@ -18,6 +18,7 @@ from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
 from benches.benchdnn import OneDnnBench
+from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -28,6 +29,7 @@ from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log
 from utils.unitrace import get_unitrace
+from utils.flamegraph import get_flamegraph
 from presets import enabled_suites, presets
 
 # Update this if you are changing the layout of the results files
@@ -41,11 +43,14 @@ def run_iterations(
     results: dict[str, list[Result]],
     failures: dict[str, str],
     run_unitrace: bool = False,
+    run_flamegraph: bool = False,
 ):
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
-            bench_results = benchmark.run(env_vars, run_unitrace=run_unitrace)
+            bench_results = benchmark.run(
+                env_vars, run_unitrace=run_unitrace, run_flamegraph=run_flamegraph
+            )
             if bench_results is None:
                 if options.exit_on_failure:
                     raise RuntimeError(f"Benchmark produced no results!")
@@ -179,6 +184,11 @@ def main(directory, additional_env_vars, compare_names, filter):
             "Unitrace requires a save name to be specified via --save option."
         )
 
+    if options.flamegraph and options.save_name is None:
+        raise ValueError(
+            "FlameGraph requires a save name to be specified via --save option."
+        )
+
     if options.build_compute_runtime:
         log.info(f"Setting up Compute Runtime {options.compute_runtime_tag}")
         cr = get_compute_runtime()
@@ -261,8 +271,19 @@ def main(directory, additional_env_vars, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            # regular run of the benchmark (if no unitrace or unitrace inclusive)
-            if args.unitrace != "exclusive":
+
+            # Determine if we should run regular benchmarks
+            # Run regular benchmarks if:
+            # - No tracing options specified, OR
+            # - Any tracing option is set to "inclusive"
+            should_run_regular = (
+                not options.unitrace
+                and not options.flamegraph  # No tracing options
+                or args.unitrace == "inclusive"  # Unitrace inclusive
+                or args.flamegraph == "inclusive"  # Flamegraph inclusive
+            )
+
+            if should_run_regular:
                 for _ in range(options.iterations_stddev):
                     run_iterations(
                         benchmark,
@@ -271,14 +292,16 @@ def main(directory, additional_env_vars, compare_names, filter):
                         intermediate_results,
                         failures,
                         run_unitrace=False,
+                        run_flamegraph=False,
                     )
                     valid, processed = process_results(
                         intermediate_results, benchmark.stddev_threshold()
                     )
                     if valid:
                         break
+
             # single unitrace run independent of benchmark iterations (if unitrace enabled)
-            if options.unitrace and benchmark.traceable():
+            if options.unitrace and benchmark.traceable(TracingType.UNITRACE):
                 run_iterations(
                     benchmark,
                     merged_env_vars,
@@ -286,7 +309,20 @@ def main(directory, additional_env_vars, compare_names, filter):
                     intermediate_results,
                     failures,
                     run_unitrace=True,
+                    run_flamegraph=False,
                 )
+            # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
+            if options.flamegraph and benchmark.traceable(TracingType.FLAMEGRAPH):
+                run_iterations(
+                    benchmark,
+                    merged_env_vars,
+                    1,
+                    intermediate_results,
+                    failures,
+                    run_unitrace=False,
+                    run_flamegraph=True,
+                )
+
             results += processed
         except Exception as e:
             if options.exit_on_failure:
@@ -363,6 +399,17 @@ def main(directory, additional_env_vars, compare_names, filter):
                 os.path.join(os.path.dirname(__file__), "html")
             )
         log.info(f"Generating HTML with benchmark results in {html_path}...")
+
+        # Reload history after saving to include the current results in HTML output
+        if not options.dry_run:
+            log.debug(
+                "Reloading history for HTML generation to include current results..."
+            )
+            history.load()
+            log.debug(
+                f"Reloaded {len(history.runs)} benchmark runs for HTML generation."
+            )
+
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
 
@@ -559,6 +606,14 @@ if __name__ == "__main__":
         help="Unitrace tracing for single iteration of benchmarks. Inclusive tracing is done along regular benchmarks.",
         choices=["inclusive", "exclusive"],
     )
+    parser.add_argument(
+        "--flamegraph",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help="FlameGraph generation for single iteration of benchmarks. Inclusive generation is done along regular benchmarks.",
+        choices=["inclusive", "exclusive"],
+    )
 
     # Options intended for CI:
     parser.add_argument(
@@ -659,7 +714,8 @@ if __name__ == "__main__":
     options.compare = Compare(args.compare_type)
     options.compare_max = args.compare_max
     options.output_markdown = args.output_markdown
-    options.output_html = args.output_html
+    if args.output_html is not None:
+        options.output_html = args.output_html
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
@@ -671,6 +727,7 @@ if __name__ == "__main__":
     options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
+    options.flamegraph = args.flamegraph is not None
 
     # Initialize logger with command line arguments
     log.initialize(args.verbose, args.log_level)
