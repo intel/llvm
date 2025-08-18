@@ -762,5 +762,5 @@ Given the target `x86_64`, features `avx2,avx512f` and architecture `intel_cpu_s
 |0.9|2025-04-02|Jakub Žádník|Add conditional extension and specialization by capabilities
 |0.10|2025-04-22|Jakub Žádník|Added more precise wording regarding architecture comparisons
 |0.11|2025-05-08|Jakub Žádník|Misc corrections and clarifications
-|0.12|2025-08-13|Jakub Žádník|Fix word counts to match consumer impl; Allow multiple true conditional copy conditions
+|0.12|2025-08-13|Jakub Žádník|Fix word counts to match consumer impl
 |========================================
