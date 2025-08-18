@@ -80,11 +80,14 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                         phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
       eventPoolCacheImmediate(
           this, phDevices[0]->Platform->getNumDevices(),
-          [context = this](DeviceId /* deviceId*/, v2::event_flags_t flags)
-              -> std::unique_ptr<v2::event_provider> {
+          [context = this, platform = phDevices[0]->Platform](
+              DeviceId deviceId,
+              v2::event_flags_t flags) -> std::unique_ptr<v2::event_provider> {
+            auto device = platform->getDeviceById(deviceId);
+
             // TODO: just use per-context id?
-            return std::make_unique<v2::provider_normal>(
-                context, v2::QUEUE_IMMEDIATE, flags);
+            return std::make_unique<v2::provider_counter>(
+                platform, context, v2::QUEUE_IMMEDIATE, device, flags);
           }),
       eventPoolCacheRegular(this, phDevices[0]->Platform->getNumDevices(),
                             [context = this, platform = phDevices[0]->Platform](
