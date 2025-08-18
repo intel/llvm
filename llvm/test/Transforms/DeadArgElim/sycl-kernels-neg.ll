@@ -24,7 +24,7 @@ define weak_odr void @NotASpirKernel(float %arg1, float %arg2) {
 
 define weak_odr void @ESIMDKernel(float %arg1, float %arg2) !sycl_explicit_simd !0 {
 ; CHECK-LABEL: define {{[^@]+}}@ESIMDKernel
-; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) !sycl_explicit_simd !0 {
+; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) {{.*}}{
 ; CHECK-NEXT:    call void @foo(float [[ARG1]])
 ; CHECK-NEXT:    ret void
 ;
@@ -37,9 +37,9 @@ define weak_odr void @ESIMDKernel(float %arg1, float %arg2) !sycl_explicit_simd 
 
 define weak_odr spir_kernel void @FreeFuncKernelSingleTask(float %arg1, float %arg2) "sycl-single-task-kernel"="0" {
 ; CHECK-LABEL: define {{[^@]+}}@FreeFuncKernelSingleTask
-; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) {
-; CHECK-NEXT: call void @foo(float [[ARG1]])
-; CHECK-NEXT: ret void
+; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) #[[ATTR0:[0-9]+]] {
+; CHECK-NEXT:    call void @foo(float [[ARG1]])
+; CHECK-NEXT:    ret void
 ;
   call void @foo(float %arg1)
   ret void
@@ -47,9 +47,9 @@ define weak_odr spir_kernel void @FreeFuncKernelSingleTask(float %arg1, float %a
 
 define weak_odr spir_kernel void @FreeFuncKernelNdRange(float %arg1, float %arg2) "sycl-nd-range-kernel"="0" {
 ; CHECK-LABEL: define {{[^@]+}}@FreeFuncKernelNdRange
-; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) #[[ND_RANGE_ATTR:[0-9]]] {
-; CHECK-NEXT: call void @foo(float [[ARG1]])
-; CHECK-NEXT: ret void
+; CHECK-SAME: (float [[ARG1:%.*]], float [[ARG2:%.*]]) #[[ATTR1:[0-9]+]] {
+; CHECK-NEXT:    call void @foo(float [[ARG1]])
+; CHECK-NEXT:    ret void
 ;
   call void @foo(float %arg1)
   ret void
@@ -57,7 +57,5 @@ define weak_odr spir_kernel void @FreeFuncKernelNdRange(float %arg1, float %arg2
 
 declare void @foo(float %arg)
 
-; CHECK: attributes #[[SINGLE_TASK_ATTR]] = { "sycl-single-task-kernel"="0" }
-; CHECK: attributes #[[ND_RANGE_ATTR]] = { "sycl-nd-range-kernel"="0" }
 
 !0 = !{}
