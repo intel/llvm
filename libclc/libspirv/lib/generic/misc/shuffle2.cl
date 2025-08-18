@@ -9,8 +9,8 @@
 #include <clc/misc/clc_shuffle2.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_shuffle2
-#define __IMPL_FUNCTION(x) __clc_shuffle2
+#define __CLC_FUNCTION __spirv_ocl_shuffle2
+#define __CLC_IMPL_FUNCTION(x) __clc_shuffle2
 
 #define __CLC_BODY <clc/misc/shuffle2_def.inc>
 #include <clc/integer/gentype.inc>

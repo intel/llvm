@@ -14,5 +14,5 @@
 #define __CLC_FUNCTION __spirv_ocl_native_log2
 #define __CLC_BUILTIN __nv_fast_log2
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
-#define __FLOAT_ONLY
+#define __CLC_FLOAT_ONLY
 #include <clc/math/unary_builtin_scalarize.inc>

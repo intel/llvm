@@ -9,7 +9,7 @@
 #include <clc/math/clc_fmax.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_fmax
-#define __IMPL_FUNCTION(x) __clc_fmax
+#define __CLC_FUNCTION __spirv_ocl_fmax
+#define __CLC_IMPL_FUNCTION(x) __clc_fmax
 #define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

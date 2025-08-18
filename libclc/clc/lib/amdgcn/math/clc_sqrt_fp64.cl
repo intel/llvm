@@ -18,5 +18,5 @@ double __ocml_sqrt_f64(double);
 #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
 #endif // cl_khr_fp64
 
-#define __DOUBLE_ONLY
+#define __CLC_DOUBLE_ONLY
 #include <clc/math/unary_builtin_scalarize.inc>
