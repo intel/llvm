@@ -7,7 +7,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-TRIPLE %s
 // RUN:   not %clang_cl -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-TRIPLE %s
-// CHK-SYCL-BAD-TRIPLE: error: SYCL target is invalid: 'spir64_bad-unknown-unknown'
+// CHK-SYCL-BAD-TRIPLE: error: invalid or unsupported offload target: 'spir64_bad-unknown-unknown'
 
 /// Check no error for -fsycl-targets with good triple
 // RUN:   %clang -### -fsycl-targets=spir64_x86_64-unknown-unknown -fsycl  %s 2>&1 \

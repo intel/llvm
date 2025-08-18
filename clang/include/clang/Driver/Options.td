@@ -1236,10 +1236,12 @@ def offload_arch_EQ : CommaJoined<["--"], "offload-arch=">,
            "If 'native' is used the compiler will detect locally installed architectures. "
            "For HIP offloading, the device architecture can be followed by target ID features "
            "delimited by a colon (e.g. gfx908:xnack+:sramecc-). May be specified more than once.">;
-def no_offload_arch_EQ : Joined<["--"], "no-offload-arch=">,
-  Visibility<[ClangOption, FlangOption]>,
-  HelpText<"Remove CUDA/HIP offloading device architecture (e.g. sm_35, gfx906) from the list of devices to compile for. "
-           "'all' resets the list to its default value.">;
+def no_offload_arch_EQ
+    : CommaJoined<["--"], "no-offload-arch=">,
+      Visibility<[ClangOption, FlangOption]>,
+      HelpText<"Remove CUDA/HIP offloading device architecture (e.g. sm_35, "
+               "gfx906) from the list of devices to compile for. "
+               "'all' resets the list to its default value.">;
 
 def offload_new_driver : Flag<["--"], "offload-new-driver">,
   Visibility<[ClangOption, CC1Option]>, Group<f_Group>,
@@ -1732,8 +1734,11 @@ defm auto_import : BoolFOption<"auto-import",
 // In the future this option will be supported by other offloading
 // languages and accept other values such as CPU/GPU architectures,
 // offload kinds and target aliases.
-def offload_EQ : CommaJoined<["--"], "offload=">, Flags<[NoXarchOption]>,
-  HelpText<"Specify comma-separated list of offloading target triples (CUDA and HIP only)">;
+def offload_EQ : CommaJoined<["--"], "offload=">,
+                 Flags<[NoXarchOption]>,
+                 Alias<offload_targets_EQ>,
+                 HelpText<"Specify comma-separated list of offloading target "
+                          "triples (CUDA and HIP only)">;
 
 // C++ Coroutines
 defm coroutines : BoolFOption<"coroutines",
@@ -7274,10 +7279,14 @@ defm sycl_rtc_mode: BoolFOption<"sycl-rtc-mode",
 def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,
   Visibility<[ClangOption, CLOption, CC1Option]>, Flags<[HelpHidden]>,
   HelpText<"Do not build the host implementation of ESIMD functions.">;
-def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">,
-  Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, CC1Option]>,
-  HelpText<"Specify comma-separated list of triples SYCL offloading targets "
-           "to be supported">;
+def fsycl_targets_EQ
+    : CommaJoined<["-"], "fsycl-targets=">,
+      Alias<offload_targets_EQ>,
+      Flags<[NoXarchOption]>,
+      Visibility<[ClangOption, CLOption, CC1Option]>,
+      HelpText<
+          "Specify comma-separated list of triples SYCL offloading targets "
+          "to be supported">;
 def fsycl_force_target_EQ : Joined<["-"], "fsycl-force-target=">,
   Flags<[NoXarchOption]>,
   HelpText<"Force the usage of the given triple when extracting device code "
