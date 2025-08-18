@@ -15,8 +15,8 @@
 namespace sycl {
 inline namespace _V1 {
 
-namespace ext::oneapi::experimental {
-class RangesRefT;
+namespace detail {
+class ranges_ref_view;
 }
 
 /// Defines the iteration domain of both the work-groups and the overall
@@ -70,7 +70,7 @@ public:
     return !(*this == rhs);
   }
 
-  friend class sycl::_V1::ext::oneapi::experimental::RangesRefT;
+  friend class sycl::_V1::detail::ranges_ref_view;
 };
 
 } // namespace _V1

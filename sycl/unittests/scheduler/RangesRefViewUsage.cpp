@@ -1,16 +1,16 @@
-//==---- RangesRefUsage.cpp --- Check RangesRefT --------------------------==//
+//==---- RangesRefViewUsage.cpp --- Check ranges_ref_view ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/ext/oneapi/experimental/rangesref.hpp>
+#include <sycl/detail/ranges_ref_view.hpp>
 
 #include <gtest/gtest.h>
 
 TEST(RangesRefUsage, RangesRefUsage) {
-  sycl::ext::oneapi::experimental::RangesRefT r0;
+  sycl::detail::ranges_ref_view r0;
   ASSERT_EQ(r0.Dims, size_t{0});
 
   {
@@ -20,20 +20,20 @@ TEST(RangesRefUsage, RangesRefUsage) {
     sycl::nd_range<1> nd_range{global_range, local_range, offset};
 
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{nd_range};
+      sycl::detail::ranges_ref_view r{nd_range};
       ASSERT_EQ(r.Dims, size_t{1});
       ASSERT_EQ(*r.GlobalSize, global_range[0]);
       ASSERT_EQ(*r.LocalSize, local_range[0]);
       ASSERT_EQ(*r.GlobalOffset, offset[0]);
     }
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{global_range, local_range};
+      sycl::detail::ranges_ref_view r{global_range, local_range};
       ASSERT_EQ(r.Dims, size_t{1});
       ASSERT_EQ(*r.GlobalSize, global_range[0]);
       ASSERT_EQ(*r.LocalSize, local_range[0]);
     }
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{global_range};
+      sycl::detail::ranges_ref_view r{global_range};
       ASSERT_EQ(r.Dims, size_t{1});
       ASSERT_EQ(*r.GlobalSize, global_range[0]);
       ASSERT_EQ(r.LocalSize, nullptr);
@@ -46,7 +46,7 @@ TEST(RangesRefUsage, RangesRefUsage) {
     sycl::nd_range<2> nd_range{global_range, local_range, offset};
 
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{nd_range};
+      sycl::detail::ranges_ref_view r{nd_range};
       ASSERT_EQ(r.Dims, size_t{2});
       ASSERT_EQ(r.GlobalSize[0], global_range[0]);
       ASSERT_EQ(r.GlobalSize[1], global_range[1]);
@@ -56,7 +56,7 @@ TEST(RangesRefUsage, RangesRefUsage) {
       ASSERT_EQ(r.GlobalOffset[1], offset[1]);
     }
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{global_range, local_range};
+      sycl::detail::ranges_ref_view r{global_range, local_range};
       ASSERT_EQ(r.Dims, size_t{2});
       ASSERT_EQ(r.GlobalSize[0], global_range[0]);
       ASSERT_EQ(r.GlobalSize[1], global_range[1]);
@@ -64,7 +64,7 @@ TEST(RangesRefUsage, RangesRefUsage) {
       ASSERT_EQ(r.LocalSize[1], local_range[1]);
     }
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{global_range};
+      sycl::detail::ranges_ref_view r{global_range};
       ASSERT_EQ(r.Dims, size_t{2});
       ASSERT_EQ(r.GlobalSize[0], global_range[0]);
       ASSERT_EQ(r.GlobalSize[1], global_range[1]);
@@ -78,7 +78,7 @@ TEST(RangesRefUsage, RangesRefUsage) {
     sycl::nd_range<3> nd_range{global_range, local_range, offset};
 
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{nd_range};
+      sycl::detail::ranges_ref_view r{nd_range};
       ASSERT_EQ(r.Dims, size_t{3});
       ASSERT_EQ(r.GlobalSize[0], global_range[0]);
       ASSERT_EQ(r.GlobalSize[1], global_range[1]);
@@ -91,7 +91,7 @@ TEST(RangesRefUsage, RangesRefUsage) {
       ASSERT_EQ(r.GlobalOffset[2], offset[2]);
     }
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{global_range, local_range};
+      sycl::detail::ranges_ref_view r{global_range, local_range};
       ASSERT_EQ(r.Dims, size_t{3});
       ASSERT_EQ(r.GlobalSize[0], global_range[0]);
       ASSERT_EQ(r.GlobalSize[1], global_range[1]);
@@ -101,7 +101,7 @@ TEST(RangesRefUsage, RangesRefUsage) {
       ASSERT_EQ(r.LocalSize[2], local_range[2]);
     }
     {
-      sycl::ext::oneapi::experimental::RangesRefT r{global_range};
+      sycl::detail::ranges_ref_view r{global_range};
       ASSERT_EQ(r.Dims, size_t{3});
       ASSERT_EQ(r.GlobalSize[0], global_range[0]);
       ASSERT_EQ(r.GlobalSize[1], global_range[1]);
