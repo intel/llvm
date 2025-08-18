@@ -280,7 +280,9 @@ void GlobalHandler::releaseDefaultContexts() {
 // For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
-
+  StaticVarShutdownHandler(const StaticVarShutdownHandler &) = delete;
+  StaticVarShutdownHandler &
+  operator=(const StaticVarShutdownHandler &) = delete;
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
