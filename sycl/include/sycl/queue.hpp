@@ -77,8 +77,10 @@ public:
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
+#endif
 
   ext::oneapi::experimental::event_mode_enum &EventMode();
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
@@ -425,21 +427,18 @@ public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// On a kernel error, this command group function object is then scheduled
-  /// for execution on a secondary queue.
-  ///
   /// \param CGF is a function object containing command group.
-  /// \param SecondaryQueue is a fallback SYCL queue.
+  /// \param SecondaryQueue is a fallback SYCL queue. (unused)
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
-      T CGF, queue &SecondaryQueue,
+      T CGF, [[maybe_unused]] queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit_with_event(
         sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3574,7 +3573,7 @@ private:
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(const queue &, event &, queue *,
+  friend event detail::submitAssertCapture(const queue &, event &,
                                            const detail::code_location &);
 #endif
 #endif
@@ -3678,33 +3677,6 @@ private:
                                  const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc) const;
-
-  /// Submits a command group function object to the queue, in order to be
-  /// scheduled for execution on the device.
-  ///
-  /// \param Props is a property list with submission properties.
-  /// \param CGF is a function object containing command group.
-  /// \param SecondaryQueuePtr is a pointer to the secondary queue.
-  /// \param CodeLoc is the code location of the submit call (default argument)
-  /// \return a SYCL event object for the submitted command group.
-  //
-  // UseFallBackAssert as template param vs `#if` in function body is necessary
-  // to prevent ODR-violation between TUs built with different fallback assert
-  // modes.
-  template <typename PropertiesT>
-  event submit_with_event(PropertiesT Props,
-                          const detail::type_erased_cgfo_ty &CGF,
-                          queue *SecondaryQueuePtr,
-                          const detail::code_location &CodeLoc =
-                              detail::code_location::current()) const {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
-    ProcessSubmitProperties(Props, SI);
-    if (SecondaryQueuePtr)
-      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
-    return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
-                                  TlsCodeLocCapture.isToplevel());
-  }
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.

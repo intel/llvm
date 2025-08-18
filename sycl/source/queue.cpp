@@ -39,6 +39,7 @@ const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
   return DoNotUsePostProcessorFunc;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
   return impl->MSecondaryQueue;
 }
@@ -47,6 +48,7 @@ const std::shared_ptr<detail::queue_impl> &
 SubmissionInfo::SecondaryQueue() const {
   return impl->MSecondaryQueue;
 }
+#endif
 
 ext::oneapi::experimental::event_mode_enum &SubmissionInfo::EventMode() {
   return impl->MEventMode;
@@ -215,14 +217,16 @@ event queue::submit_impl(std::function<void(handler &)> CGH,
   return submit_with_event_impl(std::move(CGH), {}, CodeLoc, IsTopCodeLoc);
 }
 
-event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
+event queue::submit_impl(std::function<void(handler &)> CGH,
+                         [[maybe_unused]] queue SecondQueue,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, SecondQueue.impl, CodeLoc, true);
+  return impl->submit(CGH, CodeLoc, true);
 }
-event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
+event queue::submit_impl(std::function<void(handler &)> CGH,
+                         [[maybe_unused]] queue SecondQueue,
                          const detail::code_location &CodeLoc,
                          bool IsTopCodeLoc) {
-  return impl->submit(CGH, SecondQueue.impl, CodeLoc, IsTopCodeLoc);
+  return impl->submit(CGH, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
@@ -248,17 +252,17 @@ event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
 }
 
 event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                         queue SecondQueue,
+                                         [[maybe_unused]] queue SecondQueue,
                                          const detail::code_location &CodeLoc,
                                          const detail::SubmitPostProcessF &) {
-  return impl->submit(CGH, SecondQueue.impl, CodeLoc, true);
+  return impl->submit(CGH, CodeLoc, true);
 }
 event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                         queue SecondQueue,
+                                         [[maybe_unused]] queue SecondQueue,
                                          const detail::code_location &CodeLoc,
                                          const detail::SubmitPostProcessF &,
                                          bool IsTopCodeLoc) {
-  return impl->submit(CGH, SecondQueue.impl, CodeLoc, IsTopCodeLoc);
+  return impl->submit(CGH, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
