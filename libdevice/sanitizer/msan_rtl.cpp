@@ -14,6 +14,7 @@ DeviceGlobal<void *> __MsanLaunchInfo;
   ((__SYCL_GLOBAL__ MsanRuntimeData *)__MsanLaunchInfo.get())
 
 namespace {
+extern "C" __attribute__((weak)) const int __msan_track_origins;
 
 constexpr int MSAN_REPORT_NONE = 0;
 constexpr int MSAN_REPORT_START = 1;
@@ -63,6 +64,8 @@ const __SYCL_CONSTANT__ char __msan_print_unknown[] = "unknown";
   } while (false)
 
 namespace {
+
+inline bool IsTrackOriginsEnabled() { return __msan_track_origins; }
 
 inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   auto old = addr;
@@ -337,7 +340,8 @@ inline void CopyShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   }
   auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
   Memcpy(shadow_dst, shadow_src, size);
-  CopyOrigin(dst, dst_as, src, src_as, size);
+  if (IsTrackOriginsEnabled())
+    CopyOrigin(dst, dst_as, src, src_as, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_copy_shadow, dst, dst_as, src,
                                 src_as, shadow_dst, shadow_src, size));
@@ -365,7 +369,8 @@ inline void MoveShadowAndOrigin(uptr dst, uint32_t dst_as, uptr src,
   auto *shadow_dst = (__SYCL_GLOBAL__ char *)MemToShadow(dst, dst_as);
   auto *shadow_src = (__SYCL_GLOBAL__ char *)MemToShadow(src, src_as);
   // MoveOrigin transfers origins by refering to their shadows
-  MoveOrigin(dst, dst_as, src, src_as, size);
+  if (IsTrackOriginsEnabled())
+    MoveOrigin(dst, dst_as, src, src_as, size);
   Memmove(shadow_dst, shadow_src, size);
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_move_shadow, dst, dst_as, src,

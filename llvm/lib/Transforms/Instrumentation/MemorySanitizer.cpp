@@ -1216,6 +1216,14 @@ void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
   SmallVector<uint8_t, 256> KernelNamesBytes;
 
+  // Insert global __msan_track_origins to indicate if origin track is enabled.
+  M.getOrInsertGlobal("__msan_track_origins", Int32Ty, [&] {
+    return new GlobalVariable(
+        M, Int32Ty, true, GlobalValue::WeakODRLinkage,
+        ConstantInt::get(Int32Ty, TrackOrigins), "__msan_track_origins",
+        nullptr, llvm::GlobalValue::NotThreadLocal, kSpirOffloadGlobalAS);
+  });
+
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
   //  uptr unmangled_kernel_name
