@@ -248,25 +248,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
     MAdapter->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_TYPE,
                                                sizeof(ur_device_type_t),
                                                &UrDevType, nullptr);
-    info::device_type DeviceType = [UrDevType]() {
-      switch (UrDevType) {
-      default:
-      case UR_DEVICE_TYPE_ALL:
-        return info::device_type::all;
-      case UR_DEVICE_TYPE_GPU:
-        return info::device_type::gpu;
-      case UR_DEVICE_TYPE_CPU:
-        return info::device_type::cpu;
-      case UR_DEVICE_TYPE_FPGA:
-        return info::device_type::accelerator;
-      case UR_DEVICE_TYPE_CUSTOM:
-      case UR_DEVICE_TYPE_MCA:
-      case UR_DEVICE_TYPE_VPU:
-        return info::device_type::custom;
-      case UR_DEVICE_TYPE_DEFAULT:
-        return info::device_type::automatic;
-      }
-    }();
+    info::device_type DeviceType = detail::ConvertDeviceType(UrDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend.value_or(backend::all);
