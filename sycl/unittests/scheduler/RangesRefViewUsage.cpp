@@ -42,7 +42,6 @@ void TestNDRangesRefView(sycl::range<dims> global, sycl::range<dims> local,
   }
 }
 
-
 TEST(RangesRefUsage, RangesRefUsage) {
   TestNDRangesRefView(sycl::range<1>{1024}, sycl::range<1>{64},
                       sycl::id<1>{10});
