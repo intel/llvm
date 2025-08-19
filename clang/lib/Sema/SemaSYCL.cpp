@@ -2214,7 +2214,7 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &B,
-                   QualType Ty) final {
+                   QualType) final {
     --StructBaseDepth;
     if (B.isVirtual())
       SemaSYCLRef.SemaRef.Diag(SemaSYCLRef.getFreeFunctionLocation(),
