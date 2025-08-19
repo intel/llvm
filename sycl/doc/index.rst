@@ -67,6 +67,7 @@ Developer Documentation
 .. toctree::
    :maxdepth: 1
 
+   developer/Debugging
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
