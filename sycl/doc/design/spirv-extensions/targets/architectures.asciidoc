@@ -10,14 +10,6 @@
 a|
 [source]
 ----
-unknown
-----
-| 0
-| Unknown category
-
-a|
-[source]
-----
 cpu
 ----
 | 1
@@ -48,17 +40,6 @@ npu
 |Category
 |Value
 |Description
-
-4+^|*Category: unknown (0)*
-
-a|
-[source]
-----
-generic
-----
-| 0
-| 0
-| Generic family
 
 4+^|*Category: cpu (1)*
 
@@ -346,18 +327,6 @@ amd_xdna
 |Family
 |Value
 |Description
-
-5+^|*Category: unknown (0), Family: generic (0)*
-
-a|
-[source]
-----
-any
-----
-| 0
-| 0
-| 0
-| Any architecture
 
 5+^|*Category: cpu (1), Family: generic (0)*
 
