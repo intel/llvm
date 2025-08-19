@@ -1470,10 +1470,6 @@ class KernelObjVisitor {
       if (isSyclSpecialType(BaseTy, SemaSYCLRef))
         (void)std::initializer_list<int>{
             (Handlers.handleSyclSpecialType(Owner, Base, BaseTy), 0)...};
-      else if (Base.isVirtual())
-        SemaSYCLRef.SemaRef.Diag(Owner->getLocation(),
-                                 diag::err_free_function_virtual_arg)
-            << Owner->getNameAsString() << Base.getType().getAsString();
       else
         // For all other bases, visit the record
         visitRecord(Owner, Base, BaseTy->getAsCXXRecordDecl(), BaseTy,
@@ -2092,6 +2088,24 @@ public:
       return isValid();
     }
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
+    // Free functions do not support for virtual inheritance.
+    if (RD->getNumBases() > 0) {
+      for (const auto &Base : RD->bases()) {
+        QualType BaseType = Base.getType();
+        const CXXRecordDecl *BaseDecl = BaseType->getAsCXXRecordDecl();
+        if (BaseDecl) {
+          if (Base.isVirtual()) {
+            const FunctionDecl *FD =
+                dyn_cast<FunctionDecl>(PD->getDeclContext());
+            SemaSYCLRef.SemaRef.Diag(FD->getLocation(),
+                                     diag::err_free_function_virtual_arg)
+                << RD->getNameAsString() << Base.getType().getAsString();
+            IsInvalid = true;
+          } else if (BaseDecl->getNumBases() > 0)
+            handleStructType(PD, BaseType);
+        }
+      }
+    }
     // For free functions all struct/class kernel arguments are forward declared
     // in integration header, that adds additional restrictions for kernel
     // arguments.
