@@ -1,4 +1,4 @@
-//==-------------------- kernel_name_based_cache_t.hpp ---------------------==//
+//==---------------------- kernel_name_based_data.hpp ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,7 @@
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <emhash/hash_table8.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -23,9 +24,9 @@ using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
 
 struct FastKernelCacheVal {
   Managed<ur_kernel_handle_t> MKernelHandle; /* UR kernel. */
-  std::mutex *MMutex;                  /* Mutex guarding this kernel. When
-                                     caching is disabled, the pointer is
-                                     nullptr. */
+  std::mutex *MMutex;                        /* Mutex guarding this kernel. When
+                                           caching is disabled, the pointer is
+                                           nullptr. */
   const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
   Managed<ur_program_handle_t> MProgramHandle; /* UR program handle
                                     corresponding to this kernel. */
@@ -76,13 +77,37 @@ struct FastKernelSubcacheT {
   FastKernelSubcacheMutexT Mutex;
 };
 
-struct KernelNameBasedCacheT {
-  FastKernelSubcacheT FastKernelSubcache;
-  std::optional<bool> UsesAssert;
-  // Implicit local argument position is represented by an optional int, this
-  // uses another optional on top of that to represent lazy initialization of
-  // the cached value.
-  std::optional<std::optional<int>> ImplicitLocalArgPos;
+// This class is used for aggregating kernel name based information.
+// Pointers to instances of this class are stored in header function templates
+// as a static variable to avoid repeated runtime lookup overhead.
+
+// TODO Currently this class duplicates information fetched from the program
+// manager. Instead, we should merge all of the kernel name based information
+// into this structure and get rid of the other KernelName -> * maps.
+class KernelNameBasedData {
+public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  KernelNameBasedData() = default;
+#endif
+  KernelNameBasedData(KernelNameStrRefT KernelName);
+
+  void init(KernelNameStrRefT KernelName);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void initIfNeeded(KernelNameStrRefT KernelName);
+#endif
+  FastKernelSubcacheT &getKernelSubcache();
+  bool usesAssert();
+  const std::optional<int> &getImplicitLocalArgPos();
+
+private:
+  void assertInitialized();
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::atomic<bool> MInitialized = false;
+#endif
+  FastKernelSubcacheT MFastKernelSubcache;
+  bool MUsesAssert;
+  std::optional<int> MImplicitLocalArgPos;
 };
 
 } // namespace detail

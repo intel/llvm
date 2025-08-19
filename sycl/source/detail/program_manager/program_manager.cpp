@@ -1084,8 +1084,8 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, const NDRDescT &NDRDesc) {
+    KernelNameStrRefT KernelName, KernelNameBasedData &KernelNameBasedData,
+    const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
               << ", " << &DeviceImpl << ", " << KernelName << ")\n";
@@ -1093,12 +1093,9 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
 
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
-  FastKernelSubcacheT *CacheHintPtr =
-      KernelNameBasedCachePtr ? &KernelNameBasedCachePtr->FastKernelSubcache
-                              : nullptr;
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    if (auto KernelCacheValPtr =
-            Cache.tryToGetKernelFast(KernelName, UrDevice, CacheHintPtr)) {
+    if (auto KernelCacheValPtr = Cache.tryToGetKernelFast(
+            KernelName, UrDevice, KernelNameBasedData.getKernelSubcache())) {
       return KernelCacheValPtr;
     }
   }
@@ -1150,7 +1147,8 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first.retain(), &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
-  Cache.saveKernel(KernelName, UrDevice, ret_val, CacheHintPtr);
+  Cache.saveKernel(KernelName, UrDevice, ret_val,
+                   KernelNameBasedData.getKernelSubcache());
   return ret_val;
 }
 
@@ -1814,24 +1812,18 @@ void ProgramManager::cacheKernelImplicitLocalArg(
     }
 }
 
-std::optional<int> ProgramManager::kernelImplicitLocalArgPos(
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr) const {
-  auto getLocalArgPos = [&]() -> std::optional<int> {
-    auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-    if (it != m_KernelImplicitLocalArgPos.end())
-      return it->second;
-    return {};
-  };
+std::optional<int>
+ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
+  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
+  if (it != m_KernelImplicitLocalArgPos.end())
+    return it->second;
+  return {};
+}
 
-  if (!KernelNameBasedCachePtr)
-    return getLocalArgPos();
-  std::optional<std::optional<int>> &ImplicitLocalArgPos =
-      KernelNameBasedCachePtr->ImplicitLocalArgPos;
-  if (!ImplicitLocalArgPos.has_value()) {
-    ImplicitLocalArgPos = getLocalArgPos();
-  }
-  return ImplicitLocalArgPos.value();
+KernelNameBasedData *
+ProgramManager::getOrCreateKernelNameBasedData(KernelNameStrRefT KernelName) {
+  auto Result = m_KernelNameBasedDataMap.try_emplace(KernelName, KernelName);
+  return &Result.first->second;
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
@@ -2152,55 +2144,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Drop the kernel argument mask map
     m_EliminatedKernelArgMasks.erase(Img);
 
-    // Unmap the unique kernel IDs for the offload entries
-    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         EntriesIt = EntriesIt->Increment()) {
-      detail::KernelNameStrT Name = EntriesIt->GetName();
-      // Drop entry for service kernel
-      if (Name.find("__sycl_service_kernel__") != std::string::npos) {
-        removeFromMultimapByVal(m_ServiceKernels, Name, Img);
-        continue;
-      }
-
-      // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(std::string(Name)) !=
-          m_ExportedSymbolImages.end()) {
-        continue;
-      }
-
-      auto Name2IDIt = m_KernelName2KernelIDs.find(Name);
-      if (Name2IDIt != m_KernelName2KernelIDs.end())
-        removeFromMultimapByVal(m_KernelIDs2BinImage, Name2IDIt->second, Img);
-
-      auto RefCountIt = m_KernelNameRefCount.find(Name);
-      assert(RefCountIt != m_KernelNameRefCount.end());
-      int &RefCount = RefCountIt->second;
-      assert(RefCount > 0);
-
-      // Remove everything associated with this KernelName if this is the last
-      // image referencing it.
-      if (--RefCount == 0) {
-        // TODO aggregate all these maps into a single one since their entries
-        // share lifetime.
-        m_KernelUsesAssert.erase(Name);
-        m_KernelImplicitLocalArgPos.erase(Name);
-        m_KernelNameRefCount.erase(RefCountIt);
-        if (Name2IDIt != m_KernelName2KernelIDs.end())
-          m_KernelName2KernelIDs.erase(Name2IDIt);
-      }
-    }
-
-    // Drop reverse mapping
-    m_BinImg2KernelIDs.erase(Img);
-
-    // Unregister exported symbol -> Img pair (needs to happen after the ID
-    // unmap loop)
-    for (const sycl_device_binary_property &ESProp :
-         Img->getExportedSymbols()) {
-      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img,
-                              /*AssertContains*/ false);
-    }
-
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
@@ -2256,6 +2199,56 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
           NativePrograms.erase(CurIt);
         }
       }
+    }
+
+    // Unmap the unique kernel IDs for the offload entries
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = EntriesIt->Increment()) {
+      detail::KernelNameStrT Name = EntriesIt->GetName();
+      // Drop entry for service kernel
+      if (Name.find("__sycl_service_kernel__") != std::string::npos) {
+        removeFromMultimapByVal(m_ServiceKernels, Name, Img);
+        continue;
+      }
+
+      // Exported device functions won't have a kernel ID
+      if (m_ExportedSymbolImages.find(std::string(Name)) !=
+          m_ExportedSymbolImages.end()) {
+        continue;
+      }
+
+      auto Name2IDIt = m_KernelName2KernelIDs.find(Name);
+      if (Name2IDIt != m_KernelName2KernelIDs.end())
+        removeFromMultimapByVal(m_KernelIDs2BinImage, Name2IDIt->second, Img);
+
+      auto RefCountIt = m_KernelNameRefCount.find(Name);
+      assert(RefCountIt != m_KernelNameRefCount.end());
+      int &RefCount = RefCountIt->second;
+      assert(RefCount > 0);
+
+      // Remove everything associated with this KernelName if this is the last
+      // image referencing it.
+      if (--RefCount == 0) {
+        // TODO aggregate all these maps into a single one since their entries
+        // share lifetime.
+        m_KernelUsesAssert.erase(Name);
+        m_KernelImplicitLocalArgPos.erase(Name);
+        m_KernelNameBasedDataMap.erase(Name);
+        m_KernelNameRefCount.erase(RefCountIt);
+        if (Name2IDIt != m_KernelName2KernelIDs.end())
+          m_KernelName2KernelIDs.erase(Name2IDIt);
+      }
+    }
+
+    // Drop reverse mapping
+    m_BinImg2KernelIDs.erase(Img);
+
+    // Unregister exported symbol -> Img pair (needs to happen after the ID
+    // unmap loop)
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
+      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img,
+                              /*AssertContains*/ false);
     }
 
     m_DeviceImages.erase(DevImgIt);

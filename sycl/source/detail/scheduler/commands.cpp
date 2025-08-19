@@ -1988,8 +1988,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    KernelNameStrRefT KernelName, KernelNameBasedData *KernelNameBasedDataPtr,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel, queue_impl *Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
@@ -2013,10 +2012,11 @@ void instrumentationAddExtraKernelMetadata(
     // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
     //       by graph API, when a modifiable graph is finalized.
+    assert(KernelNameBasedDataPtr);
     FastKernelCacheValPtr FastKernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImpl(), Queue->getDeviceImpl(), KernelName,
-            KernelNameBasedCachePtr);
+            *KernelNameBasedDataPtr);
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
   }
 
@@ -2104,7 +2104,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     const std::string_view SyclKernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
+    KernelNameBasedData *KernelNameBasedDataPtr, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
@@ -2143,7 +2143,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), KernelNameBasedCachePtr, SyclKernel, Queue,
+        std::string(SyclKernelName), KernelNameBasedDataPtr, SyclKernel, Queue,
         CGArgs);
 
     xptiNotifySubscribers(
@@ -2199,7 +2199,7 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
+          KernelCG->MKernelName, KernelCG->MKernelNameBasedDataPtr,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
 
@@ -2401,8 +2401,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    KernelNameStrRefT KernelName, KernelNameBasedData *KernelNameBasedDataPtr,
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
@@ -2448,9 +2447,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
 
-  std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          KernelName, KernelNameBasedCachePtr);
+  const std::optional<int> &ImplicitLocalArg =
+      KernelNameBasedDataPtr->getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
@@ -2551,10 +2549,11 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
+    assert(CommandGroup.MKernelNameBasedDataPtr);
     FastKernelCacheValPtr FastKernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName,
-            CommandGroup.MKernelNameBasedCachePtr);
+            *CommandGroup.MKernelNameBasedDataPtr);
     UrKernel = FastKernelCacheVal->MKernelHandle;
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
@@ -2669,7 +2668,7 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    KernelNameBasedData *KernelNameBasedDataPtr,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -2715,8 +2714,9 @@ void enqueueImpKernel(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
+    assert(KernelNameBasedDataPtr);
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr, NDRDesc);
+        ContextImpl, DeviceImpl, KernelName, *KernelNameBasedDataPtr, NDRDesc);
     Kernel = KernelCacheVal->MKernelHandle;
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
@@ -2763,7 +2763,7 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, KernelName, KernelNameBasedCachePtr, KernelFuncPtr,
+        BinImage, KernelName, KernelNameBasedDataPtr, KernelFuncPtr,
         KernelNumArgs, KernelParamDescGetter, KernelHasSpecialCaptures);
   }
   if (UR_RESULT_SUCCESS != Error) {
@@ -3242,10 +3242,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert =
-          (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              KernelName, ExecKernel->MKernelNameBasedCachePtr);
+      bool KernelUsesAssert = (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
+                              ExecKernel->MKernelNameBasedDataPtr->usesAssert();
       if (KernelUsesAssert) {
         EventImpl = MEvent.get();
       }
@@ -3258,7 +3256,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(
         *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
-        SyclKernel.get(), KernelName, ExecKernel->MKernelNameBasedCachePtr,
+        SyclKernel.get(), KernelName, ExecKernel->MKernelNameBasedDataPtr,
         RawEvents, EventImpl, getMemAllocationFunc,
         ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
         ExecKernel->MKernelUsesClusterLaunch,

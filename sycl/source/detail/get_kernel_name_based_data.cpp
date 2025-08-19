@@ -1,4 +1,4 @@
-//==--------------------- kernel_name_based_cache.cpp ----------------------==//
+//==-------------------- get_kernel_name_based_data.cpp --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,14 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/global_handler.hpp>
-#include <sycl/detail/kernel_name_based_cache.hpp>
+#include <detail/program_manager/program_manager.hpp>
+#include <sycl/detail/get_kernel_name_based_data.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *createKernelNameBasedCache() {
   return GlobalHandler::instance().createKernelNameBasedCache();
+}
+#endif
+
+KernelNameBasedData *
+getKernelNameBasedDataImpl(detail::ABINeutralKernelNameStrRefT KernelName) {
+  return ProgramManager::getInstance().getOrCreateKernelNameBasedData(
+      KernelName.data());
 }
 
 } // namespace detail

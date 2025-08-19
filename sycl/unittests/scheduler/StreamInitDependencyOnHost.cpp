@@ -33,7 +33,7 @@ public:
           detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
                                         getSharedPtrStorage(),
                                         getRequirements(), getEvents()),
-          getArgs(), getKernelName(), impl->MKernelNameBasedCachePtr,
+          getArgs(), getKernelName(), impl->MKernelNameBasedDataPtr,
           getStreamStorage(), std::move(impl->MAuxiliaryResources), getType(),
           {}, impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
           impl->MKernelWorkGroupMemorySize, getCodeLoc()));
