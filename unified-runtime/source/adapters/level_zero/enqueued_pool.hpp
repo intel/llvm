@@ -35,7 +35,8 @@ public:
 
   EnqueuedPool(event_release_callback_t EventReleaseFn,
                memory_free_callback_t MemFreeFn)
-      : EventReleaseFn(EventReleaseFn), MemFreeFn(MemFreeFn) {}
+      : EventReleaseFn(std::move(EventReleaseFn)),
+        MemFreeFn(std::move(MemFreeFn)) {}
 
   ~EnqueuedPool();
   std::optional<Allocation> getBestFit(size_t Size, size_t Alignment,
