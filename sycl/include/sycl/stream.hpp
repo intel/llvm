@@ -41,12 +41,14 @@ inline namespace _V1 {
 
 namespace detail {
 
-void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource, bool IsESIMD,
-                         detail::NDRDescT NDRDesc, std::vector<std::pair<
-                          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-                         DynamicParameters, std::vector<ArgDesc> &Args);
+void processArg(
+    void *Ptr, const detail::kernel_param_kind_t &Kind, const int Size,
+    const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
+    bool IsESIMD, detail::NDRDescT NDRDesc,
+    std::vector<std::pair<
+        ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+        DynamicParameters,
+    std::vector<ArgDesc> &Args);
 
 class stream_impl;
 
@@ -1049,12 +1051,14 @@ private:
 #endif
 
   friend class handler;
-  friend void detail::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource, bool IsESIMD,
-                         detail::NDRDescT NDRDesc, std::vector<std::pair<
-                          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-                         DynamicParameters, std::vector<ArgDesc> &Args);
+  friend void detail::processArg(
+      void *Ptr, const detail::kernel_param_kind_t &Kind, const int Size,
+      const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
+      bool IsESIMD, detail::NDRDescT NDRDesc,
+      std::vector<std::pair<
+          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+          DynamicParameters,
+      std::vector<ArgDesc> &Args);
 
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 

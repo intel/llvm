@@ -10,6 +10,7 @@
 #include "ur_api.h"
 #include <algorithm>
 
+#include <detail/arg_extraction.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -34,7 +35,6 @@
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
-#include <detail/arg_extraction.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -1063,15 +1063,15 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
     detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
     detail::addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
+                                     IsKernelCreatedFromSource, GlobalSize,
+                                     impl->MArgs, IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
     detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
     detail::addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
+                                     IsKernelCreatedFromSource, GlobalSize,
+                                     impl->MArgs, IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
@@ -1089,8 +1089,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       }
     }
     detail::addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
+                                     IsKernelCreatedFromSource, GlobalSize,
+                                     impl->MArgs, IsESIMD);
     ++IndexShift;
     addArg(kernel_param_kind_t::kind_std_layout, &S->FlushBufferSize,
            sizeof(S->FlushBufferSize), Index + IndexShift);
@@ -1107,8 +1107,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
       detail::addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
-                               IsKernelCreatedFromSource, GlobalSize,
-                               impl->MArgs, IsESIMD);
+                                       IsKernelCreatedFromSource, GlobalSize,
+                                       impl->MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
@@ -1116,7 +1116,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
 
       detail::addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
-                              IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
+                                      IsKernelCreatedFromSource, impl->MArgs,
+                                      IsESIMD);
       break;
     }
     case access::target::image:
@@ -1157,9 +1158,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
           ext::oneapi::experimental::detail::dynamic_local_accessor_impl *>(
           DynParamImpl);
 
-      detail::addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
-                              IndexShift, IsKernelCreatedFromSource,
-                              impl->MArgs, IsESIMD);
+      detail::addArgsForLocalAccessor(
+          &DynLocalAccessorImpl->LAccImplHost, Index, IndexShift,
+          IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
       break;
     }
     default: {

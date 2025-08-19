@@ -32,12 +32,14 @@ class NDRDescT;
 class ArgDesc;
 class dynamic_parameter_impl;
 
-void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource, bool IsESIMD,
-                         detail::NDRDescT NDRDesc, std::vector<std::pair<
-                          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-                         DynamicParameters, std::vector<ArgDesc> &Args);
+void processArg(
+    void *Ptr, const detail::kernel_param_kind_t &Kind, const int Size,
+    const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
+    bool IsESIMD, detail::NDRDescT NDRDesc,
+    std::vector<std::pair<
+        ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+        DynamicParameters,
+    std::vector<ArgDesc> &Args);
 
 class work_group_memory_impl {
 public:
@@ -50,12 +52,14 @@ public:
 private:
   size_t buffer_size;
   friend class sycl::handler;
-  friend void detail::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource, bool IsESIMD,
-                         detail::NDRDescT NDRDesc, std::vector<std::pair<
-                          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-                         DynamicParameters, std::vector<ArgDesc> &Args);
+  friend void detail::processArg(
+      void *Ptr, const detail::kernel_param_kind_t &Kind, const int Size,
+      const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
+      bool IsESIMD, detail::NDRDescT NDRDesc,
+      std::vector<std::pair<
+          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+          DynamicParameters,
+      std::vector<ArgDesc> &Args);
 };
 
 } // namespace detail
