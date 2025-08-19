@@ -85,8 +85,6 @@ target_link_libraries(cgeist PRIVATE
   MLIRSYCLToLLVM
   MLIRSYCLTransforms
   MLIRVectorDialect
-
-  MLIRSPIRVBuiltInToNVVM
   
   LLVMSYCLLowerIR
   LLVMPasses

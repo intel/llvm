@@ -1469,24 +1469,6 @@ LogicalResult ModuleTranslation::createTBAAMetadata() {
   return success();
 }
 
-LogicalResult ModuleTranslation::createNVVMAnnotations() {
-  llvm::LLVMContext &ctx = llvmModule->getContext();
-  llvm::NamedMDNode *nvvmAnnotations =
-      llvmModule->getOrInsertNamedMetadata("nvvm.annotations");
-
-  for (llvm::Function &func : llvmModule->functions()) {
-    if (func.hasFnAttribute("nvvm.kernel")) {
-      llvm::Metadata *mdVals[] = {
-          llvm::ValueAsMetadata::get(&func), llvm::MDString::get(ctx, "kernel"),
-          llvm::ConstantAsMetadata::get(
-              llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 1))};
-      nvvmAnnotations->addOperand(llvm::MDNode::get(ctx, mdVals));
-    }
-  }
-
-  return success();
-}
-
 void ModuleTranslation::setLoopMetadata(Operation *op,
                                         llvm::Instruction *inst) {
   LoopAnnotationAttr attr =
@@ -1623,8 +1605,6 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   if (failed(translator.convertGlobals()))
     return nullptr;
   if (failed(translator.createTBAAMetadata()))
-    return nullptr;
-  if (failed(translator.createNVVMAnnotations()))
     return nullptr;
 
   // Convert other top-level operations if possible.

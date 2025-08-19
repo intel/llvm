@@ -9,7 +9,6 @@
 // Main entry function for cgeist when built as standalone binary.
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
 
 #include <clang/Basic/DiagnosticIDs.h>
 #include <clang/CodeGen/BackendUtil.h>
@@ -44,7 +43,6 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
-#include "mlir/Conversion/SYCLPasses.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -748,9 +746,6 @@ getSYCLTargetFromTriple(const llvm::Triple &Triple) {
                       "lowering the `sycl` dialect.\n");
     [[fallthrough]];
   case llvm::Triple::spir64:
-  
-    return sycl::LoweringTarget::SPIR;
-  case llvm::Triple::nvptx64:
     return sycl::LoweringTarget::SPIR;
   default:
     return llvm::createStringError(std::errc::not_supported,
@@ -976,16 +971,6 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
     llvm::sys::fs::remove(IRFileName);
     llvm::sys::DontRemoveFileOnSignal(IRFileName);
   };
-
-  mlir::PassManager PM(&Ctx);
-
-  PM.addPass(mlir::createConvertSPIRVBuiltInToNVVM());
-  if (mlir::failed(PM.run(Module.get()))) {
-    llvm::errs() << "*** SPIRV BuiltIn Conversion failed. Module: ***\n";
-    Module->dump();
-    return failure();
-  }
-
   if (EmitMLIR) {
     Module->print(*OS);
   } else {

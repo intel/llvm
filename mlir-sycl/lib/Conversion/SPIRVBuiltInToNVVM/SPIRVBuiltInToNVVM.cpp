@@ -62,18 +62,13 @@ LLVM::LLVMFuncOp getOrInsertNVVMIntrinsic(OpBuilder &builder, ModuleOp module,
   return newFunc;
 }
 
+/// Marks NVVM kernel functions in the module.
 void markNVVMKernelFunctions(ModuleOp module) {
   module.walk([&](LLVM::LLVMFuncOp funcOp) {
     if (funcOp->hasAttr("gpu.kernel")) {
-      auto ctx = funcOp.getContext();
-
-      SmallVector<Attribute> attrs;
-      if (std::optional<ArrayAttr> passthrough = funcOp.getPassthrough())
-        attrs.append(passthrough->getValue().begin(), passthrough->getValue().end());
-
-      attrs.push_back(StringAttr::get(ctx, "nvvm.kernel"));
-
-      funcOp->setAttr("passthrough", ArrayAttr::get(ctx, attrs));
+      if (!funcOp->hasAttr("nvvm.kernel")) {
+        funcOp->setAttr("nvvm.kernel", UnitAttr::get(funcOp->getContext()));
+      }
     }
   });
 }

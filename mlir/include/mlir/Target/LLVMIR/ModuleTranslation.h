@@ -321,8 +321,6 @@ private:
   /// metadata nodes for them.
   LogicalResult createTBAAMetadata();
 
-  LogicalResult createNVVMAnnotations();
-
   /// Translates dialect attributes attached to the given operation.
   LogicalResult
   convertDialectAttributes(Operation *op,
