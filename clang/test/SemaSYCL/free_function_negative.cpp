@@ -177,3 +177,19 @@ void VirtualInheritArg6(Derived4<Derived> Value) {
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
 void VirtualInheritArg7(Derived4<Derived2> Value) {
 }
+
+
+template <typename T>
+class Derived5 : T, virtual Base {
+};
+
+// expected-error@+2 {{argument type 'Derived5' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg7(Derived5<Base1> Value) {
+}
+
+// expected-error@+3 {{argument type 'Derived5' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+// expected-error@+2 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg7(Derived5<Derived1> Value) {
+}

@@ -2231,8 +2231,8 @@ public:
   bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &B,
                    QualType) final {
     --StructBaseDepth;
-    // FreeFunctionLoc.isInvalid() shows if checker object was created for a free
-    // function
+    // FreeFunctionLoc.isInvalid() shows if checker object was created for a
+    // free function
     if (FreeFunctionLoc.isInvalid())
       return true;
     if (B.isVirtual())
