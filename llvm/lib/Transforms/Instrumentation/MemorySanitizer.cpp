@@ -813,6 +813,8 @@ public:
   Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
                                     unsigned AddressSpace);
 
+  static bool isSupportedBuiltIn(StringRef Name);
+
   operator bool() const { return IsSPIRV; }
 
 private:
@@ -823,7 +825,6 @@ private:
   void instrumentKernelsMetadata(int TrackOrigins);
   void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
   void instrumentPrivateBase(Function &F);
-
   void initializeRetVecMap(Function *F);
   void initializeKernelCallerMap(Function *F);
 
@@ -856,6 +857,7 @@ private:
   FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
   FunctionCallee MsanBarrierFunc;
   FunctionCallee MsanUnpoisonStackFunc;
+  FunctionCallee MsanUnpoisonShadowFunc;
   FunctionCallee MsanSetPrivateBaseFunc;
   FunctionCallee MsanUnpoisonStridedCopyFunc;
 };
@@ -949,6 +951,14 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   MsanUnpoisonStackFunc = M.getOrInsertFunction(
       "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
 
+  // __msan_unpoison_(
+  //   uptr ptr,
+  //   uint32_t as,
+  //   size_t size
+  // )
+  MsanUnpoisonShadowFunc = M.getOrInsertFunction(
+      "__msan_unpoison_shadow", IRB.getVoidTy(), IntptrTy, Int32Ty, IntptrTy);
+
   // __msan_set_private_base(
   //   as(0) void *  ptr
   // )
@@ -987,9 +997,16 @@ void MemorySanitizerOnSpirv::instrumentGlobalVariables() {
       G.setName("nameless_global");
 
     if (isUnsupportedDeviceGlobal(&G)) {
-      for (auto *User : G.users())
-        if (auto *Inst = dyn_cast<Instruction>(User))
-          Inst->setNoSanitizeMetadata();
+      for (auto *User : G.users()) {
+        if (!isa<Instruction>(User))
+          continue;
+        if (auto *CI = dyn_cast<CallInst>(User)) {
+          Function *Callee = CI->getCalledFunction();
+          if (Callee && isSupportedBuiltIn(Callee->getName()))
+            continue;
+        }
+        cast<Instruction>(User)->setNoSanitizeMetadata();
+      }
       continue;
     }
 
@@ -1148,6 +1165,10 @@ void MemorySanitizerOnSpirv::instrumentPrivateBase(Function &F) {
   AllocaInst *PrivateBase = IRB.CreateAlloca(
       IRB.getInt8Ty(), ConstantInt::get(Int32Ty, 1), "__private_base");
   IRB.CreateCall(MsanSetPrivateBaseFunc, {PrivateBase});
+}
+
+bool MemorySanitizerOnSpirv::isSupportedBuiltIn(StringRef Name) {
+  return Name.contains("__sycl_getComposite2020SpecConstantValue");
 }
 
 void MemorySanitizerOnSpirv::instrumentPrivateArguments(
@@ -6994,6 +7015,25 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
                IRB.getInt32(Src->getType()->getPointerAddressSpace()),
                IRB.getInt32(ElementSize), NumElements, Stride});
+        } else if (FuncName.contains(
+                       "__sycl_getComposite2020SpecConstantValue")) {
+          // clang-format off
+          // Handle builtin functions like "_Z40__sycl_getComposite2020SpecConstantValue"
+          // Structs which are larger than 64b will be returned via sret arguments
+          // and will be initialized inside the function. So we need to unpoison
+          // the sret arguments.
+          // clang-format on
+          if (Func->hasStructRetAttr()) {
+            Type *SCTy = Func->getParamStructRetType(0);
+            unsigned Size = Func->getDataLayout().getTypeStoreSize(SCTy);
+            auto *Addr = CB.getArgOperand(0);
+            IRB.CreateCall(
+                MS.Spirv.MsanUnpoisonShadowFunc,
+                {IRB.CreatePointerCast(Addr, MS.Spirv.IntptrTy),
+                 ConstantInt::get(MS.Spirv.Int32Ty,
+                                  Addr->getType()->getPointerAddressSpace()),
+                 ConstantInt::get(MS.Spirv.IntptrTy, Size)});
+          }
         }
       }
     }

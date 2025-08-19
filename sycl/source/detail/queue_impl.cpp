@@ -304,14 +304,14 @@ void queue_impl::addEvent(const detail::EventImplPtr &EventImpl) {
 
 detail::EventImplPtr
 queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                        queue_impl *SecondaryQueue, bool CallerNeedsEvent,
-                        const detail::code_location &Loc, bool IsTopCodeLoc,
+                        bool CallerNeedsEvent, const detail::code_location &Loc,
+                        bool IsTopCodeLoc,
                         const v1::SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(*this, SecondaryQueue, CallerNeedsEvent);
+  detail::handler_impl HandlerImplVal(*this, CallerNeedsEvent);
   handler Handler(HandlerImplVal);
 #else
-  handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
+  handler Handler(shared_from_this(), CallerNeedsEvent);
 #endif
   detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
 
@@ -390,8 +390,8 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Stream->generateFlushCommand(ServiceCGH);
     };
     detail::type_erased_cgfo_ty CGF{L};
-    detail::EventImplPtr FlushEvent = submit_impl(
-        CGF, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
+    detail::EventImplPtr FlushEvent =
+        submit_impl(CGF, /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     if (EventImpl)
       EventImpl->attachEventToCompleteWeak(FlushEvent);
     if (!isInOrder()) {
@@ -402,18 +402,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   return EventImpl;
 }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-detail::EventImplPtr
-queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                        const std::shared_ptr<queue_impl> & /*PrimaryQueue*/,
-                        const std::shared_ptr<queue_impl> &SecondaryQueue,
-                        bool CallerNeedsEvent, const detail::code_location &Loc,
-                        bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo) {
-  return submit_impl(CGF, SecondaryQueue.get(), CallerNeedsEvent, Loc,
-                     IsTopCodeLoc, SubmitInfo);
-}
-#endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
