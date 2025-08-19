@@ -907,19 +907,66 @@ ur_result_t ur_command_list_manager::bindlessImagesImageCopyExp(
 }
 
 ur_result_t ur_command_list_manager::bindlessImagesWaitExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t /*hSemaphore*/, bool /*hasWaitValue*/,
-    uint64_t /*waitValue*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
+    uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
+  auto hPlatform = hContext->getPlatform();
+  if (!hPlatform->ZeExternalSemaphoreExt.Supported == false ||
+      !hPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ze_external_semaphore_wait_params_ext_t waitParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
+  waitParams.value = hasWaitValue ? waitValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+  ZE2UR_CALL(hPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendWaitExternalSemaphoresExp,
+             (zeCommandList.get(), 1, &hExtSemaphore, &waitParams,
+              zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_command_list_manager::bindlessImagesSignalExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t /*hSemaphore*/, bool /*hasSignalValue*/,
-    uint64_t /*signalValue*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t /*phEvent*/) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
+    uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
+  auto hPlatform = hContext->getPlatform();
+  if (!hPlatform->ZeExternalSemaphoreExt.Supported == false ||
+      !hPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    UR_LOG_LEGACY(ERR,
+                  logger::LegacyMessage("[UR][L0] {} function not supported!"),
+                  "{} function not supported!", __FUNCTION__);
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ze_external_semaphore_signal_params_ext_t signalParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
+  signalParams.value = hasSignalValue ? signalValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+
+  ZE2UR_CALL(hPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendSignalExternalSemaphoresExp,
+             (zeCommandList.get(), 1, &hExtSemaphore, &signalParams,
+              zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_command_list_manager::appendNativeCommandExp(
