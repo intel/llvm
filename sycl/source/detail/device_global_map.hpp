@@ -76,7 +76,6 @@ public:
   void eraseEntries(const RTDeviceBinaryImage *Img) {
     const auto &DeviceGlobals = Img->getDeviceGlobals();
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
-    std::cout << "DeviceGlobalMap::eraseEntries() with: " << DeviceGlobals.size() << " entries." << std::endl;
     for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
       if (auto DevGlobalIt = MDeviceGlobals.find(DeviceGlobal->Name);
           DevGlobalIt != MDeviceGlobals.end()) {

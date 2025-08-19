@@ -2219,6 +2219,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       }
     }
 
+    m_DeviceGlobals.eraseEntries(Img);
+
     {
       std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
       auto HostPipes = Img->getHostPipes();

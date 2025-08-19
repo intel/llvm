@@ -120,8 +120,6 @@ int main() {
   unloadOsLibrary(lib_a);
   std::cout << "lib_a done" << std::endl;
 
-<<<<<<< HEAD
-=======
 
   // Now RELOAD lib_a and try it again.
   lib_a = loadOsLibrary(path_to_lib_a);
@@ -134,17 +132,12 @@ int main() {
   std::cout << "reload of lib_a done" << std::endl;
 
 
->>>>>>> cperkins-sycl-unregister-lib-002
   void *lib_b = loadOsLibrary(path_to_lib_b);
   f = getOsLibraryFuncAddress(lib_b, "performIncrementation");
   auto performIncrementationFuncB = reinterpret_cast<IncFuncT *>(f);
   performIncrementationFuncB(q, buf); // call the function from lib_b
   q.wait();
-<<<<<<< HEAD
-  checkIncrementation(buf, 1 + 2);
-=======
   checkIncrementation(buf, 1 + 1 + 2);
->>>>>>> cperkins-sycl-unregister-lib-002
   unloadOsLibrary(lib_b);
   std::cout << "lib_b done" << std::endl;
 
@@ -153,11 +146,7 @@ int main() {
   auto performIncrementationFuncC = reinterpret_cast<IncFuncT *>(f);
   q.wait();
   performIncrementationFuncC(q, buf); // call the function from lib_c
-<<<<<<< HEAD
-  checkIncrementation(buf, 1 + 2 + 4);
-=======
   checkIncrementation(buf, 1 + 1 + 2 + 4);
->>>>>>> cperkins-sycl-unregister-lib-002
   unloadOsLibrary(lib_c);
   std::cout << "lib_c done" << std::endl;
 
