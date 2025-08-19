@@ -9,7 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
+#include "common.hpp"
 #include "logger/ur_logger.hpp"
+#include "queue.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 
@@ -221,17 +223,22 @@ ur_result_t urEnqueueKernelLaunch(
   UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
                                     true /*OKToBatchCommand*/));
 
-  // For internal events, trigger cleanup to prevent event pool exhaustion
-  // by ensuring completed internal events are cleaned up periodically
-  if (IsInternal) {
-    if (Queue->UsingImmCmdLists) {
-      UR_CALL(CleanupEventsInImmCmdLists(Queue, false /*QueueLocked*/,
-                                         false /*QueueSynced*/,
-                                         nullptr /*CompletedEvent*/));
-    } else {
-      // For regular command lists, call resetCommandLists to clean up
-      // completed command lists and their associated events
-      UR_CALL(resetCommandLists(Queue));
+  // For internal events only, occasionally trigger cleanup to prevent event
+  // pool exhaustion, but avoid doing this for in-order queues which are
+  // commonly used in multi-threaded scenarios and may have stricter
+  // synchronization requirements
+  if (IsInternal && !Queue->isInOrderQueue()) {
+    // Use a probabilistic approach - only cleanup 1 in 128 internal events
+    // to minimize performance impact and reduce chances of race conditions
+    static thread_local uint32_t CleanupCounter = 0;
+    if ((++CleanupCounter & 127) == 0) {
+      if (Queue->UsingImmCmdLists) {
+        UR_CALL(CleanupEventsInImmCmdLists(Queue, false /*QueueLocked*/,
+                                           false /*QueueSynced*/,
+                                           nullptr /*CompletedEvent*/));
+      } else {
+        UR_CALL(resetCommandLists(Queue));
+      }
     }
   }
 
