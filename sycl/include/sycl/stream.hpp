@@ -42,9 +42,9 @@ inline namespace _V1 {
 namespace detail {
 
 void processArg(
-    void *Ptr, const detail::kernel_param_kind_t &Kind, const int Size,
+    void *Ptr, const kernel_param_kind_t &Kind, const int Size,
     const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
-    bool IsESIMD, detail::NDRDescT NDRDesc,
+    bool IsESIMD, NDRDescT NDRDesc,
     std::vector<std::pair<
         ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
         DynamicParameters,

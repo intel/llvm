@@ -14,17 +14,14 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/stream.hpp>
+
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
-namespace ext::oneapi::experimental::detail {
-class dynamic_parameter_base;
-class dynamic_work_group_memory_base;
-class dynamic_local_accessor_base;
-class graph_impl;
-class dynamic_parameter_impl;
-} // namespace ext::oneapi::experimental::detail
 namespace detail {
 
 inline constexpr size_t MaxNumAdditionalArgs = 13;
@@ -98,14 +95,13 @@ void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc, size_t Index,
 }
 
 void processArg(
-    void *Ptr, const detail::kernel_param_kind_t &Kind, const int Size,
+    void *Ptr, const kernel_param_kind_t &Kind, const int Size,
     const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
-    bool IsESIMD, detail::NDRDescT NDRDesc,
+    bool IsESIMD, NDRDescT NDRDesc,
     std::vector<std::pair<
         ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
         DynamicParameters,
     std::vector<ArgDesc> &Args) {
-  using detail::kernel_param_kind_t;
   size_t GlobalSize = NDRDesc.GlobalSize[0];
   for (size_t I = 1; I < NDRDesc.Dims; ++I) {
     GlobalSize *= NDRDesc.GlobalSize[I];
