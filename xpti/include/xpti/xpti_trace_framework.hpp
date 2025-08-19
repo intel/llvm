@@ -1593,8 +1593,8 @@ public:
   // Constructor that makes calls to xpti API layer to register strings and
   // create the Universal ID that is stored in the TLS entry for lookup; this
   // constructor is needed when only code location information is available
-  tracepoint_t(const char *fileName, const char *funcName, int line, int column,
-               void *codeptr = nullptr)
+  tracepoint_t(const char *fileName, const char *funcName, uint32_t line,
+               uint32_t column, void *codeptr = nullptr)
       : m_payload(nullptr), m_top(false) {
     // If tracing is not enabled, don't do anything
     if (!xptiTraceEnabled())

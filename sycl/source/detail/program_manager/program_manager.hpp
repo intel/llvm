@@ -73,6 +73,7 @@ static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
 
 class context_impl;
 class device_impl;
+class devices_range;
 class queue_impl;
 class event_impl;
 // DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
@@ -142,9 +143,9 @@ public:
       const std::unordered_set<const RTDeviceBinaryImage *> &ImagesToVerify,
       context_impl &ContextImpl, const device_impl &DeviceImpl);
 
-  ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      context_impl &ContextImpl,
-                                      const std::vector<device> &Devices);
+  Managed<ur_program_handle_t> createURProgram(const RTDeviceBinaryImage &Img,
+                                               context_impl &ContextImpl,
+                                               devices_range Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image used to create the program.
@@ -164,10 +165,10 @@ public:
   /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
+  std::pair<Managed<ur_program_handle_t>, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      context_impl &ContextImpl, const std::vector<device> &Devices,
+      context_impl &ContextImpl, devices_range Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -176,10 +177,10 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  ur_program_handle_t getBuiltURProgram(context_impl &ContextImpl,
-                                        device_impl &DeviceImpl,
-                                        KernelNameStrRefT KernelName,
-                                        const NDRDescT &NDRDesc = {});
+  Managed<ur_program_handle_t> getBuiltURProgram(context_impl &ContextImpl,
+                                                 device_impl &DeviceImpl,
+                                                 KernelNameStrRefT KernelName,
+                                                 const NDRDescT &NDRDesc = {});
 
   /// Builds a program from a given set of images or retrieves that program from
   /// cache.
@@ -191,9 +192,9 @@ public:
   /// represents the images.
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
-  ur_program_handle_t
+  Managed<ur_program_handle_t>
   getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
-                    context_impl &ContextImpl, const std::vector<device> &Devs,
+                    context_impl &ContextImpl, devices_range Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
@@ -254,6 +255,15 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // The function inserts or initializes a kernel global desc into the
+  // kernel global map.
+  void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function returns a pointer to the kernel global desc identified by
+  // the unique ID from the kernel global map.
+  std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);
+
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
 
@@ -292,12 +302,12 @@ public:
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<DevImgPlainWithDeps> getSYCLDeviceImagesWithCompatibleState(
-      const context &Ctx, const std::vector<device> &Devs,
-      bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
+      const context &Ctx, devices_range Devs, bundle_state TargetState,
+      const std::vector<kernel_id> &KernelIDs = {});
 
   // Creates a new dependency image for a given dependency binary image.
   device_image_plain createDependencyImage(const context &Ctx,
-                                           const std::vector<device> &Devs,
+                                           devices_range Devs,
                                            const RTDeviceBinaryImage *DepImage,
                                            bundle_state DepState);
 
@@ -312,15 +322,15 @@ public:
 
   // The function returns a vector of SYCL device images in required state,
   // which are compatible with at least one of the device from Devs.
-  std::vector<DevImgPlainWithDeps>
-  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
-                      bundle_state State);
+  std::vector<DevImgPlainWithDeps> getSYCLDeviceImages(const context &Ctx,
+                                                       devices_range Devs,
+                                                       bundle_state State);
 
   // The function returns a vector of SYCL device images, for which Selector
   // callable returns true, in required state, which are compatible with at
   // least one of the device from Devs.
   std::vector<DevImgPlainWithDeps>
-  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+  getSYCLDeviceImages(const context &Ctx, devices_range Devs,
                       const DevImgSelectorImpl &Selector,
                       bundle_state TargetState);
 
@@ -328,29 +338,28 @@ public:
   // least one kernel from kernel ids vector in required state, which are
   // compatible with at least one of the device from Devs.
   std::vector<DevImgPlainWithDeps>
-  getSYCLDeviceImages(const context &Ctx, const std::vector<device> &Devs,
+  getSYCLDeviceImages(const context &Ctx, devices_range Devs,
                       const std::vector<kernel_id> &KernelIDs,
                       bundle_state TargetState);
 
   // Produces new device image by convering input device image to the object
   // state
   DevImgPlainWithDeps compile(const DevImgPlainWithDeps &ImgWithDeps,
-                              const std::vector<device> &Devs,
+                              devices_range Devs,
                               const property_list &PropList);
 
   // Produces set of device images by convering input device images to object
   // the executable state
   std::vector<device_image_plain>
-  link(const std::vector<device_image_plain> &Imgs,
-       const std::vector<device> &Devs, const property_list &PropList);
+  link(const std::vector<device_image_plain> &Imgs, devices_range Devs,
+       const property_list &PropList);
 
   // Produces new device image by converting input device image to the
   // executable state
   device_image_plain build(const DevImgPlainWithDeps &ImgWithDeps,
-                           const std::vector<device> &Devs,
-                           const property_list &PropList);
+                           devices_range Devs, const property_list &PropList);
 
-  std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
+  std::tuple<Managed<ur_kernel_handle_t>, std::mutex *, const KernelArgMask *>
   getOrCreateKernel(const context &Context, KernelNameStrRefT KernelName,
                     const property_list &PropList, ur_program_handle_t Program);
 
@@ -393,15 +402,12 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
-                                     decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, context_impl &Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
-                   std::vector<ur_device_handle_t> &Devices,
-                   uint32_t DeviceLibReqMask,
-                   const std::vector<ur_program_handle_t> &ProgramsToLink,
-                   bool CreatedFromBinary = false);
+  Managed<ur_program_handle_t>
+  build(Managed<ur_program_handle_t> Program, context_impl &Context,
+        const std::string &CompileOptions, const std::string &LinkOptions,
+        std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
+        const std::vector<Managed<ur_program_handle_t>> &ProgramsToLink,
+        bool CreatedFromBinary = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
@@ -434,7 +440,6 @@ protected:
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
-  // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
@@ -454,6 +459,12 @@ protected:
   /// \ref Sync::getGlobalLock() while holding this mutex.
   std::mutex m_KernelIDsMutex;
 
+  /// Keeps track of binary image to kernel name reference count.
+  /// Used for checking if the last image referencing the kernel name
+  /// is removed in order to trigger cleanup of kernel name based information.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_map<KernelNameStrT, int> m_KernelNameRefCount;
+
   /// Caches all found service kernels to expedite future checks. A SYCL service
   /// kernel is a kernel that has not been defined by the user but is instead
   /// generated by the SYCL runtime. Service kernel name types must be declared
@@ -464,9 +475,11 @@ protected:
       m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
-  // from kernel bundles.
+  /// from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<KernelNameStrT, const RTDeviceBinaryImage *>
+  /// Owns its keys to support the bfloat16 use case with dynamic images,
+  /// where the symbol is taken from another image (that might be unloaded).
+  std::unordered_multimap<std::string, const RTDeviceBinaryImage *>
       m_ExportedSymbolImages;
 
   /// Keeps all device images we are refering to during program lifetime. Used
@@ -536,6 +549,10 @@ protected:
   // their associated entry resources when they die.
   DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
 
+  // Maps between free function kernel name and associated kernel global
+  // information.
+  std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
+
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>
       m_HostPipes;
@@ -545,7 +562,7 @@ protected:
   std::mutex m_HostPipesMutex;
 
   using MaterializedEntries =
-      std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
+      std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;
   std::unordered_map<KernelNameStrT, MaterializedEntries> m_MaterializedKernels;
 
   // Holds bfloat16 device library images, the 1st element is for fallback

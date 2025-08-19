@@ -8,7 +8,7 @@
 
 #include "AMDGPUOpenMP.h"
 #include "AMDGPU.h"
-#include "CommonArgs.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
@@ -360,8 +360,7 @@ AMDGPUOpenMPToolChain::getDeviceLibs(
 
   SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   for (auto BCLib :
-       getCommonDeviceLibNames(Args, GpuArch.str(), DeviceOffloadingKind,
-                               /*IsOpenMP=*/true))
+       getCommonDeviceLibNames(Args, GpuArch.str(), DeviceOffloadingKind))
     BCLibs.emplace_back(BCLib);
 
   return BCLibs;

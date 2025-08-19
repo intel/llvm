@@ -46,7 +46,7 @@ const __SYCL_CONSTANT__ char __msan_print_func_end[] =
     "[kernel] ===== END   %s()\n";
 
 const __SYCL_CONSTANT__ char __msan_print_private_shadow_out_of_bound[] =
-    "[kernel] Private shadow memory out-of-bound(ptr: %p -> %p, wid: %llu, "
+    "[kernel] Private shadow memory out-of-bound(ptr: %p -> %p, "
     "sid: %llu, base: "
     "%p)\n";
 
@@ -119,12 +119,12 @@ void SaveReport(const uint32_t size, const char __SYCL_CONSTANT__ *file,
     SanitizerReport.AccessSize = size;
     SanitizerReport.Origin = origin;
     SanitizerReport.Line = line;
-    SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-    SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-    SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-    SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-    SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-    SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+    SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+    SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+    SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+    SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+    SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+    SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, MSAN_REPORT_FINISH);
@@ -168,17 +168,16 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
            shadow_base;
   } else if (as == ADDRESS_SPACE_LOCAL) {
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
-    if (shadow_offset != 0) {
+    const size_t wid = WorkGroupLinearId();
+    if (shadow_offset != 0 && wid < MSAN_MAX_WG_LOCAL) {
       // The size of SLM is 128KB on PVC
       constexpr unsigned SLM_SIZE = 128 * 1024;
-      const size_t wid = WorkGroupLinearId();
       return shadow_offset + (wid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
     }
   } else if (as == ADDRESS_SPACE_PRIVATE) {
     const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
-    if (shadow_offset != 0) {
-      const size_t wid = WorkGroupLinearId();
-      const size_t sid = SubGroupLinearId();
+    const size_t sid = SubGroupLinearId();
+    if (shadow_offset != 0 && sid < MSAN_MAX_SG_PRIVATE) {
       const uptr private_base = GetMsanLaunchInfo->PrivateBase[sid];
 
       // FIXME: The recorded private_base may not be the most bottom one,
@@ -188,12 +187,12 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
       }
 
       uptr shadow_ptr =
-          shadow_offset + (wid * MSAN_PRIVATE_SIZE) + (addr - private_base);
+          shadow_offset + (sid * MSAN_PRIVATE_SIZE) + (addr - private_base);
 
       const auto shadow_offset_end = GetMsanLaunchInfo->PrivateShadowOffsetEnd;
       if (shadow_ptr > shadow_offset_end) {
         __spirv_ocl_printf(__msan_print_private_shadow_out_of_bound, addr,
-                           shadow_ptr, wid, sid, private_base);
+                           shadow_ptr, sid, private_base);
         return GetMsanLaunchInfo->CleanShadow;
       };
 
@@ -304,11 +303,15 @@ inline void ReportError(const uint32_t size, const char __SYCL_CONSTANT__ *file,
 
 // This function is only used for shadow propagation
 template <typename T>
-void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride) {
+void GroupAsyncCopy(uptr Dest, uptr Src, size_t NumElements, size_t Stride,
+                    bool StrideOnSrc) {
   auto DestPtr = (__SYCL_GLOBAL__ T *)Dest;
   auto SrcPtr = (const __SYCL_GLOBAL__ T *)Src;
   for (size_t i = 0; i < NumElements; i++) {
-    DestPtr[i] = SrcPtr[i * Stride];
+    if (StrideOnSrc)
+      DestPtr[i] = SrcPtr[i * Stride];
+    else
+      DestPtr[i * Stride] = SrcPtr[i];
   }
 }
 
@@ -379,8 +382,9 @@ inline void UnpoisonShadow(uptr addr, uint32_t as, size_t size) {
 
 // Check if the current work item is the first one in the work group
 inline bool IsFirstWorkItemWthinWorkGroup() {
-  return __spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-             __spirv_LocalInvocationId_z() ==
+  return __spirv_BuiltInLocalInvocationId(0) +
+             __spirv_BuiltInLocalInvocationId(1) +
+             __spirv_BuiltInLocalInvocationId(2) ==
          0;
 }
 
@@ -667,7 +671,7 @@ __msan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
                                 "__msan_unpoison_shadow_dynamic_local"));
 }
 
-static __SYCL_CONSTANT__ const char __msan_print_set_shadow_private[] =
+static __SYCL_CONSTANT__ const char __msan_print_set_shadow[] =
     "[kernel] __msan_set_value(beg=%p, end=%p, val=%02X)\n";
 
 // We outline the function of setting shadow memory of private memory, because
@@ -680,8 +684,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(__SYCL_PRIVATE__ void *ptr,
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_poison_stack"));
 
   auto shadow_address = MemToShadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
-                                (void *)shadow_address,
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow, (void *)shadow_address,
                                 (void *)(shadow_address + size), 0xff));
 
   if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
@@ -700,8 +703,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
       __spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_stack"));
 
   auto shadow_address = MemToShadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
-                                (void *)shadow_address,
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow, (void *)shadow_address,
                                 (void *)(shadow_address + size), 0x0));
 
   if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
@@ -712,17 +714,38 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
       __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_stack"));
 }
 
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow(uptr ptr, uint32_t as,
+                                                     uptr size) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(
+      __spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_shadow"));
+
+  auto shadow_address = MemToShadow(ptr, as);
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow, (void *)shadow_address,
+                                (void *)(shadow_address + size), 0x0));
+
+  if (shadow_address != GetMsanLaunchInfo->CleanShadow) {
+    Memset((__SYCL_GLOBAL__ char *)shadow_address, 0, size);
+  }
+
+  MSAN_DEBUG(
+      __spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_shadow"));
+}
+
 static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
     "[kernel] __msan_set_private_base(sid=%llu): %p\n";
 
 DEVICE_EXTERN_C_NOINLINE void
 __msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
-  if (!GetMsanLaunchInfo || GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
+  const size_t sid = SubGroupLinearId();
+  if (!GetMsanLaunchInfo || sid >= MSAN_MAX_SG_PRIVATE ||
+      GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
       GetMsanLaunchInfo->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
-    const size_t sid = SubGroupLinearId();
+  if (__spirv_BuiltInSubgroupLocalInvocationId() == 0) {
     GetMsanLaunchInfo->PrivateBase[sid] = (uptr)ptr;
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
   }
@@ -748,16 +771,20 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
 
     switch (element_size) {
     case 1:
-      GroupAsyncCopy<int8_t>(shadow_dest, shadow_src, counts, stride);
+      GroupAsyncCopy<int8_t>(shadow_dest, shadow_src, counts, stride,
+                             src_as == ADDRESS_SPACE_GLOBAL);
       break;
     case 2:
-      GroupAsyncCopy<int16_t>(shadow_dest, shadow_src, counts, stride);
+      GroupAsyncCopy<int16_t>(shadow_dest, shadow_src, counts, stride,
+                              src_as == ADDRESS_SPACE_GLOBAL);
       break;
     case 4:
-      GroupAsyncCopy<int32_t>(shadow_dest, shadow_src, counts, stride);
+      GroupAsyncCopy<int32_t>(shadow_dest, shadow_src, counts, stride,
+                              src_as == ADDRESS_SPACE_GLOBAL);
       break;
     case 8:
-      GroupAsyncCopy<int64_t>(shadow_dest, shadow_src, counts, stride);
+      GroupAsyncCopy<int64_t>(shadow_dest, shadow_src, counts, stride,
+                              src_as == ADDRESS_SPACE_GLOBAL);
       break;
     default:
       __spirv_ocl_printf(__msan_print_strided_copy_unsupport_type,

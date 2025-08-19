@@ -57,17 +57,21 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     )
     install_ur_library(ur_adapter_level_zero)
 
     target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO)
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
-
+        set(ADAPTER_L0_TARGETS_TO_INSTALL ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers)
         # 'utils' target from 'level-zero-loader' includes path which is prefixed
         # in the source directory, this breaks the installation of 'utils' target.
-        set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers ze_loader level_zero_utils
+        if(TARGET level_zero_utils)
+          set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+          list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL level_zero_utils)
+        endif()
+        install(TARGETS ${ADAPTER_L0_TARGETS_TO_INSTALL}
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -148,6 +152,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp

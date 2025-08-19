@@ -12,7 +12,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelRetainTest);
 
 TEST_P(urKernelRetainTest, Success) {
   ASSERT_SUCCESS(urKernelRetain(kernel));
-  EXPECT_SUCCESS(urKernelRelease(kernel));
+  ASSERT_SUCCESS(urKernelRelease(kernel));
 }
 
 TEST_P(urKernelRetainTest, InvalidNullHandleKernel) {

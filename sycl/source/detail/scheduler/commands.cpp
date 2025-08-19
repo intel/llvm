@@ -231,12 +231,12 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-                     queue_impl *CommandQueue, bool IsHostTaskCommand) {
+std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events,
+                                                    queue_impl *CommandQueue,
+                                                    bool IsHostTaskCommand) {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (auto &EventImpl : EventImpls) {
-    auto Handle = EventImpl->getHandle();
+  for (event_impl &Event : Events) {
+    auto Handle = Event.getHandle();
     if (Handle == nullptr)
       continue;
 
@@ -244,7 +244,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (CommandQueue && EventImpl->getWorkerQueue().get() == CommandQueue &&
+    if (CommandQueue && Event.getWorkerQueue().get() == CommandQueue &&
         CommandQueue->isInOrder() && !IsHostTaskCommand)
       continue;
 
@@ -254,9 +254,8 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
   return RetUrEvents;
 }
 
-std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  return getUrEvents(EventImpls, MWorkerQueue.get(), isHostTask());
+std::vector<ur_event_handle_t> Command::getUrEvents(events_range Events) const {
+  return getUrEvents(Events, MWorkerQueue.get(), isHostTask());
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
@@ -264,29 +263,25 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // handle empty ur event handles when kernel is enqueued on host task
 // completion.
 std::vector<ur_event_handle_t>
-Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
-                             bool HasEventMode) const {
+Command::getUrEventsBlocking(events_range Events, bool HasEventMode) const {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (auto &EventImpl : EventImpls) {
+  for (event_impl &Event : Events) {
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
     // Skip host task and NOP events also.
-    if (EventImpl->isDefaultConstructed() || EventImpl->isHost() ||
-        EventImpl->isNOP())
+    if (Event.isDefaultConstructed() || Event.isHost() || Event.isNOP())
       continue;
 
     // If command has not been enqueued then we have to enqueue it.
     // It may happen if async enqueue in a host task is involved.
     // Interoperability events are special cases and they are not enqueued, as
     // they don't have an associated queue and command.
-    if (!EventImpl->isInterop() && !EventImpl->isEnqueued()) {
-      if (!EventImpl->getCommand() ||
-          !EventImpl->getCommand()->producesPiEvent())
+    if (!Event.isInterop() && !Event.isEnqueued()) {
+      if (!Event.getCommand() || !Event.getCommand()->producesPiEvent())
         continue;
       std::vector<Command *> AuxCmds;
-      Scheduler::getInstance().enqueueCommandForCG(EventImpl, AuxCmds,
-                                                   BLOCKING);
+      Scheduler::getInstance().enqueueCommandForCG(Event, AuxCmds, BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
     // At this stage dependency is definitely ur task and need to check if
@@ -296,11 +291,11 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // redundant events may still differ from the resulting event, so they are
     // kept.
     if (!HasEventMode && MWorkerQueue &&
-        EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+        Event.getWorkerQueue() == MWorkerQueue && MWorkerQueue->isInOrder() &&
+        !isHostTask())
       continue;
 
-    RetUrEvents.push_back(EventImpl->getHandle());
+    RetUrEvents.push_back(Event.getHandle());
   }
 
   return RetUrEvents;
@@ -1022,9 +1017,9 @@ void Command::copySubmissionCodeLocation() {
   if (TData.functionName())
     MSubmissionFunctionName = TData.functionName();
   if (MSubmissionFileName.size() || MSubmissionFunctionName.size())
-    MSubmissionCodeLocation = {
-        MSubmissionFileName.c_str(), MSubmissionFunctionName.c_str(),
-        (int)TData.lineNumber(), (int)TData.columnNumber()};
+    MSubmissionCodeLocation = {MSubmissionFileName.c_str(),
+                               MSubmissionFunctionName.c_str(),
+                               TData.lineNumber(), TData.columnNumber()};
 #endif
 }
 
@@ -2400,10 +2395,9 @@ static void SetArgBasedOnType(
 
 static ur_result_t SetKernelParamsAndLaunch(
     queue_impl &Queue, std::vector<ArgDesc> &Args,
-    const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
-    std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
-    const KernelArgMask *EliminatedArgMask,
+    device_image_impl *DeviceImageImpl, ur_kernel_handle_t Kernel,
+    NDRDescT &NDRDesc, std::vector<ur_event_handle_t> &RawEvents,
+    detail::event_impl *OutEventImpl, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
@@ -2418,8 +2412,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     std::vector<unsigned char> Empty;
     Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
         Queue, BinImage, KernelName,
-        DeviceImageImpl.get() ? DeviceImageImpl->get_spec_const_blob_ref()
-                              : Empty);
+        DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
   }
 
   if (KernelFuncPtr && !KernelHasSpecialCaptures) {
@@ -2449,9 +2442,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   } else {
     auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                     &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
-      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl.get(),
-                        getMemAllocationFunc, Queue.getContextImpl(), Arg,
-                        NextTrueIndex);
+      SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
+                        Queue.getContextImpl(), Arg, NextTrueIndex);
     };
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
@@ -2537,14 +2529,14 @@ static ur_result_t SetKernelParamsAndLaunch(
   return Error;
 }
 
-static std::tuple<ur_kernel_handle_t, std::shared_ptr<device_image_impl>,
+static std::tuple<ur_kernel_handle_t, device_image_impl *,
                   const KernelArgMask *>
 getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
                 device_impl &DeviceImpl,
                 std::vector<FastKernelCacheValPtr> &KernelCacheValsToRelease) {
 
   ur_kernel_handle_t UrKernel = nullptr;
-  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+  device_image_impl *DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
   kernel_bundle_impl *KernelBundleImplPtr = CommandGroup.MKernelBundle.get();
 
@@ -2556,7 +2548,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
                                            CommandGroup.MKernelName)
                                      : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     FastKernelCacheValPtr FastKernelCacheVal =
@@ -2568,8 +2560,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
     KernelCacheValsToRelease.push_back(std::move(FastKernelCacheVal));
   }
-  return std::make_tuple(UrKernel, std::move(DeviceImageImpl),
-                         EliminatedArgMask);
+  return std::make_tuple(UrKernel, DeviceImageImpl, EliminatedArgMask);
 }
 
 ur_result_t enqueueImpCommandBufferKernel(
@@ -2586,7 +2577,7 @@ ur_result_t enqueueImpCommandBufferKernel(
   std::vector<FastKernelCacheValPtr> FastKernelCacheValsToRelease;
 
   ur_kernel_handle_t UrKernel = nullptr;
-  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+  device_image_impl *DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
   context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(Ctx);
@@ -2610,10 +2601,10 @@ ur_result_t enqueueImpCommandBufferKernel(
   }
 
   adapter_impl &Adapter = ContextImpl.getAdapter();
-  auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
-                  &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
-                                         size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl.get(),
+  auto SetFunc = [&Adapter, &UrKernel, &ContextImpl, &getMemAllocationFunc,
+                  DeviceImageImpl](sycl::detail::ArgDesc &Arg,
+                                   size_t NextTrueIndex) {
+    sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl,
                                     getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
@@ -2695,7 +2686,7 @@ void enqueueImpKernel(
   const KernelArgMask *EliminatedArgMask;
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
-  std::shared_ptr<device_image_impl> DeviceImageImpl;
+  device_image_impl *DeviceImageImpl = nullptr;
   FastKernelCacheValPtr KernelCacheVal;
 
   if (nullptr != MSyclKernel) {
@@ -2717,9 +2708,9 @@ void enqueueImpKernel(
                       ? KernelBundleImplPtr->tryGetKernel(KernelName)
                       : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
-    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    DeviceImageImpl = &SyclKernelImpl->getDeviceImage();
 
-    Program = DeviceImageImpl->get_ur_program_ref();
+    Program = DeviceImageImpl->get_ur_program();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
@@ -2806,7 +2797,7 @@ ur_result_t enqueueReadWriteHostPipe(queue_impl &Queue,
             hostPipeEntry->getDevBinImage(), Queue.get_context(), Device);
     device_image_plain BuiltImage = ProgramManager::getInstance().build(
         std::move(devImgPlain), {std::move(Device)}, {});
-    Program = getSyclObjImpl(BuiltImage)->get_ur_program_ref();
+    Program = getSyclObjImpl(BuiltImage)->get_ur_program();
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
@@ -2989,7 +2980,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
-            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3300,7 +3292,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event);
+            Prefetch->getLength(), std::move(RawEvents), Event,
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 

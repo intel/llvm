@@ -114,7 +114,7 @@ int main() {
 }
 
 // Check Kernel_Accessor parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Accessor{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}Kernel_Accessor{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ReadWriteAccessor '__global int *'
 // CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ReadWriteAccessor 'sycl::range<1>'
@@ -131,7 +131,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
 // Check Kernel_Array parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array '__wrapper_class'
 // Check Kernel_Array inits
 // CHECK-NEXT: CompoundStmt
@@ -150,7 +150,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array' '__wrapper_class'
 
 // Check Kernel_Array_Ptrs parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 // Check Kernel_Array_Ptrs inits
 // CHECK-NEXT: CompoundStmt
@@ -159,20 +159,16 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
 // Initializer for ArrayOfPointers[0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
 // Initializer for ArrayOfPointers[1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
@@ -180,7 +176,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_StructAccArray parameters
-// CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc '__global int *'
 // CHECK-NEXT: SYCLAccessorPtrAttr
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::range<1>'
@@ -207,7 +203,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}}__init
 
 // Check Kernel_TemplatedStructArray parameters
-// CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>)'
+// CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
@@ -218,7 +214,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>'
 
 // Check Kernel_Array_2D parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_array_2D '__wrapper_class'
 // Check Kernel_Array_2D inits
 // CHECK-NEXT: CompoundStmt
@@ -250,7 +246,7 @@ int main() {
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 
 // Check Kernel_NonDecomposedStruct parameters.
-// CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_NonDecompStructArray '__wrapper_class'
 // Check Kernel_NonDecomposedStruct inits
 // CHECK-NEXT: CompoundStmt
@@ -271,7 +267,7 @@ int main() {
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 
 // Check Kernel_StructWithPointers parameters.
-// CHECK: FunctionDecl {{.*}}Kernel_StructWithPointers{{.*}} 'void (__wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_StructWithPointers{{.*}} 'void (__wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_StructWithPointersArray '__wrapper_class'
 // Check Kernel_StructWithPointers inits
 // CHECK-NEXT: CompoundStmt
@@ -303,7 +299,7 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Check Kernel_Array_Ptrs_2D parameters
-// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class)'
+// CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers_2D '__wrapper_class'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 
@@ -317,10 +313,8 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[2][3]'
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
 // Initializer for ArrayOfPointers_2D[0][0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
@@ -331,10 +325,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[0][1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
@@ -345,10 +337,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[0][2]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
@@ -361,10 +351,8 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
 
 // Initializer for ArrayOfPointers_2D[1][0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
@@ -375,10 +363,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers_2D[1][1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
@@ -389,10 +375,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
 // Initializer for ArrayOfPointers_2D[1][2]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
@@ -405,10 +389,8 @@ int main() {
 // Initializer for ArrayOfPointers
 // CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
 // Initializer for ArrayOfPointers[0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
@@ -416,10 +398,8 @@ int main() {
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
 
 // Initializer for ArrayOfPointers[1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .

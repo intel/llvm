@@ -18,6 +18,7 @@
 #include "clang/AST/SYCLKernelInfo.h"
 #include "clang/AST/StmtSYCL.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Analysis/CallGraph.h"
@@ -910,7 +911,7 @@ class SingleDeviceFunctionTracker {
     // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
     // routines potentially reachable on device. This is to diagnose such
     // cases later in finalizeSYCLDelayedAnalysis().
-    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<DeviceKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaSYCLRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                         CallStack.back());
@@ -970,7 +971,7 @@ class SingleDeviceFunctionTracker {
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
       if (CallStack.size() == 1 &&
-          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
+          CallStack.back()->hasAttr<DeviceKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -2922,7 +2923,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
                                      bool IsSIMDKernel) {
     // Set implicit attributes.
-    FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
+    FD->addAttr(DeviceKernelAttr::CreateImplicit(Context));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
     if (IsSIMDKernel)
       FD->addAttr(SYCLSimdAttr::CreateImplicit(Context));
@@ -2932,7 +2933,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                                         bool IsInline, bool IsSIMDKernel) {
     // Create this with no prototype, and we can fix this up after we've seen
     // all the params.
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
 
     FunctionDecl *FD = FunctionDecl::Create(
@@ -2990,7 +2991,7 @@ public:
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
 
     SmallVector<QualType, 8> ArgTys;
     std::transform(std::begin(Params), std::end(Params),
@@ -3006,7 +3007,7 @@ public:
     // to TransformStmt in replaceWithLocalClone can diagnose something that got
     // diagnosed on the actual kernel.
     KernelDecl->addAttr(
-        SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        DeviceKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
   }
@@ -4121,10 +4122,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   void addArrayElementInit(FieldDecl *FD, QualType T) {
-    Expr *RCE = createReinterpretCastExpr(
-        createGetAddressOf(ArrayParamBases.pop_back_val()),
-        SemaSYCLRef.getASTContext().getPointerType(T));
-    Expr *Initializer = createDerefOp(RCE);
+    Expr *Initializer = ArrayParamBases.pop_back_val();
+    if (!T->isPointerType()) {
+      Expr *RCE = createReinterpretCastExpr(
+          createGetAddressOf(Initializer),
+          SemaSYCLRef.getASTContext().getPointerType(T));
+      Initializer = createDerefOp(RCE);
+    }
     addFieldInit(FD, T, Initializer);
   }
 
@@ -5326,7 +5330,7 @@ void SemaSYCL::CheckSYCLScopeAttr(CXXRecordDecl *Decl) {
 
 // For a wrapped parallel_for, copy attributes from original
 // kernel to wrapped kernel.
-void SemaSYCL::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
+void SemaSYCL::copyDeviceKernelAttrs(CXXMethodDecl *CallOperator) {
   // Get the operator() function of the wrapper.
   assert(CallOperator && "invalid kernel object");
 
@@ -5457,7 +5461,7 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     // Attributes of a user-written SYCL kernel must be copied to the internally
     // generated alternative kernel, identified by a known string in its name.
     if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-      copySYCLKernelAttrs(CallOperator);
+      copyDeviceKernelAttrs(CallOperator);
   }
 
   bool IsSIMDKernel = isESIMDKernelType(CallOperator);
@@ -5467,9 +5471,13 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   ESIMDKernelDiagnostics esimdKernel(*this, KernelObj->getLocation(),
                                      IsSIMDKernel);
 
-  SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
-                                    KernelCallerFunc->isInlined(), IsSIMDKernel,
-                                    KernelCallerFunc);
+  // In case of syntax errors in input programs we are not able to access
+  // CallOperator. In this case the value of IsInlined doesn't matter, because
+  // compilation will fail with errors anyways.
+  const bool IsInlined =
+      CallOperator ? CallOperator->isInlined() : /* placeholder */ false;
+  SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(), IsInlined,
+                                    IsSIMDKernel, KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc, IsSIMDKernel,
                                     CallOperator);
@@ -6080,7 +6088,7 @@ void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
     return;
 
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<DeviceKernelAttr>())
     return;
 
   // If Callee has a CUDA device attribute, no diagnostic needed.
@@ -6691,6 +6699,34 @@ public:
           FD->getTemplateSpecializationArgs());
   }
 
+  /// Emits free function kernel info specialization for shimN.
+  /// \param ShimCounter The counter for the shim function.
+  /// \param KParamsSize The number of kernel free function arguments.
+  /// \param KName The name of the kernel free function.
+  void printFreeFunctionKernelInfo(const unsigned ShimCounter,
+                                   const size_t KParamsSize,
+                                   std::string_view KName) {
+    O << "\n";
+    O << "namespace sycl {\n";
+    O << "inline namespace _V1 {\n";
+    O << "namespace detail {\n";
+    O << "//Free Function Kernel info specialization for shim" << ShimCounter
+      << "\n";
+    O << "template <> struct FreeFunctionInfoData<__sycl_shim" << ShimCounter
+      << "()> {\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr unsigned getNumParams() { return " << KParamsSize
+      << "; }\n";
+    O << "  __SYCL_DLL_LOCAL\n";
+    O << "  static constexpr const char *getFunctionName() { return ";
+    O << "\"" << KName << "\"; }\n";
+    O << "};\n";
+    O << "} // namespace detail\n"
+      << "} // namespace _V1\n"
+      << "} // namespace sycl\n";
+    O << "\n";
+  }
+
 private:
   /// Helper method to get string with template types
   /// \param TAL The template argument list.
@@ -6735,9 +6771,9 @@ private:
   /// returned string Example:
   /// \code
   ///  template <typename T1, typename T2>
-  ///  void foo(T1 a, T2 b);
+  ///  void foo(T1 a, int b, T2 c);
   /// \endcode
-  /// returns string "T1 a, T2 b"
+  /// returns string "T1, int, T2"
   std::string
   getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> Parameters,
                         PrintingPolicy Policy) {
@@ -6745,13 +6781,65 @@ private:
     llvm::SmallString<128> ParamList;
     llvm::raw_svector_ostream ParmListOstream{ParamList};
     Policy.SuppressTagKeyword = true;
+
     for (ParmVarDecl *Param : Parameters) {
       if (FirstParam)
         FirstParam = false;
       else
         ParmListOstream << ", ";
-      ParmListOstream << Param->getType().getAsString(Policy);
-      ParmListOstream << " " << Param->getNameAsString();
+
+      // There are cases when we can't directly use neither the original
+      // argument type, nor its canonical version. An example would be:
+      // template<typename T>
+      // void kernel(sycl::accessor<T, 1>);
+      // template void kernel(sycl::accessor<int, 1>);
+      // Accessor has multiple non-type template arguments with default values
+      // and non-qualified type will not include necessary namespaces for all
+      // of them. Qualified type will have that information, but all references
+      // to T will be replaced to something like type-argument-0
+      // What we do instead is we iterate template arguments of both versions
+      // of a type in sync and take elements from one or another to get the best
+      // of both: proper references to template arguments of a kernel itself and
+      // fully-qualified names for enumerations.
+      //
+      // Moral of the story: drop integration header ASAP (but that is blocked
+      // by support for 3rd-party host compilers, which is important).
+      QualType T = Param->getType();
+      QualType CT = T.getCanonicalType();
+
+      auto *ET = dyn_cast<ElaboratedType>(T.getTypePtr());
+      if (!ET) {
+        ParmListOstream << T.getAsString(Policy);
+        continue;
+      }
+
+      auto *TST =
+          dyn_cast<TemplateSpecializationType>(ET->getNamedType().getTypePtr());
+      auto *CTST = dyn_cast<TemplateSpecializationType>(CT.getTypePtr());
+      if (!TST || !CTST) {
+        ParmListOstream << T.getAsString(Policy);
+        continue;
+      }
+
+      TemplateName TN = TST->getTemplateName();
+      auto SpecArgs = TST->template_arguments();
+      auto DeclArgs = CTST->template_arguments();
+
+      TN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
+      ParmListOstream << "<";
+
+      for (size_t I = 0, E = std::max(DeclArgs.size(), SpecArgs.size()),
+                  SE = SpecArgs.size();
+           I < E; ++I) {
+        if (I != 0)
+          ParmListOstream << ", ";
+        if (I < SE) // A specialized argument exists, use it
+          SpecArgs[I].print(Policy, ParmListOstream, false /* IncludeType */);
+        else // Print a canonical form of a default argument
+          DeclArgs[I].print(Policy, ParmListOstream, false /* IncludeType */);
+      }
+
+      ParmListOstream << ">";
     }
     return ParamList.str().str();
   }
@@ -6940,6 +7028,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "  \"\",\n";
   O << "};\n\n";
 
+  O << "static constexpr unsigned kernel_args_sizes[] = {";
+  for (unsigned I = 0; I < KernelDescs.size(); I++) {
+    O << KernelDescs[I].Params.size() << ", ";
+  }
+  O << "};\n\n";
   O << "// array representing signatures of all kernels defined in the\n";
   O << "// corresponding source\n";
   O << "static constexpr\n";
@@ -6972,6 +7065,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
+    if (S.isFreeFunction(K.SyclKernel)) {
+      CurStart += N;
+      continue;
+    }
     PresumedLoc PLoc = S.getASTContext().getSourceManager().getPresumedLoc(
         S.getASTContext()
             .getSourceManager()
@@ -7152,6 +7249,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     O << ";\n";
     O << "}\n";
+    FFPrinter.printFreeFunctionKernelInfo(ShimCounter, K.Params.size(), K.Name);
     Policy.SuppressDefaultTemplateArgs = true;
     Policy.EnforceDefaultTemplateArgs = false;
 
@@ -7181,22 +7279,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
-  }
-  ShimCounter = 1;
-  for (const KernelDesc &K : KernelDescs) {
-    if (!S.isFreeFunction(K.SyclKernel))
-      continue;
-
-    O << "\n// Definition of kernel_id of " << K.Name << "\n";
+    O << "#include <sycl/detail/kernel_global_info.hpp>\n";
     O << "namespace sycl {\n";
-    O << "template <>\n";
-    O << "inline kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
-      << ShimCounter << "()>() {\n";
-    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
-      << K.Name << "\"});\n";
-    O << "}\n";
-    O << "}\n";
-    ++ShimCounter;
+    O << "inline namespace _V1 {\n";
+    O << "namespace detail {\n";
+    O << "struct GlobalMapUpdater {\n";
+    O << "  GlobalMapUpdater() {\n";
+    O << "    sycl::detail::free_function_info_map::add("
+      << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
+      << KernelDescs.size() << ");\n";
+    O << "  }\n";
+    O << "};\n";
+    O << "static GlobalMapUpdater updater;\n";
+    O << "} // namespace detail\n";
+    O << "} // namespace _V1\n";
+    O << "} // namespace sycl\n";
   }
 }
 

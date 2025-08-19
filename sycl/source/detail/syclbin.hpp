@@ -120,9 +120,9 @@ struct SYCLBINBinaries {
   SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize);
 
   std::vector<const RTDeviceBinaryImage *>
-  getBestCompatibleImages(const device &Dev);
+  getBestCompatibleImages(device_impl &Dev);
   std::vector<const RTDeviceBinaryImage *>
-  getBestCompatibleImages(const std::vector<device> &Dev);
+  getBestCompatibleImages(devices_range Dev);
 
   uint8_t getState() const noexcept {
     PropertySet &GlobalMetadata =

@@ -826,7 +826,7 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phDevices != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -881,7 +881,7 @@ ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urDeviceGetSelected(
     /// [in] handle of the platform instance
@@ -926,7 +926,8 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP <
+///         propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2725,6 +2726,9 @@ ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -2742,8 +2746,8 @@ ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   if (nullptr == pfnGranularityGetInfo)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnGranularityGetInfo(hContext, hDevice, propName, propSize,
-                               pPropValue, pPropSizeRet);
+  return pfnGranularityGetInfo(hContext, hDevice, allocationSize, propName,
+                               propSize, pPropValue, pPropSizeRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -3434,6 +3438,8 @@ ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
 ///         + If `pFunctionName` could be located, but its address couldn't be
 ///         retrieved.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the backend does not support querying function pointers.
 ur_result_t UR_APICALL urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
     ur_device_handle_t hDevice,
@@ -9454,7 +9460,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
@@ -9987,6 +9993,151 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 
   return pfnTimestampRecordingExp(hQueue, blocking, numEventsInWaitList,
                                   phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allocate an exportable memory region and return a pointer to that
+///        allocation.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `ppMem == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT
+///         + `alignment != 0 && ((alignment & (alignment-1)) != 0)`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `alignment` exceeds largest supported data type by `hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `size == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_SIZE
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     -
+///     ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem) try {
+  auto pfnAllocExportableMemoryExp =
+      ur_lib::getContext()
+          ->urDdiTable.MemoryExportExp.pfnAllocExportableMemoryExp;
+  if (nullptr == pfnAllocExportableMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnAllocExportableMemoryExp(hContext, hDevice, alignment, size,
+                                     handleTypeToExport, ppMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free an exportable memory allocation.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMem == nullptr`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem) try {
+  auto pfnFreeExportableMemoryExp =
+      ur_lib::getContext()
+          ->urDdiTable.MemoryExportExp.pfnFreeExportableMemoryExp;
+  if (nullptr == pfnFreeExportableMemoryExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnFreeExportableMemoryExp(hContext, hDevice, pMem);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Obtain an exportable handle to a memory allocated with
+///        `AllocExportableMemoryExp`.The returned external memory type will be
+///        that which was specified upon
+///        allocation of the exportable memory (e.g. `opaque_fd` or
+///        `win32_nt_handle`).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMemHandleRet == nullptr || pMem == nullptr`
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet) try {
+  auto pfnExportMemoryHandleExp =
+      ur_lib::getContext()->urDdiTable.MemoryExportExp.pfnExportMemoryHandleExp;
+  if (nullptr == pfnExportMemoryHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnExportMemoryHandleExp(hContext, hDevice, handleTypeToExport, pMem,
+                                  pMemHandleRet);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

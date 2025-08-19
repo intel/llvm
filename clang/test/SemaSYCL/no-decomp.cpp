@@ -37,20 +37,20 @@ int main() {
     wrapping_acc acc;
     cgh.single_task(acc);
   });
-  // ALL: FunctionDecl {{.*}} _ZTS12wrapping_acc 'void (__wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+  // ALL: FunctionDecl {{.*}} _ZTS12wrapping_acc 'void (__wrapper_class, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 
   q.submit([&](sycl::handler &cgh) {
     pointer_wrap ptr;
     cgh.single_task(ptr);
   });
-  // NODECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void (pointer_wrap)'
-  // DECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void (__global int *)'
+  // NODECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void (pointer_wrap) __attribute__((device_kernel))'
+  // DECOMP: FunctionDecl {{.*}} _ZTS12pointer_wrap 'void (__global int *) __attribute__((device_kernel))'
 
   q.submit([&](sycl::handler &cgh) {
     empty e;
     cgh.single_task(e);
   });
-  // ALL: FunctionDecl {{.*}} _ZTS5empty 'void ()'
+  // ALL: FunctionDecl {{.*}} _ZTS5empty 'void () __attribute__((device_kernel))'
 
   return 0;
 }

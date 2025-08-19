@@ -17,6 +17,125 @@ let annotationsOptions = new Map(); // Global options map for annotations
 let archivedDataLoaded = false;
 let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 
+// Toggle configuration and abstraction
+//
+// HOW TO ADD A NEW TOGGLE:
+// 1. Add HTML checkbox to index.html:
+//    <label><input type="checkbox" id="my-toggle">My Toggle</label>
+//
+// 2. Add configuration below:
+//    'my-toggle': {
+//        defaultValue: false,              // true = enabled by default, false = disabled by default
+//        urlParam: 'myParam',              // Name shown in URL (?myParam=true)
+//        invertUrlParam: false,            // false = normal behavior, true = legacy inverted logic
+//        onChange: function(isEnabled) {  // Function called when toggle state changes
+//            // Your logic here
+//            updateURL();                  // Always call this to update the browser URL
+//        }
+//    }
+//
+// 3. (Optional) Add helper function for cleaner, more readable code:
+//    function isMyToggleEnabled() { return isToggleEnabled('my-toggle'); }
+//
+//    This lets you write: if (isMyToggleEnabled()) { ... }
+//    Instead of:         if (isToggleEnabled('my-toggle')) { ... }
+//
+
+const toggleConfigs = {
+    'show-notes': {
+        defaultValue: true,
+        urlParam: 'notes',
+        invertUrlParam: true, // Store false in URL when enabled (legacy behavior)
+        onChange: function(isEnabled) {
+            document.querySelectorAll('.benchmark-note').forEach(note => {
+                note.style.display = isEnabled ? 'block' : 'none';
+            });
+            updateURL();
+        }
+    },
+    'show-unstable': {
+        defaultValue: false,
+        urlParam: 'unstable',
+        invertUrlParam: false,
+        onChange: function(isEnabled) {
+            document.querySelectorAll('.benchmark-unstable').forEach(warning => {
+                warning.style.display = isEnabled ? 'block' : 'none';
+            });
+            filterCharts();
+        }
+    },
+    'custom-range': {
+        defaultValue: false,
+        urlParam: 'customRange',
+        invertUrlParam: false,
+        onChange: function(isEnabled) {
+            updateCharts();
+        }
+    },
+    'show-archived-data': {
+        defaultValue: false,
+        urlParam: 'archived',
+        invertUrlParam: false,
+        onChange: function(isEnabled) {
+            if (isEnabled) {
+                loadArchivedData();
+            } else {
+                if (archivedDataLoaded) {
+                    location.reload();
+                }
+            }
+            updateURL();
+        }
+    }
+};
+
+// Generic toggle helper functions
+function isToggleEnabled(toggleId) {
+    const toggle = document.getElementById(toggleId);
+    return toggle ? toggle.checked : toggleConfigs[toggleId]?.defaultValue || false;
+}
+
+function setupToggle(toggleId, config) {
+    const toggle = document.getElementById(toggleId);
+    if (!toggle) return;
+
+    // Set up event listener
+    toggle.addEventListener('change', function() {
+        config.onChange(toggle.checked);
+    });
+
+    // Initialize from URL params if present
+    const urlParam = getQueryParam(config.urlParam);
+    if (urlParam !== null) {
+        const urlValue = urlParam === 'true';
+        // Handle inverted URL params (like notes where false means enabled)
+        toggle.checked = config.invertUrlParam ? !urlValue : urlValue;
+    } else {
+        // Use default value
+        toggle.checked = config.defaultValue;
+    }
+}
+
+function updateToggleURL(toggleId, config, url) {
+    const isEnabled = isToggleEnabled(toggleId);
+
+    if (config.invertUrlParam) {
+        // For inverted params, store in URL when disabled
+        if (isEnabled) {
+            url.searchParams.delete(config.urlParam);
+        } else {
+            url.searchParams.set(config.urlParam, 'false');
+        }
+    } else {
+        // For normal params, store in URL when enabled
+        if (!isEnabled) {
+            url.searchParams.delete(config.urlParam);
+        } else {
+            url.searchParams.set(config.urlParam, 'true');
+        }
+    }
+}
+
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
 
@@ -92,6 +211,10 @@ function updateSelectedRuns(forceUpdate = true) {
     activeRuns.forEach(name => {
         selectedRunsDiv.appendChild(createRunElement(name));
     });
+
+    // Update platform information for selected runs
+    displaySelectedRunsPlatformInfo();
+
     if (forceUpdate)
         updateCharts();
 }
@@ -123,8 +246,10 @@ function createChart(data, containerId, type) {
     }
 
     const ctx = document.getElementById(containerId).getContext('2d');
+
     const options = {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             title: {
                 display: true,
@@ -155,6 +280,13 @@ function createChart(data, containerId, type) {
                             ];
                         }
                     }
+                }
+            },
+            legend: {
+                position: 'top',
+                labels: {
+                    boxWidth: 12,
+                    padding: 10,
                 }
             },
             annotation: type === 'time' ? {
@@ -226,6 +358,32 @@ function createChart(data, containerId, type) {
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
+
+    // Set explicit canvas size after chart creation to ensure proper sizing
+    const canvas = document.getElementById(containerId);
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // Calculate dynamic height based on number of legend items
+    const legendItemCount = type === 'time' ?
+        Object.values(data.runs).length :
+        data.datasets.length;
+
+    // Base chart height + legend height (25px per line + padding)
+    const baseChartHeight = 350;
+    const legendHeight = Math.max(legendItemCount * 25, 50); // minimum 50px for legend
+    const totalHeight = baseChartHeight + legendHeight;
+
+    // Set canvas dimensions for crisp rendering
+    canvas.width = rect.width * dpr;
+    canvas.height = totalHeight * dpr;
+
+    // Scale the context to ensure correct drawing operations
+    const context = canvas.getContext('2d');
+    context.scale(dpr, dpr);
+
+    // Force chart to use these exact dimensions
+    chart.resize(rect.width, totalHeight);
 
     // Add annotation interaction handlers for time-series charts
     if (type === 'time') {
@@ -306,6 +464,10 @@ function createChartContainer(data, canvasId, type) {
     container.setAttribute('data-label', data.label);
     container.setAttribute('data-suite', data.suite);
 
+    // Create header section for metadata
+    const headerSection = document.createElement('div');
+    headerSection.className = 'chart-header';
+
     // Check if this benchmark is marked as unstable
     const metadata = metadataForLabel(data.label, type);
     if (metadata && metadata.unstable) {
@@ -316,15 +478,17 @@ function createChartContainer(data, canvasId, type) {
         unstableWarning.className = 'benchmark-unstable';
         unstableWarning.textContent = metadata.unstable;
         unstableWarning.style.display = isUnstableEnabled() ? 'block' : 'none';
-        container.appendChild(unstableWarning);
+        unstableWarning.style.marginBottom = '5px';
+        headerSection.appendChild(unstableWarning);
     }
 
-    // Add description if present in metadata (moved outside of details)
+    // Add description if present in metadata
     if (metadata && metadata.description) {
         const descElement = document.createElement('div');
         descElement.className = 'benchmark-description';
         descElement.textContent = metadata.description;
-        container.appendChild(descElement);
+        descElement.style.marginBottom = '5px';
+        headerSection.appendChild(descElement);
     }
 
     // Add notes if present
@@ -333,7 +497,7 @@ function createChartContainer(data, canvasId, type) {
         noteElement.className = 'benchmark-note';
         noteElement.textContent = metadata.notes;
         noteElement.style.display = isNotesEnabled() ? 'block' : 'none';
-        container.appendChild(noteElement);
+        headerSection.appendChild(noteElement);
     }
 
     // Add tags if present
@@ -358,12 +522,31 @@ function createChartContainer(data, canvasId, type) {
             tagsContainer.appendChild(tagElement);
         });
 
-        container.appendChild(tagsContainer);
+        headerSection.appendChild(tagsContainer);
     }
 
+    // Add header section to container
+    container.appendChild(headerSection);
+
+    // Create main content section (chart + legend area)
+    const contentSection = document.createElement('div');
+    contentSection.className = 'chart-content';
+
+    // Canvas for the chart - fixed position in content flow
     const canvas = document.createElement('canvas');
     canvas.id = canvasId;
-    container.appendChild(canvas);
+    canvas.style.width = '100%';
+
+    // Set a default height - will be properly sized later in createChart
+    canvas.style.height = '400px';
+    canvas.style.marginBottom = '10px';
+    contentSection.appendChild(canvas);
+
+    container.appendChild(contentSection);
+
+    // Create footer section for details
+    const footerSection = document.createElement('div');
+    footerSection.className = 'chart-footer';
 
     // Create details section for extra info
     const details = document.createElement('details');
@@ -387,7 +570,8 @@ function createChartContainer(data, canvasId, type) {
     extraInfo.innerHTML = generateExtraInfo(data, 'benchmark');
     details.appendChild(extraInfo);
 
-    container.appendChild(details);
+    footerSection.appendChild(details);
+    container.appendChild(footerSection);
 
     return container;
 }
@@ -562,30 +746,10 @@ function updateURL() {
         url.searchParams.delete('runs');
     }
 
-    // Add toggle states to URL
-    if (isNotesEnabled()) {
-        url.searchParams.delete('notes');
-    } else {
-        url.searchParams.set('notes', 'false');
-    }
-
-    if (!isUnstableEnabled()) {
-        url.searchParams.delete('unstable');
-    } else {
-        url.searchParams.set('unstable', 'true');
-    }
-
-    if (!isCustomRangesEnabled()) {
-        url.searchParams.delete('customRange');
-    } else {
-        url.searchParams.set('customRange', 'true');
-    }
-
-    if (!isArchivedDataEnabled()) {
-        url.searchParams.delete('archived');
-    } else {
-        url.searchParams.set('archived', 'true');
-    }
+    // Update toggle states in URL using the generic helper
+    Object.entries(toggleConfigs).forEach(([toggleId, config]) => {
+        updateToggleURL(toggleId, config, url);
+    });
 
     history.replaceState(null, '', url);
 }
@@ -884,94 +1048,26 @@ function setupSuiteFilters() {
 }
 
 function isNotesEnabled() {
-    const notesToggle = document.getElementById('show-notes');
-    return notesToggle.checked;
+    return isToggleEnabled('show-notes');
 }
 
 function isUnstableEnabled() {
-    const unstableToggle = document.getElementById('show-unstable');
-    return unstableToggle.checked;
+    return isToggleEnabled('show-unstable');
 }
 
 function isCustomRangesEnabled() {
-    const rangesToggle = document.getElementById('custom-range');
-    return rangesToggle.checked;
+    return isToggleEnabled('custom-range');
 }
 
 function isArchivedDataEnabled() {
-    const archivedDataToggle = document.getElementById('show-archived-data');
-    return archivedDataToggle.checked;
+    return isToggleEnabled('show-archived-data');
 }
 
 function setupToggles() {
-    const notesToggle = document.getElementById('show-notes');
-    const unstableToggle = document.getElementById('show-unstable');
-    const customRangeToggle = document.getElementById('custom-range');
-    const archivedDataToggle = document.getElementById('show-archived-data');
-
-    notesToggle.addEventListener('change', function () {
-        // Update all note elements visibility
-        document.querySelectorAll('.benchmark-note').forEach(note => {
-            note.style.display = isNotesEnabled() ? 'block' : 'none';
-        });
-        updateURL();
+    // Set up all toggles using the configuration
+    Object.entries(toggleConfigs).forEach(([toggleId, config]) => {
+        setupToggle(toggleId, config);
     });
-
-    unstableToggle.addEventListener('change', function () {
-        // Update all unstable warning elements visibility
-        document.querySelectorAll('.benchmark-unstable').forEach(warning => {
-            warning.style.display = isUnstableEnabled() ? 'block' : 'none';
-        });
-        filterCharts();
-    });
-
-    customRangeToggle.addEventListener('change', function () {
-        // redraw all charts
-        updateCharts();
-    });
-
-    // Add event listener for archived data toggle
-    if (archivedDataToggle) {
-        archivedDataToggle.addEventListener('change', function() {
-            if (archivedDataToggle.checked) {
-                loadArchivedData();
-            } else {
-                if (archivedDataLoaded) {
-                    // Reload the page to reset
-                    location.reload();
-                }
-            }
-            updateURL();
-        });
-    }
-
-    // Initialize from URL params if present
-    const notesParam = getQueryParam('notes');
-    const unstableParam = getQueryParam('unstable');
-    const archivedParam = getQueryParam('archived');
-
-    if (notesParam !== null) {
-        let showNotes = notesParam === 'true';
-        notesToggle.checked = showNotes;
-    }
-
-    if (unstableParam !== null) {
-        let showUnstable = unstableParam === 'true';
-        unstableToggle.checked = showUnstable;
-    }
-
-    const customRangesParam = getQueryParam('customRange');
-    if (customRangesParam !== null) {
-        customRangeToggle.checked = customRangesParam === 'true';
-    }
-
-    if (archivedDataToggle && archivedParam !== null) {
-        archivedDataToggle.checked = archivedParam === 'true';
-
-        if (archivedDataToggle.checked) {
-            loadArchivedData();
-        }
-    }
 }
 
 function setupTagFilters() {
@@ -1089,8 +1185,10 @@ function initializeCharts() {
     // Setup UI components
     setupRunSelector();
     setupSuiteFilters();
-    setupTagFilters();
     setupToggles();
+    initializePlatformTab();
+    // Setup tag filters after everything else is ready
+    setupTagFilters();
 
     // Apply URL parameters
     const regexParam = getQueryParam('regex');
@@ -1256,4 +1354,95 @@ function createAnnotationsOptions() {
     });
 
     return repoMap;
+}
+
+function displaySelectedRunsPlatformInfo() {
+    const container = document.querySelector('.platform-info .platform');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // Get platform info for only the selected runs
+    const selectedRunsWithPlatform = Array.from(activeRuns)
+        .map(runName => {
+            const run = loadedBenchmarkRuns.find(r => r.name === runName);
+            if (run && run.platform) {
+                return { name: runName, platform: run.platform };
+            }
+            return null;
+        })
+        .filter(item => item !== null);
+    if (selectedRunsWithPlatform.length === 0) {
+        container.innerHTML = '<p>No platform information available to display.</p>';
+        return;
+    }
+    selectedRunsWithPlatform.forEach(runData => {
+        const runSection = document.createElement('div');
+        runSection.className = 'platform-run-section';
+            const runTitle = document.createElement('h3');
+        runTitle.textContent = `Run: ${runData.name}`;
+        runTitle.className = 'platform-run-title';
+        runSection.appendChild(runTitle);
+            // Create just the platform details without the grid wrapper
+        const platform = runData.platform;
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'platform-details-compact';
+        detailsContainer.innerHTML = createPlatformDetailsHTML(platform);
+        runSection.appendChild(detailsContainer);
+            container.appendChild(runSection);
+    });
+}
+
+// Platform Information Functions
+
+function createPlatformDetailsHTML(platform) {
+    const formattedTimestamp = platform.timestamp ?
+        new Date(platform.timestamp).toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }) : 'Unknown';
+
+    return `
+        <div class="platform-section compact">
+            <div class="platform-item">
+                <span class="platform-label">Time:</span>
+                <span class="platform-value">${formattedTimestamp}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">OS:</span>
+                <span class="platform-value">${platform.os || 'Unknown'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">CPU:</span>
+                <span class="platform-value">${platform.cpu_info || 'Unknown'} (${platform.cpu_count || '?'} cores)</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">GPU:</span>
+                <div class="platform-value multiple">
+                    ${platform.gpu_info && platform.gpu_info.length > 0
+                        ? platform.gpu_info.map(gpu => `<div class="platform-gpu-item">    • ${gpu}</div>`).join('')
+                        : '<div class="platform-gpu-item">    • No GPU detected</div>'}
+                </div>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Driver:</span>
+                <span class="platform-value">${platform.gpu_driver_version || 'Unknown'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Tools:</span>
+                <span class="platform-value">${platform.gcc_version || '?'} • ${platform.clang_version || '?'} • ${platform.python || '?'}</span>
+            </div>
+            <div class="platform-item">
+                <span class="platform-label">Runtime:</span>
+                <span class="platform-value">${platform.level_zero_version || '?'} • compute-runtime ${platform.compute_runtime_version || '?'}</span>
+            </div>
+        </div>
+    `;
+}
+
+function initializePlatformTab() {
+    displaySelectedRunsPlatformInfo();
 }

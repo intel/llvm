@@ -41,6 +41,7 @@
 #include "SPIRVAsm.h"
 #include "SPIRVBasicBlock.h"
 #include "SPIRVExtInst.h"
+#include "SPIRVFnVar.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
@@ -702,7 +703,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   if (!LM)
     return;
 
-  auto Temp = MDNode::getTemporary(*Context, std::nullopt);
+  auto Temp = MDNode::getTemporary(*Context, {});
   auto *Self = MDNode::get(*Context, Temp.get());
   Self->replaceOperandWith(0, Self);
   SPIRVWord LC = LM->getLoopControl();
@@ -852,8 +853,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
           // Emit a distinct index group that will be referenced from
           // llvm.loop.parallel_access_indices metadata; hash the new
           // MDNode for future accesses to the same memory.
-          CurrentDepthIdxGroup =
-              llvm::MDNode::getDistinct(*Context, std::nullopt);
+          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, {});
           OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
         } else {
           // Previous accesses to that field have already been indexed,
@@ -863,8 +863,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
       } else /* Regular kernel-scope array/pointer variable */ {
         // Emit a distinct index group that will be referenced from
         // llvm.loop.parallel_access_indices metadata
-        CurrentDepthIdxGroup =
-            llvm::MDNode::getDistinct(*Context, std::nullopt);
+        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, {});
       }
 
       unsigned Safelen = PointerSflnMap.find(ArrayGEPIt.first)->second;
@@ -1765,6 +1764,20 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpLabel:
     return mapValue(BV, BasicBlock::Create(*Context, BV->getName(), F));
 
+  case OpSpecConstantArchitectureINTEL:
+    llvm_unreachable(
+        "Encountered non-specialized OpSpecConstantArchitectureINTEL");
+    return nullptr;
+
+  case OpSpecConstantTargetINTEL:
+    llvm_unreachable("Encountered non-specialized OpSpecConstantTargetINTEL");
+    return nullptr;
+
+  case OpSpecConstantCapabilitiesINTEL:
+    llvm_unreachable(
+        "Encountered non-specialized OpSpecConstantCapabilitiesINTEL");
+    return nullptr;
+
   default:
     // do nothing
     break;
@@ -1865,9 +1878,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     SPIRVWord Size = LTStart->getSize();
     ConstantInt *S = nullptr;
+    auto *Var = transValue(LTStart->getObject(), F, BB);
+    Var = Var->stripPointerCasts();
     if (Size)
       S = Builder.getInt64(Size);
-    Value *Var = transValue(LTStart->getObject(), F, BB);
+    if (Size == 0) {
+      auto *Alloca = cast<AllocaInst>(Var);
+      if (Alloca->getAllocatedType()->isSized())
+        Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
+      else
+        Size = static_cast<SPIRVWord>(-1);
+    }
     CallInst *Start = Builder.CreateLifetimeStart(Var, S);
     return mapValue(BV, Start);
   }
@@ -1877,9 +1898,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     SPIRVWord Size = LTStop->getSize();
     ConstantInt *S = nullptr;
+    auto *Var = transValue(LTStop->getObject(), F, BB);
+    Var = Var->stripPointerCasts();
     if (Size)
       S = Builder.getInt64(Size);
-    auto *Var = transValue(LTStop->getObject(), F, BB);
+    if (Size == 0) {
+      auto *Alloca = cast<AllocaInst>(Var);
+      if (Alloca->getAllocatedType()->isSized())
+        Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
+      else
+        Size = static_cast<SPIRVWord>(-1);
+    }
     for (const auto &I : Var->users())
       if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
         return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(1), S));
@@ -2674,13 +2703,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_200:
-      if (!M->IsNewDbgInfoFormat) {
-        return mapValue(
-            BV, cast<Instruction *>(DbgTran->transDebugIntrinsic(ExtInst, BB)));
-      } else {
-        DbgTran->transDebugIntrinsic(ExtInst, BB);
-        return mapValue(BV, nullptr);
-      }
+      DbgTran->transDebugIntrinsic(ExtInst, BB);
+      return mapValue(BV, nullptr);
     default:
       llvm_unreachable("Unknown extended instruction set!");
     }
@@ -5615,6 +5639,31 @@ bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
 
   if (!BM)
     return false;
+
+  if (Opts.getFnVarSpecEnable()) {
+    if (!specializeFnVariants(BM.get(), ErrMsg)) {
+      return false;
+    }
+
+    // Write out the specialized/targeted module
+    if (!BM->getFnVarSpvOut().empty()) {
+      auto SaveOpt = SPIRVUseTextFormat;
+      auto OFSSpv = std::ofstream(BM->getFnVarSpvOut(), std::ios::binary);
+      SPIRVUseTextFormat = false;
+      OFSSpv << *BM;
+      if (BM->getError(ErrMsg) != SPIRVEC_Success) {
+        return false;
+      }
+      SPIRVUseTextFormat = SaveOpt;
+    }
+  }
+
+  if (BM->getExtension().find("SPV_INTEL_function_variants") !=
+      BM->getExtension().end()) {
+    ErrMsg = "Instructions from SPV_INTEL_function_variants are not "
+             "convertible to LLVM IR.";
+    return false;
+  }
 
   M = convertSpirvToLLVM(C, *BM, Opts, ErrMsg).release();
 

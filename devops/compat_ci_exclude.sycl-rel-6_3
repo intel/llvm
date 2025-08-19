@@ -1,0 +1,24 @@
+# Failed against sycl-rel-6_3 toolchain when creating the container:
+Matrix/joint_matrix_bf16_fill_k_cache_arg_dim.cpp
+Matrix/joint_matrix_bf16_fill_k_cache_runtime_dim.cpp
+
+# Likely OK, but need author to provide justification, get approval/confirmation
+# from someone:
+
+# https://github.com/intel/llvm/pull/18565
+# This one should have probably be done in multiple PRs, first improving the
+# test's CHECKs and then making an actual functional change.
+#
+# Based on the title, I'd expect to see reduction in number of ur*retain/release
+# calls, but it only moves a few ur*release CHECKs, so I'll let the author
+# update this explanation.
+KernelAndProgram/disable-caching.cpp
+
+# https://github.com/intel/llvm/pull/19238
+NonUniformGroups/opportunistic_group.cpp
+
+# The test is extremely hacky and relies on CI installing some extra files that
+# are used during test execution. Looks like we need that to come from the
+# toolchain used to build the test, not the toolchain we're using SYCL RT from
+# to run against pre-built E2E binaries.
+Basic/device_config_file_consistency.cpp

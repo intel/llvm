@@ -38,7 +38,7 @@ using LockGuard = std::lock_guard<SpinLock>;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // forward decl
-void shutdown_early();
+void shutdown_early(bool);
 void shutdown_late();
 #ifdef _WIN32
 BOOL isLinkedStatically();
@@ -216,14 +216,6 @@ std::vector<std::shared_ptr<platform_impl>> &GlobalHandler::getPlatformCache() {
   return PlatformCache;
 }
 
-void GlobalHandler::clearPlatforms() {
-  if (!MPlatformCache.Inst)
-    return;
-  for (auto &PltSmartPtr : *MPlatformCache.Inst)
-    PltSmartPtr->MDevices.clear();
-  MPlatformCache.Inst->clear();
-}
-
 std::mutex &GlobalHandler::getPlatformMapMutex() {
   static std::mutex &PlatformMapMutex = getOrCreate(MPlatformMapMutex);
   return PlatformMapMutex;
@@ -280,19 +272,21 @@ void GlobalHandler::releaseDefaultContexts() {
 // For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
-
+  StaticVarShutdownHandler(const StaticVarShutdownHandler &) = delete;
+  StaticVarShutdownHandler &
+  operator=(const StaticVarShutdownHandler &) = delete;
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
       // If statically linked, DllMain will not be called. So we do its work
       // here.
       if (isLinkedStatically()) {
-        shutdown_early();
+        shutdown_early(true);
       }
 
       shutdown_late();
 #else
-      shutdown_early();
+      shutdown_early(true);
 #endif
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM(
@@ -347,7 +341,10 @@ void GlobalHandler::drainThreadPool() {
     MHostTaskThreadPool.Inst->drain();
 }
 
-void shutdown_early() {
+// Note: this function can be called on Windows twice:
+//  1) when library is unloaded via FreeLibrary
+//  2) when process is being terminated
+void shutdown_early(bool CanJoinThreads = true) {
   const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
@@ -366,8 +363,10 @@ void shutdown_early() {
   // upon its release
   Handler->prepareSchedulerToRelease(true);
 
-  if (Handler->MHostTaskThreadPool.Inst)
-    Handler->MHostTaskThreadPool.Inst->finishAndWait();
+  if (Handler->MHostTaskThreadPool.Inst) {
+    Handler->MHostTaskThreadPool.Inst->finishAndWait(CanJoinThreads);
+    Handler->MHostTaskThreadPool.Inst.reset(nullptr);
+  }
 
   // This releases OUR reference to the default context, but
   // other may yet have refs
@@ -387,7 +386,6 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
-  Handler->clearPlatforms(); // includes dropping platforms' devices ownership.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
@@ -428,7 +426,14 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
     try {
-      shutdown_early();
+      // WA for threads handling. We must call join() or detach() on host task
+      // execution thread to avoid UB. lpReserved == NULL if library is unloaded
+      // via FreeLibrary. In this case we can't join threads within DllMain call
+      // due to global loader lock and DLL_THREAD_DETACH signalling. lpReserved
+      // != NULL if library is unloaded during process termination. In this case
+      // Windows terminates threads but leave them in signalled state, prevents
+      // DLL_THREAD_DETACH notification and we can call join() as NOP.
+      shutdown_early(lpReserved != NULL);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DLL_PROCESS_DETACH", e);
       return FALSE;

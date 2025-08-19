@@ -399,7 +399,7 @@ struct TestKernelNoGetter {
 void check_non_const_getter_warning() {
   sycl::queue Q;
 
-  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.+}}: get(sycl::ext::oneapi::experimental::properties_tag) member in kernel functor class must be declared as a const member function}}
+  // expected-error-re@sycl/detail/kernel_launch_helper.hpp:* {{static assertion failed due to requirement {{.+}}: get(sycl::ext::oneapi::experimental::properties_tag) member in kernel functor class must be declared as a const member function}}
   Q.single_task(TestKernelNonConstGetter());
 
   // No error expected for kernel functor with a const get(properties_tag)
