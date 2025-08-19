@@ -525,7 +525,8 @@ runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
 
   // Skip unorm_int8 tests for Level Zero backend
   if (channelType == sycl::image_channel_type::unorm_int8 &&
-      device.getSyclQueue().get_device().get_backend() == sycl::backend::ext_oneapi_level_zero) {
+      device.getSyclQueue().get_device().get_backend() ==
+          sycl::backend::ext_oneapi_level_zero) {
     std::cout << "Skipping unorm_int8 test for Level Zero backend.\n";
     return true;
   }
