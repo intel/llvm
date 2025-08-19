@@ -2051,28 +2051,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
-  bool hasVirtualInheritance(const CXXRecordDecl *RD, ParmVarDecl *PD) {
-    if (RD->getNumBases() > 0) {
-      for (const auto &Base : RD->bases()) {
-        QualType BaseType = Base.getType();
-        if (const CXXRecordDecl *BaseDecl = BaseType->getAsCXXRecordDecl();
-            BaseDecl) {
-          if (Base.isVirtual()) {
-            const FunctionDecl *FD =
-                dyn_cast<FunctionDecl>(PD->getDeclContext());
-            SemaSYCLRef.SemaRef.Diag(FD->getLocation(),
-                                     diag::err_free_function_virtual_arg)
-                << RD->getNameAsString() << Base.getType().getAsString();
-            return true;
-          } else if (BaseDecl->getNumBases() > 0)
-            hasVirtualInheritance(BaseDecl, PD);
-        }
-      }
-    }
-    return false;
-  }
-
-public:
+  public:
   SyclKernelFieldChecker(SemaSYCL &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   static constexpr const bool VisitNthArrayElement = false;
@@ -2124,9 +2103,6 @@ public:
           << ParamTy;
       IsInvalid = true;
     }
-    // Free functions do not support for virtual inheritance.
-    if (hasVirtualInheritance(RD, PD))
-      IsInvalid = true;
     return isValid();
   }
 
@@ -2237,10 +2213,14 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
-                   QualType) final {
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &B,
+                   QualType Ty) final {
     --StructBaseDepth;
-    return true;
+    if (B.isVirtual())
+      SemaSYCLRef.SemaRef.Diag(SemaSYCLRef.getFreeFunctionLocation(),
+                               diag::err_free_function_virtual_arg)
+          << RD->getNameAsString() << B.getType().getAsString();
+    return isValid();
   }
 };
 
@@ -5889,6 +5869,10 @@ static bool CheckFreeFunctionDiagnostics(Sema &S, const FunctionDecl *FD) {
   return false;
 }
 
+SourceLocation SemaSYCL::getFreeFunctionLocation() const {
+  return FreeFunctionLocation;
+}
+
 void SemaSYCL::finalizeFreeFunctionKernels() {
   // This is called at the end of the translation unit. The kernels that appear
   // in this list are kernels that have been declared but not defined. Their
@@ -5926,6 +5910,7 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     if (CheckFreeFunctionDiagnostics(SemaRef, FD))
       return;
 
+    FreeFunctionLocation = FD->getLocation();
     // In case the free function kernel has already been seen by way of a
     // forward declaration, flush it out because a definition takes priority.
     FreeFunctionDeclarations.erase(FD->getCanonicalDecl());
