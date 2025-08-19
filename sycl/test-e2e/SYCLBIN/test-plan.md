@@ -94,12 +94,12 @@ Tests:
     8. Check an exception with the `errc::invalid` error code is thrown if the
        `devs` vector is empty
     9. Check an exception with the `errc::invalid` error code is thrown if
-       `State` is `bundle_state::input` and any device in `ctxt.get_devices()`
+       `State` is `bundle_state::input` and if any device in `ctxt.get_devices()`
        does not have `aspect::online_compiler` (unit test)
     10. Check an exception with the `errc::invalid` error code is thrown if
-       `State` is `bundle_state::object` and any device in `ctxt.get_devices()`
+       `State` is `bundle_state::object` and if any device in `ctxt.get_devices()`
        does not have `aspect::online_linker` (unit test)
-
+   
  3. Tests for
 
     ```
@@ -121,7 +121,42 @@ Tests:
     3. Check the corresponding SYCLBIN format in the returned
        `std::vector<char>` has `State` state
 
- 4. Tests for Clang driver
+ 4. Tests for kernels with unused variables 
+    1. Verify that no regression occurs when running a kernel with unused
+       arguments, created from a kernel bundle generated from SYCLBIN files
+
+ 5. Tests for kernels with device globals
+    2. Verify that a kernel created from a kernel bundle generated from SYCLBIN 
+       files works correctly with device globals
+    1. Verify that when using two kernels, each kernel created from a kernel
+       bundle generated from SYCLBIN files maintains its own independent set of
+       device globals
+    3. Verify that device globals declared with `device_image_scope` are handled
+       correctly in a kernel created from a kernel bundle generated from SYCLBIN
+       files
+
+ 6. Tests for linkage 
+    1. Verify that two kernel bundles in the `input` state, generated from SYCLBIN
+       files, link correctly with each other
+    2. Verify that two kernel bundles in the `object` state, generated from SYCLBIN
+       files, link correctly with each other
+    3. Verify that two kernel bundles in the `input` state, compiled with different 
+       optimization levels (e.g., `-O0` vs. `-O1`), link correctly with each other
+    3. Verify that two kernel bundles in the `object` state, compiled with different 
+       optimization levels (e.g., `-O0` vs. `-O1`), link correctly with each other
+    5. Verify that two kernels in the input state link correctly when one kernel is
+       runtime-compiled (e.g., a SYCL_EXTERNAL kernel) and the other is compiled from
+       a SYCLBIN file
+    6. Verify that two kernels in the input state link correctly when one kernel is
+       runtime-compiled (e.g., a SYCL_EXTERNAL kernel) and the other is compiled from
+       a SYCLBIN file
+
+ 7. Tests for kernels with optional device features
+    1. Verify that two kernels compiled from SYCLBIN files where one uses optional
+       kernel features, compile and load correctly across all kernel bundle states
+   
+
+ 8. Tests for Clang driver
 
     1. Check error generated if use `-fsyclbin` without `--offload-new-driver`
     2. Check when `-fsyclbin` is set, host-compilation invocation of `-fsycl`
@@ -130,27 +165,28 @@ Tests:
        extension
     4. Check when `-fsyclbin` is set, `clang-linker-wrapper` has `--syclbin`
        flag
-    5. Check when `-fsyclbin` is not set, `clang-linker-wrapper` has `--syclbin`
+    5. Check when `-fsyclbin` is not set, `clang-linker-wrapper` has no `--syclbin`
        flag
     6. Check when `-fsycl-device-only` and `-fsyclbin` are used,
        `-fsycl-device-only` is unused
     7. Check `-fsycl-link` works without any errors with .syclbin files. TODO:
        figure out that
-    8. Check `--offload-rdc` is an alias to `-fgpu-rdc`
+    8. Check that `--offload-rdc` is an alias to `-fgpu-rdc`
 
- 5. Tests for clang-linker-wrapper
+ 9. Tests for clang-linker-wrapper
 
     1. Check when `--syclbin` is used, module-splitting is performed
     2. Check when `--syclbin` is used, `clang-linker-wrapper` skips wrapping of
        the device code and the host code linking stage
 
- 6. Tests for SYCL runtime library
+ 10. Tests for SYCL runtime library
 
     1. Validate SYCL RT correctly parses SYCLBIN file (e.g., magic number is
        correct, etc.). Check correctness of corresponding data structure. Test
        should expect that SYCLBIN version is 1.
     2. Validate SYCL RT correctly writes SYCLBIN object to SYCLBIN file. Test
        should expect that SYCLBIN version is 1.
-    3. Test SYCL RT correctly parses input SYCLBIN properies in binary format:
+    3. Generate SYCLBIN files with JIT and AOT compilation. For each mode test
+       that SYCL RT correctly parses input SYCLBIN properies in binary format:
        SYCLBIN/global metadata, SYCLBIN/ir module metadata, SYCLBIN/native
-       device code image metadata
+       device code image metadata. `sycl-dump` tool can be used
