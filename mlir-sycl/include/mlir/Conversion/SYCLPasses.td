@@ -121,4 +121,23 @@ def ConvertSYCLToMath : Pass<"convert-sycl-to-math", "ModuleOp"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// SPIRVBuiltInToNVVM
+//===----------------------------------------------------------------------===//
+
+def ConvertSPIRVBuiltInToNVVM : Pass<"convert-spirv-builtin-to-nvvm", "ModuleOp"> {
+  let summary = "convert __spirv_BuiltIn access to NVVM intrinsics";
+  let description = [{
+    Pass to support SYCL-MLIR running on nvidia gpus.
+
+    This Pass will be used to modify the final mlir which only contains llvm dialect.
+    It enables the final MLIR to be converted into LLVM IR that can run on NVIDIA GPUs, mainly by doing two things:
+    1.Mark the kernel function
+    2.Replaces SPIR-V builtin global variables and accessor logic with direct NVVM intrinsic calls.
+  }];
+  let dependentDialects = [
+      "LLVM::LLVMDialect"
+  ];
+}
+
 #endif // MLIR_CONVERSION_SYCLPASSES
