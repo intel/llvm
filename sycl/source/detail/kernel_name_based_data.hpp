@@ -72,6 +72,8 @@ struct FastKernelEntryT {
 
 using FastKernelSubcacheEntriesT = std::vector<FastKernelEntryT>;
 
+// Structure for caching built kernels with a specific name.
+// Used by instances of the kernel program cache class (potentially multiple).
 struct FastKernelSubcacheT {
   FastKernelSubcacheEntriesT Entries;
   FastKernelSubcacheMutexT Mutex;
@@ -80,7 +82,6 @@ struct FastKernelSubcacheT {
 // This class is used for aggregating kernel name based information.
 // Pointers to instances of this class are stored in header function templates
 // as a static variable to avoid repeated runtime lookup overhead.
-
 // TODO Currently this class duplicates information fetched from the program
 // manager. Instead, we should merge all of the kernel name based information
 // into this structure and get rid of the other KernelName -> * maps.

@@ -243,7 +243,8 @@ public:
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
 
-  // A pointer to a kernel name based cache retrieved on the application side.
+  // A pointer to kernel name based data. Cached on the application side in
+  // headers or retrieved from program manager.
   KernelNameBasedData *MKernelNameBasedDataPtr = nullptr;
 };
 

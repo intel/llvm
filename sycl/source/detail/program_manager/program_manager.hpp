@@ -535,8 +535,8 @@ protected:
   KernelUsesAssertSet m_KernelUsesAssert;
   std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
 
-  // Map for storing kernel name based caches. Runtime lookup should only be
-  // performed for ABI compatibility and user library unloading.
+  // Map for storing kernel name based data. Runtime lookup should be avoided
+  // by caching the pointers when possible.
   std::unordered_map<KernelNameStrT, KernelNameBasedData>
       m_KernelNameBasedDataMap;
 

@@ -47,7 +47,7 @@ const std::optional<int> &KernelNameBasedData::getImplicitLocalArgPos() {
 
 void KernelNameBasedData::assertInitialized() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  assert(MInitialized.load() && "Cache needs to be initialized before use");
+  assert(MInitialized.load() && "Data needs to be initialized before use");
 #endif
 }
 

@@ -394,8 +394,8 @@ void shutdown_late() {
   Handler->MProgramManager.Inst.reset(nullptr);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Cache stores handles to the adapter, so clear it before
-  // releasing adapters.
+  // Kernel cache, which is part of kernel name based data,
+  // stores handles to the adapter, so clear it before releasing adapters.
   Handler->MKernelNameBasedDataStorage.Inst.reset(nullptr);
 #endif
 

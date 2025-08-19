@@ -255,7 +255,7 @@ public:
     FastKernelSubcacheT &get() { return *MSubcachePtr; }
 
   private:
-    FastKernelSubcacheT *MSubcachePtr;
+    FastKernelSubcacheT *MSubcachePtr = nullptr;
     ur_context_handle_t MUrContext = nullptr;
   };
 
