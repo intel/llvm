@@ -1,0 +1,132 @@
+= sycl_ext_oneapi_clock
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_clock`.  The application must check that the device has
+this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::feature_not_supported` error code
+when the kernel is submitted to the queue.
+
+== Overview
+
+This extension defines a new free function `clock()`. It returns the sample
+value of a clock as seen by the shader processor. An idealized clock is an
+unbounded unsigned scalar integer tick count increasing monotonically over
+time. A clock’s rate of progress may vary within the lifetime of an invocation,
+may vary across different executions of the program, and may be affected by
+conditions beyond the control of the programmer. The sampled value read by this
+instruction consists of the least significant bits of the idealized clock’s tick
+count at the time the instruction was executed. In particular, an observer may
+see sampled values wrap around zero.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_CLOCK` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New device aspect
+
+This extension adds new device aspect:
+
+```c++
+namespace sycl::ext::oneapi {
+
+enum class aspect : /*unspecified*/ {
+  ext_oneapi_clock
+};
+
+} // namespace sycl::ext::oneapi
+```
+
+[width="100%",%header,cols="50%,50%"]
+|===
+|Aspect
+|Description
+
+|`ext_oneapi_clock`
+|Indicates that the device supports the `clock()` call.
+|===
+
+=== New free function
+
+```c++
+namespace sycl::ext::oneapi {
+
+uint64_t clock();
+
+} // namespace sycl::ext::oneapi
+```
+
+_Returns:_ the sample value of a clock as seen by the shader processor.
+
+_Throws:_ an exception with the errc::feature_not_supported error code if the
+device does not have aspect::ext_oneapi_clock.
+
+== Issues
