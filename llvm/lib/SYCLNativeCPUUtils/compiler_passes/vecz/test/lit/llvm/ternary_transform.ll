@@ -107,7 +107,7 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: %c2 = select i1 %cond, ptr %c0, ptr %c1
 ; CHECK: store i64 %b, ptr %c2, align 4
 
-; Note: we don't perform this transform on vector accesses - see CA-4337.
+; Note: we don't perform this transform on vector accesses.
 ; CHECK: define spir_kernel void @__vecz_v4_test_vector_scalar_cond(i64 %a, <2 x i32> %b, ptr %c)
 ; CHECK:   %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK:   %cond = icmp eq i64 %a, %gid

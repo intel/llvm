@@ -35,7 +35,7 @@ namespace utils {
 ///
 /// NOTE: Must be kept in sync with mux_floating_point_capabilities_e in
 /// mux/include/mux/mux.h! This should probably be placed in an intermediary
-/// mux/compiler library and shared as part of CA-4236.
+/// mux/compiler library and shared.
 enum device_floating_point_capabilities_e {
   /// @brief Denormals supported.
   device_floating_point_capabilities_denorm = 0x1,

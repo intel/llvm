@@ -171,7 +171,7 @@ bool TargetInfoArm::optimizeInterleavedGroup(IRBuilder<> &B,
   VECZ_FAIL_IF(HasMask);
   VECZ_FAIL_IF(stride < 0);
 
-  // TODO CA-3100 fetch information on SubTargetInfo
+  // TODO fetch information on SubTargetInfo
   // load instructions seems to be easily split in the backend whereas stores
   // generate a backend error because of invalid data type on vector operands.
   // Vector operands are enabled in the backend only when SubTargetInfo ensures
@@ -337,7 +337,7 @@ bool TargetInfoAArch64::optimizeInterleavedGroup(
   VECZ_FAIL_IF(HasMask);
   VECZ_FAIL_IF(stride < 0);
 
-  // TODO CA-3100 fetch information on SubTargetInfo
+  // TODO fetch information on SubTargetInfo
   // load instructions seems to be easily split in the backend whereas stores
   // generate a backend error because of invalid data type on vector operands.
   // Vector operands are enabled in the backend only when SubTargetInfo ensures

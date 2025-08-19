@@ -112,7 +112,8 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
   } else {
     if (auto Err = Mach.getPB().parsePassPipeline(PM, VeczPassPipeline)) {
       // NOTE this is a command line user error print, not a debug print.
-      // We may want to hoist this out of Vecz once CA-4134 is resolved.
+      // We may want to hoist this out of Vecz once replacing RunVeczPass with
+      // a passbuilder is resolved.
       errs() << "vecz pipeline: " << toString(std::move(Err)) << "\n";
       return PreservedAnalyses::all();
     }

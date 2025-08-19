@@ -119,7 +119,7 @@ bool BasicMem2RegPass::canPromoteAlloca(AllocaInst *Alloca) const {
       //   %v = load i16, ptr %a
       // We can only promote the alloca if we can bitcast between the two
       // underlying types as well.
-      // We could probably zero-extend or trunc if we had to? See CA-4382.
+      // We could probably zero-extend or trunc if we had to?
       const unsigned DstPointeeBits = U->getType()->getPrimitiveSizeInBits();
       if (!DstPointeeBits || SrcPointeeBits != DstPointeeBits) {
         return false;
@@ -213,8 +213,7 @@ bool BasicMem2RegPass::promoteAlloca(AllocaInst *Alloca) const {
       //   %a = alloca i32
       //   store i16, ptr %a
       //   %v = load i32, ptr %a
-      // Note: we could do other things if the type sizes didn't match. See
-      // CA-4382.
+      // Note: we could do other things if the type sizes didn't match.
       if (Load->getType()->getPrimitiveSizeInBits() !=
           NewValue->getType()->getPrimitiveSizeInBits()) {
         return false;

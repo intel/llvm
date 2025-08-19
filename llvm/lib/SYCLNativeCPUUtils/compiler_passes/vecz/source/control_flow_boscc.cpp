@@ -293,7 +293,6 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
     // take several elements into account:
     // - The length of the duplicated code
     // - branch probability
-    // - TODO: CA-1221
     // size_t cost =
     //    std::accumulate(Region->predicatedBlocks.begin(),
     //    Region->predicatedBlocks.end(), 0,
@@ -352,11 +351,11 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
   // doesn't seem to matter, as long as we can fully identify the predicated
   // subset of the SESE region, so we are really working with Multiple-Entry,
   // Single-Exit regions here. This was the cause of the BOSCC Back Door bug
-  // that was encountered previously (CA-2711), where the entry block of a
+  // that was encountered previously, where the entry block of a
   // supposed SESE region did not actually dominate everything in the region,
   // which in this case was caused by an additional non-divergent code path
   // (the "back door" entry point), but it is equally possible for two
-  // divergence-causing branches to enter a predicated region (CA-3194).
+  // divergence-causing branches to enter a predicated region.
   //
   // a)    A*      b)    A       c)    A       d)    A      .
   //      / \           / \           / \           / \     .
@@ -383,7 +382,7 @@ bool ControlFlowConversionState::BOSCCGadget::createUniformRegions(
   // immediate post-dominator of B, the first-encountered divergence causing
   // block. Therefore the two overlapping regions have different exit blocks.
   //
-  // Another situation can arise (CA-3851) where the SESE region can contain
+  // Another situation can arise where the SESE region can contain
   // two completely unconnected predicated subregions. Although the DCBI is
   // SESE compact, a SESE region can still contain other, nested SESE regions.
   // Since an entry point into the predicated subregion is not necessarily the
@@ -648,7 +647,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
   VECZ_FAIL_IF(!computeBlockOrdering());
 
   // NOTE doing the Liveness Analysis here is potentially dangerous, since we
-  // have yet to fully restore SSA form (CA-3703).
+  // have yet to fully restore SSA form.
   liveness = &AM.getResult<LivenessAnalysis>(F);
   RC->recalculate(F);
   VECZ_FAIL_IF(!blendFinalize());

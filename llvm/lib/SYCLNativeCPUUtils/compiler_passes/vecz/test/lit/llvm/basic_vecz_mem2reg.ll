@@ -59,14 +59,14 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK:  %4 = bitcast i32 %3 to <2 x i16>
 
 ; Note: we can't optimize this as the allocated type size and loaded type sizes
-; don't match. Maybe we could trunc %3 from i32 to i16? See CA-4382.
+; don't match. Maybe we could trunc %3 from i32 to i16?
 
 ; CHECK: define spir_kernel void @__vecz_v4_load_type_size_mismatch_no_bitcast(ptr addrspace(1) %p)
 ; CHECK:  %data = alloca i32, align 4
 ; CHECK:  %4 = load i16, ptr %data, align 2
 
 ; Note: we can't optimize this as the allocated type size and loaded type sizes
-; don't match. Maybe we could trunc %3 from i32 to i16? See CA-4382.
+; don't match. Maybe we could trunc %3 from i32 to i16?
 
 ; CHECK: define spir_kernel void @__vecz_v4_store_type_size_mismatch_no_bitcast(ptr addrspace(1) %p)
 ; CHECK:  %data = alloca i32, align 4

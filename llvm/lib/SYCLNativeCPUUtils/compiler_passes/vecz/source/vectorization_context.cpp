@@ -233,7 +233,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   if (!F) {
     F = dyn_cast<Function>(CI->getCalledOperand()->stripPointerCasts());
   }
-  VECZ_FAIL_IF(!F);  // TODO: CA-1505: Support indirect function calls.
+  VECZ_FAIL_IF(!F);  // TODO: Support indirect function calls.
   LLVMContext &ctx = F->getContext();
 
   // We will handle printf statements, but handling every possible vararg

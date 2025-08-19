@@ -101,7 +101,7 @@ bool TargetInfoRISCV::isVPVectorLegal(const llvm::Function &F,
 
 // Should be target-dependent. Take RISCV legal types for now.
 // FIXME: LLVM 14 adds better support for legalization of vp intrinsics, but
-// not RISCV ones like vrgather_vv. See CA-4071.
+// not RISCV ones like vrgather_vv.
 bool TargetInfoRISCV::isVectorTypeLegal(Type *Ty) const {
   assert(Ty->isVectorTy() && "Expecting a vector type.");
   (void)Ty;

@@ -531,7 +531,6 @@ Function *BIMuxInfoConcept::defineMemBarrier(Function &F, unsigned,
   // our set of default set of targets can't make use of anything but a
   // single-threaded fence. We're also ignoring the kind of memory being
   // controlled by the barrier.
-  // See CA-2997 and CA-3042 for related discussions.
   auto &M = *F.getParent();
   setDefaultBuiltinAttributes(F);
   F.setLinkage(GlobalValue::InternalLinkage);

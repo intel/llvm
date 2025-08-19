@@ -1921,7 +1921,7 @@ PreservedAnalyses compiler::utils::WorkItemLoopsPass::run(
       // FIXME: Also mark them as internal in case they contain symbols we
       // haven't resolved as part of the work-item loop wrapping process. We
       // rely on GlobalOptPass to remove such functions; this is the same root
-      // issue as CA-4126.
+      // issue as some mux builtins require DCE for correctness.
       F.setLinkage(GlobalValue::InternalLinkage);
     }
   }

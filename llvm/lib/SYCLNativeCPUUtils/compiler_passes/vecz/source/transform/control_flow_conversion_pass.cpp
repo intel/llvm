@@ -1333,7 +1333,7 @@ bool ControlFlowConversionState::Impl::applyMaskToCall(CallInst *CI,
   if (!callee) {
     callee = dyn_cast<Function>(CI->getCalledOperand()->stripPointerCasts());
   }
-  VECZ_FAIL_IF(!callee);  // TODO: CA-1505: Support indirect function calls.
+  VECZ_FAIL_IF(!callee);  // TODO: Support indirect function calls.
   // Check to see if this is a function that we know we won't be able to
   // handle in any other way.
   VECZ_FAIL_IF(callee->cannotDuplicate());
