@@ -267,9 +267,6 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
-  // Used to track location of the free function kernel during diagnostics.
-  SourceLocation FreeFunctionLocation;
-
 public:
   SemaSYCL(Sema &S);
 
@@ -365,7 +362,6 @@ public:
   void processFreeFunctionDeclaration(const FunctionDecl *FD);
   void ProcessFreeFunction(FunctionDecl *FD);
   void finalizeFreeFunctionKernels();
-  SourceLocation getFreeFunctionLocation() const;
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
