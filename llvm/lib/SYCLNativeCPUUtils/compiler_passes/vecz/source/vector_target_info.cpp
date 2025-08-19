@@ -1300,7 +1300,7 @@ unsigned TargetInfo::getVectorWidthForType(const llvm::TargetTransformInfo &TTI,
   }
 
   // The floor of 8 prevents poor double precision performance.
-  // Not sure why (CA-3461 related?)
+  // Not sure why.
   return std::max(MaxVecRegBitWidth / BitWidth, 8u);
 }
 

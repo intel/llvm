@@ -1533,7 +1533,7 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
         NameMangler Mangler(&F->getContext());
         const auto name = Mangler.demangleName(F->getName());
         if (name == "vload_half") {
-          // TODO CA-4691 handle "vload_halfn"
+          // TODO handle "vload_halfn"
           return emitBuiltinInlineVLoadHalf(F, B, Args);
         }
       } break;
@@ -1551,7 +1551,7 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
         NameMangler Mangler(&F->getContext());
         Lexer L(Mangler.demangleName(F->getName()));
         if (L.Consume("vstore_half")) {
-          // TODO CA-4691 handle "vstore_halfn"
+          // TODO handle "vstore_halfn"
           return emitBuiltinInlineVStoreHalf(F, L.TextLeft(), B, Args);
         }
       } break;
@@ -1969,7 +1969,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineAsLLVMBinaryIntrinsic(
   const Triple TT(B.GetInsertBlock()->getModule()->getTargetTriple());
   if (TT.getArch() == Triple::arm || TT.getArch() == Triple::aarch64) {
     // fmin and fmax fail CTS on arm targets.
-    // This is a HACK and should be removed when CA-3595 is resolved.
+    // This is a HACK and should be removed when it is resolved.
     return nullptr;
   }
 

@@ -107,7 +107,7 @@ bool shouldTransform(SelectInst *Select, const StrideAnalysisResult &SAR) {
     // scalar loads and stores. Performing this transform on vectors was
     // historically banned due to internal limitations, but these days we
     // *should* be able to. It's just that we don't know whether it's
-    // beneficial: see CA-4337.
+    // beneficial.
     for (User *U : GEP->users()) {
       if (auto *const LI = dyn_cast<LoadInst>(U)) {
         if (LI->getType()->isVectorTy()) {

@@ -696,7 +696,6 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
 
       // We can't guarantee a subprogram for all functions.
       // FIXME: Should we be able to? Do we need to clone subprograms somehow?
-      // See CA-4241.
       if (!DISubprogram) {
         continue;
       }

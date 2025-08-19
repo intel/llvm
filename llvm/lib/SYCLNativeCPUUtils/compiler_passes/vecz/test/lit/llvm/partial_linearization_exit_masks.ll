@@ -18,7 +18,7 @@
 
 ; This test ensures that VECZ does not crash during control flow conversion due
 ; to a missing exit mask. As such, we need only verify that the return code from
-; veczc is 0, and FileCheck is not required. See CA-3117 for details.
+; veczc is 0, and FileCheck is not required.
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"

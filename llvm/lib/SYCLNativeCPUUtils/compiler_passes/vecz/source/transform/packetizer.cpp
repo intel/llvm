@@ -536,7 +536,7 @@ bool Packetizer::Impl::packetize() {
               B, VectorType::get(B.getInt32Ty(), SimdWidth), "index.vec");
         }
 
-        // CA-3943 this implementation looks unlikely to be correct, but for
+        // This implementation looks unlikely to be correct, but for
         // now we just maintain the original behaviour, until we have a better
         // idea of what is going on or whether any of this is still needed.
         // This case will never be encountered during kernel vectorization.
@@ -1239,7 +1239,7 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
 
   // Reduce the packet values in-place.
   // TODO: can we add 'reassoc' to the floating-point reductions to absolve
-  // them of ordering? See CA-3969.
+  // them of ordering?
   op.getPacketValues(packetWidth, opPackets);
 
   assert((!VL || packetWidth) &&
@@ -2088,8 +2088,7 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
     // Some llvm intrinsic functions like abs have argument that are constants
     // and define as llvm_i1_ty. This means that thoses operand can't
     // be packetized. To solve that temporary, we use this vector so every
-    // cases can set independently what operand must be skipped
-    // CA-3696
+    // cases can set independently what operand must be skipped.
     SmallVector<bool, maxOperands> operandsToSkip(maxOperands, false);
     switch (IntrID) {
       case Intrinsic::abs:

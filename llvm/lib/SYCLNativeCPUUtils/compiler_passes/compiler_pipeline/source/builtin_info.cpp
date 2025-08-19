@@ -314,7 +314,7 @@ BuiltinUniformity BuiltinInfo::isBuiltinUniform(const Builtin &B,
     case eMuxBuiltinGetLocalLinearId:
     case eMuxBuiltinGetGlobalLinearId:
       // TODO: This is fine for vectorizing in the x-axis, but currently we do
-      // not support vectorizing along y or z (see CA-2843).
+      // not support vectorizing along y or z.
       return SimdDimIdx ? eBuiltinUniformityNever
                         : eBuiltinUniformityInstanceID;
   }

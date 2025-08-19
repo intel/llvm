@@ -74,7 +74,7 @@ static bool shouldClone(compiler::utils::StructTypeRemapper &StructTypeRemapper,
     }
   }
 
-  // TODO: Check globals (see CA-3833).
+  // TODO: Check globals.
 
   // If an instruction makes use of a type but
   // isn't of that type e.g. a cast it will necessarily get caught by

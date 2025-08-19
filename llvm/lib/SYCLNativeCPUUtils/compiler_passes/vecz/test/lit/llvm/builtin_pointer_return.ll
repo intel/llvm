@@ -26,8 +26,7 @@ declare spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float>, <2 x float>*)
 declare spir_func <4 x float> @_Z5fractDv4_fPS_(<4 x float>, <4 x float>*)
 declare spir_func <8 x float> @_Z5fractDv8_fPS_(<8 x float>, <8 x float>*)
 
-; FIXME: Both of these are instantiating when we have vector equivalents: see
-; CA-4046.
+; FIXME: Both of these are instantiating when we have vector equivalents.
 
 define spir_kernel void @fract_v1(float* %xptr, float* %outptr, float* %ioutptr) {
   %iouta = alloca float
