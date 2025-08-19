@@ -499,23 +499,18 @@ private:
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
+  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+                  const int Size, const size_t Index, size_t &IndexShift,
+                  bool IsKernelCreatedFromSource, bool IsESIMD);
+#endif
+
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams, bool IsESIMD);
-#endif
-
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  // TODO: processArg need not to be public
-  __SYCL_DLL_LOCAL
-#endif
-  void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                  const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
   detail::ABINeutralKernelNameStrT getKernelName();

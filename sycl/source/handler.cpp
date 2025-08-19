@@ -496,12 +496,9 @@ event handler::finalize() {
   if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
       (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
     clearArgs();
-    detail::extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
+    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
                                  impl->MKernelParamDescGetter,
-                                 impl->MKernelNumArgs, impl->MKernelIsESIMD,
-                                 Queue && Queue->hasCommandGraph(),
-                                 impl->get_graph_or_null() != nullptr,
-                                 impl->MNDRDesc, impl->MDynamicParameters, impl->MArgs);
+                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
@@ -1042,6 +1039,7 @@ void handler::associateWithHandler(
                              static_cast<int>(AccTarget));
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
@@ -1210,6 +1208,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
 }
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
   impl->MWorkGroupMemoryObjects.push_back(
@@ -1224,16 +1223,6 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
          ArgIndex);
 }
 
-// The argument can take up more space to store additional information about
-// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
-// We use the worst-case estimate because the lifetime of the vector is short.
-// In processArg the kind_stream case introduces the maximum number of
-// additional arguments. The case adds additional 12 arguments to the currently
-// processed argument, hence worst-case estimate is 12+1=13.
-// TODO: the constant can be removed if the size of MArgs will be calculated at
-// compile time.
-inline constexpr size_t MaxNumAdditionalArgs = 13;
-
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
@@ -1246,74 +1235,38 @@ void handler::extractArgsAndReqs() {
       });
 
   const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
-  impl->MArgs.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
 
-  size_t IndexShift = 0;
-  for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
-    void *Ptr = UnPreparedArgs[I].MPtr;
-    const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
-    const int &Size = UnPreparedArgs[I].MSize;
-    const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
-               false);
-  }
+  detail::extractArgsAndReqs(IsKernelCreatedFromSource, impl->MNDRDesc,
+                             impl->MDynamicParameters, UnPreparedArgs,
+                             impl->MArgs);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Those functions are not used anymore, remove it in the next
-// ABI-breaking window.
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams, bool IsESIMD) {
-  size_t IndexShift = 0;
-  impl->MArgs.reserve(MaxNumAdditionalArgs * NumKernelParams);
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  bool QueueHasCommandGraph = Queue && Queue->hasCommandGraph();
+  bool IsGraphSubmission = impl->get_graph_or_null() != nullptr;
 
-  for (size_t I = 0; I < NumKernelParams; ++I) {
-    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
-    void *Ptr = LambdaPtr + ParamDesc.offset;
-    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
-    const int &Size = ParamDesc.info;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
-      if ((AccTarget == access::target::device ||
-           AccTarget == access::target::constant_buffer) ||
-          (AccTarget == access::target::image ||
-           AccTarget == access::target::image_array)) {
-        detail::AccessorBaseHost *AccBase =
-            static_cast<detail::AccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*AccBase).get();
-      } else if (AccTarget == access::target::local) {
-        detail::LocalAccessorBaseHost *LocalAccBase =
-            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
-      }
-    } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      // Only local targets are supported for dynamic accessors.
-      assert(static_cast<access::target>(Size & AccessTargetMask) ==
-             access::target::local);
-
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          *DynamicParamBase = static_cast<
-              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
-    } else if (Kind ==
-               detail::kernel_param_kind_t::kind_dynamic_work_group_memory) {
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          *DynamicParamBase = static_cast<
-              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
-    }
-
-    processArg(Ptr, Kind, Size, I, IndexShift,
-               /*IsKernelCreatedFromSource=*/false, IsESIMD);
-  }
+  detail::extractArgsAndReqsFromLambda(
+      LambdaPtr, ParamDescGetter, NumKernelParams, IsESIMD,
+      QueueHasCommandGraph, IsGraphSubmission, impl->MNDRDesc,
+      impl->MDynamicParameters, impl->MArgs);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// We use the worst-case estimate because the lifetime of the vector is short.
+// In processArg the kind_stream case introduces the maximum number of
+// additional arguments. The case adds additional 12 arguments to the currently
+// processed argument, hence worst-case estimate is 12+1=13.
+// TODO: the constant can be removed if the size of MArgs will be calculated at
+// compile time.
+inline constexpr size_t MaxNumAdditionalArgs = 13;
+
+// TODO: Those functions are not used anymore, remove it in the next
+// ABI-breaking window.
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {

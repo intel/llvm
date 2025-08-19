@@ -351,6 +351,29 @@ void extractArgsAndReqsFromLambda(
   }
 }
 
+void extractArgsAndReqs(
+    bool IsKernelCreatedFromSource, detail::NDRDescT NDRDesc,
+    std::vector<std::pair<
+        ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+        DynamicParameters,
+    std::vector<detail::ArgDesc> &UnPreparedArgs,
+    std::vector<detail::ArgDesc> &Args) {
+
+  Args.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
+
+  size_t IndexShift = 0;
+  for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
+    void *Ptr = UnPreparedArgs[I].MPtr;
+    const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
+    const int &Size = UnPreparedArgs[I].MSize;
+    const int Index = UnPreparedArgs[I].MIndex;
+
+    processArg(Ptr, Kind, Size, Index, IndexShift,
+               /*IsKernelCreatedFromSource=*/false, /*IsESIMD=*/false, NDRDesc,
+               DynamicParameters, Args);
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
