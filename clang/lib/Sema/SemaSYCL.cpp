@@ -2237,7 +2237,7 @@ public:
       return true;
     if (B.isVirtual())
       SemaSYCLRef.SemaRef.Diag(FreeFunctionLoc,
-                               diag::err_free_function_virtual_arg)
+                               diag::err_sycl_kernel_virtual_arg)
           << RD->getNameAsString() << B.getType().getAsString();
     return isValid();
   }
