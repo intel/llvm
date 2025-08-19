@@ -246,48 +246,50 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     // Need to explicitly map these types
     switch (olInfo) {
-      case OL_DEVICE_INFO_TYPE: {
-        auto *urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
-        auto *olPropPtr = reinterpret_cast<ol_device_type_t *>(pPropValue);
+    case OL_DEVICE_INFO_TYPE: {
+      auto *urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
+      auto *olPropPtr = reinterpret_cast<ol_device_type_t *>(pPropValue);
 
-        switch (*olPropPtr) {
-        case OL_DEVICE_TYPE_CPU:
-          *urPropPtr = UR_DEVICE_TYPE_CPU;
-          break;
-        case OL_DEVICE_TYPE_GPU:
-          *urPropPtr = UR_DEVICE_TYPE_GPU;
-          break;
-        default:
-          break;
-        }
+      switch (*olPropPtr) {
+      case OL_DEVICE_TYPE_CPU:
+        *urPropPtr = UR_DEVICE_TYPE_CPU;
         break;
-      }
-      case OL_DEVICE_INFO_SINGLE_FP_CONFIG:
-      case OL_DEVICE_INFO_HALF_FP_CONFIG:
-      case OL_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-        auto olValue = *reinterpret_cast<ol_device_fp_capability_flags_t *>(pPropValue);
-        ur_device_fp_capability_flags_t urValue{0};
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_INF_NAN)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_DENORM)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_FMA)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
-        if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT)
-          urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT;
-        auto *urPropPtr = reinterpret_cast<ur_device_fp_capability_flags_t *>(pPropValue);
-        *urPropPtr = urValue;
-      }
+      case OL_DEVICE_TYPE_GPU:
+        *urPropPtr = UR_DEVICE_TYPE_GPU;
+        break;
       default:
         break;
+      }
+      break;
+    }
+    case OL_DEVICE_INFO_SINGLE_FP_CONFIG:
+    case OL_DEVICE_INFO_HALF_FP_CONFIG:
+    case OL_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+      auto olValue =
+          *reinterpret_cast<ol_device_fp_capability_flags_t *>(pPropValue);
+      ur_device_fp_capability_flags_t urValue{0};
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_INF_NAN)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_DENORM)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_FMA)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT;
+      auto *urPropPtr =
+          reinterpret_cast<ur_device_fp_capability_flags_t *>(pPropValue);
+      *urPropPtr = urValue;
+    }
+    default:
+      break;
     }
   }
 
