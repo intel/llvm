@@ -2051,7 +2051,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
-  public:
+public:
   SyclKernelFieldChecker(SemaSYCL &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
   static constexpr const bool VisitNthArrayElement = false;
