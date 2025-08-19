@@ -24,6 +24,14 @@ inline namespace _V1 {
 
 namespace detail {
 
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// We use the worst-case estimate because the lifetime of the vector is short.
+// In processArg the kind_stream case introduces the maximum number of
+// additional arguments. The case adds additional 12 arguments to the currently
+// processed argument, hence worst-case estimate is 12+1=13.
+// TODO: the constant can be removed if the size of MArgs will be calculated at
+// compile time.
 inline constexpr size_t MaxNumAdditionalArgs = 13;
 constexpr static int AccessTargetMask = 0x7ff;
 
