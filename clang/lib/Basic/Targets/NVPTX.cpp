@@ -55,7 +55,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
   UseAddrSpaceMapMangling = true;
-  HasLegalHalfType = true;
+  HasFastHalfType = true;
   HasFloat16 = true;
   // __bf16 is always available as a load/store only type.
   BFloat16Width = BFloat16Align = 16;
@@ -67,7 +67,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   GPU = OffloadArch::UNUSED;
 
   // PTX supports f16 as a fundamental type.
-  HasLegalHalfType = true;
+  HasFastHalfType = true;
   HasFloat16 = true;
 
   if (TargetPointerWidth == 32)
