@@ -35,7 +35,7 @@ namespace detail {
 inline constexpr size_t MaxNumAdditionalArgs = 13;
 constexpr static int AccessTargetMask = 0x7ff;
 
-void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
+inline void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
                               size_t &IndexShift, int Size,
                               bool IsKernelCreatedFromSource, size_t GlobalSize,
                               std::vector<detail::ArgDesc> &Args,
@@ -69,7 +69,7 @@ void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   }
 }
 
-void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc, size_t Index,
+inline void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc, size_t Index,
                              size_t &IndexShift, bool IsKernelCreatedFromSource,
                              std::vector<detail::ArgDesc> &Args, bool IsESIMD) {
   using detail::kernel_param_kind_t;
@@ -102,7 +102,7 @@ void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc, size_t Index,
   }
 }
 
-void processArg(
+inline void processArg(
     void *Ptr, const kernel_param_kind_t &Kind, const int Size,
     const size_t Index, size_t &IndexShift, bool IsKernelCreatedFromSource,
     bool IsESIMD, NDRDescT NDRDesc,
@@ -276,7 +276,7 @@ void processArg(
   }
 }
 
-void validateDynamicParameterGraphState(bool QueueHasCommandGraph,
+inline void validateDynamicParameterGraphState(bool QueueHasCommandGraph,
                                         bool IsGraphSubmission) {
   if (QueueHasCommandGraph) {
     throw sycl::exception(
@@ -290,7 +290,7 @@ void validateDynamicParameterGraphState(bool QueueHasCommandGraph,
   }
 }
 
-void extractArgsAndReqsFromLambda(
+inline void extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams, bool IsESIMD, bool QueueHasCommandGraph,
     bool IsGraphSubmission, detail::NDRDescT NDRDesc,
@@ -355,7 +355,7 @@ void extractArgsAndReqsFromLambda(
   }
 }
 
-void extractArgsAndReqs(
+inline void extractArgsAndReqs(
     bool IsKernelCreatedFromSource, detail::NDRDescT NDRDesc,
     std::vector<std::pair<
         ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
