@@ -100,7 +100,7 @@ if(NATIVECPU_WITH_ONETBB)
   if (NOT MSVC)
     # oneTBB currently casts away some const qualifiers
     # todo: check if compiler actually supports these options
-    target_compile_options(tbb PRIVATE -Wno-cast-qual)
+    target_compile_options(tbb PRIVATE -Wno-cast-qual -Wno-stringop-overflow)
     target_compile_options(tbbmalloc PRIVATE -Wno-cast-qual)
   endif()
 
