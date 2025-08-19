@@ -73,6 +73,27 @@ public:
     }
   }
 
+  void eraseEntries(const RTDeviceBinaryImage *Img) {
+    const auto &DeviceGlobals = Img->getDeviceGlobals();
+    std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
+    std::cout << "DeviceGlobalMap::eraseEntries() with: " << DeviceGlobals.size() << " entries." << std::endl;
+    for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
+      if (auto DevGlobalIt = MDeviceGlobals.find(DeviceGlobal->Name);
+          DevGlobalIt != MDeviceGlobals.end()) {
+        auto findDevGlobalByValue = std::find_if(
+            MPtr2DeviceGlobal.begin(), MPtr2DeviceGlobal.end(),
+            [&DevGlobalIt](
+                const std::pair<const void *, DeviceGlobalMapEntry *> &Entry) {
+              return Entry.second == DevGlobalIt->second.get();
+            });
+        if (findDevGlobalByValue != MPtr2DeviceGlobal.end())
+          MPtr2DeviceGlobal.erase(findDevGlobalByValue);
+
+        MDeviceGlobals.erase(DevGlobalIt);
+      }
+    }
+  }
+
   void addOrInitialize(const void *DeviceGlobalPtr, const char *UniqueId) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
     auto ExistingDeviceGlobal = MDeviceGlobals.find(UniqueId);
@@ -93,8 +114,7 @@ public:
   DeviceGlobalMapEntry *getEntry(const void *DeviceGlobalPtr) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
     auto Entry = MPtr2DeviceGlobal.find(DeviceGlobalPtr);
-    assert(Entry != MPtr2DeviceGlobal.end() && "Device global entry not found");
-    return Entry->second;
+    return (Entry != MPtr2DeviceGlobal.end()) ? Entry->second : nullptr;
   }
 
   DeviceGlobalMapEntry *

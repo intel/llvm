@@ -26,8 +26,10 @@
 // This test uses a kernel of the same name in three different shared libraries.
 // It loads each library, calls the kernel, and checks that the incrementation
 // is done correctly, and then unloads the library.
+// It also reloads the first library after unloading it. 
 // This test ensures that __sycl_register_lib() and __sycl_unregister_lib()
 // are called correctly, and that the device images are cleaned up properly.
+
 
 #include <sycl/detail/core.hpp>
 
@@ -118,12 +120,31 @@ int main() {
   unloadOsLibrary(lib_a);
   std::cout << "lib_a done" << std::endl;
 
+<<<<<<< HEAD
+=======
+
+  // Now RELOAD lib_a and try it again.
+  lib_a = loadOsLibrary(path_to_lib_a);
+  f = getOsLibraryFuncAddress(lib_a, "performIncrementation");
+  performIncrementationFuncA = reinterpret_cast<IncFuncT *>(f);
+  performIncrementationFuncA(q, buf); // call the function from lib_a
+  q.wait();
+  checkIncrementation(buf, 1 + 1);
+  unloadOsLibrary(lib_a);
+  std::cout << "reload of lib_a done" << std::endl;
+
+
+>>>>>>> cperkins-sycl-unregister-lib-002
   void *lib_b = loadOsLibrary(path_to_lib_b);
   f = getOsLibraryFuncAddress(lib_b, "performIncrementation");
   auto performIncrementationFuncB = reinterpret_cast<IncFuncT *>(f);
   performIncrementationFuncB(q, buf); // call the function from lib_b
   q.wait();
+<<<<<<< HEAD
   checkIncrementation(buf, 1 + 2);
+=======
+  checkIncrementation(buf, 1 + 1 + 2);
+>>>>>>> cperkins-sycl-unregister-lib-002
   unloadOsLibrary(lib_b);
   std::cout << "lib_b done" << std::endl;
 
@@ -132,7 +153,11 @@ int main() {
   auto performIncrementationFuncC = reinterpret_cast<IncFuncT *>(f);
   q.wait();
   performIncrementationFuncC(q, buf); // call the function from lib_c
+<<<<<<< HEAD
   checkIncrementation(buf, 1 + 2 + 4);
+=======
+  checkIncrementation(buf, 1 + 1 + 2 + 4);
+>>>>>>> cperkins-sycl-unregister-lib-002
   unloadOsLibrary(lib_c);
   std::cout << "lib_c done" << std::endl;
 

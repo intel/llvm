@@ -125,7 +125,8 @@ context_impl::~context_impl() {
       DeviceGlobalMapEntry *DGEntry =
           detail::ProgramManager::getInstance().getDeviceGlobalEntry(
               DeviceGlobal);
-      DGEntry->removeAssociatedResources(this);
+      if (DGEntry != nullptr)
+        DGEntry->removeAssociatedResources(this);
     }
     MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions

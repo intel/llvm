@@ -17,14 +17,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
-  // removeAssociatedResources is expected to have cleaned up both the pointer
-  // and the event. When asserts are enabled the values are set, so we check
-  // these here.
-  assert(MPtr == nullptr && "MPtr has not been cleaned up.");
-  assert(MInitEvent == nullptr && "MInitEvent has not been cleaned up.");
-}
-
 OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   if (MInitEvent == nullptr)
