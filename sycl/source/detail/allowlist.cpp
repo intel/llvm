@@ -166,7 +166,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
         // described in SyclBeMap
         ValidateEnumValues(BackendNameKeyName, getSyclBeMap());
         ValidateEnumValues(DeviceTypeKeyName,
-                           getSyclDeviceTypeMap<true /*Enable 'acc'*/>());
+                           getSyclDeviceTypeMap());
 
         if (Key == DeviceVendorIdKeyName) {
           // DeviceVendorId should have hex format
@@ -401,13 +401,17 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     // thing
     sycl::info::device_type DeviceType = detail::ConvertDeviceType(UrDevType);
     for (const auto &SyclDeviceType :
-         getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
+         getSyclDeviceTypeMap()) {
       if (SyclDeviceType.second == DeviceType) {
         const auto &DeviceTypeValue = SyclDeviceType.first;
         DeviceDesc[DeviceTypeKeyName] = DeviceTypeValue;
         break;
       }
     }
+    // TEMPORARILY NEEDED WHILE FPGA IS REMOVED FROM getSyclDeviceTypeMap, but
+    // is still visible by the UR
+    if (DeviceDesc.find(DeviceTypeKeyName) == DeviceDesc.end())
+        DeviceDesc[DeviceTypeKeyName] = "INVALID DEVICE";
     // get DeviceVendorId value and put it to DeviceDesc
     uint32_t DeviceVendorIdUInt =
         DeviceImpl.get_info<info::device::vendor_id>();
