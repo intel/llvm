@@ -13,8 +13,9 @@ DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
   ((__SYCL_GLOBAL__ MsanRuntimeData *)__MsanLaunchInfo.get())
 
-namespace {
 extern "C" __attribute__((weak)) const int __msan_track_origins;
+
+namespace {
 
 constexpr int MSAN_REPORT_NONE = 0;
 constexpr int MSAN_REPORT_START = 1;
