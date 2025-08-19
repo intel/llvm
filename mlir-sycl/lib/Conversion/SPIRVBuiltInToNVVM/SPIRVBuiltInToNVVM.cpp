@@ -47,8 +47,16 @@ class ConvertSPIRVBuiltInToNVVMPass
 LLVM::LLVMFuncOp getOrInsertNVVMIntrinsic(OpBuilder &builder, ModuleOp module,
                                           StringRef name, Type retType,
                                           ArrayRef<Type> argTypes) {
-  if (auto func = module.lookupSymbol<LLVM::LLVMFuncOp>(name))
-    return func;
+  if (auto func = module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+    auto funcType = func.getFunctionType();
+    auto expectedType = LLVM::LLVMFunctionType::get(retType, argTypes, false);
+
+    if (funcType == expectedType) {
+      return func;
+    } else {
+      func.erase();
+    }
+  }
 
   auto funcType = LLVM::LLVMFunctionType::get(retType, argTypes, false);
   OpBuilder::InsertionGuard guard(builder);
@@ -217,7 +225,8 @@ void rewriteSPIRVBuiltinFunctions(ModuleOp module, MLIRContext *context) {
   for (auto funcOp : module.getOps<LLVM::LLVMFuncOp>()) {
     auto name = funcOp.getName();
     for (const auto &kv : handlers) {
-      if (name.contains(kv.getKey()) && funcOp.empty()) {
+      if (name.contains(kv.getKey())) {
+        assert(funcOp.empty() && "Expected builtin function to have empty body");
         builder.setInsertionPointToStart(funcOp.addEntryBlock());
         kv.getValue()(builder, funcOp, module);
         break;
@@ -246,80 +255,71 @@ void replaceBuiltinAccessWithCalls(ModuleOp module, MLIRContext *context) {
 
   const char *dimSuffixes[3] = {"xv", "yv", "zv"};
 
-  for (auto func : module.getOps<LLVM::LLVMFuncOp>()) {
-    for (auto &block : func.getBody()) {
-      for (auto it = block.begin(), end = block.end(); it != end;) {
-        Operation *op = &*it++;
-        auto extractOp = dyn_cast<LLVM::ExtractElementOp>(op);
-        if (!extractOp)
-          continue;
+  module.walk([&](LLVM::ExtractElementOp extractOp) {
 
-        Value vec = extractOp.getVector();
-        Value index = extractOp.getOperand(1);
+      Value vec = extractOp.getVector();
+      Value index = extractOp.getOperand(1);
 
-        auto constIdxOp =
-            dyn_cast_or_null<LLVM::ConstantOp>(index.getDefiningOp());
-        if (!constIdxOp)
-          continue;
+      auto constIdxOp = dyn_cast_or_null<LLVM::ConstantOp>(index.getDefiningOp());
+      if (!constIdxOp)
+        return;
 
-        auto intAttr = constIdxOp.getValue().dyn_cast<IntegerAttr>();
-        if (!intAttr)
-          continue;
+      auto intAttr = constIdxOp.getValue().dyn_cast<IntegerAttr>();
+      if (!intAttr)
+        return;
 
-        int64_t indexVal = intAttr.getInt();
-        if (indexVal < 0 || indexVal > 2)
-          continue;
+      int64_t indexVal = intAttr.getInt();
+      if (indexVal < 0 || indexVal > 2)
+        return;
 
-        auto loadOp = vec.getDefiningOp<LLVM::LoadOp>();
-        if (!loadOp)
-          continue;
+      auto loadOp = vec.getDefiningOp<LLVM::LoadOp>();
+      if (!loadOp)
+        return;
 
-        auto addrOfOp = loadOp.getAddr().getDefiningOp<LLVM::AddressOfOp>();
-        if (!addrOfOp)
-          continue;
+      auto addrOfOp = loadOp.getAddr().getDefiningOp<LLVM::AddressOfOp>();
+      if (!addrOfOp)
+        return;
 
-        SymbolTableCollection symbolTable;
-        auto global = addrOfOp.getGlobal(symbolTable);
-        if (!global)
-          continue;
+      SymbolTableCollection symbolTable;
+      auto global = addrOfOp.getGlobal(symbolTable);
+      if (!global)
+        return;
 
-        auto globalName = global.getSymName();
+      auto globalName = global.getSymName();
 
-        auto iter = builtinMap.find(globalName);
-        if (iter == builtinMap.end())
-          continue;
+      auto iter = builtinMap.find(globalName);
+      if (iter == builtinMap.end())
+        return;
 
-        StringRef baseName = iter->second;
-        StringRef suffix = dimSuffixes[indexVal];
+      StringRef baseName = iter->second;
+      StringRef suffix = dimSuffixes[indexVal];
 
-        LLVM::LLVMFuncOp targetFunc = nullptr;
-        for (auto candidate : module.getOps<LLVM::LLVMFuncOp>()) {
-          StringRef fname = candidate.getName();
-          if (fname.contains(baseName) && fname.endswith(suffix)) {
-            targetFunc = candidate;
-            break;
-          }
+      LLVM::LLVMFuncOp targetFunc = nullptr;
+      for (auto candidate : module.getOps<LLVM::LLVMFuncOp>()) {
+        StringRef fname = candidate.getName();
+        if (fname.contains(baseName) && fname.endswith(suffix)) {
+          targetFunc = candidate;
+          break;
         }
-
-        if (!targetFunc) {
-          extractOp.emitError("Failed to find existing function for builtin ")
-              << baseName << suffix;
-          continue;
-        }
-
-        builder.setInsertionPoint(extractOp);
-        auto loc = extractOp.getLoc();
-        auto i64Ty = builder.getI64Type();
-
-        auto call = builder.create<LLVM::CallOp>(
-            loc, i64Ty, FlatSymbolRefAttr::get(context, targetFunc.getName()),
-            ValueRange{});
-
-        extractOp.replaceAllUsesWith(call.getResult());
-        extractOp.erase();
       }
-    }
-  }
+
+      if (!targetFunc) {
+        extractOp.emitError("Failed to find existing function for builtin ")
+            << baseName << suffix;
+        return;
+      }
+
+      builder.setInsertionPoint(extractOp);
+      auto loc = extractOp.getLoc();
+      auto i64Ty = builder.getI64Type();
+
+      auto call = builder.create<LLVM::CallOp>(
+          loc, i64Ty, FlatSymbolRefAttr::get(context, targetFunc.getName()),
+          ValueRange{});
+
+      extractOp.replaceAllUsesWith(call.getResult());
+      extractOp.erase();
+    });
 }
 
 /// Create a pass to convert SPIRVBuiltIn operations to NVVM calls.
