@@ -22,6 +22,8 @@ public:
   ranges_ref_view() = default;
   ranges_ref_view(const ranges_ref_view &Desc) = default;
   ranges_ref_view(ranges_ref_view &&Desc) = default;
+  ranges_ref_view &operator=(const ranges_ref_view &Desc) = default;
+  ranges_ref_view &operator=(ranges_ref_view &&Desc) = default;
 
   template <int Dims_>
   ranges_ref_view(sycl::range<Dims_> &GlobalSizes,
@@ -39,9 +41,6 @@ public:
   template <int Dims_>
   ranges_ref_view(sycl::range<Dims_> &Range)
       : GlobalSize(&(Range[0])), Dims{size_t(Dims_)} {}
-
-  ranges_ref_view &operator=(const ranges_ref_view &Desc) = default;
-  ranges_ref_view &operator=(ranges_ref_view &&Desc) = default;
 
   const size_t *GlobalSize = nullptr;
   const size_t *LocalSize = nullptr;
