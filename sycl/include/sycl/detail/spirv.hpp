@@ -32,9 +32,7 @@ inline namespace _V1 {
 struct sub_group;
 namespace ext {
 namespace oneapi {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 struct sub_group;
-#endif
 namespace experimental {
 template <typename ParentGroup> class fragment;
 
@@ -77,12 +75,9 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
-#endif
-
 template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
@@ -277,13 +272,9 @@ using WidenOpenCLTypeTo32_t = std::conditional_t<
 template <typename Group> struct GroupId {
   using type = size_t;
 };
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
-#endif
-
 template <> struct GroupId<::sycl::sub_group> {
   using type = uint32_t;
 };
