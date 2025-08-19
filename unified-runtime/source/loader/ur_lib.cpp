@@ -275,6 +275,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   case UR_DEVICE_TYPE_CPU:
   case UR_DEVICE_TYPE_FPGA:
   case UR_DEVICE_TYPE_MCA:
+  case UR_DEVICE_TYPE_CUSTOM:
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
