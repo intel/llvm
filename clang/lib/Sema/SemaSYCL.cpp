@@ -2051,6 +2051,27 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
+  bool hasVirtualInheritance(const CXXRecordDecl *RD, ParmVarDecl *PD) {
+    if (RD->getNumBases() > 0) {
+      for (const auto &Base : RD->bases()) {
+        QualType BaseType = Base.getType();
+        if (const CXXRecordDecl *BaseDecl = BaseType->getAsCXXRecordDecl();
+            BaseDecl) {
+          if (Base.isVirtual()) {
+            const FunctionDecl *FD =
+                dyn_cast<FunctionDecl>(PD->getDeclContext());
+            SemaSYCLRef.SemaRef.Diag(FD->getLocation(),
+                                     diag::err_free_function_virtual_arg)
+                << RD->getNameAsString() << Base.getType().getAsString();
+            return true;
+          } else if (BaseDecl->getNumBases() > 0)
+            hasVirtualInheritance(BaseDecl, PD);
+        }
+      }
+    }
+    return false;
+  }
+
 public:
   SyclKernelFieldChecker(SemaSYCL &S)
       : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
@@ -2089,24 +2110,6 @@ public:
       return isValid();
     }
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
-    // Free functions do not support for virtual inheritance.
-    if (RD->getNumBases() > 0) {
-      for (const auto &Base : RD->bases()) {
-        QualType BaseType = Base.getType();
-        const CXXRecordDecl *BaseDecl = BaseType->getAsCXXRecordDecl();
-        if (BaseDecl) {
-          if (Base.isVirtual()) {
-            const FunctionDecl *FD =
-                dyn_cast<FunctionDecl>(PD->getDeclContext());
-            SemaSYCLRef.SemaRef.Diag(FD->getLocation(),
-                                     diag::err_free_function_virtual_arg)
-                << RD->getNameAsString() << Base.getType().getAsString();
-            IsInvalid = true;
-          } else if (BaseDecl->getNumBases() > 0)
-            handleStructType(PD, BaseType);
-        }
-      }
-    }
     // For free functions all struct/class kernel arguments are forward declared
     // in integration header, that adds additional restrictions for kernel
     // arguments.
@@ -2121,6 +2124,9 @@ public:
           << ParamTy;
       IsInvalid = true;
     }
+    // Free functions do not support for virtual inheritance.
+    if (hasVirtualInheritance(RD, PD))
+      IsInvalid = true;
     return isValid();
   }
 
