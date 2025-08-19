@@ -741,7 +741,7 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-        CGExec->MKernelName.data(), CGExec->MKernelNameBasedDataPtr, nullptr,
+        CGExec->MKernelName.data(), CGExec->MKernelNameBasedData, nullptr,
         CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(
@@ -1573,10 +1573,9 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
-    assert(ExecCG.MKernelNameBasedDataPtr);
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
         ContextImpl, DeviceImpl, ExecCG.MKernelName,
-        *ExecCG.MKernelNameBasedDataPtr);
+        ExecCG.MKernelNameBasedData);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
   }

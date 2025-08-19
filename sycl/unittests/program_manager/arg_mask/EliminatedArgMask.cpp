@@ -148,7 +148,7 @@ public:
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
           std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.data(), impl->MKernelNameBasedDataPtr,
+          CGH->MKernelName.data(), *impl->MKernelNameBasedDataPtr,
           std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
           impl->MCGType, {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,

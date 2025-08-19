@@ -254,7 +254,7 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   KernelNameStrT MKernelName;
-  KernelNameBasedData *MKernelNameBasedDataPtr;
+  KernelNameBasedData &MKernelNameBasedData;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -270,7 +270,7 @@ public:
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
                KernelNameStrT KernelName,
-               KernelNameBasedData *KernelNameBasedDataPtr,
+               KernelNameBasedData &KernelNameBasedData,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -280,8 +280,7 @@ public:
         MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)),
-        MKernelNameBasedDataPtr(KernelNameBasedDataPtr),
-        MStreams(std::move(Streams)),
+        MKernelNameBasedData(KernelNameBasedData), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),

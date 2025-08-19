@@ -645,7 +645,7 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedDataPtr,
+              MKernelName.data(), *impl->MKernelNameBasedDataPtr,
               impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
               impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
@@ -662,7 +662,7 @@ event handler::finalize() {
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
-            impl->MKernelNameBasedDataPtr, RawEvents, ResultEvent.get(),
+            *impl->MKernelNameBasedDataPtr, RawEvents, ResultEvent.get(),
             nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
@@ -723,7 +723,7 @@ event handler::finalize() {
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        impl->MKernelNameBasedDataPtr, std::move(MStreamStorage),
+        *impl->MKernelNameBasedDataPtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
