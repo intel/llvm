@@ -232,7 +232,14 @@ public:
   compare_exchange_strong(T &expected, T desired,
                           memory_order order = default_read_modify_write_order,
                           memory_scope scope = default_scope) const noexcept {
-    return compare_exchange_strong(expected, desired, order, order, scope);
+    memory_order success = order;
+    memory_order failure = order;
+    if (order == memory_order::acq_rel) {
+      failure = memory_order::acquire;
+    } else if (order == memory_order::release) {
+      failure = memory_order::relaxed;
+    }
+    return compare_exchange_strong(expected, desired, success, failure, scope);
   }
 
   bool
@@ -256,7 +263,14 @@ public:
   compare_exchange_weak(T &expected, T desired,
                         memory_order order = default_read_modify_write_order,
                         memory_scope scope = default_scope) const noexcept {
-    return compare_exchange_weak(expected, desired, order, order, scope);
+    memory_order success = order;
+    memory_order failure = order;
+    if (order == memory_order::acq_rel) {
+      failure = memory_order::acquire;
+    } else if (order == memory_order::release) {
+      failure = memory_order::relaxed;
+    }
+    return compare_exchange_weak(expected, desired, success, failure, scope);
   }
 
 protected:
