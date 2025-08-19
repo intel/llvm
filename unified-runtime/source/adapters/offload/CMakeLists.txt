@@ -5,30 +5,6 @@
 
 set(TARGET_NAME ur_adapter_offload)
 
-set(UR_OFFLOAD_INSTALL_DIR "" CACHE PATH "Path to the directory containing libomptarget.so etc")
-if (UR_OFFLOAD_INSTALL_DIR STREQUAL "")
-    message(FATAL_ERROR "UR_OFFLOAD_INSTALL_DIR must be defined for the Offload adapter")
-endif()
-
-set(UR_OFFLOAD_INCLUDE_DIR "" CACHE PATH "Path to the directory containing LLVM headers")
-if (UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
-    message(FATAL_ERROR "UR_OFFLOAD_INCLUDE_DIR must be defined for the Offload adapter")
-endif()
-
-# When targetting CUDA devices, we need a workaround to avoid sending PTX to
-# liboffload as the CUDA plugin doesn't support it yet. The workaround is to
-# simply always link the incoming program so it ends up as CUBIN. Try to find
-# the cuda driver so we can enable this where possible.
-if (NOT TARGET cudadrv)
-    find_package(CUDA 10.1)
-    add_library(cudadrv SHARED IMPORTED GLOBAL)
-    set_target_properties(
-        cudadrv PROPERTIES
-        IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
-    )
-endif()
-
 add_ur_adapter(${TARGET_NAME}
     SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
@@ -45,6 +21,84 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
 )
+
+set(UR_OFFLOAD_INSTALL_DIR "" CACHE PATH "Path to the directory containing libomptarget.so etc")
+set(UR_OFFLOAD_INCLUDE_DIR "" CACHE PATH "Path to the directory containing LLVM headers")
+if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
+    include(ExternalProject)
+
+    set(LLVM_PROJECT_GIT https://github.com/llvm/llvm-project.git)
+    set(LLVM_PROJECT_TAG ffddf33beb8097e760fafcbdd28d56c1d055e820)
+    message(STATUS "UR_OFFLOAD_INSTALL_DIR and/or UR_OFFLOAD_INCLUDE_DIR not set, building liboffload runtime from source using llvm-project tag: ${LLVM_PROJECT_TAG}")
+    set(LLVM_PROJECT_SOURCE_DIR ${CMAKE_BINARY_DIR}/llvm-project-src)
+    set(OPENMP_INSTALL_DIR ${CMAKE_BINARY_DIR}/openmp-install)
+    # Install to the same directory as main build
+    set(UR_OFFLOAD_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
+    set(UR_OFFLOAD_INCLUDE_DIR ${CMAKE_INSTALL_PREFIX}/include)
+    # Clone llvm-project only once
+    ExternalProject_Add(llvm_project_src
+        GIT_REPOSITORY ${LLVM_PROJECT_GIT}
+        GIT_TAG ${LLVM_PROJECT_TAG}
+        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        UPDATE_COMMAND ""
+    )
+    # Build OpenMP runtime (required dependency for offlload's libomptarget) from the cloned source
+    ExternalProject_Add(openmp_ext
+        # DeviceRIL uses -fuse-ld=lld, so add lld to the dependencies.
+        DEPENDS llvm_project_src llvm-tblgen LLVMSupport clang lld
+        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/openmp
+        CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${OPENMP_INSTALL_DIR}
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DCMAKE_C_COMPILER=${CMAKE_BINARY_DIR}/bin/clang
+            -DCMAKE_CXX_COMPILER=${CMAKE_BINARY_DIR}/bin/clang++
+            -DLIBOMP_OMPD_GDB_SUPPORT=OFF
+        INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
+        UPDATE_COMMAND ""
+        DOWNLOAD_COMMAND ""
+    )
+
+    # Build liboffload runtime from the same source tree
+    ExternalProject_Add(offload_ext
+        DEPENDS openmp_ext
+        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/offload
+        LIST_SEPARATOR |
+        CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${UR_OFFLOAD_INSTALL_DIR}
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DCMAKE_C_COMPILER=${CMAKE_BINARY_DIR}/bin/clang
+            -DCMAKE_CXX_COMPILER=${CMAKE_BINARY_DIR}/bin/clang++
+            -DLIBOMPTARGET_LLVM_INCLUDE_DIRS=${LLVM_PROJECT_SOURCE_DIR}/llvm/include;${CMAKE_BINARY_DIR}/include
+            -DLLVM_DIR=${CMAKE_BINARY_DIR}/lib/cmake/llvm
+            -DLIBOMPTARGET_PLUGINS_TO_BUILD=cuda|amdgpu
+            -DLIBOMP_INCLUDE_DIR=${OPENMP_INSTALL_DIR}/include
+            -DLLVM_TABLEGEN=${CMAKE_BINARY_DIR}/bin/llvm-tblgen
+            -DCMAKE_PREFIX_PATH=${OPENMP_INSTALL_DIR};${CMAKE_BINARY_DIR}/bin
+        INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
+        UPDATE_COMMAND ""
+        DOWNLOAD_COMMAND ""
+        BUILD_BYPRODUCTS "${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so"
+    )
+    add_dependencies(${TARGET_NAME} offload_ext)
+endif()
+
+# When targetting CUDA devices, we need a workaround to avoid sending PTX to
+# liboffload as the CUDA plugin doesn't support it yet. The workaround is to
+# simply always link the incoming program so it ends up as CUBIN. Try to find
+# the cuda driver so we can enable this where possible.
+if (NOT TARGET cudadrv)
+    find_package(CUDA 10.1)
+    add_library(cudadrv SHARED IMPORTED GLOBAL)
+    set_target_properties(
+        cudadrv PROPERTIES
+        IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
+    )
+endif()
+
 install_ur_library(${TARGET_NAME})
 
 set_target_properties(${TARGET_NAME} PROPERTIES

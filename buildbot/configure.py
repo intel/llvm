@@ -82,6 +82,10 @@ def do_configure(args, passthrough_args):
     if libclc_enabled:
         llvm_enable_projects += ";libclc"
 
+    # DeviceRIL uses -fuse-ld=lld, so enbale lld.
+    if args.offload:
+        llvm_enable_projects += ";lld"
+
     if args.cuda:
         llvm_targets_to_build += ";NVPTX"
         libclc_targets_to_build = libclc_nvidia_target_names
@@ -210,6 +214,12 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
+    if args.offload:
+        cmake_cmd.extend(
+            [
+                "-DUR_BUILD_ADAPTER_OFFLOAD=ON",
+            ]
+        )
 
     if libclc_enabled:
         cmake_cmd.extend(
@@ -339,6 +349,9 @@ def main():
         choices=["AMD", "NVIDIA"],
         default="AMD",
         help="choose hardware platform for HIP backend",
+    )
+    parser.add_argument(
+        "--offload", action="store_true", help="Enable UR liboffload adapter (experimental)"
     )
     parser.add_argument(
         "--level_zero_adapter_version",
