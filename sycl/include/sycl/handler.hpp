@@ -499,12 +499,12 @@ private:
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
-#endif
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams, bool IsESIMD);
+#endif
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();

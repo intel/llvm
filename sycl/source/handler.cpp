@@ -34,6 +34,7 @@
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
+#include <detail/arg_extraction.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -495,9 +496,12 @@ event handler::finalize() {
   if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
       (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
     clearArgs();
-    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
+    detail::extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
                                  impl->MKernelParamDescGetter,
-                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
+                                 impl->MKernelNumArgs, impl->MKernelIsESIMD,
+                                 Queue && Queue->hasCommandGraph(),
+                                 impl->get_graph_or_null() != nullptr,
+                                 impl->MNDRDesc, impl->MDynamicParameters, impl->MArgs);
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
@@ -1038,76 +1042,6 @@ void handler::associateWithHandler(
                              static_cast<int>(AccTarget));
 }
 
-static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
-                                     size_t &IndexShift, int Size,
-                                     bool IsKernelCreatedFromSource,
-                                     size_t GlobalSize,
-                                     std::vector<detail::ArgDesc> &Args,
-                                     bool isESIMD) {
-  using detail::kernel_param_kind_t;
-  if (AccImpl->PerWI)
-    AccImpl->resize(GlobalSize);
-
-  Args.emplace_back(kernel_param_kind_t::kind_accessor, AccImpl, Size,
-                    Index + IndexShift);
-
-  // TODO ESIMD currently does not suport offset, memory and access ranges -
-  // accessor::init for ESIMD-mode accessor has a single field, translated
-  // to a single kernel argument set above.
-  if (!isESIMD && !IsKernelCreatedFromSource) {
-    // Dimensionality of the buffer is 1 when dimensionality of the
-    // accessor is 0.
-    const size_t SizeAccField =
-        sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MAccessRange[0], SizeAccField,
-                      Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MMemoryRange[0], SizeAccField,
-                      Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MOffset[0], SizeAccField, Index + IndexShift);
-  }
-}
-
-static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
-                                    size_t Index, size_t &IndexShift,
-                                    bool IsKernelCreatedFromSource,
-                                    std::vector<detail::ArgDesc> &Args,
-                                    bool IsESIMD) {
-  using detail::kernel_param_kind_t;
-
-  range<3> &LAccSize = LAcc->MSize;
-  const int Dims = LAcc->MDims;
-  int SizeInBytes = LAcc->MElemSize;
-  for (int I = 0; I < Dims; ++I)
-    SizeInBytes *= LAccSize[I];
-
-  // Some backends do not accept zero-sized local memory arguments, so we
-  // make it a minimum allocation of 1 byte.
-  SizeInBytes = std::max(SizeInBytes, 1);
-  Args.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
-                    Index + IndexShift);
-  // TODO ESIMD currently does not suport MSize field passing yet
-  // accessor::init for ESIMD-mode accessor has a single field, translated
-  // to a single kernel argument set above.
-  if (!IsESIMD && !IsKernelCreatedFromSource) {
-    ++IndexShift;
-    const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(LAccSize[0]);
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-  }
-}
-
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
@@ -1130,14 +1064,14 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
     detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
-    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
+    detail::addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
     detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
-    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
+    detail::addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
@@ -1156,7 +1090,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
       }
     }
-    addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
+    detail::addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
                              IsESIMD);
     ++IndexShift;
@@ -1174,7 +1108,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
+      detail::addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
                                IsKernelCreatedFromSource, GlobalSize,
                                impl->MArgs, IsESIMD);
       break;
@@ -1183,7 +1117,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       detail::LocalAccessorImplHost *LAccImpl =
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
 
-      addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
+      detail::addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
                               IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
       break;
     }
@@ -1225,7 +1159,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
           ext::oneapi::experimental::detail::dynamic_local_accessor_impl *>(
           DynParamImpl);
 
-      addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
+      detail::addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
                               IndexShift, IsKernelCreatedFromSource,
                               impl->MArgs, IsESIMD);
       break;
@@ -1325,6 +1259,9 @@ void handler::extractArgsAndReqs() {
   }
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Those functions are not used anymore, remove it in the next
+// ABI-breaking window.
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams, bool IsESIMD) {
@@ -1377,9 +1314,6 @@ void handler::extractArgsAndReqsFromLambda(
   }
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Those functions are not used anymore, remove it in the next
-// ABI-breaking window.
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {

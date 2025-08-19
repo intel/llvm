@@ -28,6 +28,17 @@ template <typename T> struct is_unbounded_array<T[]> : std::true_type {};
 template <typename T>
 inline constexpr bool is_unbounded_array_v = is_unbounded_array<T>::value;
 
+class NDRDescT;
+class ArgDesc;
+class dynamic_parameter_impl;
+
+void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+                         const int Size, const size_t Index, size_t &IndexShift,
+                         bool IsKernelCreatedFromSource, bool IsESIMD,
+                         detail::NDRDescT NDRDesc, std::vector<std::pair<
+                          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+                         DynamicParameters, std::vector<ArgDesc> &Args);
+
 class work_group_memory_impl {
 public:
   work_group_memory_impl() : buffer_size{0} {}
@@ -39,6 +50,12 @@ public:
 private:
   size_t buffer_size;
   friend class sycl::handler;
+  friend void detail::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
+                         const int Size, const size_t Index, size_t &IndexShift,
+                         bool IsKernelCreatedFromSource, bool IsESIMD,
+                         detail::NDRDescT NDRDesc, std::vector<std::pair<
+                          ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+                         DynamicParameters, std::vector<ArgDesc> &Args);
 };
 
 } // namespace detail
