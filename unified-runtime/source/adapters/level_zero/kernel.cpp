@@ -221,6 +221,20 @@ ur_result_t urEnqueueKernelLaunch(
   UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
                                     true /*OKToBatchCommand*/));
 
+  // For internal events, trigger cleanup to prevent event pool exhaustion
+  // by ensuring completed internal events are cleaned up periodically
+  if (IsInternal) {
+    if (Queue->UsingImmCmdLists) {
+      UR_CALL(CleanupEventsInImmCmdLists(Queue, false /*QueueLocked*/,
+                                         false /*QueueSynced*/,
+                                         nullptr /*CompletedEvent*/));
+    } else {
+      // For regular command lists, call resetCommandLists to clean up
+      // completed command lists and their associated events
+      UR_CALL(resetCommandLists(Queue));
+    }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
