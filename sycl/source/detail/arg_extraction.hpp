@@ -36,10 +36,11 @@ inline constexpr size_t MaxNumAdditionalArgs = 13;
 constexpr static int AccessTargetMask = 0x7ff;
 
 inline void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
-                              size_t &IndexShift, int Size,
-                              bool IsKernelCreatedFromSource, size_t GlobalSize,
-                              std::vector<detail::ArgDesc> &Args,
-                              bool isESIMD) {
+                                     size_t &IndexShift, int Size,
+                                     bool IsKernelCreatedFromSource,
+                                     size_t GlobalSize,
+                                     std::vector<detail::ArgDesc> &Args,
+                                     bool isESIMD) {
   using detail::kernel_param_kind_t;
   if (AccImpl->PerWI)
     AccImpl->resize(GlobalSize);
@@ -69,9 +70,11 @@ inline void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   }
 }
 
-inline void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc, size_t Index,
-                             size_t &IndexShift, bool IsKernelCreatedFromSource,
-                             std::vector<detail::ArgDesc> &Args, bool IsESIMD) {
+inline void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
+                                    size_t Index, size_t &IndexShift,
+                                    bool IsKernelCreatedFromSource,
+                                    std::vector<detail::ArgDesc> &Args,
+                                    bool IsESIMD) {
   using detail::kernel_param_kind_t;
 
   range<3> &LAccSize = LAcc->MSize;
@@ -277,7 +280,7 @@ inline void processArg(
 }
 
 inline void validateDynamicParameterGraphState(bool QueueHasCommandGraph,
-                                        bool IsGraphSubmission) {
+                                               bool IsGraphSubmission) {
   if (QueueHasCommandGraph) {
     throw sycl::exception(
         make_error_code(errc::invalid),
