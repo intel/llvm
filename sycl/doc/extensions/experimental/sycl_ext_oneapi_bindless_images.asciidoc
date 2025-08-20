@@ -616,13 +616,13 @@ unsampled_image_handle create_image(image_mem_handle memHandle,
 
 // Creating a sampled image from an `image_mem_handle`
 sampled_image_handle create_image(image_mem_handle memHandle,
-                                  const image_descriptor &desc,
                                   const bindless_image_sampler &sampler,
+                                  const image_descriptor &desc,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 sampled_image_handle create_image(image_mem_handle memHandle,
-                                  const image_descriptor &desc,
                                   const bindless_image_sampler &sampler,
+                                  const image_descriptor &desc,
                                   const sycl::queue &syclQueue);
 
 // Creating an unsampled image from an `image_mem` object
@@ -636,24 +636,24 @@ unsampled_image_handle create_image(const image_mem &memHandle,
 
 // Creating a sampled image from an `image_mem` object
 sampled_image_handle create_image(const image_mem &memHandle,
-                                  const image_descriptor &desc,
                                   const bindless_image_sampler &sampler,
+                                  const image_descriptor &desc,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 sampled_image_handle create_image(const image_mem &memHandle,
-                                  const image_descriptor &desc,
                                   const bindless_image_sampler &sampler,
+                                  const image_descriptor &desc,
                                   const sycl::queue &syclQueue);
 
 // Creating a sampled image from a USM allocation and pitch
 sampled_image_handle create_image(const void *usmPtr, size_t pitch,
-                                  const image_descriptor &desc,
                                   const bindless_image_sampler &sampler,
+                                  const image_descriptor &desc,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 sampled_image_handle create_image(const void *usmPtr, size_t pitch,
-                                  const image_descriptor &desc,
                                   const bindless_image_sampler &sampler,
+                                  const image_descriptor &desc,
                                   const sycl::queue &syclQueue);
 
 // Destroying an image handle
