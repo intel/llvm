@@ -7,11 +7,13 @@ import os
 import csv
 import io
 import copy
-from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite
-from utils.result import BenchmarkMetadata, Result
-from options import options
+import math
 from enum import Enum
+
+from utils.utils import run, git_clone, create_build_path
+from utils.result import BenchmarkMetadata, Result
+from .base import Benchmark, Suite
+from options import options
 
 
 class RUNTIMES(Enum):
@@ -402,6 +404,9 @@ class ComputeBenchmark(Benchmark):
                 median = float(data_row[2])
                 # compute benchmarks report stddev as %
                 stddev = mean * (float(data_row[3].strip("%")) / 100.0)
+                if not math.isfinite(stddev):
+                    stddev = 0.0  # Default to 0.0 if stddev is invalid
+
                 unit = data_row[7]
                 results.append((label, median, stddev, unit))
             except (ValueError, IndexError) as e:
