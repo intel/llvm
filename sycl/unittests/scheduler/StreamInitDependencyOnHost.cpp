@@ -33,10 +33,12 @@ public:
           detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
                                         getSharedPtrStorage(),
                                         getRequirements(), getEvents()),
-          getArgs(), getKernelName(), *impl->MDeviceKernelInfoPtr,
-          getStreamStorage(), std::move(impl->MAuxiliaryResources), getType(),
-          {}, impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          impl->MKernelWorkGroupMemorySize, getCodeLoc()));
+          getArgs(), getKernelName(),
+          *impl->MKernelData.getDeviceKernelInfoPtr(), getStreamStorage(),
+          std::move(impl->MAuxiliaryResources), getType(), {},
+          impl->MKernelData.isCooperative(),
+          impl->MKernelData.usesClusterLaunch(),
+          impl->MKernelData.getKernelWorkGroupMemorySize(), getCodeLoc()));
       break;
     }
     default:
