@@ -71,14 +71,14 @@ struct WorkItemLoopsPassOptions {
 /// Runs over all kernels with "kernel entry point" metadata. Work-item orders
 /// are sourced from the "work item order" function metadata on each kernel.
 class WorkItemLoopsPass final : public llvm::PassInfoMixin<WorkItemLoopsPass> {
- public:
+public:
   /// @brief Constructor.
   WorkItemLoopsPass(const WorkItemLoopsPassOptions &Options)
       : IsDebug(Options.IsDebug), ForceNoTail(Options.ForceNoTail) {}
 
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 
- private:
+private:
   /// @brief Make the work-item-loop wrapper function.
   /// This creates a wrapper function that iterates over a work group, calling
   /// the kernel for each work item, respecting the semantics of any barriers
@@ -110,7 +110,7 @@ class WorkItemLoopsPass final : public llvm::PassInfoMixin<WorkItemLoopsPass> {
   const bool IsDebug;
   const bool ForceNoTail;
 };
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_WORK_ITEM_LOOPS_PASS_H_INCLUDED
+#endif // COMPILER_UTILS_WORK_ITEM_LOOPS_PASS_H_INCLUDED

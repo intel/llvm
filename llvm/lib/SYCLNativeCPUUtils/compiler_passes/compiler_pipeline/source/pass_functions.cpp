@@ -71,9 +71,8 @@ uint64_t computeApproximatePrivateMemoryUsage(const llvm::Function &fn) {
   return bytes;
 }
 
-static llvm::SmallVector<llvm::Constant *> getNewOps(llvm::Constant *constant,
-                                                     llvm::Constant *from,
-                                                     llvm::Constant *to) {
+static llvm::SmallVector<llvm::Constant *>
+getNewOps(llvm::Constant *constant, llvm::Constant *from, llvm::Constant *to) {
   llvm::SmallVector<llvm::Constant *> newOps;
   // iterate through the constant and create a vector of old and new
   // ones
@@ -327,7 +326,7 @@ bool cloneFunctionsAddArg(
       // Copy names over for the parameters
       llvm::Function::arg_iterator DestI = newFunc->arg_begin();
       for (const auto &I : func.args()) {
-        (*DestI).setName(I.getName());  // Copy the name over...
+        (*DestI).setName(I.getName()); // Copy the name over...
         DestI++;
       }
 
@@ -503,7 +502,8 @@ llvm::BasicBlock *createLoop(llvm::BasicBlock *entry, llvm::BasicBlock *exit,
   // Set up all of our user PHIs
   for (unsigned i = 0, e = currIVs.size(); i != e; i++) {
     // For convenience to callers, permit nullptr and skip over it.
-    if (!currIVs[i]) continue;
+    if (!currIVs[i])
+      continue;
 
     auto *const phi = loopIR.CreatePHI(currIVs[i]->getType(), 2);
     llvm::cast<llvm::PHINode>(phi)->addIncoming(currIVs[i],
@@ -528,7 +528,8 @@ llvm::BasicBlock *createLoop(llvm::BasicBlock *entry, llvm::BasicBlock *exit,
 
   // Update all of our PHIs
   for (unsigned i = 0, e = currIVs.size(); i != e; i++) {
-    if (!currIVs[i]) continue;
+    if (!currIVs[i])
+      continue;
     llvm::cast<llvm::PHINode>(currIVs[i])->addIncoming(nextIVs[i], latch);
   }
 
@@ -576,9 +577,10 @@ llvm::IntegerType *getSizeType(const llvm::Module &m) {
                                 dataLayout.getPointerSizeInBits(0));
 }
 
-static llvm::Function *createKernelWrapperFunctionImpl(
-    llvm::Function &F, llvm::Function &NewFunction, llvm::StringRef Suffix,
-    llvm::StringRef OldSuffix) {
+static llvm::Function *
+createKernelWrapperFunctionImpl(llvm::Function &F, llvm::Function &NewFunction,
+                                llvm::StringRef Suffix,
+                                llvm::StringRef OldSuffix) {
   // Make sure we take a copy of the basename as we're going to change the
   // original function's name from underneath the StringRef.
   const std::string baseName = getOrSetBaseFnName(NewFunction, F).str();
@@ -650,9 +652,10 @@ llvm::Function *createKernelWrapperFunction(llvm::Function &F,
   return createKernelWrapperFunctionImpl(F, *NewFunction, Suffix, OldSuffix);
 }
 
-llvm::Function *createKernelWrapperFunction(
-    llvm::Module &M, llvm::Function &F, llvm::ArrayRef<llvm::Type *> ArgTypes,
-    llvm::StringRef Suffix, llvm::StringRef OldSuffix) {
+llvm::Function *
+createKernelWrapperFunction(llvm::Module &M, llvm::Function &F,
+                            llvm::ArrayRef<llvm::Type *> ArgTypes,
+                            llvm::StringRef Suffix, llvm::StringRef OldSuffix) {
   llvm::FunctionType *NewFunctionType =
       llvm::FunctionType::get(F.getReturnType(), ArgTypes, false);
 
@@ -698,38 +701,38 @@ llvm::CallInst *createCallToWrappedFunction(
 llvm::Value *createBinOpForRecurKind(llvm::IRBuilderBase &B, llvm::Value *LHS,
                                      llvm::Value *RHS, llvm::RecurKind Kind) {
   switch (Kind) {
-    default:
-      llvm_unreachable("Unexpected Kind");
-    case llvm::RecurKind::None:
-      return nullptr;
-    case llvm::RecurKind::Add:
-      return B.CreateAdd(LHS, RHS);
-    case llvm::RecurKind::Mul:
-      return B.CreateMul(LHS, RHS);
-    case llvm::RecurKind::Or:
-      return B.CreateOr(LHS, RHS);
-    case llvm::RecurKind::And:
-      return B.CreateAnd(LHS, RHS);
-    case llvm::RecurKind::Xor:
-      return B.CreateXor(LHS, RHS);
-    case llvm::RecurKind::SMin:
-      return B.CreateBinaryIntrinsic(llvm::Intrinsic::smin, LHS, RHS);
-    case llvm::RecurKind::UMin:
-      return B.CreateBinaryIntrinsic(llvm::Intrinsic::umin, LHS, RHS);
-    case llvm::RecurKind::SMax:
-      return B.CreateBinaryIntrinsic(llvm::Intrinsic::smax, LHS, RHS);
-    case llvm::RecurKind::UMax:
-      return B.CreateBinaryIntrinsic(llvm::Intrinsic::umax, LHS, RHS);
-    case llvm::RecurKind::FAdd:
-      return B.CreateFAdd(LHS, RHS);
-    case llvm::RecurKind::FMul:
-      return B.CreateFMul(LHS, RHS);
-    case llvm::RecurKind::FMin:
-      return B.CreateBinaryIntrinsic(llvm::Intrinsic::minnum, LHS, RHS);
-    case llvm::RecurKind::FMax:
-      return B.CreateBinaryIntrinsic(llvm::Intrinsic::maxnum, LHS, RHS);
+  default:
+    llvm_unreachable("Unexpected Kind");
+  case llvm::RecurKind::None:
+    return nullptr;
+  case llvm::RecurKind::Add:
+    return B.CreateAdd(LHS, RHS);
+  case llvm::RecurKind::Mul:
+    return B.CreateMul(LHS, RHS);
+  case llvm::RecurKind::Or:
+    return B.CreateOr(LHS, RHS);
+  case llvm::RecurKind::And:
+    return B.CreateAnd(LHS, RHS);
+  case llvm::RecurKind::Xor:
+    return B.CreateXor(LHS, RHS);
+  case llvm::RecurKind::SMin:
+    return B.CreateBinaryIntrinsic(llvm::Intrinsic::smin, LHS, RHS);
+  case llvm::RecurKind::UMin:
+    return B.CreateBinaryIntrinsic(llvm::Intrinsic::umin, LHS, RHS);
+  case llvm::RecurKind::SMax:
+    return B.CreateBinaryIntrinsic(llvm::Intrinsic::smax, LHS, RHS);
+  case llvm::RecurKind::UMax:
+    return B.CreateBinaryIntrinsic(llvm::Intrinsic::umax, LHS, RHS);
+  case llvm::RecurKind::FAdd:
+    return B.CreateFAdd(LHS, RHS);
+  case llvm::RecurKind::FMul:
+    return B.CreateFMul(LHS, RHS);
+  case llvm::RecurKind::FMin:
+    return B.CreateBinaryIntrinsic(llvm::Intrinsic::minnum, LHS, RHS);
+  case llvm::RecurKind::FMax:
+    return B.CreateBinaryIntrinsic(llvm::Intrinsic::maxnum, LHS, RHS);
   }
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

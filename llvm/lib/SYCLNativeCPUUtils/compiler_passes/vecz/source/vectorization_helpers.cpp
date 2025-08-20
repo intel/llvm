@@ -120,9 +120,9 @@ void cloneOpenCLNamedMetadataHelper(const VectorizationUnit &VU,
 /// into the vectorized function.
 ///
 /// @param[in,out] ValueMap Map to update with the arguments.
-SmallVector<Instruction *, 2> createArgumentPlaceholders(
-    const VectorizationUnit &VU, Function *VecFunc,
-    ValueToValueMapTy &ValueMap) {
+SmallVector<Instruction *, 2>
+createArgumentPlaceholders(const VectorizationUnit &VU, Function *VecFunc,
+                           ValueToValueMapTy &ValueMap) {
   SmallVector<Instruction *, 2> Placeholders;
   const auto &Arguments = VU.arguments();
   unsigned i = 0u;
@@ -145,7 +145,7 @@ SmallVector<Instruction *, 2> createArgumentPlaceholders(
   return Placeholders;
 }
 
-}  // namespace
+} // namespace
 
 namespace vecz {
 std::string getVectorizedFunctionName(StringRef ScalarName, ElementCount VF,
@@ -261,7 +261,8 @@ Function *cloneFunctionToVector(const VectorizationUnit &VU) {
 static DILocation *getDILocation(unsigned Line, unsigned Column, MDNode *Scope,
                                  MDNode *InlinedAt = nullptr) {
   // If no scope is available, this is an unknown location.
-  if (!Scope) return DebugLoc();
+  if (!Scope)
+    return DebugLoc();
   return DILocation::get(Scope->getContext(), Line, Column, Scope, InlinedAt,
                          /*ImplicitCode*/ false);
 }
@@ -339,4 +340,4 @@ void cloneOpenCLMetadata(const VectorizationUnit &VU) {
   cloneOpenCLNamedMetadataHelper(VU, "opencl.kernel_wg_size_info");
 }
 
-}  // namespace vecz
+} // namespace vecz

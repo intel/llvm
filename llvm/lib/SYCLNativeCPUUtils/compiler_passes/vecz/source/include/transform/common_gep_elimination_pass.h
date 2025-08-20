@@ -32,7 +32,7 @@ class VectorizationUnit;
 /// packetization pass.
 class CommonGEPEliminationPass
     : public llvm::PassInfoMixin<CommonGEPEliminationPass> {
- public:
+public:
   static void *ID() { return (void *)&PassID; };
 
   /// @brief Remove duplicate GEP instructions.
@@ -47,10 +47,10 @@ class CommonGEPEliminationPass
   /// @brief Pass name.
   static llvm::StringRef name() { return "Common GEP Elimination pass"; }
 
- private:
+private:
   /// @brief Identifier for the pass.
   static char PassID;
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_COMMON_GEP_ELIMINATION_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_COMMON_GEP_ELIMINATION_PASS_H_INCLUDED

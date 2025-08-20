@@ -85,4 +85,4 @@ void emitVeczRemark(const Function *F, const Value *V, StringRef Msg) {
 void emitVeczRemark(const Function *F, StringRef Msg) {
   emitVeczRemark(F, nullptr, Msg);
 }
-}  // namespace vecz
+} // namespace vecz

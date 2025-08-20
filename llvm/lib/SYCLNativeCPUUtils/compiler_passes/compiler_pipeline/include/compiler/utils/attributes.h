@@ -24,7 +24,7 @@
 namespace llvm {
 class CallInst;
 class Function;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -180,7 +180,7 @@ bool hasNoExplicitSubgroups(const llvm::Function &F);
 /// Currently always returns 1!
 unsigned getMuxSubgroupSize(const llvm::Function &F);
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_ATTRIBUTES_H_INCLUDED
+#endif // COMPILER_UTILS_ATTRIBUTES_H_INCLUDED

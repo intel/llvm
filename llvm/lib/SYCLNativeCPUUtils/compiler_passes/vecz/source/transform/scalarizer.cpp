@@ -49,7 +49,7 @@ namespace {
 /// The current limitation is due to the masks being used in the SimdPackets
 /// being stored as uint64_t.
 const unsigned MAX_SIMD_WIDTH = 64;
-}  // namespace
+} // namespace
 
 using namespace vecz;
 using namespace llvm;
@@ -212,9 +212,9 @@ Value *Scalarizer::scalarizeOperands(Instruction *I) {
     if (BC->getSrcTy()->isVectorTy() && !BC->getDestTy()->isVectorTy()) {
       // In the SimdPacket we use a mask that is stored as a uint64_t. Due to
       // that, there is a limit on the vector size that Vecz can handle.
-      VECZ_ERROR_IF(
-          multi_llvm::getVectorNumElements(BC->getSrcTy()) > MAX_SIMD_WIDTH,
-          "The SIMD width is too large");
+      VECZ_ERROR_IF(multi_llvm::getVectorNumElements(BC->getSrcTy()) >
+                        MAX_SIMD_WIDTH,
+                    "The SIMD width is too large");
       return scalarizeOperandsBitCast(BC);
     }
   }
@@ -337,54 +337,54 @@ Value *Scalarizer::scalarizeReduceIntrinsic(IntrinsicInst *Intrin) {
   bool isHandled = true;
   Instruction::BinaryOps BinOpcode;
   switch (Intrin->getIntrinsicID()) {
-    default:
+  default:
+    isHandled = false;
+    break;
+  case Intrinsic::vector_reduce_and:
+    BinOpcode = Instruction::And;
+    break;
+  case Intrinsic::vector_reduce_or:
+    BinOpcode = Instruction::Or;
+    break;
+  case Intrinsic::vector_reduce_xor:
+    BinOpcode = Instruction::Xor;
+    break;
+  case Intrinsic::vector_reduce_add:
+    // TODO: Need to handle FP reduce_add (Instruction::FAdd)
+    if (!Intrin->getType()->isFloatTy()) {
+      BinOpcode = Instruction::Add;
+    } else {
       isHandled = false;
-      break;
-    case Intrinsic::vector_reduce_and:
-      BinOpcode = Instruction::And;
-      break;
-    case Intrinsic::vector_reduce_or:
-      BinOpcode = Instruction::Or;
-      break;
-    case Intrinsic::vector_reduce_xor:
-      BinOpcode = Instruction::Xor;
-      break;
-    case Intrinsic::vector_reduce_add:
-      // TODO: Need to handle FP reduce_add (Instruction::FAdd)
-      if (!Intrin->getType()->isFloatTy()) {
-        BinOpcode = Instruction::Add;
-      } else {
-        isHandled = false;
-      }
-      break;
-    case Intrinsic::vector_reduce_mul:
-      // TODO: Need to handle FP reduce_mul (Instruction::FMul)
-      if (!Intrin->getType()->isFloatTy()) {
-        BinOpcode = Instruction::Mul;
-      } else {
-        isHandled = false;
-      }
-      break;
-    case Intrinsic::vector_reduce_fadd:
-      // TODO: Need to handle FP reduce_add
+    }
+    break;
+  case Intrinsic::vector_reduce_mul:
+    // TODO: Need to handle FP reduce_mul (Instruction::FMul)
+    if (!Intrin->getType()->isFloatTy()) {
+      BinOpcode = Instruction::Mul;
+    } else {
       isHandled = false;
-      break;
-    case Intrinsic::vector_reduce_fmul:
-      // TODO: Need to handle FP reduce_mul
-      isHandled = false;
-      break;
-    case Intrinsic::vector_reduce_fmax:
-    case Intrinsic::vector_reduce_smax:
-    case Intrinsic::vector_reduce_umax:
-      // TODO: Need to handle Int (signed/unsigned) Max and FP Max
-      isHandled = false;
-      break;
-    case Intrinsic::vector_reduce_fmin:
-    case Intrinsic::vector_reduce_smin:
-    case Intrinsic::vector_reduce_umin:
-      // TODO: Need to handle Int (signed/unsigned) Min and FP Min
-      isHandled = false;
-      break;
+    }
+    break;
+  case Intrinsic::vector_reduce_fadd:
+    // TODO: Need to handle FP reduce_add
+    isHandled = false;
+    break;
+  case Intrinsic::vector_reduce_fmul:
+    // TODO: Need to handle FP reduce_mul
+    isHandled = false;
+    break;
+  case Intrinsic::vector_reduce_fmax:
+  case Intrinsic::vector_reduce_smax:
+  case Intrinsic::vector_reduce_umax:
+    // TODO: Need to handle Int (signed/unsigned) Max and FP Max
+    isHandled = false;
+    break;
+  case Intrinsic::vector_reduce_fmin:
+  case Intrinsic::vector_reduce_smin:
+  case Intrinsic::vector_reduce_umin:
+    // TODO: Need to handle Int (signed/unsigned) Min and FP Min
+    isHandled = false;
+    break;
   }
   // If it's an intrinsic we don't handle here, return nullptr and fallback
   // to simple gathering of any scalarized operands.
@@ -550,50 +550,50 @@ SimdPacket *Scalarizer::scalarize(Value *V, PacketMask PM) {
   // Figure out what kind of instruction it is and try to scalarize it.
   SimdPacket *Result = nullptr;
   switch (Ins->getOpcode()) {
-    default:
-      if (Ins->isBinaryOp()) {
-        Result = scalarizeBinaryOp(cast<BinaryOperator>(V), PM);
-      } else if (Ins->isCast()) {
-        Result = scalarizeCast(cast<CastInst>(V), PM);
-      } else if (Ins->isUnaryOp()) {
-        Result = scalarizeUnaryOp(cast<UnaryOperator>(V), PM);
-      }
-      break;
-    case Instruction::GetElementPtr:
-      Result = scalarizeGEP(cast<GetElementPtrInst>(V), PM);
-      break;
-    case Instruction::Store:
-      Result = scalarizeStore(cast<StoreInst>(V), PM);
-      break;
-    case Instruction::Load:
-      Result = scalarizeLoad(cast<LoadInst>(V), PM);
-      break;
-    case Instruction::Call:
-      Result = scalarizeCall(cast<CallInst>(V), PM);
-      break;
-    case Instruction::ICmp:
-      Result = scalarizeICmp(cast<ICmpInst>(V), PM);
-      break;
-    case Instruction::FCmp:
-      Result = scalarizeFCmp(cast<FCmpInst>(V), PM);
-      break;
-    case Instruction::Select:
-      Result = scalarizeSelect(cast<SelectInst>(V), PM);
-      break;
-    case Instruction::ShuffleVector:
-      Result = scalarizeShuffleVector(cast<ShuffleVectorInst>(V), PM);
-      break;
-    case Instruction::InsertElement:
-      Result = scalarizeInsertElement(cast<InsertElementInst>(V), PM);
-      break;
-    case Instruction::PHI:
-      Result = scalarizePHI(cast<PHINode>(V), PM);
-      break;
-      // Freeze instruction is not available in LLVM versions prior 10.0
-      // and not used in LLVM versions prior to 11.0
-    case Instruction::Freeze:
-      Result = scalarizeFreeze(cast<FreezeInst>(V), PM);
-      break;
+  default:
+    if (Ins->isBinaryOp()) {
+      Result = scalarizeBinaryOp(cast<BinaryOperator>(V), PM);
+    } else if (Ins->isCast()) {
+      Result = scalarizeCast(cast<CastInst>(V), PM);
+    } else if (Ins->isUnaryOp()) {
+      Result = scalarizeUnaryOp(cast<UnaryOperator>(V), PM);
+    }
+    break;
+  case Instruction::GetElementPtr:
+    Result = scalarizeGEP(cast<GetElementPtrInst>(V), PM);
+    break;
+  case Instruction::Store:
+    Result = scalarizeStore(cast<StoreInst>(V), PM);
+    break;
+  case Instruction::Load:
+    Result = scalarizeLoad(cast<LoadInst>(V), PM);
+    break;
+  case Instruction::Call:
+    Result = scalarizeCall(cast<CallInst>(V), PM);
+    break;
+  case Instruction::ICmp:
+    Result = scalarizeICmp(cast<ICmpInst>(V), PM);
+    break;
+  case Instruction::FCmp:
+    Result = scalarizeFCmp(cast<FCmpInst>(V), PM);
+    break;
+  case Instruction::Select:
+    Result = scalarizeSelect(cast<SelectInst>(V), PM);
+    break;
+  case Instruction::ShuffleVector:
+    Result = scalarizeShuffleVector(cast<ShuffleVectorInst>(V), PM);
+    break;
+  case Instruction::InsertElement:
+    Result = scalarizeInsertElement(cast<InsertElementInst>(V), PM);
+    break;
+  case Instruction::PHI:
+    Result = scalarizePHI(cast<PHINode>(V), PM);
+    break;
+    // Freeze instruction is not available in LLVM versions prior 10.0
+    // and not used in LLVM versions prior to 11.0
+  case Instruction::Freeze:
+    Result = scalarizeFreeze(cast<FreezeInst>(V), PM);
+    break;
   }
 
   if (Result) {
@@ -690,13 +690,13 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
     DebugLoc DILoc;
 
     switch (DVR->getType()) {
-      case DbgVariableRecord::LocationType::Value:
-      case DbgVariableRecord::LocationType::Declare:
-        DILocal = DVR->getVariable();
-        DILoc = DVR->getDebugLoc();
-        break;
-      default:
-        continue;
+    case DbgVariableRecord::LocationType::Value:
+    case DbgVariableRecord::LocationType::Declare:
+      DILocal = DVR->getVariable();
+      DILoc = DVR->getDebugLoc();
+      break;
+    default:
+      continue;
     }
 
     // Create new DbgVariableRecord across enabled SIMD lanes
@@ -953,21 +953,21 @@ SimdPacket *Scalarizer::scalarizeCast(CastInst *CastI, PacketMask PM) {
   // Make sure we support the cast operation.
   const CastInst::CastOps Opc = CastI->getOpcode();
   switch (Opc) {
-    default:
-      return nullptr;
-    case CastInst::BitCast:
-      return scalarizeBitCast(cast<BitCastInst>(CastI), PM);
-    case CastInst::Trunc:
-    case CastInst::ZExt:
-    case CastInst::SExt:
-    case CastInst::FPToUI:
-    case CastInst::FPToSI:
-    case CastInst::UIToFP:
-    case CastInst::SIToFP:
-    case CastInst::FPTrunc:
-    case CastInst::FPExt:
-    case CastInst::AddrSpaceCast:
-      break;
+  default:
+    return nullptr;
+  case CastInst::BitCast:
+    return scalarizeBitCast(cast<BitCastInst>(CastI), PM);
+  case CastInst::Trunc:
+  case CastInst::ZExt:
+  case CastInst::SExt:
+  case CastInst::FPToUI:
+  case CastInst::FPToSI:
+  case CastInst::UIToFP:
+  case CastInst::SIToFP:
+  case CastInst::FPTrunc:
+  case CastInst::FPExt:
+  case CastInst::AddrSpaceCast:
+    break;
   }
 
   // Scalarize the source value.

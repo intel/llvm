@@ -27,7 +27,7 @@ namespace llvm {
 class Constant;
 class Function;
 class Type;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -106,7 +106,7 @@ struct GroupCollective {
   /// @brief Returns true for work-group collective operations.
   bool isWorkGroupScope() const { return Scope == ScopeKind::WorkGroup; }
 };
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_GROUP_COLLECTIVE_HELPERS_H_INCLUDED
+#endif // COMPILER_UTILS_GROUP_COLLECTIVE_HELPERS_H_INCLUDED

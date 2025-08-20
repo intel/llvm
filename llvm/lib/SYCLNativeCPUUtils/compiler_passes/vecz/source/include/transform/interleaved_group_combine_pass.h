@@ -37,7 +37,7 @@ class VectorizationUnit;
 /// @brief Combine groups of interleaved memory operations.
 class InterleavedGroupCombinePass
     : public llvm::PassInfoMixin<InterleavedGroupCombinePass> {
- public:
+public:
   /// @brief Create a new pass object.
   ///
   /// @param[in] kind Kind of interleaved operation to combine.
@@ -61,7 +61,7 @@ class InterleavedGroupCombinePass
     return "Combine interleaved memory instructions";
   }
 
- private:
+private:
   /// @brief Information about an interleaved operation.
   struct InterleavedOpInfo;
 
@@ -89,6 +89,6 @@ class InterleavedGroupCombinePass
   llvm::ScalarEvolution *scalarEvolution;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_INTERLEAVED_GROUP_COMBINE_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_INTERLEAVED_GROUP_COMBINE_PASS_H_INCLUDED

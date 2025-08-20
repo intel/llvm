@@ -35,7 +35,7 @@ struct MemOp;
 /// are instantiated (i.e. duplicated with lane ID substitution), starting from
 /// the leaves.
 class InstantiationPass {
- public:
+public:
   /// @brief Create a new instantiation pass.
   ///
   /// @param[in] PP The packetizer object to call back to when required.
@@ -50,7 +50,7 @@ class InstantiationPass {
   /// @return Instantiated value.
   PacketRange instantiate(llvm::Value *V);
 
- private:
+private:
   /// @brief Duplicates an instruction across all SIMD Lanes.
   ///
   /// @param[in] I The instruction to duplicate across lanes
@@ -108,6 +108,6 @@ class InstantiationPass {
   VectorizationContext &Ctx;
   Packetizer &packetizer;
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_INSTANTIATION_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_INSTANTIATION_PASS_H_INCLUDED

@@ -31,8 +31,7 @@ namespace multi_llvm {
 #if LLVM_VERSION_GREATER_EQUAL(20, 0) && 0
 using DIBuilder = llvm::DIBuilder;
 #else
-template <typename DIBuilder>
-struct DIBuilderWrapper : DIBuilder {
+template <typename DIBuilder> struct DIBuilderWrapper : DIBuilder {
   using DIBuilder::DIBuilder;
 
   llvm::BasicBlock *getBasicBlock(llvm::InsertPosition InsertPt) {
@@ -96,6 +95,6 @@ using DIBuilderMaybeWrapped =
 
 using DIBuilder = DIBuilderMaybeWrapped<llvm::DIBuilder>;
 #endif
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_DIBUILDER_H_INCLUDED
+#endif // MULTI_LLVM_DIBUILDER_H_INCLUDED

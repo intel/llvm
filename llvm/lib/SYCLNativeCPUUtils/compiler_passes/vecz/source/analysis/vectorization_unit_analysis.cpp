@@ -22,8 +22,9 @@ using namespace vecz;
 
 llvm::AnalysisKey VectorizationUnitAnalysis::Key;
 
-VectorizationUnitAnalysis::Result VectorizationUnitAnalysis::run(
-    llvm::Function &F, llvm::FunctionAnalysisManager &) {
+VectorizationUnitAnalysis::Result
+VectorizationUnitAnalysis::run(llvm::Function &F,
+                               llvm::FunctionAnalysisManager &) {
   return Result{Ctx.getActiveVU(&F)};
 }
 
@@ -32,7 +33,8 @@ VectorizationUnitAnalysis::Result VectorizationUnitAnalysis::run(
 
 llvm::AnalysisKey VectorizationContextAnalysis::Key;
 
-VectorizationContextAnalysis::Result VectorizationContextAnalysis::run(
-    llvm::Function &, llvm::FunctionAnalysisManager &) {
+VectorizationContextAnalysis::Result
+VectorizationContextAnalysis::run(llvm::Function &,
+                                  llvm::FunctionAnalysisManager &) {
   return Result{Context};
 }

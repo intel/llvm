@@ -93,14 +93,11 @@ OffsetKind combineKinds(OffsetKind LHS, OffsetKind RHS) {
   // Uniform values are all that's left.
   return eOffsetUniformVariable;
 }
-}  // namespace
+} // namespace
 
 OffsetInfo::OffsetInfo(StrideAnalysisResult &SAR, Value *V)
-    : Kind(eOffsetMayDiverge),
-      ActualValue(V),
-      StrideInt(0),
-      ManifestStride(nullptr),
-      BitMask(~uint64_t(0)) {
+    : Kind(eOffsetMayDiverge), ActualValue(V), StrideInt(0),
+      ManifestStride(nullptr), BitMask(~uint64_t(0)) {
   auto *const ty = V->getType();
   if (ty->isIntegerTy()) {
     analyze(V, SAR);
@@ -207,24 +204,24 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
     }
 
     switch (BOp->getOpcode()) {
-      default:
-        return setMayDiverge();
-      case Instruction::Add:
-        return combineAdd(LHS, RHS);
-      case Instruction::Sub:
-        return combineSub(LHS, RHS);
-      case Instruction::And:
-        return combineAnd(LHS, RHS);
-      case Instruction::Or:
-        return combineOr(LHS, RHS);
-      case Instruction::Xor:
-        return combineXor(LHS, RHS);
-      case Instruction::Mul:
-        return combineMul(LHS, RHS);
-      case Instruction::Shl:
-        return combineShl(LHS, RHS);
-      case Instruction::AShr:
-        return combineAShr(LHS, RHS);
+    default:
+      return setMayDiverge();
+    case Instruction::Add:
+      return combineAdd(LHS, RHS);
+    case Instruction::Sub:
+      return combineSub(LHS, RHS);
+    case Instruction::And:
+      return combineAnd(LHS, RHS);
+    case Instruction::Or:
+      return combineOr(LHS, RHS);
+    case Instruction::Xor:
+      return combineXor(LHS, RHS);
+    case Instruction::Mul:
+      return combineMul(LHS, RHS);
+    case Instruction::Shl:
+      return combineShl(LHS, RHS);
+    case Instruction::AShr:
+      return combineAShr(LHS, RHS);
     }
   }
 
@@ -324,30 +321,30 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
     const auto &BI = SAR.UVR.Ctx.builtins();
     if (const auto Builtin = BI.analyzeBuiltinCall(*CI, SAR.UVR.dimension)) {
       switch (Builtin->uniformity) {
-        default:
-        case compiler::utils::eBuiltinUniformityMaybeInstanceID:
-        case compiler::utils::eBuiltinUniformityNever:
-          return setMayDiverge();
-        case compiler::utils::eBuiltinUniformityLikeInputs:
-          break;
-        case compiler::utils::eBuiltinUniformityAlways:
-          return setKind(eOffsetUniformVariable);
-        case compiler::utils::eBuiltinUniformityInstanceID:
-          if (Builtin->properties & compiler::utils::eBuiltinPropertyLocalID) {
-            // If the local size is unknown (represented by zero), the resulting
-            // mask will be ~0ULL (all ones). Potentially, it is possible to use
-            // the CL_DEVICE_MAX_WORK_ITEM_SIZES property as an upper bound in
-            // this case.
-            uint64_t LocalBitMask = SAR.UVR.VU.getLocalSize() - 1;
-            LocalBitMask |= LocalBitMask >> 32;
-            LocalBitMask |= LocalBitMask >> 16;
-            LocalBitMask |= LocalBitMask >> 8;
-            LocalBitMask |= LocalBitMask >> 4;
-            LocalBitMask |= LocalBitMask >> 2;
-            LocalBitMask |= LocalBitMask >> 1;
-            BitMask = LocalBitMask;
-          }
-          return setStride(1);
+      default:
+      case compiler::utils::eBuiltinUniformityMaybeInstanceID:
+      case compiler::utils::eBuiltinUniformityNever:
+        return setMayDiverge();
+      case compiler::utils::eBuiltinUniformityLikeInputs:
+        break;
+      case compiler::utils::eBuiltinUniformityAlways:
+        return setKind(eOffsetUniformVariable);
+      case compiler::utils::eBuiltinUniformityInstanceID:
+        if (Builtin->properties & compiler::utils::eBuiltinPropertyLocalID) {
+          // If the local size is unknown (represented by zero), the resulting
+          // mask will be ~0ULL (all ones). Potentially, it is possible to use
+          // the CL_DEVICE_MAX_WORK_ITEM_SIZES property as an upper bound in
+          // this case.
+          uint64_t LocalBitMask = SAR.UVR.VU.getLocalSize() - 1;
+          LocalBitMask |= LocalBitMask >> 32;
+          LocalBitMask |= LocalBitMask >> 16;
+          LocalBitMask |= LocalBitMask >> 8;
+          LocalBitMask |= LocalBitMask >> 4;
+          LocalBitMask |= LocalBitMask >> 2;
+          LocalBitMask |= LocalBitMask >> 1;
+          BitMask = LocalBitMask;
+        }
+        return setStride(1);
       }
     }
   }
@@ -552,24 +549,24 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
     // Build strides immediately before their instructions
     B.SetInsertPoint(BOp);
     switch (BOp->getOpcode()) {
-      default:
-        return *this;
-      case Instruction::Add:
-        return manifestAdd(B, LHS, RHS);
-      case Instruction::Sub:
-        return manifestSub(B, LHS, RHS);
-      case Instruction::And:
-        return manifestAnd(B, LHS, RHS);
-      case Instruction::Or:
-        return manifestOr(B, LHS, RHS);
-      case Instruction::Xor:
-        return manifestXor(B, LHS, RHS);
-      case Instruction::Mul:
-        return manifestMul(B, LHS, RHS);
-      case Instruction::Shl:
-        return manifestShl(B, LHS, RHS);
-      case Instruction::AShr:
-        return manifestAShr(B, LHS, RHS);
+    default:
+      return *this;
+    case Instruction::Add:
+      return manifestAdd(B, LHS, RHS);
+    case Instruction::Sub:
+      return manifestSub(B, LHS, RHS);
+    case Instruction::And:
+      return manifestAnd(B, LHS, RHS);
+    case Instruction::Or:
+      return manifestOr(B, LHS, RHS);
+    case Instruction::Xor:
+      return manifestXor(B, LHS, RHS);
+    case Instruction::Mul:
+      return manifestMul(B, LHS, RHS);
+    case Instruction::Shl:
+      return manifestShl(B, LHS, RHS);
+    case Instruction::AShr:
+      return manifestAShr(B, LHS, RHS);
     }
   }
 

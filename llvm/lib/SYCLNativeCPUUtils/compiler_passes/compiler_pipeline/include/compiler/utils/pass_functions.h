@@ -43,7 +43,7 @@ class ModulePass;
 class Type;
 class Value;
 class IRBuilderBase;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -313,7 +313,7 @@ llvm::CallInst *createCallToWrappedFunction(
 llvm::Value *createBinOpForRecurKind(llvm::IRBuilderBase &B, llvm::Value *LHS,
                                      llvm::Value *RHS, llvm::RecurKind Kind);
 /// @}
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_PASS_FUNCTIONS_H_INCLUDED
+#endif // COMPILER_UTILS_PASS_FUNCTIONS_H_INCLUDED

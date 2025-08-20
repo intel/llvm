@@ -22,9 +22,9 @@
 
 namespace multi_llvm {
 
-static inline auto GetOrInsertIntrinsicDeclaration(
-    llvm::Module *M, llvm::Intrinsic::ID id,
-    llvm::ArrayRef<llvm::Type *> Tys = {}) {
+static inline auto
+GetOrInsertIntrinsicDeclaration(llvm::Module *M, llvm::Intrinsic::ID id,
+                                llvm::ArrayRef<llvm::Type *> Tys = {}) {
 #if LLVM_VERSION_GREATER_EQUAL(20, 0)
   return llvm::Intrinsic::getOrInsertDeclaration(M, id, Tys);
 #else
@@ -46,7 +46,7 @@ auto getAttributes(T... args, llvm::FunctionType *)
     -> decltype(llvm::Intrinsic::getAttributes(args...)) {
   return llvm::Intrinsic::getAttributes(args...);
 }
-}  // namespace detail
+} // namespace detail
 
 namespace Intrinsic {
 static inline auto getAttributes(llvm::LLVMContext &C, llvm::Intrinsic::ID ID,
@@ -54,8 +54,8 @@ static inline auto getAttributes(llvm::LLVMContext &C, llvm::Intrinsic::ID ID,
   return detail::getAttributes<llvm::LLVMContext &, llvm::Intrinsic::ID>(C, ID,
                                                                          FT);
 }
-}  // namespace Intrinsic
+} // namespace Intrinsic
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_MULTI_INTRINSIC_H_INCLUDED
+#endif // MULTI_LLVM_MULTI_INTRINSIC_H_INCLUDED

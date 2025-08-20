@@ -36,7 +36,7 @@ class VectorizationUnitAnalysis
     : public llvm::AnalysisInfoMixin<VectorizationUnitAnalysis> {
   friend AnalysisInfoMixin<VectorizationUnitAnalysis>;
 
- public:
+public:
   /// @brief Create a new instance of the pass.
   VectorizationUnitAnalysis(const VectorizationContext &Ctx) : Ctx(Ctx) {}
 
@@ -44,7 +44,7 @@ class VectorizationUnitAnalysis
   class Result {
     VectorizationUnit *VU = nullptr;
 
-   public:
+  public:
     Result() = default;
     Result(VectorizationUnit *VU) : VU(VU) {}
     VectorizationUnit &getVU() {
@@ -70,7 +70,7 @@ class VectorizationUnitAnalysis
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "VectorizationUnit analysis"; }
 
- private:
+private:
   const VectorizationContext &Ctx;
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
@@ -81,7 +81,7 @@ class VectorizationContextAnalysis
     : public llvm::AnalysisInfoMixin<VectorizationContextAnalysis> {
   friend AnalysisInfoMixin<VectorizationContextAnalysis>;
 
- public:
+public:
   /// @brief Create a new instance of the pass.
   VectorizationContextAnalysis(VectorizationContext &Ctx) : Context(Ctx) {}
 
@@ -89,7 +89,7 @@ class VectorizationContextAnalysis
   class Result {
     VectorizationContext &Ctx;
 
-   public:
+  public:
     Result(VectorizationContext &Ctx) : Ctx(Ctx) {}
     VectorizationContext &getContext() { return Ctx; }
     const VectorizationContext &getContext() const { return Ctx; }
@@ -111,11 +111,11 @@ class VectorizationContextAnalysis
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "VectorizationContext analysis"; }
 
- private:
+private:
   VectorizationContext &Context;
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_VECTORIZATION_UNIT_H_INCLUDED
+#endif // VECZ_ANALYSIS_VECTORIZATION_UNIT_H_INCLUDED

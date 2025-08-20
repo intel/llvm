@@ -29,7 +29,7 @@
 namespace llvm {
 class Function;
 class Value;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -38,7 +38,7 @@ struct UniformValueResult;
 
 /// @brief Holds the result of Packetization Analysis for a given function.
 class PacketizationAnalysisResult {
- public:
+public:
   /// @brief The function being analyzed
   llvm::Function &F;
   /// @brief The Stride Analysis Result to use during analysis
@@ -64,7 +64,7 @@ class PacketizationAnalysisResult {
     return toPacketize.count(V) != 0;
   }
 
- private:
+private:
   void markForPacketization(llvm::Value *V);
 
   /// @brief The set of instructions that need to be packetized.
@@ -79,7 +79,7 @@ class PacketizationAnalysis
     : public llvm::AnalysisInfoMixin<PacketizationAnalysis> {
   friend AnalysisInfoMixin<PacketizationAnalysis>;
 
- public:
+public:
   /// @brief Create a new analysis object.
   PacketizationAnalysis() {}
 
@@ -96,11 +96,11 @@ class PacketizationAnalysis
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "Packetization analysis"; }
 
- private:
+private:
   /// @brief Unique identifier for the pass.
   static llvm::AnalysisKey Key;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_PACKETIZATION_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_PACKETIZATION_ANALYSIS_H_INCLUDED

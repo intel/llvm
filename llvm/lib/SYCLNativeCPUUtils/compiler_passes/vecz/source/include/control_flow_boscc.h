@@ -39,23 +39,17 @@ class Instruction;
 class BasicBlock;
 class Function;
 class Loop;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
 class LivenessResult;
 
 class ControlFlowConversionState::BOSCCGadget final {
- public:
+public:
   BOSCCGadget(ControlFlowConversionState &Pass)
-      : PassState(Pass),
-        F(Pass.F),
-        AM(Pass.AM),
-        DT(Pass.DT),
-        PDT(Pass.PDT),
-        LI(Pass.LI),
-        DR(Pass.DR),
-        RC(Pass.RC.get()) {}
+      : PassState(Pass), F(Pass.F), AM(Pass.AM), DT(Pass.DT), PDT(Pass.PDT),
+        LI(Pass.LI), DR(Pass.DR), RC(Pass.RC.get()) {}
 
   /// @brief Region of code that will remain uniform after vectorization.
   ///
@@ -182,7 +176,7 @@ class ControlFlowConversionState::BOSCCGadget final {
   /// @return true if no problem occured, false otherwise.
   bool cleanUp();
 
- private:
+private:
   ControlFlowConversionState &PassState;
   llvm::Function &F;
   llvm::FunctionAnalysisManager &AM;
@@ -268,6 +262,6 @@ class ControlFlowConversionState::BOSCCGadget final {
   /// @returns true if no errors occurred.
   bool computeBlockOrdering();
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_CONTROL_FLOW_BOSCC_H_INCLUDED
+#endif // VECZ_CONTROL_FLOW_BOSCC_H_INCLUDED

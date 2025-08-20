@@ -26,7 +26,7 @@
 namespace llvm {
 class Function;
 class Module;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -109,8 +109,8 @@ bool parseOrigToVeczFnLinkMetadata(
 /// @return On success, a pair containing a pointer to the original kernel
 /// function and the vectorization factor used as the key. The original
 /// function may be null. On decoding failure, std::nullopt.
-std::optional<LinkMetadataResult> parseVeczToOrigFnLinkMetadata(
-    llvm::Function &f);
+std::optional<LinkMetadataResult>
+parseVeczToOrigFnLinkMetadata(llvm::Function &f);
 
 /// @brief Drops "base" vectorization metadata from a function, if present.
 ///
@@ -191,15 +191,15 @@ void encodeLocalSizeMetadata(llvm::Function &f,
 ///
 /// @param[in] f Function from which to decode the metadata
 /// @returns The local size array if present, else `std::nullopt`
-std::optional<std::array<uint64_t, 3>> getLocalSizeMetadata(
-    const llvm::Function &f);
+std::optional<std::array<uint64_t, 3>>
+getLocalSizeMetadata(const llvm::Function &f);
 
 /// @brief Drops all !mux_scheduled_fn metadata from a function.
 void dropSchedulingParameterMetadata(llvm::Function &f);
 
 /// @brief Retrieves the indices of scheduling parameters from the function.
-llvm::SmallVector<int, 4> getSchedulingParameterFunctionMetadata(
-    const llvm::Function &f);
+llvm::SmallVector<int, 4>
+getSchedulingParameterFunctionMetadata(const llvm::Function &f);
 
 /// @brief Sets scheduling-parameter metadata on the given function
 void setSchedulingParameterFunctionMetadata(llvm::Function &f,
@@ -228,8 +228,8 @@ std::optional<unsigned> isSchedulingParameter(const llvm::Function &f,
 /// @param[in] f Kernel for extraction.
 ///
 /// @return The work group size or std::nullopt if there is no such metadata.
-std::optional<std::array<uint64_t, 3>> parseRequiredWGSMetadata(
-    const llvm::Function &f);
+std::optional<std::array<uint64_t, 3>>
+parseRequiredWGSMetadata(const llvm::Function &f);
 
 /// @brief Extracts the required work group size from an opencl.kernels subnode,
 /// which is similar to the function metadata, but the size is stored under
@@ -238,8 +238,8 @@ std::optional<std::array<uint64_t, 3>> parseRequiredWGSMetadata(
 /// @param[in] node Kernel's subnode for extraction.
 ///
 /// @return The work group size or std::nullopt if there is no such metadata.
-std::optional<std::array<uint64_t, 3>> parseRequiredWGSMetadata(
-    const llvm::MDNode &node);
+std::optional<std::array<uint64_t, 3>>
+parseRequiredWGSMetadata(const llvm::MDNode &node);
 
 /// @brief Extracts the maximum work dimension from a kernel's function
 /// metadata
@@ -290,7 +290,7 @@ void encodeReqdSubgroupSizeMetadata(llvm::Function &f, uint32_t size);
 /// @returns The required sub-group size if present, else `std::nullopt`
 std::optional<uint32_t> getReqdSubgroupSize(const llvm::Function &f);
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_METADATA_H_INCLUDED
+#endif // COMPILER_UTILS_METADATA_H_INCLUDED

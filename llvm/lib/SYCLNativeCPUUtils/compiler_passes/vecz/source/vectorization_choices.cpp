@@ -61,7 +61,7 @@ static const VectorizationChoices::ChoiceInfo choicesArray[] = {
      "purposes)"},
 };
 
-}  // namespace
+} // namespace
 
 namespace vecz {
 
@@ -169,4 +169,4 @@ void VectorizationChoices::printChoicesParseError(StringRef Input,
   }
   errs() << "^\n";
 }
-}  // namespace vecz
+} // namespace vecz

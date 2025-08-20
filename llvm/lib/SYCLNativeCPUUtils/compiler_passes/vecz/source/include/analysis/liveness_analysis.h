@@ -32,7 +32,7 @@ class LoopInfo;
 class Function;
 class BasicBlock;
 class Value;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 class VectorizationUnit;
@@ -46,7 +46,7 @@ struct BlockLivenessInfo {
 };
 
 class LivenessResult {
- public:
+public:
   LivenessResult(llvm::Function &F) : F(F) {}
 
   LivenessResult() = delete;
@@ -59,7 +59,7 @@ class LivenessResult {
   size_t getMaxLiveVirtualRegisters() const;
   const BlockLivenessInfo &getBlockInfo(const llvm::BasicBlock *) const;
 
- private:
+private:
   class Impl;
 
   llvm::Function &F;
@@ -76,7 +76,7 @@ class LivenessResult {
 class LivenessAnalysis : public llvm::AnalysisInfoMixin<LivenessAnalysis> {
   friend llvm::AnalysisInfoMixin<LivenessAnalysis>;
 
- public:
+public:
   using Result = LivenessResult;
 
   LivenessAnalysis() = default;
@@ -95,6 +95,6 @@ class LivenessAnalysis : public llvm::AnalysisInfoMixin<LivenessAnalysis> {
   static llvm::AnalysisKey Key;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_LIVENESS_ANALYSIS_H
+#endif // VECZ_ANALYSIS_LIVENESS_ANALYSIS_H

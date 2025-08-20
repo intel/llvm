@@ -44,8 +44,8 @@ namespace stdcompat {
 using ::ilogb;
 #else
 using std::ilogb;
-#endif  // __ANDROID__
-}  // namespace stdcompat
+#endif // __ANDROID__
+} // namespace stdcompat
 
 namespace {
 /// @brief Identifiers for recognized OpenCL builtins.
@@ -415,7 +415,7 @@ enum CLBuiltinID : compiler::utils::BuiltinID {
   // 6.3 Conversions & Type Casting Examples
   eCLBuiltinAs,
 };
-}  // namespace
+} // namespace
 
 namespace {
 using namespace llvm;
@@ -429,7 +429,7 @@ bool isValidVecWidth(unsigned w) {
 
 /// @brief Copy global variables to a module on demand.
 class GlobalValueMaterializer final : public llvm::ValueMaterializer {
- public:
+public:
   /// @brief Create a new global variable materializer.
   /// @param[in] M Module to materialize the variables in.
   GlobalValueMaterializer(Module &M) : DestM(M) {}
@@ -460,13 +460,13 @@ class GlobalValueMaterializer final : public llvm::ValueMaterializer {
     return NewGV;
   }
 
- private:
+private:
   /// @brief Modules to materialize variables in.
   Module &DestM;
   /// @brief Materialized variables.
   std::vector<GlobalVariable *> Variables;
 };
-}  // namespace
+} // namespace
 
 namespace compiler {
 namespace utils {
@@ -841,8 +841,8 @@ Function *CLBuiltinInfo::materializeBuiltin(StringRef BuiltinName,
   return Loader->materializeBuiltin(BuiltinName, DestM, Flags);
 }
 
-std::optional<BuiltinID> CLBuiltinInfo::identifyBuiltin(
-    const Function &F) const {
+std::optional<BuiltinID>
+CLBuiltinInfo::identifyBuiltin(const Function &F) const {
   NameMangler Mangler(nullptr);
   const StringRef Name = F.getName();
   const CLBuiltinEntry *entry = Builtins;
@@ -937,8 +937,8 @@ BuiltinUniformity CLBuiltinInfo::isBuiltinUniform(const Builtin &,
   return eBuiltinUniformityLikeInputs;
 }
 
-std::optional<Builtin> CLBuiltinInfo::analyzeBuiltin(
-    const Function &Callee) const {
+std::optional<Builtin>
+CLBuiltinInfo::analyzeBuiltin(const Function &Callee) const {
   const auto ID = identifyBuiltin(Callee);
   if (!ID) {
     return std::nullopt;
@@ -947,277 +947,277 @@ std::optional<Builtin> CLBuiltinInfo::analyzeBuiltin(
   bool IsConvergent = false;
   unsigned Properties = eBuiltinPropertyNone;
   switch (*ID) {
-    default:
-      // Assume convergence on unknown builtins.
-      IsConvergent = true;
-      break;
-    case eBuiltinUnknown: {
-      // Assume convergence on unknown builtins.
-      IsConvergent = true;
-      // If we know that this is an OpenCL builtin, but we don't have any
-      // special information about it, we can determine if it has side effects
-      // or not by its return type and its paramaters. This depends on being
-      // able to identify all the "special" builtins, such as barriers and
-      // fences.
-      bool HasSideEffects = false;
+  default:
+    // Assume convergence on unknown builtins.
+    IsConvergent = true;
+    break;
+  case eBuiltinUnknown: {
+    // Assume convergence on unknown builtins.
+    IsConvergent = true;
+    // If we know that this is an OpenCL builtin, but we don't have any
+    // special information about it, we can determine if it has side effects
+    // or not by its return type and its paramaters. This depends on being
+    // able to identify all the "special" builtins, such as barriers and
+    // fences.
+    bool HasSideEffects = false;
 
-      // Void functions have side effects
-      if (Callee.getReturnType() == Type::getVoidTy(Callee.getContext())) {
+    // Void functions have side effects
+    if (Callee.getReturnType() == Type::getVoidTy(Callee.getContext())) {
+      HasSideEffects = true;
+    }
+    // Functions that take pointers probably have side effects
+    for (const auto &arg : Callee.args()) {
+      if (arg.getType()->isPointerTy()) {
         HasSideEffects = true;
       }
-      // Functions that take pointers probably have side effects
-      for (const auto &arg : Callee.args()) {
-        if (arg.getType()->isPointerTy()) {
-          HasSideEffects = true;
-        }
-      }
-      Properties |= HasSideEffects ? eBuiltinPropertySideEffects
-                                   : eBuiltinPropertyNoSideEffects;
-    } break;
-    case eCLBuiltinBarrier:
-      IsConvergent = true;
-      Properties |= eBuiltinPropertyExecutionFlow;
-      Properties |= eBuiltinPropertySideEffects;
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-    case eCLBuiltinMemFence:
-    case eCLBuiltinReadMemFence:
-    case eCLBuiltinWriteMemFence:
-      Properties |= eBuiltinPropertySupportsInstantiation;
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-    case eCLBuiltinPrintf:
-      Properties |= eBuiltinPropertySideEffects;
-      Properties |= eBuiltinPropertySupportsInstantiation;
-      break;
-    case eCLBuiltinAsyncWorkGroupCopy:
-    case eCLBuiltinAsyncWorkGroupStridedCopy:
-    case eCLBuiltinWaitGroupEvents:
-    case eCLBuiltinAsyncWorkGroupCopy2D2D:
-    case eCLBuiltinAsyncWorkGroupCopy3D3D:
-      // Our implementation of these builtins uses thread checks against
-      // specific work-item IDs, so they are convergent.
-      IsConvergent = true;
-      Properties |= eBuiltinPropertyNoSideEffects;
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-    case eCLBuiltinAtomicAdd:
-    case eCLBuiltinAtomicSub:
-    case eCLBuiltinAtomicXchg:
-    case eCLBuiltinAtomicInc:
-    case eCLBuiltinAtomicDec:
-    case eCLBuiltinAtomicCmpxchg:
-    case eCLBuiltinAtomicMin:
-    case eCLBuiltinAtomicMax:
-    case eCLBuiltinAtomicAnd:
-    case eCLBuiltinAtomicOr:
-    case eCLBuiltinAtomicXor:
-      Properties |= eBuiltinPropertySideEffects;
-      Properties |= eBuiltinPropertySupportsInstantiation;
-      Properties |= eBuiltinPropertyAtomic;
-      break;
-    case eCLBuiltinGetWorkDim:
-    case eCLBuiltinGetGroupId:
-    case eCLBuiltinGetGlobalSize:
-    case eCLBuiltinGetGlobalOffset:
-    case eCLBuiltinGetNumGroups:
-    case eCLBuiltinGetGlobalId:
-    case eCLBuiltinGetLocalSize:
-    case eCLBuiltinGetEnqueuedLocalSize:
-    case eCLBuiltinGetLocalLinearId:
-    case eCLBuiltinGetGlobalLinearId:
-    case eCLBuiltinGetSubgroupLocalId:
-      Properties |= eBuiltinPropertyWorkItem;
-      Properties |= eBuiltinPropertyRematerializable;
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-    case eCLBuiltinGetLocalId:
-      Properties |= eBuiltinPropertyWorkItem;
-      Properties |= eBuiltinPropertyLocalID;
-      Properties |= eBuiltinPropertyRematerializable;
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-    case eCLBuiltinDot:
-    case eCLBuiltinCross:
-    case eCLBuiltinFastDistance:
-    case eCLBuiltinFastLength:
-    case eCLBuiltinFastNormalize:
-      Properties |= eBuiltinPropertyReduction;
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinDistance:
-    case eCLBuiltinLength:
-    case eCLBuiltinNormalize:
-      Properties |= eBuiltinPropertyReduction;
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      // XXX The inline implementation seems to have precision issues. The dot
-      // product can overflow to +inf which results in the wrong result.
-      // See redmine #6427 and #9115
-      // Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinIsEqual:
-    case eCLBuiltinIsNotEqual:
-    case eCLBuiltinIsGreater:
-    case eCLBuiltinIsGreaterEqual:
-    case eCLBuiltinIsLess:
-    case eCLBuiltinIsLessEqual:
-    case eCLBuiltinIsLessGreater:
-    case eCLBuiltinIsOrdered:
-    case eCLBuiltinIsUnordered:
-    case eCLBuiltinIsFinite:
-    case eCLBuiltinIsInf:
-    case eCLBuiltinIsNan:
-    case eCLBuiltinIsNormal:
-    case eCLBuiltinSignBit:
-      // Scalar variants return '0' or '1', vector variants '0' or '111...1'.
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      Properties |= eBuiltinPropertySupportsInstantiation;
-      break;
-    case eCLBuiltinAny:
-    case eCLBuiltinAll:
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinFract:
-    case eCLBuiltinModF:
-    case eCLBuiltinSinCos:
-      Properties |= eBuiltinPropertyPointerReturnEqualRetTy;
-      break;
-    case eCLBuiltinFrexp:
-    case eCLBuiltinLGammaR:
-    case eCLBuiltinRemquo:
-      Properties |= eBuiltinPropertyPointerReturnEqualIntRetTy;
-      break;
-    case eCLBuiltinShuffle:
-    case eCLBuiltinShuffle2:
-      // While there are vector equivalents for these builtins, they require a
-      // modified mask, so we cannot use them by simply packetizing their
-      // arguments.
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinFMax:
-    case eCLBuiltinFMin:
-    case eCLBuiltinAddSat:
-    case eCLBuiltinSubSat:
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinConvertChar:
-    case eCLBuiltinConvertShort:
-    case eCLBuiltinConvertInt:
-    case eCLBuiltinConvertLong:
-    case eCLBuiltinConvertUChar:
-    case eCLBuiltinConvertUShort:
-    case eCLBuiltinConvertUInt:
-    case eCLBuiltinConvertULong:
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinVLoad:
-    case eCLBuiltinVLoadHalf:
-      Properties |= eBuiltinPropertyNoSideEffects;
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinVStore:
-    case eCLBuiltinVStoreHalf:
-      Properties |= eBuiltinPropertySideEffects;
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinSelect:
-    case eCLBuiltinAs:
-      // Some of these builtins do have vector equivalents, but since we can
-      // emit all variants inline, we mark them as having none for simplicity.
-      Properties |= eBuiltinPropertyNoVectorEquivalent;
-      Properties |= eBuiltinPropertyCanEmitInline;
-      break;
-    case eCLBuiltinWorkGroupBarrier:
-    case eCLBuiltinSubGroupBarrier:
-      IsConvergent = true;
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinAtomicWorkItemFence:
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-    case eCLBuiltinGetSubgroupSize:
-    case eCLBuiltinGetMaxSubgroupSize:
-    case eCLBuiltinGetNumSubgroups:
-    case eCLBuiltinGetEnqueuedNumSubgroups:
-    case eCLBuiltinGetSubgroupId:
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
-      // Subgroup collectives
-    case eCLBuiltinSubgroupAll:
-    case eCLBuiltinSubgroupAny:
-    case eCLBuiltinSubgroupBroadcast:
-    case eCLBuiltinSubgroupReduceAdd:
-    case eCLBuiltinSubgroupReduceMin:
-    case eCLBuiltinSubgroupReduceMax:
-    case eCLBuiltinSubgroupScanAddInclusive:
-    case eCLBuiltinSubgroupScanAddExclusive:
-    case eCLBuiltinSubgroupScanMinInclusive:
-    case eCLBuiltinSubgroupScanMinExclusive:
-    case eCLBuiltinSubgroupScanMaxInclusive:
-    case eCLBuiltinSubgroupScanMaxExclusive:
-    case eCLBuiltinSubgroupReduceMul:
-    case eCLBuiltinSubgroupReduceAnd:
-    case eCLBuiltinSubgroupReduceOr:
-    case eCLBuiltinSubgroupReduceXor:
-    case eCLBuiltinSubgroupReduceLogicalAnd:
-    case eCLBuiltinSubgroupReduceLogicalOr:
-    case eCLBuiltinSubgroupReduceLogicalXor:
-    case eCLBuiltinSubgroupScanMulInclusive:
-    case eCLBuiltinSubgroupScanMulExclusive:
-    case eCLBuiltinSubgroupScanAndInclusive:
-    case eCLBuiltinSubgroupScanAndExclusive:
-    case eCLBuiltinSubgroupScanOrInclusive:
-    case eCLBuiltinSubgroupScanOrExclusive:
-    case eCLBuiltinSubgroupScanXorInclusive:
-    case eCLBuiltinSubgroupScanXorExclusive:
-    case eCLBuiltinSubgroupScanLogicalAndInclusive:
-    case eCLBuiltinSubgroupScanLogicalAndExclusive:
-    case eCLBuiltinSubgroupScanLogicalOrInclusive:
-    case eCLBuiltinSubgroupScanLogicalOrExclusive:
-    case eCLBuiltinSubgroupScanLogicalXorInclusive:
-    case eCLBuiltinSubgroupScanLogicalXorExclusive:
-      // Work-group collectives
-    case eCLBuiltinWorkgroupAll:
-    case eCLBuiltinWorkgroupAny:
-    case eCLBuiltinWorkgroupBroadcast:
-    case eCLBuiltinWorkgroupReduceAdd:
-    case eCLBuiltinWorkgroupReduceMin:
-    case eCLBuiltinWorkgroupReduceMax:
-    case eCLBuiltinWorkgroupScanAddInclusive:
-    case eCLBuiltinWorkgroupScanAddExclusive:
-    case eCLBuiltinWorkgroupScanMinInclusive:
-    case eCLBuiltinWorkgroupScanMinExclusive:
-    case eCLBuiltinWorkgroupScanMaxInclusive:
-    case eCLBuiltinWorkgroupScanMaxExclusive:
-    case eCLBuiltinWorkgroupReduceMul:
-    case eCLBuiltinWorkgroupReduceAnd:
-    case eCLBuiltinWorkgroupReduceOr:
-    case eCLBuiltinWorkgroupReduceXor:
-    case eCLBuiltinWorkgroupReduceLogicalAnd:
-    case eCLBuiltinWorkgroupReduceLogicalOr:
-    case eCLBuiltinWorkgroupReduceLogicalXor:
-    case eCLBuiltinWorkgroupScanMulInclusive:
-    case eCLBuiltinWorkgroupScanMulExclusive:
-    case eCLBuiltinWorkgroupScanAndInclusive:
-    case eCLBuiltinWorkgroupScanAndExclusive:
-    case eCLBuiltinWorkgroupScanOrInclusive:
-    case eCLBuiltinWorkgroupScanOrExclusive:
-    case eCLBuiltinWorkgroupScanXorInclusive:
-    case eCLBuiltinWorkgroupScanXorExclusive:
-    case eCLBuiltinWorkgroupScanLogicalAndInclusive:
-    case eCLBuiltinWorkgroupScanLogicalAndExclusive:
-    case eCLBuiltinWorkgroupScanLogicalOrInclusive:
-    case eCLBuiltinWorkgroupScanLogicalOrExclusive:
-    case eCLBuiltinWorkgroupScanLogicalXorInclusive:
-    case eCLBuiltinWorkgroupScanLogicalXorExclusive:
-      IsConvergent = true;
-      Properties |= eBuiltinPropertyLowerToMuxBuiltin;
-      break;
+    }
+    Properties |= HasSideEffects ? eBuiltinPropertySideEffects
+                                 : eBuiltinPropertyNoSideEffects;
+  } break;
+  case eCLBuiltinBarrier:
+    IsConvergent = true;
+    Properties |= eBuiltinPropertyExecutionFlow;
+    Properties |= eBuiltinPropertySideEffects;
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+  case eCLBuiltinMemFence:
+  case eCLBuiltinReadMemFence:
+  case eCLBuiltinWriteMemFence:
+    Properties |= eBuiltinPropertySupportsInstantiation;
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+  case eCLBuiltinPrintf:
+    Properties |= eBuiltinPropertySideEffects;
+    Properties |= eBuiltinPropertySupportsInstantiation;
+    break;
+  case eCLBuiltinAsyncWorkGroupCopy:
+  case eCLBuiltinAsyncWorkGroupStridedCopy:
+  case eCLBuiltinWaitGroupEvents:
+  case eCLBuiltinAsyncWorkGroupCopy2D2D:
+  case eCLBuiltinAsyncWorkGroupCopy3D3D:
+    // Our implementation of these builtins uses thread checks against
+    // specific work-item IDs, so they are convergent.
+    IsConvergent = true;
+    Properties |= eBuiltinPropertyNoSideEffects;
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+  case eCLBuiltinAtomicAdd:
+  case eCLBuiltinAtomicSub:
+  case eCLBuiltinAtomicXchg:
+  case eCLBuiltinAtomicInc:
+  case eCLBuiltinAtomicDec:
+  case eCLBuiltinAtomicCmpxchg:
+  case eCLBuiltinAtomicMin:
+  case eCLBuiltinAtomicMax:
+  case eCLBuiltinAtomicAnd:
+  case eCLBuiltinAtomicOr:
+  case eCLBuiltinAtomicXor:
+    Properties |= eBuiltinPropertySideEffects;
+    Properties |= eBuiltinPropertySupportsInstantiation;
+    Properties |= eBuiltinPropertyAtomic;
+    break;
+  case eCLBuiltinGetWorkDim:
+  case eCLBuiltinGetGroupId:
+  case eCLBuiltinGetGlobalSize:
+  case eCLBuiltinGetGlobalOffset:
+  case eCLBuiltinGetNumGroups:
+  case eCLBuiltinGetGlobalId:
+  case eCLBuiltinGetLocalSize:
+  case eCLBuiltinGetEnqueuedLocalSize:
+  case eCLBuiltinGetLocalLinearId:
+  case eCLBuiltinGetGlobalLinearId:
+  case eCLBuiltinGetSubgroupLocalId:
+    Properties |= eBuiltinPropertyWorkItem;
+    Properties |= eBuiltinPropertyRematerializable;
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+  case eCLBuiltinGetLocalId:
+    Properties |= eBuiltinPropertyWorkItem;
+    Properties |= eBuiltinPropertyLocalID;
+    Properties |= eBuiltinPropertyRematerializable;
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+  case eCLBuiltinDot:
+  case eCLBuiltinCross:
+  case eCLBuiltinFastDistance:
+  case eCLBuiltinFastLength:
+  case eCLBuiltinFastNormalize:
+    Properties |= eBuiltinPropertyReduction;
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinDistance:
+  case eCLBuiltinLength:
+  case eCLBuiltinNormalize:
+    Properties |= eBuiltinPropertyReduction;
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    // XXX The inline implementation seems to have precision issues. The dot
+    // product can overflow to +inf which results in the wrong result.
+    // See redmine #6427 and #9115
+    // Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinIsEqual:
+  case eCLBuiltinIsNotEqual:
+  case eCLBuiltinIsGreater:
+  case eCLBuiltinIsGreaterEqual:
+  case eCLBuiltinIsLess:
+  case eCLBuiltinIsLessEqual:
+  case eCLBuiltinIsLessGreater:
+  case eCLBuiltinIsOrdered:
+  case eCLBuiltinIsUnordered:
+  case eCLBuiltinIsFinite:
+  case eCLBuiltinIsInf:
+  case eCLBuiltinIsNan:
+  case eCLBuiltinIsNormal:
+  case eCLBuiltinSignBit:
+    // Scalar variants return '0' or '1', vector variants '0' or '111...1'.
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    Properties |= eBuiltinPropertySupportsInstantiation;
+    break;
+  case eCLBuiltinAny:
+  case eCLBuiltinAll:
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinFract:
+  case eCLBuiltinModF:
+  case eCLBuiltinSinCos:
+    Properties |= eBuiltinPropertyPointerReturnEqualRetTy;
+    break;
+  case eCLBuiltinFrexp:
+  case eCLBuiltinLGammaR:
+  case eCLBuiltinRemquo:
+    Properties |= eBuiltinPropertyPointerReturnEqualIntRetTy;
+    break;
+  case eCLBuiltinShuffle:
+  case eCLBuiltinShuffle2:
+    // While there are vector equivalents for these builtins, they require a
+    // modified mask, so we cannot use them by simply packetizing their
+    // arguments.
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinFMax:
+  case eCLBuiltinFMin:
+  case eCLBuiltinAddSat:
+  case eCLBuiltinSubSat:
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinConvertChar:
+  case eCLBuiltinConvertShort:
+  case eCLBuiltinConvertInt:
+  case eCLBuiltinConvertLong:
+  case eCLBuiltinConvertUChar:
+  case eCLBuiltinConvertUShort:
+  case eCLBuiltinConvertUInt:
+  case eCLBuiltinConvertULong:
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinVLoad:
+  case eCLBuiltinVLoadHalf:
+    Properties |= eBuiltinPropertyNoSideEffects;
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinVStore:
+  case eCLBuiltinVStoreHalf:
+    Properties |= eBuiltinPropertySideEffects;
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinSelect:
+  case eCLBuiltinAs:
+    // Some of these builtins do have vector equivalents, but since we can
+    // emit all variants inline, we mark them as having none for simplicity.
+    Properties |= eBuiltinPropertyNoVectorEquivalent;
+    Properties |= eBuiltinPropertyCanEmitInline;
+    break;
+  case eCLBuiltinWorkGroupBarrier:
+  case eCLBuiltinSubGroupBarrier:
+    IsConvergent = true;
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinAtomicWorkItemFence:
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+  case eCLBuiltinGetSubgroupSize:
+  case eCLBuiltinGetMaxSubgroupSize:
+  case eCLBuiltinGetNumSubgroups:
+  case eCLBuiltinGetEnqueuedNumSubgroups:
+  case eCLBuiltinGetSubgroupId:
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
+    // Subgroup collectives
+  case eCLBuiltinSubgroupAll:
+  case eCLBuiltinSubgroupAny:
+  case eCLBuiltinSubgroupBroadcast:
+  case eCLBuiltinSubgroupReduceAdd:
+  case eCLBuiltinSubgroupReduceMin:
+  case eCLBuiltinSubgroupReduceMax:
+  case eCLBuiltinSubgroupScanAddInclusive:
+  case eCLBuiltinSubgroupScanAddExclusive:
+  case eCLBuiltinSubgroupScanMinInclusive:
+  case eCLBuiltinSubgroupScanMinExclusive:
+  case eCLBuiltinSubgroupScanMaxInclusive:
+  case eCLBuiltinSubgroupScanMaxExclusive:
+  case eCLBuiltinSubgroupReduceMul:
+  case eCLBuiltinSubgroupReduceAnd:
+  case eCLBuiltinSubgroupReduceOr:
+  case eCLBuiltinSubgroupReduceXor:
+  case eCLBuiltinSubgroupReduceLogicalAnd:
+  case eCLBuiltinSubgroupReduceLogicalOr:
+  case eCLBuiltinSubgroupReduceLogicalXor:
+  case eCLBuiltinSubgroupScanMulInclusive:
+  case eCLBuiltinSubgroupScanMulExclusive:
+  case eCLBuiltinSubgroupScanAndInclusive:
+  case eCLBuiltinSubgroupScanAndExclusive:
+  case eCLBuiltinSubgroupScanOrInclusive:
+  case eCLBuiltinSubgroupScanOrExclusive:
+  case eCLBuiltinSubgroupScanXorInclusive:
+  case eCLBuiltinSubgroupScanXorExclusive:
+  case eCLBuiltinSubgroupScanLogicalAndInclusive:
+  case eCLBuiltinSubgroupScanLogicalAndExclusive:
+  case eCLBuiltinSubgroupScanLogicalOrInclusive:
+  case eCLBuiltinSubgroupScanLogicalOrExclusive:
+  case eCLBuiltinSubgroupScanLogicalXorInclusive:
+  case eCLBuiltinSubgroupScanLogicalXorExclusive:
+    // Work-group collectives
+  case eCLBuiltinWorkgroupAll:
+  case eCLBuiltinWorkgroupAny:
+  case eCLBuiltinWorkgroupBroadcast:
+  case eCLBuiltinWorkgroupReduceAdd:
+  case eCLBuiltinWorkgroupReduceMin:
+  case eCLBuiltinWorkgroupReduceMax:
+  case eCLBuiltinWorkgroupScanAddInclusive:
+  case eCLBuiltinWorkgroupScanAddExclusive:
+  case eCLBuiltinWorkgroupScanMinInclusive:
+  case eCLBuiltinWorkgroupScanMinExclusive:
+  case eCLBuiltinWorkgroupScanMaxInclusive:
+  case eCLBuiltinWorkgroupScanMaxExclusive:
+  case eCLBuiltinWorkgroupReduceMul:
+  case eCLBuiltinWorkgroupReduceAnd:
+  case eCLBuiltinWorkgroupReduceOr:
+  case eCLBuiltinWorkgroupReduceXor:
+  case eCLBuiltinWorkgroupReduceLogicalAnd:
+  case eCLBuiltinWorkgroupReduceLogicalOr:
+  case eCLBuiltinWorkgroupReduceLogicalXor:
+  case eCLBuiltinWorkgroupScanMulInclusive:
+  case eCLBuiltinWorkgroupScanMulExclusive:
+  case eCLBuiltinWorkgroupScanAndInclusive:
+  case eCLBuiltinWorkgroupScanAndExclusive:
+  case eCLBuiltinWorkgroupScanOrInclusive:
+  case eCLBuiltinWorkgroupScanOrExclusive:
+  case eCLBuiltinWorkgroupScanXorInclusive:
+  case eCLBuiltinWorkgroupScanXorExclusive:
+  case eCLBuiltinWorkgroupScanLogicalAndInclusive:
+  case eCLBuiltinWorkgroupScanLogicalAndExclusive:
+  case eCLBuiltinWorkgroupScanLogicalOrInclusive:
+  case eCLBuiltinWorkgroupScanLogicalOrExclusive:
+  case eCLBuiltinWorkgroupScanLogicalXorInclusive:
+  case eCLBuiltinWorkgroupScanLogicalXorExclusive:
+    IsConvergent = true;
+    Properties |= eBuiltinPropertyLowerToMuxBuiltin;
+    break;
   }
 
   if (!IsConvergent) {
@@ -1270,8 +1270,8 @@ Function *CLBuiltinInfo::getVectorEquivalent(const Builtin &B, unsigned Width,
         Type *NewType = OldPtrTy;
         TypeQualifiers NewQuals;
         TypeQualifiers EleQuals = OldQuals;
-        NewQuals.push_back(EleQuals.pop_front());  // Pointer qualifier
-        NewQuals.push_back(eTypeQualNone);         // Vector qualifier
+        NewQuals.push_back(EleQuals.pop_front()); // Pointer qualifier
+        NewQuals.push_back(eTypeQualNone);        // Vector qualifier
         NewQuals.push_back(EleQuals);
 
         VectorTypes.push_back(NewType);
@@ -1286,8 +1286,8 @@ Function *CLBuiltinInfo::getVectorEquivalent(const Builtin &B, unsigned Width,
     }
     TypeQualifiers NewQuals;
     Type *NewType = FixedVectorType::get(OldTy, Width);
-    NewQuals.push_back(eTypeQualNone);  // Vector qualifier
-    NewQuals.push_back(OldQuals);       // Element qualifier
+    NewQuals.push_back(eTypeQualNone); // Vector qualifier
+    NewQuals.push_back(OldQuals);      // Element qualifier
 
     VectorTypes.push_back(NewType);
     VectorQuals.push_back(NewQuals);
@@ -1453,9 +1453,8 @@ Function *CLBuiltinInfo::getScalarEquivalent(const Builtin &B, Module *M) {
 /// (assumed builtin) Function is known to possess the given qualifier.
 /// @return true if the parameter is known to have the qualifier, false if not,
 /// and None on error.
-static std::optional<bool> paramHasTypeQual(const Function &F,
-                                            unsigned ParamIdx,
-                                            TypeQualifier Q) {
+static std::optional<bool>
+paramHasTypeQual(const Function &F, unsigned ParamIdx, TypeQualifier Q) {
   // Demangle the function name to get the type qualifiers.
   SmallVector<Type *, 2> Types;
   SmallVector<TypeQualifiers, 2> Quals;
@@ -1490,77 +1489,77 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
     // the source operand is signed or not. It is not possible to do this based
     // solely on the BuiltinID.
     switch (*BuiltinID) {
-        // 6.2 Explicit Conversions
-      case eCLBuiltinConvertChar:
-      case eCLBuiltinConvertShort:
-      case eCLBuiltinConvertInt:
-      case eCLBuiltinConvertLong:
-      case eCLBuiltinConvertUChar:
-      case eCLBuiltinConvertUShort:
-      case eCLBuiltinConvertUInt:
-      case eCLBuiltinConvertULong:
-        return emitBuiltinInlineConvert(F, *BuiltinID, B, Args);
-        // 6.12.3 Integer Functions
-      case eCLBuiltinAddSat:
-      case eCLBuiltinSubSat: {
-        std::optional<bool> IsParamSignedOrNone =
-            paramHasTypeQual(*F, 0, eTypeQualSignedInt);
-        if (!IsParamSignedOrNone.has_value()) {
-          return nullptr;
-        }
-        const bool IsSigned = *IsParamSignedOrNone;
-        const Intrinsic::ID IntrinsicOpc = [=] {
-          if (BuiltinID == eCLBuiltinSubSat) {
-            return IsSigned ? Intrinsic::ssub_sat : Intrinsic::usub_sat;
-          } else {
-            return IsSigned ? Intrinsic::sadd_sat : Intrinsic::uadd_sat;
-          }
-        }();
-        return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
-                                                      IntrinsicOpc);
+      // 6.2 Explicit Conversions
+    case eCLBuiltinConvertChar:
+    case eCLBuiltinConvertShort:
+    case eCLBuiltinConvertInt:
+    case eCLBuiltinConvertLong:
+    case eCLBuiltinConvertUChar:
+    case eCLBuiltinConvertUShort:
+    case eCLBuiltinConvertUInt:
+    case eCLBuiltinConvertULong:
+      return emitBuiltinInlineConvert(F, *BuiltinID, B, Args);
+      // 6.12.3 Integer Functions
+    case eCLBuiltinAddSat:
+    case eCLBuiltinSubSat: {
+      std::optional<bool> IsParamSignedOrNone =
+          paramHasTypeQual(*F, 0, eTypeQualSignedInt);
+      if (!IsParamSignedOrNone.has_value()) {
+        return nullptr;
       }
-      case eCLBuiltinVLoad: {
-        NameMangler Mangler(&F->getContext());
-        Lexer L(Mangler.demangleName(F->getName()));
-        if (L.Consume("vload")) {
-          unsigned Width = 0;
-          if (L.ConsumeInteger(Width)) {
-            return emitBuiltinInlineVLoad(F, Width, B, Args);
-          }
+      const bool IsSigned = *IsParamSignedOrNone;
+      const Intrinsic::ID IntrinsicOpc = [=] {
+        if (BuiltinID == eCLBuiltinSubSat) {
+          return IsSigned ? Intrinsic::ssub_sat : Intrinsic::usub_sat;
+        } else {
+          return IsSigned ? Intrinsic::sadd_sat : Intrinsic::uadd_sat;
         }
-      } break;
-      case eCLBuiltinVLoadHalf: {
-        NameMangler Mangler(&F->getContext());
-        const auto name = Mangler.demangleName(F->getName());
-        if (name == "vload_half") {
-          // TODO handle "vload_halfn"
-          return emitBuiltinInlineVLoadHalf(F, B, Args);
+      }();
+      return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
+                                                    IntrinsicOpc);
+    }
+    case eCLBuiltinVLoad: {
+      NameMangler Mangler(&F->getContext());
+      Lexer L(Mangler.demangleName(F->getName()));
+      if (L.Consume("vload")) {
+        unsigned Width = 0;
+        if (L.ConsumeInteger(Width)) {
+          return emitBuiltinInlineVLoad(F, Width, B, Args);
         }
-      } break;
-      case eCLBuiltinVStore: {
-        NameMangler Mangler(&F->getContext());
-        Lexer L(Mangler.demangleName(F->getName()));
-        if (L.Consume("vstore")) {
-          unsigned Width = 0;
-          if (L.ConsumeInteger(Width)) {
-            return emitBuiltinInlineVStore(F, Width, B, Args);
-          }
+      }
+    } break;
+    case eCLBuiltinVLoadHalf: {
+      NameMangler Mangler(&F->getContext());
+      const auto name = Mangler.demangleName(F->getName());
+      if (name == "vload_half") {
+        // TODO handle "vload_halfn"
+        return emitBuiltinInlineVLoadHalf(F, B, Args);
+      }
+    } break;
+    case eCLBuiltinVStore: {
+      NameMangler Mangler(&F->getContext());
+      Lexer L(Mangler.demangleName(F->getName()));
+      if (L.Consume("vstore")) {
+        unsigned Width = 0;
+        if (L.ConsumeInteger(Width)) {
+          return emitBuiltinInlineVStore(F, Width, B, Args);
         }
-      } break;
-      case eCLBuiltinVStoreHalf: {
-        NameMangler Mangler(&F->getContext());
-        Lexer L(Mangler.demangleName(F->getName()));
-        if (L.Consume("vstore_half")) {
-          // TODO handle "vstore_halfn"
-          return emitBuiltinInlineVStoreHalf(F, L.TextLeft(), B, Args);
-        }
-      } break;
-      case eCLBuiltinSelect:
-        return emitBuiltinInlineSelect(F, B, Args);
-      case eCLBuiltinAs:
-        return emitBuiltinInlineAs(F, B, Args);
-      default:
-        break;
+      }
+    } break;
+    case eCLBuiltinVStoreHalf: {
+      NameMangler Mangler(&F->getContext());
+      Lexer L(Mangler.demangleName(F->getName()));
+      if (L.Consume("vstore_half")) {
+        // TODO handle "vstore_halfn"
+        return emitBuiltinInlineVStoreHalf(F, L.TextLeft(), B, Args);
+      }
+    } break;
+    case eCLBuiltinSelect:
+      return emitBuiltinInlineSelect(F, B, Args);
+    case eCLBuiltinAs:
+      return emitBuiltinInlineAs(F, B, Args);
+    default:
+      break;
     }
     return emitBuiltinInline(*BuiltinID, B, Args);
   }
@@ -1571,54 +1570,54 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
 Value *CLBuiltinInfo::emitBuiltinInline(BuiltinID BuiltinID, IRBuilder<> &B,
                                         ArrayRef<Value *> Args) {
   switch (BuiltinID) {
-    default:
-      return nullptr;
+  default:
+    return nullptr;
 
-    case eCLBuiltinDot:
-    case eCLBuiltinCross:
-    case eCLBuiltinLength:
-    case eCLBuiltinDistance:
-    case eCLBuiltinNormalize:
-    case eCLBuiltinFastLength:
-    case eCLBuiltinFastDistance:
-    case eCLBuiltinFastNormalize:
-      return emitBuiltinInlineGeometrics(BuiltinID, B, Args);
-    // 6.12.2 Math Functions
-    case eCLBuiltinFMax:
-      return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
-                                                    llvm::Intrinsic::maxnum);
-    case eCLBuiltinFMin:
-      return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
-                                                    llvm::Intrinsic::minnum);
-    // 6.12.6 Relational Functions
-    case eCLBuiltinAll:
-      return emitBuiltinInlineAll(B, Args);
-    case eCLBuiltinAny:
-      return emitBuiltinInlineAny(B, Args);
-    case eCLBuiltinIsEqual:
-    case eCLBuiltinIsNotEqual:
-    case eCLBuiltinIsGreater:
-    case eCLBuiltinIsGreaterEqual:
-    case eCLBuiltinIsLess:
-    case eCLBuiltinIsLessEqual:
-    case eCLBuiltinIsLessGreater:
-    case eCLBuiltinIsOrdered:
-    case eCLBuiltinIsUnordered:
-      return emitBuiltinInlineRelationalsWithTwoArguments(BuiltinID, B, Args);
-    case eCLBuiltinIsFinite:
-    case eCLBuiltinIsInf:
-    case eCLBuiltinIsNan:
-    case eCLBuiltinIsNormal:
-    case eCLBuiltinSignBit:
-      assert(Args.size() == 1 && "Invalid number of arguments");
-      return emitBuiltinInlineRelationalsWithOneArgument(BuiltinID, B, Args[0]);
-    // 6.12.12 Miscellaneous Vector Functions
-    case eCLBuiltinShuffle:
-    case eCLBuiltinShuffle2:
-      return emitBuiltinInlineShuffle(BuiltinID, B, Args);
+  case eCLBuiltinDot:
+  case eCLBuiltinCross:
+  case eCLBuiltinLength:
+  case eCLBuiltinDistance:
+  case eCLBuiltinNormalize:
+  case eCLBuiltinFastLength:
+  case eCLBuiltinFastDistance:
+  case eCLBuiltinFastNormalize:
+    return emitBuiltinInlineGeometrics(BuiltinID, B, Args);
+  // 6.12.2 Math Functions
+  case eCLBuiltinFMax:
+    return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
+                                                  llvm::Intrinsic::maxnum);
+  case eCLBuiltinFMin:
+    return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
+                                                  llvm::Intrinsic::minnum);
+  // 6.12.6 Relational Functions
+  case eCLBuiltinAll:
+    return emitBuiltinInlineAll(B, Args);
+  case eCLBuiltinAny:
+    return emitBuiltinInlineAny(B, Args);
+  case eCLBuiltinIsEqual:
+  case eCLBuiltinIsNotEqual:
+  case eCLBuiltinIsGreater:
+  case eCLBuiltinIsGreaterEqual:
+  case eCLBuiltinIsLess:
+  case eCLBuiltinIsLessEqual:
+  case eCLBuiltinIsLessGreater:
+  case eCLBuiltinIsOrdered:
+  case eCLBuiltinIsUnordered:
+    return emitBuiltinInlineRelationalsWithTwoArguments(BuiltinID, B, Args);
+  case eCLBuiltinIsFinite:
+  case eCLBuiltinIsInf:
+  case eCLBuiltinIsNan:
+  case eCLBuiltinIsNormal:
+  case eCLBuiltinSignBit:
+    assert(Args.size() == 1 && "Invalid number of arguments");
+    return emitBuiltinInlineRelationalsWithOneArgument(BuiltinID, B, Args[0]);
+  // 6.12.12 Miscellaneous Vector Functions
+  case eCLBuiltinShuffle:
+  case eCLBuiltinShuffle2:
+    return emitBuiltinInlineShuffle(BuiltinID, B, Args);
 
-    case eCLBuiltinPrintf:
-      return emitBuiltinInlinePrintf(BuiltinID, B, Args);
+  case eCLBuiltinPrintf:
+    return emitBuiltinInlinePrintf(BuiltinID, B, Args);
   }
 }
 
@@ -1627,25 +1626,25 @@ Value *CLBuiltinInfo::emitBuiltinInlineGeometrics(BuiltinID BuiltinID,
                                                   ArrayRef<Value *> Args) {
   Value *Src = nullptr;
   switch (BuiltinID) {
-    default:
+  default:
+    return nullptr;
+  case eCLBuiltinDot:
+    return emitBuiltinInlineDot(B, Args);
+  case eCLBuiltinCross:
+    return emitBuiltinInlineCross(B, Args);
+  case eCLBuiltinLength:
+  case eCLBuiltinFastLength:
+    return emitBuiltinInlineLength(B, Args);
+  case eCLBuiltinDistance:
+  case eCLBuiltinFastDistance:
+    if (Args.size() != 2) {
       return nullptr;
-    case eCLBuiltinDot:
-      return emitBuiltinInlineDot(B, Args);
-    case eCLBuiltinCross:
-      return emitBuiltinInlineCross(B, Args);
-    case eCLBuiltinLength:
-    case eCLBuiltinFastLength:
-      return emitBuiltinInlineLength(B, Args);
-    case eCLBuiltinDistance:
-    case eCLBuiltinFastDistance:
-      if (Args.size() != 2) {
-        return nullptr;
-      }
-      Src = B.CreateFSub(Args[0], Args[1], "distance");
-      return emitBuiltinInlineLength(B, ArrayRef<Value *>(&Src, 1));
-    case eCLBuiltinNormalize:
-    case eCLBuiltinFastNormalize:
-      return emitBuiltinInlineNormalize(B, Args);
+    }
+    Src = B.CreateFSub(Args[0], Args[1], "distance");
+    return emitBuiltinInlineLength(B, ArrayRef<Value *>(&Src, 1));
+  case eCLBuiltinNormalize:
+  case eCLBuiltinFastNormalize:
+    return emitBuiltinInlineNormalize(B, Args);
   }
 }
 
@@ -2064,33 +2063,33 @@ Value *CLBuiltinInfo::emitBuiltinInlineConvert(Function *F, BuiltinID builtinID,
   bool DstIsSigned = false;
   auto &Ctx = B.getContext();
   switch (builtinID) {
-    case eCLBuiltinConvertChar:
-      DstIsSigned = true;
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinConvertUChar:
-      DstTy = IntegerType::getInt8Ty(Ctx);
-      break;
-    case eCLBuiltinConvertShort:
-      DstIsSigned = true;
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinConvertUShort:
-      DstTy = IntegerType::getInt16Ty(Ctx);
-      break;
-    case eCLBuiltinConvertInt:
-      DstIsSigned = true;
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinConvertUInt:
-      DstTy = IntegerType::getInt32Ty(Ctx);
-      break;
-    case eCLBuiltinConvertLong:
-      DstIsSigned = true;
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinConvertULong:
-      DstTy = IntegerType::getInt64Ty(Ctx);
-      break;
+  case eCLBuiltinConvertChar:
+    DstIsSigned = true;
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinConvertUChar:
+    DstTy = IntegerType::getInt8Ty(Ctx);
+    break;
+  case eCLBuiltinConvertShort:
+    DstIsSigned = true;
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinConvertUShort:
+    DstTy = IntegerType::getInt16Ty(Ctx);
+    break;
+  case eCLBuiltinConvertInt:
+    DstIsSigned = true;
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinConvertUInt:
+    DstTy = IntegerType::getInt32Ty(Ctx);
+    break;
+  case eCLBuiltinConvertLong:
+    DstIsSigned = true;
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinConvertULong:
+    DstTy = IntegerType::getInt64Ty(Ctx);
+    break;
 
-    default:
-      return nullptr;
+  default:
+    return nullptr;
   }
   if (!DstTy) {
     return nullptr;
@@ -2357,36 +2356,36 @@ Value *CLBuiltinInfo::emitBuiltinInlineRelationalsWithTwoArguments(
   CmpInst::Predicate Pred = CmpInst::FCMP_FALSE;
   CmpInst::Predicate Pred2 = CmpInst::FCMP_FALSE;
   switch (BuiltinID) {
-    default:
-      return nullptr;
-    case eCLBuiltinIsEqual:
-      Pred = CmpInst::FCMP_OEQ;
-      break;
-    case eCLBuiltinIsNotEqual:
-      Pred = CmpInst::FCMP_UNE;
-      break;
-    case eCLBuiltinIsGreater:
-      Pred = CmpInst::FCMP_OGT;
-      break;
-    case eCLBuiltinIsGreaterEqual:
-      Pred = CmpInst::FCMP_OGE;
-      break;
-    case eCLBuiltinIsLess:
-      Pred = CmpInst::FCMP_OLT;
-      break;
-    case eCLBuiltinIsLessEqual:
-      Pred = CmpInst::FCMP_OLE;
-      break;
-    case eCLBuiltinIsLessGreater:
-      Pred = CmpInst::FCMP_OLT;
-      Pred2 = CmpInst::FCMP_OGT;
-      break;
-    case eCLBuiltinIsOrdered:
-      Pred = CmpInst::FCMP_ORD;
-      break;
-    case eCLBuiltinIsUnordered:
-      Pred = CmpInst::FCMP_UNO;
-      break;
+  default:
+    return nullptr;
+  case eCLBuiltinIsEqual:
+    Pred = CmpInst::FCMP_OEQ;
+    break;
+  case eCLBuiltinIsNotEqual:
+    Pred = CmpInst::FCMP_UNE;
+    break;
+  case eCLBuiltinIsGreater:
+    Pred = CmpInst::FCMP_OGT;
+    break;
+  case eCLBuiltinIsGreaterEqual:
+    Pred = CmpInst::FCMP_OGE;
+    break;
+  case eCLBuiltinIsLess:
+    Pred = CmpInst::FCMP_OLT;
+    break;
+  case eCLBuiltinIsLessEqual:
+    Pred = CmpInst::FCMP_OLE;
+    break;
+  case eCLBuiltinIsLessGreater:
+    Pred = CmpInst::FCMP_OLT;
+    Pred2 = CmpInst::FCMP_OGT;
+    break;
+  case eCLBuiltinIsOrdered:
+    Pred = CmpInst::FCMP_ORD;
+    break;
+  case eCLBuiltinIsUnordered:
+    Pred = CmpInst::FCMP_UNO;
+    break;
   }
 
   if (Args.size() != 2) {
@@ -2496,39 +2495,39 @@ Value *CLBuiltinInfo::emitBuiltinInlineRelationalsWithOneArgument(
 
   // Emit the IR that will calculate the result
   switch (BuiltinID) {
-    default:
-      llvm_unreachable("Invalid Builtin ID");
-      break;
-    case eCLBuiltinIsFinite:
-      Result = B.CreateAnd(STArg, NonSignMask);
-      Result = B.CreateICmpSLT(Result, ExponentMask);
-      break;
-    case eCLBuiltinIsInf:
-      Result = B.CreateAnd(STArg, NonSignMask);
-      Result = B.CreateICmpEQ(Result, ExponentMask);
-      break;
-    case eCLBuiltinIsNan: {
-      Result = B.CreateAnd(STArg, NonSignMask);
-      // This checks if the exponent is all ones (the same as the ExponentMask)
-      // and also if the significant (the mantissa) is not zero. If the mantissa
-      // is zero then it would be infinite, not NaN.
-      Value *ExponentAllOnes =
-          B.CreateICmpEQ(ExponentMask, B.CreateAnd(ExponentMask, Result));
-      Value *MantissaNotZero =
-          B.CreateICmpSGT(B.CreateAnd(MantissaMask, Result), Zero);
-      Result = B.CreateAnd(ExponentAllOnes, MantissaNotZero);
-      break;
-    }
-    case eCLBuiltinIsNormal: {
-      Result = B.CreateAnd(STArg, NonSignMask);
-      Value *ExponentBitsNotAllSet = B.CreateICmpSLT(Result, ExponentMask);
-      Value *ExponentBitsNonZero = B.CreateICmpSGT(Result, MantissaMask);
-      Result = B.CreateAnd(ExponentBitsNotAllSet, ExponentBitsNonZero);
-      break;
-    }
-    case eCLBuiltinSignBit:
-      Result = B.CreateICmpSLT(STArg, Zero);
-      break;
+  default:
+    llvm_unreachable("Invalid Builtin ID");
+    break;
+  case eCLBuiltinIsFinite:
+    Result = B.CreateAnd(STArg, NonSignMask);
+    Result = B.CreateICmpSLT(Result, ExponentMask);
+    break;
+  case eCLBuiltinIsInf:
+    Result = B.CreateAnd(STArg, NonSignMask);
+    Result = B.CreateICmpEQ(Result, ExponentMask);
+    break;
+  case eCLBuiltinIsNan: {
+    Result = B.CreateAnd(STArg, NonSignMask);
+    // This checks if the exponent is all ones (the same as the ExponentMask)
+    // and also if the significant (the mantissa) is not zero. If the mantissa
+    // is zero then it would be infinite, not NaN.
+    Value *ExponentAllOnes =
+        B.CreateICmpEQ(ExponentMask, B.CreateAnd(ExponentMask, Result));
+    Value *MantissaNotZero =
+        B.CreateICmpSGT(B.CreateAnd(MantissaMask, Result), Zero);
+    Result = B.CreateAnd(ExponentAllOnes, MantissaNotZero);
+    break;
+  }
+  case eCLBuiltinIsNormal: {
+    Result = B.CreateAnd(STArg, NonSignMask);
+    Value *ExponentBitsNotAllSet = B.CreateICmpSLT(Result, ExponentMask);
+    Value *ExponentBitsNonZero = B.CreateICmpSGT(Result, MantissaMask);
+    Result = B.CreateAnd(ExponentBitsNotAllSet, ExponentBitsNonZero);
+    break;
+  }
+  case eCLBuiltinSignBit:
+    Result = B.CreateICmpSLT(STArg, Zero);
+    break;
   }
 
   // Convert the i1 result from the comparison instruction to the type that the
@@ -2649,17 +2648,17 @@ static std::optional<unsigned> parseMemFenceFlagsParam(Value *const P) {
     // cl_mem_fence_flags is a bitfield and can be 0 or a combination of
     // CLK_(GLOBAL|LOCAL|IMAGE)_MEM_FENCE values ORed together.
     switch (Flags->getZExtValue()) {
-      case 0:
-        return std::nullopt;
-      case CLK_LOCAL_MEM_FENCE:
-        return BIMuxInfoConcept::MemSemanticsWorkGroupMemory;
-      case CLK_GLOBAL_MEM_FENCE:
-        return BIMuxInfoConcept::MemSemanticsCrossWorkGroupMemory;
-      case CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE:
-        return (BIMuxInfoConcept::MemSemanticsWorkGroupMemory |
-                BIMuxInfoConcept::MemSemanticsCrossWorkGroupMemory);
-      default:
-        llvm_unreachable("unhandled memory fence flags");
+    case 0:
+      return std::nullopt;
+    case CLK_LOCAL_MEM_FENCE:
+      return BIMuxInfoConcept::MemSemanticsWorkGroupMemory;
+    case CLK_GLOBAL_MEM_FENCE:
+      return BIMuxInfoConcept::MemSemanticsCrossWorkGroupMemory;
+    case CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE:
+      return (BIMuxInfoConcept::MemSemanticsWorkGroupMemory |
+              BIMuxInfoConcept::MemSemanticsCrossWorkGroupMemory);
+    default:
+      llvm_unreachable("unhandled memory fence flags");
     }
   }
   return std::nullopt;
@@ -2668,21 +2667,21 @@ static std::optional<unsigned> parseMemFenceFlagsParam(Value *const P) {
 static std::optional<unsigned> parseMemoryScopeParam(Value *const P) {
   if (auto *const Scope = dyn_cast<ConstantInt>(P)) {
     switch (Scope->getZExtValue()) {
-      case memory_scope_work_item:
-        return BIMuxInfoConcept::MemScopeWorkItem;
-      case memory_scope_sub_group:
-        return BIMuxInfoConcept::MemScopeSubGroup;
-      case memory_scope_work_group:
-        return BIMuxInfoConcept::MemScopeWorkGroup;
-      case memory_scope_device:
-        return BIMuxInfoConcept::MemScopeDevice;
-      // 3.3.5. memory_scope_all_devices is an alias for
-      // memory_scope_all_svm_devices.
-      case memory_scope_all_devices:
-      case memory_scope_all_svm_devices:
-        return BIMuxInfoConcept::MemScopeCrossDevice;
-      default:
-        llvm_unreachable("unhandled memory scope");
+    case memory_scope_work_item:
+      return BIMuxInfoConcept::MemScopeWorkItem;
+    case memory_scope_sub_group:
+      return BIMuxInfoConcept::MemScopeSubGroup;
+    case memory_scope_work_group:
+      return BIMuxInfoConcept::MemScopeWorkGroup;
+    case memory_scope_device:
+      return BIMuxInfoConcept::MemScopeDevice;
+    // 3.3.5. memory_scope_all_devices is an alias for
+    // memory_scope_all_svm_devices.
+    case memory_scope_all_devices:
+    case memory_scope_all_svm_devices:
+      return BIMuxInfoConcept::MemScopeCrossDevice;
+    default:
+      llvm_unreachable("unhandled memory scope");
     }
   }
   return std::nullopt;
@@ -2691,18 +2690,18 @@ static std::optional<unsigned> parseMemoryScopeParam(Value *const P) {
 static std::optional<unsigned> parseMemoryOrderParam(Value *const P) {
   if (auto *const Order = dyn_cast<ConstantInt>(P)) {
     switch (Order->getZExtValue()) {
-      case memory_order_relaxed:
-        return BIMuxInfoConcept::MemSemanticsRelaxed;
-      case memory_order_acquire:
-        return BIMuxInfoConcept::MemSemanticsAcquire;
-      case memory_order_release:
-        return BIMuxInfoConcept::MemSemanticsRelease;
-      case memory_order_acq_rel:
-        return BIMuxInfoConcept::MemSemanticsAcquireRelease;
-      case memory_order_seq_cst:
-        return BIMuxInfoConcept::MemSemanticsSequentiallyConsistent;
-      default:
-        llvm_unreachable("unhandled memory order");
+    case memory_order_relaxed:
+      return BIMuxInfoConcept::MemSemanticsRelaxed;
+    case memory_order_acquire:
+      return BIMuxInfoConcept::MemSemanticsAcquire;
+    case memory_order_release:
+      return BIMuxInfoConcept::MemSemanticsRelease;
+    case memory_order_acq_rel:
+      return BIMuxInfoConcept::MemSemanticsAcquireRelease;
+    case memory_order_seq_cst:
+      return BIMuxInfoConcept::MemSemanticsSequentiallyConsistent;
+    default:
+      llvm_unreachable("unhandled memory order");
     }
   }
   return std::nullopt;
@@ -2713,50 +2712,51 @@ static std::optional<unsigned> parseMemoryOrderParam(Value *const P) {
 // are identical.
 static std::optional<BuiltinID> get1To1BuiltinLowering(BuiltinID CLBuiltinID) {
   switch (CLBuiltinID) {
-    default:
-      return std::nullopt;
-    case eCLBuiltinGetWorkDim:
-      return eMuxBuiltinGetWorkDim;
-    case eCLBuiltinGetGroupId:
-      return eMuxBuiltinGetGroupId;
-    case eCLBuiltinGetGlobalSize:
-      return eMuxBuiltinGetGlobalSize;
-    case eCLBuiltinGetGlobalOffset:
-      return eMuxBuiltinGetGlobalOffset;
-    case eCLBuiltinGetLocalId:
-      return eMuxBuiltinGetLocalId;
-    case eCLBuiltinGetLocalSize:
-      return eMuxBuiltinGetLocalSize;
-    case eCLBuiltinGetEnqueuedLocalSize:
-      return eMuxBuiltinGetEnqueuedLocalSize;
-    case eCLBuiltinGetNumGroups:
-      return eMuxBuiltinGetNumGroups;
-    case eCLBuiltinGetGlobalId:
-      return eMuxBuiltinGetGlobalId;
-    case eCLBuiltinGetLocalLinearId:
-      return eMuxBuiltinGetLocalLinearId;
-    case eCLBuiltinGetGlobalLinearId:
-      return eMuxBuiltinGetGlobalLinearId;
-    case eCLBuiltinGetSubgroupSize:
-      return eMuxBuiltinGetSubGroupSize;
-    case eCLBuiltinGetMaxSubgroupSize:
-      return eMuxBuiltinGetMaxSubGroupSize;
-    case eCLBuiltinGetSubgroupLocalId:
-      return eMuxBuiltinGetSubGroupLocalId;
-    case eCLBuiltinGetNumSubgroups:
-      return eMuxBuiltinGetNumSubGroups;
-    case eCLBuiltinGetEnqueuedNumSubgroups:
-      // Note - this is mapping to the same builtin as
-      // eCLBuiltinGetNumSubgroups, as we don't currently support
-      // non-uniform work-group sizes.
-      return eMuxBuiltinGetNumSubGroups;
-    case eCLBuiltinGetSubgroupId:
-      return eMuxBuiltinGetSubGroupId;
+  default:
+    return std::nullopt;
+  case eCLBuiltinGetWorkDim:
+    return eMuxBuiltinGetWorkDim;
+  case eCLBuiltinGetGroupId:
+    return eMuxBuiltinGetGroupId;
+  case eCLBuiltinGetGlobalSize:
+    return eMuxBuiltinGetGlobalSize;
+  case eCLBuiltinGetGlobalOffset:
+    return eMuxBuiltinGetGlobalOffset;
+  case eCLBuiltinGetLocalId:
+    return eMuxBuiltinGetLocalId;
+  case eCLBuiltinGetLocalSize:
+    return eMuxBuiltinGetLocalSize;
+  case eCLBuiltinGetEnqueuedLocalSize:
+    return eMuxBuiltinGetEnqueuedLocalSize;
+  case eCLBuiltinGetNumGroups:
+    return eMuxBuiltinGetNumGroups;
+  case eCLBuiltinGetGlobalId:
+    return eMuxBuiltinGetGlobalId;
+  case eCLBuiltinGetLocalLinearId:
+    return eMuxBuiltinGetLocalLinearId;
+  case eCLBuiltinGetGlobalLinearId:
+    return eMuxBuiltinGetGlobalLinearId;
+  case eCLBuiltinGetSubgroupSize:
+    return eMuxBuiltinGetSubGroupSize;
+  case eCLBuiltinGetMaxSubgroupSize:
+    return eMuxBuiltinGetMaxSubGroupSize;
+  case eCLBuiltinGetSubgroupLocalId:
+    return eMuxBuiltinGetSubGroupLocalId;
+  case eCLBuiltinGetNumSubgroups:
+    return eMuxBuiltinGetNumSubGroups;
+  case eCLBuiltinGetEnqueuedNumSubgroups:
+    // Note - this is mapping to the same builtin as
+    // eCLBuiltinGetNumSubgroups, as we don't currently support
+    // non-uniform work-group sizes.
+    return eMuxBuiltinGetNumSubGroups;
+  case eCLBuiltinGetSubgroupId:
+    return eMuxBuiltinGetSubGroupId;
   }
 }
 
-Instruction *CLBuiltinInfo::lowerBuiltinToMuxBuiltin(
-    CallInst &CI, BIMuxInfoConcept &BIMuxImpl) {
+Instruction *
+CLBuiltinInfo::lowerBuiltinToMuxBuiltin(CallInst &CI,
+                                        BIMuxInfoConcept &BIMuxImpl) {
   auto &M = *CI.getModule();
   auto *const F = CI.getCalledFunction();
   if (!F) {
@@ -2789,111 +2789,108 @@ Instruction *CLBuiltinInfo::lowerBuiltinToMuxBuiltin(
       BIMuxInfoConcept::MemSemanticsSequentiallyConsistent;
 
   switch (*ID) {
-    default:
-      // Sub-group and work-group builtins need lowering to their mux
-      // equivalents.
-      if (auto *const NewI =
-              lowerGroupBuiltinToMuxBuiltin(CI, *ID, BIMuxImpl)) {
-        return NewI;
-      }
-      return nullptr;
-    case eCLBuiltinSubGroupBarrier:
-      CtrlBarrierID = eMuxBuiltinSubGroupBarrier;
-      DefaultMemScope = BIMuxInfoConcept::MemScopeSubGroup;
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinBarrier:
-    case eCLBuiltinWorkGroupBarrier: {
-      // Memory Scope which the barrier controls. Defaults to 'workgroup' or
-      // 'subgroup' scope depending on the barrier, but sub_group_barrier and
-      // work_group_barrier can optionally provide a scope.
-      unsigned ScopeVal = DefaultMemScope;
-      if ((ID == eCLBuiltinSubGroupBarrier ||
-           ID == eCLBuiltinWorkGroupBarrier) &&
-          F->arg_size() == 2) {
-        if (auto Scope = parseMemoryScopeParam(CI.getOperand(1))) {
-          ScopeVal = *Scope;
-        }
-      }
-
-      const unsigned SemanticsVal =
-          DefaultMemOrder |
-          parseMemFenceFlagsParam(CI.getOperand(0)).value_or(0);
-
-      auto *const CtrlBarrier =
-          BIMuxImpl.getOrDeclareMuxBuiltin(CtrlBarrierID, M);
-
-      auto *const BarrierID = ConstantInt::get(I32Ty, 0);
-      auto *const Scope = ConstantInt::get(I32Ty, ScopeVal);
-      auto *const Semantics = ConstantInt::get(I32Ty, SemanticsVal);
-      auto *const NewCI = B.CreateCall(
-          CtrlBarrier, {BarrierID, Scope, Semantics}, CI.getName());
-      NewCI->setAttributes(CtrlBarrier->getAttributes());
-      NewCI->takeName(&CI);
-      return NewCI;
+  default:
+    // Sub-group and work-group builtins need lowering to their mux
+    // equivalents.
+    if (auto *const NewI = lowerGroupBuiltinToMuxBuiltin(CI, *ID, BIMuxImpl)) {
+      return NewI;
     }
-    case eCLBuiltinAtomicWorkItemFence:
-      // atomic_work_item_fence has two parameters which we can parse.
-      DefaultMemOrder =
-          parseMemoryOrderParam(CI.getOperand(1)).value_or(DefaultMemOrder);
-      DefaultMemScope =
-          parseMemoryScopeParam(CI.getOperand(2)).value_or(DefaultMemScope);
-      LLVM_FALLTHROUGH;
-    case eCLBuiltinMemFence:
-    case eCLBuiltinReadMemFence:
-    case eCLBuiltinWriteMemFence: {
-      // The deprecated 'fence' builtins default to memory_scope_work_group and
-      // have one possible order each.
-      if (ID == eCLBuiltinMemFence) {
-        DefaultMemOrder = BIMuxInfoConcept::MemSemanticsAcquireRelease;
-      } else if (ID == eCLBuiltinReadMemFence) {
-        DefaultMemOrder = BIMuxInfoConcept::MemSemanticsAcquire;
-      } else if (ID == eCLBuiltinWriteMemFence) {
-        DefaultMemOrder = BIMuxInfoConcept::MemSemanticsRelease;
+    return nullptr;
+  case eCLBuiltinSubGroupBarrier:
+    CtrlBarrierID = eMuxBuiltinSubGroupBarrier;
+    DefaultMemScope = BIMuxInfoConcept::MemScopeSubGroup;
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinBarrier:
+  case eCLBuiltinWorkGroupBarrier: {
+    // Memory Scope which the barrier controls. Defaults to 'workgroup' or
+    // 'subgroup' scope depending on the barrier, but sub_group_barrier and
+    // work_group_barrier can optionally provide a scope.
+    unsigned ScopeVal = DefaultMemScope;
+    if ((ID == eCLBuiltinSubGroupBarrier || ID == eCLBuiltinWorkGroupBarrier) &&
+        F->arg_size() == 2) {
+      if (auto Scope = parseMemoryScopeParam(CI.getOperand(1))) {
+        ScopeVal = *Scope;
       }
-      const unsigned SemanticsVal =
-          DefaultMemOrder |
-          parseMemFenceFlagsParam(CI.getOperand(0)).value_or(0);
-      auto *const MemBarrier =
-          BIMuxImpl.getOrDeclareMuxBuiltin(eMuxBuiltinMemBarrier, M);
-      auto *const Scope = ConstantInt::get(I32Ty, DefaultMemScope);
-      auto *const Semantics = ConstantInt::get(I32Ty, SemanticsVal);
-      auto *const NewCI =
-          B.CreateCall(MemBarrier, {Scope, Semantics}, CI.getName());
-      NewCI->setAttributes(MemBarrier->getAttributes());
-      NewCI->takeName(&CI);
-      return NewCI;
     }
-    case eCLBuiltinAsyncWorkGroupCopy:
-    case eCLBuiltinAsyncWorkGroupStridedCopy:
-    case eCLBuiltinAsyncWorkGroupCopy2D2D:
-    case eCLBuiltinAsyncWorkGroupCopy3D3D:
-      return lowerAsyncBuiltinToMuxBuiltin(CI, *ID, BIMuxImpl);
-    case eCLBuiltinWaitGroupEvents: {
-      auto *const MuxWait =
-          BIMuxImpl.getOrDeclareMuxBuiltin(eMuxBuiltinDMAWait, M);
-      assert(MuxWait && "Could not get/declare __mux_dma_wait");
-      auto *const Count = CI.getArgOperand(0);
-      auto *Events = CI.getArgOperand(1);
 
-      assert(Events->getType()->isPointerTy() &&
-             (Events->getType()->getPointerAddressSpace() ==
-                  compiler::utils::AddressSpace::Private ||
-              Events->getType()->getPointerAddressSpace() ==
-                  compiler::utils::AddressSpace::Generic) &&
-             "Pointer to event must be in address space 0 or 4.");
+    const unsigned SemanticsVal =
+        DefaultMemOrder | parseMemFenceFlagsParam(CI.getOperand(0)).value_or(0);
 
-      Events = B.CreatePointerBitCastOrAddrSpaceCast(
-          Events, PointerType::getUnqual(Ctx), "mux.events");
-      auto *const NewCI = B.CreateCall(MuxWait, {Count, Events}, CI.getName());
-      NewCI->setAttributes(MuxWait->getAttributes());
-      NewCI->takeName(&CI);
-      return NewCI;
+    auto *const CtrlBarrier =
+        BIMuxImpl.getOrDeclareMuxBuiltin(CtrlBarrierID, M);
+
+    auto *const BarrierID = ConstantInt::get(I32Ty, 0);
+    auto *const Scope = ConstantInt::get(I32Ty, ScopeVal);
+    auto *const Semantics = ConstantInt::get(I32Ty, SemanticsVal);
+    auto *const NewCI =
+        B.CreateCall(CtrlBarrier, {BarrierID, Scope, Semantics}, CI.getName());
+    NewCI->setAttributes(CtrlBarrier->getAttributes());
+    NewCI->takeName(&CI);
+    return NewCI;
+  }
+  case eCLBuiltinAtomicWorkItemFence:
+    // atomic_work_item_fence has two parameters which we can parse.
+    DefaultMemOrder =
+        parseMemoryOrderParam(CI.getOperand(1)).value_or(DefaultMemOrder);
+    DefaultMemScope =
+        parseMemoryScopeParam(CI.getOperand(2)).value_or(DefaultMemScope);
+    LLVM_FALLTHROUGH;
+  case eCLBuiltinMemFence:
+  case eCLBuiltinReadMemFence:
+  case eCLBuiltinWriteMemFence: {
+    // The deprecated 'fence' builtins default to memory_scope_work_group and
+    // have one possible order each.
+    if (ID == eCLBuiltinMemFence) {
+      DefaultMemOrder = BIMuxInfoConcept::MemSemanticsAcquireRelease;
+    } else if (ID == eCLBuiltinReadMemFence) {
+      DefaultMemOrder = BIMuxInfoConcept::MemSemanticsAcquire;
+    } else if (ID == eCLBuiltinWriteMemFence) {
+      DefaultMemOrder = BIMuxInfoConcept::MemSemanticsRelease;
     }
+    const unsigned SemanticsVal =
+        DefaultMemOrder | parseMemFenceFlagsParam(CI.getOperand(0)).value_or(0);
+    auto *const MemBarrier =
+        BIMuxImpl.getOrDeclareMuxBuiltin(eMuxBuiltinMemBarrier, M);
+    auto *const Scope = ConstantInt::get(I32Ty, DefaultMemScope);
+    auto *const Semantics = ConstantInt::get(I32Ty, SemanticsVal);
+    auto *const NewCI =
+        B.CreateCall(MemBarrier, {Scope, Semantics}, CI.getName());
+    NewCI->setAttributes(MemBarrier->getAttributes());
+    NewCI->takeName(&CI);
+    return NewCI;
+  }
+  case eCLBuiltinAsyncWorkGroupCopy:
+  case eCLBuiltinAsyncWorkGroupStridedCopy:
+  case eCLBuiltinAsyncWorkGroupCopy2D2D:
+  case eCLBuiltinAsyncWorkGroupCopy3D3D:
+    return lowerAsyncBuiltinToMuxBuiltin(CI, *ID, BIMuxImpl);
+  case eCLBuiltinWaitGroupEvents: {
+    auto *const MuxWait =
+        BIMuxImpl.getOrDeclareMuxBuiltin(eMuxBuiltinDMAWait, M);
+    assert(MuxWait && "Could not get/declare __mux_dma_wait");
+    auto *const Count = CI.getArgOperand(0);
+    auto *Events = CI.getArgOperand(1);
+
+    assert(Events->getType()->isPointerTy() &&
+           (Events->getType()->getPointerAddressSpace() ==
+                compiler::utils::AddressSpace::Private ||
+            Events->getType()->getPointerAddressSpace() ==
+                compiler::utils::AddressSpace::Generic) &&
+           "Pointer to event must be in address space 0 or 4.");
+
+    Events = B.CreatePointerBitCastOrAddrSpaceCast(
+        Events, PointerType::getUnqual(Ctx), "mux.events");
+    auto *const NewCI = B.CreateCall(MuxWait, {Count, Events}, CI.getName());
+    NewCI->setAttributes(MuxWait->getAttributes());
+    NewCI->takeName(&CI);
+    return NewCI;
+  }
   }
 }
 
-Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
-    CallInst &CI, BuiltinID ID, BIMuxInfoConcept &BIMuxImpl) {
+Instruction *
+CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(CallInst &CI, BuiltinID ID,
+                                             BIMuxInfoConcept &BIMuxImpl) {
   auto &M = *CI.getModule();
   auto *const F = CI.getCalledFunction();
   assert(F && "No calling function?");
@@ -2907,230 +2904,230 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
   bool RecheckOpType = false;
   BaseBuiltinID MuxBuiltinID;
   switch (ID) {
-    default:
-      return nullptr;
-    case eCLBuiltinSubgroupAll:
-      MuxBuiltinID = eMuxBuiltinSubgroupAll;
-      break;
-    case eCLBuiltinSubgroupAny:
-      MuxBuiltinID = eMuxBuiltinSubgroupAny;
-      break;
-    case eCLBuiltinSubgroupBroadcast:
-      MuxBuiltinID = eMuxBuiltinSubgroupBroadcast;
-      break;
-    case eCLBuiltinSubgroupReduceAdd:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceAdd;
-      break;
-    case eCLBuiltinSubgroupReduceMin:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceUMin;
-      break;
-    case eCLBuiltinSubgroupReduceMax:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceUMax;
-      break;
-    case eCLBuiltinSubgroupReduceMul:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceMul;
-      break;
-    case eCLBuiltinSubgroupReduceAnd:
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceAnd;
-      break;
-    case eCLBuiltinSubgroupReduceOr:
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceOr;
-      break;
-    case eCLBuiltinSubgroupReduceXor:
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceXor;
-      break;
-    case eCLBuiltinSubgroupReduceLogicalAnd:
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceLogicalAnd;
-      break;
-    case eCLBuiltinSubgroupReduceLogicalOr:
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceLogicalOr;
-      break;
-    case eCLBuiltinSubgroupReduceLogicalXor:
-      MuxBuiltinID = eMuxBuiltinSubgroupReduceLogicalXor;
-      break;
-    case eCLBuiltinSubgroupScanAddInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanAddInclusive;
-      break;
-    case eCLBuiltinSubgroupScanAddExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanAddExclusive;
-      break;
-    case eCLBuiltinSubgroupScanMinInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanUMinInclusive;
-      break;
-    case eCLBuiltinSubgroupScanMinExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanUMinExclusive;
-      break;
-    case eCLBuiltinSubgroupScanMaxInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanUMaxInclusive;
-      break;
-    case eCLBuiltinSubgroupScanMaxExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanUMaxExclusive;
-      break;
-    case eCLBuiltinSubgroupScanMulInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanMulInclusive;
-      break;
-    case eCLBuiltinSubgroupScanMulExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinSubgroupScanMulExclusive;
-      break;
-    case eCLBuiltinSubgroupScanAndInclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanAndInclusive;
-      break;
-    case eCLBuiltinSubgroupScanAndExclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanAndExclusive;
-      break;
-    case eCLBuiltinSubgroupScanOrInclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanOrInclusive;
-      break;
-    case eCLBuiltinSubgroupScanOrExclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanOrExclusive;
-      break;
-    case eCLBuiltinSubgroupScanXorInclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanXorInclusive;
-      break;
-    case eCLBuiltinSubgroupScanXorExclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanXorExclusive;
-      break;
-    case eCLBuiltinSubgroupScanLogicalAndInclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalAndInclusive;
-      break;
-    case eCLBuiltinSubgroupScanLogicalAndExclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalAndExclusive;
-      break;
-    case eCLBuiltinSubgroupScanLogicalOrInclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalOrInclusive;
-      break;
-    case eCLBuiltinSubgroupScanLogicalOrExclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalOrExclusive;
-      break;
-    case eCLBuiltinSubgroupScanLogicalXorInclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalXorInclusive;
-      break;
-    case eCLBuiltinSubgroupScanLogicalXorExclusive:
-      MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalXorExclusive;
-      break;
-    case eCLBuiltinWorkgroupAll:
-      MuxBuiltinID = eMuxBuiltinWorkgroupAll;
-      break;
-    case eCLBuiltinWorkgroupAny:
-      MuxBuiltinID = eMuxBuiltinWorkgroupAny;
-      break;
-    case eCLBuiltinWorkgroupBroadcast:
-      MuxBuiltinID = eMuxBuiltinWorkgroupBroadcast;
-      break;
-    case eCLBuiltinWorkgroupReduceAdd:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceAdd;
-      break;
-    case eCLBuiltinWorkgroupReduceMin:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceUMin;
-      break;
-    case eCLBuiltinWorkgroupReduceMax:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceUMax;
-      break;
-    case eCLBuiltinWorkgroupReduceMul:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceMul;
-      break;
-    case eCLBuiltinWorkgroupReduceAnd:
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceAnd;
-      break;
-    case eCLBuiltinWorkgroupReduceOr:
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceOr;
-      break;
-    case eCLBuiltinWorkgroupReduceXor:
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceXor;
-      break;
-    case eCLBuiltinWorkgroupReduceLogicalAnd:
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceLogicalAnd;
-      break;
-    case eCLBuiltinWorkgroupReduceLogicalOr:
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceLogicalOr;
-      break;
-    case eCLBuiltinWorkgroupReduceLogicalXor:
-      MuxBuiltinID = eMuxBuiltinWorkgroupReduceLogicalXor;
-      break;
-    case eCLBuiltinWorkgroupScanAddInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanAddInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanAddExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanAddExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanMinInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanUMinInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanMinExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanUMinExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanMaxInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanUMaxInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanMaxExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanUMaxExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanMulInclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanMulInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanMulExclusive:
-      RecheckOpType = true;
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanMulExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanAndInclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanAndInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanAndExclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanAndExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanOrInclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanOrInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanOrExclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanOrExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanXorInclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanXorInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanXorExclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanXorExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanLogicalAndInclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalAndInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanLogicalAndExclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalAndExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanLogicalOrInclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalOrInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanLogicalOrExclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalOrExclusive;
-      break;
-    case eCLBuiltinWorkgroupScanLogicalXorInclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalXorInclusive;
-      break;
-    case eCLBuiltinWorkgroupScanLogicalXorExclusive:
-      MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalXorExclusive;
-      break;
+  default:
+    return nullptr;
+  case eCLBuiltinSubgroupAll:
+    MuxBuiltinID = eMuxBuiltinSubgroupAll;
+    break;
+  case eCLBuiltinSubgroupAny:
+    MuxBuiltinID = eMuxBuiltinSubgroupAny;
+    break;
+  case eCLBuiltinSubgroupBroadcast:
+    MuxBuiltinID = eMuxBuiltinSubgroupBroadcast;
+    break;
+  case eCLBuiltinSubgroupReduceAdd:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceAdd;
+    break;
+  case eCLBuiltinSubgroupReduceMin:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceUMin;
+    break;
+  case eCLBuiltinSubgroupReduceMax:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceUMax;
+    break;
+  case eCLBuiltinSubgroupReduceMul:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceMul;
+    break;
+  case eCLBuiltinSubgroupReduceAnd:
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceAnd;
+    break;
+  case eCLBuiltinSubgroupReduceOr:
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceOr;
+    break;
+  case eCLBuiltinSubgroupReduceXor:
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceXor;
+    break;
+  case eCLBuiltinSubgroupReduceLogicalAnd:
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceLogicalAnd;
+    break;
+  case eCLBuiltinSubgroupReduceLogicalOr:
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceLogicalOr;
+    break;
+  case eCLBuiltinSubgroupReduceLogicalXor:
+    MuxBuiltinID = eMuxBuiltinSubgroupReduceLogicalXor;
+    break;
+  case eCLBuiltinSubgroupScanAddInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanAddInclusive;
+    break;
+  case eCLBuiltinSubgroupScanAddExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanAddExclusive;
+    break;
+  case eCLBuiltinSubgroupScanMinInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanUMinInclusive;
+    break;
+  case eCLBuiltinSubgroupScanMinExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanUMinExclusive;
+    break;
+  case eCLBuiltinSubgroupScanMaxInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanUMaxInclusive;
+    break;
+  case eCLBuiltinSubgroupScanMaxExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanUMaxExclusive;
+    break;
+  case eCLBuiltinSubgroupScanMulInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanMulInclusive;
+    break;
+  case eCLBuiltinSubgroupScanMulExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinSubgroupScanMulExclusive;
+    break;
+  case eCLBuiltinSubgroupScanAndInclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanAndInclusive;
+    break;
+  case eCLBuiltinSubgroupScanAndExclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanAndExclusive;
+    break;
+  case eCLBuiltinSubgroupScanOrInclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanOrInclusive;
+    break;
+  case eCLBuiltinSubgroupScanOrExclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanOrExclusive;
+    break;
+  case eCLBuiltinSubgroupScanXorInclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanXorInclusive;
+    break;
+  case eCLBuiltinSubgroupScanXorExclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanXorExclusive;
+    break;
+  case eCLBuiltinSubgroupScanLogicalAndInclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalAndInclusive;
+    break;
+  case eCLBuiltinSubgroupScanLogicalAndExclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalAndExclusive;
+    break;
+  case eCLBuiltinSubgroupScanLogicalOrInclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalOrInclusive;
+    break;
+  case eCLBuiltinSubgroupScanLogicalOrExclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalOrExclusive;
+    break;
+  case eCLBuiltinSubgroupScanLogicalXorInclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalXorInclusive;
+    break;
+  case eCLBuiltinSubgroupScanLogicalXorExclusive:
+    MuxBuiltinID = eMuxBuiltinSubgroupScanLogicalXorExclusive;
+    break;
+  case eCLBuiltinWorkgroupAll:
+    MuxBuiltinID = eMuxBuiltinWorkgroupAll;
+    break;
+  case eCLBuiltinWorkgroupAny:
+    MuxBuiltinID = eMuxBuiltinWorkgroupAny;
+    break;
+  case eCLBuiltinWorkgroupBroadcast:
+    MuxBuiltinID = eMuxBuiltinWorkgroupBroadcast;
+    break;
+  case eCLBuiltinWorkgroupReduceAdd:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceAdd;
+    break;
+  case eCLBuiltinWorkgroupReduceMin:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceUMin;
+    break;
+  case eCLBuiltinWorkgroupReduceMax:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceUMax;
+    break;
+  case eCLBuiltinWorkgroupReduceMul:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceMul;
+    break;
+  case eCLBuiltinWorkgroupReduceAnd:
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceAnd;
+    break;
+  case eCLBuiltinWorkgroupReduceOr:
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceOr;
+    break;
+  case eCLBuiltinWorkgroupReduceXor:
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceXor;
+    break;
+  case eCLBuiltinWorkgroupReduceLogicalAnd:
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceLogicalAnd;
+    break;
+  case eCLBuiltinWorkgroupReduceLogicalOr:
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceLogicalOr;
+    break;
+  case eCLBuiltinWorkgroupReduceLogicalXor:
+    MuxBuiltinID = eMuxBuiltinWorkgroupReduceLogicalXor;
+    break;
+  case eCLBuiltinWorkgroupScanAddInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanAddInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanAddExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanAddExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanMinInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanUMinInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanMinExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanUMinExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanMaxInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanUMaxInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanMaxExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanUMaxExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanMulInclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanMulInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanMulExclusive:
+    RecheckOpType = true;
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanMulExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanAndInclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanAndInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanAndExclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanAndExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanOrInclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanOrInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanOrExclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanOrExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanXorInclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanXorInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanXorExclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanXorExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanLogicalAndInclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalAndInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanLogicalAndExclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalAndExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanLogicalOrInclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalOrInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanLogicalOrExclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalOrExclusive;
+    break;
+  case eCLBuiltinWorkgroupScanLogicalXorInclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalXorInclusive;
+    break;
+  case eCLBuiltinWorkgroupScanLogicalXorExclusive:
+    MuxBuiltinID = eMuxBuiltinWorkgroupScanLogicalXorExclusive;
+    break;
   }
 
   if (RecheckOpType) {
@@ -3154,128 +3151,140 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
 
     const bool IsFP = ArgumentTypes[0]->isFloatingPointTy();
     switch (MuxBuiltinID) {
-      default:
-        llvm_unreachable("unknown group operation for which to check the type");
-      case eMuxBuiltinSubgroupReduceAdd:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupReduceFAdd;
-        break;
-      case eMuxBuiltinSubgroupReduceMul:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupReduceFMul;
-        break;
-      case eMuxBuiltinSubgroupReduceUMin:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinSubgroupReduceFMin;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinSubgroupReduceSMin;
-        }
-        break;
-      case eMuxBuiltinSubgroupReduceUMax:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinSubgroupReduceFMax;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinSubgroupReduceSMax;
-        }
-        break;
-      case eMuxBuiltinSubgroupScanAddInclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFAddInclusive;
-        break;
-      case eMuxBuiltinSubgroupScanAddExclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFAddExclusive;
-        break;
-      case eMuxBuiltinSubgroupScanMulInclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFMulInclusive;
-        break;
-      case eMuxBuiltinSubgroupScanMulExclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFMulExclusive;
-        break;
-      case eMuxBuiltinSubgroupScanUMinInclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanFMinInclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanSMinInclusive;
-        }
-        break;
-      case eMuxBuiltinSubgroupScanUMinExclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanFMinExclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanSMinExclusive;
-        }
-        break;
-      case eMuxBuiltinSubgroupScanUMaxInclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanFMaxInclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanSMaxInclusive;
-        }
-        break;
-      case eMuxBuiltinSubgroupScanUMaxExclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanFMaxExclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinSubgroupScanSMaxExclusive;
-        }
-        break;
-      case eMuxBuiltinWorkgroupReduceAdd:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupReduceFAdd;
-        break;
-      case eMuxBuiltinWorkgroupReduceMul:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMul;
-        break;
-      case eMuxBuiltinWorkgroupReduceUMin:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMin;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupReduceSMin;
-        }
-        break;
-      case eMuxBuiltinWorkgroupReduceUMax:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMax;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupReduceSMax;
-        }
-        break;
-      case eMuxBuiltinWorkgroupScanAddInclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFAddInclusive;
-        break;
-      case eMuxBuiltinWorkgroupScanAddExclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFAddExclusive;
-        break;
-      case eMuxBuiltinWorkgroupScanMulInclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFMulInclusive;
-        break;
-      case eMuxBuiltinWorkgroupScanMulExclusive:
-        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFMulExclusive;
-        break;
-      case eMuxBuiltinWorkgroupScanUMinInclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMinInclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMinInclusive;
-        }
-        break;
-      case eMuxBuiltinWorkgroupScanUMinExclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMinExclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMinExclusive;
-        }
-        break;
-      case eMuxBuiltinWorkgroupScanUMaxInclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMaxInclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMaxInclusive;
-        }
-        break;
-      case eMuxBuiltinWorkgroupScanUMaxExclusive:
-        if (IsFP) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMaxExclusive;
-        } else if (IsSignedInt) {
-          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMaxExclusive;
-        }
-        break;
+    default:
+      llvm_unreachable("unknown group operation for which to check the type");
+    case eMuxBuiltinSubgroupReduceAdd:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinSubgroupReduceFAdd;
+      break;
+    case eMuxBuiltinSubgroupReduceMul:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinSubgroupReduceFMul;
+      break;
+    case eMuxBuiltinSubgroupReduceUMin:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinSubgroupReduceFMin;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinSubgroupReduceSMin;
+      }
+      break;
+    case eMuxBuiltinSubgroupReduceUMax:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinSubgroupReduceFMax;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinSubgroupReduceSMax;
+      }
+      break;
+    case eMuxBuiltinSubgroupScanAddInclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFAddInclusive;
+      break;
+    case eMuxBuiltinSubgroupScanAddExclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFAddExclusive;
+      break;
+    case eMuxBuiltinSubgroupScanMulInclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFMulInclusive;
+      break;
+    case eMuxBuiltinSubgroupScanMulExclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFMulExclusive;
+      break;
+    case eMuxBuiltinSubgroupScanUMinInclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFMinInclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanSMinInclusive;
+      }
+      break;
+    case eMuxBuiltinSubgroupScanUMinExclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFMinExclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanSMinExclusive;
+      }
+      break;
+    case eMuxBuiltinSubgroupScanUMaxInclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFMaxInclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanSMaxInclusive;
+      }
+      break;
+    case eMuxBuiltinSubgroupScanUMaxExclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanFMaxExclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinSubgroupScanSMaxExclusive;
+      }
+      break;
+    case eMuxBuiltinWorkgroupReduceAdd:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinWorkgroupReduceFAdd;
+      break;
+    case eMuxBuiltinWorkgroupReduceMul:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMul;
+      break;
+    case eMuxBuiltinWorkgroupReduceUMin:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMin;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupReduceSMin;
+      }
+      break;
+    case eMuxBuiltinWorkgroupReduceUMax:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMax;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupReduceSMax;
+      }
+      break;
+    case eMuxBuiltinWorkgroupScanAddInclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFAddInclusive;
+      break;
+    case eMuxBuiltinWorkgroupScanAddExclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFAddExclusive;
+      break;
+    case eMuxBuiltinWorkgroupScanMulInclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFMulInclusive;
+      break;
+    case eMuxBuiltinWorkgroupScanMulExclusive:
+      if (IsFP)
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFMulExclusive;
+      break;
+    case eMuxBuiltinWorkgroupScanUMinInclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFMinInclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanSMinInclusive;
+      }
+      break;
+    case eMuxBuiltinWorkgroupScanUMinExclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFMinExclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanSMinExclusive;
+      }
+      break;
+    case eMuxBuiltinWorkgroupScanUMaxInclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFMaxInclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanSMaxInclusive;
+      }
+      break;
+    case eMuxBuiltinWorkgroupScanUMaxExclusive:
+      if (IsFP) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanFMaxExclusive;
+      } else if (IsSignedInt) {
+        MuxBuiltinID = eMuxBuiltinWorkgroupScanSMaxExclusive;
+      }
+      break;
     }
   }
 
@@ -3344,8 +3353,9 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
   return SExt;
 }
 
-Instruction *CLBuiltinInfo::lowerAsyncBuiltinToMuxBuiltin(
-    CallInst &CI, BuiltinID ID, BIMuxInfoConcept &BIMuxImpl) {
+Instruction *
+CLBuiltinInfo::lowerAsyncBuiltinToMuxBuiltin(CallInst &CI, BuiltinID ID,
+                                             BIMuxInfoConcept &BIMuxImpl) {
   assert((ID == eCLBuiltinAsyncWorkGroupCopy ||
           ID == eCLBuiltinAsyncWorkGroupStridedCopy ||
           ID == eCLBuiltinAsyncWorkGroupCopy2D2D ||
@@ -3358,168 +3368,165 @@ Instruction *CLBuiltinInfo::lowerAsyncBuiltinToMuxBuiltin(
   const auto &DL = M.getDataLayout();
 
   switch (ID) {
-    default:
-      llvm_unreachable("Unhandled builtin");
-    case eCLBuiltinAsyncWorkGroupCopy:
-    case eCLBuiltinAsyncWorkGroupStridedCopy: {
-      NameMangler Mangler(&Ctx);
+  default:
+    llvm_unreachable("Unhandled builtin");
+  case eCLBuiltinAsyncWorkGroupCopy:
+  case eCLBuiltinAsyncWorkGroupStridedCopy: {
+    NameMangler Mangler(&Ctx);
 
-      // Do a full demangle to determing the pointer element type of the first
-      // argument.
-      SmallVector<Type *, 4> BuiltinArgTypes, BuiltinArgPointeeTypes;
-      SmallVector<compiler::utils::TypeQualifiers, 4> BuiltinArgQuals;
+    // Do a full demangle to determing the pointer element type of the first
+    // argument.
+    SmallVector<Type *, 4> BuiltinArgTypes, BuiltinArgPointeeTypes;
+    SmallVector<compiler::utils::TypeQualifiers, 4> BuiltinArgQuals;
 
-      [[maybe_unused]] const StringRef BuiltinName = Mangler.demangleName(
-          CI.getCalledFunction()->getName(), BuiltinArgTypes,
-          BuiltinArgPointeeTypes, BuiltinArgQuals);
-      assert(!BuiltinName.empty() && BuiltinArgTypes[0]->isPointerTy() &&
-             BuiltinArgPointeeTypes[0] && "Could not demangle async builtin");
+    [[maybe_unused]] const StringRef BuiltinName =
+        Mangler.demangleName(CI.getCalledFunction()->getName(), BuiltinArgTypes,
+                             BuiltinArgPointeeTypes, BuiltinArgQuals);
+    assert(!BuiltinName.empty() && BuiltinArgTypes[0]->isPointerTy() &&
+           BuiltinArgPointeeTypes[0] && "Could not demangle async builtin");
 
-      auto *const DataTy = BuiltinArgPointeeTypes[0];
-      const bool IsStrided = ID == eCLBuiltinAsyncWorkGroupStridedCopy;
+    auto *const DataTy = BuiltinArgPointeeTypes[0];
+    const bool IsStrided = ID == eCLBuiltinAsyncWorkGroupStridedCopy;
 
-      auto *const Dst = CI.getArgOperand(0);
-      auto *const Src = CI.getArgOperand(1);
-      auto *const NumElements = CI.getArgOperand(2);
-      auto *const EventIn = CI.getArgOperand(3 + IsStrided);
+    auto *const Dst = CI.getArgOperand(0);
+    auto *const Src = CI.getArgOperand(1);
+    auto *const NumElements = CI.getArgOperand(2);
+    auto *const EventIn = CI.getArgOperand(3 + IsStrided);
 
-      // Find out which way the DMA is going and declare the appropriate mux
-      // builtin.
-      const bool IsRead = Dst->getType()->getPointerAddressSpace() ==
-                          compiler::utils::AddressSpace::Local;
-      const auto ElementTypeWidthInBytes =
-          DL.getTypeAllocSize(DataTy).getFixedValue();
-      auto *const ElementSize =
-          ConstantInt::get(NumElements->getType(), ElementTypeWidthInBytes);
+    // Find out which way the DMA is going and declare the appropriate mux
+    // builtin.
+    const bool IsRead = Dst->getType()->getPointerAddressSpace() ==
+                        compiler::utils::AddressSpace::Local;
+    const auto ElementTypeWidthInBytes =
+        DL.getTypeAllocSize(DataTy).getFixedValue();
+    auto *const ElementSize =
+        ConstantInt::get(NumElements->getType(), ElementTypeWidthInBytes);
 
-      auto *const WidthInBytes =
-          IsStrided ? ElementSize
-                    : B.CreateMul(ElementSize, NumElements, "width.bytes");
+    auto *const WidthInBytes =
+        IsStrided ? ElementSize
+                  : B.CreateMul(ElementSize, NumElements, "width.bytes");
 
-      const BuiltinID MuxBuiltinID = [&] {
-        if (IsRead) {
-          return IsStrided ? eMuxBuiltinDMARead2D : eMuxBuiltinDMARead1D;
-        } else {
-          return IsStrided ? eMuxBuiltinDMAWrite2D : eMuxBuiltinDMAWrite1D;
-        }
-      }();
-
-      auto *const MuxDMA =
-          BIMuxImpl.getOrDeclareMuxBuiltin(MuxBuiltinID, M, EventIn->getType());
-      assert(MuxDMA && "Could not get/declare mux dma read/write");
-
-      CallInst *NewCI = nullptr;
-      if (!IsStrided) {
-        NewCI = B.CreateCall(MuxDMA, {Dst, Src, WidthInBytes, EventIn},
-                             "mux.out.event");
+    const BuiltinID MuxBuiltinID = [&] {
+      if (IsRead) {
+        return IsStrided ? eMuxBuiltinDMARead2D : eMuxBuiltinDMARead1D;
       } else {
-        // The stride from async_work_group_strided_copy is in elements, but the
-        // stride in the __mux builtins are in bytes so we need to scale the
-        // value.
-        auto *const Stride = CI.getArgOperand(3);
-        auto *const StrideInBytes =
-            B.CreateMul(ElementSize, Stride, "stride.bytes");
-
-        // For async_work_group_strided_copy, the stride only applies to the
-        // global memory, as we are doing scatters/gathers.
-        auto *const DstStride = IsRead ? ElementSize : StrideInBytes;
-        auto *const SrcStride = IsRead ? StrideInBytes : ElementSize;
-
-        NewCI = B.CreateCall(MuxDMA,
-                             {Dst, Src, WidthInBytes, DstStride, SrcStride,
-                              NumElements, EventIn},
-                             "mux.out.event");
+        return IsStrided ? eMuxBuiltinDMAWrite2D : eMuxBuiltinDMAWrite1D;
       }
-      NewCI->setAttributes(MuxDMA->getAttributes());
-      NewCI->takeName(&CI);
-      return NewCI;
+    }();
+
+    auto *const MuxDMA =
+        BIMuxImpl.getOrDeclareMuxBuiltin(MuxBuiltinID, M, EventIn->getType());
+    assert(MuxDMA && "Could not get/declare mux dma read/write");
+
+    CallInst *NewCI = nullptr;
+    if (!IsStrided) {
+      NewCI = B.CreateCall(MuxDMA, {Dst, Src, WidthInBytes, EventIn},
+                           "mux.out.event");
+    } else {
+      // The stride from async_work_group_strided_copy is in elements, but the
+      // stride in the __mux builtins are in bytes so we need to scale the
+      // value.
+      auto *const Stride = CI.getArgOperand(3);
+      auto *const StrideInBytes =
+          B.CreateMul(ElementSize, Stride, "stride.bytes");
+
+      // For async_work_group_strided_copy, the stride only applies to the
+      // global memory, as we are doing scatters/gathers.
+      auto *const DstStride = IsRead ? ElementSize : StrideInBytes;
+      auto *const SrcStride = IsRead ? StrideInBytes : ElementSize;
+
+      NewCI = B.CreateCall(
+          MuxDMA,
+          {Dst, Src, WidthInBytes, DstStride, SrcStride, NumElements, EventIn},
+          "mux.out.event");
     }
-    case eCLBuiltinAsyncWorkGroupCopy2D2D: {
-      // Unpack the arguments for ease of access.
-      auto *const Dst = CI.getArgOperand(0);
-      auto *const DstOffset = CI.getArgOperand(1);
-      auto *const Src = CI.getArgOperand(2);
-      auto *const SrcOffset = CI.getArgOperand(3);
-      auto *const NumBytesPerEl = CI.getArgOperand(4);
-      auto *const NumElsPerLine = CI.getArgOperand(5);
-      auto *const NumLines = CI.getArgOperand(6);
-      auto *const SrcTotalLineLength = CI.getArgOperand(7);
-      auto *const DstTotalLineLength = CI.getArgOperand(8);
-      auto *const EventIn = CI.getArgOperand(9);
+    NewCI->setAttributes(MuxDMA->getAttributes());
+    NewCI->takeName(&CI);
+    return NewCI;
+  }
+  case eCLBuiltinAsyncWorkGroupCopy2D2D: {
+    // Unpack the arguments for ease of access.
+    auto *const Dst = CI.getArgOperand(0);
+    auto *const DstOffset = CI.getArgOperand(1);
+    auto *const Src = CI.getArgOperand(2);
+    auto *const SrcOffset = CI.getArgOperand(3);
+    auto *const NumBytesPerEl = CI.getArgOperand(4);
+    auto *const NumElsPerLine = CI.getArgOperand(5);
+    auto *const NumLines = CI.getArgOperand(6);
+    auto *const SrcTotalLineLength = CI.getArgOperand(7);
+    auto *const DstTotalLineLength = CI.getArgOperand(8);
+    auto *const EventIn = CI.getArgOperand(9);
 
-      // Find out which way the DMA is going and declare the appropriate mux
-      // builtin.
-      const bool IsRead = Dst->getType()->getPointerAddressSpace() ==
-                          compiler::utils::AddressSpace::Local;
-      auto *const MuxDMA = BIMuxImpl.getOrDeclareMuxBuiltin(
-          IsRead ? eMuxBuiltinDMARead2D : eMuxBuiltinDMAWrite2D, M,
-          EventIn->getType());
-      assert(MuxDMA && "Could not get/declare mux dma read/write");
+    // Find out which way the DMA is going and declare the appropriate mux
+    // builtin.
+    const bool IsRead = Dst->getType()->getPointerAddressSpace() ==
+                        compiler::utils::AddressSpace::Local;
+    auto *const MuxDMA = BIMuxImpl.getOrDeclareMuxBuiltin(
+        IsRead ? eMuxBuiltinDMARead2D : eMuxBuiltinDMAWrite2D, M,
+        EventIn->getType());
+    assert(MuxDMA && "Could not get/declare mux dma read/write");
 
-      auto *const DstOffsetBytes = B.CreateMul(DstOffset, NumBytesPerEl);
-      auto *const SrcOffsetBytes = B.CreateMul(SrcOffset, NumBytesPerEl);
-      auto *const LineSizeBytes = B.CreateMul(NumElsPerLine, NumBytesPerEl);
-      auto *const ByteTy = B.getInt8Ty();
-      auto *const DstWithOffset = B.CreateGEP(ByteTy, Dst, DstOffsetBytes);
-      auto *const SrcWithOffset = B.CreateGEP(ByteTy, Src, SrcOffsetBytes);
-      auto *const SrcStrideBytes =
-          B.CreateMul(SrcTotalLineLength, NumBytesPerEl);
-      auto *const DstStrideBytes =
-          B.CreateMul(DstTotalLineLength, NumBytesPerEl);
-      auto *const NewCI = B.CreateCall(
-          MuxDMA, {DstWithOffset, SrcWithOffset, LineSizeBytes, DstStrideBytes,
-                   SrcStrideBytes, NumLines, EventIn});
-      NewCI->setAttributes(MuxDMA->getAttributes());
-      NewCI->takeName(&CI);
-      return NewCI;
-    }
-    case eCLBuiltinAsyncWorkGroupCopy3D3D: {
-      auto *const Dst = CI.getArgOperand(0);
-      auto *const DstOffset = CI.getArgOperand(1);
-      auto *const Src = CI.getArgOperand(2);
-      auto *const SrcOffset = CI.getArgOperand(3);
-      auto *const NumBytesPerEl = CI.getArgOperand(4);
-      auto *const NumElsPerLine = CI.getArgOperand(5);
-      auto *const NumLines = CI.getArgOperand(6);
-      auto *const NumPlanes = CI.getArgOperand(7);
-      auto *const SrcTotalLineLength = CI.getArgOperand(8);
-      auto *const SrcTotalPlaneArea = CI.getArgOperand(9);
-      auto *const DstTotalLineLength = CI.getArgOperand(10);
-      auto *const DstTotalPlaneArea = CI.getArgOperand(11);
-      auto *const EventIn = CI.getArgOperand(12);
+    auto *const DstOffsetBytes = B.CreateMul(DstOffset, NumBytesPerEl);
+    auto *const SrcOffsetBytes = B.CreateMul(SrcOffset, NumBytesPerEl);
+    auto *const LineSizeBytes = B.CreateMul(NumElsPerLine, NumBytesPerEl);
+    auto *const ByteTy = B.getInt8Ty();
+    auto *const DstWithOffset = B.CreateGEP(ByteTy, Dst, DstOffsetBytes);
+    auto *const SrcWithOffset = B.CreateGEP(ByteTy, Src, SrcOffsetBytes);
+    auto *const SrcStrideBytes = B.CreateMul(SrcTotalLineLength, NumBytesPerEl);
+    auto *const DstStrideBytes = B.CreateMul(DstTotalLineLength, NumBytesPerEl);
+    auto *const NewCI = B.CreateCall(
+        MuxDMA, {DstWithOffset, SrcWithOffset, LineSizeBytes, DstStrideBytes,
+                 SrcStrideBytes, NumLines, EventIn});
+    NewCI->setAttributes(MuxDMA->getAttributes());
+    NewCI->takeName(&CI);
+    return NewCI;
+  }
+  case eCLBuiltinAsyncWorkGroupCopy3D3D: {
+    auto *const Dst = CI.getArgOperand(0);
+    auto *const DstOffset = CI.getArgOperand(1);
+    auto *const Src = CI.getArgOperand(2);
+    auto *const SrcOffset = CI.getArgOperand(3);
+    auto *const NumBytesPerEl = CI.getArgOperand(4);
+    auto *const NumElsPerLine = CI.getArgOperand(5);
+    auto *const NumLines = CI.getArgOperand(6);
+    auto *const NumPlanes = CI.getArgOperand(7);
+    auto *const SrcTotalLineLength = CI.getArgOperand(8);
+    auto *const SrcTotalPlaneArea = CI.getArgOperand(9);
+    auto *const DstTotalLineLength = CI.getArgOperand(10);
+    auto *const DstTotalPlaneArea = CI.getArgOperand(11);
+    auto *const EventIn = CI.getArgOperand(12);
 
-      // Find out which way the DMA is going and declare the appropriate mux
-      // builtin.
-      const bool IsRead = Dst->getType()->getPointerAddressSpace() ==
-                          compiler::utils::AddressSpace::Local;
-      auto *const MuxDMA = BIMuxImpl.getOrDeclareMuxBuiltin(
-          IsRead ? eMuxBuiltinDMARead3D : eMuxBuiltinDMAWrite3D, M,
-          EventIn->getType());
-      assert(MuxDMA && "Could not get/declare mux dma read/write");
+    // Find out which way the DMA is going and declare the appropriate mux
+    // builtin.
+    const bool IsRead = Dst->getType()->getPointerAddressSpace() ==
+                        compiler::utils::AddressSpace::Local;
+    auto *const MuxDMA = BIMuxImpl.getOrDeclareMuxBuiltin(
+        IsRead ? eMuxBuiltinDMARead3D : eMuxBuiltinDMAWrite3D, M,
+        EventIn->getType());
+    assert(MuxDMA && "Could not get/declare mux dma read/write");
 
-      auto *const DstOffsetBytes = B.CreateMul(DstOffset, NumBytesPerEl);
-      auto *const SrcOffsetBytes = B.CreateMul(SrcOffset, NumBytesPerEl);
-      auto *const LineSizeBytes = B.CreateMul(NumElsPerLine, NumBytesPerEl);
-      auto *const ByteTy = B.getInt8Ty();
-      auto *const DstWithOffset = B.CreateGEP(ByteTy, Dst, DstOffsetBytes);
-      auto *const SrcWithOffset = B.CreateGEP(ByteTy, Src, SrcOffsetBytes);
-      auto *const SrcLineStrideBytes =
-          B.CreateMul(SrcTotalLineLength, NumBytesPerEl);
-      auto *const DstLineStrideBytes =
-          B.CreateMul(DstTotalLineLength, NumBytesPerEl);
-      auto *const SrcPlaneStrideBytes =
-          B.CreateMul(SrcTotalPlaneArea, NumBytesPerEl);
-      auto *const DstPlaneStrideBytes =
-          B.CreateMul(DstTotalPlaneArea, NumBytesPerEl);
-      auto *const NewCI =
-          B.CreateCall(MuxDMA, {DstWithOffset, SrcWithOffset, LineSizeBytes,
-                                DstLineStrideBytes, SrcLineStrideBytes,
-                                NumLines, DstPlaneStrideBytes,
-                                SrcPlaneStrideBytes, NumPlanes, EventIn});
-      NewCI->setAttributes(MuxDMA->getAttributes());
-      NewCI->takeName(&CI);
-      return NewCI;
-    }
+    auto *const DstOffsetBytes = B.CreateMul(DstOffset, NumBytesPerEl);
+    auto *const SrcOffsetBytes = B.CreateMul(SrcOffset, NumBytesPerEl);
+    auto *const LineSizeBytes = B.CreateMul(NumElsPerLine, NumBytesPerEl);
+    auto *const ByteTy = B.getInt8Ty();
+    auto *const DstWithOffset = B.CreateGEP(ByteTy, Dst, DstOffsetBytes);
+    auto *const SrcWithOffset = B.CreateGEP(ByteTy, Src, SrcOffsetBytes);
+    auto *const SrcLineStrideBytes =
+        B.CreateMul(SrcTotalLineLength, NumBytesPerEl);
+    auto *const DstLineStrideBytes =
+        B.CreateMul(DstTotalLineLength, NumBytesPerEl);
+    auto *const SrcPlaneStrideBytes =
+        B.CreateMul(SrcTotalPlaneArea, NumBytesPerEl);
+    auto *const DstPlaneStrideBytes =
+        B.CreateMul(DstTotalPlaneArea, NumBytesPerEl);
+    auto *const NewCI = B.CreateCall(
+        MuxDMA, {DstWithOffset, SrcWithOffset, LineSizeBytes,
+                 DstLineStrideBytes, SrcLineStrideBytes, NumLines,
+                 DstPlaneStrideBytes, SrcPlaneStrideBytes, NumPlanes, EventIn});
+    NewCI->setAttributes(MuxDMA->getAttributes());
+    NewCI->takeName(&CI);
+    return NewCI;
+  }
   }
 
   return nullptr;
@@ -3643,5 +3650,5 @@ Function *CLBuiltinLoader::materializeBuiltin(StringRef BuiltinName,
 
   return cast<Function>(ValueMap[SrcBuiltin]);
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

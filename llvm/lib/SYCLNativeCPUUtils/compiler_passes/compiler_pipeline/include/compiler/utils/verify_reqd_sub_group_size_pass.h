@@ -32,7 +32,7 @@ namespace utils {
 /// Raises a compile diagnostic on kernel which breaches this rule.
 class VerifyReqdSubGroupSizeLegalPass
     : public llvm::PassInfoMixin<VerifyReqdSubGroupSizeLegalPass> {
- public:
+public:
   VerifyReqdSubGroupSizeLegalPass() = default;
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
@@ -43,13 +43,13 @@ class VerifyReqdSubGroupSizeLegalPass
 /// Raises a compile diagnostic on kernel which breaches this rule.
 class VerifyReqdSubGroupSizeSatisfiedPass
     : public llvm::PassInfoMixin<VerifyReqdSubGroupSizeSatisfiedPass> {
- public:
+public:
   VerifyReqdSubGroupSizeSatisfiedPass() = default;
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
 /// @}
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_VERIFY_REQD_SUB_GROUP_SIZE_PASS_H_INCLUDED
+#endif // COMPILER_UTILS_VERIFY_REQD_SUB_GROUP_SIZE_PASS_H_INCLUDED

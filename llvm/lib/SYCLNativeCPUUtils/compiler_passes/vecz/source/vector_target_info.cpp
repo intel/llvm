@@ -66,7 +66,7 @@ bool isLegalMaskedScatter(const TargetTransformInfo &TTI, Type *Ty,
                           unsigned Alignment, unsigned) {
   return TTI.isLegalMaskedScatter(Ty, Align(Alignment));
 }
-}  // namespace
+} // namespace
 
 // NOTE the TargetMachine is allowed to be null here; it isn't used in the
 // implementation at present, but if it gets used in future it needs to be
@@ -95,9 +95,8 @@ Value *TargetInfo::createLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
       const auto Legality =
           isVPLoadLegal(F, Ty, Alignment, PtrTy->getAddressSpace());
       if (!Legality.isVPLegal()) {
-        emitVeczRemarkMissed(F,
-                             "Could not create a VP load as the target "
-                             "reported it would be illegal");
+        emitVeczRemarkMissed(F, "Could not create a VP load as the target "
+                                "reported it would be illegal");
         VECZ_FAIL();
       }
       auto *Mask = createAllTrueMask(B, multi_llvm::getVectorElementCount(Ty));
@@ -162,9 +161,8 @@ Value *TargetInfo::createStore(IRBuilder<> &B, Value *Data, Value *Ptr,
       const auto Legality =
           isVPStoreLegal(F, VecTy, Alignment, PtrTy->getAddressSpace());
       if (!Legality.isVPLegal()) {
-        emitVeczRemarkMissed(F,
-                             "Could not create a VP store as the target "
-                             "reported it would be illegal");
+        emitVeczRemarkMissed(F, "Could not create a VP store as the target "
+                                "reported it would be illegal");
         VECZ_FAIL();
       }
       auto *Mask =
@@ -242,9 +240,8 @@ Value *TargetInfo::createMaskedLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
       VECZ_FAIL_IF(!Mask);
       return B.CreateMaskedLoad(Ty, Ptr, Align(Alignment), Mask);
     } else {
-      emitVeczRemarkMissed(F,
-                           "Could not create a masked load as the target "
-                           "reported it would be illegal");
+      emitVeczRemarkMissed(F, "Could not create a masked load as the target "
+                              "reported it would be illegal");
       VECZ_FAIL();
     }
   }
@@ -348,9 +345,8 @@ Value *TargetInfo::createMaskedStore(IRBuilder<> &B, Value *Data, Value *Ptr,
       VECZ_FAIL_IF(!Mask);
       return B.CreateMaskedStore(Data, Ptr, Align(Alignment), Mask);
     } else {
-      emitVeczRemarkMissed(F,
-                           "Could not create a masked store as the target "
-                           "reported it would be illegal");
+      emitVeczRemarkMissed(F, "Could not create a masked store as the target "
+                              "reported it would be illegal");
       VECZ_FAIL();
     }
   }
@@ -520,9 +516,8 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
         }
       }
     } else {
-      emitVeczRemarkMissed(F,
-                           "Could not create a masked gather as the target "
-                           "reported it would be illegal");
+      emitVeczRemarkMissed(F, "Could not create a masked gather as the target "
+                              "reported it would be illegal");
       VECZ_FAIL();
     }
   }
@@ -621,9 +616,8 @@ Value *TargetInfo::createMaskedScatterStore(IRBuilder<> &B, Value *Data,
         }
       }
     } else {
-      emitVeczRemarkMissed(F,
-                           "Could not create a masked scatter as the target "
-                           "reported it would be illegal");
+      emitVeczRemarkMissed(F, "Could not create a masked scatter as the target "
+                              "reported it would be illegal");
       VECZ_FAIL();
     }
   }
@@ -909,23 +903,27 @@ TargetInfo::VPMemOpLegality TargetInfo::checkMemOpLegality(
   return {isVPLegal, isMaskLegal};
 }
 
-TargetInfo::VPMemOpLegality TargetInfo::isVPLoadLegal(
-    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+TargetInfo::VPMemOpLegality
+TargetInfo::isVPLoadLegal(const Function *F, Type *Ty, unsigned Alignment,
+                          unsigned AddrSpace) const {
   return checkMemOpLegality(F, isLegalMaskedLoad, Ty, Alignment, AddrSpace);
 }
 
-TargetInfo::VPMemOpLegality TargetInfo::isVPStoreLegal(
-    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+TargetInfo::VPMemOpLegality
+TargetInfo::isVPStoreLegal(const Function *F, Type *Ty, unsigned Alignment,
+                           unsigned AddrSpace) const {
   return checkMemOpLegality(F, isLegalMaskedStore, Ty, Alignment, AddrSpace);
 }
 
-TargetInfo::VPMemOpLegality TargetInfo::isVPGatherLegal(
-    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+TargetInfo::VPMemOpLegality
+TargetInfo::isVPGatherLegal(const Function *F, Type *Ty, unsigned Alignment,
+                            unsigned AddrSpace) const {
   return checkMemOpLegality(F, isLegalMaskedGather, Ty, Alignment, AddrSpace);
 }
 
-TargetInfo::VPMemOpLegality TargetInfo::isVPScatterLegal(
-    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+TargetInfo::VPMemOpLegality
+TargetInfo::isVPScatterLegal(const Function *F, Type *Ty, unsigned Alignment,
+                             unsigned AddrSpace) const {
   return checkMemOpLegality(F, isLegalMaskedScatter, Ty, Alignment, AddrSpace);
 }
 
@@ -1060,7 +1058,7 @@ bool TargetInfo::optimizeInterleavedGroup(IRBuilder<> &B,
   FixedVectorType *VecTy = nullptr;
   if (Kind == eInterleavedStore || Kind == eMaskedInterleavedStore) {
     VecTy = cast<FixedVectorType>(Op0->getOperand(0)->getType());
-  } else {  // eInterleavedLoad || eMaskedInterleavedLoad
+  } else { // eInterleavedLoad || eMaskedInterleavedLoad
     VecTy = cast<FixedVectorType>(Op0->getType());
   }
 
@@ -1308,22 +1306,22 @@ bool TargetInfo::canPacketize(const llvm::Value *, ElementCount) const {
   return true;
 }
 
-std::unique_ptr<TargetInfo> vecz::createTargetInfoFromTargetMachine(
-    TargetMachine *tm) {
+std::unique_ptr<TargetInfo>
+vecz::createTargetInfoFromTargetMachine(TargetMachine *tm) {
   // The TargetMachine is allowed to be null
   if (tm) {
     const Triple &TT(tm->getTargetTriple());
     switch (TT.getArch()) {
-      case Triple::arm:
-        return createTargetInfoArm(tm);
-      case Triple::aarch64:
-        return createTargetInfoAArch64(tm);
-      case Triple::riscv32:
-      case Triple::riscv64:
-        return createTargetInfoRISCV(tm);
-      default:
-        // Just use the generic TargetInfo unless we know better
-        break;
+    case Triple::arm:
+      return createTargetInfoArm(tm);
+    case Triple::aarch64:
+      return createTargetInfoAArch64(tm);
+    case Triple::riscv32:
+    case Triple::riscv64:
+      return createTargetInfoRISCV(tm);
+    default:
+      // Just use the generic TargetInfo unless we know better
+      break;
     }
   }
   return std::make_unique<TargetInfo>(tm);

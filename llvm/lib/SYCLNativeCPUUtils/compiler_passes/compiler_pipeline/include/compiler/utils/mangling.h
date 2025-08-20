@@ -31,7 +31,7 @@ namespace llvm {
 class LLVMContext;
 class Type;
 class raw_ostream;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -59,7 +59,7 @@ enum TypeQualifier : int32_t {
 class TypeQualifiers final {
   using StorageT = uint64_t;
 
- public:
+public:
   /// @brief Create a type qualifier list with no qualifiers.
   TypeQualifiers();
   /// @brief Create a type qualifier list with one qualifiers.
@@ -124,7 +124,7 @@ class TypeQualifiers final {
   /// @brief Determine whether two qualifier lists are different.
   bool operator!=(const TypeQualifiers &other) { return !(*this == other); }
 
- private:
+private:
   /// @brief Set the number of type qualifiers contained in the list.
   void setCount(StorageT newCount);
 
@@ -148,7 +148,7 @@ class TypeQualifiers final {
 
 /// @brief Helps with light parsing such as demangling function names.
 class Lexer final {
- public:
+public:
   /// @brief Create a new lexer with the given text.
   ///
   /// @param[in] text Text to lex.
@@ -216,7 +216,7 @@ class Lexer final {
   /// @return true if any whitespace was consumed or false otherwise
   bool ConsumeWhitespace();
 
- private:
+private:
   /// @brief Text to lex.
   llvm::StringRef Text;
   /// @brief Current lexing position into the text.
@@ -225,7 +225,7 @@ class Lexer final {
 
 /// @brief Converts between mangled and non-mangled function names.
 class NameMangler final {
- public:
+public:
   /// @brief Create a new name mangler.
   ///
   /// @param[in] context LLVM context to use.
@@ -298,10 +298,10 @@ class NameMangler final {
   ///     Quals[1] = (SignedIntQual)
   ///
   /// @return Demangled name or an empty string on failure
-  llvm::StringRef demangleName(
-      llvm::StringRef Name, llvm::SmallVectorImpl<llvm::Type *> &Types,
-      llvm::SmallVectorImpl<llvm::Type *> &PointerElementTypes,
-      llvm::SmallVectorImpl<TypeQualifiers> &Quals);
+  llvm::StringRef
+  demangleName(llvm::StringRef Name, llvm::SmallVectorImpl<llvm::Type *> &Types,
+               llvm::SmallVectorImpl<llvm::Type *> &PointerElementTypes,
+               llvm::SmallVectorImpl<TypeQualifiers> &Quals);
 
   /// @brief Remove the mangling of a function name.
   ///
@@ -310,7 +310,7 @@ class NameMangler final {
   /// @return Demangled name or original name if not mangled.
   llvm::StringRef demangleName(llvm::StringRef Name);
 
- private:
+private:
   /// @brief Try to mangle the given qualified type. This only works for simple
   /// types that do not require string manipulation.
   ///
@@ -402,7 +402,7 @@ class NameMangler final {
   /// @brief LLVM context used to access LLVM types.
   llvm::LLVMContext *Context;
 };
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_MANGLING_H_INCLUDED
+#endif // COMPILER_UTILS_MANGLING_H_INCLUDED

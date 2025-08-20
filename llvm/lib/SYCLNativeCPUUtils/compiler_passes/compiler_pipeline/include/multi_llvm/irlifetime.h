@@ -25,35 +25,31 @@ namespace multi_llvm {
 #if LLVM_VERSION_LESS(22, 0) || 1
 template <typename IRBuilder = llvm::IRBuilder<>>
 auto CreateLifetimeStart(IRBuilder &B, llvm::Value *Ptr,
-                                         llvm::ConstantInt *Size)
+                         llvm::ConstantInt *Size)
     -> decltype(B.CreateLifetimeStart(Ptr, Size)) {
   return B.CreateLifetimeStart(Ptr, Size);
 }
 
 template <typename IRBuilder = llvm::IRBuilder<>>
-auto CreateLifetimeEnd(IRBuilder &B, llvm::Value *Ptr,
-                                         llvm::ConstantInt *Size)
+auto CreateLifetimeEnd(IRBuilder &B, llvm::Value *Ptr, llvm::ConstantInt *Size)
     -> decltype(B.CreateLifetimeEnd(Ptr, Size)) {
   return B.CreateLifetimeEnd(Ptr, Size);
 }
 #endif
 
-
 template <typename IRBuilder = llvm::IRBuilder<>>
 auto CreateLifetimeStart(IRBuilder &B, llvm::Value *Ptr,
-                                         llvm::ConstantInt *Size)
+                         llvm::ConstantInt *Size)
     -> decltype(B.CreateLifetimeStart(Ptr)) {
   return B.CreateLifetimeStart(Ptr);
 }
 
 template <typename IRBuilder = llvm::IRBuilder<>>
-auto CreateLifetimeEnd(IRBuilder &B, llvm::Value *Ptr,
-                                         llvm::ConstantInt *Size)
+auto CreateLifetimeEnd(IRBuilder &B, llvm::Value *Ptr, llvm::ConstantInt *Size)
     -> decltype(B.CreateLifetimeEnd(Ptr)) {
   return B.CreateLifetimeEnd(Ptr);
 }
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_TARGET_TARGETINFO_H_INCLUDED
-
+#endif // MULTI_LLVM_TARGET_TARGETINFO_H_INCLUDED

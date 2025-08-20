@@ -407,18 +407,10 @@ llvm::CallInst *vecz::createScatter(VectorizationContext &Ctx,
 }
 
 MemOpDesc::MemOpDesc()
-    : DataTy(nullptr),
-      PtrTy(nullptr),
-      MaskTy(nullptr),
-      Kind(MemOpKind::Invalid),
-      AccessKind(MemOpAccessKind::Native),
-      IsVLOp(false),
-      Alignment(1),
-      Stride(nullptr),
-      DataOpIdx(-1),
-      PtrOpIdx(-1),
-      MaskOpIdx(-1),
-      VLOpIdx(-1) {}
+    : DataTy(nullptr), PtrTy(nullptr), MaskTy(nullptr),
+      Kind(MemOpKind::Invalid), AccessKind(MemOpAccessKind::Native),
+      IsVLOp(false), Alignment(1), Stride(nullptr), DataOpIdx(-1), PtrOpIdx(-1),
+      MaskOpIdx(-1), VLOpIdx(-1) {}
 
 bool MemOpDesc::isStrideConstantInt() const {
   return Stride && isa<ConstantInt>(Stride);
@@ -744,8 +736,8 @@ std::optional<MemOpDesc> MemOpDesc::analyzeScatterGatherMemOp(Function &F) {
   return std::nullopt;
 }
 
-std::optional<MemOpDesc> MemOpDesc::analyzeMaskedScatterGatherMemOp(
-    Function &F) {
+std::optional<MemOpDesc>
+MemOpDesc::analyzeMaskedScatterGatherMemOp(Function &F) {
   const StringRef MangledName = F.getName();
   compiler::utils::Lexer L(MangledName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
@@ -849,23 +841,23 @@ std::optional<MemOp> MemOp::get(llvm::CallInst *CI,
   std::optional<MemOpDesc> Desc;
   if (Function *Caller = CI->getCalledFunction()) {
     switch (AccessKind) {
-      default:
-        return std::nullopt;
-      case MemOpAccessKind::Masked:
-        Desc = MemOpDesc::analyzeMaskedMemOp(*Caller);
-        break;
-      case MemOpAccessKind::Interleaved:
-        Desc = MemOpDesc::analyzeInterleavedMemOp(*Caller);
-        break;
-      case MemOpAccessKind::MaskedInterleaved:
-        Desc = MemOpDesc::analyzeMaskedInterleavedMemOp(*Caller);
-        break;
-      case MemOpAccessKind::ScatterGather:
-        Desc = MemOpDesc::analyzeScatterGatherMemOp(*Caller);
-        break;
-      case MemOpAccessKind::MaskedScatterGather:
-        Desc = MemOpDesc::analyzeMaskedScatterGatherMemOp(*Caller);
-        break;
+    default:
+      return std::nullopt;
+    case MemOpAccessKind::Masked:
+      Desc = MemOpDesc::analyzeMaskedMemOp(*Caller);
+      break;
+    case MemOpAccessKind::Interleaved:
+      Desc = MemOpDesc::analyzeInterleavedMemOp(*Caller);
+      break;
+    case MemOpAccessKind::MaskedInterleaved:
+      Desc = MemOpDesc::analyzeMaskedInterleavedMemOp(*Caller);
+      break;
+    case MemOpAccessKind::ScatterGather:
+      Desc = MemOpDesc::analyzeScatterGatherMemOp(*Caller);
+      break;
+    case MemOpAccessKind::MaskedScatterGather:
+      Desc = MemOpDesc::analyzeMaskedScatterGatherMemOp(*Caller);
+      break;
     }
   }
   if (!Desc) {
@@ -908,25 +900,25 @@ llvm::Value *MemOp::getDataOperand() const {
 
 llvm::Value *MemOp::getPointerOperand() const {
   switch (Desc.getKind()) {
-    default:
-      return nullptr;
-    case MemOpKind::LoadInstruction:
-      return cast<LoadInst>(Ins)->getPointerOperand();
-    case MemOpKind::StoreInstruction:
-      return cast<StoreInst>(Ins)->getPointerOperand();
-    case MemOpKind::LoadCall:
-    case MemOpKind::StoreCall:
-      return getCallOperand(Desc.getPointerOperandIndex());
+  default:
+    return nullptr;
+  case MemOpKind::LoadInstruction:
+    return cast<LoadInst>(Ins)->getPointerOperand();
+  case MemOpKind::StoreInstruction:
+    return cast<StoreInst>(Ins)->getPointerOperand();
+  case MemOpKind::LoadCall:
+  case MemOpKind::StoreCall:
+    return getCallOperand(Desc.getPointerOperandIndex());
   }
 }
 
 llvm::Value *MemOp::getMaskOperand() const {
   switch (Desc.getKind()) {
-    default:
-      return nullptr;
-    case MemOpKind::LoadCall:
-    case MemOpKind::StoreCall:
-      return getCallOperand(Desc.getMaskOperandIndex());
+  default:
+    return nullptr;
+  case MemOpKind::LoadCall:
+  case MemOpKind::StoreCall:
+    return getCallOperand(Desc.getMaskOperandIndex());
   }
 }
 
@@ -943,27 +935,27 @@ bool MemOp::setDataOperand(Value *V) {
 
 bool MemOp::setPointerOperand(Value *V) {
   switch (Desc.getKind()) {
-    default:
-      return false;
-    case MemOpKind::LoadInstruction:
-      cast<LoadInst>(Ins)->setOperand(0, V);
-      return true;
-    case MemOpKind::StoreInstruction:
-      cast<StoreInst>(Ins)->setOperand(1, V);
-      return true;
-    case MemOpKind::LoadCall:
-    case MemOpKind::StoreCall:
-      return setCallOperand(Desc.getPointerOperandIndex(), V);
+  default:
+    return false;
+  case MemOpKind::LoadInstruction:
+    cast<LoadInst>(Ins)->setOperand(0, V);
+    return true;
+  case MemOpKind::StoreInstruction:
+    cast<StoreInst>(Ins)->setOperand(1, V);
+    return true;
+  case MemOpKind::LoadCall:
+  case MemOpKind::StoreCall:
+    return setCallOperand(Desc.getPointerOperandIndex(), V);
   }
 }
 
 bool MemOp::setMaskOperand(Value *V) {
   switch (Desc.getKind()) {
-    default:
-      return false;
-    case MemOpKind::LoadCall:
-    case MemOpKind::StoreCall:
-      return setCallOperand(Desc.getMaskOperandIndex(), V);
+  default:
+    return false;
+  case MemOpKind::LoadCall:
+  case MemOpKind::StoreCall:
+    return setCallOperand(Desc.getMaskOperandIndex(), V);
   }
 }
 

@@ -30,7 +30,7 @@ using namespace llvm;
 namespace vecz {
 
 class TargetInfoArm final : public TargetInfo {
- public:
+public:
   TargetInfoArm(TargetMachine *tm) : TargetInfo(tm) {}
 
   ~TargetInfoArm() = default;
@@ -44,7 +44,7 @@ class TargetInfoArm final : public TargetInfo {
                                 ArrayRef<Value *> masks, Value *baseAddress,
                                 int stride) const override;
 
- private:
+private:
   bool canOptimizeInterleavedGroupImpl(const Instruction &val,
                                        InterleavedOperation kind, int stride,
                                        unsigned groupSize,
@@ -52,7 +52,7 @@ class TargetInfoArm final : public TargetInfo {
 };
 
 class TargetInfoAArch64 final : public TargetInfo {
- public:
+public:
   TargetInfoAArch64(TargetMachine *tm) : TargetInfo(tm) {}
 
   ~TargetInfoAArch64() = default;
@@ -66,7 +66,7 @@ class TargetInfoAArch64 final : public TargetInfo {
                                 ArrayRef<Value *> masks, Value *baseAddress,
                                 int stride) const override;
 
- private:
+private:
   bool canOptimizeInterleavedGroupImpl(const Instruction &val,
                                        InterleavedOperation kind, int stride,
                                        unsigned groupSize,
@@ -81,7 +81,7 @@ std::unique_ptr<TargetInfo> createTargetInfoAArch64(TargetMachine *tm) {
   return std::make_unique<TargetInfoAArch64>(tm);
 }
 
-}  // namespace vecz
+} // namespace vecz
 
 bool TargetInfoArm::canOptimizeInterleavedGroup(const Instruction &val,
                                                 InterleavedOperation kind,
@@ -100,32 +100,32 @@ bool TargetInfoArm::canOptimizeInterleavedGroupImpl(const Instruction &val,
   Type *dataType = nullptr;
   if (kind == eInterleavedStore) {
     switch (stride) {
-      default:
-        break;
-      case 2:
-        IntrID = Intrinsic::arm_neon_vst2;
-        break;
-      case 3:
-        IntrID = Intrinsic::arm_neon_vst3;
-        break;
-      case 4:
-        IntrID = Intrinsic::arm_neon_vst4;
-        break;
+    default:
+      break;
+    case 2:
+      IntrID = Intrinsic::arm_neon_vst2;
+      break;
+    case 3:
+      IntrID = Intrinsic::arm_neon_vst3;
+      break;
+    case 4:
+      IntrID = Intrinsic::arm_neon_vst4;
+      break;
     }
     dataType = val.getOperand(0)->getType();
   } else if (kind == eInterleavedLoad) {
     switch (stride) {
-      default:
-        break;
-      case 2:
-        IntrID = Intrinsic::arm_neon_vld2;
-        break;
-      case 3:
-        IntrID = Intrinsic::arm_neon_vld3;
-        break;
-      case 4:
-        IntrID = Intrinsic::arm_neon_vld4;
-        break;
+    default:
+      break;
+    case 2:
+      IntrID = Intrinsic::arm_neon_vld2;
+      break;
+    case 3:
+      IntrID = Intrinsic::arm_neon_vld3;
+      break;
+    case 4:
+      IntrID = Intrinsic::arm_neon_vld4;
+      break;
     }
     dataType = val.getType();
   } else {
@@ -209,7 +209,7 @@ bool TargetInfoArm::optimizeInterleavedGroup(IRBuilder<> &B,
   FixedVectorType *VecTy = nullptr;
   if (kind == eInterleavedStore) {
     VecTy = cast<FixedVectorType>(Op0->getOperand(0)->getType());
-  } else {  // eInterleavedLoad
+  } else { // eInterleavedLoad
     VecTy = cast<FixedVectorType>(Op0->getType());
   }
 
@@ -268,32 +268,32 @@ bool TargetInfoAArch64::canOptimizeInterleavedGroupImpl(
   Type *dataType = nullptr;
   if (kind == eInterleavedStore) {
     switch (stride) {
-      default:
-        break;
-      case 2:
-        IntrID = Intrinsic::aarch64_neon_st2;
-        break;
-      case 3:
-        IntrID = Intrinsic::aarch64_neon_st3;
-        break;
-      case 4:
-        IntrID = Intrinsic::aarch64_neon_st4;
-        break;
+    default:
+      break;
+    case 2:
+      IntrID = Intrinsic::aarch64_neon_st2;
+      break;
+    case 3:
+      IntrID = Intrinsic::aarch64_neon_st3;
+      break;
+    case 4:
+      IntrID = Intrinsic::aarch64_neon_st4;
+      break;
     }
     dataType = val.getOperand(0)->getType();
   } else if (kind == eInterleavedLoad) {
     switch (stride) {
-      default:
-        break;
-      case 2:
-        IntrID = Intrinsic::aarch64_neon_ld2;
-        break;
-      case 3:
-        IntrID = Intrinsic::aarch64_neon_ld3;
-        break;
-      case 4:
-        IntrID = Intrinsic::aarch64_neon_ld4;
-        break;
+    default:
+      break;
+    case 2:
+      IntrID = Intrinsic::aarch64_neon_ld2;
+      break;
+    case 3:
+      IntrID = Intrinsic::aarch64_neon_ld3;
+      break;
+    case 4:
+      IntrID = Intrinsic::aarch64_neon_ld4;
+      break;
     }
     dataType = val.getType();
   } else {
@@ -375,7 +375,7 @@ bool TargetInfoAArch64::optimizeInterleavedGroup(
   FixedVectorType *VecTy = nullptr;
   if (kind == eInterleavedStore) {
     VecTy = cast<FixedVectorType>(Op0->getOperand(0)->getType());
-  } else {  // eInterleavedLoad
+  } else { // eInterleavedLoad
     VecTy = cast<FixedVectorType>(Op0->getType());
   }
 

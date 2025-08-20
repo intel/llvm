@@ -63,13 +63,13 @@ using namespace llvm;
 using namespace vecz;
 
 class ControlFlowConversionState::Impl : public ControlFlowConversionState {
- public:
+public:
   Impl(Function &F, FunctionAnalysisManager &AM)
       : ControlFlowConversionState(F, AM) {}
 
   PreservedAnalyses run(Function &, FunctionAnalysisManager &);
 
- private:
+private:
   /// @brief utility struct used by LinearizeCFG to allow block retargeting
   /// info to be stored in a single contiguous vector of variable-length
   /// subvectors. This avoids having to use a vector of vectors, and all
@@ -271,8 +271,9 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   /// @param[in] LTag The loop whose live values are being handled.
   /// @param[in] exitBlocks List of exit blocks before any transformation
   /// @return true if no problem occurred, false otherwise.
-  bool blendDivergentLoopLiveValues(
-      LoopTag &LTag, const SmallVectorImpl<BasicBlock *> &exitBlocks);
+  bool
+  blendDivergentLoopLiveValues(LoopTag &LTag,
+                               const SmallVectorImpl<BasicBlock *> &exitBlocks);
 
   /// @brief Generate blend instruction for loop exit masks at the latch.
   ///
@@ -280,9 +281,10 @@ class ControlFlowConversionState::Impl : public ControlFlowConversionState {
   /// @param[in] exitEdges List of exit edges before any transformation
   /// @param[in] exitBlocks List of exit blocks before any transformation
   /// @return true if no problem occurred, false otherwise.
-  bool blendDivergentLoopExitMasks(
-      LoopTag &LTag, const SmallVectorImpl<Loop::Edge> &exitEdges,
-      const SmallVectorImpl<BasicBlock *> &exitBlocks);
+  bool
+  blendDivergentLoopExitMasks(LoopTag &LTag,
+                              const SmallVectorImpl<Loop::Edge> &exitEdges,
+                              const SmallVectorImpl<BasicBlock *> &exitBlocks);
 
   /// @brief Replace uses of loop values outside of a divergent loop.
   ///
@@ -419,7 +421,7 @@ static bool isBranchCondTrulyUniform(Value *cond, UniformValueResult &UVR) {
 
   return UVR.isTrueUniform(cmp);
 }
-}  // namespace
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -433,13 +435,12 @@ PreservedAnalyses ControlFlowConversionPass::run(Function &F,
 
 ControlFlowConversionState::ControlFlowConversionState(
     Function &F, FunctionAnalysisManager &AM)
-    : F(F),
-      AM(AM),
-      VU(AM.getResult<VectorizationUnitAnalysis>(F).getVU()),
+    : F(F), AM(AM), VU(AM.getResult<VectorizationUnitAnalysis>(F).getVU()),
       Ctx(AM.getResult<VectorizationContextAnalysis>(F).getContext()) {}
 
-PreservedAnalyses ControlFlowConversionState::Impl::run(
-    Function &F, FunctionAnalysisManager &AM) {
+PreservedAnalyses
+ControlFlowConversionState::Impl::run(Function &F,
+                                      FunctionAnalysisManager &AM) {
   const auto &CFGR = AM.getResult<CFGAnalysis>(F);
   if (CFGR.getFailed()) {
     ++VeczCFGFail;
@@ -1221,52 +1222,52 @@ bool ControlFlowConversionState::Impl::tryApplyMaskToBinOp(
     // so it is sufficient to use the mask generated from the CFG.
     bool isUnsigned = false;
     switch (binOp->getOpcode()) {
-      case Instruction::UDiv:
-      case Instruction::URem:
-        isUnsigned = true;
-        LLVM_FALLTHROUGH;
-      case Instruction::SDiv:
-      case Instruction::SRem: {
-        auto *divisor = binOp->getOperand(1);
-        // no need to mask divides by a constant..
-        if (auto *C = dyn_cast<Constant>(divisor)) {
-          if (C->isZeroValue()) {
-            // Divides by constant zero can be a NOP since there is no
-            // division by zero exception in OpenCL.
-            auto *nop = binOp->getOperand(0);
-            I.replaceAllUsesWith(nop);
-            toDelete.emplace_back(&I, nop);
-          }
-        } else {
-          auto &masked = safeDivisors[divisor];
-          if (!masked) {
-            // NOTE this function does not check for the pattern
-            // "select (x eq 0) 1, x" or equivalent, so we might want to
-            // write it ourselves, but Instruction Combining cleans it up.
-            // NOTE that for a signed division, we also have to consider the
-            // potential overflow situation, which is not so simple
-            if (isUnsigned &&
-                isKnownNonZero(divisor, F.getParent()->getDataLayout())) {
-              // Static analysis concluded it can't be zero, so we don't need
-              // to do anything.
-              masked = divisor;
-            } else {
-              auto *SI = SelectInst::Create(
-                  mask, divisor, ConstantInt::get(divisor->getType(), 1),
-                  divisor->getName() + ".masked");
-              SI->insertBefore(I.getIterator());
-              masked = SI;
-            }
-          }
-
-          if (masked != divisor) {
-            binOp->setOperand(1, masked);
+    case Instruction::UDiv:
+    case Instruction::URem:
+      isUnsigned = true;
+      LLVM_FALLTHROUGH;
+    case Instruction::SDiv:
+    case Instruction::SRem: {
+      auto *divisor = binOp->getOperand(1);
+      // no need to mask divides by a constant..
+      if (auto *C = dyn_cast<Constant>(divisor)) {
+        if (C->isZeroValue()) {
+          // Divides by constant zero can be a NOP since there is no
+          // division by zero exception in OpenCL.
+          auto *nop = binOp->getOperand(0);
+          I.replaceAllUsesWith(nop);
+          toDelete.emplace_back(&I, nop);
+        }
+      } else {
+        auto &masked = safeDivisors[divisor];
+        if (!masked) {
+          // NOTE this function does not check for the pattern
+          // "select (x eq 0) 1, x" or equivalent, so we might want to
+          // write it ourselves, but Instruction Combining cleans it up.
+          // NOTE that for a signed division, we also have to consider the
+          // potential overflow situation, which is not so simple
+          if (isUnsigned &&
+              isKnownNonZero(divisor, F.getParent()->getDataLayout())) {
+            // Static analysis concluded it can't be zero, so we don't need
+            // to do anything.
+            masked = divisor;
+          } else {
+            auto *SI = SelectInst::Create(
+                mask, divisor, ConstantInt::get(divisor->getType(), 1),
+                divisor->getName() + ".masked");
+            SI->insertBefore(I.getIterator());
+            masked = SI;
           }
         }
-      } break;
 
-      default:
-        break;
+        if (masked != divisor) {
+          binOp->setOperand(1, masked);
+        }
+      }
+    } break;
+
+    default:
+      break;
     }
     return true;
   } else {
@@ -1333,7 +1334,7 @@ bool ControlFlowConversionState::Impl::applyMaskToCall(CallInst *CI,
   if (!callee) {
     callee = dyn_cast<Function>(CI->getCalledOperand()->stripPointerCasts());
   }
-  VECZ_FAIL_IF(!callee);  // TODO: CA-1505: Support indirect function calls.
+  VECZ_FAIL_IF(!callee); // TODO: CA-1505: Support indirect function calls.
   // Check to see if this is a function that we know we won't be able to
   // handle in any other way.
   VECZ_FAIL_IF(callee->cannotDuplicate());
@@ -1866,35 +1867,35 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
 
   auto removeSuccessor = [this](Instruction *T, unsigned succIdx) {
     switch (T->getOpcode()) {
-      default:
-        // Any other kind of Terminator cannot be handled and until
-        // proven otherwise, should not.
-        break;
-      case Instruction::Br: {
-        const unsigned keepIdx = succIdx == 0 ? 1 : 0;
-        auto *newT = BranchInst::Create(T->getSuccessor(keepIdx));
-        newT->insertBefore(T->getIterator());
+    default:
+      // Any other kind of Terminator cannot be handled and until
+      // proven otherwise, should not.
+      break;
+    case Instruction::Br: {
+      const unsigned keepIdx = succIdx == 0 ? 1 : 0;
+      auto *newT = BranchInst::Create(T->getSuccessor(keepIdx));
+      newT->insertBefore(T->getIterator());
 
-        updateMaps(T, newT);
+      updateMaps(T, newT);
 
-        IRCleanup::deleteInstructionNow(T);
-        break;
+      IRCleanup::deleteInstructionNow(T);
+      break;
+    }
+    case Instruction::Switch: {
+      SwitchInst *SI = cast<SwitchInst>(T);
+      if (succIdx == 0) {
+        SI->setDefaultDest(SI->getSuccessor(1));
+        SI->removeCase(SI->case_begin());
+      } else {
+        SI->removeCase(std::next(SI->case_begin(), succIdx - 1));
       }
-      case Instruction::Switch: {
-        SwitchInst *SI = cast<SwitchInst>(T);
-        if (succIdx == 0) {
-          SI->setDefaultDest(SI->getSuccessor(1));
-          SI->removeCase(SI->case_begin());
-        } else {
-          SI->removeCase(std::next(SI->case_begin(), succIdx - 1));
-        }
-        break;
-      }
-      case Instruction::IndirectBr: {
-        IndirectBrInst *IBI = cast<IndirectBrInst>(T);
-        IBI->removeDestination(succIdx);
-        break;
-      }
+      break;
+    }
+    case Instruction::IndirectBr: {
+      IndirectBrInst *IBI = cast<IndirectBrInst>(T);
+      IBI->removeDestination(succIdx);
+      break;
+    }
     }
   };
 
@@ -2382,7 +2383,7 @@ void removeDeferrals(BasicBlock *src, DenseDeferralMap &deferrals) {
     deferrals.erase(deferredIt);
   }
 }
-}  // namespace
+} // namespace
 
 bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
   // The entry block cannot be targeted.

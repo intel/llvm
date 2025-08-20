@@ -30,7 +30,7 @@ using namespace llvm;
 namespace vecz {
 
 class TargetInfoRISCV final : public TargetInfo {
- public:
+public:
   TargetInfoRISCV(TargetMachine *tm) : TargetInfo(tm) {}
 
   ~TargetInfoRISCV() = default;
@@ -43,16 +43,18 @@ class TargetInfoRISCV final : public TargetInfo {
       llvm::Instruction *extract, llvm::Type *narrowTy, llvm::Value *src,
       llvm::Value *index, llvm::Value *evl) const override;
 
-  llvm::Value *createOuterScalableBroadcast(
-      llvm::IRBuilder<> &builder, llvm::Value *vector, llvm::Value *VL,
-      ElementCount factor) const override {
+  llvm::Value *
+  createOuterScalableBroadcast(llvm::IRBuilder<> &builder, llvm::Value *vector,
+                               llvm::Value *VL,
+                               ElementCount factor) const override {
     return createScalableBroadcast(builder, vector, VL, factor,
                                    /* URem */ true);
   }
 
-  llvm::Value *createInnerScalableBroadcast(
-      llvm::IRBuilder<> &builder, llvm::Value *vector, llvm::Value *VL,
-      ElementCount factor) const override {
+  llvm::Value *
+  createInnerScalableBroadcast(llvm::IRBuilder<> &builder, llvm::Value *vector,
+                               llvm::Value *VL,
+                               ElementCount factor) const override {
     return createScalableBroadcast(builder, vector, VL, factor,
                                    /* URem */ false);
   }
@@ -73,7 +75,7 @@ class TargetInfoRISCV final : public TargetInfo {
                                    llvm::Value *insert,
                                    llvm::Value *evl) const override;
 
- private:
+private:
   bool isOperationLegal(llvm::Intrinsic::ID ID,
                         llvm::ArrayRef<llvm::Type *> Tys) const;
 
@@ -122,7 +124,7 @@ std::unique_ptr<TargetInfo> createTargetInfoRISCV(TargetMachine *tm) {
   return std::make_unique<TargetInfoRISCV>(tm);
 }
 
-}  // namespace vecz
+} // namespace vecz
 
 bool TargetInfoRISCV::canPacketize(const llvm::Value *Val,
                                    ElementCount Width) const {
@@ -170,31 +172,31 @@ bool TargetInfoRISCV::canPacketize(const llvm::Value *Val,
 bool TargetInfoRISCV::isOperationLegal(llvm::Intrinsic::ID ID,
                                        llvm::ArrayRef<llvm::Type *> Tys) const {
   switch (ID) {
-    case Intrinsic::RISCVIntrinsics::riscv_vrgather_vv:
-    case Intrinsic::RISCVIntrinsics::riscv_vrgather_vv_mask:
-      // riscv_vrgather_vv[_mask](RetTy, _IdxTy)
-      // We only need to check the return type here, as it should be greater or
-      // equal to the index type.
-      assert(Tys.size() == 1 &&
-             "Only the return type is needed to check vrgather_vv intrinsics");
-      return isVectorTypeLegal(Tys.front());
-    case Intrinsic::RISCVIntrinsics::riscv_vrgatherei16_vv:
-    case Intrinsic::RISCVIntrinsics::riscv_vrgatherei16_vv_mask: {
-      constexpr unsigned MaxVectorSize = MaxLegalVectorTypeBits / 16;
-      // riscv_vrgatherei16_vv[_mask](RetTy, _IdxTy)
-      // Case similar to that of riscv_vrgather_vv[_mask], but we also need to
-      // check that the vector size is no greater than MaxLegalVectorTypeSize /
-      // 16, as the index type will always be i16.
-      assert(
-          Tys.size() == 1 &&
-          "Only the return type is needed to check vrgatherei16_vv intrinsics");
-      auto *const RetTy = Tys.front();
-      return isVectorTypeLegal(RetTy) &&
-             multi_llvm::getVectorElementCount(RetTy).getKnownMinValue() <=
-                 MaxVectorSize;
-    }
-    default:
-      break;
+  case Intrinsic::RISCVIntrinsics::riscv_vrgather_vv:
+  case Intrinsic::RISCVIntrinsics::riscv_vrgather_vv_mask:
+    // riscv_vrgather_vv[_mask](RetTy, _IdxTy)
+    // We only need to check the return type here, as it should be greater or
+    // equal to the index type.
+    assert(Tys.size() == 1 &&
+           "Only the return type is needed to check vrgather_vv intrinsics");
+    return isVectorTypeLegal(Tys.front());
+  case Intrinsic::RISCVIntrinsics::riscv_vrgatherei16_vv:
+  case Intrinsic::RISCVIntrinsics::riscv_vrgatherei16_vv_mask: {
+    constexpr unsigned MaxVectorSize = MaxLegalVectorTypeBits / 16;
+    // riscv_vrgatherei16_vv[_mask](RetTy, _IdxTy)
+    // Case similar to that of riscv_vrgather_vv[_mask], but we also need to
+    // check that the vector size is no greater than MaxLegalVectorTypeSize /
+    // 16, as the index type will always be i16.
+    assert(
+        Tys.size() == 1 &&
+        "Only the return type is needed to check vrgatherei16_vv intrinsics");
+    auto *const RetTy = Tys.front();
+    return isVectorTypeLegal(RetTy) &&
+           multi_llvm::getVectorElementCount(RetTy).getKnownMinValue() <=
+               MaxVectorSize;
+  }
+  default:
+    break;
   }
   llvm_unreachable("Don't know how to check whether this intrinsic is legal.");
 }
@@ -242,8 +244,8 @@ llvm::Value *getIntrinsicVL(llvm::IRBuilderBase &B, llvm::Value *VL,
 ///
 /// @param[in] vs2Ty Type of the source vector.
 /// @param[in] isMasked Whether the intrinsic should be masked.
-std::pair<llvm::Intrinsic::RISCVIntrinsics, unsigned> getGatherIntrinsic(
-    llvm::Type *vs2Ty, bool isMasked = false) {
+std::pair<llvm::Intrinsic::RISCVIntrinsics, unsigned>
+getGatherIntrinsic(llvm::Type *vs2Ty, bool isMasked = false) {
   assert(!vs2Ty->isPtrOrPtrVectorTy() &&
          "Cannot get gather intrinsic for a vector of pointers");
 
@@ -281,7 +283,7 @@ llvm::Intrinsic::RISCVIntrinsics getSlideUpIntrinsic(llvm::Type *vs2Ty) {
   return Opc;
 }
 
-}  // namespace
+} // namespace
 
 llvm::Value *TargetInfoRISCV::createScalableExtractElement(
     llvm::IRBuilder<> &B, vecz::VectorizationContext &Ctx,

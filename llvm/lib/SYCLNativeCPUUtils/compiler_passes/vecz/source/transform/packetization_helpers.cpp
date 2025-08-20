@@ -66,7 +66,7 @@ Value *createFixedBroadcastOfScalableVector(const vecz::TargetInfo &TI,
   assert(!factor.isScalable());
   return scalableBroadcastHelper(subvec, factor, TI, B, /*URem*/ false);
 }
-}  // namespace
+} // namespace
 
 namespace vecz {
 IRBuilder<> buildAfter(Value *V, Function &F, bool IsPhi) {
@@ -245,49 +245,49 @@ Value *createMaybeVPReduction(IRBuilderBase &B, Value *Val, RecurKind Kind,
   }
   auto IntrinsicOp = Intrinsic::not_intrinsic;
   switch (Kind) {
-    default:
-      break;
-    case RecurKind::None:
-      return nullptr;
-    case RecurKind::Add:
-      IntrinsicOp = Intrinsic::vp_reduce_add;
-      break;
-    case RecurKind::Mul:
-      IntrinsicOp = Intrinsic::vp_reduce_mul;
-      break;
-    case RecurKind::Or:
-      IntrinsicOp = Intrinsic::vp_reduce_or;
-      break;
-    case RecurKind::And:
-      IntrinsicOp = Intrinsic::vp_reduce_and;
-      break;
-    case RecurKind::Xor:
-      IntrinsicOp = Intrinsic::vp_reduce_xor;
-      break;
-    case RecurKind::FAdd:
-      IntrinsicOp = Intrinsic::vp_reduce_fadd;
-      break;
-    case RecurKind::FMul:
-      IntrinsicOp = Intrinsic::vp_reduce_fmul;
-      break;
-    case RecurKind::SMin:
-      IntrinsicOp = Intrinsic::vp_reduce_smin;
-      break;
-    case RecurKind::SMax:
-      IntrinsicOp = Intrinsic::vp_reduce_smax;
-      break;
-    case RecurKind::UMin:
-      IntrinsicOp = Intrinsic::vp_reduce_umin;
-      break;
-    case RecurKind::UMax:
-      IntrinsicOp = Intrinsic::vp_reduce_umax;
-      break;
-    case RecurKind::FMin:
-      IntrinsicOp = Intrinsic::vp_reduce_fmin;
-      break;
-    case RecurKind::FMax:
-      IntrinsicOp = Intrinsic::vp_reduce_fmax;
-      break;
+  default:
+    break;
+  case RecurKind::None:
+    return nullptr;
+  case RecurKind::Add:
+    IntrinsicOp = Intrinsic::vp_reduce_add;
+    break;
+  case RecurKind::Mul:
+    IntrinsicOp = Intrinsic::vp_reduce_mul;
+    break;
+  case RecurKind::Or:
+    IntrinsicOp = Intrinsic::vp_reduce_or;
+    break;
+  case RecurKind::And:
+    IntrinsicOp = Intrinsic::vp_reduce_and;
+    break;
+  case RecurKind::Xor:
+    IntrinsicOp = Intrinsic::vp_reduce_xor;
+    break;
+  case RecurKind::FAdd:
+    IntrinsicOp = Intrinsic::vp_reduce_fadd;
+    break;
+  case RecurKind::FMul:
+    IntrinsicOp = Intrinsic::vp_reduce_fmul;
+    break;
+  case RecurKind::SMin:
+    IntrinsicOp = Intrinsic::vp_reduce_smin;
+    break;
+  case RecurKind::SMax:
+    IntrinsicOp = Intrinsic::vp_reduce_smax;
+    break;
+  case RecurKind::UMin:
+    IntrinsicOp = Intrinsic::vp_reduce_umin;
+    break;
+  case RecurKind::UMax:
+    IntrinsicOp = Intrinsic::vp_reduce_umax;
+    break;
+  case RecurKind::FMin:
+    IntrinsicOp = Intrinsic::vp_reduce_fmin;
+    break;
+  case RecurKind::FMax:
+    IntrinsicOp = Intrinsic::vp_reduce_fmax;
+    break;
   }
 
   auto *const F = multi_llvm::GetOrInsertIntrinsicDeclaration(
@@ -335,7 +335,7 @@ Value *createIndexSequence(IRBuilder<> &Builder, VectorType *VecTy,
   return ConstantVector::get(Indices);
 }
 
-}  // namespace vecz
+} // namespace vecz
 
 PacketRange PacketInfo::getRange(std::vector<llvm::Value *> &d,
                                  unsigned width) const {
@@ -663,7 +663,7 @@ Value *scalableBroadcastHelper(Value *subvec, ElementCount factor,
 
   return gather;
 }
-}  // namespace
+} // namespace
 
 const Packetizer::Result &Packetizer::Result::broadcast(unsigned width) const {
   const auto factor = packetizer.width().divideCoefficientBy(width);

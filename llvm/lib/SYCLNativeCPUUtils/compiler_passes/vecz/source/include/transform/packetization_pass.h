@@ -34,7 +34,7 @@ class VectorizationUnit;
 /// @brief Vectorization pass where scalar instructions that need it are
 /// packetized, starting from leaves.
 class PacketizationPass : public llvm::PassInfoMixin<PacketizationPass> {
- public:
+public:
   /// @brief Create a new packetization pass object.
   PacketizationPass() = default;
 
@@ -72,6 +72,6 @@ class PacketizationPass : public llvm::PassInfoMixin<PacketizationPass> {
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_PACKETIZATION_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_PACKETIZATION_PASS_H_INCLUDED

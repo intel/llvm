@@ -291,8 +291,8 @@ std::optional<unsigned> isSchedulingParameter(const Function &f, unsigned idx) {
 }
 
 // Uses the format of a metadata node directly applied to a function.
-std::optional<std::array<uint64_t, 3>> parseRequiredWGSMetadata(
-    const Function &f) {
+std::optional<std::array<uint64_t, 3>>
+parseRequiredWGSMetadata(const Function &f) {
   if (auto mdnode = f.getMetadata(ReqdWGSizeMD)) {
     std::array<uint64_t, 3> wgs = {0, 1, 1};
     assert(mdnode->getNumOperands() >= 1 && mdnode->getNumOperands() <= 3 &&
@@ -306,8 +306,8 @@ std::optional<std::array<uint64_t, 3>> parseRequiredWGSMetadata(
 }
 
 // Uses the format of a metadata node that's a part of the opencl.kernels node.
-std::optional<std::array<uint64_t, 3>> parseRequiredWGSMetadata(
-    const MDNode &node) {
+std::optional<std::array<uint64_t, 3>>
+parseRequiredWGSMetadata(const MDNode &node) {
   for (uint32_t i = 1; i < node.getNumOperands(); ++i) {
     MDNode *const subNode = cast<MDNode>(node.getOperand(i));
     MDString *const operandName = cast<MDString>(subNode->getOperand(0));
@@ -391,5 +391,5 @@ std::optional<uint32_t> getReqdSubgroupSize(const Function &f) {
   return std::nullopt;
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

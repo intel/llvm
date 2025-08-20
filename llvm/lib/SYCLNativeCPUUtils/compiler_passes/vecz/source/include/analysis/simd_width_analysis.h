@@ -34,7 +34,7 @@ class LivenessResult;
 class SimdWidthAnalysis : public llvm::AnalysisInfoMixin<SimdWidthAnalysis> {
   friend AnalysisInfoMixin<SimdWidthAnalysis>;
 
- public:
+public:
   /// @brief Create a new instance of the pass.
   SimdWidthAnalysis() = default;
 
@@ -53,7 +53,7 @@ class SimdWidthAnalysis : public llvm::AnalysisInfoMixin<SimdWidthAnalysis> {
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "SIMD width analysis"; }
 
- private:
+private:
   unsigned avoidSpillImpl(llvm::Function &, llvm::FunctionAnalysisManager &,
                           unsigned MinWidth = 2);
 
@@ -63,6 +63,6 @@ class SimdWidthAnalysis : public llvm::AnalysisInfoMixin<SimdWidthAnalysis> {
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_SIMD_WIDTH_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_SIMD_WIDTH_ANALYSIS_H_INCLUDED

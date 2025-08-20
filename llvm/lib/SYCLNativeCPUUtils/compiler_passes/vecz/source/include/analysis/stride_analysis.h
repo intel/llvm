@@ -32,7 +32,7 @@
 namespace llvm {
 class Function;
 class Value;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -40,7 +40,7 @@ struct UniformValueResult;
 
 /// @brief Holds the result of Stride Analysis for a given function.
 class StrideAnalysisResult {
- public:
+public:
   /// @brief The function being analyzed
   llvm::Function &F;
   /// @brief The Uniform Value Result to use during analysis
@@ -91,7 +91,7 @@ class StrideAnalysisResult {
   llvm::Value *buildMemoryStride(llvm::IRBuilder<> &B, llvm::Value *Ptr,
                                  llvm::Type *EleTy) const;
 
- private:
+private:
   /// @brief A map of values onto OffsetInfos that were already analyzed.
   llvm::DenseMap<llvm::Value *, OffsetInfo> analyzed;
 };
@@ -101,7 +101,7 @@ class StrideAnalysisResult {
 class StrideAnalysis : public llvm::AnalysisInfoMixin<StrideAnalysis> {
   friend AnalysisInfoMixin<StrideAnalysis>;
 
- public:
+public:
   /// @brief Create a new analysis object.
   StrideAnalysis() {}
 
@@ -118,7 +118,7 @@ class StrideAnalysis : public llvm::AnalysisInfoMixin<StrideAnalysis> {
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "Stride analysis"; }
 
- private:
+private:
   /// @brief Unique identifier for the pass.
   static llvm::AnalysisKey Key;
 };
@@ -129,13 +129,13 @@ class StrideAnalysisPrinterPass
     : public llvm::PassInfoMixin<StrideAnalysisPrinterPass> {
   llvm::raw_ostream &OS;
 
- public:
+public:
   explicit StrideAnalysisPrinterPass(llvm::raw_ostream &OS) : OS(OS) {}
 
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &AM);
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_STRIDE_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_STRIDE_ANALYSIS_H_INCLUDED

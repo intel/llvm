@@ -18,21 +18,21 @@
 
 #include <llvm/Config/llvm-config.h>
 
-#define LLVM_VERSION_EQUAL(MAJOR, MINOR) \
+#define LLVM_VERSION_EQUAL(MAJOR, MINOR)                                       \
   (LLVM_VERSION_MAJOR == (MAJOR) && LLVM_VERSION_MINOR == (MINOR))
 
-#define LLVM_VERSION_LESS(MAJOR, MINOR) \
-  ((LLVM_VERSION_MAJOR < (MAJOR)) ||    \
+#define LLVM_VERSION_LESS(MAJOR, MINOR)                                        \
+  ((LLVM_VERSION_MAJOR < (MAJOR)) ||                                           \
    (LLVM_VERSION_MAJOR == (MAJOR) && LLVM_VERSION_MINOR < (MINOR)))
 
-#define LLVM_VERSION_LESS_EQUAL(MAJOR, MINOR) \
+#define LLVM_VERSION_LESS_EQUAL(MAJOR, MINOR)                                  \
   (LLVM_VERSION_EQUAL(MAJOR, MINOR) || LLVM_VERSION_LESS(MAJOR, MINOR))
 
-#define LLVM_VERSION_GREATER(MAJOR, MINOR) \
-  ((LLVM_VERSION_MAJOR > (MAJOR)) ||       \
+#define LLVM_VERSION_GREATER(MAJOR, MINOR)                                     \
+  ((LLVM_VERSION_MAJOR > (MAJOR)) ||                                           \
    (LLVM_VERSION_MAJOR == (MAJOR) && LLVM_VERSION_MINOR > (MINOR)))
 
-#define LLVM_VERSION_GREATER_EQUAL(MAJOR, MINOR) \
+#define LLVM_VERSION_GREATER_EQUAL(MAJOR, MINOR)                               \
   (LLVM_VERSION_EQUAL(MAJOR, MINOR) || LLVM_VERSION_GREATER(MAJOR, MINOR))
 
-#endif  // MULTI_LLVM_LLVM_VERSION_H_INCLUDED
+#endif // MULTI_LLVM_LLVM_VERSION_H_INCLUDED

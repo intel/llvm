@@ -177,4 +177,4 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
   return Preserved;
 }
 
-}  // namespace vecz
+} // namespace vecz

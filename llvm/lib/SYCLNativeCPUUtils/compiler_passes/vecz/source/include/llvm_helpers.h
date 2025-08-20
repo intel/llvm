@@ -49,6 +49,6 @@ llvm::Value *getDefaultValue(llvm::Type *T, uint64_t V = 0UL);
 ///
 /// @return Array of integers representing the Shuffle mask
 llvm::ArrayRef<int> getShuffleVecMask(llvm::ShuffleVectorInst *Shuffle);
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_LLVM_HELPERS_H_INCLUDED
+#endif // VECZ_LLVM_HELPERS_H_INCLUDED

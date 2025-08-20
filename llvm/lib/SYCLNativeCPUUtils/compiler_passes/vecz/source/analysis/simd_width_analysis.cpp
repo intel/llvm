@@ -73,7 +73,7 @@ bool definedOrUsedInLoop(Value *V, Loop *L) {
   }
   return false;
 }
-}  // namespace
+} // namespace
 
 // Avoid Spill implementation. It focus on avoiding register spill by optimizing
 // register pressure.
@@ -166,8 +166,8 @@ unsigned SimdWidthAnalysis::avoidSpillImpl(Function &F,
   return SimdWidth;
 }
 
-SimdWidthAnalysis::Result SimdWidthAnalysis::run(
-    Function &F, llvm::FunctionAnalysisManager &AM) {
+SimdWidthAnalysis::Result
+SimdWidthAnalysis::run(Function &F, llvm::FunctionAnalysisManager &AM) {
   const TargetTransformInfo &TTI = AM.getResult<TargetIRAnalysis>(F);
   const VectorizationUnit &VU =
       AM.getResult<VectorizationUnitAnalysis>(F).getVU();

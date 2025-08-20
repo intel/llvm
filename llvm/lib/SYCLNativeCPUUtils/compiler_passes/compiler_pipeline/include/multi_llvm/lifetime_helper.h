@@ -24,8 +24,7 @@
 
 namespace multi_llvm {
 
-template <class T, class T2 = void>
-constexpr bool LifeTimeHasSizeArgT = false;
+template <class T, class T2 = void> constexpr bool LifeTimeHasSizeArgT = false;
 
 // Check for the old method where we have a size argument (ConstantInt)
 template <typename IRBuilder>
@@ -38,6 +37,6 @@ static constexpr bool LifeTimeHasSizeArgT<
 static constexpr bool LifeTimeHasSizeArg() {
   return LifeTimeHasSizeArgT<llvm::IRBuilderBase>;
 }
-};  // namespace multi_llvm
+}; // namespace multi_llvm
 
 #endif

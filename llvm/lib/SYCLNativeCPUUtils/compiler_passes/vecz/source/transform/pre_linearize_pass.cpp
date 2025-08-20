@@ -156,64 +156,64 @@ bool hoistInstructions(BasicBlock &BB, BranchInst &Branch, bool exceptions) {
     // constant.
     bool isUnsigned = false;
     switch (binOp->getOpcode()) {
-      default:
-        break;
-      case Instruction::UDiv:
-      case Instruction::URem:
-        isUnsigned = true;
-        LLVM_FALLTHROUGH;
-      case Instruction::SDiv:
-      case Instruction::SRem: {
-        auto *divisor = binOp->getOperand(1);
-        if (auto *C = dyn_cast<Constant>(divisor)) {
-          if (C->isZeroValue()) {
-            // Divides by constant zero can be a NOP since there is no
-            // division by zero exception in OpenCL.
-            I.replaceAllUsesWith(binOp->getOperand(0));
-            I.eraseFromParent();
-          }
-        } else {
-          // if the divisor could be illegal, we need to guard it with a
-          // select instruction generated from the branch condition.
-          auto &masked = safeDivisors[divisor];
-          if (!masked) {
-            // NOTE this function does not check for the pattern
-            // "select (x eq 0) 1, x" or equivalent, so we might want to
-            // write it ourselves, but Instruction Combining cleans it
-            // up. NOTE that for a signed division, we also have to
-            // consider the potential overflow situation, which is not
-            // so simple
-            if (isUnsigned && isKnownNonZero(divisor, DL)) {
-              // Static analysis concluded it can't be zero, so we don't
-              // need to do anything.
-              masked = divisor;
+    default:
+      break;
+    case Instruction::UDiv:
+    case Instruction::URem:
+      isUnsigned = true;
+      LLVM_FALLTHROUGH;
+    case Instruction::SDiv:
+    case Instruction::SRem: {
+      auto *divisor = binOp->getOperand(1);
+      if (auto *C = dyn_cast<Constant>(divisor)) {
+        if (C->isZeroValue()) {
+          // Divides by constant zero can be a NOP since there is no
+          // division by zero exception in OpenCL.
+          I.replaceAllUsesWith(binOp->getOperand(0));
+          I.eraseFromParent();
+        }
+      } else {
+        // if the divisor could be illegal, we need to guard it with a
+        // select instruction generated from the branch condition.
+        auto &masked = safeDivisors[divisor];
+        if (!masked) {
+          // NOTE this function does not check for the pattern
+          // "select (x eq 0) 1, x" or equivalent, so we might want to
+          // write it ourselves, but Instruction Combining cleans it
+          // up. NOTE that for a signed division, we also have to
+          // consider the potential overflow situation, which is not
+          // so simple
+          if (isUnsigned && isKnownNonZero(divisor, DL)) {
+            // Static analysis concluded it can't be zero, so we don't
+            // need to do anything.
+            masked = divisor;
+          } else {
+            Value *one = ConstantInt::get(divisor->getType(), 1);
+            Value *cond = Branch.getCondition();
+
+            Instruction *SI;
+            if (TrueBranch) {
+              SI = SelectInst::Create(cond, divisor, one,
+                                      divisor->getName() + ".hoist_guard");
             } else {
-              Value *one = ConstantInt::get(divisor->getType(), 1);
-              Value *cond = Branch.getCondition();
-
-              Instruction *SI;
-              if (TrueBranch) {
-                SI = SelectInst::Create(cond, divisor, one,
-                                        divisor->getName() + ".hoist_guard");
-              } else {
-                SI = SelectInst::Create(cond, one, divisor,
-                                        divisor->getName() + ".hoist_guard");
-              }
-              SI->insertBefore(I.getIterator());
-              masked = SI;
+              SI = SelectInst::Create(cond, one, divisor,
+                                      divisor->getName() + ".hoist_guard");
             }
-          }
-
-          if (masked != divisor) {
-            binOp->setOperand(1, masked);
+            SI->insertBefore(I.getIterator());
+            masked = SI;
           }
         }
-      } break;
+
+        if (masked != divisor) {
+          binOp->setOperand(1, masked);
+        }
+      }
+    } break;
     }
   }
   return modified;
 }
-}  // namespace
+} // namespace
 
 PreservedAnalyses PreLinearizePass::run(Function &F,
                                         FunctionAnalysisManager &AM) {

@@ -77,11 +77,11 @@ STATISTIC(VeczPacketizeFailStride,
 
 // Just a little macro that can return an empty SmallVector, as a drop-in
 // replacement for VECZ_FAIL_IF..
-#define PACK_FAIL_IF(cond) \
-  do {                     \
-    if (cond) {            \
-      return {};           \
-    }                      \
+#define PACK_FAIL_IF(cond)                                                     \
+  do {                                                                         \
+    if (cond) {                                                                \
+      return {};                                                               \
+    }                                                                          \
   } while (false)
 
 namespace {
@@ -96,7 +96,7 @@ Type *getPaddedType(Type *Ty) {
   }
   return Ty;
 }
-}  // namespace
+} // namespace
 
 using ValuePacket = SmallVector<Value *, 16>;
 
@@ -106,7 +106,7 @@ using ValuePacket = SmallVector<Value *, 16>;
 /// Packetizer, while also ensuring that a Packetizer cannot be created except
 /// as the base class of its own implementation.
 class Packetizer::Impl : public Packetizer {
- public:
+public:
   Impl(llvm::Function &F, llvm::FunctionAnalysisManager &AM, ElementCount Width,
        unsigned Dim);
   Impl() = delete;
@@ -144,9 +144,9 @@ class Packetizer::Impl : public Packetizer {
   ValuePacket packetizeAndGet(Value *V, unsigned Width);
 
   /// @brief Helper to produce a Result from a Packet
-  Packetizer::Result getPacketizationResult(
-      Instruction *I, const SmallVectorImpl<Value *> &Packet,
-      bool UpdateStats = false);
+  Packetizer::Result
+  getPacketizationResult(Instruction *I, const SmallVectorImpl<Value *> &Packet,
+                         bool UpdateStats = false);
 
   /// @brief Packetize the given value from the function, only if it is a
   /// varying value. Ensures Mask Varying values are handled correctly.
@@ -207,8 +207,8 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return The group collective data if the instruction is a call to any of
   /// the mux subgroup shuffle builtins; std::nullopt otherwise.
-  std::optional<compiler::utils::GroupCollective> isSubgroupShuffleLike(
-      Instruction *I);
+  std::optional<compiler::utils::GroupCollective>
+  isSubgroupShuffleLike(Instruction *I);
   /// @brief Packetize a sub-group shuffle builtin
   ///
   /// Note - not any shuffle-like operation, but specifically the 'shuffle'
@@ -227,8 +227,9 @@ class Packetizer::Impl : public Packetizer {
   /// @param[in] ShuffleXor Shuffle to packetize.
   ///
   /// @return Packetized instructions.
-  Result packetizeSubgroupShuffleXor(
-      Instruction *Ins, compiler::utils::GroupCollective ShuffleXor);
+  Result
+  packetizeSubgroupShuffleXor(Instruction *Ins,
+                              compiler::utils::GroupCollective ShuffleXor);
   /// @brief Packetize a sub-group shuffle-up or shuffle-down builtin
   ///
   /// Note - not any shuffle-like operation, but specifically the 'shuffle_up'
@@ -298,8 +299,9 @@ class Packetizer::Impl : public Packetizer {
   /// @param[in] AtomicInfo Information about the masked atomic.
   ///
   /// @return Packetized instruction.
-  ValuePacket packetizeMaskedAtomic(
-      CallInst &CI, VectorizationContext::MaskedAtomic AtomicInfo);
+  ValuePacket
+  packetizeMaskedAtomic(CallInst &CI,
+                        VectorizationContext::MaskedAtomic AtomicInfo);
   /// @brief Packetize a GEP instruction.
   ///
   /// @param[in] GEP Instruction to packetize.
@@ -440,15 +442,11 @@ class Packetizer::Impl : public Packetizer {
 
 Packetizer::Packetizer(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
                        ElementCount Width, unsigned Dim)
-    : AM(AM),
-      VU(AM.getResult<VectorizationUnitAnalysis>(F).getVU()),
+    : AM(AM), VU(AM.getResult<VectorizationUnitAnalysis>(F).getVU()),
       Ctx(AM.getResult<VectorizationContextAnalysis>(F).getContext()),
-      Choices(VU.choices()),
-      UVR(AM.getResult<UniformValueAnalysis>(F)),
+      Choices(VU.choices()), UVR(AM.getResult<UniformValueAnalysis>(F)),
       SAR(AM.getResult<StrideAnalysis>(F)),
-      PAR(AM.getResult<PacketizationAnalysis>(F)),
-      F(F),
-      SimdWidth(Width),
+      PAR(AM.getResult<PacketizationAnalysis>(F)), F(F), SimdWidth(Width),
       Dimension(Dim) {}
 
 Packetizer::Impl::Impl(llvm::Function &F, llvm::FunctionAnalysisManager &AM,
@@ -997,24 +995,24 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
 
   if (auto shuffle = isSubgroupShuffleLike(Ins)) {
     switch (shuffle->Op) {
-      default:
-        break;
-      case compiler::utils::GroupCollective::OpKind::Shuffle:
-        if (auto *s = packetizeSubgroupShuffle(Ins)) {
-          return broadcast(s);
-        }
-        break;
-      case compiler::utils::GroupCollective::OpKind::ShuffleXor:
-        if (auto s = packetizeSubgroupShuffleXor(Ins, *shuffle)) {
-          return s;
-        }
-        break;
-      case compiler::utils::GroupCollective::OpKind::ShuffleUp:
-      case compiler::utils::GroupCollective::OpKind::ShuffleDown:
-        if (auto s = packetizeSubgroupShuffleUpDown(Ins, *shuffle)) {
-          return s;
-        }
-        break;
+    default:
+      break;
+    case compiler::utils::GroupCollective::OpKind::Shuffle:
+      if (auto *s = packetizeSubgroupShuffle(Ins)) {
+        return broadcast(s);
+      }
+      break;
+    case compiler::utils::GroupCollective::OpKind::ShuffleXor:
+      if (auto s = packetizeSubgroupShuffleXor(Ins, *shuffle)) {
+        return s;
+      }
+      break;
+    case compiler::utils::GroupCollective::OpKind::ShuffleUp:
+    case compiler::utils::GroupCollective::OpKind::ShuffleDown:
+      if (auto s = packetizeSubgroupShuffleUpDown(Ins, *shuffle)) {
+        return s;
+      }
+      break;
     }
     // We can't packetize all sub-group shuffle-like operations, but we also
     // can't vectorize or instantiate them - so provide a diagnostic saying as
@@ -1128,61 +1126,61 @@ Packetizer::Result Packetizer::Impl::packetizeInstruction(Instruction *Ins) {
 
   // Figure out what kind of instruction it is and try to vectorize it.
   switch (Ins->getOpcode()) {
-    default:
-      if (Ins->isBinaryOp()) {
-        results = packetizeBinaryOp(cast<BinaryOperator>(Ins));
-      } else if (Ins->isCast()) {
-        results = packetizeCast(cast<CastInst>(Ins));
-      } else if (Ins->isUnaryOp()) {
-        results = packetizeUnaryOp(cast<UnaryOperator>(Ins));
-      }
-      break;
+  default:
+    if (Ins->isBinaryOp()) {
+      results = packetizeBinaryOp(cast<BinaryOperator>(Ins));
+    } else if (Ins->isCast()) {
+      results = packetizeCast(cast<CastInst>(Ins));
+    } else if (Ins->isUnaryOp()) {
+      results = packetizeUnaryOp(cast<UnaryOperator>(Ins));
+    }
+    break;
 
-    case Instruction::PHI:
-      results = packetizePHI(cast<PHINode>(Ins));
-      break;
-    case Instruction::GetElementPtr:
-      results = packetizeGEP(cast<GetElementPtrInst>(Ins));
-      break;
-    case Instruction::Store:
-      results = packetizeStore(cast<StoreInst>(Ins));
-      break;
-    case Instruction::Load:
-      results = packetizeLoad(cast<LoadInst>(Ins));
-      break;
-    case Instruction::Call:
-      results = packetizeCall(cast<CallInst>(Ins));
-      break;
-    case Instruction::ICmp:
-      results = packetizeICmp(cast<ICmpInst>(Ins));
-      break;
-    case Instruction::FCmp:
-      results = packetizeFCmp(cast<FCmpInst>(Ins));
-      break;
-    case Instruction::Select:
-      results = packetizeSelect(cast<SelectInst>(Ins));
-      break;
-    case Instruction::InsertElement:
-      results = packetizeInsertElement(cast<InsertElementInst>(Ins));
-      break;
-    case Instruction::ExtractElement:
-      results = packetizeExtractElement(cast<ExtractElementInst>(Ins));
-      break;
-    case Instruction::InsertValue:
-      results = packetizeInsertValue(cast<InsertValueInst>(Ins));
-      break;
-    case Instruction::ExtractValue:
-      results = packetizeExtractValue(cast<ExtractValueInst>(Ins));
-      break;
-    case Instruction::ShuffleVector:
-      results = packetizeShuffleVector(cast<ShuffleVectorInst>(Ins));
-      break;
-    case Instruction::Freeze:
-      results = packetizeFreeze(cast<FreezeInst>(Ins));
-      break;
-    case Instruction::AtomicCmpXchg:
-      results = packetizeAtomicCmpXchg(cast<AtomicCmpXchgInst>(Ins));
-      break;
+  case Instruction::PHI:
+    results = packetizePHI(cast<PHINode>(Ins));
+    break;
+  case Instruction::GetElementPtr:
+    results = packetizeGEP(cast<GetElementPtrInst>(Ins));
+    break;
+  case Instruction::Store:
+    results = packetizeStore(cast<StoreInst>(Ins));
+    break;
+  case Instruction::Load:
+    results = packetizeLoad(cast<LoadInst>(Ins));
+    break;
+  case Instruction::Call:
+    results = packetizeCall(cast<CallInst>(Ins));
+    break;
+  case Instruction::ICmp:
+    results = packetizeICmp(cast<ICmpInst>(Ins));
+    break;
+  case Instruction::FCmp:
+    results = packetizeFCmp(cast<FCmpInst>(Ins));
+    break;
+  case Instruction::Select:
+    results = packetizeSelect(cast<SelectInst>(Ins));
+    break;
+  case Instruction::InsertElement:
+    results = packetizeInsertElement(cast<InsertElementInst>(Ins));
+    break;
+  case Instruction::ExtractElement:
+    results = packetizeExtractElement(cast<ExtractElementInst>(Ins));
+    break;
+  case Instruction::InsertValue:
+    results = packetizeInsertValue(cast<InsertValueInst>(Ins));
+    break;
+  case Instruction::ExtractValue:
+    results = packetizeExtractValue(cast<ExtractValueInst>(Ins));
+    break;
+  case Instruction::ShuffleVector:
+    results = packetizeShuffleVector(cast<ShuffleVectorInst>(Ins));
+    break;
+  case Instruction::Freeze:
+    results = packetizeFreeze(cast<FreezeInst>(Ins));
+    break;
+  case Instruction::AtomicCmpXchg:
+    results = packetizeAtomicCmpXchg(cast<AtomicCmpXchgInst>(Ins));
+    break;
   }
 
   if (auto res = getPacketizationResult(Ins, results, /*update stats*/ true)) {
@@ -2092,14 +2090,14 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
     // CA-3696
     SmallVector<bool, maxOperands> operandsToSkip(maxOperands, false);
     switch (IntrID) {
-      case Intrinsic::abs:
-      case Intrinsic::ctlz:
-      case Intrinsic::cttz:
-        // def abs [LLVMMatchType<0>, llvm_i1_ty]
-        operandsToSkip = {false, true};
-        break;
-      default:
-        break;
+    case Intrinsic::abs:
+    case Intrinsic::ctlz:
+    case Intrinsic::cttz:
+      // def abs [LLVMMatchType<0>, llvm_i1_ty]
+      operandsToSkip = {false, true};
+      break;
+    default:
+      break;
     }
 
     auto *const ty = CI->getType();
@@ -2129,7 +2127,7 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
     }
 
     const auto name = CI->getName();
-    Type *const types[1] = {wideTy};  // because LLVM 13 is a numpty
+    Type *const types[1] = {wideTy}; // because LLVM 13 is a numpty
     Value *opVals[maxOperands];
     for (unsigned i = 0; i < packetWidth; ++i) {
       for (unsigned j = 0; j < n; ++j) {
@@ -2265,8 +2263,9 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeGroupScan(
-    CallInst *CI, compiler::utils::GroupCollective Scan) {
+ValuePacket
+Packetizer::Impl::packetizeGroupScan(CallInst *CI,
+                                     compiler::utils::GroupCollective Scan) {
   ValuePacket results;
 
   Function *callee = CI->getCalledFunction();
@@ -2293,46 +2292,46 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
   bool opIsSignedInt = false;
 
   switch (Scan.Recurrence) {
-    default:
-      assert(false && "Impossible subgroup scan kind");
-      return results;
-    case llvm::RecurKind::Add:
-    case llvm::RecurKind::FAdd:
-      op = "add";
-      break;
-    case llvm::RecurKind::SMin:
-      op = "smin";
-      opIsSignedInt = true;
-      break;
-    case llvm::RecurKind::UMin:
-      op = "umin";
-      break;
-    case llvm::RecurKind::FMin:
-      op = "min";
-      break;
-    case llvm::RecurKind::SMax:
-      op = "smax";
-      opIsSignedInt = true;
-      break;
-    case llvm::RecurKind::UMax:
-      op = "umax";
-      break;
-    case llvm::RecurKind::FMax:
-      op = "max";
-      break;
-    case llvm::RecurKind::Mul:
-    case llvm::RecurKind::FMul:
-      op = "mul";
-      break;
-    case llvm::RecurKind::And:
-      op = "and";
-      break;
-    case llvm::RecurKind::Or:
-      op = "or";
-      break;
-    case llvm::RecurKind::Xor:
-      op = "xor";
-      break;
+  default:
+    assert(false && "Impossible subgroup scan kind");
+    return results;
+  case llvm::RecurKind::Add:
+  case llvm::RecurKind::FAdd:
+    op = "add";
+    break;
+  case llvm::RecurKind::SMin:
+    op = "smin";
+    opIsSignedInt = true;
+    break;
+  case llvm::RecurKind::UMin:
+    op = "umin";
+    break;
+  case llvm::RecurKind::FMin:
+    op = "min";
+    break;
+  case llvm::RecurKind::SMax:
+    op = "smax";
+    opIsSignedInt = true;
+    break;
+  case llvm::RecurKind::UMax:
+    op = "umax";
+    break;
+  case llvm::RecurKind::FMax:
+    op = "max";
+    break;
+  case llvm::RecurKind::Mul:
+  case llvm::RecurKind::FMul:
+    op = "mul";
+    break;
+  case llvm::RecurKind::And:
+    op = "and";
+    break;
+  case llvm::RecurKind::Or:
+    op = "or";
+    break;
+  case llvm::RecurKind::Xor:
+    op = "xor";
+    break;
   }
 
   // Now create the mangled builtin function name.
@@ -2439,20 +2438,20 @@ Value *Packetizer::Impl::vectorizeInstruction(Instruction *Ins) {
   // Figure out what kind of instruction it is and try to vectorize it.
   Value *Result = nullptr;
   switch (Ins->getOpcode()) {
-    default:
-      break;
-    case Instruction::Call:
-      Result = vectorizeCall(cast<CallInst>(Ins));
-      break;
-    case Instruction::Ret:
-      Result = vectorizeReturn(cast<ReturnInst>(Ins));
-      break;
-    case Instruction::Alloca:
-      Result = vectorizeAlloca(cast<AllocaInst>(Ins));
-      break;
-    case Instruction::ExtractValue:
-      Result = vectorizeExtractValue(cast<ExtractValueInst>(Ins));
-      break;
+  default:
+    break;
+  case Instruction::Call:
+    Result = vectorizeCall(cast<CallInst>(Ins));
+    break;
+  case Instruction::Ret:
+    Result = vectorizeReturn(cast<ReturnInst>(Ins));
+    break;
+  case Instruction::Alloca:
+    Result = vectorizeAlloca(cast<AllocaInst>(Ins));
+    break;
+  case Instruction::ExtractValue:
+    Result = vectorizeExtractValue(cast<ExtractValueInst>(Ins));
+    break;
   }
 
   if (Result) {
@@ -3071,8 +3070,8 @@ ValuePacket Packetizer::Impl::packetizeFreeze(FreezeInst *FreezeI) {
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeAtomicCmpXchg(
-    AtomicCmpXchgInst *AtomicI) {
+ValuePacket
+Packetizer::Impl::packetizeAtomicCmpXchg(AtomicCmpXchgInst *AtomicI) {
   ValuePacket results;
 
   VectorizationContext::MaskedAtomic MA;
@@ -3530,8 +3529,8 @@ Value *Packetizer::Impl::vectorizeExtractValue(ExtractValueInst *ExtractValue) {
   return Result;
 }
 
-ValuePacket Packetizer::Impl::packetizeInsertElement(
-    InsertElementInst *InsertElement) {
+ValuePacket
+Packetizer::Impl::packetizeInsertElement(InsertElementInst *InsertElement) {
   ValuePacket results;
   Value *Result = nullptr;
 
@@ -3705,8 +3704,8 @@ ValuePacket Packetizer::Impl::packetizeInsertElement(
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeExtractElement(
-    ExtractElementInst *ExtractElement) {
+ValuePacket
+Packetizer::Impl::packetizeExtractElement(ExtractElementInst *ExtractElement) {
   ValuePacket results;
   Value *Result = nullptr;
 
@@ -3834,8 +3833,8 @@ ValuePacket Packetizer::Impl::packetizeExtractElement(
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeInsertValue(
-    InsertValueInst *InsertValue) {
+ValuePacket
+Packetizer::Impl::packetizeInsertValue(InsertValueInst *InsertValue) {
   ValuePacket results;
 
   Value *const Val = InsertValue->getInsertedValueOperand();
@@ -3875,8 +3874,8 @@ ValuePacket Packetizer::Impl::packetizeInsertValue(
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeExtractValue(
-    ExtractValueInst *ExtractValue) {
+ValuePacket
+Packetizer::Impl::packetizeExtractValue(ExtractValueInst *ExtractValue) {
   ValuePacket results;
 
   Value *const Aggregate = ExtractValue->getAggregateOperand();
@@ -3898,8 +3897,8 @@ ValuePacket Packetizer::Impl::packetizeExtractValue(
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeShuffleVector(
-    ShuffleVectorInst *Shuffle) {
+ValuePacket
+Packetizer::Impl::packetizeShuffleVector(ShuffleVectorInst *Shuffle) {
   Value *const srcA = Shuffle->getOperand(0);
   Value *const srcB = Shuffle->getOperand(1);
   assert(srcA && "Could not get operand 0 from Shuffle");

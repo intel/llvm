@@ -25,7 +25,7 @@ class Instruction;
 
 namespace vecz {
 class IRCleanup {
- public:
+public:
   /// @brief Mark the instruction as needing deletion. It will only be deleted
   /// if it is unused. This is used to mark instructions with side-effects
   /// (e.g. call, load, store and leaves) that have been replaced and are no
@@ -42,11 +42,11 @@ class IRCleanup {
   /// @param[in] I Instruction to delete.
   static void deleteInstructionNow(llvm::Instruction *I);
 
- private:
+private:
   /// @brief Instructions that have been marked for deletion.
   llvm::SmallPtrSet<llvm::Instruction *, 16> InstructionsToDelete;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECTORIZATION_UNIT_H_INCLUDED
+#endif // VECZ_VECTORIZATION_UNIT_H_INCLUDED

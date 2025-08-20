@@ -154,18 +154,18 @@ static constexpr const char *BarrierScheduleAttrName = "mux-barrier-schedule";
 void setBarrierSchedule(CallInst &CI, BarrierSchedule Sched) {
   StringRef Val = "unknown";
   switch (Sched) {
-    case BarrierSchedule::Unordered:
-      Val = "unordered";
-      break;
-    case BarrierSchedule::Once:
-      Val = "once";
-      break;
-    case BarrierSchedule::ScalarTail:
-      Val = "scalar-tail";
-      break;
-    case BarrierSchedule::Linear:
-      Val = "linear";
-      break;
+  case BarrierSchedule::Unordered:
+    Val = "unordered";
+    break;
+  case BarrierSchedule::Once:
+    Val = "once";
+    break;
+  case BarrierSchedule::ScalarTail:
+    Val = "scalar-tail";
+    break;
+  case BarrierSchedule::Linear:
+    Val = "linear";
+    break;
   }
 
   const Attribute Attr =
@@ -202,5 +202,5 @@ unsigned getMuxSubgroupSize(const llvm::Function &) {
   // hard-coding the constant 1 in places that will eventually need updated.
   return 1;
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

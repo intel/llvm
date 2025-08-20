@@ -100,15 +100,15 @@ PacketRange InstantiationPass::instantiateInternal(Value *V) {
 PacketRange InstantiationPass::instantiateInstruction(Instruction *Ins) {
   // Figure out what kind of instruction it is and try to instantiate it.
   switch (Ins->getOpcode()) {
-    default:
-      // No special handling of this Instruction so just clone across lanes..
-      break;
+  default:
+    // No special handling of this Instruction so just clone across lanes..
+    break;
 
-    case Instruction::Call:
-      return assignInstance(instantiateCall(cast<CallInst>(Ins)), Ins);
+  case Instruction::Call:
+    return assignInstance(instantiateCall(cast<CallInst>(Ins)), Ins);
 
-    case Instruction::Alloca:
-      return assignInstance(instantiateAlloca(cast<AllocaInst>(Ins)), Ins);
+  case Instruction::Alloca:
+    return assignInstance(instantiateAlloca(cast<AllocaInst>(Ins)), Ins);
   }
 
   return assignInstance(instantiateByCloning(Ins), Ins);

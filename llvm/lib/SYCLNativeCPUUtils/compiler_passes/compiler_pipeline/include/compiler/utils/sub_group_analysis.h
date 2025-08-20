@@ -52,7 +52,7 @@ class GlobalSubgroupInfo {
 
   compiler::utils::BuiltinInfo &BI;
 
- public:
+public:
   GlobalSubgroupInfo(llvm::Module &M, BuiltinInfo &);
 
   compiler::utils::BuiltinInfo &getBuiltinInfo() { return BI; }
@@ -73,15 +73,15 @@ class GlobalSubgroupInfo {
 
   /// @brief Returns true if the provided function is a mux sub-group
   /// collective builtin or sub-group barrier.
-  std::optional<compiler::utils::Builtin> isMuxSubgroupBuiltin(
-      const llvm::Function *F) const;
+  std::optional<compiler::utils::Builtin>
+  isMuxSubgroupBuiltin(const llvm::Function *F) const;
 };
 
 /// @brief Computes and returns the GlobalSubgroupInfo for a Module.
 class SubgroupAnalysis : public llvm::AnalysisInfoMixin<SubgroupAnalysis> {
   friend AnalysisInfoMixin<SubgroupAnalysis>;
 
- public:
+public:
   using Result = GlobalSubgroupInfo;
 
   explicit SubgroupAnalysis() {}
@@ -92,7 +92,7 @@ class SubgroupAnalysis : public llvm::AnalysisInfoMixin<SubgroupAnalysis> {
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "Sub-group analysis"; }
 
- private:
+private:
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
 };
@@ -103,13 +103,13 @@ class SubgroupAnalysisPrinterPass
     : public llvm::PassInfoMixin<SubgroupAnalysisPrinterPass> {
   llvm::raw_ostream &OS;
 
- public:
+public:
   explicit SubgroupAnalysisPrinterPass(llvm::raw_ostream &OS) : OS(OS) {}
 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 };
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_SUB_GROUP_ANALYSIS_H_INCLUDED
+#endif // COMPILER_UTILS_SUB_GROUP_ANALYSIS_H_INCLUDED
