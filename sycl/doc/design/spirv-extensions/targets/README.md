@@ -23,6 +23,8 @@ Targets represent the device's Instruction Set Architecture (ISA), for example x
 * Each target has also a _set_ of **Features** which represent features/extensions of a particular target.
 For example, AVX2 is an extension of the x86/x86_64 ISA and thus is available only for those targets.
 
+_(The current lists were assembled with the help of `llc --version` and `llc --mtriple=<tgt> --mattr=help.)_
+
 ### Architectures
 
 Architectures represent the processor's model or microarchitecture.
