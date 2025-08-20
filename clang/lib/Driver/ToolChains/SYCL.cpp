@@ -727,6 +727,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
+  // Currently, device sanitizer support is required by some developers on
+  // Linux platform only, so compiler only provides device sanitizer libraries
+  // on Linux platform.
 #if !defined(_WIN32)
   addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
 #endif
