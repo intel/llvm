@@ -11,6 +11,7 @@
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_data.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 
@@ -61,8 +62,7 @@ public:
   }
 
   KernelNameStrRefT getKernelName() const {
-    assert(MDeviceKernelInfoPtr);
-    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+    return MKernelData.getKernelName();
   }
 
   /// Registers mutually exclusive submission states.
@@ -108,12 +108,6 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-
-  bool MKernelIsCooperative = false;
-  bool MKernelUsesClusterLaunch = false;
-  uint32_t MKernelWorkGroupMemorySize = 0;
-
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};
   ur_image_desc_t MDstImageDesc = {};
@@ -138,28 +132,16 @@ public:
   sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
       sycl::ext::oneapi::experimental::node_type::empty;
 
-  // Storage for any SYCL Graph dynamic parameters which have been flagged for
-  // registration in the CG, along with the argument index for the parameter.
-  std::vector<std::pair<
-      ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-      MDynamicParameters;
-
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
   detail::CG::StorageInitHelper CGData;
 
-  /// The list of arguments for the kernel.
-  std::vector<detail::ArgDesc> MArgs;
-
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
-
-  /// Struct that encodes global size, local size, ...
-  detail::NDRDescT MNDRDesc;
 
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless
@@ -241,16 +223,7 @@ public:
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
 
-  // Store information about the kernel arguments.
-  void *MKernelFuncPtr = nullptr;
-  int MKernelNumArgs = 0;
-  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
-  bool MKernelIsESIMD = false;
-  bool MKernelHasSpecialCaptures = true;
-
-  // A pointer to device kernel information. Cached on the application side in
-  // headers or retrieved from program manager.
-  DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
+  KernelData MKernelData;
 };
 
 } // namespace detail
