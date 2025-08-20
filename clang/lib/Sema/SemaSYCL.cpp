@@ -1942,7 +1942,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   // Used to track FunctionDecl location in case if it is not available directly
   // from method
   SourceLocation FreeFunctionLoc;
-  
+
   // Used to check if FunctionDecl is a free function.
   bool IsFreeFunction = false;
 
