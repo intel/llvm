@@ -175,11 +175,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::event> {
-  size_t operator()(const sycl::event &e) const {
-    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
-        sycl::detail::getSyclObjImpl(e));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::event>
+    : public sycl::detail::sycl_obj_hash<sycl::event> {};
