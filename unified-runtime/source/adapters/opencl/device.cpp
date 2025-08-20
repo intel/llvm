@@ -36,6 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   case UR_DEVICE_TYPE_VPU:
     Type = CL_DEVICE_TYPE_ACCELERATOR;
     break;
+  case UR_DEVICE_TYPE_CUSTOM:
+    Type = CL_DEVICE_TYPE_CUSTOM;
+    break;
   case UR_DEVICE_TYPE_DEFAULT:
     Type = CL_DEVICE_TYPE_DEFAULT;
     break;
@@ -47,11 +50,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
     uint32_t DeviceNumIter = 0;
     for (uint32_t i = 0; i < AllDevicesNum; i++) {
       cl_device_type DevTy = hPlatform->Devices[i]->Type;
-      if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL) {
+      if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL ||
+          Type == CL_DEVICE_TYPE_DEFAULT) {
         if (phDevices) {
           phDevices[DeviceNumIter] = hPlatform->Devices[i].get();
         }
         DeviceNumIter++;
+        // For default, the first device is the only returned device.
+        if (Type == CL_DEVICE_TYPE_DEFAULT)
+          break;
       }
     }
     if (pNumDevices) {
@@ -141,6 +148,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       URDeviceType = UR_DEVICE_TYPE_GPU;
     } else if (CLType & CL_DEVICE_TYPE_ACCELERATOR) {
       URDeviceType = UR_DEVICE_TYPE_FPGA;
+    } else if (CLType & CL_DEVICE_TYPE_CUSTOM) {
+      URDeviceType = UR_DEVICE_TYPE_CUSTOM;
     }
 
     return ReturnValue(URDeviceType);

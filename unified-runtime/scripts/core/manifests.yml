@@ -23,6 +23,7 @@ device_types:
     - $X_DEVICE_TYPE_FPGA
     - $X_DEVICE_TYPE_MCA
     - $X_DEVICE_TYPE_VPU
+    - $X_DEVICE_TYPE_CUSTOM
 --- #--------------------------------------------------------------------------
 type: manifest
 name: cuda
