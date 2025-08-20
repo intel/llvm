@@ -226,8 +226,8 @@ semantics.
 
 [NOTE]
 ====
-Additional future `image_type`s _may_ include combined image types like 
-"mipmapped cubemap".
+Additional future `image_type` enumerators _may_ include combined image types
+like "mipmapped cubemap".
 ====
 
 Note that `image_channel_type` and `image_channel_order` existed in SYCL 1.2.1,
@@ -269,7 +269,7 @@ to query device support for the allocation and creation of images for a given
 Before allocating memory for an image, the user may first query whether their
 desired image backing memory type is supported by the device.
 
-The following query returns a vector of supported `image_memory_handle_type`s
+The following query returns a vector of supported `image_memory_handle_type`
 based on the properties of a given `image_descriptor`.
 
 The `image_memory_handle_type::usm_pointer` relates to USM allocations, while
@@ -1387,7 +1387,7 @@ dimensions are `x` for 1D images, `x` and `y` for 2D images, and `x`, `y`, and
 `z` for 3D images. `x`, `y`, and `z` correspond to indices `0`, `1`, and `2` of
 the `SrcOffset` and `CopyExtent` parameters, respectively.
 
-11. The `CopyExtent`'s' `x`, `y`, and `z` dimensions must not be `0`. They must
+11. Dimensions `x`, `y`, and `z` of the `CopyExtent` must not be `0`. They must
 be greater than or equal to `1`. Even if the image is 1D or 2D, the remaining
 non-relevant dimension's values must be set to `1` in the `CopyExtent`
 parameter.
@@ -2017,7 +2017,7 @@ The device aspect descriptors for these queries are:
 |Device descriptor |Description
 |`aspect::ext_oneapi_external_memory_import` | Indicates if the device supports 
 importing external memory resources.
-|`aspect::ext_oneapi_external_semaphore_import`` | Indicates if the device 
+|`aspect::ext_oneapi_external_semaphore_import` | Indicates if the device 
 supports importing external semaphore resources.
 |======================
 
