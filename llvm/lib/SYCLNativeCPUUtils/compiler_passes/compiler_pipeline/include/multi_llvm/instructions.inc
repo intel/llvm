@@ -31,34 +31,34 @@ struct BinOpHelper
 #define BINOP_LLVM21(OP, STR) BINOP(OP, STR)
 #endif
 {
-#define BINOPS()                     \
-  BINOP(Xchg, "xchg")                \
-  BINOP(Add, "add")                  \
-  BINOP(Sub, "sub")                  \
-  BINOP(And, "and")                  \
-  BINOP(Nand, "nand")                \
-  BINOP(Or, "or")                    \
-  BINOP(Xor, "xor")                  \
-  BINOP(Max, "max")                  \
-  BINOP(Min, "min")                  \
-  BINOP(UMax, "umax")                \
-  BINOP(UMin, "umin")                \
-  BINOP(FAdd, "fadd")                \
-  BINOP(FSub, "fsub")                \
-  BINOP(FMax, "fmax")                \
-  BINOP(FMin, "fmin")                \
-  BINOP_LLVM21(FMaximum, "fmaximum") \
-  BINOP_LLVM21(FMinimum, "fminumum") \
-  BINOP(UIncWrap, "uincwrap")        \
-  BINOP(UDecWrap, "udecwrap")        \
-  BINOP_LLVM20(USubCond, "usubcond") \
+#define BINOPS()                                                               \
+  BINOP(Xchg, "xchg")                                                          \
+  BINOP(Add, "add")                                                            \
+  BINOP(Sub, "sub")                                                            \
+  BINOP(And, "and")                                                            \
+  BINOP(Nand, "nand")                                                          \
+  BINOP(Or, "or")                                                              \
+  BINOP(Xor, "xor")                                                            \
+  BINOP(Max, "max")                                                            \
+  BINOP(Min, "min")                                                            \
+  BINOP(UMax, "umax")                                                          \
+  BINOP(UMin, "umin")                                                          \
+  BINOP(FAdd, "fadd")                                                          \
+  BINOP(FSub, "fsub")                                                          \
+  BINOP(FMax, "fmax")                                                          \
+  BINOP(FMin, "fmin")                                                          \
+  BINOP_LLVM21(FMaximum, "fmaximum")                                           \
+  BINOP_LLVM21(FMinimum, "fminumum")                                           \
+  BINOP(UIncWrap, "uincwrap")                                                  \
+  BINOP(UDecWrap, "udecwrap")                                                  \
+  BINOP_LLVM20(USubCond, "usubcond")                                           \
   BINOP_LLVM20(USubSat, "usubsat")
 
-  static std::optional<T> consume_front_with_underscore(
-      llvm::StringRef &String) {
-#define BINOP(BINOP, STR)              \
-  if (String.consume_front(STR "_")) { \
-    return T::BINOP;                   \
+  static std::optional<T>
+  consume_front_with_underscore(llvm::StringRef &String) {
+#define BINOP(BINOP, STR)                                                      \
+  if (String.consume_front(STR "_")) {                                         \
+    return T::BINOP;                                                           \
   }
     BINOPS()
 #undef BINOP
@@ -67,13 +67,13 @@ struct BinOpHelper
 
   static llvm::StringRef to_string(T BinOp) {
     switch (BinOp) {
-#define BINOP(BINOP, STR) \
-  case T::BINOP:          \
+#define BINOP(BINOP, STR)                                                      \
+  case T::BINOP:                                                               \
     return STR;
       BINOPS()
 #undef BINOP
-      case T::BAD_BINOP:
-        break;
+    case T::BAD_BINOP:
+      break;
     }
     llvm_unreachable("Unexpected BinOp");
   }
