@@ -492,12 +492,13 @@ event handler::finalize() {
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
-  if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
-      (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
+  if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
+      (!KernelFastPath || impl->MKernelData.hasSpecialCaptures())) {
     clearArgs();
-    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
-                                 impl->MKernelParamDescGetter,
-                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
+    extractArgsAndReqsFromLambda((char *)impl->MKernelData.getKernelFuncPtr(),
+                                 impl->MKernelData.getKernelParamDescGetter(),
+                                 impl->MKernelData.getKernelNumArgs(),
+                                 impl->MKernelData.isESIMD());
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
@@ -614,7 +615,8 @@ event handler::finalize() {
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
+                toKernelNameStrT(MKernelName),
+                impl->MKernelData.getKernelNameBasedCachePtr());
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -635,7 +637,8 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedCachePtr,
+              MKernelName.data(),
+              impl->MKernelData.getKernelNameBasedCachePtr(),
               impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
               impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
@@ -652,11 +655,14 @@ event handler::finalize() {
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
-            impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
-            nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-            BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
-            impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
+            impl->MKernelData.getKernelNameBasedCachePtr(), RawEvents,
+            ResultEvent.get(), nullptr, impl->MKernelCacheConfig,
+            impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
+            impl->MKernelWorkGroupMemorySize, BinImage,
+            impl->MKernelData.getKernelFuncPtr(),
+            impl->MKernelData.getKernelNumArgs(),
+            impl->MKernelData.getKernelParamDescGetter(),
+            impl->MKernelData.hasSpecialCaptures());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         if (xptiEnabled) {
           // Emit signal only when event is created
@@ -713,9 +719,9 @@ event handler::finalize() {
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
-        std::move(impl->MAuxiliaryResources), getType(),
-        impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+        impl->MKernelData.getKernelNameBasedCachePtr(),
+        std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
+        getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
         MCodeLoc));
     break;
@@ -2596,18 +2602,16 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
 
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  impl->MKernelNameBasedCachePtr = KernelNameBasedCachePtr;
+  impl->MKernelData.setKernelNameBasedCachePtr(KernelNameBasedCachePtr);
 }
 
 void handler::setKernelInfo(
     void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  impl->MKernelFuncPtr = KernelFuncPtr;
-  impl->MKernelNumArgs = KernelNumArgs;
-  impl->MKernelParamDescGetter = KernelParamDescGetter;
-  impl->MKernelIsESIMD = KernelIsESIMD;
-  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+  impl->MKernelData.setKernelInfo(KernelFuncPtr, KernelNumArgs,
+                                  KernelParamDescGetter, KernelIsESIMD,
+                                  KernelHasSpecialCaptures);
 }
 
 void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {

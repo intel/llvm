@@ -873,7 +873,7 @@ protected:
           (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(
               Handler.MKernelName.data(),
-              Handler.impl->MKernelNameBasedCachePtr);
+              Handler.impl->MKernelData.getKernelNameBasedCachePtr());
 
     auto &PostProcess = *PostProcessorFunc;
     PostProcess(IsKernel, KernelUsesAssert, Event);
