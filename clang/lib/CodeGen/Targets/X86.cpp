@@ -1052,6 +1052,7 @@ static bool isArgInAlloca(const ABIArgInfo &Info) {
     return true;
   case ABIArgInfo::Ignore:
   case ABIArgInfo::IndirectAliased:
+  case ABIArgInfo::TargetSpecific:
     return false;
   case ABIArgInfo::Indirect:
   case ABIArgInfo::Direct:
