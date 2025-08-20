@@ -9,17 +9,22 @@
 :spec_const_architecture_name: OpSpecConstantArchitectureINTEL
 :spec_const_capabilities_name: OpSpecConstantCapabilitiesINTEL
 :conditional_copy_name: OpConditionalCopyObjectINTEL
+:fnvar_version_name: OpFnVarVersion
 
-:spec_capability_token:         6245 (TBD)
-:fnvar_capability_token:        6246 (TBD)
-:conditional_token:             6247 (TBD)
-:conditional_extension_token:   6248 (TBD)
-:conditional_entry_point_token: 6249 (TBD)
-:conditional_capability_token:  6250 (TBD)
-:spec_const_target_token:       6251 (TBD)
-:spec_const_architecture_token: 6252 (TBD)
-:spec_const_capabilities_token: 6253 (TBD)
-:conditional_copy_token:        6254 (TBD)
+:spec_capability_token:         6245
+:fnvar_capability_token:        6246
+:conditional_token:             6247
+:conditional_extension_token:   6248
+:conditional_entry_point_token: 6249
+:conditional_capability_token:  6250
+:spec_const_target_token:       6251
+:spec_const_architecture_token: 6252
+:spec_const_capabilities_token: 6253
+:conditional_copy_token:        6254
+:fnvar_version_token:           6260
+
+:spv_version: 1.6
+:spv_rev:     6
 
 
 {extension_name}
@@ -60,15 +65,15 @@ Copyright (c) 2025 Intel Corporation. All rights reserved.
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2025-05-08
-| Revision           | 0.11
+| Last Modified Date | 2025-08-20
+| Revision           | 0.13
 |========================================
 
 
 == Dependencies
 
 This extension is written against the SPIR-V Specification,
-Version 1.6, Revision 5, Unified
+Version {spv_version}, Revision {spv_rev}, Unified
 
 This extension requires SPIR-V 1.0.
 
@@ -145,6 +150,7 @@ Instructions added under the *{spec_capability_name}* capability:
 {conditional_extension_name}
 {conditional_capability_name}
 {conditional_entry_point_name}
+{fnvar_version_name}
 {conditional_copy_name}
 ----
 
@@ -174,10 +180,11 @@ Instructions added under the *{fnvar_capability_name}* capability:
 |*{spec_const_architecture_name}* | {spec_const_architecture_token}
 |*{spec_const_capabilities_name}* | {spec_const_capabilities_token}
 |*{conditional_copy_name}* | {conditional_copy_token}
+|*{fnvar_version_name}* | {fnvar_version_token}
 |====
 
 
-== Modifications to the SPIR-V Specification, Version 1.6, Revision 5, Unified
+== Modifications to the SPIR-V Specification, Version {spv_version}, Revision {spv_rev}, Unified
 
 === Logical Layout of a Module
 
@@ -197,6 +204,11 @@ Then, changing item 5 in the layout list to say:
 
 [start=5]
 . All entry point declarations, using *OpEntryPoint* or *{conditional_entry_point_name}*.
+
+Then, changing item 7.c in the layout list to say:
+
+[loweralpha,start=3]
+. All *OpModuleProcessed* and *{fnvar_version_name}* instructions.
 
 Furthermore, add the following to the cases when forward references are allowed:
 
@@ -255,36 +267,11 @@ If the *{spec_capability_name}* capability is declared:
 
 * If all 'Condition' operands of *{conditional_copy_name}* have been specialized to a known value, replace *{conditional_copy_name}* with *OpCopyObject* using the 'Operand' whose 'Condition' is *true*.
 
-* If the module does not contain any decorations or instructions defined by this extension, any present *OpCapability {spec_capability_name}*, *OpCapability {fnvar_capability_name}* or *OpExtension {extension_name}* instructions are removed.
-
-=== Capabilities
-
-Modify Section 3.31, Capability, adding this row to the Capability table:
-
---
-[cols="1,15,5",options="header",width = "100%"]
-|===
-2+| Capability         | Implicitly Declares
-| {spec_capability_token} | *{spec_capability_name}* +
-Module is multi-target and can be targeted using external boolean specialization constants.
-|
-|===
---
-
---
-[cols="1,15,5",options="header",width = "100%"]
-|===
-2+| Capability         | Implicitly Declares
-| {fnvar_capability_token} | *{fnvar_capability_name}* +
-Module enables new specialization constants for specializing according to device targets, features and architectures.
-| *{spec_capability_name}*
-|===
---
-
+* If the module does not contain any decorations or instructions defined by this extension, any present *OpCapability {spec_capability_name}*, *OpCapability {fnvar_capability_name}*, *OpExtension {extension_name}* or *{fnvar_version_name}* instructions are removed.
 
 === Decorations
 
-Modify Section 3.20, Decoration, adding these rows to the Decoration table:
+Modify Section 3.2.19, Decoration, adding this row to the Decoration table:
 
 --
 [cols="1,5,2,2",options="header"]
@@ -305,9 +292,45 @@ The 'Condition' must be the result of a specialization constant of scalar 'Boole
 |====
 --
 
+=== Capabilities
+
+Modify Section 3.2.30, Capability, adding these rows to the Capability table:
+
+--
+[cols="1,15,5",options="header",width = "100%"]
+|===
+2+| Capability         | Implicitly Declares
+| {spec_capability_token} | *{spec_capability_name}* +
+Module is multi-target and can be targeted using external boolean specialization constants.
+|
+| {fnvar_capability_token} | *{fnvar_capability_name}* +
+Module enables new specialization constants for specializing according to device targets, features and architectures.
+| *{spec_capability_name}*
+|===
+--
+
 === Instructions
 
-Add to Section 3.56.4, Extension Instructions:
+Add to Section 3.3.2, Debug Instructions:
+
+--
+[cols="1,1,1",width="100%"]
+|=====
+2+|[[{fnvar_version_name}]]*{fnvar_version_name}* +
+ +
+Declare which version of the *{extension_name}* specification was used when producing a multi-target module.
+
+'Version' must be an unsigned integer.
+
+|Capability: +
+*{spec_capability_name}*
+
+| 2 | {fnvar_version_token}
+| 'Version'
+|=====
+--
+
+Add to Section 3.3.4, Extension Instructions:
 
 --
 [cols="1,1,2*3",width="100%"]
@@ -333,7 +356,7 @@ See also *Specialization* and *OpExtension*.
 |=====
 --
 
-Add to Section 3.56.5, Mode-Setting Instructions:
+Add to Section 3.3.5, Mode-Setting Instructions:
 
 --
 [cols="1,1,2,3,3,3,3",width="100%"]
@@ -391,7 +414,7 @@ See also *Specialization* and *OpCapability*.
 |=====
 --
 
-Add to Section 3.56.7, Constant-Creation Instructions:
+Add to Section 3.3.7, Constant-Creation Instructions:
 
 --
 [cols="1,1,3,2,3,3",width="100%"]
@@ -485,7 +508,7 @@ See *Specialization*.
 |=====
 --
 
-Add to Section 3.56.9, Function Instructions:
+Add to Section 3.3.9, Function Instructions:
 
 --
 [cols="1,1,3,2,3",width="100%"]
@@ -608,6 +631,8 @@ Each group contains a base function (`foo1`, `bar1`) and two variants of the bas
         OpName %bar1 bar
         OpName %bar2 bar
         OpName %bar3 bar
+
+        OpFnVarVersion 0
 
         OpDecorate %foo1 {conditional_name} %b1
         OpDecorate %foo2 {conditional_name} %b2
@@ -762,4 +787,5 @@ Given the target `x86_64`, features `avx2,avx512f` and architecture `intel_cpu_s
 |0.9|2025-04-02|Jakub Žádník|Add conditional extension and specialization by capabilities
 |0.10|2025-04-22|Jakub Žádník|Added more precise wording regarding architecture comparisons
 |0.11|2025-05-08|Jakub Žádník|Misc corrections and clarifications
+|0.13|2025-08-20|Jakub Žádník|Add OpFnVarVersion instruction; Update to Revision 6; Remove TBD
 |========================================
