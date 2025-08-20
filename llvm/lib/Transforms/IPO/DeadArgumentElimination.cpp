@@ -578,7 +578,7 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
   // Do not modify arguments when the SYCL kernel is a free function kernel.
   // In this case, the user sets the arguments of the kernel by themselves
   // and dead argument elimination may interfere with their expectations.
-  bool FuncIsSyclFreeFunctionKernel =
+  const bool FuncIsSyclFreeFunctionKernel =
       F.hasFnAttribute("sycl-single-task-kernel") ||
       F.hasFnAttribute("sycl-nd-range-kernel");
   if (FuncIsSyclFreeFunctionKernel) {
