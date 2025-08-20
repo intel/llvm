@@ -147,7 +147,7 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
-          std::move(impl->CGData), std::move(impl->MArgs),
+          std::move(impl->CGData), std::move(impl->MKernelData).getArgs(),
           CGH->MKernelName.data(), *impl->MKernelData.getDeviceKernelInfo(),
           std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
           impl->MCGType, {}, impl->MKernelIsCooperative,

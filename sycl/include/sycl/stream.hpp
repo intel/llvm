@@ -42,6 +42,7 @@ inline namespace _V1 {
 namespace detail {
 
 class stream_impl;
+class KernelData;
 
 using FmtFlags = unsigned int;
 
@@ -1041,7 +1042,7 @@ private:
   }
 #endif
 
-  friend class handler;
+  friend class detail::KernelData;
 
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 

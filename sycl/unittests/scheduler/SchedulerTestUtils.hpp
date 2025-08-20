@@ -252,7 +252,9 @@ public:
   std::vector<sycl::detail::EventImplPtr> &getEvents() {
     return impl->CGData.MEvents;
   }
-  std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
+  std::vector<sycl::detail::ArgDesc> &getArgs() {
+    return impl->MKernelData.getArgs();
+  }
   sycl::detail::KernelNameStrT getKernelName() {
     return toKernelNameStrT(MKernelName);
   }
