@@ -1058,6 +1058,7 @@ void handler::associateWithHandler(
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
+  (void)IsESIMD;
   impl->MKernelData.processArg(Ptr, Kind, Size, Index, IndexShift,
                                IsKernelCreatedFromSource, impl->MNDRDesc);
 }
@@ -1088,12 +1089,17 @@ void handler::extractArgsAndReqs() {
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams, bool IsESIMD) {
+  (void)LambdaPtr;
+  (void)ParamDescGetter;
+  (void)NumKernelParams;
+  (void)IsESIMD;
   impl->MKernelData.extractArgsAndReqsFromLambda(impl->MNDRDesc);
 }
 
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {
+  (void)IsESIMD;
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
 
