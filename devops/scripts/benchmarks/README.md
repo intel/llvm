@@ -143,6 +143,11 @@ IGC (Ubuntu):
 `$ sudo apt-get install flex bison libz-dev cmake libc6 libstdc++6 python3-pip`
 
 
+## Performance Tuning
+
+For stable benchmark results and system configuration recommendations, see the
+[Performance Tuning Guide](PERFORMANCE_TUNING.md).
+
 ## Contribution
 
 The requirements and instructions above are for building the project from source
