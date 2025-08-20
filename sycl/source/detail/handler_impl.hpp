@@ -134,20 +134,11 @@ public:
   sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
       sycl::ext::oneapi::experimental::node_type::empty;
 
-  // Storage for any SYCL Graph dynamic parameters which have been flagged for
-  // registration in the CG, along with the argument index for the parameter.
-  std::vector<std::pair<
-      ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-      MDynamicParameters;
-
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
   detail::CG::StorageInitHelper CGData;
-
-  /// The list of arguments for the kernel.
-  std::vector<detail::ArgDesc> MArgs;
 
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or

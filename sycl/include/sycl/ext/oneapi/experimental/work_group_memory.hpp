@@ -18,9 +18,10 @@
 
 namespace sycl {
 inline namespace _V1 {
-class handler;
 
 namespace detail {
+class KernelData;
+
 template <typename T> struct is_unbounded_array : std::false_type {};
 
 template <typename T> struct is_unbounded_array<T[]> : std::true_type {};
@@ -38,7 +39,7 @@ public:
 
 private:
   size_t buffer_size;
-  friend class sycl::handler;
+  friend class KernelData;
 };
 
 } // namespace detail
