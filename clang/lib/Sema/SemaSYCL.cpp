@@ -1943,9 +1943,6 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   // from method
   SourceLocation FreeFunctionLoc;
 
-  // Used to check if FunctionDecl is a free function.
-  bool IsFreeFunction = false;
-
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
@@ -2061,14 +2058,11 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 public:
   /// Constructor for the SyclKernelFieldChecker
   /// \param S The SemaSYCL reference used for diagnostics and context.
-  /// \param FreeFuncFD The FunctionDecl for a free function, if applicable.
-  ///                   If provided, the location of this function will be used
+  /// \param FFLoc Free function location, used to report diagnostics
   explicit SyclKernelFieldChecker(SemaSYCL &S,
-                                  FunctionDecl *FreeFuncFD = nullptr)
-      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {
-    if (FreeFuncFD)
-      FreeFunctionLoc = FreeFuncFD->getLocation();
-  }
+                                  SourceLocation FFLoc = SourceLocation())
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()),
+        FreeFunctionLoc(FFLoc) {}
   static constexpr const bool VisitNthArrayElement = false;
   bool isValid() { return !IsInvalid; }
 
@@ -2232,13 +2226,15 @@ public:
                    QualType) final {
     --StructBaseDepth;
     // FreeFunctionLoc.isInvalid() shows if checker object was created for a
-    // free function
-    if (FreeFunctionLoc.isInvalid())
-      return true;
-    if (B.isVirtual())
-      SemaSYCLRef.SemaRef.Diag(FreeFunctionLoc,
-                               diag::err_sycl_kernel_virtual_arg)
+    // free function. If that is the case, point to the free function
+    // declaration.
+    if (B.isVirtual()) {
+      Diag.Report(FreeFunctionLoc.isInvalid() ? RD->getLocation()
+                                              : FreeFunctionLoc,
+                  diag::err_sycl_kernel_virtual_arg)
           << RD->getNameAsString() << B.getType().getAsString();
+      IsInvalid = true;
+    }
     return isValid();
   }
 };
@@ -5930,7 +5926,7 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     FreeFunctionDeclarations.erase(FD->getCanonicalDecl());
 
     SyclKernelDecompMarker DecompMarker(*this);
-    SyclKernelFieldChecker FieldChecker(*this, FD);
+    SyclKernelFieldChecker FieldChecker(*this, FD->getLocation());
     SyclKernelUnionChecker UnionChecker(*this);
 
     KernelObjVisitor Visitor{*this};

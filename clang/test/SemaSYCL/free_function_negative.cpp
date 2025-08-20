@@ -127,7 +127,7 @@ class Derived : virtual public Base {};
 void VirtualInheritArg(Derived Value) {
 }
 
-// expected-error@+2 2 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+// expected-error@+2 1 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
 void VirtualInheritArg1(int a, Derived Value, float b, Derived Value1) {
 }
