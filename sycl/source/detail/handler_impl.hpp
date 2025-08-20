@@ -11,6 +11,7 @@
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_data.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 
@@ -236,16 +237,7 @@ public:
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
 
-  // Store information about the kernel arguments.
-  void *MKernelFuncPtr = nullptr;
-  int MKernelNumArgs = 0;
-  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
-  bool MKernelIsESIMD = false;
-  bool MKernelHasSpecialCaptures = true;
-
-  // A pointer to device kernel information. Cached on the application side in
-  // headers or retrieved from program manager.
-  DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
+  KernelData MKernelData;
 };
 
 } // namespace detail

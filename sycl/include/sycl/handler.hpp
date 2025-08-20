@@ -856,14 +856,11 @@ private:
       // Force hasSpecialCaptures to be evaluated at compile-time.
       constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
       setKernelInfo((void *)MHostKernel->getPtr(),
-                    detail::getKernelNumParams<KernelName>(),
-                    &(detail::getKernelParamDesc<KernelName>),
-                    detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
+                    &detail::getDeviceKernelInfo<KernelName>());
 
       constexpr std::string_view KernelNameStr =
           detail::getKernelName<KernelName>();
       MKernelName = KernelNameStr;
-      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -3658,10 +3655,13 @@ private:
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                             sycl::range<1> LocalSize, sycl::id<1> Offset);
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+#endif
+  void setKernelInfo(void *KernelFuncPtr,
+                     detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
@@ -3689,7 +3689,6 @@ private:
   void setKernelNameBasedCachePtr(
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 #endif
-  void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   queue getQueue();
 
