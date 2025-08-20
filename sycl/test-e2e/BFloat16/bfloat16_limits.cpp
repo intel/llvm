@@ -15,7 +15,7 @@ using Limit = std::numeric_limits<sycl_ext::bfloat16>;
 constexpr float Log10_2 = 0.30103f;
 
 // Helper constexpr ceil function.
-constexpr int ceil(float Val) {
+constexpr int constexpr_ceil(float Val) {
   return Val + (float(int(Val)) == Val ? 0.f : 1.f);
 }
 
@@ -71,7 +71,7 @@ int main() {
   static_assert(Limit::radix == 2);
   static_assert(Limit::digits == 8);
   static_assert(Limit::max_digits10 ==
-                ceil(float(Limit::digits) * Log10_2 + 1.0f));
+                constexpr_ceil(float(Limit::digits) * Log10_2 + 1.0f));
   static_assert(Limit::is_bounded);
   static_assert(Limit::digits10 == int(Limit::digits * Log10_2));
   static_assert(!Limit::is_modulo);
