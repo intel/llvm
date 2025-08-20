@@ -145,13 +145,15 @@ public:
     switch (getType()) {
     case sycl::detail::CGType::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
-          std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(impl->MKernelBundle),
-          std::move(impl->CGData), std::move(impl->MArgs),
-          *impl->MDeviceKernelInfoPtr, std::move(CGH->MStreamStorage),
-          std::move(impl->MAuxiliaryResources), impl->MCGType, {},
-          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-          impl->MKernelWorkGroupMemorySize, CGH->MCodeLoc));
+          std::move(impl->MKernelData).getNDRDesc(),
+          std::move(CGH->MHostKernel), std::move(CGH->MKernel),
+          std::move(impl->MKernelBundle), std::move(impl->CGData),
+          std::move(impl->MKernelData).getArgs(),
+          *impl->MKernelData.getDeviceKernelInfoPtr(),
+          std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
+          impl->MCGType, {}, impl->MKernelData.isCooperative(),
+          impl->MKernelData.usesClusterLaunch(),
+          impl->MKernelData.getKernelWorkGroupMemorySize(), CGH->MCodeLoc));
       break;
     }
     default:
