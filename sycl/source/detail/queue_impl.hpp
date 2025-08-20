@@ -365,7 +365,7 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   event submit_direct_with_event(nd_range<1> Range,
                                  const detail::v1::SubmissionInfo &SubmitInfo,
                                  const detail::v1::KernelRuntimeInfo &KRInfo,
@@ -422,7 +422,7 @@ public:
     submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
                        IsTopCodeLoc);
   }
-#endif //__INTEL_PREVIEW_BREAKING_CHANGES
+//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
@@ -952,7 +952,7 @@ protected:
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::vector<ArgDesc> extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams);
@@ -975,7 +975,7 @@ protected:
                                           bool CallerNeedsEvent,
                                           const detail::code_location &CodeLoc,
                                           bool IsTopCodeLoc);
-#endif //__INTEL_PREVIEW_BREAKING_CHANGES
+//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
   /// \param HandlerFunc is a function that submits the operation with a

@@ -67,7 +67,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
     target_compile_definitions(${test_dirname}
         PRIVATE __INTEL_PREVIEW_BREAKING_CHANGES)
     if (${is_no_cgh})
-      set(sycl_cache_suffix "_preview_no_cgh")
+      set(sycl_cache_suffix "_non_preview_no_cgh")
     else()
       set(sycl_cache_suffix "_preview")
     endif()
@@ -165,7 +165,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
         -Wno-inconsistent-missing-override
     )
   endif()
-
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 endfunction()
 
@@ -176,6 +175,6 @@ endfunction()
 # Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
 macro(add_sycl_unittest test_name_prefix link_variant)
   add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE FALSE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_non_preview_no_cgh ${link_variant} FALSE TRUE ${ARGN})
   add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_preview_no_cgh ${link_variant} TRUE TRUE ${ARGN})
 endmacro()

@@ -118,7 +118,7 @@ template <typename KernelName, typename PropertiesT, typename KernelType,
 void submit_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc) {
-  Q.submit_direct_without_event<KernelName, __SYCL_USE_FALLBACK_ASSERT,
+  Q.submit_direct_without_event<KernelName,
                                 PropertiesT, KernelType, Dims>(
       Props, Range, KernelFunc, CodeLoc);
 }
@@ -127,7 +127,7 @@ template <typename KernelName, typename PropertiesT, typename KernelType,
 event submit_direct_with_event_impl(
     const queue &Q, PropertiesT Props, nd_range<Dims> Range,
     const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_direct_with_event<KernelName, __SYCL_USE_FALLBACK_ASSERT,
+  return Q.submit_direct_with_event<KernelName,
                                     PropertiesT, KernelType, Dims>(
       Props, Range, KernelFunc, CodeLoc);
 }
@@ -304,11 +304,11 @@ void nd_launch(handler &CGH, nd_range<Dimensions> Range,
                                KernelObj);
 }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   if constexpr (sizeof...(ReductionsT) == 0) {
     submit<KernelName>(std::move(Q), empty_properties_t{}, Range, KernelObj);
   } else {
@@ -317,18 +317,13 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
     });
   }
-}
 #else
-template <typename KernelName = sycl::detail::auto_name, int Dimensions,
-          typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
-               ReductionsT &&...Reductions) {
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch<KernelName>(CGH, Range, KernelObj,
                           std::forward<ReductionsT>(Reductions)...);
   });
-}
 #endif
+}
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
@@ -344,11 +339,11 @@ void nd_launch(handler &CGH,
       std::forward<ReductionsT>(Reductions)..., KernelObj);
 }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   if constexpr (sizeof...(ReductionsT) == 0) {
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
@@ -361,18 +356,13 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                             std::forward<ReductionsT>(Reductions)...);
     });
   }
-}
 #else
-template <typename KernelName = sycl::detail::auto_name, int Dimensions,
-          typename Properties, typename KernelType, typename... ReductionsT>
-void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
-               const KernelType &KernelObj, ReductionsT &&...Reductions) {
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch<KernelName>(CGH, Config, KernelObj,
                           std::forward<ReductionsT>(Reductions)...);
   });
-}
 #endif
+}
 
 template <int Dimensions, typename... ArgsT>
 void nd_launch(handler &CGH, nd_range<Dimensions> Range,

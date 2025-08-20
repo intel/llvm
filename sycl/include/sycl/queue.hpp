@@ -151,7 +151,7 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t (*)(int);
 
 // This class is intended to store the kernel runtime information,
@@ -215,7 +215,7 @@ private:
   bool MKernelHasSpecialCaptures = true;
   detail::KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
 };
-#endif //__INTEL_PREVIEW_BREAKING_CHANGES
+//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace v1
 } // namespace detail
@@ -3283,7 +3283,6 @@ public:
         TlsCodeLocCapture.query());
   }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
@@ -3296,8 +3295,9 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return submit_direct_with_event<KernelName, false>(
+      return submit_direct_with_event<KernelName>(
           ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
     } else {
       return submit(
@@ -3306,27 +3306,15 @@ public:
           },
           TlsCodeLocCapture.query());
     }
-  }
 #else
-  /// parallel_for version with a kernel represented as a lambda + nd_range that
-  /// specifies global, local sizes and offset.
-  ///
-  /// \param Range specifies the global and local work spaces of the kernel
-  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
-  /// const KernelType &KernelFunc".
-  template <typename KernelName = detail::auto_name, int Dims,
-            typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
-  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
-    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        TlsCodeLocCapture.query());
-  }
+      return submit(
+          [&](handler &CGH) {
+            CGH.template parallel_for<KernelName>(Range, Rest...);
+          },
+          TlsCodeLocCapture.query());
 #endif
+  }
+
   /// parallel_for version with a kernel represented as a lambda + nd_range that
   /// specifies global, local sizes and offset.
   ///
@@ -3832,7 +3820,7 @@ private:
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   event submit_direct_with_event_impl(
       nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
@@ -3862,7 +3850,7 @@ private:
       nd_range<3> Range, const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
-#endif //__INTEL_PREVIEW_BREAKING_CHANGES
+//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
@@ -3908,7 +3896,7 @@ private:
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
-  template <typename KernelName = detail::auto_name, bool UseFallbackAssert,
+  template <typename KernelName = detail::auto_name,
             typename PropertiesT, typename KernelType, int Dims>
   event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                                  const KernelType &KernelFunc,
@@ -3928,14 +3916,12 @@ private:
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
 
-    // TODO UseFallbackAssert
-
     return submit_direct_with_event_impl(Range, SI, KRInfo,
                                          TlsCodeLocCapture.query(),
                                          TlsCodeLocCapture.isToplevel());
   }
 
-  template <typename KernelName = detail::auto_name, bool UseFallbackAssert,
+  template <typename KernelName = detail::auto_name,
             typename PropertiesT, typename KernelType, int Dims>
   void submit_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
                                    const KernelType &KernelFunc,
@@ -3954,8 +3940,6 @@ private:
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
-
-    // TODO UseFallbackAssert
 
     submit_direct_without_event_impl(Range, SI, KRInfo,
                                      TlsCodeLocCapture.query(),
