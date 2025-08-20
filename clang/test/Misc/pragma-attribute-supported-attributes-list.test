@@ -206,6 +206,7 @@
 // CHECK-NEXT: SYCLIntelPipeIO (SubjectMatchRule_variable)
 // CHECK-NEXT: SYCLIntelSchedulerTargetFmaxMhz (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLIntelUseStallEnableClusters (SubjectMatchRule_function)
+// CHECK-NEXT: SYCLExternal (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLKernelEntryPoint (SubjectMatchRule_function)
 // CHECK-NEXT: SYCLRegisterNum (SubjectMatchRule_variable_is_global)
 // CHECK-NEXT: SYCLScope (SubjectMatchRule_function, SubjectMatchRule_variable, SubjectMatchRule_record)

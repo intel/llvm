@@ -134,8 +134,9 @@ static void instantiateDependentAlignedAttr(
   // FIXME: Use the actual location of the ellipsis.
   SourceLocation EllipsisLoc = Aligned->getLocation();
   if (S.CheckParameterPacksForExpansion(EllipsisLoc, Aligned->getRange(),
-                                        Unexpanded, TemplateArgs, Expand,
-                                        RetainExpansion, NumExpansions))
+                                        Unexpanded, TemplateArgs,
+                                        /*FailOnPackProducingTemplates=*/true,
+                                        Expand, RetainExpansion, NumExpansions))
     return;
 
   if (!Expand) {
@@ -2435,7 +2436,8 @@ Decl *TemplateDeclInstantiator::VisitFriendDecl(FriendDecl *D) {
         UnsignedOrNone NumExpansions = std::nullopt;
         if (SemaRef.CheckParameterPacksForExpansion(
                 D->getEllipsisLoc(), D->getSourceRange(), Unexpanded,
-                TemplateArgs, ShouldExpand, RetainExpansion, NumExpansions))
+                TemplateArgs, /*FailOnPackProducingTemplates=*/true,
+                ShouldExpand, RetainExpansion, NumExpansions))
           return nullptr;
 
         assert(!RetainExpansion &&
@@ -3985,10 +3987,11 @@ Decl *TemplateDeclInstantiator::VisitTemplateTypeParmDecl(
               cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
                   ->getEllipsisLoc(),
               SourceRange(TC->getConceptNameLoc(),
-                          TC->hasExplicitTemplateArgs() ?
-                          TC->getTemplateArgsAsWritten()->getRAngleLoc() :
-                          TC->getConceptNameInfo().getEndLoc()),
-              Unexpanded, TemplateArgs, Expand, RetainExpansion, NumExpanded))
+                          TC->hasExplicitTemplateArgs()
+                              ? TC->getTemplateArgsAsWritten()->getRAngleLoc()
+                              : TC->getConceptNameInfo().getEndLoc()),
+              Unexpanded, TemplateArgs, /*FailOnPackProducingTemplates=*/true,
+              Expand, RetainExpansion, NumExpanded))
         return nullptr;
     }
   }
@@ -4076,12 +4079,10 @@ Decl *TemplateDeclInstantiator::VisitNonTypeTemplateParmDecl(
     UnsignedOrNone OrigNumExpansions =
         Expansion.getTypePtr()->getNumExpansions();
     UnsignedOrNone NumExpansions = OrigNumExpansions;
-    if (SemaRef.CheckParameterPacksForExpansion(Expansion.getEllipsisLoc(),
-                                                Pattern.getSourceRange(),
-                                                Unexpanded,
-                                                TemplateArgs,
-                                                Expand, RetainExpansion,
-                                                NumExpansions))
+    if (SemaRef.CheckParameterPacksForExpansion(
+            Expansion.getEllipsisLoc(), Pattern.getSourceRange(), Unexpanded,
+            TemplateArgs, /*FailOnPackProducingTemplates=*/true, Expand,
+            RetainExpansion, NumExpansions))
       return nullptr;
 
     if (Expand) {
@@ -4247,12 +4248,10 @@ TemplateDeclInstantiator::VisitTemplateTemplateParmDecl(
     bool Expand = true;
     bool RetainExpansion = false;
     UnsignedOrNone NumExpansions = std::nullopt;
-    if (SemaRef.CheckParameterPacksForExpansion(D->getLocation(),
-                                                TempParams->getSourceRange(),
-                                                Unexpanded,
-                                                TemplateArgs,
-                                                Expand, RetainExpansion,
-                                                NumExpansions))
+    if (SemaRef.CheckParameterPacksForExpansion(
+            D->getLocation(), TempParams->getSourceRange(), Unexpanded,
+            TemplateArgs, /*FailOnPackProducingTemplates=*/true, Expand,
+            RetainExpansion, NumExpansions))
       return nullptr;
 
     if (Expand) {
@@ -4524,8 +4523,9 @@ Decl *TemplateDeclInstantiator::instantiateUnresolvedUsingDecl(
     bool RetainExpansion = false;
     UnsignedOrNone NumExpansions = std::nullopt;
     if (SemaRef.CheckParameterPacksForExpansion(
-          D->getEllipsisLoc(), D->getSourceRange(), Unexpanded, TemplateArgs,
-            Expand, RetainExpansion, NumExpansions))
+            D->getEllipsisLoc(), D->getSourceRange(), Unexpanded, TemplateArgs,
+            /*FailOnPackProducingTemplates=*/true, Expand, RetainExpansion,
+            NumExpansions))
       return nullptr;
 
     // This declaration cannot appear within a function template signature,
@@ -6934,12 +6934,10 @@ Sema::InstantiateMemInitializers(CXXConstructorDecl *New,
       bool ShouldExpand = false;
       bool RetainExpansion = false;
       UnsignedOrNone NumExpansions = std::nullopt;
-      if (CheckParameterPacksForExpansion(Init->getEllipsisLoc(),
-                                          BaseTL.getSourceRange(),
-                                          Unexpanded,
-                                          TemplateArgs, ShouldExpand,
-                                          RetainExpansion,
-                                          NumExpansions)) {
+      if (CheckParameterPacksForExpansion(
+              Init->getEllipsisLoc(), BaseTL.getSourceRange(), Unexpanded,
+              TemplateArgs, /*FailOnPackProducingTemplates=*/true, ShouldExpand,
+              RetainExpansion, NumExpansions)) {
         AnyErrors = true;
         New->setInvalidDecl();
         continue;
