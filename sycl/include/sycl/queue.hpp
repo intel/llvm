@@ -3717,9 +3717,8 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
-  template <typename KernelName, typename PropertiesT, typename KernelType,
-            int Dims>
-  void ProcessKernelRuntimeInfo(PropertiesT Props, const KernelType &KernelFunc,
+  template <typename KernelName, typename KernelType, int Dims>
+  void ProcessKernelRuntimeInfo(const KernelType &KernelFunc,
                                 detail::v1::KernelRuntimeInfo &KRInfo) const {
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;

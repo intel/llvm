@@ -160,7 +160,7 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event(const queue &Q, PropertiesT Props,
                         CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
-                          sycl::detail::code_location::current()) {
+                            sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::detail::submit_with_event_impl(
       Q, Props, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
