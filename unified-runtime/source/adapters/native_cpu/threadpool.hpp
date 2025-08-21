@@ -214,8 +214,8 @@ class TasksInfo_TP {
   std::vector<FType> futures;
 
 public:
-  inline void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
-  inline void wait_all() {
+  void schedule(FType &&f) { futures.emplace_back(std::move(f)); }
+  void wait_all() {
     for (auto &f : futures)
       f.wait();
   }
@@ -255,7 +255,7 @@ class TBB_threadpool {
 public:
   void wait_all() { tasks.wait(); }
   oneapi::tbb::task_group &Tasks() { return tasks; }
-  inline size_t num_threads() const noexcept {
+  size_t num_threads() const noexcept {
     return oneapi::tbb::info::default_concurrency();
   }
 };
@@ -264,9 +264,8 @@ class TBB_TasksInfo {
   TBB_threadpool *tp;
 
 public:
-  inline void wait_all() { tp->wait_all(); }
+  void wait_all() { tp->wait_all(); }
   TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
-  static constexpr bool CanWaitInThread() { return false; }
 };
 
 inline auto getTBBThreadID() {
@@ -280,7 +279,7 @@ template <>
 struct Scheduler<TBB_threadpool>
     : Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
   using Scheduler_base<TBB_threadpool, TBB_TasksInfo>::Scheduler_base;
-  template <class T> inline void schedule(T &&task_) {
+  template <class T> void schedule(T &&task_) {
     ref.Tasks().run([task = std::move(task_)]() {
       auto thread_id = getTBBThreadID();
       task(thread_id);

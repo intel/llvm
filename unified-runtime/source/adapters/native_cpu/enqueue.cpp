@@ -84,21 +84,17 @@ inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
 } // namespace
 } // namespace native_cpu
 
-static inline native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
-                                                size_t itemsPerThread,
-                                                size_t dim) {
-  auto local_size = ndr.LocalSize;
-  local_size[dim] = itemsPerThread;
+static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
   native_cpu::state resized_state(
-      ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], local_size[0],
-      local_size[1], local_size[2], ndr.GlobalOffset[0], ndr.GlobalOffset[1],
-      ndr.GlobalOffset[2]);
+      ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], ndr.LocalSize[0],
+      ndr.LocalSize[1], ndr.LocalSize[2], ndr.GlobalOffset[0],
+      ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
   return resized_state;
 }
 
-static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
-  return getResizedState(ndr, ndr.LocalSize[0], 0);
-}
+#ifdef NATIVECPU_WITH_ONETBB
+
+#define NATIVECPU_WITH_ONETBB_PARALLELFOR
 
 using IndexT = std::array<size_t, 3>;
 using RangeT = native_cpu::NDRDescT::RangeT;
@@ -123,17 +119,15 @@ static inline void execute_range(native_cpu::state &state,
   execute_range(state, hKernel, hKernel.getArgs(), first, lastPlusOne);
 }
 
-#ifdef NATIVECPU_WITH_ONETBB
 class nativecpu_tbb_executor {
   const native_cpu::NDRDescT ndr;
-  const size_t itemsPerThread;
 
 protected:
   const ur_kernel_handle_t_ &hKernel;
 
   void execute(const tbb::blocked_range3d<size_t> &r,
-               const std::vector<void *> &args, size_t dim) const {
-    auto state = getResizedState(ndr, itemsPerThread, dim);
+               const std::vector<void *> &args) const {
+    auto state = getState(ndr);
     const IndexT first = {r.pages().begin(), r.rows().begin(),
                           r.cols().begin()};
     const IndexT last_plus_one = {r.pages().end(), r.rows().end(),
@@ -143,31 +137,28 @@ protected:
 
 public:
   void operator()(const tbb::blocked_range3d<size_t> &r) const {
-    execute(r, hKernel.getArgs(), 0);
+    execute(r, hKernel.getArgs());
   }
   nativecpu_tbb_executor(const native_cpu::NDRDescT &n,
-                         const ur_kernel_handle_t_ &k, size_t itemsPerThreadP)
-      : ndr(n), hKernel(k), itemsPerThread(itemsPerThreadP) {}
+                         const ur_kernel_handle_t_ &k)
+      : ndr(n), hKernel(k) {}
 };
 
 class nativecpu_tbb_nd_executor : nativecpu_tbb_executor {
-  const size_t numParallelThreads, dimension;
+  const size_t numParallelThreads;
 
 public:
   nativecpu_tbb_nd_executor(const native_cpu::NDRDescT &n,
                             const ur_kernel_handle_t_ &k,
-                            size_t numParallelThreads, size_t dim)
-      : nativecpu_tbb_executor(n, k, n.LocalSize[0]),
-        numParallelThreads(numParallelThreads), dimension(dim) {}
+                            size_t numParallelThreads)
+      : nativecpu_tbb_executor(n, k), numParallelThreads(numParallelThreads) {}
 
   void operator()(const tbb::blocked_range3d<size_t> &r) const {
     auto thread_id = native_cpu::getTBBThreadID();
     auto args = this->hKernel.getArgs(numParallelThreads, thread_id);
-    execute(r, args, dimension);
+    execute(r, args);
   }
 };
-
-#define NATIVECPU_WITH_ONETBB_PARALLELFOR
 #endif
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
@@ -218,6 +209,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: add proper error checking
   native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
                            pLocalWorkSize);
+  unsigned long long numWI;
+  auto umulll_overflow = [](unsigned long long a, unsigned long long b,
+                            unsigned long long *c) -> bool {
+#ifdef __GNUC__
+    return __builtin_umulll_overflow(a, b, c);
+#else
+    *c = a * b;
+    return a != 0 && b != *c / a;
+#endif
+  };
+  if (umulll_overflow(ndr.GlobalSize[0], ndr.GlobalSize[1], &numWI) ||
+      umulll_overflow(numWI, ndr.GlobalSize[2], &numWI) || numWI > SIZE_MAX) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
   auto Tasks = native_cpu::getScheduler(tp);
@@ -234,163 +240,95 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto InEvents =
       native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
 
-#ifndef NATIVECPU_USE_OCK
-  native_cpu::state state = getState(ndr);
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  for (unsigned g2 = 0; g2 < numWG2; g2++) {
-    for (unsigned g1 = 0; g1 < numWG1; g1++) {
-      for (unsigned g0 = 0; g0 < numWG0; g0++) {
-        for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
-          for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
-            for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
+#ifndef NATIVECPU_WITH_ONETBB_PARALLELFOR
+  const size_t numWG = numWG0 * numWG1 * numWG2;
+  const size_t numWGPerThread = numWG / numParallelThreads;
+  const size_t remainderWG = numWG - numWGPerThread * numParallelThreads;
+  // The fourth value is the linearized value.
+  std::array<size_t, 4> rangeStart = {0, 0, 0, 0};
+  for (unsigned t = 0; t < numParallelThreads; ++t) {
+    auto rangeEnd = rangeStart;
+    rangeEnd[3] += numWGPerThread + (t < remainderWG);
+    if (rangeEnd[3] == rangeStart[3])
+      break;
+    rangeEnd[0] = rangeEnd[3] % numWG0;
+    rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
+    rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
+    Tasks.schedule([ndr, InEvents, &kernel = *kernel, rangeStart,
+                    rangeEnd = rangeEnd[3], numWG0, numWG1,
+                    numParallelThreads](size_t threadId) {
+      auto state = getState(ndr);
+      InEvents.wait();
+      for (size_t g0 = rangeStart[0], g1 = rangeStart[1], g2 = rangeStart[2],
+                  g3 = rangeStart[3];
+           g3 < rangeEnd; ++g3) {
+#ifdef NATIVECPU_USE_OCK
+        state.update(g0, g1, g2);
+        kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
+                           &state);
+#else
+        for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
+          for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
+            for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
               state.update(g0, g1, g2, local0, local1, local2);
-              kernel->_subhandler(kernel->getArgs(1, 0).data(), &state);
+              kernel._subhandler(
+                  kernel.getArgs(numParallelThreads, threadId).data(), &state);
             }
           }
         }
+#endif
+        if (++g0 == numWG0) {
+          g0 = 0;
+          if (++g1 == numWG1) {
+            g1 = 0;
+            ++g2;
+          }
+        }
       }
-    }
+    });
+    rangeStart = rangeEnd;
   }
 #else
-  bool isLocalSizeOne =
-      ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
-  if (isLocalSizeOne && !kernel->hasLocalArgs()) {
-    // If the local size is one, we make the assumption that we are running a
-    // parallel_for over a sycl::range.
-    // Todo: we could add more compiler checks and
-    // kernel properties for this (e.g. check that no barriers are called).
-
-    // Todo: this assumes that dim 0 is the best dimension over which we want to
-    // parallelize
-
-    // Since we also vectorize the kernel, and vectorization happens within the
-    // work group loop, it's better to have a large-ish local size. We can
-    // divide the global range by the number of threads, set that as the local
-    // size and peel everything else.
-
-    // The number of items per kernel invocation should ideally be at least a
-    // multiple of the applied vector width, which we currently assume to be 8.
-    // TODO: Encode this and other kernel capabilities in the binary so we can
-    // use actual values to efficiently enqueue kernels instead of relying on
-    // assumptions.
-    const size_t itemsPerKernelInvocation = 8;
-
-    size_t itemsPerThread = ndr.GlobalSize[0] / numParallelThreads;
-    if (itemsPerThread < itemsPerKernelInvocation) {
-      if (itemsPerKernelInvocation <= numWG0)
-        itemsPerThread = itemsPerKernelInvocation;
-      else if (itemsPerThread == 0)
-        itemsPerThread = numWG0;
-    } else if (itemsPerThread > itemsPerKernelInvocation) {
-      // Launch kernel with number of items that is the next multiple of the
-      // vector width.
-      const size_t nextMult = (itemsPerThread + itemsPerKernelInvocation - 1) /
-                              itemsPerKernelInvocation *
-                              itemsPerKernelInvocation;
-      if (nextMult < numWG0)
-        itemsPerThread = nextMult;
-    }
+  const IndexT numWG = {numWG0, numWG1, numWG2};
+  IndexT groupsPerThread;
+  for (size_t t = 0; t < 3; t++)
+    groupsPerThread[t] = numWG[t] / numParallelThreads;
+  size_t dim = 0;
+  if (groupsPerThread[0] == 0) {
+    if (groupsPerThread[1])
+      dim = 1;
+    else if (groupsPerThread[2])
+      dim = 2;
+  }
+  IndexT first = {0, 0, 0}, last = numWG;
+  size_t wg_start = 0;
+  if (groupsPerThread[dim]) {
+    tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
+                                       first[2], last[2]);
+    nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
+    tbb::parallel_for(range, tbb_ex);
+    wg_start = groupsPerThread[dim] * numParallelThreads;
+  }
+  if (wg_start < numWG[dim]) {
+    first[dim] = wg_start;
+    last[dim] = numWG[dim];
 #ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
-    const size_t wg0_num = ndr.GlobalSize[0] / itemsPerThread;
-    if (wg0_num) {
-      tbb::blocked_range3d<size_t> range(0, wg0_num, 0, numWG1, 0, numWG2);
-      nativecpu_tbb_executor tbb_ex(ndr, *kernel, itemsPerThread);
-      tbb::parallel_for(range, tbb_ex);
-    }
-    size_t wg0_index = wg0_num * itemsPerThread;
+    tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
+                                       first[2], last[2]);
+    nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
+    tbb::parallel_for(range, tbb_ex);
 #else
-    size_t wg0_index = 0;
-    for (size_t t = 0; (wg0_index + itemsPerThread) <= numWG0;
-         wg0_index += itemsPerThread) {
-      IndexT first = {t, 0, 0};
-      IndexT last = {++t, numWG1, numWG2};
-      Tasks.schedule([ndr, itemsPerThread, &kernel = *kernel, first, last,
-                      InEvents](size_t) {
-        native_cpu::state resized_state = getResizedState(ndr, itemsPerThread);
-        InEvents.wait();
-        execute_range(resized_state, kernel, first, last);
-      });
-    }
+    Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
+                    InEvents](size_t threadId) {
+      InEvents.wait();
+      native_cpu::state state = getState(ndr);
+      execute_range(state, kernel, kernel.getArgs(numParallelThreads, threadId),
+                    first, last);
+    });
 #endif
-    if (wg0_index < numWG0) {
-      // Peel the remaining work items. Since the local size is 1, we iterate
-      // over the work groups.
-#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
-      tbb::blocked_range3d<size_t> range(wg0_index, numWG0, 0, numWG1, 0,
-                                         numWG2);
-      nativecpu_tbb_executor tbb_ex(ndr, *kernel, 1);
-      tbb::parallel_for(range, tbb_ex);
-#else
-      Tasks.schedule([ndr, &kernel = *kernel, wg0_index, numWG0, numWG1, numWG2,
-                      InEvents](size_t) {
-        IndexT first = {wg0_index, 0, 0};
-        IndexT last = {numWG0, numWG1, numWG2};
-        InEvents.wait();
-        native_cpu::state state = getState(ndr);
-        execute_range(state, kernel, first, last);
-      });
-#endif
-    }
-  } else {
-    // We are running a parallel_for over an nd_range
-
-    const IndexT numWG = {numWG0, numWG1, numWG2};
-    IndexT groupsPerThread;
-    for (size_t t = 0; t < 3; t++)
-      groupsPerThread[t] = numWG[t] / numParallelThreads;
-    size_t dim = 0;
-    if (groupsPerThread[0] == 0) {
-      if (groupsPerThread[1])
-        dim = 1;
-      else if (groupsPerThread[2])
-        dim = 2;
-    }
-    IndexT first = {0, 0, 0}, last = numWG;
-    size_t wg_start = 0;
-    if (groupsPerThread[dim]) {
-#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
-      tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
-                                         first[2], last[2]);
-      nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads, dim);
-      tbb::parallel_for(range, tbb_ex);
-#else
-      for (size_t t = 0; t < numParallelThreads; t++) {
-        first[dim] = wg_start;
-        wg_start += groupsPerThread[dim];
-        last[dim] = wg_start;
-        Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
-                        InEvents](size_t threadId) {
-          InEvents.wait();
-          native_cpu::state state = getState(ndr);
-          execute_range(state, kernel,
-                        kernel.getArgs(numParallelThreads, threadId), first,
-                        last);
-        });
-      }
-#endif
-    }
-    if (wg_start < numWG[dim]) {
-      first[dim] = wg_start;
-      last[dim] = numWG[dim];
-#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
-      tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
-                                         first[2], last[2]);
-      nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads, dim);
-      tbb::parallel_for(range, tbb_ex);
-#else
-      Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
-                      InEvents](size_t threadId) {
-        InEvents.wait();
-        native_cpu::state state = getState(ndr);
-        execute_range(state, kernel,
-                      kernel.getArgs(numParallelThreads, threadId), first,
-                      last);
-      });
-#endif
-    }
   }
 
-#endif // NATIVECPU_USE_OCK
+#endif // NATIVECPU_WITH_ONETBB_PARALLELFOR
   event->set_futures(Tasks.getTaskInfo());
 
   if (phEvent) {

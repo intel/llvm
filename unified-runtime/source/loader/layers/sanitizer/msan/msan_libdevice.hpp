@@ -14,6 +14,7 @@
 #pragma once
 
 #include "sanitizer_common/sanitizer_libdevice.hpp"
+#include <cstddef>
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 namespace ur_sanitizer_layer {

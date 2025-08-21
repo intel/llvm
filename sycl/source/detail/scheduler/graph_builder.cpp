@@ -674,11 +674,9 @@ static bool checkHostUnifiedMemory(context_impl *Ctx) {
   if (Ctx == nullptr)
     return true;
 
-  for (device_impl &Device : Ctx->getDevices()) {
-    if (!Device.get_info<info::device::host_unified_memory>())
-      return false;
-  }
-  return true;
+  return all_of(Ctx->getDevices(), [](device_impl &Device) {
+    return Device.get_info<info::device::host_unified_memory>();
+  });
 }
 
 // The function searches for the alloca command matching context and

@@ -108,6 +108,8 @@ etors:
       desc: "Memory Copy Accelerator"
     - name: VPU
       desc: "Vision Processing Unit"
+    - name: CUSTOM
+      desc: "Generic custom device type"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves devices within a platform"
@@ -464,6 +466,10 @@ etors:
       desc: "[$x_bool_t] support for native bfloat16 conversions"
     - name: KERNEL_LAUNCH_CAPABILITIES
       desc: "[$x_kernel_launch_properties_flags_t] Bitfield of supported kernel launch properties."
+    - name: LUID
+      desc: "[uint8_t[]][optional-query] return device Windows LUID"
+    - name: NODE_MASK
+      desc: "[uint32_t][optional-query] return device Windows node mask"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

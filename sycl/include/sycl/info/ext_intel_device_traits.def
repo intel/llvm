@@ -21,6 +21,8 @@ __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, current_clock_throttle_reasons, std
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, fan_speed, int32_t, UR_DEVICE_INFO_FAN_SPEED)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, min_power_limit, int32_t, UR_DEVICE_INFO_MIN_POWER_LIMIT)
 __SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_power_limit, int32_t, UR_DEVICE_INFO_MAX_POWER_LIMIT)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, luid, detail::luid_type, __SYCL_TRAIT_HANDLED_IN_RT)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, node_mask, uint32_t, __SYCL_TRAIT_HANDLED_IN_RT)
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

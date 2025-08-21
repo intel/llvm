@@ -54,6 +54,7 @@ jobs:
               - *libclc
               - 'sycl/*'
               - 'sycl/!(test-e2e|doc)/**'
+              - 'libdevice/**'
             ci:
               - .github/workflows/**
               # devops/* contains config files, including drivers versions.

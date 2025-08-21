@@ -24,6 +24,7 @@ add_ur_adapter(${TARGET_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
@@ -60,11 +61,11 @@ if(NATIVECPU_WITH_ONETBB)
   FetchContent_Declare(
     tbb
     GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
-#commit 54f3611e12b77ae40bf919eca65e7ff2218fdc34 (HEAD -> master, origin/master, origin/HEAD)
-#Author: Alexandra <alexandra.epanchinzeva@intel.com>
-#Date:   Fri Jun 6 15:02:22 2025 +0200
-#    Update README.md (#1750)
-    GIT_TAG 54f3611e12b77ae40bf919eca65e7ff2218fdc34
+# commit 4e4fffed4fb86ae0960a3364700f549b539c777e (HEAD -> master, origin/master, origin/HEAD)
+# Author: Ilya Isaev <ilya.isaev@intel.com>
+# Date:   Mon Aug 18 10:35:26 2025 +0200
+# Improve task_arena interoperability with task_groups (#1784)
+    GIT_TAG 4e4fffed4fb86ae0960a3364700f549b539c777e
     CMAKE_ARGS "-DTBB_TEST:BOOL=OFF -DTBB_EXAMPLES:BOOL=OFF -DTBB_BENCH:BOOL=OFF"
     OVERRIDE_FIND_PACKAGE
   )
@@ -99,7 +100,7 @@ if(NATIVECPU_WITH_ONETBB)
   if (NOT MSVC)
     # oneTBB currently casts away some const qualifiers
     # todo: check if compiler actually supports these options
-    target_compile_options(tbb PRIVATE -Wno-cast-qual)
+    target_compile_options(tbb PRIVATE -Wno-cast-qual -Wno-stringop-overflow -Wno-unknown-warning-option)
     target_compile_options(tbbmalloc PRIVATE -Wno-cast-qual)
   endif()
 

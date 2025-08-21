@@ -9,8 +9,8 @@
 // NOTE: Tests that debugging information can be generated for all special-name
 // optimization levels.
 //
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19426
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19426
 
 #include <sycl/detail/core.hpp>
 

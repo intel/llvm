@@ -23,7 +23,7 @@ using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 struct local_arg_info_t {
   uint32_t argIndex;
   size_t argSize;
-  inline local_arg_info_t(uint32_t argIndex, size_t argSize)
+  local_arg_info_t(uint32_t argIndex, size_t argSize)
       : argIndex(argIndex), argSize(argSize) {}
 };
 

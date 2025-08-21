@@ -25,12 +25,7 @@
 namespace ur_sanitizer_layer {
 namespace asan {
 
-AsanInterceptor::AsanInterceptor() {
-  if (getContext()->Options.MaxQuarantineSizeMB) {
-    m_Quarantine = std::make_unique<Quarantine>(
-        getContext()->Options.MaxQuarantineSizeMB * 1024 * 1024);
-  }
-}
+AsanInterceptor::AsanInterceptor() {}
 
 AsanInterceptor::~AsanInterceptor() {
   // We must release these objects before releasing adapters, since
@@ -39,7 +34,6 @@ AsanInterceptor::~AsanInterceptor() {
     DeviceInfo->Shadow = nullptr;
   }
 
-  m_Quarantine = nullptr;
   m_MemBufferMap.clear();
   m_KernelMap.clear();
   m_ContextMap.clear();
@@ -224,7 +218,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   }
 
   // If quarantine is disabled, USM is freed immediately
-  if (!m_Quarantine) {
+  if (!ContextInfo->m_Quarantine) {
     UR_LOG_L(getContext()->logger, DEBUG, "Free: {}",
              (void *)AllocInfo->AllocBegin);
 
@@ -239,7 +233,8 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   }
 
   // If quarantine is enabled, cache it
-  auto ReleaseList = m_Quarantine->put(AllocInfo->Device, AllocInfoIt);
+  auto ReleaseList =
+      ContextInfo->m_Quarantine->put(AllocInfo->Device, AllocInfoIt);
   if (ReleaseList.size()) {
     std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     for (auto &It : ReleaseList) {
@@ -270,16 +265,14 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
   auto ContextInfo = getContextInfo(Context);
   auto DeviceInfo = getDeviceInfo(Device);
 
-  ManagedQueue InternalQueue(Context, Device);
-  if (!InternalQueue) {
-    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
-    return UR_RESULT_ERROR_INVALID_QUEUE;
-  }
+  ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
                         LaunchInfo));
 
   UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
+
+  UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
   return UR_RESULT_SUCCESS;
 }
@@ -467,6 +460,7 @@ ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
 
 ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
   auto Context = GetContext(Program);
+  auto CI = getContextInfo(Context);
   std::vector<ur_device_handle_t> Devices = GetDevices(Program);
 
   for (auto Device : Devices) {
@@ -484,11 +478,11 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
     assert((MetadataSize % sizeof(SpirKernelInfo) == 0) &&
            "SpirKernelMetadata size is not correct");
 
-    ManagedQueue Queue(Context, Device);
+    ur_queue_handle_t InternalQueue = CI->getInternalQueue(Device);
 
     std::vector<SpirKernelInfo> SKInfo(NumOfSpirKernel);
     Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        Queue, true, &SKInfo[0], MetadataPtr,
+        InternalQueue, true, &SKInfo[0], MetadataPtr,
         sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
@@ -504,7 +498,7 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
       }
       std::vector<char> KernelNameV(SKI.Size);
       Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-          Queue, true, KernelNameV.data(), (void *)SKI.KernelName,
+          InternalQueue, true, KernelNameV.data(), (void *)SKI.KernelName,
           sizeof(char) * SKI.Size, 0, nullptr, nullptr);
       if (Result != UR_RESULT_SUCCESS) {
         UR_LOG_L(getContext()->logger, ERR, "Can't read kernel name: {}",
@@ -537,7 +531,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   assert(ProgramInfo != nullptr && "unregistered program!");
 
   for (auto Device : Devices) {
-    ManagedQueue Queue(Context, Device);
+    ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
     size_t MetadataSize;
     void *MetadataPtr;
@@ -554,7 +548,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
            "DeviceGlobal metadata size is not correct");
     std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
     Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-        Queue, true, &GVInfos[0], MetadataPtr,
+        InternalQueue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
       UR_LOG_L(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
@@ -932,6 +926,8 @@ bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
 ContextInfo::~ContextInfo() {
   Stats.Print(Handle);
 
+  InternalQueueMap.clear();
+
   [[maybe_unused]] ur_result_t URes;
   if (USMPool) {
     URes = getContext()->urDdiTable.USM.pfnPoolRelease(USMPool);
@@ -969,6 +965,13 @@ ur_usm_pool_handle_t ContextInfo::getUSMPool() {
     }
   });
   return USMPool;
+}
+
+ur_queue_handle_t ContextInfo::getInternalQueue(ur_device_handle_t Device) {
+  std::scoped_lock<ur_shared_mutex> Guard(InternalQueueMapMutex);
+  if (!InternalQueueMap[Device])
+    InternalQueueMap[Device].emplace(Handle, Device);
+  return *InternalQueueMap[Device];
 }
 
 AsanRuntimeDataWrapper::~AsanRuntimeDataWrapper() {

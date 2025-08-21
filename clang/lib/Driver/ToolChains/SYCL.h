@@ -9,151 +9,17 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
-#include "clang/Basic/Cuda.h"
-#include "clang/Driver/Options.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
 
-// List of architectures (Intel CPUs and Intel GPUs)
-// that support SYCL offloading.
-enum class SYCLSupportedIntelArchs {
-  // Intel CPUs
-  UNKNOWN,
-  SKYLAKEAVX512,
-  COREAVX2,
-  COREI7AVX,
-  COREI7,
-  WESTMERE,
-  SANDYBRIDGE,
-  IVYBRIDGE,
-  BROADWELL,
-  COFFEELAKE,
-  ALDERLAKE,
-  SKYLAKE,
-  SKX,
-  CASCADELAKE,
-  ICELAKECLIENT,
-  ICELAKESERVER,
-  SAPPHIRERAPIDS,
-  GRANITERAPIDS,
-  // Intel GPUs
-  BDW,
-  SKL,
-  KBL,
-  CFL,
-  APL,
-  BXT,
-  GLK,
-  WHL,
-  AML,
-  CML,
-  ICLLP,
-  ICL,
-  EHL,
-  JSL,
-  TGLLP,
-  TGL,
-  RKL,
-  ADL_S,
-  RPL_S,
-  ADL_P,
-  ADL_N,
-  DG1,
-  ACM_G10,
-  DG2_G10,
-  ACM_G11,
-  DG2_G11,
-  ACM_G12,
-  DG2_G12,
-  PVC,
-  PVC_VG,
-  MTL_U,
-  MTL_S,
-  ARL_U,
-  ARL_S,
-  MTL_H,
-  ARL_H,
-  BMG_G21,
-  LNL_M,
-};
-
-// Check if the given Arch value is a Generic AMD GPU.
-// Currently GFX*_GENERIC AMD GPUs do not support SYCL offloading.
-// This list is used to filter out GFX*_GENERIC AMD GPUs in
-// `IsSYCLSupportedAMDGPUArch`.
-static inline bool IsAMDGenericGPUArch(OffloadArch Arch) {
-  return Arch == OffloadArch::GFX9_GENERIC ||
-         Arch == OffloadArch::GFX10_1_GENERIC ||
-         Arch == OffloadArch::GFX10_3_GENERIC ||
-         Arch == OffloadArch::GFX11_GENERIC ||
-         Arch == OffloadArch::GFX12_GENERIC;
-}
-
-// Check if the given Arch value is a valid SYCL supported AMD GPU.
-static inline bool IsSYCLSupportedAMDGPUArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::GFX700 && Arch < OffloadArch::AMDGCNSPIRV &&
-         !IsAMDGenericGPUArch(Arch);
-}
-
-// Check if the given Arch value is a valid SYCL supported NVidia GPU.
-static inline bool IsSYCLSupportedNVidiaGPUArch(OffloadArch Arch) {
-  return Arch >= OffloadArch::SM_50 && Arch <= OffloadArch::SM_90a;
-}
-
-// Check if the given Arch value is a valid SYCL supported Intel CPU.
-static inline bool IsSYCLSupportedIntelCPUArch(SYCLSupportedIntelArchs Arch) {
-  return Arch >= SYCLSupportedIntelArchs::SKYLAKEAVX512 &&
-         Arch <= SYCLSupportedIntelArchs::GRANITERAPIDS;
-}
-
-// Check if the given Arch value is a valid SYCL supported Intel GPU.
-static inline bool IsSYCLSupportedIntelGPUArch(SYCLSupportedIntelArchs Arch) {
-  return Arch >= SYCLSupportedIntelArchs::BDW &&
-         Arch <= SYCLSupportedIntelArchs::LNL_M;
-}
-
-// Check if the user provided value for --offload-arch is a valid
-// SYCL supported Intel AOT target.
-SYCLSupportedIntelArchs
-StringToOffloadArchSYCL(llvm::StringRef ArchNameAsString);
-
 // This is a mapping between the user provided --offload-arch value for Intel
 // GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
 // AOT compiler).
 StringRef mapIntelGPUArchName(StringRef ArchName);
-
-class SYCLInstallationDetector {
-public:
-  SYCLInstallationDetector(const Driver &D);
-  SYCLInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
-                           const llvm::opt::ArgList &Args);
-
-  /// \brief Find and return the path to the libspirv library for the target
-  /// \return The path to the libspirv library if found, otherwise nullptr.
-  /// The lifetime of the returned string is managed by \p Args.
-  const char *findLibspirvPath(const llvm::Triple &DeviceTriple,
-                               const llvm::opt::ArgList &Args,
-                               const llvm::Triple &HostTriple) const;
-
-  void addLibspirvLinkArgs(const llvm::Triple &DeviceTriple,
-                           const llvm::opt::ArgList &DriverArgs,
-                           const llvm::Triple &HostTriple,
-                           llvm::opt::ArgStringList &CC1Args) const;
-
-  void getSYCLDeviceLibPath(
-      llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
-  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
-                          llvm::opt::ArgStringList &CC1Args) const;
-  void print(llvm::raw_ostream &OS) const;
-
-private:
-  const Driver &D;
-  llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
-};
-
 
 class Command;
 
@@ -254,7 +120,6 @@ public:
 };
 
 } // end namespace x86_64
-
 } // end namespace SYCL
 } // end namespace tools
 

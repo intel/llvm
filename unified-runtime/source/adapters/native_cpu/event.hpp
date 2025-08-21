@@ -26,7 +26,7 @@ struct ur_event_handle_t_ : RefCounted {
     callback = std::packaged_task<void()>(std::forward<T>(cb));
   }
 
-  void wait(bool queue_already_locked = false);
+  void wait();
 
   uint32_t getExecutionStatus() {
     // TODO: add support for UR_EVENT_STATUS_RUNNING
@@ -43,7 +43,6 @@ struct ur_event_handle_t_ : RefCounted {
 
   ur_command_t getCommandType() const { return command_type; }
 
-  // todo: get rid of this function
   void set_futures(native_cpu::tasksinfo_t &&fs) {
     std::lock_guard<std::mutex> lock(mutex);
     futures = std::move(fs);
