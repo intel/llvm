@@ -22,7 +22,7 @@ KernelNameBasedCacheT *createKernelNameBasedCache() {
 #endif
 
 DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
-  return ProgramManager::getInstance().getOrCreateDeviceKernelInfo(Info.Name);
+  return ProgramManager::getInstance().getOrCreateDeviceKernelInfo(Info);
 }
 
 } // namespace detail

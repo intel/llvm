@@ -283,16 +283,16 @@ inline namespace compile_time_kernel_info_v1 {
 // at least for as long as we support user apps built with GNU libstdc++'s
 // pre-C++11 ABI.
 struct CompileTimeKernelInfoTy {
-  const char *Name = nullptr;
-  unsigned NumParams = 0;
-  bool IsESIMD = false;
-  const char *FileName = "";
-  const char *FunctionName = "";
-  unsigned LineNumber = 0;
-  unsigned ColumnNumber = 0;
-  int64_t KernelSize;
-  kernel_param_desc_t (*ParamDescGetter)(int) = nullptr;
-  bool HasSpecialCaptures = false;
+  const char * const Name = nullptr;
+  const unsigned NumParams = 0;
+  const bool IsESIMD = false;
+  const char * const FileName = "";
+  const char *const FunctionName = "";
+  const unsigned LineNumber = 0;
+  const unsigned ColumnNumber = 0;
+  const int64_t KernelSize = 0;
+  kernel_param_desc_t (*const ParamDescGetter)(int) = nullptr;
+  const bool HasSpecialCaptures = false;
 };
 
 template <class Kernel>

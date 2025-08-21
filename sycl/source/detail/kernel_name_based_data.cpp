@@ -12,8 +12,9 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-DeviceKernelInfo::DeviceKernelInfo(KernelNameStrRefT KernelName) {
-  init(KernelName);
+DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
+    : CompileTimeKernelInfoTy(Info) {
+  init(Name);
 }
 
 void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {

@@ -10,6 +10,7 @@
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <emhash/hash_table8.hpp>
+#include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
@@ -85,12 +86,12 @@ struct FastKernelSubcacheT {
 // TODO Currently this class duplicates information fetched from the program
 // manager. Instead, we should merge all of the kernel name based information
 // into this structure and get rid of the other KernelName -> * maps.
-class DeviceKernelInfo {
+class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   DeviceKernelInfo() = default;
 #endif
-  DeviceKernelInfo(KernelNameStrRefT KernelName);
+  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
 
   void init(KernelNameStrRefT KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

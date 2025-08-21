@@ -376,10 +376,11 @@ public:
   std::optional<int>
   kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
 
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName);
   DeviceKernelInfo &
-  getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
-    return getOrCreateDeviceKernelInfo(Info.Name);
+  getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
+    return getOrCreateDeviceKernelInfo(
+        CompileTimeKernelInfoTy{KernelName.data()});
   }
 
   std::set<const RTDeviceBinaryImage *>

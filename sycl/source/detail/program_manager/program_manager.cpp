@@ -1821,8 +1821,9 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
 }
 
 DeviceKernelInfo &
-ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
-  auto Result = m_KernelNameBasedDataMap.try_emplace(KernelName, KernelName);
+ProgramManager::getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
+  auto Result =
+      m_KernelNameBasedDataMap.try_emplace(KernelNameStrT{Info.Name}, Info);
   return Result.first->second;
 }
 
