@@ -3896,8 +3896,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<NameT, PropertiesT, KernelType, Dims>(
-        Props, KernelFunc, KRInfo);
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims>(Props, KernelFunc,
+                                                      KRInfo);
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
@@ -3921,8 +3921,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<NameT, PropertiesT, KernelType, Dims>(
-        Props, KernelFunc, KRInfo);
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims>(Props, KernelFunc,
+                                                      KRInfo);
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
