@@ -68,6 +68,12 @@ public:
     return MKernelParamDescGetter;
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove this method in the next ABI-breaking window
+  //       it is used by handler code that will be removed in the next
+  //       ABI-breaking window
+  void setESIMD(bool IsESIMD) { MKernelIsESIMD = IsESIMD; }
+#endif
   bool isESIMD() const { return MKernelIsESIMD; }
 
   bool hasSpecialCaptures() const { return MKernelHasSpecialCaptures; }
