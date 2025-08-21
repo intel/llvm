@@ -312,20 +312,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   if (wg_start < numWG[dim]) {
     first[dim] = wg_start;
     last[dim] = numWG[dim];
-#ifdef NATIVECPU_WITH_ONETBB_PARALLELFOR
     tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
                                        first[2], last[2]);
     nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
     tbb::parallel_for(range, tbb_ex);
-#else
-    Tasks.schedule([ndr, numParallelThreads, &kernel = *kernel, first, last,
-                    InEvents](size_t threadId) {
-      InEvents.wait();
-      native_cpu::state state = getState(ndr);
-      execute_range(state, kernel, kernel.getArgs(numParallelThreads, threadId),
-                    first, last);
-    });
-#endif
   }
 
 #endif // NATIVECPU_WITH_ONETBB_PARALLELFOR
