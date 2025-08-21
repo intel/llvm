@@ -136,7 +136,7 @@ codasip_ap
 a|
 [source]
 ----
-sifive_e2
+sifive_2
 ----
 | 1
 | 10
@@ -145,7 +145,7 @@ sifive_e2
 a|
 [source]
 ----
-sifive_e6
+sifive_6
 ----
 | 1
 | 11
@@ -154,7 +154,7 @@ sifive_e6
 a|
 [source]
 ----
-sifive_e7
+sifive_7
 ----
 | 1
 | 12
@@ -167,7 +167,7 @@ sifive_x200
 ----
 | 1
 | 13
-| SiFive Essential X200 Series
+| SiFive Intelligence X200 Series
 
 a|
 [source]
@@ -176,7 +176,7 @@ sifive_x300
 ----
 | 1
 | 14
-| SiFive Essential X300 Series
+| SiFive Intelligence X300 Series
 
 a|
 [source]
@@ -185,7 +185,7 @@ sifive_xm
 ----
 | 1
 | 15
-| SiFive Essential XM Series
+| SiFive Intelligence XM Series
 
 a|
 [source]
@@ -194,7 +194,7 @@ sifive_p400
 ----
 | 1
 | 16
-| SiFive Essential P400 Series
+| SiFive Performance P400 Series
 
 a|
 [source]
@@ -203,7 +203,7 @@ sifive_p500
 ----
 | 1
 | 17
-| SiFive Essential P500 Series
+| SiFive Performance P500 Series
 
 a|
 [source]
@@ -212,7 +212,7 @@ sifive_p600
 ----
 | 1
 | 18
-| SiFive Essential P600 Series
+| SiFive Performance P600 Series
 
 a|
 [source]
@@ -221,7 +221,7 @@ sifive_p800
 ----
 | 1
 | 19
-| SiFive Essential P800 Series
+| SiFive Performance P800 Series
 
 a|
 [source]
@@ -230,7 +230,7 @@ sifive_e6a
 ----
 | 1
 | 20
-| SiFive Essential E6-A Series
+| SiFive Automotive E6-A Series
 
 a|
 [source]
@@ -239,7 +239,7 @@ sifive_e7a
 ----
 | 1
 | 21
-| SiFive Essential E7-A Series
+| SiFive Automotive E7-A Series
 
 a|
 [source]
@@ -248,7 +248,7 @@ sifive_s7a
 ----
 | 1
 | 22
-| SiFive Essential S7-A Series
+| SiFive Automotive S7-A Series
 
 4+^|*Category: gpu (2)*
 
@@ -287,6 +287,69 @@ nvidia
 | 2
 | 3
 | NVIDIA GPU
+
+a|
+[source]
+----
+arm
+----
+| 2
+| 4
+| Arm GPU
+
+a|
+[source]
+----
+img_a
+----
+| 2
+| 5
+| Imagination A-Series GPU
+
+a|
+[source]
+----
+img_b
+----
+| 2
+| 6
+| Imagination B-Series GPU
+
+a|
+[source]
+----
+img_c
+----
+| 2
+| 7
+| Imagination C-Series GPU
+
+a|
+[source]
+----
+img_d
+----
+| 2
+| 8
+| Imagination D-Series GPU
+
+a|
+[source]
+----
+img_e
+----
+| 2
+| 9
+| Imagination E-Series GPU
+
+a|
+[source]
+----
+qualcomm
+----
+| 2
+| 10
+| Qualcomm Adreno GPU
 
 4+^|*Category: npu (3)*
 
@@ -1358,7 +1421,7 @@ x730
 | 3
 | Codasip X730
 
-5+^|*Category: cpu (1), Family: sifive_e2 (10)*
+5+^|*Category: cpu (1), Family: sifive_2 (10)*
 
 a|
 [source]
@@ -1370,7 +1433,7 @@ any
 | 0
 | Any SiFive Essential 2-series CPU
 
-5+^|*Category: cpu (1), Family: sifive_e6 (11)*
+5+^|*Category: cpu (1), Family: sifive_6 (11)*
 
 a|
 [source]
@@ -1382,7 +1445,7 @@ any
 | 0
 | Any SiFive Essential 6-series CPU
 
-5+^|*Category: cpu (1), Family: sifive_e7 (12)*
+5+^|*Category: cpu (1), Family: sifive_7 (12)*
 
 a|
 [source]
@@ -2208,6 +2271,210 @@ sm90a = sm90
 | 3
 | 13
 | NVIDIA Hopper arhitecture
+
+5+^|*Category: gpu (2), Family: arm (4)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 4
+| 0
+| Any Arm GPU
+
+a|
+[source]
+----
+mid1
+----
+| 2
+| 4
+| 1
+| Midgard 1st generation
+
+a|
+[source]
+----
+mid2
+----
+| 2
+| 4
+| 2
+| Midgard 2nd generation
+
+a|
+[source]
+----
+mid3
+----
+| 2
+| 4
+| 3
+| Midgard 3rd generation
+
+a|
+[source]
+----
+mid4
+----
+| 2
+| 4
+| 4
+| Midgard 4th generation
+
+a|
+[source]
+----
+bif1
+----
+| 2
+| 4
+| 5
+| Bifrost 1st generation
+
+a|
+[source]
+----
+bif2
+----
+| 2
+| 4
+| 6
+| Bifrost 2nd generation
+
+a|
+[source]
+----
+bif3
+----
+| 2
+| 4
+| 7
+| Bifrost 3rd generation
+
+a|
+[source]
+----
+val1
+----
+| 2
+| 4
+| 8
+| Valhall 1st generation
+
+a|
+[source]
+----
+val2
+----
+| 2
+| 4
+| 9
+| Valhall 2nd generation
+
+a|
+[source]
+----
+val3
+----
+| 2
+| 4
+| 10
+| Valhall 3rd generation
+
+a|
+[source]
+----
+val4
+----
+| 2
+| 4
+| 11
+| Valhall 4th generation
+
+a|
+[source]
+----
+gen5
+----
+| 2
+| 4
+| 12
+| Arm 5th Gen architecture
+
+5+^|*Category: gpu (2), Family: img_a (5)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 5
+| 0
+| Any Imagination A-Series GPU
+
+5+^|*Category: gpu (2), Family: img_b (6)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 6
+| 0
+| Any Imagination B-Series GPU
+
+5+^|*Category: gpu (2), Family: img_c (7)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 7
+| 0
+| Any Imagination C-Series GPU
+
+5+^|*Category: gpu (2), Family: img_d (8)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 8
+| 0
+| Any Imagination D-Series GPU
+
+5+^|*Category: gpu (2), Family: img_e (9)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 9
+| 0
+| Any Imagination E-Series GPU
+
+5+^|*Category: gpu (2), Family: qualcomm (10)*
+
+a|
+[source]
+----
+any
+----
+| 2
+| 10
+| 0
+| Any Qualcomm Adreno GPU
 
 5+^|*Category: npu (3), Family: generic (0)*
 

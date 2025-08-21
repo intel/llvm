@@ -2721,69 +2721,69 @@
         "desc": "Codasip application cores"
       },
       {
-        "name": "sifive_e2",
+        "name": "sifive_2",
         "value": 10,
         "desc": "SiFive Essential 2-series"
       },
       {
-        "name": "sifive_e6",
+        "name": "sifive_6",
         "value": 11,
         "desc": "SiFive Essential 6-series"
       },
       {
-        "name": "sifive_e7",
+        "name": "sifive_7",
         "value": 12,
         "desc": "SiFive Essential 7-series"
       },
       {
         "name": "sifive_x200",
         "value": 13,
-        "desc": "SiFive Essential X200 Series"
+        "desc": "SiFive Intelligence X200 Series"
       },
       {
         "name": "sifive_x300",
         "value": 14,
-        "desc": "SiFive Essential X300 Series"
+        "desc": "SiFive Intelligence X300 Series"
       },
       {
         "name": "sifive_xm",
         "value": 15,
-        "desc": "SiFive Essential XM Series"
+        "desc": "SiFive Intelligence XM Series"
       },
       {
         "name": "sifive_p400",
         "value": 16,
-        "desc": "SiFive Essential P400 Series"
+        "desc": "SiFive Performance P400 Series"
       },
       {
         "name": "sifive_p500",
         "value": 17,
-        "desc": "SiFive Essential P500 Series"
+        "desc": "SiFive Performance P500 Series"
       },
       {
         "name": "sifive_p600",
         "value": 18,
-        "desc": "SiFive Essential P600 Series"
+        "desc": "SiFive Performance P600 Series"
       },
       {
         "name": "sifive_p800",
         "value": 19,
-        "desc": "SiFive Essential P800 Series"
+        "desc": "SiFive Performance P800 Series"
       },
       {
         "name": "sifive_e6a",
         "value": 20,
-        "desc": "SiFive Essential E6-A Series"
+        "desc": "SiFive Automotive E6-A Series"
       },
       {
         "name": "sifive_e7a",
         "value": 21,
-        "desc": "SiFive Essential E7-A Series"
+        "desc": "SiFive Automotive E7-A Series"
       },
       {
         "name": "sifive_s7a",
         "value": 22,
-        "desc": "SiFive Essential S7-A Series"
+        "desc": "SiFive Automotive S7-A Series"
       }
     ],
     "gpu": [
@@ -2806,6 +2806,41 @@
         "name": "nvidia",
         "value": 3,
         "desc": "NVIDIA GPU"
+      },
+      {
+        "name": "arm",
+        "value": 4,
+        "desc": "Arm GPU"
+      },
+      {
+        "name": "img_a",
+        "value": 5,
+        "desc": "Imagination A-Series GPU"
+      },
+      {
+        "name": "img_b",
+        "value": 6,
+        "desc": "Imagination B-Series GPU"
+      },
+      {
+        "name": "img_c",
+        "value": 7,
+        "desc": "Imagination C-Series GPU"
+      },
+      {
+        "name": "img_d",
+        "value": 8,
+        "desc": "Imagination D-Series GPU"
+      },
+      {
+        "name": "img_e",
+        "value": 9,
+        "desc": "Imagination E-Series GPU"
+      },
+      {
+        "name": "qualcomm",
+        "value": 10,
+        "desc": "Qualcomm Adreno GPU"
       }
     ],
     "npu": [
@@ -3353,21 +3388,21 @@
           "desc": "Codasip X730"
         }
       ],
-      "sifive_e2": [
+      "sifive_2": [
         {
           "name": "any",
           "value": 0,
           "desc": "Any SiFive Essential 2-series CPU"
         }
       ],
-      "sifive_e6": [
+      "sifive_6": [
         {
           "name": "any",
           "value": 0,
           "desc": "Any SiFive Essential 6-series CPU"
         }
       ],
-      "sifive_e7": [
+      "sifive_7": [
         {
           "name": "any",
           "value": 0,
@@ -4097,6 +4132,115 @@
           "name": "sm90a",
           "value": 13,
           "desc": "NVIDIA Hopper arhitecture"
+        }
+      ],
+      "arm": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Arm GPU"
+        },
+        {
+          "name": "mid1",
+          "value": 1,
+          "desc": "Midgard 1st generation"
+        },
+        {
+          "name": "mid2",
+          "value": 2,
+          "desc": "Midgard 2nd generation"
+        },
+        {
+          "name": "mid3",
+          "value": 3,
+          "desc": "Midgard 3rd generation"
+        },
+        {
+          "name": "mid4",
+          "value": 4,
+          "desc": "Midgard 4th generation"
+        },
+        {
+          "name": "bif1",
+          "value": 5,
+          "desc": "Bifrost 1st generation"
+        },
+        {
+          "name": "bif2",
+          "value": 6,
+          "desc": "Bifrost 2nd generation"
+        },
+        {
+          "name": "bif3",
+          "value": 7,
+          "desc": "Bifrost 3rd generation"
+        },
+        {
+          "name": "val1",
+          "value": 8,
+          "desc": "Valhall 1st generation"
+        },
+        {
+          "name": "val2",
+          "value": 9,
+          "desc": "Valhall 2nd generation"
+        },
+        {
+          "name": "val3",
+          "value": 10,
+          "desc": "Valhall 3rd generation"
+        },
+        {
+          "name": "val4",
+          "value": 11,
+          "desc": "Valhall 4th generation"
+        },
+        {
+          "name": "gen5",
+          "value": 12,
+          "desc": "Arm 5th Gen architecture"
+        }
+      ],
+      "img_a": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Imagination A-Series GPU"
+        }
+      ],
+      "img_b": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Imagination B-Series GPU"
+        }
+      ],
+      "img_c": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Imagination C-Series GPU"
+        }
+      ],
+      "img_d": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Imagination D-Series GPU"
+        }
+      ],
+      "img_e": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Imagination E-Series GPU"
+        }
+      ],
+      "qualcomm": [
+        {
+          "name": "any",
+          "value": 0,
+          "desc": "Any Qualcomm Adreno GPU"
         }
       ]
     },
