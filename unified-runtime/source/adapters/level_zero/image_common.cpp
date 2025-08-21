@@ -1016,16 +1016,6 @@ bool verifyCommonImagePropertiesSupport(
     }
   }
 
-  // Verify unnormalized channel type support.
-  // LevelZero currently doesn't support unnormalized channel types.
-  switch (pImageFormat->channelType) {
-  default:
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
-    return false;
-  }
-
   return supported;
 }
 
