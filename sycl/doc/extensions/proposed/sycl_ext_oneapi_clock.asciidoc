@@ -55,20 +55,12 @@ The APIs in this extension may be used only on a device that has
 `aspect::ext_oneapi_clock`.  The application must check that the device has
 this aspect before submitting a kernel using any of the APIs in this
 extension.  If the application fails to do this, the implementation throws
-a synchronous exception with the `errc::feature_not_supported` error code
+a synchronous exception with the `errc::kernel_not_supported` error code
 when the kernel is submitted to the queue.
 
 == Overview
 
-This extension defines a new free function `clock()`. It returns the sample
-value of a clock as seen by the shader processor. An idealized clock is an
-unbounded unsigned scalar integer tick count increasing monotonically over
-time. A clock’s rate of progress may vary within the lifetime of an invocation,
-may vary across different executions of the program, and may be affected by
-conditions beyond the control of the programmer. The sampled value read by this
-instruction consists of the least significant bits of the idealized clock’s tick
-count at the time the instruction was executed. In particular, an observer may
-see sampled values wrap around zero.
+This extension defines a new free function `clock()`. See below for details.
 
 == Specification
 
@@ -119,14 +111,22 @@ enum class aspect : /*unspecified*/ {
 ```c++
 namespace sycl::ext::oneapi {
 
-uint64_t clock();
+uint64_t clock(memory_scope scope = memory_scope::system);
 
 } // namespace sycl::ext::oneapi
 ```
 
-_Returns:_ the sample value of a clock as seen by the shader processor.
+This function may only be called from within a command.
 
-_Throws:_ an exception with the errc::feature_not_supported error code if the
-device does not have aspect::ext_oneapi_clock.
+All work-items within the scope read from the same source clock.
+
+_Returns:_ the sample value of a clock as seen by the compute unit.
+The clock is defined as an unbounded, unsigned integer counter that
+monotonically increments over time. The rate at which the clock advances is not
+guaranteed to be constant: it may vary over the lifetime of a work-item, differ
+between separate executions of the program, and be affected by conditions
+outside the control of the programmer. The value returned by this instruction
+corresponds to the least significant bits of the clock counter at the time of
+execution. Consequently, the sampled value may wrap around zero.
 
 == Issues
