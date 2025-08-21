@@ -112,14 +112,12 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
       Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename KernelName, typename PropertiesT, typename KernelType,
           int Dims>
 void submit_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc) {
-  Q.submit_direct_without_event<KernelName,
-                                PropertiesT, KernelType, Dims>(
+  Q.submit_direct_without_event<KernelName, PropertiesT, KernelType, Dims>(
       Props, Range, KernelFunc, CodeLoc);
 }
 template <typename KernelName, typename PropertiesT, typename KernelType,
@@ -127,11 +125,9 @@ template <typename KernelName, typename PropertiesT, typename KernelType,
 event submit_direct_with_event_impl(
     const queue &Q, PropertiesT Props, nd_range<Dims> Range,
     const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_direct_with_event<KernelName,
-                                    PropertiesT, KernelType, Dims>(
+  return Q.submit_direct_with_event<KernelName, PropertiesT, KernelType, Dims>(
       Props, Range, KernelFunc, CodeLoc);
 }
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -149,7 +145,6 @@ void submit(const queue &Q, CommandGroupFunc &&CGF,
   submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename KernelName = sycl::detail::auto_name, typename PropertiesT,
           typename KernelType, int Dims>
 void submit(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
@@ -160,7 +155,6 @@ void submit(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       KernelName, PropertiesT, KernelType, Dims>(Q, Props, Range, KernelFunc,
                                                  CodeLoc);
 }
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
 template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event(const queue &Q, PropertiesT Props,
@@ -179,7 +173,6 @@ event submit_with_event(const queue &Q, CommandGroupFunc &&CGF,
                            std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename KernelName = sycl::detail::auto_name, typename PropertiesT,
           typename KernelType, int Dims>
 event submit_with_event(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
@@ -190,7 +183,6 @@ event submit_with_event(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       KernelName, PropertiesT, KernelType, Dims>(Q, Props, Range, KernelFunc,
                                                  CodeLoc);
 }
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(handler &CGH, const KernelType &KernelObj) {

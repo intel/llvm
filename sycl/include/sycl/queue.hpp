@@ -234,7 +234,6 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc);
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 template <typename KernelName, typename PropertiesT, typename KernelType,
           int Dims>
 void submit_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
@@ -247,7 +246,6 @@ event submit_direct_with_event_impl(const queue &Q, PropertiesT Props,
                                     nd_range<Dims> Range,
                                     const KernelType &KernelFunc,
                                     const sycl::detail::code_location &CodeLoc);
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
@@ -3687,7 +3685,6 @@ private:
       const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   template <typename KernelName, typename PropertiesT, typename KernelType,
             int Dims>
   friend void ext::oneapi::experimental::detail::submit_direct_impl(
@@ -3699,8 +3696,6 @@ private:
   friend event ext::oneapi::experimental::detail::submit_direct_with_event_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
-
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
@@ -3715,7 +3710,6 @@ private:
     }
   }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
     using type = std::conditional_t<
         std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
@@ -3745,7 +3739,6 @@ private:
     KRInfo.KernelNameBasedCachePtr() =
         detail::getKernelNameBasedCache<KernelName>();
   }
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
@@ -3890,8 +3883,6 @@ private:
                                   TlsCodeLocCapture.isToplevel());
   }
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-
   template <typename KernelName = detail::auto_name,
             typename PropertiesT, typename KernelType, int Dims>
   event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
@@ -3941,7 +3932,6 @@ private:
                                      TlsCodeLocCapture.query(),
                                      TlsCodeLocCapture.isToplevel());
   }
-#endif //__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
