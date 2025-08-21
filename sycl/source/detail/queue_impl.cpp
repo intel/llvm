@@ -403,8 +403,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   return EventImpl;
 }
 
-//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-
 std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams) {
@@ -514,8 +512,6 @@ detail::EventImplPtr queue_impl::submit_direct_impl(
 
   return CallerNeedsEvent ? EventImpl : nullptr;
 }
-
-//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,

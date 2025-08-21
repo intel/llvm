@@ -151,7 +151,6 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t (*)(int);
 
 // This class is intended to store the kernel runtime information,
@@ -215,7 +214,6 @@ private:
   bool MKernelHasSpecialCaptures = true;
   detail::KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
 };
-//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace v1
 } // namespace detail
@@ -3820,7 +3818,6 @@ private:
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
-//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   event submit_direct_with_event_impl(
       nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
@@ -3850,7 +3847,6 @@ private:
       nd_range<3> Range, const detail::v1::SubmissionInfo &SubmitInfo,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
-//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,

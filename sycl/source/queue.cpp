@@ -315,7 +315,6 @@ event queue::submit_with_event_impl(
   return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
-//#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 event queue::submit_direct_with_event_impl(
     nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
     const detail::v1::KernelRuntimeInfo &KRInfo,
@@ -363,8 +362,6 @@ void queue::submit_direct_without_event_impl(
   impl->submit_direct_without_event(Range, SubmitInfo, KRInfo, CodeLoc,
                                     IsTopCodeLoc);
 }
-
-//#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 void queue::submit_without_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
