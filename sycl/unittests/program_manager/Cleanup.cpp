@@ -378,7 +378,7 @@ TEST(ImageRemoval, BaseContainers) {
   std::vector<std::string> KernelNames =
       generateRefNames({"A", "B", "C"}, "Kernel");
   for (const std::string &Name : KernelNames)
-    PM.getOrCreateKernelNameBasedData(Name);
+    PM.getOrCreateDeviceKernelInfo(Name);
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
@@ -403,7 +403,7 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
                       TestBinaries);
 
   std::string KernelName = generateRefName("A", "Kernel");
-  PM.getOrCreateKernelNameBasedData(KernelName);
+  PM.getOrCreateDeviceKernelInfo(KernelName);
   checkAllInvolvedContainers(
       PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
       /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",

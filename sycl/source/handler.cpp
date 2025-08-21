@@ -547,7 +547,7 @@ event handler::finalize() {
       // Fetch the kernel name based data pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
       impl->MKernelNameBasedDataPtr =
-          detail::ProgramManager::getInstance().getOrCreateKernelNameBasedData(
+          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
               toKernelNameStrT(MKernelName));
     }
     // If there were uses of set_specialization_constant build the kernel_bundle

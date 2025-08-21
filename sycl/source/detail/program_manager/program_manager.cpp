@@ -1820,10 +1820,10 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
   return {};
 }
 
-DeviceKernelInfo *
-ProgramManager::getOrCreateKernelNameBasedData(KernelNameStrRefT KernelName) {
+DeviceKernelInfo &
+ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
   auto Result = m_KernelNameBasedDataMap.try_emplace(KernelName, KernelName);
-  return &Result.first->second;
+  return Result.first->second;
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
