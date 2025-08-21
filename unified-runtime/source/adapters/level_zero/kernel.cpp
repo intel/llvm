@@ -233,7 +233,7 @@ ur_result_t urEnqueueKernelLaunch(
     static thread_local uint32_t CleanupCounter = 0;
     if ((++CleanupCounter & 127) == 0) {
       if (Queue->UsingImmCmdLists) {
-        UR_CALL(CleanupEventsInImmCmdLists(Queue, false /*QueueLocked*/,
+        UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*QueueLocked*/,
                                            false /*QueueSynced*/,
                                            nullptr /*CompletedEvent*/));
       } else {
