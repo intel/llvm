@@ -1099,9 +1099,9 @@ void handler::extractArgsAndReqsFromLambda(
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {
-  (void)IsESIMD;
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
+  impl->MKernelData.setESIMD(IsESIMD);
 
   for (size_t I = 0; I < ParamDescs.size(); ++I) {
     void *Ptr = LambdaPtr + ParamDescs[I].offset;
