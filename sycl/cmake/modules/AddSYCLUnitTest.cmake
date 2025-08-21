@@ -34,11 +34,11 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
   # Chaning CMAKE_CURRENT_BINARY_DIR should not affect this variable in its
   # parent scope.
   if (${is_preview})
-    if (${is_no_cgh})
-      set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/PreviewNoCGH")
-    else()
       set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
-    endif()
+  endif()
+
+  if (${is_no_cgh})
+    set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/NoCGH")
   endif()
 
   if ("${link_variant}" MATCHES "SHARED")
@@ -66,11 +66,11 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
   if (${is_preview})
     target_compile_definitions(${test_dirname}
         PRIVATE __INTEL_PREVIEW_BREAKING_CHANGES)
-    if (${is_no_cgh})
-      set(sycl_cache_suffix "_non_preview_no_cgh")
-    else()
-      set(sycl_cache_suffix "_preview")
-    endif()
+    set(sycl_cache_suffix "_preview")
+  endif()
+
+  if (${is_no_cgh})
+    set(sycl_cache_suffix "_no_cgh")
   endif()
 
   if (${is_no_cgh})
@@ -175,6 +175,6 @@ endfunction()
 # Produces two binaries, named `basename(test_name_prefix_non_preview)` and `basename(test_name_prefix_preview)`
 macro(add_sycl_unittest test_name_prefix link_variant)
   add_sycl_unittest_internal(${test_name_prefix}_non_preview ${link_variant} FALSE FALSE ${ARGN})
-  add_sycl_unittest_internal(${test_name_prefix}_non_preview_no_cgh ${link_variant} FALSE TRUE ${ARGN})
+  add_sycl_unittest_internal(${test_name_prefix}_no_cgh ${link_variant} FALSE TRUE ${ARGN})
   add_sycl_unittest_internal(${test_name_prefix}_preview ${link_variant} TRUE FALSE ${ARGN})
 endmacro()
