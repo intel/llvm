@@ -277,6 +277,47 @@ template <typename KernelNameType> constexpr bool hasSpecialCaptures() {
   }
   return FoundSpecialCapture;
 }
+inline namespace compile_time_kernel_info_v1 {
+
+// This is being passed across ABI boundary, so we don't use std::string_view,
+// at least for as long as we support user apps built with GNU libstdc++'s
+// pre-C++11 ABI.
+struct CompileTimeKernelInfoTy {
+  const char *Name = nullptr;
+  unsigned NumParams = 0;
+  bool IsESIMD = false;
+  const char *FileName = "";
+  const char *FunctionName = "";
+  unsigned LineNumber = 0;
+  unsigned ColumnNumber = 0;
+  int64_t KernelSize;
+  kernel_param_desc_t &(*ParamDescGetter)(int) = nullptr;
+  bool HasSpecialCaptures = false;
+};
+
+template <class Kernel>
+inline constexpr CompileTimeKernelInfoTy CompileTimeKernelInfo{
+    getKernelName<Kernel>(),         getKernelNumParams<Kernel>(),
+    isKernelESIMD<Kernel>(),         getKernelFileName<Kernel>(),
+    getKernelFunctionName<Kernel>(), getKernelLineNumber<Kernel>(),
+    getKernelColumnNumber<Kernel>(), getKernelSize<Kernel>(),
+    &getKernelParamDesc<Kernel>,     hasSpecialCaptures<Kernel>()};
+} // namespace compile_time_kernel_info_v1
+
+class DeviceKernelInfo;
+// Lifetime of the underlying `DeviceKernelInfo` is tied to the availability of
+// the `sycl_device_binaries` corresponding to this kernel. In other words, once
+// user library is unloaded (see __sycl_unregister_lib), program manager destoys
+// this `DeviceKernelInfo` object and the reference returned from here becomes
+// stale.
+__SYCL_EXPORT DeviceKernelInfo &
+getDeviceKernelInfo(const CompileTimeKernelInfoTy &);
+
+template <class Kernel> DeviceKernelInfo &getDeviceKernelInfo() {
+  static DeviceKernelInfo &Info =
+      getDeviceKernelInfo(CompileTimeKernelInfo<Kernel>);
+  return Info;
+}
 
 } // namespace detail
 } // namespace _V1
