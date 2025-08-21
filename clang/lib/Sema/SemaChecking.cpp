@@ -3384,7 +3384,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     if (!ArgTy->isFunctionProtoType() && !ArgTy->isFunctionPointerType()) {
       Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
-          << 1 << 0 << /* pointer to function type */ 6 << 0 << ArgTy;
+          << 1 << 0 << /* pointer to function type */ 7 << 0 << ArgTy;
       return ExprError();
     }
 
