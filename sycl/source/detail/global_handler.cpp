@@ -251,7 +251,7 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<KernelNameBasedData> &KernelNameBasedDataStorage =
+  static std::deque<DeviceKernelInfo> &KernelNameBasedDataStorage =
       getOrCreate(MKernelNameBasedDataStorage);
   LockGuard LG{MKernelNameBasedDataStorage.Lock};
   return reinterpret_cast<KernelNameBasedCacheT *>(

@@ -3691,7 +3691,7 @@ private:
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
 #endif
   void setKernelNameBasedDataPtr(
-      detail::KernelNameBasedData *KernelNameBasedDataPtr);
+      detail::DeviceKernelInfo *KernelNameBasedDataPtr);
 
   queue getQueue();
 

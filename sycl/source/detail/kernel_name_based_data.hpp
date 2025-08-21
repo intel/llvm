@@ -85,12 +85,12 @@ struct FastKernelSubcacheT {
 // TODO Currently this class duplicates information fetched from the program
 // manager. Instead, we should merge all of the kernel name based information
 // into this structure and get rid of the other KernelName -> * maps.
-class KernelNameBasedData {
+class DeviceKernelInfo {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  KernelNameBasedData() = default;
+  DeviceKernelInfo() = default;
 #endif
-  KernelNameBasedData(KernelNameStrRefT KernelName);
+  DeviceKernelInfo(KernelNameStrRefT KernelName);
 
   void init(KernelNameStrRefT KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

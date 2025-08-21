@@ -1084,7 +1084,7 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName, KernelNameBasedData &KernelNameBasedData,
+    KernelNameStrRefT KernelName, DeviceKernelInfo &DeviceKernelInfo,
     const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
@@ -1095,7 +1095,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     if (auto KernelCacheValPtr = Cache.tryToGetKernelFast(
-            KernelName, UrDevice, KernelNameBasedData.getKernelSubcache())) {
+            KernelName, UrDevice, DeviceKernelInfo.getKernelSubcache())) {
       return KernelCacheValPtr;
     }
   }
@@ -1148,7 +1148,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
       KernelArgMaskPair.first.retain(), &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
   Cache.saveKernel(KernelName, UrDevice, ret_val,
-                   KernelNameBasedData.getKernelSubcache());
+                   DeviceKernelInfo.getKernelSubcache());
   return ret_val;
 }
 
@@ -1820,7 +1820,7 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
   return {};
 }
 
-KernelNameBasedData *
+DeviceKernelInfo *
 ProgramManager::getOrCreateKernelNameBasedData(KernelNameStrRefT KernelName) {
   auto Result = m_KernelNameBasedDataMap.try_emplace(KernelName, KernelName);
   return &Result.first->second;

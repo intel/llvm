@@ -31,7 +31,7 @@ class XPTIRegistry;
 class ThreadPool;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 class KernelNameBasedCacheT;
-class KernelNameBasedData;
+class DeviceKernelInfo;
 #endif
 
 /// Wrapper class for global data structures with non-trivial destructors.
@@ -138,7 +138,7 @@ private:
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  InstWithLock<std::deque<KernelNameBasedData>> MKernelNameBasedDataStorage;
+  InstWithLock<std::deque<DeviceKernelInfo>> MKernelNameBasedDataStorage;
 #endif
 };
 } // namespace detail

@@ -20,7 +20,7 @@ KernelNameBasedCacheT *createKernelNameBasedCache() {
 }
 #endif
 
-KernelNameBasedData *
+DeviceKernelInfo *
 getKernelNameBasedDataImpl(detail::ABINeutralKernelNameStrRefT KernelName) {
   return ProgramManager::getInstance().getOrCreateKernelNameBasedData(
       KernelName.data());

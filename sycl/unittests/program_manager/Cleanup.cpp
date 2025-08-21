@@ -62,7 +62,7 @@ public:
   }
 
   std::unordered_map<sycl::detail::KernelNameStrT,
-                     sycl::detail::KernelNameBasedData> &
+                     sycl::detail::DeviceKernelInfo> &
   getKernelNameBasedDataMap() {
     return m_KernelNameBasedDataMap;
   }

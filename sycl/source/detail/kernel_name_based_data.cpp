@@ -12,11 +12,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-KernelNameBasedData::KernelNameBasedData(KernelNameStrRefT KernelName) {
+DeviceKernelInfo::DeviceKernelInfo(KernelNameStrRefT KernelName) {
   init(KernelName);
 }
 
-void KernelNameBasedData::init(KernelNameStrRefT KernelName) {
+void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
   auto &PM = detail::ProgramManager::getInstance();
   MUsesAssert = PM.kernelUsesAssert(KernelName);
   MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
@@ -26,26 +26,26 @@ void KernelNameBasedData::init(KernelNameStrRefT KernelName) {
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void KernelNameBasedData::initIfNeeded(KernelNameStrRefT KernelName) {
+void DeviceKernelInfo::initIfNeeded(KernelNameStrRefT KernelName) {
   if (!MInitialized.load())
     init(KernelName);
 }
 #endif
 
-FastKernelSubcacheT &KernelNameBasedData::getKernelSubcache() {
+FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
   assertInitialized();
   return MFastKernelSubcache;
 }
-bool KernelNameBasedData::usesAssert() {
+bool DeviceKernelInfo::usesAssert() {
   assertInitialized();
   return MUsesAssert;
 }
-const std::optional<int> &KernelNameBasedData::getImplicitLocalArgPos() {
+const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
   assertInitialized();
   return MImplicitLocalArgPos;
 }
 
-void KernelNameBasedData::assertInitialized() {
+void DeviceKernelInfo::assertInitialized() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   assert(MInitialized.load() && "Data needs to be initialized before use");
 #endif

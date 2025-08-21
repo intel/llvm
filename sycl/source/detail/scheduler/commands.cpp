@@ -1988,7 +1988,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-    KernelNameStrRefT KernelName, KernelNameBasedData &KernelNameBasedData,
+    KernelNameStrRefT KernelName, DeviceKernelInfo &DeviceKernelInfo,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel, queue_impl *Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
@@ -2015,7 +2015,7 @@ void instrumentationAddExtraKernelMetadata(
     FastKernelCacheValPtr FastKernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImpl(), Queue->getDeviceImpl(), KernelName,
-            KernelNameBasedData);
+            DeviceKernelInfo);
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
   }
 
@@ -2103,7 +2103,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     const std::string_view SyclKernelName,
-    KernelNameBasedData &KernelNameBasedData, queue_impl *Queue,
+    DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
@@ -2142,7 +2142,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), KernelNameBasedData, SyclKernel, Queue,
+        std::string(SyclKernelName), DeviceKernelInfo, SyclKernel, Queue,
         CGArgs);
 
     xptiNotifySubscribers(
@@ -2400,7 +2400,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName, KernelNameBasedData &KernelNameBasedData,
+    KernelNameStrRefT KernelName, DeviceKernelInfo &DeviceKernelInfo,
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
@@ -2447,7 +2447,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   }
 
   const std::optional<int> &ImplicitLocalArg =
-      KernelNameBasedData.getImplicitLocalArgPos();
+      DeviceKernelInfo.getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
@@ -2666,7 +2666,7 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
-    KernelNameBasedData &KernelNameBasedData,
+    DeviceKernelInfo &DeviceKernelInfo,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -2713,7 +2713,7 @@ void enqueueImpKernel(
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, KernelName, KernelNameBasedData, NDRDesc);
+        ContextImpl, DeviceImpl, KernelName, DeviceKernelInfo, NDRDesc);
     Kernel = KernelCacheVal->MKernelHandle;
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
@@ -2760,7 +2760,7 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, KernelName, KernelNameBasedData, KernelFuncPtr, KernelNumArgs,
+        BinImage, KernelName, DeviceKernelInfo, KernelFuncPtr, KernelNumArgs,
         KernelParamDescGetter, KernelHasSpecialCaptures);
   }
   if (UR_RESULT_SUCCESS != Error) {

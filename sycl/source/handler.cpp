@@ -2608,13 +2608,13 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
   setKernelNameBasedDataPtr(
-      reinterpret_cast<sycl::detail::KernelNameBasedData *>(
+      reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
           KernelNameBasedCachePtr));
 }
 #endif
 
 void handler::setKernelNameBasedDataPtr(
-    sycl::detail::KernelNameBasedData *KernelNameBasedDataPtr) {
+    sycl::detail::DeviceKernelInfo *KernelNameBasedDataPtr) {
   impl->MKernelNameBasedDataPtr = KernelNameBasedDataPtr;
 }
 

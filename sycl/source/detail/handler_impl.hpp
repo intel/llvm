@@ -245,7 +245,7 @@ public:
 
   // A pointer to kernel name based data. Cached on the application side in
   // headers or retrieved from program manager.
-  KernelNameBasedData *MKernelNameBasedDataPtr = nullptr;
+  DeviceKernelInfo *MKernelNameBasedDataPtr = nullptr;
 };
 
 } // namespace detail

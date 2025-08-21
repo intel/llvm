@@ -201,7 +201,7 @@ public:
   FastKernelCacheValPtr
   getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
                     KernelNameStrRefT KernelName,
-                    KernelNameBasedData &KernelNameBasedData,
+                    DeviceKernelInfo &DeviceKernelInfo,
                     const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
@@ -376,7 +376,7 @@ public:
   std::optional<int>
   kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
 
-  KernelNameBasedData *
+  DeviceKernelInfo *
   getOrCreateKernelNameBasedData(KernelNameStrRefT KernelName);
 
   std::set<const RTDeviceBinaryImage *>
@@ -537,7 +537,7 @@ protected:
 
   // Map for storing kernel name based data. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  std::unordered_map<KernelNameStrT, KernelNameBasedData>
+  std::unordered_map<KernelNameStrT, DeviceKernelInfo>
       m_KernelNameBasedDataMap;
 
   // Sanitizer type used in device image
