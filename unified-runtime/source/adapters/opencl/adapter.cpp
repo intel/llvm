@@ -26,17 +26,15 @@ static ur_adapter_handle_t liveAdapter = nullptr;
 ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #ifdef _MSC_VER
 
-  // Loading OpenCL.dll increments the libraries internal reference count.
-  auto handle = LoadLibraryA("OpenCL.dll");
+  // Retrieving handle of an already linked OpenCL.dll library doesn't increase
+  // the reference count.
+  auto handle = GetModuleHandleA("OpenCL.dll");
+  assert(handle);
 
 #define CL_CORE_FUNCTION(FUNC)                                                 \
   FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
-
-  // So we can safely decrement it here wihtout actually unloading OpenCL.dll.
-  FreeLibrary(handle);
-
 #else // _MSC_VER
 
   // Use the default shared object search order (RTLD_DEFAULT) since the

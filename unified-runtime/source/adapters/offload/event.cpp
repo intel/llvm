@@ -64,9 +64,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   if (--hEvent->RefCount == 0) {
-    auto Res = olDestroyEvent(hEvent->OffloadEvent);
-    if (Res) {
-      return offloadResultToUR(Res);
+    if (hEvent->OffloadEvent) {
+      auto Res = olDestroyEvent(hEvent->OffloadEvent);
+      if (Res) {
+        return offloadResultToUR(Res);
+      }
     }
     delete hEvent;
   }

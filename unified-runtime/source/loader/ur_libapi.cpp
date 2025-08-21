@@ -826,7 +826,7 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phDevices != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -881,7 +881,7 @@ ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urDeviceGetSelected(
     /// [in] handle of the platform instance
@@ -3438,6 +3438,8 @@ ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
 ///         + If `pFunctionName` could be located, but its address couldn't be
 ///         retrieved.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the backend does not support querying function pointers.
 ur_result_t UR_APICALL urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
     ur_device_handle_t hDevice,

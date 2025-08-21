@@ -353,22 +353,21 @@ handler::handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl)
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, nullptr,
-                                                  CallerNeedsEvent)),
+    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
       MQueueDoNotUse(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<detail::queue_impl> Queue,
     [[maybe_unused]] std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    std::shared_ptr<detail::queue_impl> SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue.get(),
-                                                  CallerNeedsEvent)),
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
+    bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
       MQueueDoNotUse(Queue) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(*Queue, SecondaryQueue,
-                                                  CallerNeedsEvent)),
+                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(*Queue, CallerNeedsEvent)),
       MQueueDoNotUse(std::move(Queue)) {}
 
 handler::handler(
@@ -2021,14 +2020,6 @@ void handler::use_kernel_bundle(
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
-  if (impl->MSubmissionSecondaryQueue &&
-      impl->MSubmissionSecondaryQueue->get_context() !=
-          ExecBundle.get_context())
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Context associated with the secondary queue is different from the "
-        "context associated with the kernel bundle");
-
   setStateExplicitKernelBundle();
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
 }
@@ -2649,7 +2640,7 @@ __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
   queue_impl &Q = CGH.impl->get_queue();
   bool EventNeeded = !Q.isInOrder();
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler_impl HandlerImpl{Q, nullptr, EventNeeded};
+  handler_impl HandlerImpl{Q, EventNeeded};
   handler AuxHandler{HandlerImpl};
 #else
   handler AuxHandler{Q.shared_from_this(), EventNeeded};
@@ -2668,8 +2659,7 @@ __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
   if (!InOrder)
     CGH.impl->MEventNeeded = true;
 
-  handler PostProcessHandler{
-      std::make_unique<handler_impl>(Q, nullptr, EventNeeded)};
+  handler PostProcessHandler{std::make_unique<handler_impl>(Q, EventNeeded)};
   PostProcessHandler.copyCodeLoc(CGH);
   // Extend lifetimes of auxiliary resources till the last kernel in the chain
   // finishes:
