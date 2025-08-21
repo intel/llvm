@@ -154,7 +154,6 @@ private:
 
   // Friend traits.
   friend std::numeric_limits<bfloat16>;
-  friend std::hash<bfloat16>;
 
   // Friend classes for vector operations
   friend class sycl::vec<bfloat16, 1>;
@@ -633,7 +632,7 @@ namespace std {
 // Specialization of `std::hash<sycl::ext::oneapi::bfloat16>`.
 template <> struct hash<sycl::ext::oneapi::bfloat16> {
   size_t operator()(sycl::ext::oneapi::bfloat16 const &Key) const noexcept {
-    return hash<uint16_t>{}(Key.value);
+    return hash<uint16_t>{}(sycl::bit_cast<uint16_t>(Key));
   }
 };
 
