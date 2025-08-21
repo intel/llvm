@@ -291,7 +291,7 @@ struct CompileTimeKernelInfoTy {
   unsigned LineNumber = 0;
   unsigned ColumnNumber = 0;
   int64_t KernelSize;
-  kernel_param_desc_t &(*ParamDescGetter)(int) = nullptr;
+  kernel_param_desc_t (*ParamDescGetter)(int) = nullptr;
   bool HasSpecialCaptures = false;
 };
 

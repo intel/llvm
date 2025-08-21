@@ -20,10 +20,9 @@ KernelNameBasedCacheT *createKernelNameBasedCache() {
 }
 #endif
 
-DeviceKernelInfo *
-getKernelNameBasedDataImpl(detail::ABINeutralKernelNameStrRefT KernelName) {
-  return ProgramManager::getInstance().getOrCreateKernelNameBasedData(
-      KernelName.data());
+DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
+  return *ProgramManager::getInstance().getOrCreateKernelNameBasedData(
+      Info.Name);
 }
 
 } // namespace detail

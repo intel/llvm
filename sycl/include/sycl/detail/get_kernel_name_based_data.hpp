@@ -19,20 +19,6 @@ class KernelNameBasedCacheT;
 __SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();
 #endif
 
-class DeviceKernelInfo;
-
-__SYCL_EXPORT DeviceKernelInfo *
-getKernelNameBasedDataImpl(detail::ABINeutralKernelNameStrRefT KernelName);
-
-// Retrieves and caches a data pointer to avoid kernel name based lookup
-// overhead.
-template <typename KernelNameT>
-DeviceKernelInfo *
-getKernelNameBasedData(detail::ABINeutralKernelNameStrRefT KernelName) {
-  static DeviceKernelInfo *Instance = getKernelNameBasedDataImpl(KernelName);
-  return Instance;
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

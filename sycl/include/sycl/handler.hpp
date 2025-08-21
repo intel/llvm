@@ -863,8 +863,7 @@ private:
       constexpr std::string_view KernelNameStr =
           detail::getKernelName<KernelName>();
       MKernelName = KernelNameStr;
-      setKernelNameBasedDataPtr(
-          detail::getKernelNameBasedData<KernelName>(KernelNameStr));
+      setKernelNameBasedDataPtr(&detail::getDeviceKernelInfo<KernelName>());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
