@@ -1661,10 +1661,12 @@ void handler::ext_oneapi_copy(
       Desc.width * Desc.num_channels * detail::get_channel_size(Desc);
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, HostRowPitch,
+    detail::fill_copy_args(get_impl(), Desc,
+                           UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST, HostRowPitch,
                            DeviceRowPitch);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
+    detail::fill_copy_args(get_impl(), Desc,
+                           UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST, DeviceRowPitch,
                            HostRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
@@ -1701,13 +1703,15 @@ void handler::ext_oneapi_copy(
 
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
-                           HostRowPitch, DeviceRowPitch, SrcOffset, HostExtent,
-                           DestOffset, {0, 0, 0}, CopyExtent);
+    detail::fill_copy_args(get_impl(), DeviceImgDesc,
+                           UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST, HostRowPitch,
+                           DeviceRowPitch, SrcOffset, HostExtent, DestOffset,
+                           {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
-                           DeviceRowPitch, HostRowPitch, SrcOffset, {0, 0, 0},
-                           DestOffset, HostExtent, CopyExtent);
+    detail::fill_copy_args(get_impl(), DeviceImgDesc,
+                           UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST, DeviceRowPitch,
+                           HostRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
+                           HostExtent, CopyExtent);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
