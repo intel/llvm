@@ -8080,7 +8080,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
   // add each device output as a host dependency to ensure they are still built.
   bool SingleDeviceOutput = !llvm::any_of(OffloadActions, [](Action *A) {
     return A->getType() == types::TY_Nothing;
-  }) && (isa<CompileJobAction>(HostAction));
+  }) && isa<CompileJobAction>(HostAction);
   OffloadAction::HostDependence HDep(
       *HostAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
       /*BoundArch=*/nullptr, SingleDeviceOutput ? DDep : DDeps);
