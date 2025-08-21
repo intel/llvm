@@ -120,6 +120,7 @@ void submit_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
   Q.submit_direct_without_event<KernelName, PropertiesT, KernelType, Dims>(
       Props, Range, KernelFunc, CodeLoc);
 }
+
 template <typename KernelName, typename PropertiesT, typename KernelType,
           int Dims>
 event submit_direct_with_event_impl(
