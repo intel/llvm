@@ -3303,11 +3303,11 @@ public:
           TlsCodeLocCapture.query());
     }
 #else
-      return submit(
-          [&](handler &CGH) {
-            CGH.template parallel_for<KernelName>(Range, Rest...);
-          },
-          TlsCodeLocCapture.query());
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName>(Range, Rest...);
+        },
+        TlsCodeLocCapture.query());
 #endif
   }
 
@@ -3883,8 +3883,8 @@ private:
                                   TlsCodeLocCapture.isToplevel());
   }
 
-  template <typename KernelName = detail::auto_name,
-            typename PropertiesT, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename KernelType, int Dims>
   event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                                  const KernelType &KernelFunc,
                                  const detail::code_location &CodeLoc =
@@ -3908,8 +3908,8 @@ private:
                                          TlsCodeLocCapture.isToplevel());
   }
 
-  template <typename KernelName = detail::auto_name,
-            typename PropertiesT, typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename KernelType, int Dims>
   void submit_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
                                    const KernelType &KernelFunc,
                                    const detail::code_location &CodeLoc =
