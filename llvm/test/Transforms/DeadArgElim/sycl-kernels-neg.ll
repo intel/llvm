@@ -57,5 +57,4 @@ define weak_odr spir_kernel void @FreeFuncKernelNdRange(float %arg1, float %arg2
 
 declare void @foo(float %arg)
 
-
 !0 = !{}
