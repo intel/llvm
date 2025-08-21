@@ -73,7 +73,7 @@ sycl::getKernelNamesUsingImplicitLocalMem(const Module &M) {
     llvm::for_each(M.functions(), [&](const Function &F) {
       if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
         int ArgPos = GetArgumentPos(F);
-        if (ArgPos >= 0)
+        if (ArgPos >= 0 || F.hasFnAttribute(WORK_GROUP_STATIC_ATTR))
           SPIRKernelNames.emplace_back(F.getName(), ArgPos);
       }
     });
@@ -190,6 +190,12 @@ static void lowerLocalMemCall(Function *LocalMemAllocFunc,
     auto *CI = cast<CallInst>(U);
     TransformCall(CI);
     DelCalls.push_back(CI);
+    // Now, take each kernel that calls the builtins that allocate local memory,
+    // either directly or through a series of function calls that eventually end
+    // up in a direct call to the builtin, and attach the
+    // work-group-memory-static attribute to the kernel if not already attached.
+    // This is needed because free function kernels do not have the attribute
+    // added by the library as is the case with other types of kernels.
     if (!FuncsCache.insert(CI->getFunction()).second)
       continue; // We have already traversed call graph from this function
 
@@ -199,7 +205,7 @@ static void lowerLocalMemCall(Function *LocalMemAllocFunc,
       auto *F = WorkList.back();
       WorkList.pop_back();
 
-      // Mark kernel as using scrach memory if it isn't marked already
+      // Mark kernel as using scratch memory if it isn't marked already
       if (F->getCallingConv() == CallingConv::SPIR_KERNEL &&
           !F->hasFnAttribute(WORK_GROUP_STATIC_ATTR))
         F->addFnAttr(WORK_GROUP_STATIC_ATTR);
