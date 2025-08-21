@@ -38,6 +38,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
   return UR_RESULT_SUCCESS;
 }
 
+namespace {
+struct callback_data_t {
+  ur_event_callback_t Callback;
+  ur_event_handle_t Event;
+  ur_execution_info_t Status;
+  void *UserData;
+};
+void CallbackHandler(void *CallbackData) {
+  auto *Data = reinterpret_cast<callback_data_t *>(CallbackData);
+  Data->Callback(Data->Event, Data->Status, Data->UserData);
+  delete Data;
+}
+} // namespace
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
+                   ur_event_callback_t pfnNotify, void *pUserData) {
+  // Liboffload only supports a transition from SUBMITTED to COMPLETE
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(olCreateQueue(hEvent->UrQueue->OffloadDevice, &Queue));
+  OL_RETURN_ON_ERR(olWaitEvents(Queue, &hEvent->OffloadEvent, 1));
+  auto CallbackData =
+      new callback_data_t{pfnNotify, hEvent, execStatus, pUserData};
+  OL_RETURN_ON_ERR(olLaunchHostFunction(Queue, CallbackHandler, CallbackData));
+  OL_RETURN_ON_ERR(olDestroyQueue(Queue));
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(ur_event_handle_t,
                                                             ur_profiling_info_t,
                                                             size_t, void *,
