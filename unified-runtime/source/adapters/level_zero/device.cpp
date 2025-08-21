@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2024 Intel Corporation
+// Copyright (C) 2023-2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -155,8 +155,13 @@ ur_result_t urDeviceGet(
       bool isComposite =
           isCombinedMode && (D->ZeDeviceProperties->flags &
                              ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (!isComposite)
+      if (!isComposite) {
         MatchedDevices.push_back(D.get());
+        // For UR_DEVICE_TYPE_DEFAULT only a single device should be returned,
+        // so exit the loop after first proper match.
+        if (DeviceType == UR_DEVICE_TYPE_DEFAULT)
+          break;
+      }
     }
   }
 
@@ -1139,9 +1144,31 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageProps.pNext = (void *)&imageAllocProps;
+
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+
+    return ReturnValue(imageAllocProps.maxImageLinearWidth);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageProps.pNext = (void *)&imageAllocProps;
+
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+
+    return ReturnValue(imageAllocProps.maxImageLinearHeight);
+  }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
@@ -1381,6 +1408,50 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    if (Device->Platform->ZeLUIDSupported) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_device_luid_ext_properties_t LuidDesc = {};
+      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
+      DeviceProp.pNext = (void *)&LuidDesc;
+
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+      const auto &LUID = LuidDesc.luid.id;
+      return ReturnValue(LUID, sizeof(LUID));
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Node mask is provided through the L0 LUID extension so support for this
+    // extension must be checked.
+    if (Device->Platform->ZeLUIDSupported) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_device_luid_ext_properties_t LuidDesc = {};
+      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
+      DeviceProp.pNext = (void *)&LuidDesc;
+
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+      return ReturnValue(LuidDesc.nodeMask);
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1920,7 +1991,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 
           std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
               PropertiesVector;
-          PropertiesVector.reserve(Count);
+          PropertiesVector.resize(Count);
 
           ZeStruct<ze_device_vector_width_properties_ext_t>
               MaxVectorWidthProperties;

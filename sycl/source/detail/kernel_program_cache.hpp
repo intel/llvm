@@ -111,30 +111,28 @@ public:
     }
   };
 
-  struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    const adapter_impl &MAdapter;
-    ProgramBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
-      Val = nullptr;
-    }
-    ProgramBuildResult(const adapter_impl &Adapter, BuildState InitialState)
-        : MAdapter(Adapter) {
-      Val = nullptr;
+  struct ProgramBuildResult : public BuildResult<Managed<ur_program_handle_t>> {
+    ProgramBuildResult() = default;
+    ProgramBuildResult(BuildState InitialState,
+                       Managed<ur_program_handle_t> &&Prog) {
       this->State.store(InitialState);
+      this->Val = std::move(Prog);
     }
-    ~ProgramBuildResult() {
-      try {
-        if (Val) {
-          ur_result_t Err =
-              MAdapter.call_nocheck<UrApiKind::urProgramRelease>(Val);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
-        }
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
-                                          e);
-      }
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+    ~ProgramBuildResult() try {
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult", e);
+      return; // Don't re-throw.
     }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
-  using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
 
   /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
    * when debugging environment variables are set and we can just ignore them
@@ -179,7 +177,8 @@ public:
   };
 
   struct ProgramCache {
-    emhash8::HashMap<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    emhash8::HashMap<ProgramCacheKeyT, std::shared_ptr<ProgramBuildResult>>
+        Cache;
     UnorderedMultimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
@@ -193,31 +192,30 @@ public:
     size_t size() const noexcept { return Cache.size(); }
   };
 
-  using ContextPtr = context_impl *;
+  struct KernelBuildResult
+      : public BuildResult<
+            std::pair<Managed<ur_kernel_handle_t>, const KernelArgMask *>> {
+    KernelBuildResult() = default;
 
-  using KernelArgMaskPairT =
-      std::pair<ur_kernel_handle_t, const KernelArgMask *>;
-  struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    const adapter_impl &MAdapter;
-    KernelBuildResult(const adapter_impl &Adapter) : MAdapter(Adapter) {
-      Val.first = nullptr;
+#ifdef _MSC_VER
+#pragma warning(push)
+// https://developercommunity.visualstudio.com/t/False-C4297-warning-while-using-function/1130300
+// https://godbolt.org/z/xsMvKf84f
+#pragma warning(disable : 4297)
+#endif
+    ~KernelBuildResult() try {
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
+      return; // Don't re-throw.
     }
-    ~KernelBuildResult() {
-      try {
-        if (Val.first) {
-          ur_result_t Err =
-              MAdapter.call_nocheck<UrApiKind::urKernelRelease>(Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err, MAdapter.getBackend());
-        }
-      } catch (std::exception &e) {
-        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
-      }
-    }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
-  using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT = emhash8::HashMap<KernelNameStrT, KernelBuildResultPtr>;
-  using KernelCacheT = emhash8::HashMap<ur_program_handle_t, KernelByNameT>;
+  using KernelCacheT = emhash8::HashMap<
+      ur_program_handle_t,
+      emhash8::HashMap<KernelNameStrT, std::shared_ptr<KernelBuildResult>>>;
 
   class FastKernelSubcacheWrapper {
   public:
@@ -339,8 +337,7 @@ public:
   };
 
   ~KernelProgramCache() = default;
-
-  void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
+  KernelProgramCache(context_impl &Ctx) : MParentContext(Ctx) {}
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
@@ -404,13 +401,13 @@ public:
     return {MEvictionList, MProgramEvictionListMutex};
   }
 
-  std::pair<ProgramBuildResultPtr, bool>
+  std::pair<std::shared_ptr<ProgramBuildResult>, bool>
   getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
     auto LockedCache = acquireCachedPrograms();
-    auto &ProgCache = LockedCache.get();
+    ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter());
+      It->second = std::make_shared<ProgramBuildResult>();
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -427,14 +424,13 @@ public:
   //
   // Returns whether or not an insertion took place.
   bool insertBuiltProgram(const ProgramCacheKeyT &CacheKey,
-                          ur_program_handle_t Program) {
+                          Managed<ur_program_handle_t> &Program) {
     auto LockedCache = acquireCachedPrograms();
-    auto &ProgCache = LockedCache.get();
+    ProgramCache &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
-                                                        BuildState::BS_Done);
-      It->second->Val = Program;
+      It->second = std::make_shared<ProgramBuildResult>(BuildState::BS_Done,
+                                                        Program.retain());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -444,13 +440,13 @@ public:
     return DidInsert;
   }
 
-  std::pair<KernelBuildResultPtr, bool>
+  std::pair<std::shared_ptr<KernelBuildResult>, bool>
   getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<KernelBuildResult>(getAdapter());
+      It->second = std::make_shared<KernelBuildResult>();
       traceKernel("Kernel inserted.", KernelName);
     } else
       traceKernel("Kernel fetched.", KernelName);
@@ -494,7 +490,7 @@ public:
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
-      auto &ProgCache = LockedCache.get();
+      ProgramCache &ProgCache = LockedCache.get();
       if (ProgCache.ProgramSizeMap.find(CacheVal->MProgramHandle) ==
           ProgCache.ProgramSizeMap.end())
         return;
@@ -634,7 +630,7 @@ public:
       while (CurrCacheSize > DesiredCacheSize && !MEvictionList.empty()) {
         ProgramCacheKeyT CacheKey = ProgramEvictionList.front();
         auto LockedCache = acquireCachedPrograms();
-        auto &ProgCache = LockedCache.get();
+        ProgramCache &ProgCache = LockedCache.get();
         CurrCacheSize = removeProgramByKey(CacheKey, ProgCache);
         // Remove the program from the eviction list.
         MEvictionList.popFront();
@@ -646,8 +642,7 @@ public:
   // If it is the first time the program is fetched, add it to the eviction
   // list.
   void registerProgramFetch(const ProgramCacheKeyT &CacheKey,
-                            const ur_program_handle_t &Program,
-                            const bool IsBuilt) {
+                            ur_program_handle_t Program, const bool IsBuilt) {
 
     size_t ProgramCacheEvictionThreshold =
         SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize();
@@ -751,15 +746,23 @@ public:
   ///
   /// \return a pointer to cached build result, return value must not be
   /// nullptr.
+  ///
+  /// Note that build result might be immediately evicted (if it's bigger than
+  /// current threshold), so the caller *must* assume (potentially shared)
+  /// ownership. In other words, `std::shared_ptr` in the return type is
+  /// unavoidable.
   template <errc Errc, typename GetCachedBuildFT, typename BuildFT,
             typename EvictFT = void *>
-  auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
-                  EvictFT &&EvictFunc = nullptr) {
+  auto /* std::shared_ptr<BuildResult> */
+  getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
+             EvictFT &&EvictFunc = nullptr) {
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
-      auto Res = GetCachedBuild();
+      auto /* std::pair<std::shared_ptr<BuildResult>, bool> */ Res =
+          GetCachedBuild();
       auto &BuildResult = Res.first;
+      assert(BuildResult != nullptr);
       BuildState Expected = BuildState::BS_Initial;
       BuildState Desired = BuildState::BS_InProgress;
       if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
@@ -794,6 +797,9 @@ public:
 
       // only the building thread will run this
       try {
+        static_assert(
+            std::is_same_v<decltype(Build()), decltype(BuildResult->Val)>,
+            "Are we casting from Managed<URResource> to plain URResource?");
         BuildResult->Val = Build();
 
         if constexpr (!std::is_same_v<EvictFT, void *>)
@@ -826,7 +832,7 @@ public:
 
   void removeAllRelatedEntries(uint32_t ImageId) {
     auto LockedCache = acquireCachedPrograms();
-    auto &ProgCache = LockedCache.get();
+    ProgramCache &ProgCache = LockedCache.get();
 
     auto It = std::find_if(
         ProgCache.KeyMap.begin(), ProgCache.KeyMap.end(),
@@ -848,7 +854,7 @@ private:
 
   ProgramCache MCachedPrograms;
   KernelCacheT MKernelsPerProgramCache;
-  ContextPtr MParentContext;
+  context_impl &MParentContext;
 
   using FastKernelCacheMutexT = SpinLock;
   using FastKernelCacheReadLockT = std::lock_guard<FastKernelCacheMutexT>;
@@ -868,7 +874,7 @@ private:
 
   friend class ::MockKernelProgramCache;
 
-  const adapter_impl &getAdapter();
+  adapter_impl &getAdapter();
   ur_context_handle_t getURContext() const;
 };
 } // namespace detail

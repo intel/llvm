@@ -173,7 +173,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramLink) {
   auto b3 = sycl::link({b1, b2});
   EXPECT_FALSE(outOfResourcesToggle);
   // one restart due to out of resources, one link per each of b1 and b2.
-  EXPECT_EQ(nProgramLink, 2);
+  EXPECT_EQ(nProgramLink, 3);
   // no programs should be in the cache due to out of resources.
   {
     detail::KernelProgramCache::ProgramCache &Cache =

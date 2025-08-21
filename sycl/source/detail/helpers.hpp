@@ -35,8 +35,7 @@ const RTDeviceBinaryImage *
 retrieveKernelBinary(queue_impl &Queue, KernelNameStrRefT KernelName,
                      CGExecKernel *CGKernel = nullptr);
 
-template <typename DereferenceImpl, typename SyclTy, typename... Iterators>
-class variadic_iterator {
+template <typename SyclTy, typename... Iterators> class variadic_iterator {
   using storage_iter = std::variant<Iterators...>;
 
   storage_iter It;
@@ -44,13 +43,13 @@ class variadic_iterator {
 public:
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
-  using reference = decltype(DereferenceImpl::dereference(
-      *std::declval<nth_type_t<0, Iterators...>>()));
-  using value_type = std::remove_reference_t<reference>;
+  using value_type = std::remove_reference_t<decltype(*getSyclObjImpl(
+      std::declval<SyclTy>()))>;
   using sycl_type = SyclTy;
   using pointer = value_type *;
-  static_assert(std::is_same_v<reference, value_type &>);
+  using reference = value_type &;
 
+  variadic_iterator() = default;
   variadic_iterator(const variadic_iterator &) = default;
   variadic_iterator(variadic_iterator &&) = default;
   variadic_iterator(variadic_iterator &) = default;
@@ -60,35 +59,40 @@ public:
   template <typename IterTy>
   variadic_iterator(IterTy &&It) : It(std::forward<IterTy>(It)) {}
 
-  variadic_iterator &operator++() {
-    It = std::visit(
-        [](auto &&It) {
-          ++It;
-          return storage_iter{It};
-        },
-        It);
+  variadic_iterator &operator++() noexcept {
+    std::visit([](auto &&It) noexcept { ++It; }, It);
     return *this;
   }
-  bool operator!=(const variadic_iterator &Other) const {
+  bool operator!=(const variadic_iterator &Other) const noexcept {
     return It != Other.It;
   }
-  bool operator==(const variadic_iterator &Other) const {
+  bool operator==(const variadic_iterator &Other) const noexcept {
     return It == Other.It;
   }
 
-  decltype(auto) operator*() {
+  decltype(auto) operator*() noexcept {
     return std::visit(
         [](auto &&It) -> decltype(auto) {
-          return DereferenceImpl::dereference(*It);
+          decltype(auto) Elem = *It;
+          using Ty = std::decay_t<decltype(Elem)>;
+          static_assert(!std::is_same_v<Ty, decltype(Elem)>);
+          if constexpr (std::is_same_v<Ty, sycl_type>) {
+            return *getSyclObjImpl(Elem);
+          } else if constexpr (std::is_same_v<Ty, value_type>) {
+            return Elem;
+          } else {
+            return *Elem;
+          }
         },
         It);
   }
+
+  pointer operator->() { return &this->operator*(); }
 };
 
 // Non-owning!
 template <typename iterator> class iterator_range {
   using value_type = typename iterator::value_type;
-  using sycl_type = typename iterator::sycl_type;
 
   template <typename Container, typename = void>
   struct has_reserve : public std::false_type {};
@@ -104,16 +108,20 @@ public:
   iterator_range(IterTy Begin, IterTy End, size_t Size)
       : Begin(Begin), End(End), Size(Size) {}
 
-  iterator_range()
-      : iterator_range(static_cast<value_type *>(nullptr),
-                       static_cast<value_type *>(nullptr), 0) {}
+  iterator_range() : iterator_range(iterator{}, iterator{}, 0) {}
 
-  template <typename ContainerTy>
+  template <typename ContainerTy, typename = std::void_t<decltype(iterator{
+                                      std::declval<ContainerTy>().begin()})>>
   iterator_range(const ContainerTy &Container)
       : iterator_range(Container.begin(), Container.end(), Container.size()) {}
 
   iterator_range(value_type &Obj) : iterator_range(&Obj, &Obj + 1, 1) {}
 
+  template <typename sycl_type,
+            typename = std::void_t<decltype(iterator{
+                &*getSyclObjImpl(std::declval<sycl_type>())})>,
+            // To make it different from `ContainerTy` overload above:
+            typename = void>
   iterator_range(const sycl_type &Obj)
       : iterator_range(&*getSyclObjImpl(Obj), (&*getSyclObjImpl(Obj) + 1), 1) {}
 
@@ -123,13 +131,15 @@ public:
   bool empty() const { return Size == 0; }
   decltype(auto) front() const { return *begin(); }
 
-  template <typename Container>
-  std::enable_if_t<
-      check_type_in_v<Container, std::vector<sycl_type>,
-                      std::queue<value_type *>, std::vector<value_type *>,
-                      std::vector<std::shared_ptr<value_type>>>,
-      Container>
-  to() const {
+  // Only enable for ranges of `variadic_iterator` and for the containers with
+  // proper `value_type`. The last part is important so that descendent
+  // `devices_range` could provide its own specialization for
+  // `to<std::vector<device_handle_t>>()`.
+  template <typename Container, typename iterator_ = iterator,
+            typename = std::enable_if_t<check_type_in_v<
+                typename Container::value_type, value_type *,
+                std::shared_ptr<value_type>, typename iterator_::sycl_type>>>
+  Container to() const {
     std::conditional_t<std::is_same_v<Container, std::queue<value_type *>>,
                        typename std::queue<value_type *>::container_type,
                        Container>
@@ -138,14 +148,14 @@ public:
       Result.reserve(size());
     std::transform(
         begin(), end(), std::back_inserter(Result), [](value_type &E) {
-          if constexpr (std::is_same_v<Container, std::vector<sycl_type>>)
-            return createSyclObjFromImpl<sycl_type>(E);
-          else if constexpr (std::is_same_v<
-                                 Container,
-                                 std::vector<std::shared_ptr<value_type>>>)
+          using container_value_type = typename Container::value_type;
+          if constexpr (std::is_same_v<container_value_type,
+                                       std::shared_ptr<value_type>>)
             return E.shared_from_this();
-          else
+          else if constexpr (std::is_same_v<container_value_type, value_type *>)
             return &E;
+          else
+            return createSyclObjFromImpl<container_value_type>(E);
         });
     if constexpr (std::is_same_v<Container, decltype(Result)>)
       return Result;
@@ -153,20 +163,31 @@ public:
       return Container{std::move(Result)};
   }
 
+  // Only enable for ranges of `variadic_iterator` above.
+  template <typename T = iterator,
+            typename = std::void_t<typename T::sycl_type>>
   bool contains(value_type &Other) const {
     return std::find_if(begin(), end(), [&Other](value_type &Elem) {
              return &Elem == &Other;
            }) != end();
   }
 
-protected:
-  template <typename Container>
-  static constexpr bool has_reserve_v = has_reserve<Container>::value;
-
 private:
   iterator Begin;
   iterator End;
   const size_t Size;
+
+  template <class Pred> friend bool all_of(iterator_range R, Pred &&P) {
+    return std::all_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
+
+  template <class Pred> friend bool any_of(iterator_range R, Pred &&P) {
+    return std::any_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
+
+  template <class Pred> friend bool none_of(iterator_range R, Pred &&P) {
+    return std::none_of(R.begin(), R.end(), std::forward<Pred>(P));
+  }
 };
 } // namespace detail
 } // namespace _V1

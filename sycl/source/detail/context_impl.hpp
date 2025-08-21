@@ -47,9 +47,8 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const std::vector<sycl::device> DeviceList,
-               async_handler AsyncHandler, const property_list &PropList,
-               private_tag);
+  context_impl(devices_range DeviceList, async_handler AsyncHandler,
+               const property_list &PropList, private_tag);
 
   /// Construct a context_impl using plug-in interoperability handle.
   ///
@@ -62,9 +61,8 @@ public:
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               adapter_impl &Adapter,
-               const std::vector<sycl::device> &DeviceList, bool OwnedByRuntime,
-               private_tag);
+               adapter_impl &Adapter, devices_range DeviceList,
+               bool OwnedByRuntime, private_tag);
 
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
                adapter_impl &Adapter, private_tag tag)
@@ -94,10 +92,10 @@ public:
   const async_handler &get_async_handler() const;
 
   /// \return the Adapter associated with the platform of this context.
-  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform.getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
-  platform_impl &getPlatformImpl() const { return *MPlatform; }
+  platform_impl &getPlatformImpl() const { return MPlatform; }
 
   /// Queries this context for information.
   ///
@@ -134,7 +132,7 @@ public:
 
   using CachedLibProgramsT =
       std::map<std::pair<DeviceLibExt, ur_device_handle_t>,
-               ur_program_handle_t>;
+               Managed<ur_program_handle_t>>;
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
@@ -191,10 +189,7 @@ public:
   }
 
   // Returns the backend of this context
-  backend getBackend() const {
-    assert(MPlatform && "MPlatform must be not null");
-    return MPlatform->getBackend();
-  }
+  backend getBackend() const { return MPlatform.getBackend(); }
 
   /// Given a UR device, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
@@ -262,10 +257,9 @@ public:
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
-  std::vector<device> MDevices;
+  std::vector<device_impl *> MDevices;
   ur_context_handle_t MContext;
-  // TODO: Make it a reference instead, but that needs a bit more refactoring:
-  std::shared_ptr<platform_impl> MPlatform;
+  platform_impl &MPlatform;
   property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;

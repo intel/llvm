@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_1d_usm
+// XFAIL: run-mode && linux && arch-intel_gpu_bmg_g21 && !spirv-backend
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19586
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-INTENDED: Sampled fetch not currently supported on AMD
 

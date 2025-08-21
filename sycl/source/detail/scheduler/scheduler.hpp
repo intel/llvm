@@ -178,6 +178,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
 class exec_graph_impl;
 class node_impl;
+class nodes_range;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 class queue_impl;
@@ -464,7 +465,7 @@ public:
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
-  void enqueueCommandForCG(EventImplPtr NewEvent,
+  void enqueueCommandForCG(event_impl &Event,
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
 
@@ -477,20 +478,12 @@ public:
   /// \param Events List of events that this update operation depends on
   EventImplPtr addCommandGraphUpdate(
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-          Nodes,
-      queue_impl *Queue, std::vector<Requirement *> Requirements,
+      ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+      std::vector<Requirement *> Requirements,
       std::vector<detail::EventImplPtr> &Events);
 
-  static bool CheckEventReadiness(context_impl &Context,
-                                  const EventImplPtr &SyclEventImplPtr);
-
-  static bool
-  areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  context_impl &Context);
-  static bool
-  areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  context_impl &Context);
+  static bool areEventsSafeForSchedulerBypass(events_range DepEvents,
+                                              context_impl &Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -527,10 +520,9 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void
-  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
-                           ReadLockT &GraphReadLock,
-                           std::vector<Command *> &ToCleanUp);
+  static void enqueueUnblockedCommands(events_range ToEnqueue,
+                                       ReadLockT &GraphReadLock,
+                                       std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
@@ -595,14 +587,6 @@ protected:
 
     void cleanupCommand(Command *Cmd, bool AllowUnsubmitted = false);
 
-    /// Reschedules the command passed using Queue provided.
-    ///
-    /// This can lead to rescheduling of all dependent commands. This can be
-    /// used when the user provides a "secondary" queue to the submit method
-    /// which may be used when the command fails to enqueue/execute in the
-    /// primary queue.
-    void rescheduleCommand(Command *Cmd, queue_impl *Queue);
-
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
     MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
@@ -654,10 +638,8 @@ protected:
     /// \param ToEnqueue List of commands which need to be enqueued.
     Command *addCommandGraphUpdate(
         ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-        std::vector<
-            std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-            Nodes,
-        queue_impl *Queue, std::vector<Requirement *> Requirements,
+        ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+        std::vector<Requirement *> Requirements,
         std::vector<detail::EventImplPtr> &Events,
         std::vector<Command *> &ToEnqueue);
 

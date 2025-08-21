@@ -64,6 +64,29 @@ ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
   }
 }
 
+inline info::device_type ConvertDeviceType(ur_device_type_t UrDevType) {
+  switch (UrDevType) {
+  case UR_DEVICE_TYPE_DEFAULT:
+    return info::device_type::automatic;
+  case UR_DEVICE_TYPE_ALL:
+    return info::device_type::all;
+  case UR_DEVICE_TYPE_GPU:
+    return info::device_type::gpu;
+  case UR_DEVICE_TYPE_CPU:
+    return info::device_type::cpu;
+  case UR_DEVICE_TYPE_FPGA:
+    return info::device_type::accelerator;
+  case UR_DEVICE_TYPE_MCA:
+  case UR_DEVICE_TYPE_VPU:
+  case UR_DEVICE_TYPE_CUSTOM:
+    return info::device_type::custom;
+  default:
+    assert(false);
+    // FIXME: what is that???
+    return info::device_type::custom;
+  }
+}
+
 // Note that UR's enums have weird *_FORCE_UINT32 values, we ignore them in the
 // callers. But we also can't write a fully-covered switch without mentioning it
 // there, which wouldn't make any sense. As such, ensure that "real" values
@@ -467,7 +490,7 @@ public:
   platform get_platform() const;
 
   /// \return the associated adapter with this device.
-  adapter_impl &getAdapter() const { return MPlatform->getAdapter(); }
+  adapter_impl &getAdapter() const { return MPlatform.getAdapter(); }
 
   /// Check SYCL extension support by device
   ///
@@ -582,27 +605,7 @@ public:
     // device_traits.def
 
     CASE(info::device::device_type) {
-      using device_type = info::device_type;
-      switch (get_info_impl<UR_DEVICE_INFO_TYPE>()) {
-      case UR_DEVICE_TYPE_DEFAULT:
-        return device_type::automatic;
-      case UR_DEVICE_TYPE_ALL:
-        return device_type::all;
-      case UR_DEVICE_TYPE_GPU:
-        return device_type::gpu;
-      case UR_DEVICE_TYPE_CPU:
-        return device_type::cpu;
-      case UR_DEVICE_TYPE_FPGA:
-        return device_type::accelerator;
-      case UR_DEVICE_TYPE_MCA:
-      case UR_DEVICE_TYPE_VPU:
-        return device_type::custom;
-      default: {
-        assert(false);
-        // FIXME: what is that???
-        return device_type::custom;
-      }
-      }
+      return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());
     }
 
     CASE(info::device::max_work_item_sizes<3>) {
@@ -832,7 +835,7 @@ public:
       // We claim, that all Intel FPGA devices support kernel to kernel pipe
       // feature (at least at the scope of SYCL_INTEL_data_flow_pipes
       // extension).
-      std::string platform_name = MPlatform->get_info<info::platform::name>();
+      std::string platform_name = MPlatform.get_info<info::platform::name>();
       if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
           platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
         return true;
@@ -1017,7 +1020,7 @@ public:
       Result.reserve(Devs.value().size());
       for (const auto &d : Devs.value())
         Result.push_back(
-            createSyclObjFromImpl<device>(MPlatform->getOrMakeDeviceImpl(d)));
+            createSyclObjFromImpl<device>(MPlatform.getOrMakeDeviceImpl(d)));
 
       return Result;
     }
@@ -1031,7 +1034,7 @@ public:
       if (ur_device_handle_t Result =
               get_info_impl<UR_DEVICE_INFO_COMPOSITE_DEVICE>())
         return createSyclObjFromImpl<device>(
-            MPlatform->getOrMakeDeviceImpl(Result));
+            MPlatform.getOrMakeDeviceImpl(Result));
 
       throw sycl::exception(make_error_code(errc::invalid),
                             "A component with aspect::ext_oneapi_is_component "
@@ -1194,6 +1197,20 @@ public:
             "The device does not have the ext_intel_power_limits aspect");
       return get_info_impl<UR_DEVICE_INFO_MIN_POWER_LIMIT>();
     }
+    CASE(ext::intel::info::device::luid) {
+      if (!has(aspect::ext_intel_device_info_luid))
+        throw exception(
+            make_error_code(errc::feature_not_supported),
+            "The device does not have the ext_intel_device_info_luid aspect");
+      return get_info_impl<UR_DEVICE_INFO_LUID>();
+    }
+    CASE(ext::intel::info::device::node_mask) {
+      if (!has(aspect::ext_intel_device_info_node_mask))
+        throw exception(make_error_code(errc::feature_not_supported),
+                        "The device does not have the "
+                        "ext_intel_device_info_node_mask aspect");
+      return get_info_impl<UR_DEVICE_INFO_NODE_MASK>();
+    }
     else {
       constexpr auto Desc = UrInfoCode<Param>::value;
       return static_cast<typename Param::return_type>(get_info_impl<Desc>());
@@ -1303,6 +1320,12 @@ public:
     }
     CASE(ext_intel_device_info_uuid) {
       return has_info_desc(UR_DEVICE_INFO_UUID);
+    }
+    CASE(ext_intel_device_info_luid) {
+      return has_info_desc(UR_DEVICE_INFO_LUID);
+    }
+    CASE(ext_intel_device_info_node_mask) {
+      return has_info_desc(UR_DEVICE_INFO_NODE_MASK);
     }
     CASE(ext_intel_max_mem_bandwidth) {
       // currently not supported
@@ -1432,22 +1455,17 @@ public:
     CASE(ext_intel_esimd) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
     }
-    CASE(ext_oneapi_ballot_group) {
+    CASE(ext_oneapi_fragment) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_fixed_size_group) {
+    CASE(ext_oneapi_chunk) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_opportunistic_group) {
-      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
-             (this->getBackend() == backend::ext_oneapi_cuda);
-    }
-    CASE(ext_oneapi_tangle_group) {
+    CASE(ext_oneapi_tangle) {
       // TODO: tangle_group is not currently supported for CUDA devices. Add
       // when implemented.
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
@@ -1554,6 +1572,11 @@ public:
     CASE(ext_oneapi_async_memory_alloc) {
       return get_info_impl_nocheck<
                  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP>()
+          .value_or(0);
+    }
+    CASE(ext_oneapi_exportable_device_mem) {
+      return get_info_impl_nocheck<
+                 UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
     else {
@@ -1677,10 +1700,10 @@ public:
   uint64_t getCurrentDeviceTime();
 
   /// Get the backend of this device
-  backend getBackend() const { return MPlatform->getBackend(); }
+  backend getBackend() const { return MPlatform.getBackend(); }
 
   /// @brief  Get the platform impl serving this device
-  platform_impl &getPlatformImpl() const { return *MPlatform; }
+  platform_impl &getPlatformImpl() const { return MPlatform; }
 
   template <ur_device_info_t Desc>
   std::vector<info::fp_config> get_fp_config() const {
@@ -2229,7 +2252,7 @@ public:
 private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
-  std::shared_ptr<platform_impl> MPlatform;
+  platform_impl &MPlatform;
 
   std::shared_mutex MDeviceHostBaseTimeMutex;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
@@ -2282,24 +2305,10 @@ private:
 
 }; // class device_impl
 
-struct devices_deref_impl {
-  template <typename T> static device_impl &dereference(T &Elem) {
-    using Ty = std::decay_t<decltype(Elem)>;
-    if constexpr (std::is_same_v<Ty, device>) {
-      return *getSyclObjImpl(Elem);
-    } else if constexpr (std::is_same_v<Ty, device_impl>) {
-      return Elem;
-    } else {
-      return *Elem;
-    }
-  }
-};
-using devices_iterator =
-    variadic_iterator<devices_deref_impl, device,
-                      std::vector<std::shared_ptr<device_impl>>::const_iterator,
-                      std::vector<device>::const_iterator,
-                      std::vector<device_impl *>::const_iterator,
-                      device_impl *>;
+using devices_iterator = variadic_iterator<
+    device, std::vector<std::shared_ptr<device_impl>>::const_iterator,
+    std::vector<device>::const_iterator,
+    std::vector<device_impl *>::const_iterator, device_impl *>;
 
 class devices_range : public iterator_range<devices_iterator> {
 private:
