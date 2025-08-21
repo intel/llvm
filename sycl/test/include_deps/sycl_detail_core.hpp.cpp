@@ -130,8 +130,6 @@
 // CHECK-NEXT: CL/cl_version.h
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
-// CHECK-NEXT: detail/get_kernel_name_based_data.hpp
-// CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/kernel_launch_helper.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
@@ -140,6 +138,7 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_scratch_memory.hpp
 // CHECK-NEXT: detail/sycl_local_mem_builtins.hpp
+// CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def

@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/kernel_desc.hpp>
+
 #include <detail/global_handler.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <sycl/detail/get_kernel_name_based_data.hpp>
 
 namespace sycl {
 inline namespace _V1 {
