@@ -45,7 +45,7 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
         INSTALL_COMMAND ""
         UPDATE_COMMAND ""
     )
-    # Build OpenMP runtime (required dependency for offlload's libomptarget) from the cloned source
+    # Build OpenMP runtime (required dependency for offload's libomptarget) from the cloned source
     ExternalProject_Add(openmp_ext
         # DeviceRTL uses -fuse-ld=lld, so add lld to the dependencies.
         DEPENDS llvm_project_src llvm-tblgen LLVMSupport clang lld
