@@ -1,4 +1,5 @@
-// Test to verify that syclcompat namespace and APIs generate deprecation warnings.
+// Test to verify that syclcompat namespace and APIs generate deprecation
+// warnings.
 
 // REQUIRES: windows
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s -Wall -Wextra

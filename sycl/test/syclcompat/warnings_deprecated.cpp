@@ -1,4 +1,5 @@
-// Test to verify that syclcompat namespace and APIs generate deprecation warnings.
+// Test to verify that syclcompat namespace and APIs generate deprecation
+// warnings.
 
 // REQUIRES: linux
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s -Wall -Wextra
@@ -15,15 +16,15 @@ int main() {
 
   // Test deprecated memory APIs
   // expected-warning@+1{{'syclcompat' is deprecated}}
-  void* ptr = syclcompat::malloc(1024);
-  
+  void *ptr = syclcompat::malloc(1024);
+
   // expected-warning@+1{{'syclcompat' is deprecated}}
   syclcompat::free(ptr);
 
   // Test deprecated utility APIs
   // expected-warning@+1{{'syclcompat' is deprecated}}
   auto device_count = syclcompat::device_count();
-  
+
   // expected-warning@+1{{'syclcompat' is deprecated}}
   syclcompat::wait();
 
@@ -43,7 +44,8 @@ int main() {
 
   // Test deprecated experimental APIs
   // expected-warning@+1{{'syclcompat' is deprecated}}
-  syclcompat::experimental::launch_policy my_config(sycl::nd_range<1>{{32}, {32}});
+  syclcompat::experimental::launch_policy my_config(
+      sycl::nd_range<1>{{32}, {32}});
 
   return 0;
 }
