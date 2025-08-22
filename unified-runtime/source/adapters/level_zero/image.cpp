@@ -146,6 +146,8 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
              (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
+  UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -202,6 +204,8 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
                  .zexCommandListAppendSignalExternalSemaphoresExp,
              (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
+
+  UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }
