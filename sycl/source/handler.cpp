@@ -2613,6 +2613,7 @@ void handler::setKernelNameBasedCachePtr(
 
 void handler::setDeviceKernelInfoPtr(
     sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
+  assert(!impl->MDeviceKernelInfoPtr && "Already set!");
   impl->MDeviceKernelInfoPtr = DeviceKernelInfoPtr;
 }
 

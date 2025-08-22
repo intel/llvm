@@ -13,7 +13,12 @@ inline namespace _V1 {
 namespace detail {
 
 DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
-    : CompileTimeKernelInfoTy(Info) {
+    : CompileTimeKernelInfoTy(Info)
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+      ,
+      Name(Info.Name)
+#endif
+{
   init(Name);
 }
 

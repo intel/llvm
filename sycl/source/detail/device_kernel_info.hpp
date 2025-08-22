@@ -90,6 +90,11 @@ struct FastKernelSubcacheT {
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // https://github.com/intel/llvm/pull/19117/files#r2294511096
+  std::string Name;
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   DeviceKernelInfo() = default;
 #endif
   DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
