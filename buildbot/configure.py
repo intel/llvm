@@ -351,7 +351,9 @@ def main():
         help="choose hardware platform for HIP backend",
     )
     parser.add_argument(
-        "--offload", action="store_true", help="Enable UR liboffload adapter (experimental)"
+        "--offload",
+        action="store_true",
+        help="Enable UR liboffload adapter (experimental)",
     )
     parser.add_argument(
         "--level_zero_adapter_version",
