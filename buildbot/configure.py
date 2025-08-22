@@ -82,7 +82,7 @@ def do_configure(args, passthrough_args):
     if libclc_enabled:
         llvm_enable_projects += ";libclc"
 
-    # DeviceRIL uses -fuse-ld=lld, so enbale lld.
+    # DeviceRTL uses -fuse-ld=lld, so enable lld.
     if args.offload:
         llvm_enable_projects += ";lld"
 
