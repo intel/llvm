@@ -871,7 +871,7 @@ protected:
       // Kernel only uses assert if it's non interop one
       KernelUsesAssert =
           (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          Handler.impl->MKernelNameBasedDataPtr->usesAssert();
+          Handler.impl->MDeviceKernelInfoPtr->usesAssert();
 
     auto &PostProcess = *PostProcessorFunc;
     PostProcess(IsKernel, KernelUsesAssert, Event);

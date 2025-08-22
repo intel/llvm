@@ -251,11 +251,11 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<DeviceKernelInfo> &KernelNameBasedDataStorage =
-      getOrCreate(MKernelNameBasedDataStorage);
-  LockGuard LG{MKernelNameBasedDataStorage.Lock};
+  static std::deque<DeviceKernelInfo> &DeviceKernelInfoStorage =
+      getOrCreate(MDeviceKernelInfoStorage);
+  LockGuard LG{MDeviceKernelInfoStorage.Lock};
   return reinterpret_cast<KernelNameBasedCacheT *>(
-      &KernelNameBasedDataStorage.emplace_back());
+      &DeviceKernelInfoStorage.emplace_back());
 }
 #endif
 
@@ -394,9 +394,9 @@ void shutdown_late() {
   Handler->MProgramManager.Inst.reset(nullptr);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // Kernel cache, which is part of kernel name based data,
+  // Kernel cache, which is part of device kernel info,
   // stores handles to the adapter, so clear it before releasing adapters.
-  Handler->MKernelNameBasedDataStorage.Inst.reset(nullptr);
+  Handler->MDeviceKernelInfoStorage.Inst.reset(nullptr);
 #endif
 
   // Clear the adapters and reset the instance if it was there.

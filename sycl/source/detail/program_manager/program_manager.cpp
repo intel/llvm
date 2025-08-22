@@ -1823,7 +1823,7 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
 DeviceKernelInfo &
 ProgramManager::getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   auto Result =
-      m_KernelNameBasedDataMap.try_emplace(KernelNameStrT{Info.Name}, Info);
+      m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name}, Info);
   return Result.first->second;
 }
 
@@ -2234,7 +2234,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         // share lifetime.
         m_KernelUsesAssert.erase(Name);
         m_KernelImplicitLocalArgPos.erase(Name);
-        m_KernelNameBasedDataMap.erase(Name);
+        m_DeviceKernelInfoMap.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
         if (Name2IDIt != m_KernelName2KernelIDs.end())
           m_KernelName2KernelIDs.erase(Name2IDIt);

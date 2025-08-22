@@ -138,7 +138,7 @@ private:
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  InstWithLock<std::deque<DeviceKernelInfo>> MKernelNameBasedDataStorage;
+  InstWithLock<std::deque<DeviceKernelInfo>> MDeviceKernelInfoStorage;
 #endif
 };
 } // namespace detail

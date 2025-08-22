@@ -243,9 +243,9 @@ public:
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
 
-  // A pointer to kernel name based data. Cached on the application side in
+  // A pointer to device kernel information. Cached on the application side in
   // headers or retrieved from program manager.
-  DeviceKernelInfo *MKernelNameBasedDataPtr = nullptr;
+  DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
 };
 
 } // namespace detail

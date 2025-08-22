@@ -254,7 +254,7 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   KernelNameStrT MKernelName;
-  DeviceKernelInfo &MKernelNameBasedData;
+  DeviceKernelInfo &MDeviceKernelInfo;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -269,8 +269,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               KernelNameStrT KernelName,
-               DeviceKernelInfo &DeviceKernelInfo,
+               KernelNameStrT KernelName, DeviceKernelInfo &DeviceKernelInfo,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -279,8 +278,8 @@ public:
       : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
         MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)),
-        MKernelNameBasedData(DeviceKernelInfo), MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)), MDeviceKernelInfo(DeviceKernelInfo),
+        MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),

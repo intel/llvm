@@ -538,15 +538,14 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
-    if (impl->MKernelNameBasedDataPtr) {
+    if (impl->MDeviceKernelInfoPtr) {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      impl->MKernelNameBasedDataPtr->initIfNeeded(
-          toKernelNameStrT(MKernelName));
+      impl->MDeviceKernelInfoPtr->initIfNeeded(toKernelNameStrT(MKernelName));
 #endif
     } else {
-      // Fetch the kernel name based data pointer if it hasn't been set (e.g.
+      // Fetch the device kernel info pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
-      impl->MKernelNameBasedDataPtr =
+      impl->MDeviceKernelInfoPtr =
           &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
               toKernelNameStrT(MKernelName));
     }
@@ -624,7 +623,7 @@ event handler::finalize() {
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert = !(MKernel && MKernel->isInterop()) &&
-                                impl->MKernelNameBasedDataPtr->usesAssert();
+                                impl->MDeviceKernelInfoPtr->usesAssert();
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -645,7 +644,7 @@ event handler::finalize() {
           StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), *impl->MKernelNameBasedDataPtr,
+              MKernelName.data(), *impl->MDeviceKernelInfoPtr,
               impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
               impl->MArgs);
           detail::emitInstrumentationGeneral(StreamID, InstanceID,
@@ -662,8 +661,8 @@ event handler::finalize() {
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
-            *impl->MKernelNameBasedDataPtr, RawEvents, ResultEvent.get(),
-            nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            *impl->MDeviceKernelInfoPtr, RawEvents, ResultEvent.get(), nullptr,
+            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
             impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
@@ -723,7 +722,7 @@ event handler::finalize() {
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        *impl->MKernelNameBasedDataPtr, std::move(MStreamStorage),
+        *impl->MDeviceKernelInfoPtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -2607,15 +2606,14 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  setKernelNameBasedDataPtr(
-      reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
-          KernelNameBasedCachePtr));
+  setDeviceKernelInfoPtr(reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
+      KernelNameBasedCachePtr));
 }
 #endif
 
-void handler::setKernelNameBasedDataPtr(
-    sycl::detail::DeviceKernelInfo *KernelNameBasedDataPtr) {
-  impl->MKernelNameBasedDataPtr = KernelNameBasedDataPtr;
+void handler::setDeviceKernelInfoPtr(
+    sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
+  impl->MDeviceKernelInfoPtr = DeviceKernelInfoPtr;
 }
 
 void handler::setKernelInfo(

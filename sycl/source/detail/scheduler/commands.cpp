@@ -2198,7 +2198,7 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MKernelName, KernelCG->MKernelNameBasedData,
+          KernelCG->MKernelName, KernelCG->MDeviceKernelInfo,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
 
@@ -2551,7 +2551,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     FastKernelCacheValPtr FastKernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName,
-            CommandGroup.MKernelNameBasedData);
+            CommandGroup.MDeviceKernelInfo);
     UrKernel = FastKernelCacheVal->MKernelHandle;
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
@@ -3240,7 +3240,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert = (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-                              ExecKernel->MKernelNameBasedData.usesAssert();
+                              ExecKernel->MDeviceKernelInfo.usesAssert();
       if (KernelUsesAssert) {
         EventImpl = MEvent.get();
       }
@@ -3253,10 +3253,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(
         *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
-        SyclKernel.get(), KernelName, ExecKernel->MKernelNameBasedData,
-        RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
-        ExecKernel->MKernelUsesClusterLaunch,
+        SyclKernel.get(), KernelName, ExecKernel->MDeviceKernelInfo, RawEvents,
+        EventImpl, getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
         ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;

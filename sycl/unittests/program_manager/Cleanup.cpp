@@ -63,8 +63,8 @@ public:
 
   std::unordered_map<sycl::detail::KernelNameStrT,
                      sycl::detail::DeviceKernelInfo> &
-  getKernelNameBasedDataMap() {
-    return m_KernelNameBasedDataMap;
+  getDeviceKernelInfoMap() {
+    return m_DeviceKernelInfoMap;
   }
 
   std::unordered_map<sycl::detail::KernelNameStrT, int> &
@@ -313,9 +313,9 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
   checkContainer(PM.getVFSet2BinImage(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "VF"),
                  "VFSet2BinImage " + CommentPostfix);
-  checkContainer(PM.getKernelNameBasedDataMap(), ExpectedEntryCount,
+  checkContainer(PM.getDeviceKernelInfoMap(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "Kernel"),
-                 "Kernel name based data map " + CommentPostfix);
+                 "Device kernel info map " + CommentPostfix);
   checkContainer(PM.getKernelNameRefCount(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "Kernel"),
                  "Kernel name reference count " + CommentPostfix);

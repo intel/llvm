@@ -459,7 +459,7 @@ protected:
 
   /// Keeps track of binary image to kernel name reference count.
   /// Used for checking if the last image referencing the kernel name
-  /// is removed in order to trigger cleanup of kernel name based information.
+  /// is removed in order to trigger cleanup of kernel specific information.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_map<KernelNameStrT, int> m_KernelNameRefCount;
 
@@ -539,10 +539,9 @@ protected:
   KernelUsesAssertSet m_KernelUsesAssert;
   std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
 
-  // Map for storing kernel name based data. Runtime lookup should be avoided
+  // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.
-  std::unordered_map<KernelNameStrT, DeviceKernelInfo>
-      m_KernelNameBasedDataMap;
+  std::unordered_map<KernelNameStrT, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
   // Sanitizer type used in device image
   SanitizerType m_SanitizerFoundInImage;

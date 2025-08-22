@@ -80,11 +80,12 @@ struct FastKernelSubcacheT {
   FastKernelSubcacheMutexT Mutex;
 };
 
-// This class is used for aggregating kernel name based information.
-// Pointers to instances of this class are stored in header function templates
-// as a static variable to avoid repeated runtime lookup overhead.
+// This class aggregates information specific to device kernels (i.e.
+// information that is uniform between different submissions of the same
+// kernel). Pointers to instances of this class are stored in header function
+// templates as a static variable to avoid repeated runtime lookup overhead.
 // TODO Currently this class duplicates information fetched from the program
-// manager. Instead, we should merge all of the kernel name based information
+// manager. Instead, we should merge all of this information
 // into this structure and get rid of the other KernelName -> * maps.
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
