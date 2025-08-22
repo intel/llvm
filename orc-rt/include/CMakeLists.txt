@@ -1,5 +1,11 @@
 set(ORC_RT_HEADERS
     orc-rt-c/orc-rt.h
+    orc-rt/BitmaskEnum.h
+    orc-rt/Compiler.h
+    orc-rt/Error.h
+    orc-rt/Math.h
+    orc-rt/RTTI.h
+    orc-rt/move_only_function.h
     orc-rt/span.h
 )
 
