@@ -23,7 +23,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 constexpr int SIZE = 16;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void double_kernel(float *src, float *dst) {
+void scratch_kernel(float *src, float *dst) {
   size_t lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
   float *local_mem = (float *)syclexp::get_work_group_scratch_memory();
   local_mem[lid] = 2 * src[lid];
@@ -31,7 +31,7 @@ void double_kernel(float *src, float *dst) {
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void square_kernel(float *src, float *dst) {
+void static_kernel(float *src, float *dst) {
   sycl::nd_item<1> item = syclext::this_work_item::get_nd_item<1>();
   size_t lid = item.get_local_linear_id();
   syclexp::work_group_static<float[SIZE]> local_mem;
@@ -54,27 +54,31 @@ int main() {
     src[i] = i;
   }
 
-  auto kbndl =
-      syclexp::get_kernel_bundle<double_kernel, sycl::bundle_state::executable>(
+  auto scratchbndl = syclexp::get_kernel_bundle<scratch_kernel,
+                                                sycl::bundle_state::executable>(
+      q.get_context());
+  auto staticbndl =
+      syclexp::get_kernel_bundle<static_kernel, sycl::bundle_state::executable>(
           q.get_context());
-  sycl::kernel DoubleKernel =
-      kbndl.template ext_oneapi_get_kernel<double_kernel>();
-  sycl::kernel SquareKernel =
-      kbndl.template ext_oneapi_get_kernel<square_kernel>();
-  syclexp::launch_config DoubleKernelcfg{
+
+  sycl::kernel ScratchKernel =
+      scratchbndl.template ext_oneapi_get_kernel<scratch_kernel>();
+  sycl::kernel StaticKernel =
+      staticbndl.template ext_oneapi_get_kernel<static_kernel>();
+  syclexp::launch_config ScratchKernelcfg{
       ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
       syclexp::properties{
           syclexp::work_group_scratch_size(SIZE * sizeof(float))}};
-  syclexp::launch_config SquareKernelcfg{
+  syclexp::launch_config StaticKernelcfg{
       ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE))};
 
-  syclexp::nd_launch(q, DoubleKernelcfg, DoubleKernel, src, dst);
+  syclexp::nd_launch(q, ScratchKernelcfg, ScratchKernel, src, dst);
   q.wait();
   for (int i = 0; i < SIZE; i++) {
     assert(dst[i] == 2 * src[i]);
   }
 
-  syclexp::nd_launch(q, SquareKernelcfg, SquareKernel, src, dst);
+  syclexp::nd_launch(q, StaticKernelcfg, StaticKernel, src, dst);
   q.wait();
   for (int i = 0; i < SIZE; i++) {
     assert(dst[i] == src[i] * src[i]);
