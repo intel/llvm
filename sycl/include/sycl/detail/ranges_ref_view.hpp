@@ -14,6 +14,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+class NDRDescT;
+
 // The structure to keep dimension and references to ranges unified for
 // all dimensions.
 class ranges_ref_view {
@@ -41,6 +43,8 @@ public:
   template <int Dims_>
   ranges_ref_view(sycl::range<Dims_> &Range)
       : GlobalSize(&(Range[0])), Dims{size_t(Dims_)} {}
+
+  sycl::detail::NDRDescT toNDRDescT() const;
 
   const size_t *GlobalSize = nullptr;
   const size_t *LocalSize = nullptr;

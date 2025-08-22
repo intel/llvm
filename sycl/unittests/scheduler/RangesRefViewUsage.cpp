@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/detail/ranges_ref_view.hpp>
+#include <detail/cg.hpp>
 
 #include <gtest/gtest.h>
 
@@ -21,6 +22,14 @@ void TestNDRangesRefView(sycl::range<dims> global, sycl::range<dims> local,
       ASSERT_EQ(r.LocalSize[d], local[d]);
       ASSERT_EQ(r.GlobalOffset[d], offset[d]);
     }
+
+    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    ASSERT_EQ(NDRDesc.Dims, size_t{dims});
+    for (int d = 0; d < dims; d++) {
+      ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
+      ASSERT_EQ(NDRDesc.LocalSize[d], local[d]);
+      ASSERT_EQ(NDRDesc.GlobalOffset[d], offset[d]);
+    }
   }
   {
     sycl::detail::ranges_ref_view r{global, local};
@@ -30,6 +39,20 @@ void TestNDRangesRefView(sycl::range<dims> global, sycl::range<dims> local,
       ASSERT_EQ(r.LocalSize[d], local[d]);
     }
     ASSERT_EQ(r.GlobalOffset, nullptr);
+
+    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    ASSERT_EQ(NDRDesc.Dims, size_t{dims});
+    for (int d = 0; d < dims; d++) {
+      ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
+      ASSERT_EQ(NDRDesc.LocalSize[d], local[d]);
+    }
+    for (int d = dims; d < 3; d++) {
+      ASSERT_EQ(NDRDesc.GlobalSize[d], 0UL);
+      ASSERT_EQ(NDRDesc.LocalSize[d], 0UL);
+    }
+    for (int d = 0; d < 3; d++) {
+      ASSERT_EQ(NDRDesc.GlobalOffset[d], 0UL);
+    }
   }
   {
     sycl::detail::ranges_ref_view r{global};
@@ -39,6 +62,19 @@ void TestNDRangesRefView(sycl::range<dims> global, sycl::range<dims> local,
     }
     ASSERT_EQ(r.LocalSize, nullptr);
     ASSERT_EQ(r.GlobalOffset, nullptr);
+
+    sycl::detail::NDRDescT NDRDesc = r.toNDRDescT();
+    ASSERT_EQ(NDRDesc.Dims, size_t{dims});
+    for (int d = 0; d < dims; d++) {
+      ASSERT_EQ(NDRDesc.GlobalSize[d], global[d]);
+    }
+    for (int d = dims; d < 3; d++) {
+      ASSERT_EQ(NDRDesc.GlobalSize[d], 0UL);
+    }
+    for (int d = 0; d < 3; d++) {
+      ASSERT_EQ(NDRDesc.LocalSize[d], 0UL);
+      ASSERT_EQ(NDRDesc.GlobalOffset[d], 0UL);
+    }
   }
 }
 
