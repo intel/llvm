@@ -68,7 +68,7 @@
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}llvm-spirv"{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}ocloc"{{.*}} -output_no_suffix -spirv_input -device pvc {{.*}} -output {{.*}} -file {{.*}}
-// CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc, compile-opts: , link-opts:
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
@@ -117,8 +117,8 @@
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang"{{.*}} -o [[CLANGOUT:.*]] --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}ptxas"{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}fatbinary"{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
-// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]]
-// CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
+// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for AMD)
@@ -135,8 +135,8 @@
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang"{{.*}} -o [[CLANGOUT:.*]] --target=amdgcn-amd-amdhsa -mcpu={{.*}}
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang-offload-bundler"{{.*}} -targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa--gfx803 -input=/dev/null -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
-// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]]
-// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
+// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (NVPTX)
@@ -157,13 +157,13 @@
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}llvm-link" [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}llvm-link" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: input: {{.*}}.bc, output: [[WRAPPEROUT1:.*]]
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: input: {{.*}}.bc, output: [[WRAPPEROUT1:.*]].bc
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]].bc
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -o [[CLANGOUT:.*]] --target=nvptx64-nvidia-cuda -march={{.*}}
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}ptxas"{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}fatbinary"{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]]
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT]]
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (AMD)
@@ -178,12 +178,12 @@
 // CHK-CMDS-AOT-AMD-EMBED-IR: "{{.*}}spirv-to-ir-wrapper" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}llvm-link" [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}sycl-post-link"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
-// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: {{.*}}.bc, output: [[WRAPPEROUT1:.*]]
-// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]]
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: {{.*}}.bc, output: [[WRAPPEROUT1:.*]].bc
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT1:.*]] [[WRAPPEROUT1]].bc
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -o [[CLANGOUT:.*]] --target=amdgcn-amd-amdhsa -mcpu={{.*}}
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang-offload-bundler"{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
-// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT2:.*]]
-// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT2:.*]].bc
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]].bc
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 // Error handling when --linker-path is not provided for clang-linker-wrapper
@@ -228,3 +228,24 @@
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}clang"{{.*}} -c -o [[CLANGOUT:.*]] [[WRAPPEROUT]].bc
 // CHK-DEVLINK-CMDS-NEXT: "{{.*}}cp"{{.*}} [[CLANGOUT]] a.out
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
+
+// Check that clang-linker-wrapper recognizes compile/link options and passes them
+// over into offload wrapper and ocloc.
+// RUN: clang-offload-packager -o %t.packaged_jit.fat "--image=file=%t.o,triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts=aaa aaa,link-opts=ccc ccc"
+// RUN: clang-offload-packager -o %t.packaged_aot.fat "--image=file=%t.o,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts=aaa aaa,link-opts=ccc ccc"
+//
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.jit.o -fembed-offload-object=%t.packaged_jit.fat
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.aot.o -fembed-offload-object=%t.packaged_aot.fat
+//
+// RUN: clang-linker-wrapper --verbose --dry-run "--sycl-backend-compile-options=bbb bbb" "--sycl-target-link-options=ddd ddd" -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      -sycl-device-libraries=%t.devicelib.o \
+// RUN:                      %t.jit.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-JIT-WITH-ARGS
+//
+// CHECK-COMPILE-LINK-OPTS-JIT-WITH-ARGS: offload-wrapper: {{.*}} compile-opts: aaa aaa bbb bbb, link-opts: ccc ccc ddd ddd
+
+// RUN: clang-linker-wrapper --verbose --dry-run "--sycl-backend-compile-options=bbb bbb" "--sycl-target-link-options=ddd ddd" -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      -sycl-device-libraries=%t1.devicelib.o \
+// RUN:                      %t.aot.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-COMPILE-LINK-OPTS-AOT
+//
+// CHECK-COMPILE-LINK-OPTS-AOT: "{{.*}}ocloc"{{.*}} -device pvc aaa aaa bbb bbb ccc ccc ddd ddd
+// CHECK-COMPILE-LINK-OPTS-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
