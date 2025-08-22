@@ -1,14 +1,14 @@
 // This test checks edge cases handling for std::exp(std::complex<T>) used
 // in SYCL kernels.
 
-// This include should happen before <sycl/detail/core.hpp> or otherwise NAN
-// may not be constexpr on some Windows configurations. See intel/llvm#19114
-#include <cmath>
-
 #include <sycl/detail/core.hpp>
 
 #include <complex>
+#include <limits>
 #include <type_traits>
+
+constexpr float QNaN = std::numeric_limits<float>::quiet_NaN();
+constexpr float Infinity = std::numeric_limits<float>::infinity();
 
 bool check(bool cond, const std::string &cond_str, int line,
            unsigned testcase) {
@@ -63,32 +63,32 @@ template <typename T> bool test() {
       /* 30 */ std::complex<T>(1.e+6, 0),
       /* 31 */ std::complex<T>(-1.e+6, 0),
 
-      /* 32 */ std::complex<T>(NAN, NAN),
-      /* 33 */ std::complex<T>(-INFINITY, NAN),
-      /* 34 */ std::complex<T>(-2, NAN),
-      /* 35 */ std::complex<T>(-1, NAN),
-      /* 36 */ std::complex<T>(-0.5, NAN),
-      /* 37 */ std::complex<T>(-0., NAN),
-      /* 38 */ std::complex<T>(+0., NAN),
-      /* 39 */ std::complex<T>(0.5, NAN),
-      /* 40 */ std::complex<T>(1, NAN),
-      /* 41 */ std::complex<T>(2, NAN),
-      /* 42 */ std::complex<T>(INFINITY, NAN),
+      /* 32 */ std::complex<T>(QNaN, QNaN),
+      /* 33 */ std::complex<T>(-Infinity, NAN),
+      /* 34 */ std::complex<T>(-2, QNaN),
+      /* 35 */ std::complex<T>(-1, QNaN),
+      /* 36 */ std::complex<T>(-0.5, QNaN),
+      /* 37 */ std::complex<T>(-0., QNaN),
+      /* 38 */ std::complex<T>(+0., QNaN),
+      /* 39 */ std::complex<T>(0.5, QNaN),
+      /* 40 */ std::complex<T>(1, QNaN),
+      /* 41 */ std::complex<T>(2, QNaN),
+      /* 42 */ std::complex<T>(Infinity, QNaN),
 
-      /* 43 */ std::complex<T>(NAN, -INFINITY),
-      /* 44 */ std::complex<T>(-INFINITY, -INFINITY),
-      /* 45 */ std::complex<T>(-2, -INFINITY),
-      /* 46 */ std::complex<T>(-1, -INFINITY),
-      /* 47 */ std::complex<T>(-0.5, -INFINITY),
-      /* 48 */ std::complex<T>(-0., -INFINITY),
-      /* 49 */ std::complex<T>(+0., -INFINITY),
-      /* 50 */ std::complex<T>(0.5, -INFINITY),
-      /* 51 */ std::complex<T>(1, -INFINITY),
-      /* 52 */ std::complex<T>(2, -INFINITY),
-      /* 53 */ std::complex<T>(INFINITY, -INFINITY),
+      /* 43 */ std::complex<T>(QNaN, -Infinity),
+      /* 44 */ std::complex<T>(-Infinity, -Infinity),
+      /* 45 */ std::complex<T>(-2, -Infinity),
+      /* 46 */ std::complex<T>(-1, -Infinity),
+      /* 47 */ std::complex<T>(-0.5, -Infinity),
+      /* 48 */ std::complex<T>(-0., -Infinity),
+      /* 49 */ std::complex<T>(+0., -Infinity),
+      /* 50 */ std::complex<T>(0.5, -Infinity),
+      /* 51 */ std::complex<T>(1, -Infinity),
+      /* 52 */ std::complex<T>(2, -Infinity),
+      /* 53 */ std::complex<T>(Infinity, -Infinity),
 
-      /* 54 */ std::complex<T>(NAN, -2),
-      /* 55 */ std::complex<T>(-INFINITY, -2),
+      /* 54 */ std::complex<T>(QNaN, -2),
+      /* 55 */ std::complex<T>(-Infinity, -2),
       /* 56 */ std::complex<T>(-2, -2),
       /* 57 */ std::complex<T>(-1, -2),
       /* 58 */ std::complex<T>(-0.5, -2),
@@ -97,10 +97,10 @@ template <typename T> bool test() {
       /* 61 */ std::complex<T>(0.5, -2),
       /* 62 */ std::complex<T>(1, -2),
       /* 63 */ std::complex<T>(2, -2),
-      /* 64 */ std::complex<T>(INFINITY, -2),
+      /* 64 */ std::complex<T>(Infinity, -2),
 
-      /* 65 */ std::complex<T>(NAN, -1),
-      /* 66 */ std::complex<T>(-INFINITY, -1),
+      /* 65 */ std::complex<T>(QNaN, -1),
+      /* 66 */ std::complex<T>(-Infinity, -1),
       /* 67 */ std::complex<T>(-2, -1),
       /* 68 */ std::complex<T>(-1, -1),
       /* 69 */ std::complex<T>(-0.5, -1),
@@ -109,10 +109,10 @@ template <typename T> bool test() {
       /* 72 */ std::complex<T>(0.5, -1),
       /* 73 */ std::complex<T>(1, -1),
       /* 74 */ std::complex<T>(2, -1),
-      /* 75 */ std::complex<T>(INFINITY, -1),
+      /* 75 */ std::complex<T>(Infinity, -1),
 
-      /* 76 */ std::complex<T>(NAN, -0.5),
-      /* 77 */ std::complex<T>(-INFINITY, -0.5),
+      /* 76 */ std::complex<T>(QNaN, -0.5),
+      /* 77 */ std::complex<T>(-Infinity, -0.5),
       /* 78 */ std::complex<T>(-2, -0.5),
       /* 79 */ std::complex<T>(-1, -0.5),
       /* 80 */ std::complex<T>(-0.5, -0.5),
@@ -121,10 +121,10 @@ template <typename T> bool test() {
       /* 83 */ std::complex<T>(0.5, -0.5),
       /* 84 */ std::complex<T>(1, -0.5),
       /* 85 */ std::complex<T>(2, -0.5),
-      /* 86 */ std::complex<T>(INFINITY, -0.5),
+      /* 86 */ std::complex<T>(Infinity, -0.5),
 
-      /* 87 */ std::complex<T>(NAN, -0.),
-      /* 88 */ std::complex<T>(-INFINITY, -0.),
+      /* 87 */ std::complex<T>(QNaN, -0.),
+      /* 88 */ std::complex<T>(-Infinity, -0.),
       /* 89 */ std::complex<T>(-2, -0.),
       /* 90 */ std::complex<T>(-1, -0.),
       /* 91 */ std::complex<T>(-0.5, -0.),
@@ -133,10 +133,10 @@ template <typename T> bool test() {
       /* 94 */ std::complex<T>(0.5, -0.),
       /* 95 */ std::complex<T>(1, -0.),
       /* 96 */ std::complex<T>(2, -0.),
-      /* 97 */ std::complex<T>(INFINITY, -0.),
+      /* 97 */ std::complex<T>(Infinity, -0.),
 
-      /* 98 */ std::complex<T>(NAN, +0.),
-      /* 99 */ std::complex<T>(-INFINITY, +0.),
+      /* 98 */ std::complex<T>(QNaN, +0.),
+      /* 99 */ std::complex<T>(-Infinity, +0.),
       /* 100 */ std::complex<T>(-2, +0.),
       /* 101 */ std::complex<T>(-1, +0.),
       /* 102 */ std::complex<T>(-0.5, +0.),
@@ -145,10 +145,10 @@ template <typename T> bool test() {
       /* 105 */ std::complex<T>(0.5, +0.),
       /* 106 */ std::complex<T>(1, +0.),
       /* 107 */ std::complex<T>(2, +0.),
-      /* 108 */ std::complex<T>(INFINITY, +0.),
+      /* 108 */ std::complex<T>(Infinity, +0.),
 
-      /* 109 */ std::complex<T>(NAN, 0.5),
-      /* 110 */ std::complex<T>(-INFINITY, 0.5),
+      /* 109 */ std::complex<T>(QNaN, 0.5),
+      /* 110 */ std::complex<T>(-Infinity, 0.5),
       /* 111 */ std::complex<T>(-2, 0.5),
       /* 112 */ std::complex<T>(-1, 0.5),
       /* 113 */ std::complex<T>(-0.5, 0.5),
@@ -157,10 +157,10 @@ template <typename T> bool test() {
       /* 116 */ std::complex<T>(0.5, 0.5),
       /* 117 */ std::complex<T>(1, 0.5),
       /* 118 */ std::complex<T>(2, 0.5),
-      /* 119 */ std::complex<T>(INFINITY, 0.5),
+      /* 119 */ std::complex<T>(Infinity, 0.5),
 
-      /* 120 */ std::complex<T>(NAN, 1),
-      /* 121 */ std::complex<T>(-INFINITY, 1),
+      /* 120 */ std::complex<T>(QNaN, 1),
+      /* 121 */ std::complex<T>(-Infinity, 1),
       /* 122 */ std::complex<T>(-2, 1),
       /* 123 */ std::complex<T>(-1, 1),
       /* 124 */ std::complex<T>(-0.5, 1),
@@ -169,10 +169,10 @@ template <typename T> bool test() {
       /* 127 */ std::complex<T>(0.5, 1),
       /* 128 */ std::complex<T>(1, 1),
       /* 129 */ std::complex<T>(2, 1),
-      /* 130 */ std::complex<T>(INFINITY, 1),
+      /* 130 */ std::complex<T>(Infinity, 1),
 
-      /* 131 */ std::complex<T>(NAN, 2),
-      /* 132 */ std::complex<T>(-INFINITY, 2),
+      /* 131 */ std::complex<T>(QNaN, 2),
+      /* 132 */ std::complex<T>(-Infinity, 2),
       /* 133 */ std::complex<T>(-2, 2),
       /* 134 */ std::complex<T>(-1, 2),
       /* 135 */ std::complex<T>(-0.5, 2),
@@ -181,19 +181,19 @@ template <typename T> bool test() {
       /* 138 */ std::complex<T>(0.5, 2),
       /* 139 */ std::complex<T>(1, 2),
       /* 140 */ std::complex<T>(2, 2),
-      /* 141 */ std::complex<T>(INFINITY, 2),
+      /* 141 */ std::complex<T>(Infinity, 2),
 
-      /* 142 */ std::complex<T>(NAN, INFINITY),
-      /* 143 */ std::complex<T>(-INFINITY, INFINITY),
-      /* 144 */ std::complex<T>(-2, INFINITY),
-      /* 145 */ std::complex<T>(-1, INFINITY),
-      /* 146 */ std::complex<T>(-0.5, INFINITY),
-      /* 147 */ std::complex<T>(-0., INFINITY),
-      /* 148 */ std::complex<T>(+0., INFINITY),
-      /* 149 */ std::complex<T>(0.5, INFINITY),
-      /* 150 */ std::complex<T>(1, INFINITY),
-      /* 151 */ std::complex<T>(2, INFINITY),
-      /* 152 */ std::complex<T>(INFINITY, INFINITY)};
+      /* 142 */ std::complex<T>(QNaN, Infinity),
+      /* 143 */ std::complex<T>(-Infinity, Infinity),
+      /* 144 */ std::complex<T>(-2, Infinity),
+      /* 145 */ std::complex<T>(-1, Infinity),
+      /* 146 */ std::complex<T>(-0.5, Infinity),
+      /* 147 */ std::complex<T>(-0., Infinity),
+      /* 148 */ std::complex<T>(+0., Infinity),
+      /* 149 */ std::complex<T>(0.5, Infinity),
+      /* 150 */ std::complex<T>(1, Infinity),
+      /* 151 */ std::complex<T>(2, Infinity),
+      /* 152 */ std::complex<T>(Infinity, Infinity)};
 
   try {
     sycl::queue q;

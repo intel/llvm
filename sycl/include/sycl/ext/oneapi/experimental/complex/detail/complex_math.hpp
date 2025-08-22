@@ -187,7 +187,8 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     proj(const complex<_Tp> &__c) {
   complex<_Tp> __r = __c;
   if (sycl::isinf(__c.real()) || sycl::isinf(__c.imag()))
-    __r = complex<_Tp>(INFINITY, sycl::copysign(_Tp(0), __c.imag()));
+    __r = complex<_Tp>(std::numeric_limits<float>::infinity(),
+                       sycl::copysign(_Tp(0), __c.imag()));
   return __r;
 }
 
@@ -214,7 +215,8 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     polar(const _Tp &__rho, const _Tp &__theta = _Tp()) {
   if (sycl::isnan(__rho) || sycl::signbit(__rho))
-    return complex<_Tp>(_Tp(NAN), _Tp(NAN));
+    return complex<_Tp>(_Tp(std::numeric_limits<float>::quiet_NaN()),
+                        _Tp(std::numeric_limits<float>::quiet_NaN()));
   if (sycl::isnan(__theta)) {
     if (sycl::isinf(__rho))
       return complex<_Tp>(__rho, __theta);
@@ -222,8 +224,9 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
   }
   if (sycl::isinf(__theta)) {
     if (sycl::isinf(__rho))
-      return complex<_Tp>(__rho, _Tp(NAN));
-    return complex<_Tp>(_Tp(NAN), _Tp(NAN));
+      return complex<_Tp>(__rho, _Tp(std::numeric_limits<float>::quiet_NaN()));
+    return complex<_Tp>(_Tp(std::numeric_limits<float>::quiet_NaN()),
+                        _Tp(std::numeric_limits<float>::quiet_NaN()));
   }
   _Tp __x = __rho * sycl::cos(__theta);
   if (sycl::isnan(__x))
@@ -259,7 +262,8 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     sqrt(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.imag()))
-    return complex<_Tp>(_Tp(INFINITY), __x.imag());
+    return complex<_Tp>(_Tp(std::numeric_limits<float>::infinity()),
+                        __x.imag());
   if (sycl::isinf(__x.real())) {
     if (__x.real() > _Tp(0))
       return complex<_Tp>(__x.real(), sycl::isnan(__x.imag())
@@ -288,7 +292,7 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
         __i = _Tp(1);
     } else if (__i == 0 || !sycl::isfinite(__i)) {
       if (sycl::isinf(__i))
-        __i = _Tp(NAN);
+        __i = _Tp(std::numeric_limits<float>::quiet_NaN());
       return complex<_Tp>(__x.real(), __i);
     }
   }
@@ -436,8 +440,9 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
   }
   if (sycl::fabs(__x.real()) == _Tp(1) && __x.imag() == _Tp(0)) {
-    return complex<_Tp>(sycl::copysign(_Tp(INFINITY), __x.real()),
-                        sycl::copysign(_Tp(0), __x.imag()));
+    return complex<_Tp>(
+        sycl::copysign(_Tp(std::numeric_limits<float>::infinity()), __x.real()),
+        sycl::copysign(_Tp(0), __x.imag()));
   }
   complex<_Tp> __z = log((_Tp(1) + __x) / (_Tp(1) - __x)) / _Tp(2);
   return complex<_Tp>(sycl::copysign(__z.real(), __x.real()),
@@ -451,9 +456,11 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     sinh(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.real()) && !sycl::isfinite(__x.imag()))
-    return complex<_Tp>(__x.real(), _Tp(NAN));
+    return complex<_Tp>(__x.real(),
+                        _Tp(std::numeric_limits<float>::quiet_NaN()));
   if (__x.real() == 0 && !sycl::isfinite(__x.imag()))
-    return complex<_Tp>(__x.real(), _Tp(NAN));
+    return complex<_Tp>(__x.real(),
+                        _Tp(std::numeric_limits<float>::quiet_NaN()));
   if (__x.imag() == 0 && !sycl::isfinite(__x.real()))
     return __x;
   return complex<_Tp>(sycl::sinh(__x.real()) * sycl::cos(__x.imag()),
@@ -467,9 +474,11 @@ __DPCPP_SYCL_EXTERNAL _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename std::enable_if_t<is_genfloat<_Tp>::value, complex<_Tp>>
     cosh(const complex<_Tp> &__x) {
   if (sycl::isinf(__x.real()) && !sycl::isfinite(__x.imag()))
-    return complex<_Tp>(sycl::fabs(__x.real()), _Tp(NAN));
+    return complex<_Tp>(sycl::fabs(__x.real()),
+                        _Tp(std::numeric_limits<float>::quiet_NaN()));
   if (__x.real() == 0 && !sycl::isfinite(__x.imag()))
-    return complex<_Tp>(_Tp(NAN), __x.real());
+    return complex<_Tp>(_Tp(std::numeric_limits<float>::quiet_NaN()),
+                        __x.real());
   if (__x.real() == 0 && __x.imag() == 0)
     return complex<_Tp>(_Tp(1), __x.imag());
   if (__x.imag() == 0 && !sycl::isfinite(__x.real()))
