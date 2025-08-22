@@ -5,7 +5,7 @@
 
 // This test verifies that we can compile, run and get correct results when
 // using a free function kernel that allocates shared local memory in a kernel
-// either by way of th work group scratch memory extension or the work group
+// either by way of the work group scratch memory extension or the work group
 // static memory extension.
 
 #include <sycl/ext/oneapi/work_group_static.hpp>
