@@ -1903,16 +1903,16 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
                (ZeCommandList, nullptr, ZeEventList.size(),
                 getPointerFromVector(ZeEventList)));
   }
-  
+
   // Call user-defined function immediately
   pfnNativeCommand(pData);
-  
+
   if (!CommandBuffer->IsInOrderCmdList) {
     // Barrier on all commands after user defined commands.
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (ZeCommandList, ZeLaunchEvent, 0, nullptr));
   }
-  
+
   return UR_RESULT_SUCCESS;
 }
 
