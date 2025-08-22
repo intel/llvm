@@ -1820,8 +1820,8 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
   return {};
 }
 
-DeviceKernelInfo &
-ProgramManager::getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
+DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
+    const CompileTimeKernelInfoTy &Info) {
   auto Result =
       m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name}, Info);
   return Result.first->second;

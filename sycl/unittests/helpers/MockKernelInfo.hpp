@@ -29,7 +29,6 @@ struct MockKernelInfoBase {
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
-
 };
 
 } // namespace unittest

@@ -283,10 +283,10 @@ inline namespace compile_time_kernel_info_v1 {
 // at least for as long as we support user apps built with GNU libstdc++'s
 // pre-C++11 ABI.
 struct CompileTimeKernelInfoTy {
-  const char * const Name = nullptr;
+  const char *const Name = nullptr;
   const unsigned NumParams = 0;
   const bool IsESIMD = false;
-  const char * const FileName = "";
+  const char *const FileName = "";
   const char *const FunctionName = "";
   const unsigned LineNumber = 0;
   const unsigned ColumnNumber = 0;

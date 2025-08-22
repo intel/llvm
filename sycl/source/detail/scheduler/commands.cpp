@@ -2102,9 +2102,9 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     xpti::stream_id_t StreamID,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string_view SyclKernelName,
-    DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
-    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
+    const std::string_view SyclKernelName, DeviceKernelInfo &DeviceKernelInfo,
+    queue_impl *Queue, const NDRDescT &NDRDesc,
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);

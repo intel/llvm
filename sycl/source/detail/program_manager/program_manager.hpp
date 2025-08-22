@@ -198,11 +198,11 @@ public:
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
 
-  FastKernelCacheValPtr
-  getOrCreateKernel(context_impl &ContextImpl, device_impl &DeviceImpl,
-                    KernelNameStrRefT KernelName,
-                    DeviceKernelInfo &DeviceKernelInfo,
-                    const NDRDescT &NDRDesc = {});
+  FastKernelCacheValPtr getOrCreateKernel(context_impl &ContextImpl,
+                                          device_impl &DeviceImpl,
+                                          KernelNameStrRefT KernelName,
+                                          DeviceKernelInfo &DeviceKernelInfo,
+                                          const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,
