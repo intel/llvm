@@ -1283,7 +1283,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
-    return ReturnValue(false);
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
