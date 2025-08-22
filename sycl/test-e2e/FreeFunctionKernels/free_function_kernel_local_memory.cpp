@@ -45,12 +45,22 @@ void static_kernel(float *src, float *dst) {
   dst[lid] = local_mem[lid];
 }
 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void scratch_static_kernel(float *src, float *dst) {
+  size_t lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
+  float *scratch_mem = (float *)syclexp::get_work_group_scratch_memory();
+  syclexp::work_group_static<float[SIZE]> static_mem;
+  scratch_mem[lid] = src[lid];
+  static_mem[lid] = src[lid];
+  dst[lid] = scratch_mem[lid] + static_mem[lid];
+}
+
 int main() {
   sycl::queue q;
   float *src = sycl::malloc_shared<float>(SIZE, q);
   float *dst = sycl::malloc_shared<float>(SIZE, q);
 
-  for (int i = 1; i < SIZE; i++) {
+  for (int i = 0; i < SIZE; i++) {
     src[i] = i;
   }
 
@@ -60,11 +70,15 @@ int main() {
   auto staticbndl =
       syclexp::get_kernel_bundle<static_kernel, sycl::bundle_state::executable>(
           q.get_context());
+  auto scratchstaticbndl = syclexp::get_kernel_bundle<
+      scratch_static_kernel, sycl::bundle_state::executable>(q.get_context());
 
   sycl::kernel ScratchKernel =
       scratchbndl.template ext_oneapi_get_kernel<scratch_kernel>();
   sycl::kernel StaticKernel =
       staticbndl.template ext_oneapi_get_kernel<static_kernel>();
+  sycl::kernel ScratchStaticKernel =
+      scratchstaticbndl.template ext_oneapi_get_kernel<scratch_static_kernel>();
   syclexp::launch_config ScratchKernelcfg{
       ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
       syclexp::properties{
@@ -82,6 +96,12 @@ int main() {
   q.wait();
   for (int i = 0; i < SIZE; i++) {
     assert(dst[i] == src[i] * src[i]);
+  }
+
+  syclexp::nd_launch(q, ScratchKernelcfg, ScratchStaticKernel, src, dst);
+  q.wait();
+  for (int i = 0; i < SIZE; i++) {
+    assert(dst[i] == 2 * src[i]);
   }
 
   sycl::free(src, q);
