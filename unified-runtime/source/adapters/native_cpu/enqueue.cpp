@@ -136,6 +136,8 @@ static inline void execute_range(native_cpu::state &state,
   }
 }
 
+namespace native_cpu {
+
 class nativecpu_tbb_executor {
   const native_cpu::NDRDescT ndr;
 
@@ -143,20 +145,24 @@ protected:
   const ur_kernel_handle_t_ &hKernel;
   const size_t numParallelThreads;
 
-  void execute(const tbb::blocked_range3d<size_t> &r, size_t threadId) const {
+  void execute(IndexT first, IndexT last_plus_one) const {
     auto state = getState(ndr);
-    const IndexT first = {r.pages().begin(), r.rows().begin(),
-                          r.cols().begin()};
-    const IndexT last_plus_one = {r.pages().end(), r.rows().end(),
-                                  r.cols().end()};
+    auto threadId = native_cpu::getTBBThreadID();
     execute_range(state, hKernel, first, last_plus_one, numParallelThreads,
                   threadId, ndr);
   }
 
 public:
   void operator()(const tbb::blocked_range3d<size_t> &r) const {
-    auto thread_id = native_cpu::getTBBThreadID();
-    execute(r, thread_id);
+    execute({r.pages().begin(), r.rows().begin(), r.cols().begin()},
+            {r.pages().end(), r.rows().end(), r.cols().end()});
+  }
+  void operator()(const tbb::blocked_range2d<size_t> &r) const {
+    execute({r.rows().begin(), r.cols().begin(), 0},
+            {r.rows().end(), r.cols().end(), 1});
+  }
+  void operator()(const tbb::blocked_range<size_t> &r) const {
+    execute({r.begin(), 0, 0}, {r.end(), 1, 1});
   }
   nativecpu_tbb_executor(const native_cpu::NDRDescT &n,
                          const ur_kernel_handle_t_ &k,
@@ -164,9 +170,33 @@ public:
       : ndr(n), hKernel(k), numParallelThreads(numParallelThreads) {}
 };
 
-using nativecpu_tbb_nd_executor = nativecpu_tbb_executor;
+using tbb_nd_executor = nativecpu_tbb_executor;
 
-#endif
+template <template <class> class RangeTpl, class... T>
+static inline void invoke_tbb_parallel_for(const tbb_nd_executor &tbb_ex,
+                                           T... inits) {
+  RangeTpl<size_t> range(inits...);
+  tbb::parallel_for(range, tbb_ex);
+}
+
+static inline void invoke_tbb_parallel_for(size_t workDim,
+                                           const nativecpu_tbb_executor &tbb_ex,
+                                           IndexT first, IndexT last) {
+  if (workDim == 3) {
+    native_cpu::invoke_tbb_parallel_for<tbb::blocked_range3d>(
+        tbb_ex, first[0], last[0], first[1], last[1], first[2], last[2]);
+  } else if (workDim == 2) {
+    native_cpu::invoke_tbb_parallel_for<tbb::blocked_range2d>(
+        tbb_ex, first[0], last[0], first[1], last[1]);
+  } else {
+    native_cpu::invoke_tbb_parallel_for<tbb::blocked_range>(tbb_ex, first[0],
+                                                            last[0]);
+  }
+}
+
+} // namespace native_cpu
+
+#endif // NATIVECPU_WITH_ONETBB
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
@@ -285,9 +315,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 #else
   const IndexT numWG = {numWG0, numWG1, numWG2};
   IndexT groupsPerThread;
+  size_t dim = 0;
   for (size_t t = 0; t < 3; t++)
     groupsPerThread[t] = numWG[t] / numParallelThreads;
-  size_t dim = 0;
   if (groupsPerThread[0] == 0) {
     if (groupsPerThread[1])
       dim = 1;
@@ -296,23 +326,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
   IndexT first = {0, 0, 0}, last = numWG;
   size_t wg_start = 0;
+  const native_cpu::tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
+  auto invoke_parallel_for = [workDim, &tbb_ex, &first, &last]() {
+    if (workDim == 3) {
+      native_cpu::invoke_tbb_parallel_for<tbb::blocked_range3d>(
+          tbb_ex, first[0], last[0], first[1], last[1], first[2], last[2]);
+    } else if (workDim == 2) {
+      native_cpu::invoke_tbb_parallel_for<tbb::blocked_range2d>(
+          tbb_ex, first[0], last[0], first[1], last[1]);
+    } else {
+      native_cpu::invoke_tbb_parallel_for<tbb::blocked_range>(tbb_ex, first[0],
+                                                              last[0]);
+    }
+  };
+
   if (groupsPerThread[dim]) {
-    tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
-                                       first[2], last[2]);
-    nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
-    tbb::parallel_for(range, tbb_ex);
+    native_cpu::invoke_tbb_parallel_for(workDim, tbb_ex, first, last);
     wg_start = groupsPerThread[dim] * numParallelThreads;
   }
   if (wg_start < numWG[dim]) {
     first[dim] = wg_start;
     last[dim] = numWG[dim];
-    tbb::blocked_range3d<size_t> range(first[0], last[0], first[1], last[1],
-                                       first[2], last[2]);
-    nativecpu_tbb_nd_executor tbb_ex(ndr, *kernel, numParallelThreads);
-    tbb::parallel_for(range, tbb_ex);
+    native_cpu::invoke_tbb_parallel_for(workDim, tbb_ex, first, last);
   }
-
 #endif // NATIVECPU_WITH_ONETBB_PARALLELFOR
+
   event->set_futures(Tasks.getTaskInfo());
 
   if (phEvent) {
