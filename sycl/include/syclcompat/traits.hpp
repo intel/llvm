@@ -33,7 +33,7 @@
 #include <sycl/nd_range.hpp>
 #include <type_traits>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 // Equivalent to C++20's std::type_identity (used to create non-deduced
 // contexts)
