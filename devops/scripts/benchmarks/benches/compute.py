@@ -517,8 +517,13 @@ class SubmitKernel(ComputeBenchmark):
         # The benchmark instance gets created just to make metadata for these old results
         if not super().enabled():
             return False
-        if "bmg" in options.device_architecture and self.KernelExecTime == 20:
+
+        device_arch = getattr(options, "device_architecture", "")
+        if "bmg" in device_arch and self.KernelExecTime == 20:
             # Disable this benchmark for BMG server, just create metadata
+            return False
+        if "bmg" not in device_arch and self.KernelExecTime == 200:
+            # Disable KernelExecTime=200 for non-BMG systems, just create metadata
             return False
         return True
 
