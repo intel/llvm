@@ -13,8 +13,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: *
-// XFAIL-TRACKER: GSD-11139
-
 #include "common.hpp"
 #include "get_coordinate_ops_impl.hpp"
