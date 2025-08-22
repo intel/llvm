@@ -189,7 +189,6 @@ int main() {
       // This combination is not currently supported for sub group size = 32 in
       // IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
-
       test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
                         layout::row_major, 1>();
       test_get_coord_op<int8_t, int32_t, /*TK*/ 32, /*TN*/ 16, use::b,
@@ -207,7 +206,8 @@ int main() {
       // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
       //                   layout::row_major, 1>();
       // // Accumulator
-      // test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TN*/ 16, use::accumulator,
+      // test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TN*/ 16,
+      // use::accumulator,
       //                   layout::row_major, 1>();
       // test_get_coord_op<float, float, /*TM*/ 8, /*TN*/ 16, use::accumulator,
       //                   layout::row_major, 1>();
@@ -219,7 +219,8 @@ int main() {
       //                   layout::row_major, 1>();
       // // B - duplicate from 8x16x16
       // // Accumulator
-      // test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
+      // test_get_coord_op<bfloat16, float, /*TM*/ 16, /*TN*/ 16,
+      // use::accumulator,
       //                   layout::row_major, 1>();
       // test_get_coord_op<float, float, /*TM*/ 16, /*TN*/ 16, use::accumulator,
       //                   layout::row_major, 1>();
@@ -235,7 +236,8 @@ int main() {
       // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 64, use::b,
       //                   layout::row_major, 1>();
       // // Accumulator
-      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
+      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64,
+      // use::accumulator,
       //                   layout::row_major, 1>();
       // test_get_coord_op<float, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
       //                   layout::row_major, 1>();
@@ -251,7 +253,8 @@ int main() {
       // test_get_coord_op<bfloat16, float, /*TK*/ 32, /*TN*/ 64, use::b,
       //                   layout::row_major, 1>();
       // // Accumulator
-      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
+      // test_get_coord_op<bfloat16, float, /*TM*/ 1, /*TN*/ 64,
+      // use::accumulator,
       //                   layout::row_major, 1>();
       // test_get_coord_op<float, float, /*TM*/ 1, /*TN*/ 64, use::accumulator,
       //                   layout::row_major, 1>();
@@ -263,7 +266,8 @@ int main() {
       //                   layout::row_major, 1>();
       // // B - duplicate from 1x64x16
       // // Accumulator
-      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64,
+      // use::accumulator,
       //                   layout::row_major, 1>();
       // test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
       //                   layout::row_major, 1>();
@@ -275,7 +279,8 @@ int main() {
       //                   layout::row_major, 1>();
       // // B - duplicate from 1x64x32
       // // Accumulator
-      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
+      // test_get_coord_op<bfloat16, float, /*TM*/ 32, /*TN*/ 64,
+      // use::accumulator,
       //                   layout::row_major, 1>();
       // test_get_coord_op<float, float, /*TM*/ 32, /*TN*/ 64, use::accumulator,
       //                   layout::row_major, 1>();
