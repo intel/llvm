@@ -62,7 +62,7 @@ SYCL_EXTERNAL void callee_void__noopt_opt(simd<int, 8>& x, simd<int, 8> y) SYCL_
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<int, 8> test__sret__noopt_opt(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__noopt_opt{{.*}}(ptr noundef %{{.*}})
+// CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__noopt_opt{{.*}}(ptr dead_on_return noundef %{{.*}})
   callee_void__noopt_opt(x, x);
 // CHECK:  call spir_func void @_Z22callee_void__noopt_opt{{.*}}(ptr addrspace(4) %{{.*}}, <8 x i32> %{{.*}})
   return x;
