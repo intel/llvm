@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/detail/ranges_ref_view.hpp>
 #include <detail/cg.hpp>
+#include <sycl/detail/ranges_ref_view.hpp>
 
 #include <gtest/gtest.h>
 
