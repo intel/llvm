@@ -60,7 +60,16 @@ when the kernel is submitted to the queue.
 
 == Overview
 
-This extension defines a new free function `clock()`. See below for details.
+This extension introduces a new free function `clock(scope)`. This function
+allows the user to sample the value from one of three clocks provided by compute
+units, depending on the value of the scope argument. `scope` is an
+enumeration constant of the new `clock_scope` enum. It should be passed to the
+function to define the clock source; e.g., `clock(clock_scope::sub_group)`
+samples the value from a clock shared by all work-items executing in the same
+sub-group.
+
+This extension also adds a new aspect, `ext_oneapi_clock`, indicating whether
+the feature is supported by the device.
 
 == Specification
 
@@ -88,13 +97,13 @@ supports.
 This extension adds new device aspect:
 
 ```c++
-namespace sycl::ext::oneapi {
+namespace sycl {
 
 enum class aspect : /*unspecified*/ {
   ext_oneapi_clock
 };
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl
 ```
 
 [width="100%",%header,cols="50%,50%"]
@@ -103,24 +112,32 @@ enum class aspect : /*unspecified*/ {
 |Description
 
 |`ext_oneapi_clock`
-|Indicates that the device supports the `clock()` call.
+|Indicates that the device supports the `sycl::ext::oneapi::experimental::clock()` call.
 |===
 
 === New free function
 
 ```c++
-namespace sycl::ext::oneapi {
 
-uint64_t clock(memory_scope scope = memory_scope::system);
+namespace sycl::ext::oneap::experimental {
 
-} // namespace sycl::ext::oneapi
+enum class clock_scope : /* unspecified */ {
+  sub_group,
+  work_group,
+  device
+};
+
+uint64_t clock(clock_scope scope = scope::sub_group);
+
+} // namespace sycl::ext::oneapi::experimental
 ```
 
-This function may only be called from within a command.
+This function may only be called from within a SYCL kernel function.
 
-All work-items within the scope read from the same source clock.
+All work-items within the `scope` read from the same source clock. There is no
+guarantee that two work-items get the same value.
 
-_Returns:_ the sample value of a clock as seen by the compute unit.
+_Returns:_ The sample value of a clock as seen by the work-item.
 The clock is defined as an unbounded, unsigned integer counter that
 monotonically increments over time. The rate at which the clock advances is not
 guaranteed to be constant: it may vary over the lifetime of a work-item, differ
@@ -130,3 +147,5 @@ corresponds to the least significant bits of the clock counter at the time of
 execution. Consequently, the sampled value may wrap around zero.
 
 == Issues
+
+. How to convert the result of the function to seconds?
