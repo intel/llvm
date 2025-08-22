@@ -46,8 +46,13 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   if (auto MaxLIt = MaxLinMap.find(pKernelName); MaxLIt != MaxLinMap.end()) {
     MaxLinearWG = MaxLIt->second;
   }
+  bool IsNDRangeKernel = false;
+  if (auto isNDIt = hProgram->KernelIsNDRangeMD.find(pKernelName);
+      isNDIt != hProgram->KernelIsNDRangeMD.end()) {
+    IsNDRangeKernel = isNDIt->second;
+  }
   kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f, ReqdWG, MaxWG,
-                                   MaxLinearWG);
+                                   MaxLinearWG, IsNDRangeKernel);
 
   *phKernel = kernel;
 

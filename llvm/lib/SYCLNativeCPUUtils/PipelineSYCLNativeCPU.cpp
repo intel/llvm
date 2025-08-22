@@ -11,6 +11,7 @@
 // When NATIVECPU_USE_OCK is set, adds passes from the oneAPI Construction Kit.
 //
 //===----------------------------------------------------------------------===//
+#include "llvm/SYCLLowerIR/CheckNDRangeSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
@@ -125,4 +126,8 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     };
     MPM.addPass(DumpIR());
   }
+}
+
+void llvm::sycl::utils::addSYCLNativeCPUEarlyPasses(ModulePassManager &MPM) {
+  MPM.addPass(CheckNDRangeSYCLNativeCPUPass());
 }

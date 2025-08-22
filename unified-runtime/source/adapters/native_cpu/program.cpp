@@ -92,12 +92,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     }
   }
 
-  const nativecpu_entry *nativecpu_it =
-      reinterpret_cast<const nativecpu_entry *>(pBinary);
+  const nativecpu_program *program =
+      reinterpret_cast<const nativecpu_program *>(pBinary);
+  const nativecpu_entry *nativecpu_it = program->entries;
   while (nativecpu_it->kernel_ptr != nullptr) {
     hProgram->_kernels.insert(
         std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
     nativecpu_it++;
+  }
+
+  // Process Native CPU specific properties
+  const _pi_device_binary_property_set_struct *props = program->properties;
+  for (auto prop = props->PropertiesBegin; prop != props->PropertiesEnd;
+       prop++) {
+    auto [Prefix, Tag] = splitMetadataName(prop->Name);
+    if (Tag == "@is_nd_range") {
+      hProgram->KernelIsNDRangeMD[Prefix] = prop->ValSize;
+    }
   }
 
   *phProgram = hProgram.release();
