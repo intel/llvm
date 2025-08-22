@@ -75,6 +75,10 @@ inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
                                    const ur_event_handle_t *phEventWaitList,
                                    const T &scheduler) {
   if (numEventsInWaitList && !scheduler.CanWaitInThread()) {
+    // Waiting for dependent events in threads launched by the enqueue may
+    // not work correctly for some backend/schedulers, so we have the safe
+    // option here to wait in the main thread instead (potentially at the
+    // expense of performance).
     urEventWait(numEventsInWaitList, phEventWaitList);
     numEventsInWaitList = 0;
   }
