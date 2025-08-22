@@ -392,8 +392,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         def check_leak(output):
             keyword_found = False
+            leak_pattern = r"LEAK\s*=\s*\d+"
             for line in output.splitlines():
-                if keyword_found and "LEAK" in line:
+                if keyword_found and re.search(leak_pattern, line):
                     return lit.Test.FAIL
                 if "Check balance of create/destroy calls" in line:
                     keyword_found = True
