@@ -2738,12 +2738,21 @@ public:
         "Use queue.submit() instead");
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    return submit_direct_with_event<detail::WrapAs::single_task, KernelName>(
+        ext::oneapi::experimental::empty_properties_t{}, nd_range<1>{1, 1},
+        KernelFunc);
+
+#else
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
               Properties, KernelFunc);
         },
         TlsCodeLocCapture.query());
+#endif
+
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3293,7 +3302,8 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return submit_direct_with_event<KernelName>(
+      return submit_direct_with_event<detail::WrapAs::parallel_for,
+          KernelName, sycl::nd_item<Dims>>(
           ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
     } else {
       return submit(
@@ -3717,18 +3727,22 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
-  template <typename KernelName, typename KernelType, int Dims>
+  template <typename KernelName, typename KernelType, int Dims,
+            detail::WrapAs WrapAsVal>
   void ProcessKernelRuntimeInfo(const KernelType &KernelFunc,
                                 detail::v1::KernelRuntimeInfo &KRInfo) const {
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    using TransformedArgType = std::conditional_t<
+    using TransformedArgType = std::conditional_t<WrapAsVal == detail::WrapAs::parallel_for,
+        std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>;
+        typename TransformUserItemType<Dims, LambdaArgType>::type>,
+        void>;
 
     KRInfo.HostKernel().reset(
-        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
-            KernelFunc));
+          new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+              KernelFunc));
+
     KRInfo.KernelName() = detail::getKernelName<KernelName>();
     KRInfo.KernelNumArgs() = detail::getKernelNumParams<KernelName>();
     KRInfo.KernelParamDescGetter() = &(detail::getKernelParamDesc<KernelName>);
@@ -3882,7 +3896,8 @@ private:
                                   TlsCodeLocCapture.isToplevel());
   }
 
-  template <typename KernelName = detail::auto_name, typename PropertiesT,
+  template <detail::WrapAs WrapAsVal, typename KernelName = detail::auto_name,
+            typename ElementType = void, typename PropertiesT,
             typename KernelType, int Dims>
   event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                                  const KernelType &KernelFunc,
@@ -3896,10 +3911,10 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<NameT, KernelType, Dims>(KernelFunc, KRInfo);
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, WrapAsVal>(KernelFunc, KRInfo);
 
-    detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                          sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType,
+                          ElementType, PropertiesT>::wrap(KernelFunc);
 
     return submit_direct_with_event_impl(Range, SI, KRInfo,
                                          TlsCodeLocCapture.query(),
@@ -3920,7 +3935,7 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<NameT, KernelType, Dims>(KernelFunc, KRInfo);
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, detail::WrapAs::parallel_for>(KernelFunc, KRInfo);
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
