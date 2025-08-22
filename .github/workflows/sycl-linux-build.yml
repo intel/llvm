@@ -203,7 +203,7 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON \
-          -DNATIVECPU_USE_OCK=Off
+          -DNATIVECPU_USE_OCK=ON
     - name: Compile
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.
