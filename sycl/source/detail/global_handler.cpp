@@ -13,8 +13,8 @@
 
 #include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/kernel_name_based_data.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>

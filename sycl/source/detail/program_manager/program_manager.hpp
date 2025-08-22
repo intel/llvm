@@ -11,9 +11,9 @@
 #include <detail/device_binary_image.hpp>
 #include <detail/device_global_map.hpp>
 #include <detail/device_global_map_entry.hpp>
+#include <detail/device_kernel_info.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
-#include <detail/kernel_name_based_data.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
