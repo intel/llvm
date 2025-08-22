@@ -1897,18 +1897,22 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
       numSyncPointsInWaitList, pSyncPointWaitList, true, pSyncPoint,
       ZeEventList, ZeLaunchEvent));
 
-  // Barrier on all commands before user defined commands.
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (ZeCommandList, nullptr, ZeEventList.size(),
-              getPointerFromVector(ZeEventList)));
-
+  if (!CommandBuffer->IsInOrderCmdList) {
+    // Barrier on all commands before user defined commands.
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (ZeCommandList, nullptr, ZeEventList.size(),
+                getPointerFromVector(ZeEventList)));
+  }
+  
   // Call user-defined function immediately
   pfnNativeCommand(pData);
-
-  // Barrier on all commands after user defined commands.
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (ZeCommandList, ZeLaunchEvent, 0, nullptr));
-
+  
+  if (!CommandBuffer->IsInOrderCmdList) {
+    // Barrier on all commands after user defined commands.
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (ZeCommandList, ZeLaunchEvent, 0, nullptr));
+  }
+  
   return UR_RESULT_SUCCESS;
 }
 
