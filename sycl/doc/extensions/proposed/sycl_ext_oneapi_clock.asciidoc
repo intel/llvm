@@ -127,7 +127,7 @@ enum class clock_scope : /* unspecified */ {
   device
 };
 
-uint64_t clock(clock_scope scope = scope::sub_group);
+uint64_t clock(clock_scope scope = clock_scope::sub_group);
 
 } // namespace sycl::ext::oneapi::experimental
 ```
