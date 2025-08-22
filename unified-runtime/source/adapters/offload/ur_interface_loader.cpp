@@ -74,7 +74,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   pDdiTable->pfnGetProfilingInfo = urEventGetProfilingInfo;
   pDdiTable->pfnRelease = urEventRelease;
   pDdiTable->pfnRetain = urEventRetain;
-  pDdiTable->pfnSetCallback = nullptr;
+  pDdiTable->pfnSetCallback = urEventSetCallback;
   pDdiTable->pfnWait = urEventWait;
   return UR_RESULT_SUCCESS;
 }
