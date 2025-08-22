@@ -92,13 +92,6 @@ static inline native_cpu::state getState(const native_cpu::NDRDescT &ndr) {
   return resized_state;
 }
 
-#ifdef NATIVECPU_WITH_ONETBB
-
-#define NATIVECPU_WITH_ONETBB_PARALLELFOR
-
-using IndexT = std::array<size_t, 3>;
-using RangeT = native_cpu::NDRDescT::RangeT;
-
 static inline void invoke_kernel(native_cpu::state &state,
                                  const ur_kernel_handle_t_ &kernel, size_t g0,
                                  size_t g1, size_t g2,
@@ -108,6 +101,7 @@ static inline void invoke_kernel(native_cpu::state &state,
   state.update(g0, g1, g2);
   kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
                      &state);
+  (void)ndr;
 #else
   for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
     for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
@@ -120,6 +114,13 @@ static inline void invoke_kernel(native_cpu::state &state,
   }
 #endif
 }
+
+#ifdef NATIVECPU_WITH_ONETBB
+
+#define NATIVECPU_WITH_ONETBB_PARALLELFOR
+
+using IndexT = std::array<size_t, 3>;
+using RangeT = native_cpu::NDRDescT::RangeT;
 
 static inline void execute_range(native_cpu::state &state,
                                  const ur_kernel_handle_t_ &hKernel,
