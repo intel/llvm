@@ -38,12 +38,12 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
   sycl::detail::tls_code_loc_t CL(CodeLoc);
   const char *UserData = "malloc_host";
 
-  xpti::framework::tracepoint_scope_t TP(CodeLoc.fileName, CodeLoc.functionName,
-                                         CodeLoc.lineNo, CodeLoc.columnNo,
-                                         nullptr);
-  TP.stream(detail::GMemAllocStreamID)
+  xpti::framework::tracepoint_scope_t TP(
+      CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
+      CodeLoc.columnNumber(), nullptr);
+  TP.stream(sycl::detail::GMemAllocStreamID)
       .traceType(xpti::trace_point_type_t::node_create)
-      .parentEvent(detail::GSYCLGraphEvent);
+      .parentEvent(sycl::detail::GSYCLGraphEvent);
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
     xpti::addMetadata(TEvent, "sycl_device", 0);
@@ -224,12 +224,12 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   detail::tls_code_loc_t CL(CodeLoc);
   const char *UserData = "usm::alignedAlloc";
 
-  xpti::framework::tracepoint_scope_t TP(CodeLoc.fileName, CodeLoc.functionName,
-                                         CodeLoc.lineNo, CodeLoc.columnNo,
-                                         nullptr);
-  TP.stream(detail::GMemAllocStreamID)
+  xpti::framework::tracepoint_scope_t TP(
+      CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
+      CodeLoc.columnNumber(), nullptr);
+  TP.stream(sycl::detail::GMemAllocStreamID)
       .traceType(xpti::trace_point_type_t::node_create)
-      .parentEvent(detail::GSYCLGraphEvent);
+      .parentEvent(sycl::detail::GSYCLGraphEvent);
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name",
                       Dev.get_info<info::device::name>());
@@ -270,12 +270,12 @@ void free(void *Ptr, const context &Ctxt,
   detail::tls_code_loc_t CL(CodeLoc);
   const char *UserData = "usm::free";
 
-  xpti::framework::tracepoint_scope_t TP(CodeLoc.fileName, CodeLoc.functionName,
-                                         CodeLoc.lineNo, CodeLoc.columnNo,
-                                         nullptr);
-  TP.stream(detail::GMemAllocStreamID)
+  xpti::framework::tracepoint_scope_t TP(
+      CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
+      CodeLoc.columnNumber(), nullptr);
+  TP.stream(sycl::detail::GMemAllocStreamID)
       .traceType(xpti::trace_point_type_t::node_create)
-      .parentEvent(detail::GSYCLGraphEvent);
+      .parentEvent(sycl::detail::GSYCLGraphEvent);
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
   });
