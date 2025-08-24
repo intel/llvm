@@ -16,7 +16,6 @@
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
-#include "sampler.hpp"
 #include "ur_api.h"
 
 #include <ur/ur.hpp>
@@ -339,60 +338,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return err;
   }
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numArgs,
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    uint32_t numPropsInLaunchPropList,
-    const ur_kernel_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  try {
-    for (uint32_t i = 0; i < numArgs; i++) {
-      switch (pArgs[i].type) {
-      case UR_EXP_KERNEL_ARG_TYPE_LOCAL: {
-        hKernel->setKernelLocalArg(pArgs[i].index, pArgs[i].size);
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_VALUE: {
-        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              pArgs[i].value.value);
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_POINTER: {
-        // setKernelArg is expecting a pointer to our argument
-        hKernel->setKernelArg(pArgs[i].index, pArgs[i].size,
-                              &pArgs[i].value.pointer);
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ: {
-        ur_kernel_arg_mem_obj_properties_t Props = {
-            UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES, nullptr,
-            pArgs[i].value.memObjTuple.flags};
-        UR_CALL(urKernelSetArgMemObj(hKernel, pArgs[i].index, &Props,
-                                     pArgs[i].value.memObjTuple.hMem));
-        break;
-      }
-      case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-        uint32_t SamplerProps = pArgs[i].value.sampler->Props;
-        hKernel->setKernelArg(pArgs[i].index, sizeof(uint32_t),
-                              (void *)&SamplerProps);
-        break;
-      }
-      default:
-        return UR_RESULT_ERROR_INVALID_ENUMERATION;
-      }
-    }
-  } catch (ur_result_t Err) {
-    return Err;
-  }
-  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
-                               pGlobalWorkSize, pLocalWorkSize,
-                               numPropsInLaunchPropList, launchPropList,
-                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 /// Enqueues a wait on the given queue for all events.
@@ -1379,11 +1324,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
+    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getDevice();
+  hipDevice_t TargetDevice;
+  switch (flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    TargetDevice = Device->get();
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    TargetDevice = hipCpuDeviceId;
+    break;
+  default:
+    setErrorMessage("Invalid USM migration flag",
+                    UR_RESULT_ERROR_INVALID_ENUMERATION);
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  void *HIPDevicePtr = const_cast<void *>(pMem);
 
 // HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
 // so we can't perform this check for such cases.
@@ -1440,8 +1398,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       return UR_RESULT_SUCCESS;
     }
 
-    UR_CHECK_ERROR(
-        hipMemPrefetchAsync(pMem, size, hQueue->getDevice()->get(), HIPStream));
+    UR_CHECK_ERROR(hipMemPrefetchAsync(pMem, size, TargetDevice, HIPStream));
     releaseEvent();
   } catch (ur_result_t Err) {
     return Err;

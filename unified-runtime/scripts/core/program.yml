@@ -323,6 +323,8 @@ returns:
         - "If `pFunctionName` couldn't be found in `hProgram`."
     - $X_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
         - "If `pFunctionName` could be located, but its address couldn't be retrieved."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the backend does not support querying function pointers."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves a pointer to a device global variable."

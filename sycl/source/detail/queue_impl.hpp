@@ -66,7 +66,9 @@ enum QueueOrder { Ordered, OOO };
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -331,22 +333,16 @@ public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// On a kernel error, this command group function object is then scheduled
-  /// for execution on a secondary queue.
-  ///
   /// \param CGF is a function object containing command group.
-  /// \param SecondQueue is a shared_ptr to the secondary queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
-               const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     v1::SubmissionInfo SI{};
-    SI.SecondaryQueue() = SecondQueue;
     if (PostProcess)
       SI.PostProcessorFunc() = *PostProcess;
     return submit_with_event(CGF, SI, Loc, IsTopCodeLoc);
@@ -364,9 +360,8 @@ public:
                           const v1::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
-    detail::EventImplPtr ResEvent =
-        submit_impl(CGF, SubmitInfo.SecondaryQueue().get(),
-                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+    detail::EventImplPtr ResEvent = submit_impl(CGF, /*CallerNeedsEvent=*/true,
+                                                Loc, IsTopCodeLoc, SubmitInfo);
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
@@ -374,8 +369,7 @@ public:
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    submit_impl(CGF, SubmitInfo.SecondaryQueue().get(),
-                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
+    submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -885,38 +879,15 @@ protected:
     PostProcess(IsKernel, KernelUsesAssert, Event);
   }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
-  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
-  ///        same as this.
-  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
-  ///        same as this.
-  /// \param CallerNeedsEvent is a boolean indicating whether the event is
-  ///        required by the user after the call.
-  /// \param Loc is the code location of the submit call (default argument)
-  /// \param SubmitInfo is additional optional information for the submission.
-  /// \return a SYCL event representing submitted command group.
-  detail::EventImplPtr
-  submit_impl(const detail::type_erased_cgfo_ty &CGF,
-              const std::shared_ptr<queue_impl> &PrimaryQueue,
-              const std::shared_ptr<queue_impl> &SecondaryQueue,
-              bool CallerNeedsEvent, const detail::code_location &Loc,
-              bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
-#endif
-
-  /// Performs command group submission to the queue.
-  ///
-  /// \param CGF is a function object containing command group.
-  /// \param SecondaryQueue is a pointer to the secondary queue.
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
   detail::EventImplPtr submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                                   queue_impl *SecondaryQueue,
                                    bool CallerNeedsEvent,
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,

@@ -64,6 +64,29 @@ ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
   }
 }
 
+inline info::device_type ConvertDeviceType(ur_device_type_t UrDevType) {
+  switch (UrDevType) {
+  case UR_DEVICE_TYPE_DEFAULT:
+    return info::device_type::automatic;
+  case UR_DEVICE_TYPE_ALL:
+    return info::device_type::all;
+  case UR_DEVICE_TYPE_GPU:
+    return info::device_type::gpu;
+  case UR_DEVICE_TYPE_CPU:
+    return info::device_type::cpu;
+  case UR_DEVICE_TYPE_FPGA:
+    return info::device_type::accelerator;
+  case UR_DEVICE_TYPE_MCA:
+  case UR_DEVICE_TYPE_VPU:
+  case UR_DEVICE_TYPE_CUSTOM:
+    return info::device_type::custom;
+  default:
+    assert(false);
+    // FIXME: what is that???
+    return info::device_type::custom;
+  }
+}
+
 // Note that UR's enums have weird *_FORCE_UINT32 values, we ignore them in the
 // callers. But we also can't write a fully-covered switch without mentioning it
 // there, which wouldn't make any sense. As such, ensure that "real" values
@@ -582,27 +605,7 @@ public:
     // device_traits.def
 
     CASE(info::device::device_type) {
-      using device_type = info::device_type;
-      switch (get_info_impl<UR_DEVICE_INFO_TYPE>()) {
-      case UR_DEVICE_TYPE_DEFAULT:
-        return device_type::automatic;
-      case UR_DEVICE_TYPE_ALL:
-        return device_type::all;
-      case UR_DEVICE_TYPE_GPU:
-        return device_type::gpu;
-      case UR_DEVICE_TYPE_CPU:
-        return device_type::cpu;
-      case UR_DEVICE_TYPE_FPGA:
-        return device_type::accelerator;
-      case UR_DEVICE_TYPE_MCA:
-      case UR_DEVICE_TYPE_VPU:
-        return device_type::custom;
-      default: {
-        assert(false);
-        // FIXME: what is that???
-        return device_type::custom;
-      }
-      }
+      return detail::ConvertDeviceType(get_info_impl<UR_DEVICE_INFO_TYPE>());
     }
 
     CASE(info::device::max_work_item_sizes<3>) {
@@ -1452,22 +1455,17 @@ public:
     CASE(ext_intel_esimd) {
       return get_info_impl_nocheck<UR_DEVICE_INFO_ESIMD_SUPPORT>().value_or(0);
     }
-    CASE(ext_oneapi_ballot_group) {
+    CASE(ext_oneapi_fragment) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_fixed_size_group) {
+    CASE(ext_oneapi_chunk) {
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||
              (this->getBackend() == backend::opencl) ||
              (this->getBackend() == backend::ext_oneapi_cuda);
     }
-    CASE(ext_oneapi_opportunistic_group) {
-      return (this->getBackend() == backend::ext_oneapi_level_zero) ||
-             (this->getBackend() == backend::opencl) ||
-             (this->getBackend() == backend::ext_oneapi_cuda);
-    }
-    CASE(ext_oneapi_tangle_group) {
+    CASE(ext_oneapi_tangle) {
       // TODO: tangle_group is not currently supported for CUDA devices. Add
       // when implemented.
       return (this->getBackend() == backend::ext_oneapi_level_zero) ||

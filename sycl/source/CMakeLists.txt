@@ -267,6 +267,7 @@ set(SYCL_COMMON_SOURCES
     "detail/device_filter.cpp"
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_image_impl.cpp"
     "detail/device_impl.cpp"

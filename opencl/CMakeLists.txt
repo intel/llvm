@@ -11,71 +11,12 @@ if (MSVC)
   )
 endif()
 
-# Repo URLs
-
-set(OCL_HEADERS_REPO
-  "https://github.com/KhronosGroup/OpenCL-Headers.git")
-set(OCL_LOADER_REPO
-  "https://github.com/KhronosGroup/OpenCL-ICD-Loader.git")
-
-# Repo tags/hashes
-
-set(OCL_HEADERS_TAG 6eabe90aa7b6cff9c67800a2fe25a0cd88d8b749)
-set(OCL_LOADER_TAG ddf6c70230a79cdb8fcccfd3c775b09e6820f42e)
-
-# OpenCL Headers
-if(NOT OpenCL_HEADERS)
-  message(STATUS "Will fetch OpenCL headers from ${OCL_HEADERS_REPO}")
-
-  FetchContent_Declare(ocl-headers
-    GIT_REPOSITORY    ${OCL_HEADERS_REPO}
-    GIT_TAG           ${OCL_HEADERS_TAG}
-  )
-else()
-  message(STATUS "OpenCL headers are added manually ${OpenCL_HEADERS}")
-
-  FetchContent_Declare(ocl-headers
-    URL               ${OpenCL_HEADERS}
-  )
-endif()
-
-FetchContent_MakeAvailable(ocl-headers)
-FetchContent_GetProperties(ocl-headers)
-set(OpenCL_INCLUDE_DIR
-  ${ocl-headers_SOURCE_DIR} CACHE PATH "Path to OpenCL Headers")
-
-target_compile_definitions(Headers INTERFACE -DCL_TARGET_OPENCL_VERSION=300)
-add_library(OpenCL-Headers ALIAS Headers)
-
-# OpenCL Library (ICD Loader)
-
-# Set OPENCL_ICD_LOADER_HEADERS_DIR, as prerequisite for ICD build
-set(OPENCL_ICD_LOADER_HEADERS_DIR
-  ${OpenCL_INCLUDE_DIR} CACHE PATH "Path to OpenCL Headers")
-
 # LLVM build sets this OFF by default, but we need OpenCL to be built as shared
 # library.
 set(BUILD_SHARED_LIBS ON)
 
-if(NOT OpenCL_LIBRARY_SRC)
-  message(STATUS "Will fetch OpenCL ICD Loader from ${OCL_LOADER_REPO}")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../unified-runtime/cmake")
 
-  FetchContent_Declare(ocl-icd
-    GIT_REPOSITORY    ${OCL_LOADER_REPO}
-    GIT_TAG           ${OCL_LOADER_TAG}
-  )
-else()
-  # TODO: add possibility to use prebuilt OpenCL library rather than building
-  #       together with llvm.
-  message(STATUS
-    "OpenCL ICD Loader sources added manually ${OpenCL_LIBRARY_SRC}")
-
-  FetchContent_Declare(ocl-icd
-    URL               ${OpenCL_LIBRARY_SRC}
-  )
-endif()
-
-FetchContent_MakeAvailable(ocl-icd)
-add_library(OpenCL-ICD ALIAS OpenCL)
+include(FetchOpenCL)
 
 add_subdirectory(opencl-aot)

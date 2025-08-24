@@ -2042,6 +2042,9 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     }
     m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
     KernelIDs->push_back(It->second);
+
+    // Keep track of image to kernel name reference count for cleanup.
+    m_KernelNameRefCount[name]++;
   }
 
   cacheKernelUsesAssertInfo(*Img);
@@ -2115,6 +2118,18 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     addImage(&(DeviceBinary->DeviceBinaries[I]));
 }
 
+template <typename MultimapT, typename KeyT, typename ValT>
+void removeFromMultimapByVal(MultimapT &Map, const KeyT &Key, const ValT &Val,
+                             bool AssertContains = true) {
+  auto [RangeBegin, RangeEnd] = Map.equal_range(Key);
+  auto It = std::find_if(RangeBegin, RangeEnd,
+                         [&](const auto &Pair) { return Pair.second == Val; });
+  if (!AssertContains && It == RangeEnd)
+    return;
+  assert(It != RangeEnd);
+  Map.erase(It);
+}
+
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
   if (DeviceBinary->NumDeviceBinaries == 0)
     return;
@@ -2140,44 +2155,68 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
-
+      detail::KernelNameStrT Name = EntriesIt->GetName();
       // Drop entry for service kernel
-      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->GetName());
+      if (Name.find("__sycl_service_kernel__") != std::string::npos) {
+        removeFromMultimapByVal(m_ServiceKernels, Name, Img);
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
+      if (m_ExportedSymbolImages.find(std::string(Name)) !=
           m_ExportedSymbolImages.end()) {
         continue;
       }
 
-      // remove everything associated with this KernelName
-      m_KernelUsesAssert.erase(EntriesIt->GetName());
-      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
+      auto Name2IDIt = m_KernelName2KernelIDs.find(Name);
+      if (Name2IDIt != m_KernelName2KernelIDs.end())
+        removeFromMultimapByVal(m_KernelIDs2BinImage, Name2IDIt->second, Img);
 
-      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
-          It != m_KernelName2KernelIDs.end()) {
-        m_KernelIDs2BinImage.erase(It->second);
-        m_KernelName2KernelIDs.erase(It);
+      auto RefCountIt = m_KernelNameRefCount.find(Name);
+      assert(RefCountIt != m_KernelNameRefCount.end());
+      int &RefCount = RefCountIt->second;
+      assert(RefCount > 0);
+
+      // Remove everything associated with this KernelName if this is the last
+      // image referencing it.
+      if (--RefCount == 0) {
+        // TODO aggregate all these maps into a single one since their entries
+        // share lifetime.
+        m_KernelUsesAssert.erase(Name);
+        m_KernelImplicitLocalArgPos.erase(Name);
+        m_KernelNameRefCount.erase(RefCountIt);
+        if (Name2IDIt != m_KernelName2KernelIDs.end())
+          m_KernelName2KernelIDs.erase(Name2IDIt);
       }
     }
 
     // Drop reverse mapping
     m_BinImg2KernelIDs.erase(Img);
 
-    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    // Unregister exported symbol -> Img pair (needs to happen after the ID
+    // unmap loop)
     for (const sycl_device_binary_property &ESProp :
          Img->getExportedSymbols()) {
-      m_ExportedSymbolImages.erase(ESProp->Name);
+      removeFromMultimapByVal(m_ExportedSymbolImages, ESProp->Name, Img,
+                              /*AssertContains*/ false);
     }
 
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-      for (const auto &SetName : detail::split_string(StrValue, ','))
-        m_VFSet2BinImage.erase(SetName);
+      // Unregister the image from all referenced virtual function sets.
+      for (const auto &VFSetName : detail::split_string(StrValue, ',')) {
+        auto It = m_VFSet2BinImage.find(VFSetName);
+        assert(It != m_VFSet2BinImage.end());
+        std::set<const RTDeviceBinaryImage *> &ImgSet = It->second;
+        auto ImgIt = ImgSet.find(Img);
+        assert(ImgIt != ImgSet.end());
+        ImgSet.erase(ImgIt);
+        // If no images referencing this virtual function set remain, drop
+        // it from the map.
+        if (ImgSet.empty())
+          m_VFSet2BinImage.erase(It);
+      }
     }
 
     m_DeviceGlobals.eraseEntries(Img);
@@ -2376,6 +2415,27 @@ kernel_id ProgramManager::getBuiltInKernelID(KernelNameStrRefT KernelName) {
 void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                                 const char *UniqueId) {
   m_DeviceGlobals.addOrInitialize(DeviceGlobalPtr, UniqueId);
+}
+
+void ProgramManager::registerKernelGlobalInfo(
+    std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
+  if (m_FreeFunctionKernelGlobalInfo.empty())
+    m_FreeFunctionKernelGlobalInfo = std::move(GlobalInfoToCopy);
+  else {
+    for (auto &GlobalInfo : GlobalInfoToCopy) {
+      m_FreeFunctionKernelGlobalInfo.insert(GlobalInfo);
+    }
+  }
+}
+
+std::optional<unsigned>
+ProgramManager::getKernelGlobalInfoDesc(const char *UniqueId) {
+  std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
+  const auto It = m_FreeFunctionKernelGlobalInfo.find(UniqueId);
+  if (It == m_FreeFunctionKernelGlobalInfo.end())
+    return std::nullopt;
+  return It->second;
 }
 
 std::set<const RTDeviceBinaryImage *>
@@ -2816,7 +2876,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
       setSpecializationConstants(InputImpl, Prog, Adapter);
 
     KernelNameSetT KernelNames = InputImpl.getKernelNames();
-    std::unordered_map<std::string, KernelArgMask> EliminatedKernelArgMasks =
+    std::map<std::string, KernelArgMask, std::less<>> EliminatedKernelArgMasks =
         InputImpl.getEliminatedKernelArgMasks();
 
     std::optional<detail::KernelCompilerBinaryInfo> RTCInfo =
@@ -3006,7 +3066,8 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(Imgs.size());
   KernelNameSetT MergedKernelNames;
-  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
+  std::map<std::string, KernelArgMask, std::less<>>
+      MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : Imgs) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     CombinedOrigins |= DevImgImpl.getOriginMask();
@@ -3088,7 +3149,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(DevImgWithDeps.size());
   KernelNameSetT MergedKernelNames;
-  std::unordered_map<std::string, KernelArgMask> MergedEliminatedKernelArgMasks;
+  std::map<std::string, KernelArgMask, std::less<>>
+      MergedEliminatedKernelArgMasks;
   for (const device_image_plain &DevImg : DevImgWithDeps) {
     device_image_impl &DevImgImpl = *getSyclObjImpl(DevImg);
     RTCInfoPtrs.emplace_back(&(DevImgImpl.getRTCInfo()));
@@ -3370,7 +3432,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrix(
 
     const std::string &MatrixTypeUser = JointMatrixVec[0];
     const std::string &UseStrUser = JointMatrixVec[1];
-    size_t RowsUser, ColsUser = 0;
+    size_t RowsUser = 0, ColsUser = 0;
     try {
       RowsUser = std::stoi(JointMatrixVec[2]);
       ColsUser = std::stoi(JointMatrixVec[3]);
@@ -3453,7 +3515,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
     const std::string &MatrixTypeBStrUser = JointMatrixMadVec[1];
     const std::string &MatrixTypeCStrUser = JointMatrixMadVec[2];
     const std::string &MatrixTypeDStrUser = JointMatrixMadVec[3];
-    size_t MSizeUser, KSizeUser, NSizeUser = 0;
+    size_t MSizeUser = 0, KSizeUser = 0, NSizeUser = 0;
     try {
       MSizeUser = std::stoi(JointMatrixMadVec[4]);
       KSizeUser = std::stoi(JointMatrixMadVec[5]);

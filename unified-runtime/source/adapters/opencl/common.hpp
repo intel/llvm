@@ -187,6 +187,7 @@ CONSTFIX char CreateBufferWithPropertiesName[] =
 CONSTFIX char SetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
 CONSTFIX char EnqueueMemFillName[] = "clEnqueueMemFillINTEL";
 CONSTFIX char EnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+CONSTFIX char EnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
 CONSTFIX char GetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char SetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
