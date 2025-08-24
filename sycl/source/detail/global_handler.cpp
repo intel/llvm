@@ -96,7 +96,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
         CodeLocation.fileName(), CodeLocation.functionName(),
         CodeLocation.lineNumber(), CodeLocation.columnNumber(), nullptr);
 
-    TP.stream(GSYCLStreamID)
+    TP.stream(detail::GSYCLStreamID)
         .traceType(xpti::trace_point_type_t::diagnostics)
         .parentEvent(GSYCLCallEvent)
         .notify(static_cast<const void *>(Message));

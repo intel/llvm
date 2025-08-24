@@ -167,9 +167,9 @@ event queue_impl::memset(void *Ptr, int Value, size_t Count,
   xpti::framework::tracepoint_scope_t TP(
       CodeLocation.fileName(), FuncName, CodeLocation.lineNumber(),
       CodeLocation.columnNumber(), (void *)this);
-  TP.stream(GSYCLStreamID)
+  TP.stream(detail::GSYCLStreamID)
       .traceType(xpti::trace_point_type_t::node_create)
-      .parentEvent(GSYCLGraphEvent);
+      .parentEvent(detail::GSYCLGraphEvent);
 
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
@@ -219,7 +219,7 @@ event queue_impl::memcpy(void *Dest, const void *Src, size_t Count,
   xpti::framework::tracepoint_scope_t TP(
       CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
       CodeLoc.columnNumber(), (void *)this);
-  TP.stream(GSYCLStreamID)
+  TP.stream(detail::GSYCLStreamID)
       .traceType(xpti::trace_point_type_t::node_create)
       .parentEvent(GSYCLGraphEvent);
   const char *UserData = "memory_transfer_node::memcpy";
@@ -692,7 +692,7 @@ void queue_impl::constructorNotification() {
 #if XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     // Making it ABI compatible and not removing the member variable
-    MStreamID = GSYCLStreamID;
+    MStreamID = detail::GSYCLStreamID;
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {

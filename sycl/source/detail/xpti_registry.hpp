@@ -77,44 +77,44 @@ public:
       xptiFrameworkInitialize();
       // Register the streams that we will be using
       // SYCL events
-      GSYCLStreamID =
+      detail::GSYCLStreamID =
           this->initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // SYCL buffer events
-      GBufferStreamID = this->initializeStream(SYCL_BUFFER_STREAM_NAME, GMajVer,
-                                               GMinVer, GVerStr);
+      detail::GBufferStreamID = this->initializeStream(
+          SYCL_BUFFER_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // SYCL image events
-      GImageStreamID = this->initializeStream(SYCL_IMAGE_STREAM_NAME, GMajVer,
-                                              GMinVer, GVerStr);
+      detail::GImageStreamID = this->initializeStream(
+          SYCL_IMAGE_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // Memory allocation events
-      GMemAllocStreamID = this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME,
-                                                 GMajVer, GMinVer, GVerStr);
+      detail::GMemAllocStreamID = this->initializeStream(
+          SYCL_MEM_ALLOC_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // UR API events
-      GUrApiStreamID =
+      detail::GUrApiStreamID =
           this->initializeStream(UR_API_STREAM_NAME, GMajVer, GMinVer, GVerStr);
 
       auto SYCLEventTP = xptiCreateTracepoint("sycl.application.graph", nullptr,
                                               0, 0, nullptr);
-      GSYCLGraphEvent = SYCLEventTP->event_ref();
-      if (GSYCLGraphEvent) {
+      detail::GSYCLGraphEvent = SYCLEventTP->event_ref();
+      if (detail::GSYCLGraphEvent) {
         // The graph event is a global event and will be used as the parent for
         // all nodes (command groups, memory allocations, etc)
-        xptiNotifySubscribers(GSYCLStreamID, xpti::trace_graph_create, nullptr,
-                              GSYCLGraphEvent, GSYCLGraphEvent->instance_id,
-                              nullptr);
+        xptiNotifySubscribers(detail::GSYCLStreamID, xpti::trace_graph_create,
+                              nullptr, detail::GSYCLGraphEvent,
+                              detail::GSYCLGraphEvent->instance_id, nullptr);
       }
       auto MemAllocEventTP =
           xptiCreateTracepoint("sycl.memory.alloc", nullptr, 0, 0, nullptr);
-      GMemAllocEvent = MemAllocEventTP->event_ref();
+      detail::GMemAllocEvent = MemAllocEventTP->event_ref();
 
       // We capture all API calls in a single event, so that we can minimize
       // XPTI infra calls
       auto APIEventTP =
           xptiCreateTracepoint("api.function", nullptr, 0, 0, nullptr);
-      GApiEvent = APIEventTP->event_ref();
+      detail::GApiEvent = APIEventTP->event_ref();
 
       auto SYCLExceptionsTP =
           xptiCreateTracepoint("sycl.exceptions", nullptr, 0, 0, nullptr);
-      GSYCLCallEvent = SYCLExceptionsTP->event_ref();
+      detail::GSYCLCallEvent = SYCLExceptionsTP->event_ref();
     });
 #endif
   }

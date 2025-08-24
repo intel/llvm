@@ -575,7 +575,7 @@ Command::Command(
     return;
   // Obtain the stream ID so all commands can emit traces to that stream;
   // copying it to the member variable to avoid ABI breakage
-  MStreamID = GSYCLStreamID;
+  MStreamID = detail::GSYCLStreamID;
 #endif
 }
 

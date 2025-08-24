@@ -5,21 +5,17 @@
 
 #include "basic_event_collection.inc"
 //
-// CHECK: xptiTraceInit: Stream Name = ur.call
-// CHECK: xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
-// CHECK: xptiTraceInit: Stream Name = sycl
-// CHECK-NEXT: Graph create
-// CHECK:      UR Call Begin : urPlatformGet
-// CHECK:      UR Call Begin : urContextCreate
-// CHECK:      UR Call Begin : urQueueCreate
-// CHECK:      UR Call Begin : urDeviceSelectBinary
-// CHECK:      UR Call Begin : urKernelCreate
-// CHECK-NEXT: UR Call Begin : urPlatformGetInfo
-// CHECK-NEXT: UR Call Begin : urPlatformGetInfo
-// CHECK-NEXT: UR Call Begin : urKernelSetExecInfo
-// CHECK-NEXT: UR Call Begin : urKernelRetain
-// CHECK:      UR Call Begin : urKernelGetGroupInfo
-// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
+// CHECK-DAG: xptiTraceInit: Stream Name = sycl
+// CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.buffer
+// CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.image
+// CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
+// CHECK-DAG: xptiTraceInit: Stream Name = ur.api
+// CHECK-DAG: xptiTraceInit: Stream Name = ur.call
+// CHECK-DAG:  Graph create
+// CHECK-DAG:  UR Call Begin : urPlatformGet
+// CHECK-DAG:  UR Call Begin : urContextCreate
+// CHECK-DAG:  UR Call Begin : urQueueCreate
+// CHECK-DAG:  UR Call Begin : urDeviceSelectBinary
 // CHECK:      UR Call Begin : urKernelCreate
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo

@@ -119,6 +119,20 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
     }                                                                          \
   }
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // We want XPTI initialized as early as possible, so we do it here. This
+  // allows XPTI calls in the loader to be pre-initialized.
+  if (xptiTraceEnabled()) {
+    // Initialize the XPTI framework.
+    // Not sure this is the best place to initialize the framework; SYCL runtime
+    // team needs to advise on the right place, until then we piggy-back on the
+    // initialization of the UR layer.
+
+    // This is done only once, even if multiple adapters are initialized.
+    GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+  }
+#endif
+
   UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
   auto loaderConfigCreate =
       loaderConfigCreateInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
@@ -239,17 +253,6 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
     }
   }
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    // Initialize the XPTI framework.
-    // Not sure this is the best place to initialize the framework; SYCL runtime
-    // team needs to advise on the right place, until then we piggy-back on the
-    // initialization of the UR layer.
-
-    // This is done only once, even if multiple adapters are initialized.
-    GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-  }
-#endif
 #undef CHECK_UR_SUCCESS
 }
 
