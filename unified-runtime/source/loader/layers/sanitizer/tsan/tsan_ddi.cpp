@@ -402,7 +402,7 @@ ur_result_t urMemBufferCreate(
     std::shared_ptr<ContextInfo> CtxInfo =
         getTsanInterceptor()->getContextInfo(hContext);
     for (const auto &hDevice : CtxInfo->DeviceList) {
-      ManagedQueue InternalQueue(hContext, hDevice);
+      ur_queue_handle_t InternalQueue = CtxInfo->getInternalQueue(hDevice);
       char *Handle = nullptr;
       UR_CALL(pMemBuffer->getHandle(hDevice, Handle));
       UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
