@@ -42,8 +42,8 @@ void staticKernel(float *Src, float *Dst) {
   sycl::group_barrier(Item.get_group());
   if (Item.get_group().leader()) { // Check that memory is indeed shared between
                                    // the work group.
-    for (int i = 0; i < SIZE; ++i)
-      assert(LocalMem[i] == Src[i] * Src[i]);
+    for (int I = 0; I < SIZE; ++I)
+      assert(LocalMem[I] == Src[I] * Src[I]);
   }
   Dst[Lid] = LocalMem[Lid];
 }
@@ -64,8 +64,8 @@ int main() {
   float *Src = sycl::malloc_shared<float>(SIZE, Q);
   float *Dst = sycl::malloc_shared<float>(SIZE, Q);
 
-  for (int i = 0; i < SIZE; i++) {
-    Src[i] = i;
+  for (int I = 0; I < SIZE; I++) {
+    Src[I] = I;
   }
 
   auto ScratchBndl =
@@ -92,20 +92,20 @@ int main() {
 
   syclexp::nd_launch(Q, ScratchKernelcfg, ScratchKrn, Src, Dst);
   Q.wait();
-  for (int i = 0; i < SIZE; i++) {
-    assert(Dst[i] == 2 * Src[i]);
+  for (int I = 0; I < SIZE; I++) {
+    assert(Dst[I] == 2 * Src[I]);
   }
 
   syclexp::nd_launch(Q, StaticKernelcfg, StaticKrn, Src, Dst);
   Q.wait();
-  for (int i = 0; i < SIZE; i++) {
-    assert(Dst[i] == Src[i] * Src[i]);
+  for (int I = 0; I < SIZE; I++) {
+    assert(Dst[I] == Src[I] * Src[I]);
   }
 
   syclexp::nd_launch(Q, ScratchKernelcfg, ScratchStaticKrn, Src, Dst);
   Q.wait();
-  for (int i = 0; i < SIZE; i++) {
-    assert(Dst[i] == 2 * Src[i]);
+  for (int I = 0; I < SIZE; I++) {
+    assert(Dst[I] == 2 * Src[I]);
   }
 
   sycl::free(Src, Q);
