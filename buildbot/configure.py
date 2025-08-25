@@ -85,6 +85,7 @@ def do_configure(args, passthrough_args):
     # DeviceRTL uses -fuse-ld=lld, so enable lld.
     if args.offload:
         llvm_enable_projects += ";lld"
+        sycl_enabled_backends.append("offload")
 
     if args.cuda:
         llvm_targets_to_build += ";NVPTX"

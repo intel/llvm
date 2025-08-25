@@ -318,6 +318,10 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_sycl_ur_adapter(offload)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   # On Windows, also build/install debug libraries with the d suffix that are
   # compiled with /MDd so users can link against these in debug builds.

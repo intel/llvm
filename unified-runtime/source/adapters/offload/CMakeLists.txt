@@ -26,29 +26,44 @@ set(UR_OFFLOAD_INSTALL_DIR "" CACHE PATH "Path to the directory containing libom
 set(UR_OFFLOAD_INCLUDE_DIR "" CACHE PATH "Path to the directory containing LLVM headers")
 if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     include(ExternalProject)
-
-    set(LLVM_PROJECT_GIT https://github.com/llvm/llvm-project.git)
-    set(LLVM_PROJECT_TAG ffddf33beb8097e760fafcbdd28d56c1d055e820)
-    message(STATUS "UR_OFFLOAD_INSTALL_DIR and/or UR_OFFLOAD_INCLUDE_DIR not set, building liboffload runtime from source using llvm-project tag: ${LLVM_PROJECT_TAG}")
-    set(LLVM_PROJECT_SOURCE_DIR ${CMAKE_BINARY_DIR}/llvm-project-src)
+    set(LLVM_PROJECT_SOURCE_DIR  ${CMAKE_BINARY_DIR}/llvm-src-offload)
+    set(LLVM_PROJECT_TAG  4c0c295775cff0dcfc6439c3f51991ffac0345d8)
     set(OPENMP_INSTALL_DIR ${CMAKE_BINARY_DIR}/openmp-install)
-    # Install to the same directory as main build
-    set(UR_OFFLOAD_INSTALL_DIR ${CMAKE_INSTALL_PREFIX})
-    set(UR_OFFLOAD_INCLUDE_DIR ${CMAKE_INSTALL_PREFIX}/include)
-    # Clone llvm-project only once
-    ExternalProject_Add(llvm_project_src
-        GIT_REPOSITORY ${LLVM_PROJECT_GIT}
-        GIT_TAG ${LLVM_PROJECT_TAG}
-        SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        UPDATE_COMMAND ""
+    set(UR_OFFLOAD_INSTALL_DIR ${CMAKE_BINARY_DIR}/offload-install)
+    set(UR_OFFLOAD_INCLUDE_DIR ${UR_OFFLOAD_INSTALL_DIR}/include)
+
+    execute_process(COMMAND git -C "${CMAKE_SOURCE_DIR}" worktree prune)
+
+    if(NOT IS_DIRECTORY "${LLVM_PROJECT_SOURCE_DIR}")
+        execute_process(
+            COMMAND git -C "${CMAKE_SOURCE_DIR}" worktree add --no-checkout --detach "${LLVM_PROJECT_SOURCE_DIR}" "${LLVM_PROJECT_TAG}"
+            RESULT_VARIABLE _wt_rv
+            COMMAND_ERROR_IS_FATAL ANY
+        )
+    endif()
+
+    execute_process(
+    COMMAND git sparse-checkout init --cone
+    WORKING_DIRECTORY "${LLVM_PROJECT_SOURCE_DIR}"
+    COMMAND_ERROR_IS_FATAL ANY
     )
+
+    execute_process(
+    COMMAND git sparse-checkout set openmp offload cmake llvm/include libc
+    WORKING_DIRECTORY "${LLVM_PROJECT_SOURCE_DIR}"
+    COMMAND_ERROR_IS_FATAL ANY
+    )
+
+    execute_process(
+    COMMAND git checkout "${LLVM_PROJECT_TAG}"
+    WORKING_DIRECTORY "${LLVM_PROJECT_SOURCE_DIR}"
+    COMMAND_ERROR_IS_FATAL ANY
+    )
+
     # Build OpenMP runtime (required dependency for offload's libomptarget) from the cloned source
     ExternalProject_Add(openmp_ext
         # DeviceRTL uses -fuse-ld=lld, so add lld to the dependencies.
-        DEPENDS llvm_project_src llvm-tblgen LLVMSupport clang lld
+        DEPENDS llvm-tblgen LLVMSupport clang lld FileCheck not
         SOURCE_DIR ${LLVM_PROJECT_SOURCE_DIR}/openmp
         CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${OPENMP_INSTALL_DIR}
@@ -56,6 +71,8 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
             -DCMAKE_C_COMPILER=${CMAKE_BINARY_DIR}/bin/clang
             -DCMAKE_CXX_COMPILER=${CMAKE_BINARY_DIR}/bin/clang++
             -DLIBOMP_OMPD_GDB_SUPPORT=OFF
+            -DOPENMP_ENABLE_OMPT_TOOLS=OFF
+            -DCMAKE_PREFIX_PATH=${CMAKE_BINARY_DIR}/bin
         INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
         UPDATE_COMMAND ""
         DOWNLOAD_COMMAND ""
@@ -71,18 +88,21 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
             -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             -DCMAKE_C_COMPILER=${CMAKE_BINARY_DIR}/bin/clang
             -DCMAKE_CXX_COMPILER=${CMAKE_BINARY_DIR}/bin/clang++
-            -DLIBOMPTARGET_LLVM_INCLUDE_DIRS=${LLVM_PROJECT_SOURCE_DIR}/llvm/include;${CMAKE_BINARY_DIR}/include
+            -DLIBOMPTARGET_LLVM_INCLUDE_DIRS=${LLVM_PROJECT_SOURCE_DIR}/llvm/include|${CMAKE_BINARY_DIR}/include
             -DLLVM_DIR=${CMAKE_BINARY_DIR}/lib/cmake/llvm
             -DLIBOMPTARGET_PLUGINS_TO_BUILD=cuda|amdgpu
             -DLIBOMP_INCLUDE_DIR=${OPENMP_INSTALL_DIR}/include
             -DLLVM_TABLEGEN=${CMAKE_BINARY_DIR}/bin/llvm-tblgen
-            -DCMAKE_PREFIX_PATH=${OPENMP_INSTALL_DIR};${CMAKE_BINARY_DIR}/bin
+            -DCMAKE_PREFIX_PATH=${OPENMP_INSTALL_DIR}|${CMAKE_BINARY_DIR}/bin
         INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
         UPDATE_COMMAND ""
         DOWNLOAD_COMMAND ""
         BUILD_BYPRODUCTS "${UR_OFFLOAD_INSTALL_DIR}/lib/libLLVMOffload.so"
     )
     add_dependencies(${TARGET_NAME} offload_ext)
+    install(DIRECTORY "${UR_OFFLOAD_INSTALL_DIR}/"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}"
+        COMPONENT ur_adapter_offload)
 endif()
 
 # When targetting CUDA devices, we need a workaround to avoid sending PTX to
