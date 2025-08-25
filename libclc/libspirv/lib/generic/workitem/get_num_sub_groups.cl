@@ -9,6 +9,6 @@
 #include <clc/workitem/clc_get_num_sub_groups.h>
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInNumSubgroups() {
+_CLC_OVERLOAD _CLC_DEF uint __spirv_BuiltInNumSubgroups() {
   return __clc_get_num_sub_groups();
 }
