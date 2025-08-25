@@ -471,7 +471,7 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
-  auto &DynamicParams = Handler.impl->MDynamicParameters;
+  auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
   if (NodeType != node_type::kernel && DynamicParams.size() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
