@@ -64,7 +64,7 @@ template <typename T> bool test() {
       /* 31 */ std::complex<T>(-1.e+6, 0),
 
       /* 32 */ std::complex<T>(QNaN, QNaN),
-      /* 33 */ std::complex<T>(-Infinity, NAN),
+      /* 33 */ std::complex<T>(-Infinity, QNaN),
       /* 34 */ std::complex<T>(-2, QNaN),
       /* 35 */ std::complex<T>(-1, QNaN),
       /* 36 */ std::complex<T>(-0.5, QNaN),
