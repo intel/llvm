@@ -83,7 +83,7 @@ if(MSVC)
 endif()
 
 include(FetchEmhash)
-include(FetchUnifiedRuntime)
+include(BuildUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
