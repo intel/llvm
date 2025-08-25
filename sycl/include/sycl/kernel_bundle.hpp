@@ -730,6 +730,13 @@ get_kernel_bundle(const context &Ctx) {
   return get_kernel_bundle<State>(Ctx, Ctx.get_devices(),
                                   {get_kernel_id<Func>()});
 }
+
+template <auto *Func>
+std::enable_if_t<is_kernel_v<Func>, kernel_id> get_kernel_id() {
+  return get_kernel_id_impl(detail::string_view(
+      detail::FreeFunctionInfoData<Func>::getFunctionName()));
+}
+
 } // namespace ext::oneapi::experimental
 
 namespace detail {
