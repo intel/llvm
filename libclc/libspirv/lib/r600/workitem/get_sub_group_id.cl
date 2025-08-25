@@ -9,14 +9,11 @@
 #include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupId() {
-  // sreg.warpid is volatile and doesn't represent virtual warp index
-  // see https://docs.nvidia.com/cuda/parallel-thread-execution/index.html
   size_t id_x = __spirv_BuiltInLocalInvocationId(0);
   size_t id_y = __spirv_BuiltInLocalInvocationId(1);
   size_t id_z = __spirv_BuiltInLocalInvocationId(2);
   size_t size_x = __spirv_BuiltInWorkgroupSize(0);
   size_t size_y = __spirv_BuiltInWorkgroupSize(1);
-  size_t size_z = __spirv_BuiltInWorkgroupSize(2);
   uint sg_size = __spirv_BuiltInSubgroupMaxSize();
   return (id_z * size_y * size_x + id_y * size_x + id_x) / sg_size;
 }
