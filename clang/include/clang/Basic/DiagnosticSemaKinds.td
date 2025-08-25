@@ -3764,6 +3764,10 @@ def warn_alloca_align_alignof : Warning<
   "second argument to __builtin_alloca_with_align is supposed to be in bits">,
   InGroup<DiagGroup<"alloca-with-align-alignof">>;
 
+def warn_alloc_size : Warning<
+  "allocation of insufficient size '%0' for type %1 with size '%2'">,
+  InGroup<DiagGroup<"alloc-size">>;
+
 def err_alignment_too_small : Error<
   "requested alignment must be %0 or greater">;
 def err_alignment_too_big : Error<
@@ -4493,6 +4497,11 @@ def warn_impcast_different_enum_types : Warning<
 def warn_impcast_int_to_enum : Warning<
   "implicit conversion from %0 to enumeration type %1 is invalid in C++">,
   InGroup<ImplicitIntToEnumCast>, DefaultIgnore;
+
+def note_no_implicit_conversion_for_scoped_enum
+    : Note<"no implicit conversion for scoped enum; consider casting to "
+           "underlying type">;
+
 def warn_impcast_bool_to_null_pointer : Warning<
     "initialization of pointer of type %0 to null from a constant boolean "
     "expression">, InGroup<BoolConversion>;
