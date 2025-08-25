@@ -74,7 +74,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   pDdiTable->pfnGetProfilingInfo = urEventGetProfilingInfo;
   pDdiTable->pfnRelease = urEventRelease;
   pDdiTable->pfnRetain = urEventRetain;
-  pDdiTable->pfnSetCallback = nullptr;
+  pDdiTable->pfnSetCallback = urEventSetCallback;
   pDdiTable->pfnWait = urEventWait;
   return UR_RESULT_SUCCESS;
 }
@@ -91,7 +91,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = nullptr;
-  pDdiTable->pfnGetFunctionPointer = nullptr;
+  pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
   pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
@@ -173,7 +173,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnEventsWait = urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
-  pDdiTable->pfnMemBufferCopy = nullptr;
+  pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
   pDdiTable->pfnMemBufferFill = nullptr;
   pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
@@ -189,7 +189,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnUSMFill = nullptr;
   pDdiTable->pfnUSMAdvise = nullptr;
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
-  pDdiTable->pfnUSMMemcpy = nullptr;
+  pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
   pDdiTable->pfnUSMPrefetch = nullptr;
   pDdiTable->pfnReadHostPipe = nullptr;
   pDdiTable->pfnWriteHostPipe = nullptr;
@@ -221,7 +221,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
   pDdiTable->pfnCreate = urQueueCreate;
   pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
   pDdiTable->pfnFinish = urQueueFinish;
-  pDdiTable->pfnFlush = nullptr;
+  pDdiTable->pfnFlush = urQueueFlush;
   pDdiTable->pfnGetInfo = urQueueGetInfo;
   pDdiTable->pfnGetNativeHandle = urQueueGetNativeHandle;
   pDdiTable->pfnRelease = urQueueRelease;

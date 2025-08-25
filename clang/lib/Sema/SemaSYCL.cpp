@@ -1258,12 +1258,19 @@ constructFreeFunctionKernelName(const FunctionDecl *FreeFunc,
     MC.mangleName(FreeFunc, Out);
     std::string MangledName(Out.str());
     size_t StartNums = MangledName.find_first_of("0123456789");
-    size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
-    size_t NameLength =
-        std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
-    size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
-    NewName = MangledName.substr(0, StartNums) + std::to_string(NewNameLength) +
-              "__sycl_kernel_" + MangledName.substr(EndNums);
+    if (StartNums == std::string::npos) {
+      // Microsoft mangling name has template like ?FunctionName@@YAXH@Z
+      NewName =
+          MangledName.substr(0, 1) + "sycl_kernel_" + MangledName.substr(1);
+    } else {
+      size_t EndNums = MangledName.find_first_not_of("0123456789", StartNums);
+      size_t NameLength =
+          std::stoi(MangledName.substr(StartNums, EndNums - StartNums));
+      size_t NewNameLength = 14 /*length of __sycl_kernel_*/ + NameLength;
+      NewName = MangledName.substr(0, StartNums) +
+                std::to_string(NewNameLength) + "__sycl_kernel_" +
+                MangledName.substr(EndNums);
+    }
   }
   StableName = NewName;
   return {NewName, StableName};
@@ -1932,6 +1939,10 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   // class is entered.
   int StructBaseDepth = -1;
 
+  // Used to track FunctionDecl location in case if it is not available directly
+  // from method
+  SourceLocation FreeFunctionLoc;
+
   // Check whether the object should be disallowed from being copied to kernel.
   // Return true if not copyable, false if copyable.
   bool checkNotCopyableToKernel(const FieldDecl *FD, QualType FieldTy) {
@@ -2045,8 +2056,13 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
   }
 
 public:
-  SyclKernelFieldChecker(SemaSYCL &S)
-      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()) {}
+  /// Constructor for the SyclKernelFieldChecker
+  /// \param S The SemaSYCL reference used for diagnostics and context.
+  /// \param FFLoc Free function location, used to report diagnostics
+  explicit SyclKernelFieldChecker(SemaSYCL &S,
+                                  SourceLocation FFLoc = SourceLocation())
+      : SyclKernelFieldHandler(S), Diag(S.getASTContext().getDiagnostics()),
+        FreeFunctionLoc(FFLoc) {}
   static constexpr const bool VisitNthArrayElement = false;
   bool isValid() { return !IsInvalid; }
 
@@ -2206,10 +2222,20 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &B,
                    QualType) final {
     --StructBaseDepth;
-    return true;
+    // FreeFunctionLoc.isInvalid() shows if checker object was created for a
+    // free function. If that is the case, point to the free function
+    // declaration.
+    if (B.isVirtual()) {
+      Diag.Report(FreeFunctionLoc.isInvalid() ? RD->getLocation()
+                                              : FreeFunctionLoc,
+                  diag::err_sycl_kernel_virtual_arg)
+          << RD->getNameAsString() << B.getType().getAsString();
+      IsInvalid = true;
+    }
+    return isValid();
   }
 };
 
@@ -4097,10 +4123,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   void addArrayElementInit(FieldDecl *FD, QualType T) {
-    Expr *RCE = createReinterpretCastExpr(
-        createGetAddressOf(ArrayParamBases.pop_back_val()),
-        SemaSYCLRef.getASTContext().getPointerType(T));
-    Expr *Initializer = createDerefOp(RCE);
+    Expr *Initializer = ArrayParamBases.pop_back_val();
+    if (!T->isPointerType()) {
+      Expr *RCE = createReinterpretCastExpr(
+          createGetAddressOf(Initializer),
+          SemaSYCLRef.getASTContext().getPointerType(T));
+      Initializer = createDerefOp(RCE);
+    }
     addFieldInit(FD, T, Initializer);
   }
 
@@ -5897,7 +5926,7 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     FreeFunctionDeclarations.erase(FD->getCanonicalDecl());
 
     SyclKernelDecompMarker DecompMarker(*this);
-    SyclKernelFieldChecker FieldChecker(*this);
+    SyclKernelFieldChecker FieldChecker(*this, FD->getLocation());
     SyclKernelUnionChecker UnionChecker(*this);
 
     KernelObjVisitor Visitor{*this};

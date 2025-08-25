@@ -293,3 +293,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetFunctionPointer([[maybe_unused]] ur_device_handle_t hDevice,
+                            [[maybe_unused]] ur_program_handle_t hProgram,
+                            [[maybe_unused]] const char *pFunctionName,
+                            [[maybe_unused]] void **ppFunctionPointer) {
+  // liboffload doesn't support a representation of function pointers (yet)
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
