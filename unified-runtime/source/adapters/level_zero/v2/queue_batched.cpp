@@ -172,15 +172,19 @@ ur_result_t ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked(
   enqueueCurrentBatchUnlocked(immediateList, regularList);
 
   {
+    // TRACK_SCOPE_LATENCY(
+    //     "ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked_hostSynchronize");
     TRACK_SCOPE_LATENCY(
-        "ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked_hostSynchronize");
+        "ur_queue_batched_t::hostSynchronize");
     // finish queue
     ZE2UR_CALL(zeCommandListHostSynchronize, (immediateList, UINT64_MAX));
   }
 
   {
+    // TRACK_SCOPE_LATENCY(
+    //     "ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked_asyncPools");
     TRACK_SCOPE_LATENCY(
-        "ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked_asyncPools");
+        "ur_queue_batched_t::asyncPools");
     hContext->getAsyncPool()->cleanupPoolsForQueue(this);
     hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
       hPool->cleanupPoolsForQueue(this);
@@ -201,8 +205,10 @@ ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
       batchLocked->activeBatch.getZeCommandList()));
 
   {
+    // TRACK_SCOPE_LATENCY(
+    //     "ur_queue_batched_t::queueFinishUnlocked_releaseSubmittedKernels");
     TRACK_SCOPE_LATENCY(
-        "ur_queue_batched_t::queueFinishUnlocked_releaseSubmittedKernels");
+        "ur_queue_batched_t::releaseSubmittedKernels");
     UR_CALL(batchLocked->immediateList.releaseSubmittedKernels());
   }
 
