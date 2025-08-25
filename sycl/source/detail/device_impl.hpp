@@ -1579,6 +1579,9 @@ public:
                  UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_clock) {
+      return has_extension("cl_khr_kernel_clock");
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
