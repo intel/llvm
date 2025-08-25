@@ -581,8 +581,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
+  std::cout << "< VAL\n";
   ur_result_t result =
       pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
+  std::cout << "> VAL\n";
 
   return result;
 }
