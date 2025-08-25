@@ -315,6 +315,54 @@ event queue::submit_with_event_impl(
   return impl->submit_with_event(CGH, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
+event queue::submit_direct_with_event_impl(
+    nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::v1::KernelRuntimeInfo &KRInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  return impl->submit_direct_with_event(Range, SubmitInfo, KRInfo, CodeLoc,
+                                        IsTopCodeLoc);
+}
+
+event queue::submit_direct_with_event_impl(
+    nd_range<2> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::v1::KernelRuntimeInfo &KRInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  return impl->submit_direct_with_event(Range, SubmitInfo, KRInfo, CodeLoc,
+                                        IsTopCodeLoc);
+}
+
+event queue::submit_direct_with_event_impl(
+    nd_range<3> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::v1::KernelRuntimeInfo &KRInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  return impl->submit_direct_with_event(Range, SubmitInfo, KRInfo, CodeLoc,
+                                        IsTopCodeLoc);
+}
+
+void queue::submit_direct_without_event_impl(
+    nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::v1::KernelRuntimeInfo &KRInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  impl->submit_direct_without_event(Range, SubmitInfo, KRInfo, CodeLoc,
+                                    IsTopCodeLoc);
+}
+
+void queue::submit_direct_without_event_impl(
+    nd_range<2> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::v1::KernelRuntimeInfo &KRInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  impl->submit_direct_without_event(Range, SubmitInfo, KRInfo, CodeLoc,
+                                    IsTopCodeLoc);
+}
+
+void queue::submit_direct_without_event_impl(
+    nd_range<3> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+    const detail::v1::KernelRuntimeInfo &KRInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
+  impl->submit_direct_without_event(Range, SubmitInfo, KRInfo, CodeLoc,
+                                    IsTopCodeLoc);
+}
+
 void queue::submit_without_event_impl(
     const detail::type_erased_cgfo_ty &CGH,
     const detail::v1::SubmissionInfo &SubmitInfo,
