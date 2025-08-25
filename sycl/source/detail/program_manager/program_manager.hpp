@@ -378,10 +378,7 @@ public:
 
   DeviceKernelInfo &
   getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
-    return getOrCreateDeviceKernelInfo(
-        CompileTimeKernelInfoTy{KernelName.data()});
-  }
+  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName);
 
   std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);

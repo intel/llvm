@@ -16,10 +16,10 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
     : CompileTimeKernelInfoTy(Info)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       ,
-      Name(Info.Name)
+      Name(Info.Name.data())
 #endif
 {
-  init(Name);
+  init(Name.data());
 }
 
 void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
@@ -38,6 +38,32 @@ void DeviceKernelInfo::initIfNeeded(KernelNameStrRefT KernelName) {
 }
 #endif
 
+template <typename OtherTy>
+inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
+                                 const OtherTy &RHS) {
+
+  // TODO replace with std::tie(...) == std::tie(...) once there is
+  // implicit conversion from detail to std string_view.
+  return std::string_view{LHS.Name} == std::string_view{RHS.Name} &&
+         LHS.NumParams == RHS.NumParams && LHS.IsESIMD == RHS.IsESIMD &&
+         std::string_view{LHS.FileName} == std::string_view{RHS.FileName} &&
+         std::string_view{LHS.FunctionName} ==
+             std::string_view{RHS.FunctionName} &&
+         LHS.LineNumber == RHS.LineNumber &&
+         LHS.ColumnNumber == RHS.ColumnNumber &&
+         LHS.KernelSize == RHS.KernelSize &&
+         LHS.ParamDescGetter == RHS.ParamDescGetter &&
+         LHS.HasSpecialCaptures == RHS.HasSpecialCaptures;
+}
+
+void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
+    const CompileTimeKernelInfoTy &Info) {
+  if (isCompileTimeInfoSet())
+    CompileTimeKernelInfoTy::operator=(Info);
+  assert(isCompileTimeInfoSet());
+  assert(Info == *this);
+}
+
 FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
   assertInitialized();
   return MFastKernelSubcache;
@@ -50,6 +76,8 @@ const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
   assertInitialized();
   return MImplicitLocalArgPos;
 }
+
+bool DeviceKernelInfo::isCompileTimeInfoSet() const { return KernelSize != 0; }
 
 void DeviceKernelInfo::assertInitialized() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

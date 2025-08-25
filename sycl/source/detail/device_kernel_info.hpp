@@ -10,7 +10,7 @@
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <emhash/hash_table8.hpp>
-#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
@@ -90,7 +90,8 @@ struct FastKernelSubcacheT {
 class DeviceKernelInfo : public CompileTimeKernelInfoTy {
 public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // https://github.com/intel/llvm/pull/19117/files#r2294511096
+  // Needs to own the kernel name string in non-preview builds since we pass it
+  // using a temporary string instead of a string view there.
   std::string Name;
 #endif
 
@@ -103,12 +104,15 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void initIfNeeded(KernelNameStrRefT KernelName);
 #endif
+  void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
+
   FastKernelSubcacheT &getKernelSubcache();
   bool usesAssert();
   const std::optional<int> &getImplicitLocalArgPos();
 
 private:
   void assertInitialized();
+  bool isCompileTimeInfoSet() const;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::atomic<bool> MInitialized = false;

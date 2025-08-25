@@ -14,6 +14,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>

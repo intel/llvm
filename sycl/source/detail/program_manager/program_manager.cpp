@@ -1820,53 +1820,18 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
   return {};
 }
 
-template <typename OtherTy>
-inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
-                                 const OtherTy &RHS) {
-  // This header states STL includes aren't allowed here, so can't use
-  // `std::tie(...) == std::tie(...)` idiom, and no C++20 for
-  // `operator==(...) = default`.
-  return std::string_view{LHS.Name} == std::string_view{RHS.Name} &&
-         LHS.NumParams == RHS.NumParams && LHS.IsESIMD == RHS.IsESIMD &&
-         std::string_view{LHS.FileName} == std::string_view{RHS.FileName} &&
-         std::string_view{LHS.FunctionName} ==
-             std::string_view{RHS.FunctionName} &&
-         LHS.LineNumber == RHS.LineNumber &&
-         LHS.ColumnNumber == RHS.ColumnNumber &&
-         LHS.KernelSize == RHS.KernelSize &&
-         LHS.ParamDescGetter == RHS.ParamDescGetter &&
-         LHS.HasSpecialCaptures == RHS.HasSpecialCaptures;
-}
-template <typename OtherTy>
-inline constexpr bool operator!=(const CompileTimeKernelInfoTy &LHS,
-                                 const OtherTy &RHS) {
-  return !(LHS == RHS);
-}
-template <typename InfoTy> inline void print(const InfoTy &Info) {
-  std::cout << "CompileTimeKernelInfoTy:"
-            << "\n  Name: " << Info.Name << "\n  NumParams: " << Info.NumParams
-            << "\n  IsESIMD: " << Info.IsESIMD
-            << "\n  FileName: " << Info.FileName
-            << "\n  FunctionName: " << Info.FunctionName
-            << "\n  LineNumber: " << Info.LineNumber
-            << "\n  ColumnNumber: " << Info.ColumnNumber
-            << "\n  KernelSize: " << Info.KernelSize
-            << "\n  ParamDescGetter: " << Info.ParamDescGetter
-            << "\n  HasSpecialCaptures: " << Info.HasSpecialCaptures
-            << std::endl;
-}
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
   auto Result =
-      m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name}, Info);
-  if (Info != Result.first->second) {
-    std::cout << "Info:" << std::endl;
-    print(Info);
-    std::cout << "Result:" << std::endl;
-    print(Result.first->second);
-  }
-  assert(Info == Result.first->second ||
-         Info == CompileTimeKernelInfoTy{Info.Name});
+      m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name.data()}, Info);
+  Result.first->second.setCompileTimeInfoIfNeeded(Info);
+  return Result.first->second;
+}
+
+DeviceKernelInfo &
+ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
+  auto Result = m_DeviceKernelInfoMap.try_emplace(
+      KernelName, CompileTimeKernelInfoTy{std::string_view(KernelName)});
   return Result.first->second;
 }
 
