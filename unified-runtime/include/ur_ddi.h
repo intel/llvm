@@ -419,28 +419,34 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetProgramProcAddrTable_t)(
     ur_api_version_t, ur_program_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramDynamicLinkExp
+typedef ur_result_t(UR_APICALL *ur_pfnProgramDynamicLinkExp_t)(
+    ur_context_handle_t, uint32_t, const ur_program_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramBuildExp
 typedef ur_result_t(UR_APICALL *ur_pfnProgramBuildExp_t)(ur_program_handle_t,
                                                          uint32_t,
                                                          ur_device_handle_t *,
+                                                         ur_exp_program_flags_t,
                                                          const char *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramCompileExp
-typedef ur_result_t(UR_APICALL *ur_pfnProgramCompileExp_t)(ur_program_handle_t,
-                                                           uint32_t,
-                                                           ur_device_handle_t *,
-                                                           const char *);
+typedef ur_result_t(UR_APICALL *ur_pfnProgramCompileExp_t)(
+    ur_program_handle_t, uint32_t, ur_device_handle_t *, ur_exp_program_flags_t,
+    const char *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramLinkExp
 typedef ur_result_t(UR_APICALL *ur_pfnProgramLinkExp_t)(
-    ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *);
+    ur_context_handle_t, uint32_t, ur_device_handle_t *, ur_exp_program_flags_t,
+    uint32_t, const ur_program_handle_t *, const char *, ur_program_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of ProgramExp functions pointers
 typedef struct ur_program_exp_dditable_t {
+  ur_pfnProgramDynamicLinkExp_t pfnDynamicLinkExp;
   ur_pfnProgramBuildExp_t pfnBuildExp;
   ur_pfnProgramCompileExp_t pfnCompileExp;
   ur_pfnProgramLinkExp_t pfnLinkExp;

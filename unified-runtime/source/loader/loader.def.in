@@ -349,6 +349,7 @@ EXPORTS
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
 	urPrintExpPeerInfo
+	urPrintExpProgramFlags
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties
@@ -450,6 +451,7 @@ EXPORTS
 	urPrintProgramCreateWithBinaryParams
 	urPrintProgramCreateWithIlParams
 	urPrintProgramCreateWithNativeHandleParams
+	urPrintProgramDynamicLinkExpParams
 	urPrintProgramGetBuildInfoParams
 	urPrintProgramGetFunctionPointerParams
 	urPrintProgramGetGlobalVariablePointerParams
@@ -551,6 +553,7 @@ EXPORTS
 	urProgramCreateWithBinary
 	urProgramCreateWithIL
 	urProgramCreateWithNativeHandle
+	urProgramDynamicLinkExp
 	urProgramGetBuildInfo
 	urProgramGetFunctionPointer
 	urProgramGetGlobalVariablePointer

@@ -670,6 +670,9 @@ etors:
 - name: BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP
   desc: Enumerator for $xBindlessImagesSupportsImportingHandleTypeExp
   value: '288'
+- name: PROGRAM_DYNAMIC_LINK_EXP
+  desc: Enumerator for $xProgramDynamicLinkExp
+  value: '289'
 ---
 type: enum
 desc: Defines structure types

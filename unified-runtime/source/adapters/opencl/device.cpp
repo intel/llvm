@@ -1425,6 +1425,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_LUID: {
