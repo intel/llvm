@@ -19,15 +19,15 @@
 std::string current_link_options, current_compile_options, current_build_opts;
 
 class EAMTestKernel1;
-const char EAMTestKernelName1[] = "LinkCompileTestKernel1";
+constexpr const char EAMTestKernelName1[] = "LinkCompileTestKernel1";
 constexpr unsigned EAMTestKernelNumArgs1 = 4;
 
 class EAMTestKernel2;
-const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
+constexpr const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs2 = 4;
 
 class EAMTestKernel3;
-const char EAMTestKernelName3[] = "LinkCompileTestKernel3";
+constexpr const char EAMTestKernelName3[] = "LinkCompileTestKernel3";
 constexpr unsigned EAMTestKernelNumArgs3 = 4;
 
 namespace sycl {

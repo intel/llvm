@@ -7,6 +7,7 @@
 #include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
+#include <sycl/detail/compile_time_kernel_info.hpp>
 
 #include <gtest/gtest.h>
 
@@ -377,8 +378,8 @@ TEST(ImageRemoval, BaseContainers) {
                             generateRefName("C", "HostPipe").c_str());
   std::vector<std::string> KernelNames =
       generateRefNames({"A", "B", "C"}, "Kernel");
-  for (const std::string &Name : KernelNames)
-    PM.getOrCreateDeviceKernelInfo(Name);
+  for (std::string_view Name : KernelNames)
+    PM.getOrCreateDeviceKernelInfo(sycl::detail::CompileTimeKernelInfoTy{Name});
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
@@ -403,7 +404,8 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
                       TestBinaries);
 
   std::string KernelName = generateRefName("A", "Kernel");
-  PM.getOrCreateDeviceKernelInfo(KernelName);
+  PM.getOrCreateDeviceKernelInfo(
+      sycl::detail::CompileTimeKernelInfoTy{std::string_view{KernelName}});
   checkAllInvolvedContainers(
       PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
       /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",

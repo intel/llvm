@@ -15,9 +15,10 @@ namespace sycl {
 inline namespace _V1 {
 namespace unittest {
 struct MockKernelInfoBase {
+  static constexpr detail::kernel_param_desc_t Dummy{};
+
   static constexpr unsigned getNumParams() { return 0; }
-  static const detail::kernel_param_desc_t &getParamDesc(int) {
-    static detail::kernel_param_desc_t Dummy;
+  static constexpr const detail::kernel_param_desc_t &getParamDesc(int) {
     return Dummy;
   }
   static constexpr bool isESIMD() { return false; }

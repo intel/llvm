@@ -3876,10 +3876,9 @@ private:
 
   template <typename KernelName>
   static constexpr detail::code_location getCodeLocation() {
-    return {detail::getKernelFileName<KernelName>(),
-            detail::getKernelFunctionName<KernelName>(),
-            detail::getKernelLineNumber<KernelName>(),
-            detail::getKernelColumnNumber<KernelName>()};
+    constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
+    return {Info.FileName.data(), Info.FunctionName.data(), Info.LineNumber,
+            Info.ColumnNumber};
   }
 };
 

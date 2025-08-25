@@ -38,6 +38,8 @@ public:
 #endif
   {
   }
+  explicit constexpr string_view(const char *str) noexcept
+      : string_view(std::string_view{str}) {}
   string_view(const sycl::detail::string &strn) noexcept
       : str(strn.c_str())
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES

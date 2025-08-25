@@ -60,6 +60,10 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
+  KernelNameStrRefT getKernelName() const {
+    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+  }
+
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
 
@@ -238,10 +242,6 @@ public:
 
   // Store information about the kernel arguments.
   void *MKernelFuncPtr = nullptr;
-  int MKernelNumArgs = 0;
-  detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
-  bool MKernelIsESIMD = false;
-  bool MKernelHasSpecialCaptures = true;
 
   // A pointer to device kernel information. Cached on the application side in
   // headers or retrieved from program manager.
