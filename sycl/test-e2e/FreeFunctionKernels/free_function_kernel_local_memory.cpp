@@ -25,90 +25,90 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 constexpr int SIZE = 16;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void scratchKernel(float *src, float *dst) {
-  size_t lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
-  float *localMem =
+void scratchKernel(float *Src, float *Dst) {
+  size_t Lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
+  float *LocalMem =
       reinterpret_cast<float *>(syclexp::get_work_group_scratch_memory());
-  localMem[lid] = 2 * src[lid];
-  dst[lid] = localMem[lid];
+  LocalMem[Lid] = 2 * Src[Lid];
+  Dst[Lid] = LocalMem[Lid];
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void staticKernel(float *src, float *dst) {
-  sycl::nd_item<1> item = syclext::this_work_item::get_nd_item<1>();
-  size_t lid = item.get_local_linear_id();
-  syclexp::work_group_static<float[SIZE]> localMem;
-  localMem[lid] = src[lid] * src[lid];
-  sycl::group_barrier(item.get_group());
-  if (item.get_group().leader()) { // Check that memory is indeed shared between
+void staticKernel(float *Src, float *Dst) {
+  sycl::nd_item<1> Item = syclext::this_work_item::get_nd_item<1>();
+  size_t Lid = Item.get_local_linear_id();
+  syclexp::work_group_static<float[SIZE]> LocalMem;
+  LocalMem[Lid] = Src[Lid] * Src[Lid];
+  sycl::group_barrier(Item.get_group());
+  if (Item.get_group().leader()) { // Check that memory is indeed shared between
                                    // the work group.
     for (int i = 0; i < SIZE; ++i)
-      assert(localMem[i] == src[i] * src[i]);
+      assert(LocalMem[i] == Src[i] * Src[i]);
   }
-  dst[lid] = localMem[lid];
+  Dst[Lid] = LocalMem[Lid];
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void scratchStaticKernel(float *src, float *dst) {
-  size_t lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
-  float *scratchMem =
+void scratchStaticKernel(float *Src, float *Dst) {
+  size_t Lid = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
+  float *ScratchMem =
       reinterpret_cast<float *>(syclexp::get_work_group_scratch_memory());
-  syclexp::work_group_static<float[SIZE]> staticMem;
-  scratchMem[lid] = src[lid];
-  staticMem[lid] = src[lid];
-  dst[lid] = scratchMem[lid] + staticMem[lid];
+  syclexp::work_group_static<float[SIZE]> StaticMem;
+  ScratchMem[Lid] = Src[Lid];
+  StaticMem[Lid] = Src[Lid];
+  Dst[Lid] = ScratchMem[Lid] + StaticMem[Lid];
 }
 
 int main() {
-  sycl::queue q;
-  float *src = sycl::malloc_shared<float>(SIZE, q);
-  float *dst = sycl::malloc_shared<float>(SIZE, q);
+  sycl::queue Q;
+  float *Src = sycl::malloc_shared<float>(SIZE, Q);
+  float *Dst = sycl::malloc_shared<float>(SIZE, Q);
 
   for (int i = 0; i < SIZE; i++) {
-    src[i] = i;
+    Src[i] = i;
   }
 
-  auto scratchBndl =
+  auto ScratchBndl =
       syclexp::get_kernel_bundle<scratchKernel, sycl::bundle_state::executable>(
-          q.get_context());
-  auto staticBndl =
+          Q.get_context());
+  auto StaticBndl =
       syclexp::get_kernel_bundle<staticKernel, sycl::bundle_state::executable>(
-          q.get_context());
-  auto scratchStaticBndl = syclexp::get_kernel_bundle<
-      scratchStaticKernel, sycl::bundle_state::executable>(q.get_context());
+          Q.get_context());
+  auto ScratchStaticBndl = syclexp::get_kernel_bundle<
+      scratchStaticKernel, sycl::bundle_state::executable>(Q.get_context());
 
-  sycl::kernel scratchKrn =
-      scratchBndl.template ext_oneapi_get_kernel<scratchKernel>();
-  sycl::kernel staticKrn =
-      staticBndl.template ext_oneapi_get_kernel<staticKernel>();
-  sycl::kernel scratchStaticKrn =
-      scratchStaticBndl.template ext_oneapi_get_kernel<scratchStaticKernel>();
-  syclexp::launch_config scratchKernelcfg{
+  sycl::kernel ScratchKrn =
+      ScratchBndl.template ext_oneapi_get_kernel<scratchKernel>();
+  sycl::kernel StaticKrn =
+      StaticBndl.template ext_oneapi_get_kernel<staticKernel>();
+  sycl::kernel ScratchStaticKrn =
+      ScratchStaticBndl.template ext_oneapi_get_kernel<scratchStaticKernel>();
+  syclexp::launch_config ScratchKernelcfg{
       ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE)),
       syclexp::properties{
           syclexp::work_group_scratch_size(SIZE * sizeof(float))}};
-  syclexp::launch_config staticKernelcfg{
+  syclexp::launch_config StaticKernelcfg{
       ::sycl::nd_range<1>(::sycl::range<1>(SIZE), ::sycl::range<1>(SIZE))};
 
-  syclexp::nd_launch(q, scratchKernelcfg, scratchKrn, src, dst);
-  q.wait();
+  syclexp::nd_launch(Q, ScratchKernelcfg, ScratchKrn, Src, Dst);
+  Q.wait();
   for (int i = 0; i < SIZE; i++) {
-    assert(dst[i] == 2 * src[i]);
+    assert(Dst[i] == 2 * Src[i]);
   }
 
-  syclexp::nd_launch(q, staticKernelcfg, staticKrn, src, dst);
-  q.wait();
+  syclexp::nd_launch(Q, StaticKernelcfg, StaticKrn, Src, Dst);
+  Q.wait();
   for (int i = 0; i < SIZE; i++) {
-    assert(dst[i] == src[i] * src[i]);
+    assert(Dst[i] == Src[i] * Src[i]);
   }
 
-  syclexp::nd_launch(q, scratchKernelcfg, scratchStaticKrn, src, dst);
-  q.wait();
+  syclexp::nd_launch(Q, ScratchKernelcfg, ScratchStaticKrn, Src, Dst);
+  Q.wait();
   for (int i = 0; i < SIZE; i++) {
-    assert(dst[i] == 2 * src[i]);
+    assert(Dst[i] == 2 * Src[i]);
   }
 
-  sycl::free(src, q);
-  sycl::free(dst, q);
+  sycl::free(Src, Q);
+  sycl::free(Dst, Q);
   return 0;
 }
