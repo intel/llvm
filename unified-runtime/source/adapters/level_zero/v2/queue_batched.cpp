@@ -185,7 +185,10 @@ ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
 
   UR_CALL(batchLocked->immediateList.releaseSubmittedKernels());
 
-  return renewRegularUnlocked(batchLocked);
+  // return renewRegularUnlocked(batchLocked);
+  ZE2UR_CALL(zeCommandListReset, (batchLocked->activeBatch.getZeCommandList()));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_batched_t::queueFinish() {
