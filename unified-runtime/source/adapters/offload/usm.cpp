@@ -23,7 +23,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(ur_context_handle_t hContext,
   OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
                               OL_ALLOC_TYPE_HOST, size, ppMem));
 
-  hContext->AllocTypeMap.insert_or_assign(*ppMem, OL_ALLOC_TYPE_HOST);
+  hContext->AllocTypeMap.insert_or_assign(
+      *ppMem, alloc_info_t{OL_ALLOC_TYPE_HOST, size});
   return UR_RESULT_SUCCESS;
 }
 
@@ -33,7 +34,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
                               OL_ALLOC_TYPE_DEVICE, size, ppMem));
 
-  hContext->AllocTypeMap.insert_or_assign(*ppMem, OL_ALLOC_TYPE_DEVICE);
+  hContext->AllocTypeMap.insert_or_assign(
+      *ppMem, alloc_info_t{OL_ALLOC_TYPE_DEVICE, size});
   return UR_RESULT_SUCCESS;
 }
 
@@ -43,10 +45,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   OL_RETURN_ON_ERR(olMemAlloc(hContext->Device->OffloadDevice,
                               OL_ALLOC_TYPE_MANAGED, size, ppMem));
 
-  hContext->AllocTypeMap.insert_or_assign(*ppMem, OL_ALLOC_TYPE_MANAGED);
+  hContext->AllocTypeMap.insert_or_assign(
+      *ppMem, alloc_info_t{OL_ALLOC_TYPE_MANAGED, size});
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t, void *pMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
+                                              void *pMem) {
+  hContext->AllocTypeMap.erase(pMem);
   return offloadResultToUR(olMemFree(pMem));
 }

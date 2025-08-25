@@ -216,14 +216,6 @@ std::vector<std::shared_ptr<platform_impl>> &GlobalHandler::getPlatformCache() {
   return PlatformCache;
 }
 
-void GlobalHandler::clearPlatforms() {
-  if (!MPlatformCache.Inst)
-    return;
-  for (auto &PltSmartPtr : *MPlatformCache.Inst)
-    PltSmartPtr->MDevices.clear();
-  MPlatformCache.Inst->clear();
-}
-
 std::mutex &GlobalHandler::getPlatformMapMutex() {
   static std::mutex &PlatformMapMutex = getOrCreate(MPlatformMapMutex);
   return PlatformMapMutex;
@@ -280,7 +272,9 @@ void GlobalHandler::releaseDefaultContexts() {
 // For Linux, early shutdown is here, and late shutdown is called from
 // a low priority destructor.
 struct StaticVarShutdownHandler {
-
+  StaticVarShutdownHandler(const StaticVarShutdownHandler &) = delete;
+  StaticVarShutdownHandler &
+  operator=(const StaticVarShutdownHandler &) = delete;
   ~StaticVarShutdownHandler() {
     try {
 #ifdef _WIN32
@@ -392,7 +386,6 @@ void shutdown_late() {
 #endif
 
   // First, release resources, that may access adapters.
-  Handler->clearPlatforms(); // includes dropping platforms' devices ownership.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);

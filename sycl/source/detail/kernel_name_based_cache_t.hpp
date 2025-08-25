@@ -22,7 +22,7 @@ namespace detail {
 using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
 
 struct FastKernelCacheVal {
-  ur_kernel_handle_t MKernelHandle;    /* UR kernel handle pointer. */
+  Managed<ur_kernel_handle_t> MKernelHandle; /* UR kernel. */
   std::mutex *MMutex;                  /* Mutex guarding this kernel. When
                                      caching is disabled, the pointer is
                                      nullptr. */
@@ -34,17 +34,15 @@ struct FastKernelCacheVal {
                             cache is destroyed deliberately before the
                             adapter. */
 
-  FastKernelCacheVal(ur_kernel_handle_t KernelHandle, std::mutex *Mutex,
-                     const KernelArgMask *KernelArgMask,
-                     ur_program_handle_t ProgramHandle, adapter_impl &Adapter)
-      : MKernelHandle(KernelHandle), MMutex(Mutex),
-        MKernelArgMask(KernelArgMask), MProgramHandle(ProgramHandle, Adapter),
+  FastKernelCacheVal(Managed<ur_kernel_handle_t> &&KernelHandle,
+                     std::mutex *Mutex, const KernelArgMask *KernelArgMask,
+                     Managed<ur_program_handle_t> &&ProgramHandle,
+                     adapter_impl &Adapter)
+      : MKernelHandle(std::move(KernelHandle)), MMutex(Mutex),
+        MKernelArgMask(KernelArgMask), MProgramHandle(std::move(ProgramHandle)),
         MAdapter(Adapter) {}
 
   ~FastKernelCacheVal() {
-    if (MKernelHandle)
-      MAdapter.call<sycl::detail::UrApiKind::urKernelRelease>(MKernelHandle);
-    MKernelHandle = nullptr;
     MMutex = nullptr;
     MKernelArgMask = nullptr;
   }

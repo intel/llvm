@@ -275,6 +275,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   case UR_DEVICE_TYPE_CPU:
   case UR_DEVICE_TYPE_FPGA:
   case UR_DEVICE_TYPE_MCA:
+  case UR_DEVICE_TYPE_CUSTOM:
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -647,10 +648,15 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                    [&](ur_device_handle_t urDeviceHandle) {
                      // obtain and record device type from platform (squash
                      // errors)
-                     ur_device_type_t hardwareType = ::UR_DEVICE_TYPE_DEFAULT;
-                     urDeviceGetInfo(urDeviceHandle, UR_DEVICE_INFO_TYPE,
-                                     sizeof(ur_device_type_t), &hardwareType,
-                                     0);
+                     ur_device_type_t hardwareType;
+                     ur_result_t res = urDeviceGetInfo(
+                         urDeviceHandle, UR_DEVICE_INFO_TYPE,
+                         sizeof(ur_device_type_t), &hardwareType, 0);
+                     // ignore failures and just assume the default hw type
+                     if (res != UR_RESULT_SUCCESS) {
+                       hardwareType = ::UR_DEVICE_TYPE_DEFAULT;
+                     }
+
                      return DeviceSpec{DevicePartLevel::ROOT, hardwareType,
                                        deviceCount++,         DeviceIdTypeALL,
                                        DeviceIdTypeALL,       urDeviceHandle};

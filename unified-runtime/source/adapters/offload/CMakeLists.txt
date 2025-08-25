@@ -24,8 +24,8 @@ if (NOT TARGET cudadrv)
     add_library(cudadrv SHARED IMPORTED GLOBAL)
     set_target_properties(
         cudadrv PROPERTIES
-        IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
-        INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+        IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
     )
 endif()
 

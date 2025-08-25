@@ -149,6 +149,8 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
+
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
                                  size_t size);
@@ -1294,7 +1296,10 @@ private:
 
       detail::KernelWrapper<detail::WrapAs::parallel_for, KName,
                             decltype(Wrapper), TransformedArgType,
-                            decltype(this), PropertiesT>::wrap(this, Wrapper);
+                            PropertiesT>::wrap(Wrapper);
+
+      detail::KernelLaunchPropertyWrapper::parseProperties<KName>(this,
+                                                                  Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
       verifyUsedKernelBundleInternal(Name);
@@ -1319,8 +1324,9 @@ private:
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
       detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                            TransformedArgType, decltype(this),
-                            PropertiesT>::wrap(this, KernelFunc);
+                            TransformedArgType, PropertiesT>::wrap(KernelFunc);
+      detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
+                                                                  KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       constexpr detail::string_view Name{detail::getKernelName<NameT>()};
 
@@ -1400,7 +1406,9 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Props;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
-                          decltype(this), PropertiesT>::wrap(this, KernelFunc);
+                          PropertiesT>::wrap(KernelFunc);
+    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
+                                                                KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1441,7 +1449,9 @@ private:
     (void)Props;
     (void)Kernel;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
-                          decltype(this), PropertiesT>::wrap(this, KernelFunc);
+                          PropertiesT>::wrap(KernelFunc);
+    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
+                                                                KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
       throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1578,8 +1588,11 @@ public:
   ///
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
-  void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+            access::target AccTarget, access::placeholder isPlaceholder,
+            typename propertyListT>
+  void require(
+      accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder, propertyListT>
+          Acc) {
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -2619,6 +2632,16 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
 
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param Type is type of prefetch, i.e. fetch to device or fetch to host.
+  void prefetch(const void *Ptr, size_t Count,
+                ext::oneapi::experimental::prefetch_type Type);
+
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -3643,9 +3666,7 @@ private:
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
-  template <detail::WrapAs, typename, typename, typename, typename, typename,
-            typename>
-  friend struct detail::KernelWrapper;
+  friend struct detail::KernelLaunchPropertyWrapper;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }

@@ -33,7 +33,9 @@ private:
 
   // Get the singleton instance of the ZSTDCompressor class.
   static ZSTDCompressor &GetSingletonInstance() {
-    static ZSTDCompressor instance;
+    // Use thread_local to ensure that each thread has its own instance.
+    // This avoids issues with concurrent access to the ZSTD contexts.
+    thread_local ZSTDCompressor instance;
     return instance;
   }
 

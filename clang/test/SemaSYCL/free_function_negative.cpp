@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected -fsycl-int-header=%t.h %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -verify=expected %s
 
 #include "sycl.hpp"
 
@@ -14,7 +14,7 @@ foo1(int start, ...) { // expected-error {{free function kernel cannot be a vari
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 1)]] void
 foo2(int start);
 
-// expected-error@+1 {{attribute 'add_ir_attributes_function' is already applied with different arguments}}
+// expected-error@+1 {{attribute '__sycl_detail__::add_ir_attributes_function' is already applied with different arguments}}
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] void 
 foo2(int start) {
 }
@@ -118,3 +118,78 @@ static void StaticsingleTaskKernelMethod(int Value) {
 }
 
 };
+
+class Base {};
+class Derived : virtual public Base {};
+
+// expected-error@+2 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg(Derived Value) {
+}
+
+// expected-error@+2 1 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg1(int a, Derived Value, float b, Derived Value1) {
+}
+
+class Derived1 : public Derived {
+};
+
+// expected-error@+2 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg2(Derived1 Value) {
+}
+
+class Base1 {};
+class Derived2 : public Base1, public virtual Base {
+};
+
+// expected-error@+2 {{argument type 'Derived2' virtually inherited from base class `Base` is not supported as a SYCL kernel argumen}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg3(Derived2 Value) {
+}
+
+template <typename T>
+class Derived3 : virtual T {
+};
+
+// expected-error@+2 {{argument type 'Derived3' virtually inherited from base class `class Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg4(Derived3<Base> Value) {
+}
+
+// expected-error@+3 {{argument type 'Derived3' virtually inherited from base class `class Derived2` is not supported as a SYCL kernel argument}}
+// expected-error@+2 {{argument type 'Derived2' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg5(Derived3<Derived2> Value) {
+}
+
+template <typename T>
+class Derived4 : T {
+};
+
+// expected-error@+2 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg6(Derived4<Derived> Value) {
+}
+
+// expected-error@+2 {{argument type 'Derived2' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg7(Derived4<Derived2> Value) {
+}
+
+
+template <typename T>
+class Derived5 : T, virtual Base {
+};
+
+// expected-error@+2 {{argument type 'Derived5' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg7(Derived5<Base1> Value) {
+}
+
+// expected-error@+3 {{argument type 'Derived5' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+// expected-error@+2 {{argument type 'Derived' virtually inherited from base class `Base` is not supported as a SYCL kernel argument}}
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 2)]] 
+void VirtualInheritArg7(Derived5<Derived1> Value) {
+}

@@ -61,6 +61,9 @@ public:
     return TargetInfo::checkCallingConvention(CC);
   }
 
+  bool handleTargetFeatures(std::vector<std::string> &Features,
+                            DiagnosticsEngine &Diags) override;
+
 protected:
   void setAuxTarget(const TargetInfo *Aux) override;
 

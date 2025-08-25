@@ -40,13 +40,13 @@ namespace baz {
   global_variable_allowed<int> baz_glob;
 }
 
-// expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
+// expected-error@+1{{'__sycl_detail__::global_variable_allowed' attribute only applies to classes}}
 [[__sycl_detail__::global_variable_allowed]] int integer;
 
-// expected-error@+1{{'global_variable_allowed' attribute only applies to classes}}
+// expected-error@+1{{'__sycl_detail__::global_variable_allowed' attribute only applies to classes}}
 [[__sycl_detail__::global_variable_allowed]] int *pointer;
 
-// expected-error@+1{{'global_variable_allowed' attribute takes no arguments}}
+// expected-error@+1{{'__sycl_detail__::global_variable_allowed' attribute takes no arguments}}
 struct [[__sycl_detail__::global_variable_allowed(72)]] attribute_argument;
 
 

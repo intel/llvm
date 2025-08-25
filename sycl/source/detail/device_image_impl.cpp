@@ -21,32 +21,31 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
       !((getOriginMask() & ImageOriginSYCLBIN) && hasKernelName(Name)))
     return nullptr;
 
-  std::string AdjustedName = adjustKernelName(Name);
+  std::string_view AdjustedName = getAdjustedKernelNameStrView(Name);
   if (MRTCBinInfo && MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
     auto &PM = ProgramManager::getInstance();
     for (const std::string &Prefix : MRTCBinInfo->MPrefixes) {
-      auto KID = PM.tryGetSYCLKernelID(Prefix + AdjustedName);
+      auto KID = PM.tryGetSYCLKernelID(Prefix + std::string(AdjustedName));
 
       if (!KID || !has_kernel(*KID))
         continue;
 
       auto UrProgram = get_ur_program();
       auto [UrKernel, CacheMutex, ArgMask] =
-          PM.getOrCreateKernel(Context, AdjustedName,
+          PM.getOrCreateKernel(Context, KernelNameStrT(AdjustedName),
                                /*PropList=*/{}, UrProgram);
-      return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
-                                           shared_from_this(), OwnerBundle,
-                                           ArgMask, UrProgram, CacheMutex);
+      return std::make_shared<kernel_impl>(
+          std::move(UrKernel), *getSyclObjImpl(Context), shared_from_this(),
+          OwnerBundle, ArgMask, UrProgram, CacheMutex);
     }
     return nullptr;
   }
 
   ur_program_handle_t UrProgram = get_ur_program();
   detail::adapter_impl &Adapter = getSyclObjImpl(Context)->getAdapter();
-  ur_kernel_handle_t UrKernel = nullptr;
-  Adapter.call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
+  Managed<ur_kernel_handle_t> UrKernel{Adapter};
+  Adapter.call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.data(),
                                           &UrKernel);
-  // Kernel created by urKernelCreate is implicitly retained.
 
   const KernelArgMask *ArgMask = nullptr;
   if (auto ArgMaskIt = MEliminatedKernelArgMasks.find(AdjustedName);
@@ -54,7 +53,7 @@ std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
     ArgMask = &ArgMaskIt->second;
 
   return std::make_shared<kernel_impl>(
-      UrKernel, *detail::getSyclObjImpl(Context), shared_from_this(),
+      std::move(UrKernel), *detail::getSyclObjImpl(Context), shared_from_this(),
       OwnerBundle, ArgMask, UrProgram, /*CacheMutex=*/nullptr);
 }
 

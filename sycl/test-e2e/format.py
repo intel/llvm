@@ -13,7 +13,7 @@ import re
 
 
 def remove_level_zero_suffix(devices):
-    return [device.replace("_v2", "") for device in devices]
+    return [device.replace("_v2", "").replace("_v1", "") for device in devices]
 
 
 def parse_min_intel_driver_req(line_number, line, output):
@@ -331,10 +331,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
-                dev_features = test.config.sycl_dev_features[full_dev_name]
-                if "level_zero_v2_adapter" in dev_features:
+                if "level_zero_v2" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
-                else:
+                elif "level_zero_v1" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(

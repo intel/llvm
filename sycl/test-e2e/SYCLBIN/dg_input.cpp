@@ -18,7 +18,7 @@
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=input %{sycl_target_opts} %S/Inputs/dg_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out
-// RUN: %{l0_leak_check} %{run} %t.out %t.syclbin
+// RUN: %{run} %t.out %t.syclbin
 
 #define SYCLBIN_INPUT_STATE
 

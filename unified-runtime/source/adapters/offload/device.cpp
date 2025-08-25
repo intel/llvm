@@ -12,6 +12,7 @@
 #include <ur/ur.hpp>
 #include <ur_api.h>
 
+#include "adapters/offload/adapter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 #include "ur2offload.hpp"
@@ -61,11 +62,70 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VENDOR:
     olInfo = OL_DEVICE_INFO_VENDOR;
     break;
+  case UR_DEVICE_INFO_VENDOR_ID:
+    olInfo = OL_DEVICE_INFO_VENDOR_ID;
+    break;
   case UR_DEVICE_INFO_DRIVER_VERSION:
     olInfo = OL_DEVICE_INFO_DRIVER_VERSION;
     break;
   case UR_DEVICE_INFO_PLATFORM:
     return ReturnValue(hDevice->Platform);
+    break;
+  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
+  case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:
+    olInfo = OL_DEVICE_INFO_NUM_COMPUTE_UNITS;
+    break;
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
+    olInfo = OL_DEVICE_INFO_SINGLE_FP_CONFIG;
+    break;
+  case UR_DEVICE_INFO_HALF_FP_CONFIG:
+    olInfo = OL_DEVICE_INFO_HALF_FP_CONFIG;
+    break;
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG:
+    olInfo = OL_DEVICE_INFO_DOUBLE_FP_CONFIG;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF;
+    break;
+  case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
+    olInfo = OL_DEVICE_INFO_MAX_CLOCK_FREQUENCY;
+    break;
+  case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
+    olInfo = OL_DEVICE_INFO_MEMORY_CLOCK_RATE;
+    break;
+  case UR_DEVICE_INFO_ADDRESS_BITS:
+    olInfo = OL_DEVICE_INFO_ADDRESS_BITS;
+    break;
+  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
+    olInfo = OL_DEVICE_INFO_MAX_MEM_ALLOC_SIZE;
+    break;
+  case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
+    olInfo = OL_DEVICE_INFO_GLOBAL_MEM_SIZE;
     break;
   case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
   case UR_DEVICE_INFO_USM_HOST_SUPPORT:
@@ -84,6 +144,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     // TODO: Implement subgroups in Offload
     return ReturnValue(1);
+  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t);
+    }
+
+    if (pPropValue) {
+      uint32_t as32;
+      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
+                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                       sizeof(as32), &as32));
+
+      *reinterpret_cast<size_t *>(pPropValue) = as32;
+    }
+
+    return UR_RESULT_SUCCESS;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
     if (pPropSizeRet) {
@@ -93,9 +168,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (pPropValue) {
       ol_dimensions_t olVec;
       size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
-      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
-                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                                       sizeof(olVec), &olVec));
+      OL_RETURN_ON_ERR(
+          olGetDeviceInfo(hDevice->OffloadDevice,
+                          OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE_PER_DIMENSION,
+                          sizeof(olVec), &olVec));
 
       urVec[0] = olVec.x;
       urVec[1] = olVec.y;
@@ -106,11 +182,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_IMAGE_SUPPORT:
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
@@ -121,6 +199,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
+  case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
+    return ReturnValue(
+        ur_queue_flags_t{UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE});
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
@@ -128,6 +210,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       *pPropSizeRet = 0;
     }
     return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
+    return ReturnValue(0u);
+  }
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    return ReturnValue(0u);
+  }
+  case UR_DEVICE_INFO_PARTITION_TYPE: {
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_AVAILABLE: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
+    // An empty string is returned if no built-in kernels are supported by the
+    // device.
+    return ReturnValue("");
   }
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
@@ -141,10 +243,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   if (pPropValue) {
     OL_RETURN_ON_ERR(
         olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize, pPropValue));
-    // Need to explicitly map this type
-    if (olInfo == OL_DEVICE_INFO_TYPE) {
-      auto urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
-      auto olPropPtr = reinterpret_cast<ol_device_type_t *>(pPropValue);
+
+    // Need to explicitly map these types
+    switch (olInfo) {
+    case OL_DEVICE_INFO_TYPE: {
+      auto *urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
+      auto *olPropPtr = reinterpret_cast<ol_device_type_t *>(pPropValue);
 
       switch (*olPropPtr) {
       case OL_DEVICE_TYPE_CPU:
@@ -156,6 +260,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       default:
         break;
       }
+      break;
+    }
+    case OL_DEVICE_INFO_SINGLE_FP_CONFIG:
+    case OL_DEVICE_INFO_HALF_FP_CONFIG:
+    case OL_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+      auto olValue =
+          *reinterpret_cast<ol_device_fp_capability_flags_t *>(pPropValue);
+      ur_device_fp_capability_flags_t urValue{0};
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_INF_NAN)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_DENORM)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_FMA)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT;
+      auto *urPropPtr =
+          reinterpret_cast<ur_device_fp_capability_flags_t *>(pPropValue);
+      *urPropPtr = urValue;
+    }
+    default:
+      break;
     }
   }
 
@@ -207,14 +341,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   return UR_RESULT_ERROR_INVALID_BINARY;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceGetNativeHandle(ur_device_handle_t, ur_native_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
+    ur_device_handle_t UrDevice, ur_native_handle_t *Handle) {
+  *Handle = reinterpret_cast<ur_native_handle_t>(UrDevice->OffloadDevice);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t, ur_adapter_handle_t,
-    const ur_device_native_properties_t *, ur_device_handle_t *) {
+    ur_native_handle_t hNativeDevice, ur_adapter_handle_t hAdapter,
+    const ur_device_native_properties_t *, ur_device_handle_t *phDevice) {
+  ol_device_handle_t OlDevice =
+      reinterpret_cast<ol_device_handle_t>(hNativeDevice);
+
+  // Currently, all devices are found at initialization, there is no way to
+  // create sub devices yet
+  for (auto &P : hAdapter->Platforms) {
+    auto Found =
+        std::find_if(P->Devices.begin(), P->Devices.end(),
+                     [&](std::unique_ptr<ur_device_handle_t_> &PDevice) {
+                       return PDevice->OffloadDevice == OlDevice;
+                     });
+    if (Found != P->Devices.end()) {
+      *phDevice = Found->get();
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

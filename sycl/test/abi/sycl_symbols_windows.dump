@@ -355,6 +355,7 @@
 ??0device@_V1@sycl@@QEAA@PEAU_cl_device_id@@@Z
 ??0device@_V1@sycl@@QEAA@XZ
 ??0device_image_plain@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
+??0device_image_plain@detail@_V1@sycl@@QEAA@$$QEAV?$shared_ptr@Vdevice_image_impl@detail@_V1@sycl@@@std@@@Z
 ??0device_image_plain@detail@_V1@sycl@@QEAA@AEBV0123@@Z
 ??0device_image_plain@detail@_V1@sycl@@QEAA@AEBV?$shared_ptr@Vdevice_image_impl@detail@_V1@sycl@@@std@@@Z
 ??0device_selector@_V1@sycl@@QEAA@AEBV012@@Z
@@ -3767,6 +3768,7 @@
 ?__trunc_impl@_V1@sycl@@YANN@Z
 ?accelerator_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?add@device_global_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
+?add@free_function_info_map@detail@_V1@sycl@@YAXPEBQEBDPEBII@Z
 ?add@host_pipe_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?add@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA?AVnode@34567@AEBVproperty_list@67@@Z
 ?addAccessorReq@handler@_V1@sycl@@AEAAXV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@@Z
@@ -4357,6 +4359,7 @@
 ?postProcess@HandlerAccess@detail@_V1@sycl@@SAXAEAVhandler@34@Vtype_erased_cgfo_ty@234@@Z
 ?preProcess@HandlerAccess@detail@_V1@sycl@@SAXAEAVhandler@34@Vtype_erased_cgfo_ty@234@@Z
 ?prefetch@handler@_V1@sycl@@QEAAXPEBX_K@Z
+?prefetch@handler@_V1@sycl@@QEAAXPEBX_KW4prefetch_type@experimental@oneapi@ext@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KAEBUcode_location@detail@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KV423@AEBUcode_location@detail@23@@Z
