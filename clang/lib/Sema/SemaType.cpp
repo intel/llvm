@@ -144,7 +144,8 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_M68kRTD:                                                 \
   case ParsedAttr::AT_PreserveNone:                                            \
   case ParsedAttr::AT_RISCVVectorCC:                                           \
-  case ParsedAttr::AT_RISCVVLSCC
+  case ParsedAttr::AT_RISCVVLSCC:                                              \
+  case ParsedAttr::AT_NativeCPULibclcCall
 
 // Function type attributes.
 #define FUNCTION_TYPE_ATTRS_CASELIST                                           \
@@ -7661,6 +7662,8 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
 
     return ::new (Ctx) RISCVVLSCCAttr(Ctx, Attr, ABIVLen);
   }
+  case ParsedAttr::AT_NativeCPULibclcCall:
+    return createSimpleAttr<NativeCPULibclcCallAttr>(Ctx, Attr);
   }
   llvm_unreachable("unexpected attribute kind!");
 }
