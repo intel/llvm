@@ -9,8 +9,8 @@ TARGETS_ASCIIDOC_NAME = Path("targets.asciidoc")
 ARCH_ASCIIDOC_NAME = Path("architectures.asciidoc")
 
 # some unique identifier:
-HEADER_PREFIX = "FnVar"
-HEADER_PREFIX_UPPER = "FNVAR"
+HEADER_PREFIX = "DevReg"
+HEADER_PREFIX_UPPER = "DEVREG"
 HEADER_MAXVAL = 2**31 - 1
 
 ASCIIDOC_COLS_W = {
@@ -394,6 +394,7 @@ def main():
 
     print(f"Writing {TARGETS_ASCIIDOC_NAME}")
     with open(TARGETS_ASCIIDOC_NAME, "w") as wf:
+        wf.write(f"\n= Device Registry - Targets\nVersion: {data['version']}\n\n")
         wf.write("\n== Targets\n\n")
         write_asciidoc_targets(data, wf)
         wf.write("\n== Features\n\n")
@@ -401,6 +402,7 @@ def main():
 
     print(f"Writing {ARCH_ASCIIDOC_NAME}")
     with open(ARCH_ASCIIDOC_NAME, "w") as wf:
+        wf.write(f"\n= Device Registry - Architectures\nVersion: {data['version']}\n\n")
         wf.write("\n== Architecture Categories\n\n")
         write_asciidoc_architecture_categories(data, wf)
         wf.write("\n== Architecture Families\n\n")

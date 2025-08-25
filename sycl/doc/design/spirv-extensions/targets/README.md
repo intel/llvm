@@ -1,9 +1,6 @@
 # Targets Registry
 
-**Version: 0**
-
-This directory contains a registry of enumerator values for compute device targets, features and architectures used in the SPV_INTEL_function_variants extension.
-Other extensions can also adapt this registry
+This directory contains a registry of enumerator values for compute device targets, features and architectures to be used in Khronos extensions (such as SPV_INTEL_function_variants).
 
 The authoritative reference file is `core.json`.
 From this file the following files are generated using `generate.py`:
@@ -37,6 +34,8 @@ The meaning of the ordering is defined by the vendor, but generally, newer archi
 
 ## Adding new entries & Versioning
 
+The registry is versioned. The current version is stored in `core.json` and from there propagated to the generated files.
+
 Adding a new entry to one of the sets or lists is done by incrementing the enumerator and adding the entry at the end of the set / list.
 Adding entries this way is backwards-compatible and does not require incrementing the version number.
 Likewise, adding a new alias to an existing enumerator value is backwards-compatible.
@@ -47,3 +46,8 @@ In such cases, the version should be incremented, specifications using this repo
 
 Version 0 is used for the initial draft until the SPV_INTEL_function_variants extension is ratified as EXT or KHR.
 Until then, contents of the registry is subject to change and breaking changes can occur.
+
+## TODO
+
+* Use templating engine like [Mako](https://www.makotemplates.org) to handle the file generation.
+* Improve the generated header to include also C++ header using C++ features.

@@ -1,4 +1,8 @@
 
+= Device Registry - Targets
+Version: 0
+
+
 == Targets
 
 [%header,cols="8,3,10"]

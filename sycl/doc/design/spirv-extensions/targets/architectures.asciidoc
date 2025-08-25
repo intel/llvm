@@ -1,4 +1,8 @@
 
+= Device Registry - Architectures
+Version: 0
+
+
 == Architecture Categories
 
 [%header,cols="8,3,10"]
