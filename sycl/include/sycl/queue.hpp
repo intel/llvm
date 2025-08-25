@@ -2752,7 +2752,6 @@ public:
         },
         TlsCodeLocCapture.query());
 #endif
-
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3302,8 +3301,8 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return submit_direct_with_event<detail::WrapAs::parallel_for,
-          KernelName, sycl::nd_item<Dims>>(
+      return submit_direct_with_event<detail::WrapAs::parallel_for, KernelName,
+                                      sycl::nd_item<Dims>>(
           ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
     } else {
       return submit(
@@ -3733,15 +3732,16 @@ private:
                                 detail::v1::KernelRuntimeInfo &KRInfo) const {
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    using TransformedArgType = std::conditional_t<WrapAsVal == detail::WrapAs::parallel_for,
+    using TransformedArgType = std::conditional_t<
+        WrapAsVal == detail::WrapAs::parallel_for,
         std::conditional_t<
-        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename TransformUserItemType<Dims, LambdaArgType>::type>,
+            std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+            typename TransformUserItemType<Dims, LambdaArgType>::type>,
         void>;
 
     KRInfo.HostKernel().reset(
-          new detail::HostKernel<KernelType, TransformedArgType, Dims>(
-              KernelFunc));
+        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+            KernelFunc));
 
     KRInfo.KernelName() = detail::getKernelName<KernelName>();
     KRInfo.KernelNumArgs() = detail::getKernelNumParams<KernelName>();
@@ -3911,10 +3911,11 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, WrapAsVal>(KernelFunc, KRInfo);
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, WrapAsVal>(KernelFunc,
+                                                                 KRInfo);
 
-    detail::KernelWrapper<WrapAsVal, NameT, KernelType,
-                          ElementType, PropertiesT>::wrap(KernelFunc);
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
+                          PropertiesT>::wrap(KernelFunc);
 
     return submit_direct_with_event_impl(Range, SI, KRInfo,
                                          TlsCodeLocCapture.query(),
@@ -3935,7 +3936,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     ProcessSubmitProperties(Props, SI);
-    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, detail::WrapAs::parallel_for>(KernelFunc, KRInfo);
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims,
+                             detail::WrapAs::parallel_for>(KernelFunc, KRInfo);
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
