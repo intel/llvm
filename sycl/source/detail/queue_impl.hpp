@@ -105,7 +105,7 @@ public:
   queue_impl(device_impl &Device, const async_handler &AsyncHandler,
              const property_list &PropList, private_tag tag)
       : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList,
-                   tag){};
+                   tag) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
