@@ -9,6 +9,13 @@
 
 #include <map>
 
+class Kernel1;
+class Kernel2;
+class Kernel3;
+MOCK_INTEGRATION_HEADER(Kernel1)
+MOCK_INTEGRATION_HEADER(Kernel2)
+MOCK_INTEGRATION_HEADER(Kernel3)
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
@@ -630,7 +637,7 @@ TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
 
   Graph1.begin_recording(Q1);
 
-  auto GraphEvent1 = Q1.single_task<class Kernel1>([=] {});
+  auto GraphEvent1 = Q1.single_task<Kernel1>([=] {});
   ASSERT_EQ(Q1.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::recording);
   ASSERT_EQ(Q2.ext_oneapi_get_state(),
@@ -638,7 +645,7 @@ TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
   ASSERT_EQ(Q3.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::executing);
 
-  auto GraphEvent2 = Q2.single_task<class Kernel2>(GraphEvent1, [=] {});
+  auto GraphEvent2 = Q2.single_task<Kernel2>(GraphEvent1, [=] {});
   ASSERT_EQ(Q1.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::recording);
   ASSERT_EQ(Q2.ext_oneapi_get_state(),
@@ -646,8 +653,8 @@ TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
   ASSERT_EQ(Q3.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::executing);
 
-  auto GraphEvent3 = Q3.parallel_for<class Kernel3>(range<1>{1024}, GraphEvent1,
-                                                    [=](item<1> Id) {});
+  auto GraphEvent3 =
+      Q3.parallel_for<Kernel3>(range<1>{1024}, GraphEvent1, [=](item<1> Id) {});
   ASSERT_EQ(Q1.ext_oneapi_get_state(),
             ext::oneapi::experimental::queue_state::recording);
   ASSERT_EQ(Q2.ext_oneapi_get_state(),

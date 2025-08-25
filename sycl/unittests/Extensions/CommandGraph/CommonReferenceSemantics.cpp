@@ -12,6 +12,9 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
+class MockKernel;
+MOCK_INTEGRATION_HEADER(MockKernel)
+
 /**
  * Checks that the operators and constructors of graph related classes meet the
  * common reference semantics.
@@ -70,8 +73,9 @@ TEST_F(CommandGraphTest, NodeSemantics) {
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
   auto Factory = [&]() {
-    return Graph.add(
-        [&](handler &CGH) { CGH.parallel_for(1, [=](item<1> Item) {}); });
+    return Graph.add([&](handler &CGH) {
+      CGH.parallel_for<MockKernel>(1, [=](item<1> Item) {});
+    });
   };
   ASSERT_NO_FATAL_FAILURE(testSemantics<experimental::node>(Factory));
 }
@@ -80,7 +84,9 @@ TEST_F(CommandGraphTest, DynamicCGSemantics) {
   sycl::queue Queue;
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
-  auto CGF = [&](handler &CGH) { CGH.parallel_for(1, [=](item<1> Item) {}); };
+  auto CGF = [&](handler &CGH) {
+    CGH.parallel_for<MockKernel>(1, [=](item<1> Item) {});
+  };
 
   auto Factory = [&]() {
     return experimental::dynamic_command_group(Graph, {CGF});
@@ -185,8 +191,9 @@ TEST_F(CommandGraphTest, NodeHash) {
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
   auto Factory = [&]() {
-    return Graph.add(
-        [&](handler &CGH) { CGH.parallel_for(1, [=](item<1> Item) {}); });
+    return Graph.add([&](handler &CGH) {
+      CGH.parallel_for<MockKernel>(1, [=](item<1> Item) {});
+    });
   };
   ASSERT_NO_FATAL_FAILURE(testHash<experimental::node>(Factory));
 }
@@ -195,7 +202,9 @@ TEST_F(CommandGraphTest, DynamicCommandGroupHash) {
   sycl::queue Queue;
   experimental::command_graph Graph(Queue.get_context(), Queue.get_device());
 
-  auto CGF = [&](handler &CGH) { CGH.parallel_for(1, [=](item<1> Item) {}); };
+  auto CGF = [&](handler &CGH) {
+    CGH.parallel_for<MockKernel>(1, [=](item<1> Item) {});
+  };
 
   auto Factory = [&]() {
     return experimental::dynamic_command_group(Graph, {CGF});

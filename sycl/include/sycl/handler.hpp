@@ -14,11 +14,11 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
-#include <sycl/detail/kernel_name_based_cache.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -863,6 +863,7 @@ private:
       constexpr std::string_view KernelNameStr =
           detail::getKernelName<KernelName>();
       MKernelName = KernelNameStr;
+      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -870,7 +871,6 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
-    setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -3685,8 +3685,11 @@ private:
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelNameBasedCachePtr(
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
+#endif
+  void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   queue getQueue();
 
