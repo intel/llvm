@@ -94,7 +94,9 @@ TEST_P(urEnqueueKernelLaunchTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 0,
                                        nullptr, 0, nullptr, nullptr));
+  // TODO UNCOMMENT DOBBLE
   ASSERT_SUCCESS(urQueueFinish(queue));
+  // val = 42
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
 
