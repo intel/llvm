@@ -4,9 +4,6 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 // REQUIRES: level_zero, level_zero_dev_kit
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17847
-
 #include <level_zero/ze_api.h>
 #include <sycl/backend.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -26,7 +23,7 @@ int main() {
     return 1;
   }
 
-  queue Queue;
+  queue Queue{{property::queue::in_order{}}};
 
   const size_t Size = 128;
   int *PtrX = malloc_device<int>(Size, Queue);
