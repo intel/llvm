@@ -6,13 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/workitem/clc_get_num_sub_groups.h>
 #include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInNumSubgroups() {
-  size_t size_x = __spirv_BuiltInWorkgroupSize(0);
-  size_t size_y = __spirv_BuiltInWorkgroupSize(1);
-  size_t size_z = __spirv_BuiltInWorkgroupSize(2);
-  uint sg_size = __spirv_BuiltInSubgroupMaxSize();
-  size_t linear_size = size_z * size_y * size_x;
-  return (uint)((linear_size + sg_size - 1) / sg_size);
+  return __clc_get_num_sub_groups();
 }

@@ -6,14 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/workitem/clc_get_global_id.h>
+#include <clc/workitem/clc_get_sub_group_id.h>
 #include <libspirv/spirv.h>
 
-extern int __nvvm_reflect_ocl(constant char *);
+uint __mux_get_sub_group_id();
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int dim) {
-  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
-    return (uint)__clc_get_global_id(dim);
-  }
-  return __clc_get_global_id(dim);
+_CLC_OVERLOAD _CLC_DEF uint __spirv_BuiltInSubgroupId() {
+  return __mux_get_sub_group_id();
 }

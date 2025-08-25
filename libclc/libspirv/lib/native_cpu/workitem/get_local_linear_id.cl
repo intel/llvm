@@ -6,14 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/workitem/clc_get_global_id.h>
 #include <libspirv/spirv.h>
 
-extern int __nvvm_reflect_ocl(constant char *);
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalInvocationId(int dim) {
-  if (__nvvm_reflect_ocl("__CUDA_ID_QUERIES_FIT_IN_INT")) {
-    return (uint)__clc_get_global_id(dim);
-  }
-  return __clc_get_global_id(dim);
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInLocalInvocationIndex() {
+  return __spirv_BuiltInLocalInvocationId(2) * __spirv_BuiltInWorkgroupSize(1) *
+             __spirv_BuiltInWorkgroupSize(0) +
+         __spirv_BuiltInLocalInvocationId(1) * __spirv_BuiltInWorkgroupSize(0) +
+         __spirv_BuiltInLocalInvocationId(0);
 }
