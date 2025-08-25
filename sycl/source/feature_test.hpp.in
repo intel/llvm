@@ -130,11 +130,6 @@ inline namespace _V1 {
 // __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS macro is defined.
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #define SYCL_KHR_WORK_ITEM_QUERIES 1
-#endif
-
-// Unfinished KHR extensions. These extensions are only available if the
-// __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS macro is defined.
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #define SYCL_KHR_STATIC_ADDRSPACE_CAST 1
 #define SYCL_KHR_DYNAMIC_ADDRSPACE_CAST 1
 #endif
