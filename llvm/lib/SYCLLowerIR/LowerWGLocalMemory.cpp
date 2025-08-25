@@ -197,15 +197,15 @@ static void lowerLocalMemCall(Function *LocalMemAllocFunc,
     // This is needed because free function kernels do not have the attribute
     // added by the library as is the case with other types of kernels.
     if (!FuncsCache.insert(CI->getFunction()).second)
-      continue; // We have already traversed call graph from this function
+      continue; // We have already traversed call graph from this function.
 
     SmallVector<Function *, 8> WorkList;
     WorkList.push_back(CI->getFunction());
     while (!WorkList.empty()) {
-      auto *F = WorkList.back();
+      Function *F = WorkList.back();
       WorkList.pop_back();
 
-      // Mark kernel as using scratch memory if it isn't marked already
+      // Mark kernel as using scratch memory if it isn't marked already.
       if (F->getCallingConv() == CallingConv::SPIR_KERNEL &&
           !F->hasFnAttribute(WORK_GROUP_STATIC_ATTR))
         F->addFnAttr(WORK_GROUP_STATIC_ATTR);
@@ -215,7 +215,7 @@ static void lowerLocalMemCall(Function *LocalMemAllocFunc,
           if (FuncsCache.insert(UCI->getFunction()).second)
             WorkList.push_back(UCI->getFunction());
         } // Even though there could be other uses of a Function, we don't
-          // care about them because we are only concerned about call graph
+          // care about them because we are only concerned about call graph.
       }
     }
   }
