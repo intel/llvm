@@ -405,12 +405,11 @@ struct urQueueTest : urContextTest {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
   }
 
-  ur_queue_properties_t queue_properties = {
-      UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
-      0};
-      // getenv_tobool("UR_BATCHED")
-      //     ? (ur_queue_flags_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED
-      //     : 0};
+  ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                            nullptr, 0};
+  // getenv_tobool("UR_BATCHED")
+  //     ? (ur_queue_flags_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED
+  //     : 0};
   // 0};
   // UR_QUEUE_FLAG_SUBMISSION_BATCHED}; //0};
   ur_queue_handle_t queue = nullptr;
@@ -482,12 +481,11 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     }
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
   }
-  ur_queue_properties_t queue_properties = {
-      UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
-      0};
-      // getenv_tobool("UR_BATCHED")
-      //     ? (ur_queue_flags_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED
-      //     : 0};
+  ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                            nullptr, 0};
+  // getenv_tobool("UR_BATCHED")
+  //     ? (ur_queue_flags_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED
+  //     : 0};
   // 0};
   // UR_QUEUE_FLAG_SUBMISSION_BATCHED};
   ur_queue_handle_t queue = nullptr;

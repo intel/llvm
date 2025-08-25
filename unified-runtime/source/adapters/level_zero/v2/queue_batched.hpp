@@ -40,21 +40,22 @@ private:
   ur_event_generation_t regularGenerationNumber;
   static constexpr uint64_t default_num_batches = 10;
 
-  public:
+public:
   batch_manager(ur_context_handle_t context, ur_device_handle_t device,
-        v2::raii::command_list_unique_handle &&commandListRegular,
-      v2::raii::command_list_unique_handle &&commandListImmediate)
+                v2::raii::command_list_unique_handle &&commandListRegular,
+                v2::raii::command_list_unique_handle &&commandListImmediate)
       : activeBatch(context, device,
-                     std::forward<v2::raii::command_list_unique_handle>(
-                         commandListRegular)),
-                         immediateList(context, device,
-                     std::forward<v2::raii::command_list_unique_handle>(
-                         commandListImmediate)), regularGenerationNumber(0)  {
-                         runBatches.reserve( default_num_batches);
-                         }
+                    std::forward<v2::raii::command_list_unique_handle>(
+                        commandListRegular)),
+        immediateList(context, device,
+                      std::forward<v2::raii::command_list_unique_handle>(
+                          commandListImmediate)),
+        regularGenerationNumber(0) {
+    runBatches.reserve(default_num_batches);
+  }
 
   friend class ur_queue_batched_t;
-} ;
+};
 
 struct ur_queue_batched_t : ur_object, ur_queue_t_ {
 private:
@@ -96,8 +97,7 @@ public:
                      std::optional<int32_t> index, event_flags_t eventFlags,
                      ur_queue_flags_t flags);
 
-  ur_result_t
-  runBatchIfActive(ur_event_generation_t batch_generation) override;
+  ur_result_t runBatchIfActive(ur_event_generation_t batch_generation) override;
 
   ~ur_queue_batched_t();
 

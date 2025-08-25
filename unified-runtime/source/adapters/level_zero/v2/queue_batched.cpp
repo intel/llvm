@@ -40,18 +40,19 @@ ur_queue_batched_t::ur_queue_batched_t(
     : regularCmdListDesc(v2::command_list_desc_t{
           true /* isInOrder*/, ordinal /* Ordinal*/,
           true /* copyOffloadEnable*/, false /*isMutable*/}),
-      currentCmdLists(hContext, hDevice,
-                   /* regular command list*/
-                   hContext->getCommandListCache().getRegularCommandList(
-                       hDevice->ZeDevice, regularCmdListDesc),
-                   /* command list immediate*/
-                   hContext->getCommandListCache().getImmediateCommandList(
-                       hDevice->ZeDevice,
-                       {true, ordinal, true /* always enable copy offload */},
-                       ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)
+      currentCmdLists(
+          hContext, hDevice,
+          /* regular command list*/
+          hContext->getCommandListCache().getRegularCommandList(
+              hDevice->ZeDevice, regularCmdListDesc),
+          /* command list immediate*/
+          hContext->getCommandListCache().getImmediateCommandList(
+              hDevice->ZeDevice,
+              {true, ordinal, true /* always enable copy offload */},
+              ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)
 
       ) {
-     TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
 
   // TODO common code?
   if (!hContext->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
@@ -73,7 +74,7 @@ ur_queue_batched_t::ur_queue_batched_t(
 
 ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
     ur_event_handle_t *phEvent, ur_event_generation_t batch_generation) {
-          TRACK_SCOPE_LATENCY("ur_queue_batched_t::createEventIfRequested");
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::createEventIfRequested");
 
   if (phEvent == nullptr) {
     return nullptr;
@@ -88,15 +89,14 @@ ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
 
 ur_result_t
 ur_queue_batched_t::renewRegularUnlocked(locked<batch_manager> &batchLocked) {
-      TRACK_SCOPE_LATENCY("ur_queue_batched_t::renewRegularUnlocked");
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::renewRegularUnlocked");
 
   batchLocked->regularGenerationNumber++;
 
   // save the previous regular for execution
   // renew regular
   batchLocked->runBatches.push_back(
-      batchLocked
-          ->activeBatch
+      batchLocked->activeBatch
           .releaseCommandList()); // std::move(batchLocked->regularBatch));
   batchLocked->activeBatch.replaceCommandList(getNewRegularCmdList());
 
@@ -105,21 +105,28 @@ ur_queue_batched_t::renewRegularUnlocked(locked<batch_manager> &batchLocked) {
 
 ur_result_t enqueueCurrentBatchUnlocked(ze_command_list_handle_t immediateList,
                                         ze_command_list_handle_t regularList) {
-        TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueCurrentBatchUnlocked");
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueCurrentBatchUnlocked");
 
-  // finalize
-  ZE2UR_CALL(zeCommandListClose, (regularList));
-  // run batch
-  ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
-             (immediateList, 1, &regularList, nullptr, 0, nullptr));
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_batched_t::enqueueCurrentBatchUnlocked_finalize");
+    // finalize
+    ZE2UR_CALL(zeCommandListClose, (regularList));
+  }
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_batched_t::enqueueCurrentBatchUnlocked_runBatchAppend");
+    // run batch
+    ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
+               (immediateList, 1, &regularList, nullptr, 0, nullptr));
+  }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_batched_t::runBatchIfActive(
-    ur_event_generation_t batch_generation) {
-              TRACK_SCOPE_LATENCY("ur_queue_batched_t::runBatchIfActive");
-
+ur_result_t
+ur_queue_batched_t::runBatchIfActive(ur_event_generation_t batch_generation) {
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::runBatchIfActive");
 
   auto batchLocked = currentCmdLists.lock();
 
@@ -129,8 +136,9 @@ ur_result_t ur_queue_batched_t::runBatchIfActive(
   }
 
   // auto regularList = batchLocked->regularBatch.getZeCommandList();
-  UR_CALL(enqueueCurrentBatchUnlocked(
-      batchLocked->immediateList.getZeCommandList(), batchLocked->activeBatch.getZeCommandList()));
+  UR_CALL(
+      enqueueCurrentBatchUnlocked(batchLocked->immediateList.getZeCommandList(),
+                                  batchLocked->activeBatch.getZeCommandList()));
 
   return renewRegularUnlocked(batchLocked);
 }
@@ -143,14 +151,15 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-      TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
   auto currentRegular = currentCmdLists.lock();
   UR_CALL(currentRegular->activeBatch.appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
       numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
       phEventWaitList,
-      createEventIfRequestedRegular(phEvent,
-                                    currentRegular->regularGenerationNumber))); // nullptr));
+      createEventIfRequestedRegular(
+          phEvent,
+          currentRegular->regularGenerationNumber))); // nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -158,18 +167,26 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
 ur_result_t ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked(
     ze_command_list_handle_t immediateList,
     ze_command_list_handle_t regularList) {
-            TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked");
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked");
 
   enqueueCurrentBatchUnlocked(immediateList, regularList);
 
-  // finish queue
-  ZE2UR_CALL(zeCommandListHostSynchronize, (immediateList, UINT64_MAX));
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked_hostSynchronize");
+    // finish queue
+    ZE2UR_CALL(zeCommandListHostSynchronize, (immediateList, UINT64_MAX));
+  }
 
-  hContext->getAsyncPool()->cleanupPoolsForQueue(this);
-  hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
-    hPool->cleanupPoolsForQueue(this);
-    return true;
-  });
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked_asyncPools");
+    hContext->getAsyncPool()->cleanupPoolsForQueue(this);
+    hContext->forEachUsmPool([this](ur_usm_pool_handle_t hPool) {
+      hPool->cleanupPoolsForQueue(this);
+      return true;
+    });
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -177,38 +194,47 @@ ur_result_t ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked(
 ur_result_t
 ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
   // auto regularCmdlist = (*batchLocked)->regularBatch.getZeCommandList();
-              TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinishUnlocked");
-
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinishUnlocked");
 
   UR_CALL(queueFinishBatchAndPoolsUnlocked(
-      batchLocked->immediateList.getZeCommandList(), batchLocked->activeBatch.getZeCommandList()));
+      batchLocked->immediateList.getZeCommandList(),
+      batchLocked->activeBatch.getZeCommandList()));
 
-  UR_CALL(batchLocked->immediateList.releaseSubmittedKernels());
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_batched_t::queueFinishUnlocked_releaseSubmittedKernels");
+    UR_CALL(batchLocked->immediateList.releaseSubmittedKernels());
+  }
 
   // return renewRegularUnlocked(batchLocked);
-  ZE2UR_CALL(zeCommandListReset, (batchLocked->activeBatch.getZeCommandList()));
+  {
+    TRACK_SCOPE_LATENCY(
+        "ur_queue_batched_t::queueFinishUnlocked_resetRegCmdlist");
+    ZE2UR_CALL(zeCommandListReset,
+               (batchLocked->activeBatch.getZeCommandList()));
+  }
 
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_batched_t::queueFinish() {
   try {
-                  TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinish");
+    TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinish");
     // finish current batch
     auto lockedBatches = currentCmdLists.lock();
     return queueFinishUnlocked(lockedBatches);
 
     // ze_command_list_handle_t regularCmdlist =
-        // TODO sth better than lvalue?
-        // lockedBatches->regularBatch.getZeCommandList();
+    // TODO sth better than lvalue?
+    // lockedBatches->regularBatch.getZeCommandList();
 
     // TODO UR_CALL_THROWS somewhere?
 
     ////////
 
-
     // UR_CALL(queueFinishBatchAndPoolsUnlocked(
-    //     lockedBatches->immediateList.getZeCommandList(), lockedBatches->activeBatch.getZeCommandList()));
+    //     lockedBatches->immediateList.getZeCommandList(),
+    //     lockedBatches->activeBatch.getZeCommandList()));
 
     // UR_CALL(lockedBatches->immediateList.releaseSubmittedKernels());
 
@@ -231,7 +257,7 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferRead(
     void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   try {
-                      TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferRead");
+    TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferRead");
 
     auto lockedBatches = currentCmdLists.lock();
     UR_CALL(lockedBatches->activeBatch.appendMemBufferRead(
@@ -262,14 +288,14 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferWrite(
   // Responsibility of UMD to offload to copy engine
 
   // -------------- end of not my comment ---------------------
-                        TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferWrite");
-
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferWrite");
 
   auto lockedBatches = currentCmdLists.lock();
 
   UR_CALL(lockedBatches->activeBatch.appendMemBufferWrite(
       hBuffer, false, offset, size, pSrc, numEventsInWaitList, phEventWaitList,
-      createEventIfRequestedRegular(phEvent, lockedBatches->regularGenerationNumber)));
+      createEventIfRequestedRegular(phEvent,
+                                    lockedBatches->regularGenerationNumber)));
 
   if (blockingWrite) {
     UR_CALL_THROWS(queueFinishUnlocked(lockedBatches));
@@ -284,14 +310,14 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferFill(
     ur_mem_handle_t hBuffer, const void *pPattern, size_t patternSize,
     size_t offset, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-                        TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferFill");
-
+  TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferFill");
 
   auto lockedBatch = currentCmdLists.lock();
   UR_CALL(lockedBatch->activeBatch.appendMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, numEventsInWaitList,
       phEventWaitList,
-      createEventIfRequestedRegular(phEvent, lockedBatch->regularGenerationNumber)));
+      createEventIfRequestedRegular(phEvent,
+                                    lockedBatch->regularGenerationNumber)));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

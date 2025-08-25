@@ -94,14 +94,13 @@ public:
     for (auto &[name, histogram] : values) {
       auto value = getValues(histogram.get());
       auto f = groupDigits<int64_t>;
-      UR_LOG_L(logger, INFO,
-                 "{},{},{},{},{},{},{},{},{},{},{},{},{},{},ns", name,
-                 f(value.mean), f(value.percentileValues[0]),
-                 f(value.percentileValues[1]), f(value.percentileValues[2]),
-                 f(value.percentileValues[3]), f(value.percentileValues[4]),
-                 f(value.percentileValues[5]), f(value.percentileValues[6]),
-                 f(value.count), f(value.count * value.mean), f(value.min),
-                 f(value.max), value.stddev);
+      UR_LOG_L(logger, INFO, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},ns",
+               name, f(value.mean), f(value.percentileValues[0]),
+               f(value.percentileValues[1]), f(value.percentileValues[2]),
+               f(value.percentileValues[3]), f(value.percentileValues[4]),
+               f(value.percentileValues[5]), f(value.percentileValues[6]),
+               f(value.count), f(value.count * value.mean), f(value.min),
+               f(value.max), value.stddev);
     }
   }
 
@@ -109,10 +108,10 @@ private:
   inline void printHeader() {
     UR_LOG_L(logger, INFO, "Latency histogram:");
     UR_LOG_L(logger, INFO,
-               "name,mean,p{},p{},p{},p{},p{},p{}"
-               ",p{},count,sum,min,max,stdev,unit",
-               percentiles[0], percentiles[1], percentiles[2], percentiles[3],
-               percentiles[4], percentiles[5], percentiles[6]);
+             "name,mean,p{},p{},p{},p{},p{},p{}"
+             ",p{},count,sum,min,max,stdev,unit",
+             percentiles[0], percentiles[1], percentiles[2], percentiles[3],
+             percentiles[4], percentiles[5], percentiles[6]);
   }
 
   std::map<std::string, histogram_ptr> values;
