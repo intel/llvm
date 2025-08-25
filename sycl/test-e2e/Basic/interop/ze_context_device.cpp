@@ -17,7 +17,9 @@ int main(int argc, char *argv[]) {
   int level0DriverIndex = 0;
   int level0DeviceIndex = 0;
 
-  zeInit(0);
+  ze_result_t result = zeInit(0);
+  assert(result == ZE_RESULT_SUCCESS);
+
   uint32_t level0NumDrivers = 0;
   zeDriverGet(&level0NumDrivers, nullptr);
 
