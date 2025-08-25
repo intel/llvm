@@ -12,7 +12,8 @@
 // This header defines device-side overloads of <complex> functions.
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <cmath> // For INFINITY.
+
+#include <limits>
 
 // The 'sycl_device_only' attribute enables device-side overloading.
 #define __SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
@@ -82,8 +83,9 @@ float __complex__ __mulsc3(float __a, float __b, float __c, float __d) {
       __recalc = 1.0f;
     }
     if (__recalc) {
-      z = __SYCL_CMPLXF((INFINITY * (__a * __c - __b * __d)),
-                        (INFINITY * (__a * __d + __b * __c)));
+      z = __SYCL_CMPLXF(
+          (std::numeric_limits<float>::infinity() * (__a * __c - __b * __d)),
+          (std::numeric_limits<float>::infinity() * (__a * __d + __b * __c)));
     }
   }
   return z;
@@ -131,8 +133,9 @@ double __complex__ __muldc3(double __a, double __b, double __c, double __d) {
       __recalc = 1.0;
     }
     if (__recalc) {
-      z = __SYCL_CMPLX((INFINITY * (__a * __c - __b * __d)),
-                       (INFINITY * (__a * __d + __b * __c)));
+      z = __SYCL_CMPLX(
+          (std::numeric_limits<float>::infinity() * (__a * __c - __b * __d)),
+          (std::numeric_limits<float>::infinity() * (__a * __d + __b * __c)));
     }
   }
   return z;
@@ -161,15 +164,19 @@ float __complex__ __divsc3(float __a, float __b, float __c, float __d) {
   z = __SYCL_CMPLXF(z_real, z_imag);
   if (__spirv_IsNan(z_real) && __spirv_IsNan(z_imag)) {
     if ((__denom == 0.0f) && (!__spirv_IsNan(__a) || !__spirv_IsNan(__b))) {
-      z_real = __spirv_ocl_copysign(INFINITY, __c) * __a;
-      z_imag = __spirv_ocl_copysign(INFINITY, __c) * __b;
+      z_real =
+          __spirv_ocl_copysign(std::numeric_limits<float>::infinity(), __c) *
+          __a;
+      z_imag =
+          __spirv_ocl_copysign(std::numeric_limits<float>::infinity(), __c) *
+          __b;
       z = __SYCL_CMPLXF(z_real, z_imag);
     } else if ((__spirv_IsInf(__a) || __spirv_IsInf(__b)) &&
                __spirv_IsFinite(__c) && __spirv_IsFinite(__d)) {
       __a = __spirv_ocl_copysign(__spirv_IsInf(__a) ? 1.0f : 0.0f, __a);
       __b = __spirv_ocl_copysign(__spirv_IsInf(__b) ? 1.0f : 0.0f, __b);
-      z_real = INFINITY * (__a * __c + __b * __d);
-      z_imag = INFINITY * (__b * __c - __a * __d);
+      z_real = std::numeric_limits<float>::infinity() * (__a * __c + __b * __d);
+      z_imag = std::numeric_limits<float>::infinity() * (__b * __c - __a * __d);
       z = __SYCL_CMPLXF(z_real, z_imag);
     } else if (__spirv_IsInf(__logbw) && __logbw > 0.0f &&
                __spirv_IsFinite(__a) && __spirv_IsFinite(__b)) {
@@ -203,15 +210,19 @@ double __complex__ __divdc3(double __a, double __b, double __c, double __d) {
   z = __SYCL_CMPLX(z_real, z_imag);
   if (__spirv_IsNan(z_real) && __spirv_IsNan(z_imag)) {
     if ((__denom == 0.0) && (!__spirv_IsNan(__a) || !__spirv_IsNan(__b))) {
-      z_real = __spirv_ocl_copysign((double)INFINITY, __c) * __a;
-      z_imag = __spirv_ocl_copysign((double)INFINITY, __c) * __b;
+      z_real =
+          __spirv_ocl_copysign(std::numeric_limits<double>::infinity(), __c) *
+          __a;
+      z_imag =
+          __spirv_ocl_copysign(std::numeric_limits<double>::infinity(), __c) *
+          __b;
       z = __SYCL_CMPLX(z_real, z_imag);
     } else if ((__spirv_IsInf(__a) || __spirv_IsInf(__b)) &&
                __spirv_IsFinite(__c) && __spirv_IsFinite(__d)) {
       __a = __spirv_ocl_copysign(__spirv_IsInf(__a) ? 1.0 : 0.0, __a);
       __b = __spirv_ocl_copysign(__spirv_IsInf(__b) ? 1.0 : 0.0, __b);
-      z_real = INFINITY * (__a * __c + __b * __d);
-      z_imag = INFINITY * (__b * __c - __a * __d);
+      z_real = std::numeric_limits<float>::infinity() * (__a * __c + __b * __d);
+      z_imag = std::numeric_limits<float>::infinity() * (__b * __c - __a * __d);
       z = __SYCL_CMPLX(z_real, z_imag);
     } else if (__spirv_IsInf(__logbw) && __logbw > 0.0 &&
                __spirv_IsFinite(__a) && __spirv_IsFinite(__b)) {
@@ -247,14 +258,16 @@ __SYCL_DEVICE_C
 float __complex__ cprojf(float __complex__ z) {
   float __complex__ r = z;
   if (__spirv_IsInf(crealf(z)) || __spirv_IsInf(cimagf(z)))
-    r = __SYCL_CMPLXF(INFINITY, __spirv_ocl_copysign(0.0f, cimagf(z)));
+    r = __SYCL_CMPLXF(std::numeric_limits<float>::infinity(),
+                      __spirv_ocl_copysign(0.0f, cimagf(z)));
   return r;
 }
 __SYCL_DEVICE_C
 double __complex__ cproj(double __complex__ z) {
   double __complex__ r = z;
   if (__spirv_IsInf(creal(z)) || __spirv_IsInf(cimag(z)))
-    r = __SYCL_CMPLX(INFINITY, __spirv_ocl_copysign(0.0, cimag(z)));
+    r = __SYCL_CMPLX(std::numeric_limits<float>::infinity(),
+                     __spirv_ocl_copysign(0.0, cimag(z)));
   return r;
 }
 
@@ -275,7 +288,7 @@ float __complex__ cexpf(float __complex__ z) {
       return z;
     } else if (z_imag == 0.f || !__spirv_IsFinite(z_imag)) {
       if (__spirv_IsInf(z_imag))
-        return __SYCL_CMPLXF(z_real, NAN);
+        return __SYCL_CMPLXF(z_real, std::numeric_limits<float>::quiet_NaN());
     }
   }
 
@@ -293,16 +306,18 @@ double __complex__ cexp(double __complex__ z) {
         z_imag = 1.0;
     } else if (z_imag == 0.0 || !__spirv_IsFinite(z_imag)) {
       if (__spirv_IsInf(z_imag))
-        z_imag = NAN;
+        z_imag = std::numeric_limits<float>::quiet_NaN();
       return __SYCL_CMPLX(z_real, z_imag);
     }
   } else if (__spirv_IsNan(z_real)) {
     if (z_imag == 0.0)
       return z;
-    return __SYCL_CMPLX(NAN, NAN);
+    return __SYCL_CMPLX(std::numeric_limits<float>::quiet_NaN(),
+                        std::numeric_limits<float>::quiet_NaN());
   } else if (__spirv_IsFinite(z_real) &&
              (__spirv_IsNan(z_imag) || __spirv_IsInf(z_imag))) {
-    return __SYCL_CMPLX(NAN, NAN);
+    return __SYCL_CMPLX(std::numeric_limits<float>::quiet_NaN(),
+                        std::numeric_limits<float>::quiet_NaN());
   }
   double __e = __spirv_ocl_exp(z_real);
   double ret_real = __e * __spirv_ocl_cos(z_imag);
@@ -354,7 +369,8 @@ double __complex__ cpow(double __complex__ x, double __complex__ y) {
 __SYCL_DEVICE_C
 float __complex__ cpolarf(float rho, float theta) {
   if (__spirv_IsNan(rho) || __spirv_SignBitSet(rho))
-    return __SYCL_CMPLXF(NAN, NAN);
+    return __SYCL_CMPLXF(std::numeric_limits<float>::quiet_NaN(),
+                         std::numeric_limits<float>::quiet_NaN());
   if (__spirv_IsNan(theta)) {
     if (__spirv_IsInf(rho))
       return __SYCL_CMPLXF(rho, theta);
@@ -362,8 +378,9 @@ float __complex__ cpolarf(float rho, float theta) {
   }
   if (__spirv_IsInf(theta)) {
     if (__spirv_IsInf(rho))
-      return __SYCL_CMPLXF(rho, NAN);
-    return __SYCL_CMPLXF(NAN, NAN);
+      return __SYCL_CMPLXF(rho, std::numeric_limits<float>::quiet_NaN());
+    return __SYCL_CMPLXF(std::numeric_limits<float>::quiet_NaN(),
+                         std::numeric_limits<float>::quiet_NaN());
   }
   float x = rho * __spirv_ocl_cos(theta);
   if (__spirv_IsNan(x))
@@ -376,7 +393,8 @@ float __complex__ cpolarf(float rho, float theta) {
 __SYCL_DEVICE_C
 double __complex__ cpolar(double rho, double theta) {
   if (__spirv_IsNan(rho) || __spirv_SignBitSet(rho))
-    return __SYCL_CMPLX(NAN, NAN);
+    return __SYCL_CMPLX(std::numeric_limits<float>::quiet_NaN(),
+                        std::numeric_limits<float>::quiet_NaN());
   if (__spirv_IsNan(theta)) {
     if (__spirv_IsInf(rho))
       return __SYCL_CMPLX(rho, theta);
@@ -384,8 +402,9 @@ double __complex__ cpolar(double rho, double theta) {
   }
   if (__spirv_IsInf(theta)) {
     if (__spirv_IsInf(rho))
-      return __SYCL_CMPLX(rho, NAN);
-    return __SYCL_CMPLX(NAN, NAN);
+      return __SYCL_CMPLX(rho, std::numeric_limits<float>::quiet_NaN());
+    return __SYCL_CMPLX(std::numeric_limits<float>::quiet_NaN(),
+                        std::numeric_limits<float>::quiet_NaN());
   }
   double x = rho * __spirv_ocl_cos(theta);
   if (__spirv_IsNan(x))
@@ -401,7 +420,7 @@ float __complex__ csqrtf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
   if (__spirv_IsInf(z_imag))
-    return __SYCL_CMPLXF(INFINITY, z_imag);
+    return __SYCL_CMPLXF(std::numeric_limits<float>::infinity(), z_imag);
   if (__spirv_IsInf(z_real)) {
     if (z_real > 0.0f)
       return __SYCL_CMPLXF(z_real, __spirv_IsNan(z_imag)
@@ -417,7 +436,7 @@ double __complex__ csqrt(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
   if (__spirv_IsInf(z_imag))
-    return __SYCL_CMPLX(INFINITY, z_imag);
+    return __SYCL_CMPLX(std::numeric_limits<float>::infinity(), z_imag);
   if (__spirv_IsInf(z_real)) {
     if (z_real > 0.0)
       return __SYCL_CMPLX(z_real, __spirv_IsNan(z_imag)
@@ -434,9 +453,9 @@ float __complex__ csinhf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
   if (__spirv_IsInf(z_real) && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLXF(z_real, NAN);
+    return __SYCL_CMPLXF(z_real, std::numeric_limits<float>::quiet_NaN());
   if (z_real == 0 && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLXF(z_real, NAN);
+    return __SYCL_CMPLXF(z_real, std::numeric_limits<float>::quiet_NaN());
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return z;
   return __SYCL_CMPLXF(__spirv_ocl_sinh(z_real) * __spirv_ocl_cos(z_imag),
@@ -447,9 +466,9 @@ double __complex__ csinh(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
   if (__spirv_IsInf(z_real) && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLX(z_real, NAN);
+    return __SYCL_CMPLX(z_real, std::numeric_limits<float>::quiet_NaN());
   if (z_real == 0 && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLX(z_real, NAN);
+    return __SYCL_CMPLX(z_real, std::numeric_limits<float>::quiet_NaN());
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return z;
   return __SYCL_CMPLX(__spirv_ocl_sinh(z_real) * __spirv_ocl_cos(z_imag),
@@ -461,9 +480,10 @@ float __complex__ ccoshf(float __complex__ z) {
   float z_real = crealf(z);
   float z_imag = cimagf(z);
   if (__spirv_IsInf(z_real) && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLXF(__spirv_ocl_fabs(z_real), NAN);
+    return __SYCL_CMPLXF(__spirv_ocl_fabs(z_real),
+                         std::numeric_limits<float>::quiet_NaN());
   if (z_real == 0 && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLXF(NAN, z_real);
+    return __SYCL_CMPLXF(std::numeric_limits<float>::quiet_NaN(), z_real);
   if (z_real == 0 && z_imag == 0)
     return __SYCL_CMPLXF(1.0f, z_imag);
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
@@ -476,9 +496,10 @@ double __complex__ ccosh(double __complex__ z) {
   double z_real = creal(z);
   double z_imag = cimag(z);
   if (__spirv_IsInf(z_real) && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLX(__spirv_ocl_fabs(z_real), NAN);
+    return __SYCL_CMPLX(__spirv_ocl_fabs(z_real),
+                        std::numeric_limits<float>::quiet_NaN());
   if (z_real == 0 && !__spirv_IsFinite(z_imag))
-    return __SYCL_CMPLX(NAN, z_real);
+    return __SYCL_CMPLX(std::numeric_limits<float>::quiet_NaN(), z_real);
   if (z_real == 0 && z_imag == 0)
     return __SYCL_CMPLX(1.0f, z_imag);
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
@@ -790,8 +811,9 @@ float __complex__ catanhf(float __complex__ z) {
     return __SYCL_CMPLXF(__spirv_ocl_copysign(0.0f, z_real),
                          __spirv_ocl_copysign(__pi / 2.0f, z_imag));
   if (__spirv_ocl_fabs(z_real) == 1.0f && z_imag == 0.0f)
-    return __SYCL_CMPLXF(__spirv_ocl_copysign(INFINITY, z_real),
-                         __spirv_ocl_copysign(0.0f, z_imag));
+    return __SYCL_CMPLXF(
+        __spirv_ocl_copysign(std::numeric_limits<float>::infinity(), z_real),
+        __spirv_ocl_copysign(0.0f, z_imag));
   float __complex__ t1 = 1.0f + z;
   float __complex__ t2 = 1.0f - z;
   float __complex__ t3 =
@@ -820,7 +842,7 @@ double __complex__ catanh(double __complex__ z) {
                         __spirv_ocl_copysign(__pi / 2.0, z_imag));
   if (__spirv_ocl_fabs(z_real) == 1.0 && z_imag == 0.0)
     return __SYCL_CMPLX(
-        __spirv_ocl_copysign(static_cast<double>(INFINITY), z_real),
+        __spirv_ocl_copysign(std::numeric_limits<double>::infinity(), z_real),
         __spirv_ocl_copysign(0.0, z_imag));
   double __complex__ t1 = 1.0 + z;
   double __complex__ t2 = 1.0 - z;
