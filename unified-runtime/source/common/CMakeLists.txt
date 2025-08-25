@@ -36,7 +36,6 @@ target_include_directories(ur_common PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
-
 if (UR_STATIC_ADAPTER_L0)
     if (UMF_BUILD_SHARED_LIBRARY)
         message(STATUS "Static adapter is not compatible with shared UMF, switching to fully statically linked UMF")
@@ -47,6 +46,7 @@ endif()
 set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
 if(UR_USE_EXTERNAL_UMF)
+  # v1.1.0-dev2 is not strictly required and they both are compatible
   find_package(umf 1.0.0 QUIET)
 endif()
 if(umf_FOUND)
@@ -56,11 +56,12 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit 1de269c00e46b7cbdbafa2247812c8c4bb4ed4a5
+  # commit 503d302a72f719a3f11fce0e610f07a3793549d9
   # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Mon Jul 21 15:42:59 2025 +0200
-  # 1.0.0 release
-  set(UMF_TAG v1.0.0)
+  # Date:   Mon Aug 18 11:14:25 2025 +0200
+  # Merge pull request #1496 from sarnex/gtest
+  # [CMake] Support preinstalled GTest
+  set(UMF_TAG v1.1.0-dev2)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
