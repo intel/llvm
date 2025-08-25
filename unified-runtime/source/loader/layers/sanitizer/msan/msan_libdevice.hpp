@@ -64,7 +64,6 @@ struct MsanRuntimeData {
 
   uintptr_t CleanShadow = 0;
 
-  DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
   uint32_t IsRecover = 0;
 
