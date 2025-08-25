@@ -222,7 +222,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     });
     rangeStart = rangeEnd;
   }
-  event->set_futures(Tasks.getTaskInfo());
+  event->set_tasksinfo(Tasks.getMovedTaskInfo());
 
   if (phEvent) {
     *phEvent = event;
@@ -265,7 +265,7 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
       InEvents.wait();
       f();
     });
-    event->set_futures(Tasks.getTaskInfo());
+    event->set_tasksinfo(Tasks.getMovedTaskInfo());
     event->set_callback(
         [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;

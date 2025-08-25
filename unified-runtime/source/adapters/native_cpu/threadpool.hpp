@@ -226,7 +226,7 @@ template <class TP, class TaskInfo> struct Scheduler_base {
   TP &ref;
   TaskInfo ti;
   Scheduler_base(TP &ref_) : ref(ref_), ti(ref_) {}
-  TaskInfo getTaskInfo() { return std::move(ti); }
+  TaskInfo getMovedTaskInfo() { return std::move(ti); }
   static constexpr bool CanWaitInThread() { return true; }
 };
 
