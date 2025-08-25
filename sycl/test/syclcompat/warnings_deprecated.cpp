@@ -1,7 +1,6 @@
 // Test to verify that syclcompat namespace and APIs generate deprecation
 // warnings.
 
-// REQUIRES: linux
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s -Wall -Wextra
 
 #include <syclcompat/syclcompat.hpp>
