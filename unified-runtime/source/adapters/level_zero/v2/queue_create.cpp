@@ -65,6 +65,8 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
+  TRACK_SCOPE_LATENCY("queueCreate");
+
   ur_queue_flags_t flags = 0;
   if (pProperties) {
     flags = pProperties->flags;
@@ -85,6 +87,7 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
             v2::getZePriority(flags), zeIndex,
             v2::eventFlagsFromQueueFlags(flags), flags);
   } else if (flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) {
+    // printf("is batched");
     *phQueue = ur_queue_handle_t_::create<v2::ur_queue_batched_t>(
         hContext, hDevice, v2::getZeOrdinal(hDevice), v2::getZePriority(flags),
         zeIndex, v2::eventFlagsFromQueueFlags(flags), flags);

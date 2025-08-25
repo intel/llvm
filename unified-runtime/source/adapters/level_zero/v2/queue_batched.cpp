@@ -51,6 +51,8 @@ ur_queue_batched_t::ur_queue_batched_t(
                        ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS, priority, index)
 
       ) {
+     TRACK_SCOPE_LATENCY("ur_queue_batched_t::constructor");
+
   // TODO common code?
   if (!hContext->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
     UR_LOG(ERR, "Adapter v2 is used but the current driver does not support "
@@ -71,6 +73,8 @@ ur_queue_batched_t::ur_queue_batched_t(
 
 ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
     ur_event_handle_t *phEvent, ur_event_generation_t batch_generation) {
+          TRACK_SCOPE_LATENCY("ur_queue_batched_t::createEventIfRequested");
+
   if (phEvent == nullptr) {
     return nullptr;
   }
@@ -84,6 +88,8 @@ ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
 
 ur_result_t
 ur_queue_batched_t::renewRegularUnlocked(locked<batch_manager> &batchLocked) {
+      TRACK_SCOPE_LATENCY("ur_queue_batched_t::renewRegularUnlocked");
+
   batchLocked->regularGenerationNumber++;
 
   // save the previous regular for execution
@@ -99,6 +105,8 @@ ur_queue_batched_t::renewRegularUnlocked(locked<batch_manager> &batchLocked) {
 
 ur_result_t enqueueCurrentBatchUnlocked(ze_command_list_handle_t immediateList,
                                         ze_command_list_handle_t regularList) {
+        TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueCurrentBatchUnlocked");
+
   // finalize
   ZE2UR_CALL(zeCommandListClose, (regularList));
   // run batch
@@ -110,6 +118,9 @@ ur_result_t enqueueCurrentBatchUnlocked(ze_command_list_handle_t immediateList,
 
 ur_result_t ur_queue_batched_t::runBatchIfActive(
     ur_event_generation_t batch_generation) {
+              TRACK_SCOPE_LATENCY("ur_queue_batched_t::runBatchIfActive");
+
+
   auto batchLocked = currentCmdLists.lock();
 
   if (batch_generation != batchLocked->regularGenerationNumber) {
@@ -132,6 +143,7 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
+      TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueKernelLaunch");
   auto currentRegular = currentCmdLists.lock();
   UR_CALL(currentRegular->activeBatch.appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
@@ -146,6 +158,8 @@ ur_result_t ur_queue_batched_t::enqueueKernelLaunch(
 ur_result_t ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked(
     ze_command_list_handle_t immediateList,
     ze_command_list_handle_t regularList) {
+            TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked");
+
   enqueueCurrentBatchUnlocked(immediateList, regularList);
 
   // finish queue
@@ -163,6 +177,9 @@ ur_result_t ur_queue_batched_t::queueFinishBatchAndPoolsUnlocked(
 ur_result_t
 ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
   // auto regularCmdlist = (*batchLocked)->regularBatch.getZeCommandList();
+              TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinishUnlocked");
+
+
   UR_CALL(queueFinishBatchAndPoolsUnlocked(
       batchLocked->immediateList.getZeCommandList(), batchLocked->activeBatch.getZeCommandList()));
 
@@ -173,7 +190,7 @@ ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
 
 ur_result_t ur_queue_batched_t::queueFinish() {
   try {
-
+                  TRACK_SCOPE_LATENCY("ur_queue_batched_t::queueFinish");
     // finish current batch
     auto lockedBatches = currentCmdLists.lock();
     return queueFinishUnlocked(lockedBatches);
@@ -211,6 +228,8 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferRead(
     void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   try {
+                      TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferRead");
+
     auto lockedBatches = currentCmdLists.lock();
     UR_CALL(lockedBatches->activeBatch.appendMemBufferRead(
         hBuffer, false, offset, size, pDst, numEventsInWaitList,
@@ -240,6 +259,8 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferWrite(
   // Responsibility of UMD to offload to copy engine
 
   // -------------- end of not my comment ---------------------
+                        TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferWrite");
+
 
   auto lockedBatches = currentCmdLists.lock();
 
@@ -260,6 +281,8 @@ ur_result_t ur_queue_batched_t::enqueueMemBufferFill(
     ur_mem_handle_t hBuffer, const void *pPattern, size_t patternSize,
     size_t offset, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
+                        TRACK_SCOPE_LATENCY("ur_queue_batched_t::enqueueMemBufferFill");
+
 
   auto lockedBatch = currentCmdLists.lock();
   UR_CALL(lockedBatch->activeBatch.appendMemBufferFill(
