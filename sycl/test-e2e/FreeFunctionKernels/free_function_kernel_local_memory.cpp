@@ -12,12 +12,12 @@
 
 #include "helpers.hpp"
 
+#include <cassert>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/work_group_static.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
-#include <cassert>
 
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
