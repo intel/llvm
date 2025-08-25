@@ -679,11 +679,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 void queue_impl::constructorNotification() {
 #if XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
-    // Making it ABI compatible and not removing the member variable
-    MStreamID = detail::GSYCLStreamID;
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+    if (xptiCheckTraceEnabled(detail::GSYCLStreamID, NotificationTraceType)) {
       xpti::utils::StringHelper SH;
       std::string AddrStr = SH.addressAsString<size_t>(MQueueID);
       std::string QueueName = SH.nameWithAddressString("queue", AddrStr);
@@ -711,9 +709,10 @@ void queue_impl::constructorNotification() {
                         reinterpret_cast<size_t>(getHandleRef()));
       // Also publish to TLS before notification
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-      xptiNotifySubscribers(
-          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_create, nullptr,
-          TEvent, MInstanceID, static_cast<const void *>("queue_create"));
+      xptiNotifySubscribers(detail::GSYCLStreamID,
+                            (uint16_t)xpti::trace_point_type_t::queue_create,
+                            nullptr, TEvent, MInstanceID,
+                            static_cast<const void *>("queue_create"));
     }
   }
 #endif
@@ -723,10 +722,10 @@ void queue_impl::destructorNotification() {
 #if XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType =
       static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
-  if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+  if (xptiCheckTraceEnabled(detail::GSYCLStreamID, NotificationTraceType)) {
     // Use the cached trace event, stream id and instance IDs for the
     // destructor
-    xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
+    xptiNotifySubscribers(detail::GSYCLStreamID, NotificationTraceType, nullptr,
                           (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
                           static_cast<const void *>("queue_destroy"));
     xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);

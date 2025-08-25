@@ -105,7 +105,7 @@ public:
   queue_impl(device_impl &Device, const async_handler &AsyncHandler,
              const property_list &PropList, private_tag tag)
       : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList,
-                   tag) {};
+                   tag){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -278,7 +278,8 @@ public:
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
+    __SYCL_OCL_CALL(clRetainCommandQueue,
+                    ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -1036,8 +1037,6 @@ protected:
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
-  /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 

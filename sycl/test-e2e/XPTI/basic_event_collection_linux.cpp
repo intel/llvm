@@ -10,12 +10,12 @@
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.image
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
 // CHECK-DAG: xptiTraceInit: Stream Name = ur.api
-// CHECK-DAG: xptiTraceInit: Stream Name = ur.call
-// CHECK-DAG:  Graph create
-// CHECK-DAG:  UR Call Begin : urPlatformGet
-// CHECK-DAG:  UR Call Begin : urContextCreate
-// CHECK-DAG:  UR Call Begin : urQueueCreate
-// CHECK-DAG:  UR Call Begin : urDeviceSelectBinary
+// CHECK:      Graph create
+// CHECK:     xptiTraceInit: Stream Name = ur.call
+// CHECK:      UR Call Begin : urPlatformGet
+// CHECK:      UR Call Begin : urContextCreate
+// CHECK:      UR Call Begin : urQueueCreate
+// CHECK:      UR Call Begin : urDeviceSelectBinary
 // CHECK:      UR Call Begin : urKernelCreate
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
