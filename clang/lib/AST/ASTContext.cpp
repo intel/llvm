@@ -13159,7 +13159,8 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
   // sycl_kernel_entry_point or sycl_external attributes be emitted. All
   // other entities are emitted only if they are used by a function
   // defined with one of those attributes.
-  if (LangOpts.SYCLIsDevice && !D->hasAttr<DeviceKernelAttr>())
+  if (LangOpts.SYCLIsDevice && !D->hasAttr<DeviceKernelAttr>() &&
+      !D->hasAttr<SYCLDeviceAttr>())
     return isa<FunctionDecl>(D) && (D->hasAttr<SYCLKernelEntryPointAttr>() ||
                                     D->hasAttr<SYCLExternalAttr>());
 
