@@ -883,28 +883,30 @@ ur_result_t bindlessImagesHandleCopyFlags(
     return UR_RESULT_SUCCESS;
   };
   case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST: {
-      // Copy between pitched USM regions
-      uint32_t DstRowPitch = pDstImageDesc->rowPitch;
-      uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
-      ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
-                                      (uint32_t)pCopyRegion->dstOffset.y,
-                                      (uint32_t)pCopyRegion->dstOffset.z,
-                                      DstRowPitch,
-                                      (uint32_t)pCopyRegion->copyExtent.height,
-                                      (uint32_t)pCopyRegion->copyExtent.depth};
-      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
-                                      (uint32_t)pCopyRegion->srcOffset.y,
-                                      (uint32_t)pCopyRegion->srcOffset.z,
-                                      SrcRowPitch,
-                                      (uint32_t)pCopyRegion->copyExtent.height,
-                                      (uint32_t)pCopyRegion->copyExtent.depth};
-      uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
-      uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
-      ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
-                  numWaitEvents, phWaitEvents));
-      return UR_RESULT_SUCCESS;
+    // Copy between (possibly) pitched USM regions
+    uint32_t DstRowPitch =
+        std::max(pDstImageDesc->rowPitch, pCopyRegion->copyExtent.width);
+    uint32_t SrcRowPitch =
+        std::max(pSrcImageDesc->rowPitch, pCopyRegion->copyExtent.width);
+    ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
+                                    (uint32_t)pCopyRegion->dstOffset.y,
+                                    (uint32_t)pCopyRegion->dstOffset.z,
+                                    (uint32_t)pCopyRegion->copyExtent.width,
+                                    (uint32_t)pCopyRegion->copyExtent.height,
+                                    (uint32_t)pCopyRegion->copyExtent.depth};
+    ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
+                                    (uint32_t)pCopyRegion->srcOffset.y,
+                                    (uint32_t)pCopyRegion->srcOffset.z,
+                                    (uint32_t)pCopyRegion->copyExtent.width,
+                                    (uint32_t)pCopyRegion->copyExtent.height,
+                                    (uint32_t)pCopyRegion->copyExtent.depth};
+    uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
+    uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
+    ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+               (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                numWaitEvents, phWaitEvents));
+    return UR_RESULT_SUCCESS;
   };
   default:
     UR_LOG(ERR, "ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
