@@ -33,7 +33,7 @@ using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
-  ~DeviceGlobalUSMMem();
+  ~DeviceGlobalUSMMem() = default;
 
   void *const &getPtr() const noexcept { return MPtr; }
 

@@ -87,6 +87,7 @@ public:
             });
         if (findDevGlobalByValue != MPtr2DeviceGlobal.end())
           MPtr2DeviceGlobal.erase(findDevGlobalByValue);
+
         MDeviceGlobals.erase(DevGlobalIt);
       }
     }
@@ -112,8 +113,7 @@ public:
   DeviceGlobalMapEntry *getEntry(const void *DeviceGlobalPtr) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
     auto Entry = MPtr2DeviceGlobal.find(DeviceGlobalPtr);
-    assert(Entry != MPtr2DeviceGlobal.end() && "Device global entry not found");
-    return Entry->second;
+    return (Entry != MPtr2DeviceGlobal.end()) ? Entry->second : nullptr;
   }
 
   DeviceGlobalMapEntry *
