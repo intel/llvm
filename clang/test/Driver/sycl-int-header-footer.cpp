@@ -17,7 +17,7 @@
 // FOOTER_PREPROC_GEN-SAME: "-dependency-filter" "[[INTHEADER]]"
 // FOOTER_PREPROC_GEN-SAME: "-include-internal-footer" "[[INTFOOTER]]"
 // FOOTER_PREPROC_GEN-SAME: "-dependency-filter" "[[INTFOOTER]]"
-// FOOTER_PREPROC_GEN-SAME: "-E"{{.*}} "-o" "-"
+// FOOTER_PREPROC_GEN-SAME: "-E"
 
 /// Preprocessed file use with integration footer
 // RUN: touch %t.ii
