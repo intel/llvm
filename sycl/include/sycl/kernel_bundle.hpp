@@ -1362,25 +1362,14 @@ handler::get_specialization_constant() const {
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::kernel_id> {
-  size_t operator()(const sycl::kernel_id &KernelID) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_id_impl>>()(
-        sycl::detail::getSyclObjImpl(KernelID));
-  }
-};
+template <>
+struct std::hash<sycl::kernel_id>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel_id> {};
 
-template <sycl::bundle_state State> struct hash<sycl::device_image<State>> {
-  size_t operator()(const sycl::device_image<State> &DeviceImage) const {
-    return hash<std::shared_ptr<sycl::detail::device_image_impl>>()(
-        sycl::detail::getSyclObjImpl(DeviceImage));
-  }
-};
+template <sycl::bundle_state State>
+struct std::hash<sycl::device_image<State>>
+    : public sycl::detail::sycl_obj_hash<sycl::device_image<State>> {};
 
-template <sycl::bundle_state State> struct hash<sycl::kernel_bundle<State>> {
-  size_t operator()(const sycl::kernel_bundle<State> &KernelBundle) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_bundle_impl>>()(
-        sycl::detail::getSyclObjImpl(KernelBundle));
-  }
-};
-} // namespace std
+template <sycl::bundle_state State>
+struct std::hash<sycl::kernel_bundle<State>>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel_bundle<State>> {};
