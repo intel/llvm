@@ -14,6 +14,7 @@
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "memory.hpp"
+#include "queue.hpp"
 
 struct ur_kernel_handle_t_ : ur_object {
   ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
