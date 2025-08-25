@@ -45,7 +45,6 @@
 #endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
 #include <detail/xpti_registry.hpp>
 #endif
 
@@ -78,8 +77,6 @@ ur_result_t callMemOpHelperRet(MemOpRet &MemOpResult, MemOpFuncT &MemOpFunc,
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-// Global graph for the application
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
 
 static bool CurrentCodeLocationValid() {
   detail::tls_code_loc_t Tls;
@@ -576,8 +573,9 @@ Command::Command(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
-  // Obtain the stream ID so all commands can emit traces to that stream
-  MStreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = detail::GSYCLStreamID;
 #endif
 }
 
@@ -1813,8 +1811,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -3859,8 +3856,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update"
-         << "\\n";
+  Stream << "CommandBuffer Command Update" << "\\n";
 
   Stream << "\"];" << std::endl;
 
