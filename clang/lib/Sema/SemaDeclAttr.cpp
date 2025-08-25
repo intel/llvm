@@ -7142,6 +7142,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLSimd:
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_SYCLExternal:
     handleSimpleAttribute<SYCLExternalAttr>(S, D, AL);
     break;
