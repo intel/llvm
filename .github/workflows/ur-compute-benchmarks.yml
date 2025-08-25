@@ -1,0 +1,116 @@
+name: UR - Compute Benchmarks
+
+permissions: read-all
+
+# TODO: Pull request only for testing
+on: [ workflow_dispatch, pull_request ]
+jobs:
+  offload_build:
+    name: Compute Benchmarks with Offload Adapter
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+        compiler: [{c: gcc, cxx: g++}]
+
+    runs-on: [ UR_CUDA ]
+    container:
+      image: 'ghcr.io/intel/llvm/ubuntu2404_base'
+
+    steps:
+    - name: Checkout LLVM
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        path: dpcpp
+
+    - name: Install Python requirements in venv
+      run: |
+        python -m venv .venv
+        . .venv/bin/activate
+        echo "$PATH" >> $GITHUB_PATH
+        pip install -r dpcpp/devops/scripts/benchmarks/requirements.txt
+
+    - name: Install liboffload
+      run: sudo apt-get update -qq && sudo apt-get install --no-install-recommends -yqq liboffload-21 liboffload-21-dev
+
+    - name: Configure UR
+      # ">" is used to avoid adding "\" at the end of each line; this command is quite long
+      run: >
+        cmake
+        -S dpcpp/unified-runtime
+        -B ur_build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=OFF
+        -DUR_BUILD_ADAPTER_OFFLOAD=ON
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        -DUR_OFFLOAD_INSTALL_DIR="/usr/lib/llvm-21"
+        -DUR_OFFLOAD_INCLUDE_DIR="/usr/lib/llvm-21/include"
+        -DCMAKE_INSTALL_PREFIX=ur_install
+
+    - name: Build UR
+      # This is so that device binaries can find the sycl runtime library
+      run: cmake --build ur_build --target install -j $(nproc)
+
+    - name: Configure SYCL
+      run: >
+        python3 dpcpp/buildbot/configure.py
+        -t ${{matrix.build_type}}
+        -o sycl_build
+        --cmake-gen "Ninja"
+        --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
+        --cmake-opt="-DSYCL_PI_TESTS=OFF"
+        --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
+        --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        --cmake-opt=-DCMAKE_INSTALL_PREFIX=sycl_install
+
+    - name: Build SYCL
+      run: cmake --build sycl_build --target install -j $(nproc)
+
+    - name: Compute core range
+      run: |
+        # Compute the core range for the first NUMA node; second node is for UMF jobs.
+        # Skip the first 4 cores - the kernel is likely to schedule more work on these.
+        CORES=$(lscpu | awk '
+          /NUMA node0 CPU|On-line CPU/ {line=$0}
+          END {
+            split(line, a, " ")
+            split(a[4], b, ",")
+            sub(/^0/, "4", b[1])
+            print b[1]
+          }')
+        echo "Selected core: $CORES"
+        echo "CORES=$CORES" >> $GITHUB_ENV
+
+        ZE_AFFINITY_MASK=0
+        echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+
+    - name: Set Path
+      run: echo "PATH=$PWD/sycl_install/bin:$PATH" >> $GITHUB_ENV
+
+    - name: List Binaries
+      run: ls -lah
+
+    - name: Run benchmarks
+      id: benchmarks
+      run: >
+        taskset -c ${{ env.CORES }} dpcpp/devops/scripts/benchmarks/main.py
+        ur_bench_workdir
+        --sycl sycl_install
+        --ur ur_install
+        --adapter offload
+        --output-markdown
+        --preset Minimal
+
+    # In case it failed to add a comment, we can still print the results.
+    - name: Print benchmark results
+      if: ${{ always() }}
+      run: cat benchmark_results.md || true
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: dpcpp/unified-runtime/.github/scripts/get_system_info.sh
