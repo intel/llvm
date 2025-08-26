@@ -38,7 +38,7 @@
 // DEFINE: %{nonexistent_dir} = %/S/Inputs/SYCL/does_not_exist/lib/clang/resource_dir
 // RUN: not %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT
-// CHECK-HHH-NONEXISTENT: clang: error: cannot find 'remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
+// CHECK-HHH-NONEXISTENT: error: cannot find 'remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
 //
 // RUN: %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT-NOSYCLLIBSPIRV
