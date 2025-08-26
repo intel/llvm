@@ -29,6 +29,9 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     return offloadResultToUR(Res);
   }
 
+  Kernel->Name = pKernelName;
+  Kernel->Program = hProgram;
+
   *phKernel = Kernel;
 
   return UR_RESULT_SUCCESS;
@@ -44,6 +47,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
   switch (propName) {
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(hKernel->RefCount.load());
+  case UR_KERNEL_INFO_FUNCTION_NAME:
+    return ReturnValue(hKernel->Name.c_str());
+  case UR_KERNEL_INFO_PROGRAM:
+    return ReturnValue(hKernel->Program);
+  case UR_KERNEL_INFO_CONTEXT:
+    return ReturnValue(hKernel->Program->URContext);
+  case UR_KERNEL_INFO_ATTRIBUTES:
+    return ReturnValue("");
+  case UR_KERNEL_INFO_NUM_ARGS:
+    // This is unimplementable on liboffload (and AMD/Nvidia in general)
+    [[fallthrough]];
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
