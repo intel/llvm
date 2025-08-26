@@ -9,7 +9,7 @@
 
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
-#include <emhash/hash_table8.hpp>
+#include <hash_table8.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 

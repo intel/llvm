@@ -121,6 +121,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
       mockOpenCL
       LLVMTestingSupport
       OpenCL-Headers
+      emhash::emhash
       unified-runtime::mock
       ${SYCL_LINK_LIBS}
     )
