@@ -93,16 +93,19 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
   OL_RETURN_ON_ERR(makeEvent(TYPE, TargetQueue, hQueue, phEvent));
 
   if constexpr (Barrier) {
-    ol_event_handle_t BarrierEvent;
+    ur_event_handle_t BarrierEvent;
     if (phEvent) {
-      BarrierEvent = (*phEvent)->OffloadEvent;
+      BarrierEvent = *phEvent;
+      urEventRetain(BarrierEvent);
     } else {
-      OL_RETURN_ON_ERR(olCreateEvent(TargetQueue, &BarrierEvent));
+      OL_RETURN_ON_ERR(makeEvent(TYPE, TargetQueue, hQueue, &BarrierEvent));
     }
 
     // Ensure any newly created work waits on this barrier
     if (hQueue->Barrier) {
-      OL_RETURN_ON_ERR(olDestroyEvent(hQueue->Barrier));
+      if (auto Err = urEventRelease(hQueue->Barrier)) {
+        return Err;
+      }
     }
     hQueue->Barrier = BarrierEvent;
 
@@ -114,7 +117,7 @@ ur_result_t doWait(ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
       if (Q == TargetQueue) {
         continue;
       }
-      OL_RETURN_ON_ERR(olWaitEvents(Q, &BarrierEvent, 1));
+      OL_RETURN_ON_ERR(olWaitEvents(Q, &BarrierEvent->OffloadEvent, 1));
     }
   }
 
@@ -260,6 +263,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                   blockingWrite, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
+    ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  char *DevPtrSrc =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBufferSrc->Mem).Ptr);
+  char *DevPtrDst =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBufferDst->Mem).Ptr);
+
+  return doMemcpy(UR_COMMAND_MEM_BUFFER_COPY, hQueue, DevPtrDst + dstOffset,
+                  hQueue->OffloadDevice, DevPtrSrc + srcOffset,
+                  hQueue->OffloadDevice, size, false, numEventsInWaitList,
+                  phEventWaitList, phEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t hQueue, ur_program_handle_t hProgram, const char *name,
     bool blockingRead, size_t count, size_t offset, void *pDst,
@@ -365,4 +384,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   BufferImpl.unmap(pMappedPtr);
 
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
+    ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
+    size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  auto GetDevice = [&](const void *Ptr) {
+    auto Res = hQueue->UrContext->getAllocType(Ptr);
+    if (!Res)
+      return Adapter->HostDevice;
+    return Res->Type == OL_ALLOC_TYPE_HOST ? Adapter->HostDevice
+                                           : hQueue->OffloadDevice;
+  };
+
+  return doMemcpy(UR_COMMAND_USM_MEMCPY, hQueue, pDst, GetDevice(pDst), pSrc,
+                  GetDevice(pSrc), size, blocking, numEventsInWaitList,
+                  phEventWaitList, phEvent);
+
+  return UR_RESULT_SUCCESS;
 }
