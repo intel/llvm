@@ -17,9 +17,9 @@
 
 /// When generating preprocessed files, verify the compilation phases.
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu --offload-new-driver -fsycl -E %s -o %t.ii -ccc-print-phases 2>&1 \
-// RUN: | FileCheck %s -check-prefix PREPROC_PHASES
-// RUN: %clang_cl --target=x86_64-unknown-linux-gnu --offload-new-driver -fsycl -P %s -Fi%t.ii -ccc-print-phases 2>&1 \
-// RUN: | FileCheck %s -check-prefix PREPROC_PHASES
+// RUN: | FileCheck %s -check-prefix PREPROC_PHASES -DTARGET=x86_64-unknown-linux-gnu
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc --offload-new-driver -fsycl -P %s -Fi%t.ii -ccc-print-phases 2>&1 \
+// RUN: | FileCheck %s -check-prefix PREPROC_PHASES -DTARGET=x86_64-pc-windows-msvc
 // PREPROC_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // PREPROC_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // PREPROC_PHASES: 2: input, "[[INPUT]]", c++, (device-sycl)
@@ -27,7 +27,7 @@
 // PREPROC_PHASES: 4: compiler, {3}, none, (device-sycl)
 // PREPROC_PHASES: 5: offload, "device-sycl (spir64-unknown-unknown)" {3}, c++-cpp-output
 // PREPROC_PHASES: 6: clang-offload-packager, {5, 1}, c++-cpp-output
-// PREPROC_PHASES: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown)" {3}, "device-sycl (spir64-unknown-unknown)" {4}, " (x86_64-unknown-linux-gnu)" {6}, c++-cpp-output
+// PREPROC_PHASES: 7: offload, "host-sycl ([[TARGET]])" {1}, "device-sycl (spir64-unknown-unknown)" {3}, "device-sycl (spir64-unknown-unknown)" {4}, " ([[TARGET]])" {6}, c++-cpp-output
 
 /// When generating preprocessed files, verify the tools called and the expected
 /// output file name.
