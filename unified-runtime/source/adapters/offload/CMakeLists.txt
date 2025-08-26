@@ -37,7 +37,6 @@ if (UR_OFFLOAD_INSTALL_DIR STREQUAL "" OR UR_OFFLOAD_INCLUDE_DIR STREQUAL "")
     if(NOT IS_DIRECTORY "${LLVM_PROJECT_SOURCE_DIR}")
         execute_process(
             COMMAND git -C "${CMAKE_SOURCE_DIR}" worktree add --no-checkout --detach "${LLVM_PROJECT_SOURCE_DIR}" "${LLVM_PROJECT_TAG}"
-            RESULT_VARIABLE _wt_rv
             COMMAND_ERROR_IS_FATAL ANY
         )
     endif()
