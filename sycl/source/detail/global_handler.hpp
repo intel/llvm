@@ -30,7 +30,7 @@ class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-class KernelNameBasedCacheT;
+struct KernelNameBasedCacheT;
 class DeviceKernelInfo;
 #endif
 

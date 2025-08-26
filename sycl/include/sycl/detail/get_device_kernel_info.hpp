@@ -30,7 +30,7 @@ template <class Kernel> DeviceKernelInfo &getDeviceKernelInfo() {
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-class KernelNameBasedCacheT;
+struct KernelNameBasedCacheT;
 __SYCL_EXPORT KernelNameBasedCacheT *createKernelNameBasedCache();
 #endif
 
