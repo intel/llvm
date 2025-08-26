@@ -116,27 +116,42 @@ enum class aspect : /*unspecified*/ {
 |Indicates that the device supports the `sycl::ext::oneapi::experimental::clock()` call.
 |===
 
-=== New free function
+=== New enum
 
 ```c++
-
 namespace sycl::ext::oneap::experimental {
 
 enum class clock_scope : /* unspecified */ {
   sub_group,
   work_group,
   device
-};
-```
+}
 
-An enumerator from `clock_scope` should be passed to the `clock()` function to
-define the clock source. There are 3 clock sources: `sub_group`, `work_group`
-and `device`. Values from the first one (`sub_group`) are shared by all
-work-items executing in the same sub-group. Values from the second one
-(`work_group`) are are shared by all work-items executing in the same work-group
-etc.
+}; // namespace sycl::ext::oneap::experimental
+```
+An enumerator from `clock_scope` passed to the `clock()` function defines the
+clock source:
+
+[width="100%",%header,cols="50%,50%"]
+|===
+|Enumerator
+|Description
+
+|`sub_group`
+|`clock()` gets values shared by all work-items executing in the same sub-group.
+
+|`work_group`
+|`clock()` gets values shared by all work-items executing in the same work_group.
+
+|`device`
+|`clock()` gets values shared by all work-items executing on the device.
+|===
+
+=== New free function
 
 ```c++
+namespace sycl::ext::oneap::experimental {
+
 uint64_t clock(clock_scope scope = clock_scope::sub_group);
 
 } // namespace sycl::ext::oneapi::experimental
