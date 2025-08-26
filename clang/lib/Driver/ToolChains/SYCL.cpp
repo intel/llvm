@@ -434,9 +434,7 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
   const llvm::opt::ArgList &Args = C.getArgs();
   enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
   auto addSingleLibrary = [&](StringRef DeviceLibName) {
-    SmallString<128> LibName(DeviceLibName);
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
-    LibraryList.push_back(Args.MakeArgString(LibName));
+    LibraryList.push_back(Args.MakeArgString(Twine(DeviceLibName) + LibSuffix));
   };
 
   // This function is used to check whether there is only one GPU device
