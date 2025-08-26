@@ -46,7 +46,7 @@
 //
 // RUN: not %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib %s 2>&1 \
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-AMDGCN-HHH-NONEXISTENT
-// CHECK-AMDGCN-HHH-NONEXISTENT: clang: error: cannot find 'remangled-l64-signed_char.libspirv-amdgcn-amd-amdhsa.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
+// CHECK-AMDGCN-HHH-NONEXISTENT: clang: error: cannot find 'remangled-{{.*}}.libspirv-amdgcn-amd-amdhsa.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
 //
 // RUN: not %clang -fdriver-only -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s                      -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-DO-NONEXISTENT
