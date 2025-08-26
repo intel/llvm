@@ -17,11 +17,12 @@ let annotationsOptions = new Map(); // Global options map for annotations
 let archivedDataLoaded = false;
 let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 
-// Global variables loaded from data.js:
+// Global variables loaded from data.js/data.json:
 // - benchmarkRuns: array of benchmark run data
 // - benchmarkMetadata: metadata for benchmarks and groups  
 // - benchmarkTags: tag definitions
-// - flamegraphData: available flamegraphs (optional, added dynamically)
+// - defaultCompareNames: default run names for comparison
+// - flamegraphData: available flamegraphs data with runs information (if available)
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
@@ -377,8 +378,7 @@ function createChartContainer(data, canvasId, type) {
         const unstableWarning = document.createElement('div');
         unstableWarning.className = 'benchmark-unstable';
         unstableWarning.textContent = metadata.unstable;
-        unstableWarning.style.display = isUnstableEnabled() ? 'block' : 'none';
-        unstableWarning.style.marginBottom = '5px';
+        unstableWarning.classList.toggle('hidden', !isUnstableEnabled());
         headerSection.appendChild(unstableWarning);
     }
 
@@ -387,7 +387,6 @@ function createChartContainer(data, canvasId, type) {
         const descElement = document.createElement('div');
         descElement.className = 'benchmark-description';
         descElement.textContent = metadata.description;
-        descElement.style.marginBottom = '5px';
         headerSection.appendChild(descElement);
     }
 
@@ -396,7 +395,7 @@ function createChartContainer(data, canvasId, type) {
         const noteElement = document.createElement('div');
         noteElement.className = 'benchmark-note';
         noteElement.textContent = metadata.notes;
-        noteElement.style.display = isNotesEnabled() ? 'block' : 'none';
+        noteElement.classList.toggle('hidden', !isNotesEnabled());
         headerSection.appendChild(noteElement);
     }
 
@@ -442,6 +441,7 @@ function createChartContainer(data, canvasId, type) {
             flamegraphsToShow.forEach((flamegraphInfo, index) => {
                 const iframe = document.createElement('iframe');
                 iframe.src = flamegraphInfo.path;
+                iframe.className = 'flamegraph-iframe';
                 
                 // Calculate dimensions that fit within the existing container constraints
                 // The container has max-width: 1100px with 24px padding on each side
@@ -449,14 +449,8 @@ function createChartContainer(data, canvasId, type) {
                 const containerPadding = 48; // 24px on each side
                 const availableWidth = containerMaxWidth - containerPadding;
                 
-                // Set dimensions to fit within container without scrollbars
-                iframe.style.width = '100%';
+                // Only set max-width dynamically, other styles handled by CSS
                 iframe.style.maxWidth = `${availableWidth}px`;
-                iframe.style.height = '600px';
-                iframe.style.border = '1px solid #ddd';
-                iframe.style.borderRadius = '4px';
-                iframe.style.display = 'block';
-                iframe.style.margin = index === 0 ? '0 auto 10px auto' : '10px auto'; // Add spacing between multiple iframes
                 iframe.title = `${flamegraphInfo.runName} - ${data.label}`;
                 
                 // Add error handling for missing flamegraph files
@@ -494,11 +488,7 @@ function createChartContainer(data, canvasId, type) {
         // Canvas for the chart - fixed position in content flow
         const canvas = document.createElement('canvas');
         canvas.id = canvasId;
-        canvas.style.width = '100%';
-
-        // Set a default height - will be properly sized later in createChart
-        canvas.style.height = '400px';
-        canvas.style.marginBottom = '10px';
+        canvas.className = 'benchmark-canvas';
         contentSection.appendChild(canvas);
     }
 
@@ -511,6 +501,7 @@ function createChartContainer(data, canvasId, type) {
     // Create details section for extra info
     const details = document.createElement('details');
     const summary = document.createElement('summary');
+    summary.className = 'download-summary';
     summary.textContent = "Details";
 
     // Add subtle download button to the summary
@@ -519,7 +510,11 @@ function createChartContainer(data, canvasId, type) {
     downloadButton.textContent = 'Download';
     downloadButton.onclick = (event) => {
         event.stopPropagation(); // Prevent details toggle
-        downloadChart(canvasId, data.label);
+        if (isFlameGraphEnabled()) {
+            downloadFlameGraph(data.label, activeRuns, downloadButton);
+        } else {
+            downloadChart(canvasId, data.label);
+        }
     };
     summary.appendChild(downloadButton);
     details.appendChild(summary);
@@ -651,6 +646,70 @@ function downloadChart(canvasId, label) {
     }
 }
 
+function downloadFlameGraph(benchmarkLabel, activeRuns, buttonElement) {
+    const flamegraphsToShow = getFlameGraphsForBenchmark(benchmarkLabel, activeRuns);
+
+    if (flamegraphsToShow.length === 0) {
+        alert('No flamegraph data available for download');
+        return;
+    }
+
+    // If there's only one flamegraph, download it directly.
+    if (flamegraphsToShow.length === 1) {
+        const link = document.createElement('a');
+        link.href = flamegraphsToShow[0].path;
+        link.download = `${flamegraphsToShow[0].runName}_${benchmarkLabel}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+    }
+
+    // --- Floating list for multiple flamegraphs ---
+
+    // Remove any existing lists first
+    const oldList = document.querySelector('.flamegraph-download-list');
+    if (oldList) {
+        oldList.remove();
+    }
+
+    const listContainer = document.createElement('div');
+    listContainer.className = 'flamegraph-download-list';
+
+    // Position the list relative to the button
+    const rect = buttonElement.getBoundingClientRect();
+    listContainer.style.position = 'absolute';
+    listContainer.style.top = `${window.scrollY + rect.bottom}px`;
+    listContainer.style.left = `${window.scrollX + rect.left}px`;
+
+    flamegraphsToShow.forEach(flamegraph => {
+        const link = document.createElement('a');
+        link.href = flamegraph.path;
+        const filename = `${flamegraph.runName}_${benchmarkLabel}.svg`;
+        link.textContent = filename;
+        link.download = filename;
+
+        // When a file is clicked, remove the list
+        link.onclick = () => {
+            listContainer.remove();
+        };
+
+        listContainer.appendChild(link);
+    });
+
+    // Add a listener to close the list if user clicks elsewhere
+    setTimeout(() => {
+        document.addEventListener('click', function closeHandler(event) {
+            if (!listContainer.contains(event.target)) {
+                listContainer.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        });
+    }, 0);
+
+    document.body.appendChild(listContainer);
+}
+
 // URL and filtering functions
 //
 // Information about currently displayed charts, filters, etc. are preserved in
@@ -762,7 +821,7 @@ function filterCharts() {
             (isUnstableEnabled() || !isUnstable) &&
             hasAllActiveTags;
 
-        container.style.display = shouldShow ? '' : 'none';
+        container.classList.toggle('hidden', !shouldShow);
     });
 
     updateURL();
@@ -1070,9 +1129,19 @@ function validateFlameGraphData() {
 }
 
 function createFlameGraphPath(benchmarkLabel, runName, timestamp) {
-    const benchmarkDirName = benchmarkLabel;
+    const suiteName = window.flamegraphData?.runs?.[runName]?.suites?.[benchmarkLabel];
+
+    if (!suiteName) {
+        console.error(`Could not find suite for benchmark '${benchmarkLabel}' in run '${runName}'`);
+        // Fallback to old path for safety, though it's likely to fail.
+        const benchmarkDirName = benchmarkLabel;
+        const timestampPrefix = timestamp + '_';
+        return `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+    }
+
+    const benchmarkDirName = `${suiteName}__${benchmarkLabel}`;
     const timestampPrefix = timestamp + '_';
-    return `results/flamegraphs/${encodeURIComponent(benchmarkDirName)}/${timestampPrefix}${runName}.svg`;
+    return `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
 }
 
 function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
@@ -1083,20 +1152,18 @@ function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
     
     const runsWithFlameGraph = [];
     activeRuns.forEach(runName => {
-        if (flamegraphData.runs[runName] && 
-            flamegraphData.runs[runName].benchmarks && 
-            flamegraphData.runs[runName].benchmarks.includes(benchmarkLabel)) {
+        if (window.flamegraphData.runs[runName] && 
+            window.flamegraphData.runs[runName].suites && 
+            Object.keys(window.flamegraphData.runs[runName].suites).includes(benchmarkLabel)) {
             runsWithFlameGraph.push({
                 name: runName,
-                timestamp: flamegraphData.runs[runName].timestamp
+                timestamp: window.flamegraphData.runs[runName].timestamp
             });
         }
     });
     
     return runsWithFlameGraph;
 }
-
-// Removed: getFlameGraphPath() - functionality consolidated into getFlameGraphsForBenchmark()
 
 function getFlameGraphsForBenchmark(benchmarkLabel, activeRuns) {
     const runsWithFlameGraph = getRunsWithFlameGraph(benchmarkLabel, activeRuns);
@@ -1124,8 +1191,6 @@ function getFlameGraphsForBenchmark(benchmarkLabel, activeRuns) {
     return flamegraphsToShow;
 }
 
-// Removed: getFlameGraphInfo() - unused function, functionality covered by getFlameGraphsForBenchmark()
-
 function updateFlameGraphTooltip() {
     const flameGraphToggle = document.getElementById('show-flamegraph');
     const label = document.querySelector('label[for="show-flamegraph"]');
@@ -1134,24 +1199,24 @@ function updateFlameGraphTooltip() {
     
     // Check if we have flamegraph data
     if (validateFlameGraphData()) {
-        const runsWithFlameGraphs = Object.keys(flamegraphData.runs).filter(
-            runName => flamegraphData.runs[runName].benchmarks && 
-                      flamegraphData.runs[runName].benchmarks.length > 0
+        const runsWithFlameGraphs = Object.keys(window.flamegraphData.runs).filter(
+            runName => window.flamegraphData.runs[runName].suites && 
+                      Object.keys(window.flamegraphData.runs[runName].suites).length > 0
         );
         
         if (runsWithFlameGraphs.length > 0) {
             label.title = `Show flamegraph SVG files instead of benchmark charts. Available for runs: ${runsWithFlameGraphs.join(', ')}`;
             flameGraphToggle.disabled = false;
-            label.style.color = '';
+            label.classList.remove('disabled-text');
         } else {
             label.title = 'No flamegraph data available - run benchmarks with --flamegraph option to enable';
             flameGraphToggle.disabled = true;
-            label.style.color = '#999';
+            label.classList.add('disabled-text');
         }
     } else {
         label.title = 'No flamegraph data available - run benchmarks with --flamegraph option to enable';
         flameGraphToggle.disabled = true;
-        label.style.color = '#999';
+        label.classList.add('disabled-text');
     }
 }
 
@@ -1165,7 +1230,7 @@ function setupToggles() {
     notesToggle.addEventListener('change', function () {
         // Update all note elements visibility
         document.querySelectorAll('.benchmark-note').forEach(note => {
-            note.style.display = isNotesEnabled() ? 'block' : 'none';
+            note.classList.toggle('hidden', !isNotesEnabled());
         });
         updateURL();
     });
@@ -1173,7 +1238,7 @@ function setupToggles() {
     unstableToggle.addEventListener('change', function () {
         // Update all unstable warning elements visibility
         document.querySelectorAll('.benchmark-unstable').forEach(warning => {
-            warning.style.display = isUnstableEnabled() ? 'block' : 'none';
+            warning.classList.toggle('hidden', !isUnstableEnabled());
         });
         filterCharts();
     });
@@ -1335,7 +1400,7 @@ function initializeCharts() {
     
     // In flamegraph-only mode, ensure we include runs from flamegraph data
     if (validateFlameGraphData()) {
-        const flamegraphRunNames = Object.keys(flamegraphData.runs);
+        const flamegraphRunNames = Object.keys(window.flamegraphData.runs);
         allRunNames = [...new Set([...allRunNames, ...flamegraphRunNames])];
     }
     
@@ -1349,7 +1414,7 @@ function initializeCharts() {
     
     const hasFlameGraphResults = loadedBenchmarkRuns.some(run => 
         run.results && run.results.some(result => result.suite === 'flamegraph')
-    ) || (validateFlameGraphData() && Object.keys(flamegraphData.runs).length > 0);
+    ) || (validateFlameGraphData() && Object.keys(window.flamegraphData.runs).length > 0);
 
     console.log('Benchmark analysis:', {
         hasActualBenchmarks,
@@ -1361,7 +1426,7 @@ function initializeCharts() {
             hasResults: run.results && run.results.length > 0
         })),
         flamegraphValidation: validateFlameGraphData(),
-        flamegraphRunCount: validateFlameGraphData() ? Object.keys(flamegraphData.runs).length : 0
+        flamegraphRunCount: validateFlameGraphData() ? Object.keys(window.flamegraphData.runs).length : 0
     });
 
     // If we only have flamegraph results (no actual benchmark data), create synthetic data
@@ -1370,8 +1435,8 @@ function initializeCharts() {
         
         // Check if we have flamegraph data available
         const hasFlamegraphData = validateFlameGraphData() && 
-                                 Object.keys(flamegraphData.runs).length > 0 &&
-                                 Object.values(flamegraphData.runs).some(run => run.benchmarks && run.benchmarks.length > 0);
+                                 Object.keys(window.flamegraphData.runs).length > 0 &&
+                                 Object.values(window.flamegraphData.runs).some(run => run.suites && Object.keys(run.suites).length > 0);
         
         if (hasFlamegraphData) {
             console.log('Creating synthetic benchmark data for flamegraph display');
@@ -1501,11 +1566,6 @@ function fetchAndProcessData(url, isArchived = false) {
                 // Replace existing data for current data
                 loadedBenchmarkRuns = newRuns;
             }
-            // The following variables have same values regardless of whether
-            // we load archived or current data
-            benchmarkMetadata = data.metadata || benchmarkMetadata || {};
-            benchmarkTags = data.tags || benchmarkTags || {};
-
             initializeCharts();
         })
         .catch(error => {
@@ -1513,14 +1573,14 @@ function fetchAndProcessData(url, isArchived = false) {
             loadingIndicator.textContent = 'Fetching remote data failed.';
         })
         .finally(() => {
-            loadingIndicator.style.display = 'none';
+            loadingIndicator.classList.add('hidden');
         });
 }
 
 // Load data based on configuration
 function loadData() {
     const loadingIndicator = document.getElementById('loading-indicator');
-    loadingIndicator.style.display = 'block'; // Show loading indicator
+    loadingIndicator.classList.remove('hidden'); // Show loading indicator
 
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
         // Fetch data from remote URL
@@ -1529,8 +1589,23 @@ function loadData() {
     } else {
         // Use local data
         loadedBenchmarkRuns = benchmarkRuns;
+        // Assign global metadata from data.js if window.benchmarkMetadata is not set
+        if (!window.benchmarkMetadata) {
+            window.benchmarkMetadata = (typeof benchmarkMetadata !== 'undefined') ? benchmarkMetadata : {};
+        }
+        // Assign global tags from data.js if window.benchmarkTags is not set
+        if (!window.benchmarkTags) {
+            window.benchmarkTags = (typeof benchmarkTags !== 'undefined') ? benchmarkTags : {};
+        }
+        // Assign flamegraph data from data.js if available
+        if (typeof flamegraphData !== 'undefined') {
+            window.flamegraphData = flamegraphData;
+            console.log('Loaded flamegraph data from data.js with', Object.keys(flamegraphData.runs || {}).length, 'runs');
+        } else {
+            window.flamegraphData = { runs: {} };
+        }
         initializeCharts();
-        loadingIndicator.style.display = 'none'; // Hide loading indicator
+        loadingIndicator.classList.add('hidden'); // Hide loading indicator
     }
 }
 
@@ -1539,11 +1614,11 @@ function loadData() {
 // the primary dataset but are still available for historical analysis.
 function loadArchivedData() {
     const loadingIndicator = document.getElementById('loading-indicator');
-    loadingIndicator.style.display = 'block';
+    loadingIndicator.classList.remove('hidden');
 
     if (archivedDataLoaded) {
         updateCharts();
-        loadingIndicator.style.display = 'none';
+        loadingIndicator.classList.add('hidden');
         return;
     }
 
@@ -1560,12 +1635,12 @@ function loadArchivedData() {
             loadedBenchmarkRuns = loadedBenchmarkRuns.concat(benchmarkRuns);
             archivedDataLoaded = true;
             initializeCharts();
-            loadingIndicator.style.display = 'none';
+            loadingIndicator.classList.add('hidden');
         };
 
         script.onerror = () => {
             console.error('Failed to load data_archive.js');
-            loadingIndicator.style.display = 'none';
+            loadingIndicator.classList.add('hidden');
         };
 
         document.head.appendChild(script);
@@ -1701,11 +1776,11 @@ function createFlameGraphOnlyData() {
     if (validateFlameGraphData()) {
         // Collect all unique benchmarks from all runs that have flamegraphs
         const allBenchmarks = new Set();
-        const availableRuns = Object.keys(flamegraphData.runs);
+        const availableRuns = Object.keys(window.flamegraphData.runs);
         
         availableRuns.forEach(runName => {
-            if (flamegraphData.runs[runName].benchmarks) {
-                flamegraphData.runs[runName].benchmarks.forEach(benchmark => {
+            if (window.flamegraphData.runs[runName].suites) {
+                Object.keys(window.flamegraphData.runs[runName].suites).forEach(benchmark => {
                     allBenchmarks.add(benchmark);
                 });
             }
@@ -1731,7 +1806,7 @@ function createFlameGraphOnlyData() {
         // Add a visual indicator that flamegraphs are not available
         const label = document.querySelector('label[for="show-flamegraph"]');
         if (label) {
-            label.style.color = '#999';
+            label.classList.add('disabled-text');
             label.title = 'No flamegraph data available - run benchmarks with --flamegraph option to enable';
         }
         
@@ -1805,8 +1880,8 @@ function createSyntheticFlameGraphData(flamegraphLabels) {
         
         if (window.flamegraphData?.runs) {
             // Check all runs for suite information for this benchmark
-            for (const runName in flamegraphData.runs) {
-                const runData = flamegraphData.runs[runName];
+            for (const runName in window.flamegraphData.runs) {
+                const runData = window.flamegraphData.runs[runName];
                 if (runData.suites && runData.suites[label]) {
                     suite = runData.suites[label];
                     break;

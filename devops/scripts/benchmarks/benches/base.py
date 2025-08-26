@@ -13,13 +13,14 @@ from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
 from utils.unitrace import get_unitrace
-from utils.logger import log
 from utils.flamegraph import get_flamegraph
+from utils.logger import log
 
 
 class TracingType(Enum):
     """Enumeration of available tracing types."""
 
+    NONE = ""
     UNITRACE = "unitrace"
     FLAMEGRAPH = "flamegraph"
 
@@ -88,15 +89,12 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(
-        self, env_vars, run_unitrace: bool = False, run_flamegraph: bool = False
-    ) -> list[Result]:
+    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
         """Execute the benchmark with the given environment variables.
 
         Args:
             env_vars: Environment variables to use when running the benchmark.
-            run_unitrace: Whether to run benchmark under Unitrace.
-            run_flamegraph: Whether to run benchmark under FlameGraph.
+            run_trace: The type of tracing to run (NONE, UNITRACE, or FLAMEGRAPH).
 
         Returns:
             A list of Result objects with the benchmark results.
@@ -125,10 +123,8 @@ class Benchmark(ABC):
         ld_library=[],
         add_sycl=True,
         use_stdout=True,
-        run_unitrace=False,
-        extra_unitrace_opt=None,
-        run_flamegraph=False,
-        extra_perf_opt=None,  # VERIFY
+        run_trace: TracingType = TracingType.NONE,
+        extra_trace_opt=None,
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -141,11 +137,11 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        if self.traceable(TracingType.UNITRACE) and run_unitrace:
-            if extra_unitrace_opt is None:
-                extra_unitrace_opt = []
+        if self.traceable(TracingType.UNITRACE) and run_trace == TracingType.UNITRACE:
+            if extra_trace_opt is None:
+                extra_trace_opt = []
             unitrace_output, command = get_unitrace().setup(
-                self.name(), command, extra_unitrace_opt
+                self.name(), command, extra_trace_opt
             )
             log.debug(f"Unitrace output: {unitrace_output}")
             log.debug(f"Unitrace command: {' '.join(command)}")
@@ -159,24 +155,22 @@ class Benchmark(ABC):
                 ld_library=ld_libraries,
             )
         except subprocess.CalledProcessError:
-            if run_unitrace:
+            if run_trace == TracingType.UNITRACE:
                 get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
             raise
 
-        if self.traceable(TracingType.UNITRACE) and run_unitrace:
+        if self.traceable(TracingType.UNITRACE) and run_trace == TracingType.UNITRACE:
             get_unitrace().handle_output(unitrace_output)
 
         # flamegraph run
 
-        ld_libraries = options.extra_ld_libraries.copy()
-        ld_libraries.extend(ld_library)
-
         perf_data_file = None
-        if self.traceable(TracingType.FLAMEGRAPH) and run_flamegraph:
-            if extra_perf_opt is None:
-                extra_perf_opt = []
+        if (
+            self.traceable(TracingType.FLAMEGRAPH)
+            and run_trace == TracingType.FLAMEGRAPH
+        ):
             perf_data_file, command = get_flamegraph().setup(
-                self.name(), command, extra_perf_opt
+                self.name(), self.get_suite_name(), command
             )
             log.debug(f"FlameGraph perf data: {perf_data_file}")
             log.debug(f"FlameGraph command: {' '.join(command)}")
@@ -190,11 +184,15 @@ class Benchmark(ABC):
                 ld_library=ld_libraries,
             )
         except subprocess.CalledProcessError:
-            if run_flamegraph and perf_data_file:
-                get_flamegraph().cleanup(options.benchmark_cwd, perf_data_file)
+            if run_trace == TracingType.FLAMEGRAPH and perf_data_file:
+                get_flamegraph().cleanup(perf_data_file)
             raise
 
-        if self.traceable(TracingType.FLAMEGRAPH) and run_flamegraph and perf_data_file:
+        if (
+            self.traceable(TracingType.FLAMEGRAPH)
+            and run_trace == TracingType.FLAMEGRAPH
+            and perf_data_file
+        ):
             svg_file = get_flamegraph().handle_output(
                 self.name(), perf_data_file, self.get_suite_name()
             )

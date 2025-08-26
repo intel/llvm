@@ -42,15 +42,12 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
-    run_unitrace: bool = False,
-    run_flamegraph: bool = False,
+    run_trace: TracingType = TracingType.NONE,
 ):
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
-            bench_results = benchmark.run(
-                env_vars, run_unitrace=run_unitrace, run_flamegraph=run_flamegraph
-            )
+            bench_results = benchmark.run(env_vars, run_trace=run_trace)
             if bench_results is None:
                 if options.exit_on_failure:
                     raise RuntimeError(f"Benchmark produced no results!")
@@ -291,8 +288,7 @@ def main(directory, additional_env_vars, compare_names, filter):
                         options.iterations,
                         intermediate_results,
                         failures,
-                        run_unitrace=False,
-                        run_flamegraph=False,
+                        run_trace=TracingType.NONE,
                     )
                     valid, processed = process_results(
                         intermediate_results, benchmark.stddev_threshold()
@@ -308,8 +304,7 @@ def main(directory, additional_env_vars, compare_names, filter):
                     1,
                     intermediate_results,
                     failures,
-                    run_unitrace=True,
-                    run_flamegraph=False,
+                    run_trace=TracingType.UNITRACE,
                 )
             # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
             if options.flamegraph and benchmark.traceable(TracingType.FLAMEGRAPH):
@@ -319,8 +314,7 @@ def main(directory, additional_env_vars, compare_names, filter):
                     1,
                     intermediate_results,
                     failures,
-                    run_unitrace=False,
-                    run_flamegraph=True,
+                    run_trace=TracingType.FLAMEGRAPH,
                 )
 
             results += processed
@@ -409,15 +403,6 @@ def main(directory, additional_env_vars, compare_names, filter):
             log.debug(
                 f"Reloaded {len(history.runs)} benchmark runs for HTML generation."
             )
-
-        # Finalize flamegraph data for this run (write all benchmarks to flamegraphs.js)
-        if options.flamegraph and options.save_name:
-            try:
-                flamegraph = get_flamegraph()
-                flamegraph.finalize_run_flamegraphs(html_path, options.save_name)
-                log.info(f"Finalized flamegraph data for run: {options.save_name}")
-            except Exception as e:
-                log.debug(f"Failed to finalize flamegraph data: {e}")
 
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")

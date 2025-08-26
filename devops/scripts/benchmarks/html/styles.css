@@ -1,15 +1,57 @@
+/* ========================================
+   CSS VARIABLES FOR CONSISTENT THEMING
+   ======================================== */
+:root {
+    /* Core Color Palette - only used colors from scripts.js */
+    --color-red: rgb(255, 50, 80);
+    --color-orange: rgb(255, 145, 15);
+    --color-yellow: rgb(255, 220, 0);
+    --color-green: rgb(20, 200, 50);
+    --color-blue: rgb(0, 130, 255);
+    --color-purple: rgb(180, 60, 255);
+    --color-pink: rgb(255, 40, 200);
+    --color-teal: rgb(0, 210, 180);
+    --color-cyan: #00C7FD;
+
+    /* Text colors - consolidated similar shades */
+    --text-dark: #212529;
+    --text-muted: #555;        /* Replaces text-disabled, text-secondary, text-light */
+    --text-white: #333;
+    --text-info: #084298;
+    --text-danger: var(--color-red);    /* Use palette red for errors */
+    --text-warning: var(--color-orange); /* Use palette orange for warnings */
+
+    /* Backgrounds - consolidated similar grays */
+    --bg-body: #f8f9fa;       /* Replaces bg-lighter, bg-light-gray */
+    --bg-white: white;
+    --bg-light: #e9ecef;      /* Replaces bg-disabled */
+    --bg-summary: #dee2e6;
+    --bg-summary-hover: #ced4da;
+    --bg-info: #cfe2ff;
+    --bg-warning: rgba(255, 145, 15, 0.1);  /* Light orange background for warnings */
+    --bg-danger: rgba(255, 50, 80, 0.1);    /* Light red background for errors */
+
+    /* Borders - simplified */
+    --border-light: #ccc;
+    --border-medium: #ddd;    /* Replaces border-gray */
+
+    /* Shadows */
+    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-dropdown: 0 2px 5px rgba(0,0,0,0.15);
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     margin: 0;
     padding: 16px;
-    background: #f8f9fa;
+    background: var(--bg-body);
 }
 .container {
     max-width: 1100px;
     margin: 0 auto;
 }
 h1, h2 {
-    color: #212529;
+    color: var(--text-dark);
     text-align: center;
     margin-bottom: 24px;
     font-weight: 500;
@@ -57,7 +99,7 @@ h1, h2 {
 .filter-container input {
     padding: 8px;
     font-size: 16px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     width: 400px;
     max-width: 100%;
@@ -66,7 +108,7 @@ h1, h2 {
     text-align: center;
     margin-bottom: 24px;
     padding: 16px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 .suite-checkbox {
@@ -83,12 +125,12 @@ summary {
     font-weight: 500;
     cursor: pointer;
     padding: 12px 16px;
-    background: #dee2e6;
+    background: var(--bg-summary);
     border-radius: 8px;
     user-select: none;
 }
 summary:hover {
-    background: #ced4da;
+    background: var(--bg-summary-hover);
 }
 summary::marker {
     display: none;
@@ -107,7 +149,7 @@ details[open] summary::after {
 }
 .extra-info {
     padding: 8px;
-    background: #f8f9fa;
+    background: var(--bg-body);
     border-radius: 8px;
     margin-top: 8px;
 }
@@ -115,7 +157,7 @@ details[open] summary::after {
     text-align: center;
     margin-bottom: 24px;
     padding: 16px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 .run-selector select {
@@ -125,14 +167,14 @@ details[open] summary::after {
 }
 .run-selector button {
     padding: 8px 16px;
-    background: #0068B5;
+    background: var(--color-blue);
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 .run-selector button:hover {
-    background: #00C7FD;
+    background: var(--color-cyan);
 }
 .selected-runs {
     margin-top: 12px;
@@ -141,7 +183,7 @@ details[open] summary::after {
     display: inline-block;
     padding: 4px 8px;
     margin: 4px;
-    background: #e2e6ea;
+    background: var(--bg-light);
     border-radius: 4px;
 }
 .selected-run button {
@@ -149,32 +191,32 @@ details[open] summary::after {
     padding: 0 4px;
     background: none;
     border: none;
-    color: #dc3545;
+    color: var(--color-red);
     cursor: pointer;
 }
 .download-button {
     background: none;
     border: none;
-    color: #0068B5;
+    color: var(--color-blue);
     cursor: pointer;
     font-size: 16px;
     padding: 4px;
     margin-left: 8px;
 }
 .download-button:hover {
-    color: #00C7FD;
+    color: var(--color-cyan);
 }
 .loading-indicator {
     text-align: center;
     font-size: 18px;
-    color: #0068B5;
+    color: var(--color-blue);
     margin-bottom: 20px;
 }
 .extra-info-entry {
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     padding: 10px;
     margin-bottom: 10px;
-    background-color: #f9f9f9;
+    background-color: var(--bg-body);
     border-radius: 5px;
 }
 .extra-info-entry strong {
@@ -182,13 +224,13 @@ details[open] summary::after {
     margin-bottom: 5px;
 }
 .extra-info-entry em {
-    color: #555;
+    color: var(--text-muted);
 }
 .display-options-container {
     text-align: center;
     margin-bottom: 24px;
     padding: 16px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 .display-options-container label {
@@ -199,36 +241,36 @@ details[open] summary::after {
     margin-right: 8px;
 }
 .benchmark-note {
-    background-color: #cfe2ff;
-    color: #084298;
+    background-color: var(--bg-info);
+    color: var(--text-info);
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    border-left: 4px solid #084298;
+    border-left: 4px solid var(--text-info);
     white-space: pre-line;
 }
 .benchmark-unstable {
-    background-color: #f8d7da;
-    color: #842029;
+    background-color: var(--bg-warning);
+    color: var(--text-warning);
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    border-left: 4px solid #842029;
+    border-left: 4px solid var(--text-warning);
     white-space: pre-line;
 }
 .note-text {
-    color: #084298;
+    color: var(--text-info);
 }
 .unstable-warning {
-    color: #842029;
+    color: var(--text-warning);
     font-weight: bold;
 }
 .unstable-text {
-    color: #842029;
+    color: var(--text-warning);
 }
 .options-container {
     margin-bottom: 24px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -236,11 +278,11 @@ details[open] summary::after {
     padding: 12px 16px;
     font-weight: 500;
     cursor: pointer;
-    background: #dee2e6;
+    background: var(--bg-summary);
     user-select: none;
 }
 .options-container summary:hover {
-    background: #ced4da;
+    background: var(--bg-summary-hover);
 }
 .options-content {
     padding: 16px;
@@ -266,10 +308,10 @@ details[open] summary::after {
     flex-wrap: wrap;
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 8px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-body);
 }
 .display-options {
     display: flex;
@@ -285,12 +327,12 @@ details[open] summary::after {
     margin-right: 8px;
 }
 .benchmark-description {
-    background-color: #f2f2f2;
-    color: #333;
+    background-color: var(--bg-body);
+    color: var(--text-white);
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    border-left: 4px solid #6c757d;
+    border-left: 4px solid var(--text-muted);
     white-space: pre-line;
     font-style: italic;
 }
@@ -303,8 +345,8 @@ details[open] summary::after {
 }
 .tag {
     display: inline-block;
-    background-color: #e2e6ea;
-    color: #495057;
+    background-color: var(--bg-light);
+    color: var(--text-muted);
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 12px;
@@ -322,7 +364,7 @@ details[open] summary::after {
     align-items: center;
 }
 .tag-info {
-    color: #0068B5;
+    color: var(--color-blue);
     margin-left: 4px;
     cursor: help;
     font-size: 12px;
@@ -332,14 +374,14 @@ details[open] summary::after {
     flex-wrap: wrap;
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 8px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-body);
 }
 .tag-action-button {
     padding: 2px 8px;
-    background: #e2e6ea;
+    background: var(--bg-light);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -348,7 +390,7 @@ details[open] summary::after {
     vertical-align: middle;
 }
 .tag-action-button:hover {
-    background: #ced4da;
+    background: var(--bg-summary-hover);
 }
 .remove-tag {
     background: none;
@@ -360,7 +402,7 @@ details[open] summary::after {
     padding: 0 4px;
 }
 .remove-tag:hover {
-    color: #f8d7da;
+    color: var(--text-danger);
 }
 .platform {
     padding: 16px;
@@ -369,8 +411,8 @@ details[open] summary::after {
     margin-top: 8px;
 }
 .platform-run-section {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
+    background: var(--bg-body);
+    border: 1px solid var(--bg-light);
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 24px;
@@ -379,11 +421,11 @@ details[open] summary::after {
     margin-bottom: 0;
 }
 .platform-run-title {
-    color: #495057;
+    color: var(--text-muted);
     font-size: 18px;
     margin: 0 0 16px 0;
     padding-bottom: 8px;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--bg-summary);
     font-weight: 600;
 }
 .platform-item {
@@ -396,14 +438,14 @@ details[open] summary::after {
 }
 .platform-label {
     font-weight: 500;
-    color: #495057;
+    color: var(--text-muted);
     min-width: 80px;
     flex-shrink: 0;
     margin-right: 8px;
     font-size: 12px;
 }
 .platform-value {
-    color: #212529;
+    color: var(--text-dark);
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 12px;
     line-height: 1.3;
@@ -443,30 +485,59 @@ details[open] summary::after {
 /* FlameGraph specific styles */
 .flamegraph-error,
 .flamegraph-unavailable {
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
+    background-color: var(--bg-body);
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 20px;
     text-align: center;
-    color: #6c757d;
+    color: var(--text-muted);
     font-style: italic;
     margin: 10px 0;
 }
 
 .flamegraph-error {
-    background-color: #fff3cd;
-    border-color: #ffeaa7;
-    color: #856404;
+    background-color: var(--bg-warning);
+    border-color: var(--color-orange);
+    color: var(--text-warning);
 }
 
-/* Updated selector to match new title format (RunName - BenchmarkName) */
-iframe[src*="flamegraphs"] {
+/* ========================================
+   CHART AND BENCHMARK CONTAINER STYLES
+   ======================================== */
+
+/* Consolidated margin styles for benchmark elements */
+.benchmark-description,
+.benchmark-note,
+.benchmark-unstable {
+    margin-bottom: 5px;
+}
+
+.benchmark-canvas {
+    width: 100%;
+    height: 1200px;
+    margin-bottom: 10px;
+}
+
+/* ========================================
+   FLAMEGRAPH STYLES
+   ======================================== */
+
+/* Flamegraph iframe base styles */
+.flamegraph-iframe {
+    width: 100%;
+    height: 500px;
+    min-height: 500px;
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    display: block;
+    margin: 10px auto;
     transition: all 0.3s ease;
     box-sizing: border-box;
-    max-width: 100%;
-    width: 100%;
-    border: none;
     overflow: hidden;
+}
+
+.flamegraph-iframe:first-child {
+    margin: 0 auto 10px auto;
 }
 
 /* Ensure flamegraph containers have proper spacing and fit within container */
@@ -477,10 +548,72 @@ iframe[src*="flamegraphs"] {
 /* Handle multiple flamegraphs displayed vertically */
 .chart-content iframe[src*="flamegraphs"]:not(:last-child) {
     margin-bottom: 15px;
-    border-bottom: 2px solid #e9ecef;
+    border-bottom: 2px solid var(--bg-light);
 }
 
 /* Add subtle visual separation between multiple flamegraphs */
 .chart-content iframe[src*="flamegraphs"]:not(:first-child) {
     margin-top: 15px;
 }
+
+/* Floating flamegraph download list */
+.flamegraph-download-list {
+    position: absolute;
+    z-index: 1000;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background-color: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    padding: 5px;
+    margin-top: 5px;
+}
+
+.flamegraph-download-list a {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-white);
+    cursor: pointer;
+}
+
+.flamegraph-download-list a:hover {
+    background-color: var(--bg-body);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Show/hide utility classes */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+.disabled-text {
+    color: var(--text-muted) !important;
+}
+
+/* ========================================
+   COLOR UTILITY CLASSES
+   ======================================== */
+.color-red { color: var(--color-red) !important; }
+.color-orange { color: var(--color-orange) !important; }
+.color-yellow { color: var(--color-yellow) !important; }
+.color-green { color: var(--color-green) !important; }
+.color-blue { color: var(--color-blue) !important; }
+.color-purple { color: var(--color-purple) !important; }
+.color-pink { color: var(--color-pink) !important; }
+.color-teal { color: var(--color-teal) !important; }
+
+.bg-red { background-color: var(--color-red) !important; }
+.bg-orange { background-color: var(--color-orange) !important; }
+.bg-yellow { background-color: var(--color-yellow) !important; }
+.bg-green { background-color: var(--color-green) !important; }
+.bg-blue { background-color: var(--color-blue) !important; }
+.bg-purple { background-color: var(--color-purple) !important; }
+.bg-pink { background-color: var(--color-pink) !important; }
+.bg-teal { background-color: var(--color-teal) !important; }

@@ -8,7 +8,7 @@ import csv
 import io
 import copy
 from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite
+from .base import Benchmark, Suite, TracingType
 from utils.result import BenchmarkMetadata, Result
 from options import options
 from enum import Enum
@@ -339,9 +339,7 @@ class ComputeBenchmark(Benchmark):
     def description(self) -> str:
         return ""
 
-    def run(
-        self, env_vars, run_unitrace: bool = False, run_flamegraph: bool = False
-    ) -> list[Result]:
+    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
@@ -352,9 +350,7 @@ class ComputeBenchmark(Benchmark):
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
 
-        result = self.run_bench(
-            command, env_vars, run_unitrace=run_unitrace, run_flamegraph=run_flamegraph
-        )
+        result = self.run_bench(command, env_vars, run_trace=run_trace)
         parsed_results = self.parse_output(result)
         ret = []
         for label, median, stddev, unit in parsed_results:

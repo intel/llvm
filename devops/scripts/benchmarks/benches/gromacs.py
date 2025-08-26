@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import re
 
-from .base import Suite, Benchmark
+from .base import Suite, Benchmark, TracingType
 from options import options
 from utils.utils import git_clone, download, run, create_build_path
 from utils.result import Result
@@ -169,9 +169,7 @@ class GromacsBenchmark(Benchmark):
             ld_library=self.suite.oneapi.ld_libraries(),
         )
 
-    def run(
-        self, env_vars, run_flamegraph: bool = False, run_unitrace: bool = False
-    ) -> list[Result]:
+    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
@@ -210,8 +208,7 @@ class GromacsBenchmark(Benchmark):
             add_sycl=True,
             use_stdout=False,
             ld_library=self.suite.oneapi.ld_libraries(),
-            run_unitrace=run_unitrace,
-            run_flamegraph=run_flamegraph,
+            run_trace=run_trace,
         )
 
         if not self._validate_correctness(options.benchmark_cwd + "/md.log"):

@@ -72,7 +72,6 @@ class Options:
     preset: str = "Full"
     build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
-    save_name: str = None
     flamegraph: bool = False
     unitrace: bool = False
     TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"  # Format for timestamps in filenames and logs, including Unitrace traces.

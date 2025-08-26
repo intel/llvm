@@ -48,16 +48,16 @@ benches_final_set = [
             16x32x48x5",
         False,  # Do not run graph for this benchmark
     ],
-    [
-        "sum",
-        "padding-1",
-        "--ddt=f32 --sdt=f32:f32 --stag=aBcd16b --dtag=aBcd16b 1x8x64x64 1x8x640x1024 1x24x640x1024",
-    ],
-    [
-        "sum",
-        "padding-2",
-        "--sdt=bf16:bf16 --ddt=bf16 --stag=AB48a16b:AB48a16b --dtag=AB48a16b 512x1024",
-    ],
+    # [
+    #     "sum",
+    #     "padding-1",
+    #     "--ddt=f32 --sdt=f32:f32 --stag=aBcd16b --dtag=aBcd16b 1x8x64x64 1x8x640x1024 1x24x640x1024",
+    # ],
+    # [
+    #     "sum",
+    #     "padding-2",
+    #     "--sdt=bf16:bf16 --ddt=bf16 --stag=AB48a16b:AB48a16b --dtag=AB48a16b 512x1024",
+    # ],
     [
         "graph",
         "sdpa-plain-f16",
