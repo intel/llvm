@@ -1,4 +1,4 @@
-//==--------------------- get_device_kernel_info.hpp -----------------------==//
+//==------------------- compile_time_kernel_info.hpp -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,8 +22,8 @@ struct CompileTimeKernelInfoTy {
   detail::string_view Name;
   unsigned NumParams = 0;
   bool IsESIMD = false;
-  detail::string_view FileName;
-  detail::string_view FunctionName;
+  detail::string_view FileName{};
+  detail::string_view FunctionName{};
   unsigned LineNumber = 0;
   unsigned ColumnNumber = 0;
   int64_t KernelSize = 0;
