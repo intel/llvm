@@ -211,7 +211,7 @@ Then, change item 5 in the layout list to say:
 Then, adding item c to the layout list 9 to say:
 
 [loweralpha,start=3]
-. A single optional *{devreg_version_name}* instruction.
+. A single *{devreg_version_name}* instruction if *{spec_const_architecture_name}* or *{spec_const_target_name}* instruction is used.
 
 Furthermore, add the following to the cases when forward references are allowed:
 
@@ -567,6 +567,10 @@ If the *{spec_capability_name}* capability is declared:
 In addition, if the *{fnvar_capability_name}* capability is declared:
 
 . The 'Opcode' operand of *{spec_const_architecture_name}* is supported by the instruction.
+
+. The *{devreg_version_name}* instruction is required if *{spec_const_architecture_name}* or *{spec_const_target_name}* instruction is used.
+
+. At most one *{devreg_version_name}* instruction must be present in a module.
 
 == Issues
 
