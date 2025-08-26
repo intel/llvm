@@ -41,6 +41,10 @@
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include <detail/xpti_registry.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -633,21 +637,20 @@ event handler::finalize() {
               : detail::event_impl::create_device_event(impl->get_queue());
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-      const bool xptiEnabled = xptiTraceEnabled();
+      // Only enable instrumentation if there are subscribes to the SYCL stream
+      const bool xptiEnabled = xptiCheckTraceEnabled(detail::GSYCLStreamID);
 #endif
       auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-        auto StreamID = xpti::invalid_id<xpti::stream_id_t>;
         xpti_td *CmdTraceEvent = nullptr;
         uint64_t InstanceID = 0;
         if (xptiEnabled) {
-          StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-              StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
+              detail::GSYCLStreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
               MKernelName.data(), *impl->MDeviceKernelInfoPtr,
               impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
               impl->MArgs);
-          detail::emitInstrumentationGeneral(StreamID, InstanceID,
+          detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
         }
@@ -671,10 +674,11 @@ event handler::finalize() {
           // Emit signal only when event is created
           if (!DiscardEvent) {
             detail::emitInstrumentationGeneral(
-                StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+                detail::GSYCLStreamID, InstanceID, CmdTraceEvent,
+                xpti::trace_signal,
                 static_cast<const void *>(ResultEvent->getHandle()));
           }
-          detail::emitInstrumentationGeneral(StreamID, InstanceID,
+          detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_end, nullptr);
         }
