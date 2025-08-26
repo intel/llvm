@@ -213,15 +213,19 @@ runs:
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
         --regression-filter '^[a-z_]+_sycl ' \
+        --regression-filter-type 'SYCL' \
         --verbose \
+        --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
       echo "-----"
 
-  - name: Cache changes to benchmark folder for archival purposes
+  - name: Cache changes and upload github summary
     if: always()
     shell: bash
     run: | 
+      [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
+
       cd "./llvm-ci-perf-results"
       git add .
       for diff in $(git diff HEAD --name-only); do
