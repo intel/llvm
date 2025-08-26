@@ -112,7 +112,7 @@ urEnqueueTimestampRecordingExp(ur_queue_handle_t /*hQueue*/, bool /*blocking*/,
 ur_event_handle_t_::ur_event_handle_t_(ur_queue_handle_t queue,
                                        ur_command_t command_type)
     : queue(queue), context(queue->getContext()), command_type(command_type),
-      done(false), futures(queue->getDevice()->tp) {
+      done(false), tasksinfo(queue->getDevice()->tp) {
   this->queue->addEvent(this);
 }
 
@@ -127,7 +127,7 @@ void ur_event_handle_t_::wait() {
   if (done) {
     return;
   }
-  this->futures.wait_all();
+  this->tasksinfo.wait_all();
   queue->removeEvent(this);
   done = true;
   // The callback may need to acquire the lock, so we unlock it here
