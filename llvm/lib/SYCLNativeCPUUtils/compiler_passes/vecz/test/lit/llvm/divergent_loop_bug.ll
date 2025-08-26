@@ -48,7 +48,7 @@ entry.if.end17_crit_edge:                          ; preds = %entry
 ; %or.cond branch.
 ; CHECK: if.then:
 ; CHECK: call void @__vecz_b_masked_store4_fu3ptrb(float 0.000000e+00, ptr %cosa, i1 [[CMP_NOT_NOT]])
-; CHECK: %1 = call spir_func float @__vecz_b_masked__Z6sincosfPf(float 0.000000e+00, ptr nonnull %cosa, i1 [[CMP_NOT_NOT]]) #9
+; CHECK: %1 = call spir_func float @__vecz_b_masked__Z6sincosfPf(float 0.000000e+00, ptr nonnull %cosa, i1 [[CMP_NOT_NOT]])
 ; CHECK: %2 = call float @__vecz_b_masked_load4_fu3ptrb(ptr %cosa, i1 [[CMP_NOT_NOT]])
 ; CHECK: %mul7 = fmul float %2, -2.950000e+01
 ; CHECK: %cmp11 = fcmp uge float %mul7, 0.000000e+00
@@ -113,7 +113,7 @@ entry.if.end17_crit_edge:                          ; preds = %entry
 ; %or.cond branch.
 ; CHECK: if.then:
 ; CHECK: call void @__vecz_b_masked_store4_fu3ptrb(float 0.000000e+00, ptr %cosa, i1 [[CMP_NOT_NOT]])
-; CHECK: %1 = call spir_func float @__vecz_b_masked__Z6sincosfPf(float 0.000000e+00, ptr nonnull %cosa, i1 [[CMP_NOT_NOT]]) #9
+; CHECK: %1 = call spir_func float @__vecz_b_masked__Z6sincosfPf(float 0.000000e+00, ptr nonnull %cosa, i1 [[CMP_NOT_NOT]])
 ; CHECK: %2 = call float @__vecz_b_masked_load4_fu3ptrb(ptr %cosa, i1 [[CMP_NOT_NOT]])
 ; CHECK: %mul7 = fmul float %2, -2.950000e+01
 ; CHECK: %cmp11 = fcmp uge float %mul7, 0.000000e+00

@@ -2050,22 +2050,34 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
     auto IntrID = Intrinsic::ID(Callee->getIntrinsicID());
     if (IntrID == llvm::Intrinsic::lifetime_end ||
         IntrID == llvm::Intrinsic::lifetime_start) {
-      auto *ptr = CI->getOperand(1);
+      auto *ptr = CI->getArgOperand(CI->arg_size() - 1);
       if (auto *const bcast = dyn_cast<BitCastInst>(ptr)) {
         ptr = bcast->getOperand(0);
       }
 
       if (auto *const alloca = dyn_cast<AllocaInst>(ptr)) {
         if (!needsInstantiation(Ctx, *alloca)) {
-          // If it's an alloca we can widen, we can just change the size
-          const llvm::TypeSize allocSize =
-              Ctx.dataLayout()->getTypeAllocSize(alloca->getAllocatedType());
-          const auto lifeSize =
-              allocSize.isScalable() || SimdWidth.isScalable()
-                  ? -1
-                  : allocSize.getKnownMinValue() * SimdWidth.getKnownMinValue();
-          CI->setOperand(
-              0, ConstantInt::get(CI->getOperand(0)->getType(), lifeSize));
+#if LLVM_VERSION_GREATER_EQUAL(23, 0)
+          const bool HaveSizeArg = false;
+#elif LLVM_VERSION_GREATER_EQUAL(22, 0)
+          // TODO Remove runtime check when we no longer need to worry about
+          // older LLVM 22 snapshots.
+          const bool HaveSizeArg = CI->arg_size() == 2;
+#else
+          const bool HaveSizeArg = true;
+#endif
+          if (HaveSizeArg) {
+            // If it's an alloca we can widen, we can just change the size
+            const llvm::TypeSize allocSize =
+                Ctx.dataLayout()->getTypeAllocSize(alloca->getAllocatedType());
+            const auto lifeSize =
+                allocSize.isScalable() || SimdWidth.isScalable()
+                    ? -1
+                    : allocSize.getKnownMinValue() *
+                          SimdWidth.getKnownMinValue();
+            CI->setOperand(
+                0, ConstantInt::get(CI->getOperand(0)->getType(), lifeSize));
+          }
           results.push_back(CI);
         }
       }
