@@ -137,7 +137,12 @@ class GBench(Benchmark):
 
         return all_names
 
-    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         command = [f"{self.benchmark_bin}"]
 
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
@@ -156,6 +161,7 @@ class GBench(Benchmark):
                 add_sycl=False,
                 ld_library=[self.umf_lib],
                 run_trace=run_trace,
+                force_trace=force_trace,
             )
 
             parsed = self.parse_output(result)

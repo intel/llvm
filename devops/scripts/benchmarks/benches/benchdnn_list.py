@@ -14,29 +14,29 @@
 
 # the final choice of benchmarks to run, used in CI and other environments
 benches_final_set = [
-    # [
-    #     "sum",
-    #     "f16-1",
-    #     "--sdt=f16:f16:f16 --stag=abx:abx:abx --scales=1.25:3:0.5 16x2x6x4x3",
-    #     False,  # Do not run graph for this benchmark
-    # ],
-    # [
-    #     "sum",
-    #     "f16-2",
-    #     "--reset --ddt=f16 \
-    #         --sdt=f16:f16:f16:f16:f16:f16:f16:f16:f16:f16 \
-    #         --stag=abx:aBx16b:ABx16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b \
-    #         --dtag=abx,aBx16b,ABx16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b \
-    #         --scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2 \
-    #         16x32x48x5",
-    #     False,  # Do not run graph for this benchmark
-    # ],
-    # [
-    #     "sum",
-    #     "f32-1",
-    #     "--sdt=bf16:bf16:bf16 --stag=abx:abx:abx --scales=0.5:2:0.5    16x2x6x4x3",
-    #     False,  # Do not run graph for this benchmark
-    # ],
+    [
+        "sum",
+        "f16-1",
+        "--sdt=f16:f16:f16 --stag=abx:abx:abx --scales=1.25:3:0.5 16x2x6x4x3",
+        False,  # Do not run graph for this benchmark
+    ],
+    [
+        "sum",
+        "f16-2",
+        "--reset --ddt=f16 \
+            --sdt=f16:f16:f16:f16:f16:f16:f16:f16:f16:f16 \
+            --stag=abx:aBx16b:ABx16a16b:ABcd16b16a:BAcd16a16b:BAcd16b16a:aBCd16b16c:aBCd16c16b:aCBd16b16c:aCBd16c16b \
+            --dtag=abx,aBx16b,ABx16a16b,ABcd16b16a,BAcd16a16b,BAcd16b16a,aBCd16b16c,aBCd16c16b,aCBd16b16c,aCBd16c16b \
+            --scales=1.25:3:0.5:2:0.5:2:0.5:2:0.5:2 \
+            16x32x48x5",
+        False,  # Do not run graph for this benchmark
+    ],
+    [
+        "sum",
+        "f32-1",
+        "--sdt=bf16:bf16:bf16 --stag=abx:abx:abx --scales=0.5:2:0.5    16x2x6x4x3",
+        False,  # Do not run graph for this benchmark
+    ],
     [
         "sum",
         "f32-2",
@@ -48,16 +48,16 @@ benches_final_set = [
             16x32x48x5",
         False,  # Do not run graph for this benchmark
     ],
-    # [
-    #     "sum",
-    #     "padding-1",
-    #     "--ddt=f32 --sdt=f32:f32 --stag=aBcd16b --dtag=aBcd16b 1x8x64x64 1x8x640x1024 1x24x640x1024",
-    # ],
-    # [
-    #     "sum",
-    #     "padding-2",
-    #     "--sdt=bf16:bf16 --ddt=bf16 --stag=AB48a16b:AB48a16b --dtag=AB48a16b 512x1024",
-    # ],
+    [
+        "sum",
+        "padding-1",
+        "--ddt=f32 --sdt=f32:f32 --stag=aBcd16b --dtag=aBcd16b 1x8x64x64 1x8x640x1024 1x24x640x1024",
+    ],
+    [
+        "sum",
+        "padding-2",
+        "--sdt=bf16:bf16 --ddt=bf16 --stag=AB48a16b:AB48a16b --dtag=AB48a16b 512x1024",
+    ],
     [
         "graph",
         "sdpa-plain-f16",

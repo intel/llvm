@@ -115,7 +115,12 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             "--output",
@@ -145,6 +150,7 @@ class LlamaBench(Benchmark):
             env_vars,
             ld_library=self.bench.oneapi.ld_libraries(),
             run_trace=run_trace,
+            force_trace=force_trace,
         )
         parsed = self.parse_output(result)
         results = []

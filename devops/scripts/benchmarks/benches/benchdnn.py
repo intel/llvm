@@ -132,7 +132,12 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         # Determine extra trace options based on tracing type
         if run_trace == TracingType.UNITRACE:
             extra_trace_opt = ["--chrome-dnn-logging"]
@@ -159,6 +164,7 @@ class OneDnnBenchmark(Benchmark):
             use_stdout=True,
             run_trace=run_trace,
             extra_trace_opt=extra_trace_opt,
+            force_trace=force_trace,
         )
         result_value = self._extract_time(output)
 

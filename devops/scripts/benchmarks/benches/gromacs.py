@@ -169,7 +169,12 @@ class GromacsBenchmark(Benchmark):
             ld_library=self.suite.oneapi.ld_libraries(),
         )
 
-    def run(self, env_vars, run_trace: TracingType = TracingType.NONE) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
@@ -209,6 +214,7 @@ class GromacsBenchmark(Benchmark):
             use_stdout=False,
             ld_library=self.suite.oneapi.ld_libraries(),
             run_trace=run_trace,
+            force_trace=force_trace,
         )
 
         if not self._validate_correctness(options.benchmark_cwd + "/md.log"):
