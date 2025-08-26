@@ -29,22 +29,25 @@
 // CHECK-CUDA: "-cc1"{{.*}} "-fcuda-is-device"
 // CHECK-CUDA-NOT: "-mlink-builtin-bitcode" "{{.*}}.libspirv-{{.*}}.bc"
 //
-// The path to the remangled libspirv bitcode file is determined by the installation directory and `/share/clc/` is part of the path.
+// The path to the remangled libspirv bitcode file is determined by the installation directory
 // RUN: %clang -### -ccc-install-dir %{install_dir}  -resource-dir %{resource_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
-// RUN: | FileCheck %s -DINSTALL_DIR=%{install_dir} --check-prefixes=CHECK-DIR
-// CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[INSTALL_DIR]]{{.*[\\/]}}share{{.*}}clc{{.*}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
+// RUN: | FileCheck %s -DINSTALL_DIR=%{install_dir} -DRESOURCE_DIR=%{resource_dir} --check-prefixes=CHECK-DIR
+// CHECK-DIR: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[INSTALL_DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
 //
-// The `-###` option disables file existence checks
+// If libspirv path doesn't exist, error is reported.
 // DEFINE: %{nonexistent_dir} = %/S/Inputs/SYCL/does_not_exist/lib/clang/resource_dir
-// RUN: %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
+// RUN: not %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT
-// CHECK-HHH-NONEXISTENT: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc"
+// CHECK-HHH-NONEXISTENT: clang: error: cannot find 'remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
 //
-// RUN: %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib %s 2>&1 \
+// RUN: %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -fno-sycl-libspirv %s 2>&1 \
+// RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT-NOSYCLLIBSPIRV
+// CHECK-HHH-NONEXISTENT-NOSYCLLIBSPIRV: clang: warning: '-fno-sycl-libspirv' should not be used with target 'nvptx64-nvidia-cuda'; libspirv is required for correct behavior [-Wunsafe-libspirv-not-linked]
+//
+// RUN: not %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib %s 2>&1 \
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-AMDGCN-HHH-NONEXISTENT
-// CHECK-AMDGCN-HHH-NONEXISTENT: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-mlink-builtin-bitcode" "[[DIR]]{{.*[\\/]}}remangled-{{.*}}.libspirv-amdgcn-amd-amdhsa.bc"
+// CHECK-AMDGCN-HHH-NONEXISTENT: clang: error: cannot find 'remangled-l64-signed_char.libspirv-amdgcn-amd-amdhsa.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
 //
-// `-fdriver-only` has no such special handling, so it will not find the file
 // RUN: not %clang -fdriver-only -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s                      -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-DO-NONEXISTENT
 // CHECK-DO-NONEXISTENT: error: cannot find 'remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
