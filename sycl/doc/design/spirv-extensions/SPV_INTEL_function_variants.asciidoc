@@ -545,7 +545,7 @@ _(Validation rules are numbered for easier tracking in implementations.)_
 
 If the *{spec_capability_name}* capability is declared:
 
-. All remaining function definitions after specialization must be compatible with the shared *OpMemoryModel* and *OpExtInstrSet* instructions and the remaining set of *OpCapability* instructions.
+. All remaining function definitions after specialization must be compatible with the shared *OpMemoryModel* and the remaining set of *OpCapability* instructions.
 
 . 'Condition' operands of *{conditional_name}*, *{conditional_extension_name}*, *{conditional_entry_point_name}* and *{conditional_capability_name}* must be the results of a specialization constant of a 'Boolean type'.
 
@@ -558,7 +558,7 @@ If the *{spec_capability_name}* capability is declared:
 
 . *{conditional_name}* :
 .. At most one *{conditional_name}* decoration must be applied to a single <id>.
-.. The *{conditional_name}* decoration must be applied only to *OpFunction*, *OpFunctionCall*, global (module scope) *OpVariable*, type declarations (*OpTypeXXX*), extended instruction set import (*OpExstInstImport*), or constant instructions (*OpConstantXXX* or *OpSpecConstantXXX*).
+.. The *{conditional_name}* decoration must be applied only to *OpFunction*, *OpFunctionCall*, global (module scope) *OpVariable*, type declarations (*OpTypeXXX*), extended instruction set instructions (*OpExtInstImport*, *OpExtInst*), or constant instructions (*OpConstantXXX* or *OpSpecConstantXXX*).
 .. If the SPV_INTEL_function_pointers extension is used, the *{conditional_name}* decoration can be applied also to *OpConstantFunctionPointerINTEL* and *OpFunctionPointerCallINTEL*.
 
 In addition, if the *{fnvar_capability_name}* capability is declared:
