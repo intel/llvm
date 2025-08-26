@@ -4,6 +4,8 @@
 // for native L0 API calls.
 // UNSUPPORTED: linux && (gpu-intel-dg2 || arch-intel_gpu_bmg_g21) && run-mode && !igc-dev
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18273
+// XFAIL: arch-intel_gpu_ptl_u || arch-intel_gpu_ptl_h
+// XFAIL-TRACKER: CMPLRTST-27745
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
