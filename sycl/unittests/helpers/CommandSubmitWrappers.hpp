@@ -11,23 +11,26 @@
 
 using namespace sycl;
 
-template<typename KernelName, typename KernelType>
-event single_task_wrapper(bool Shortcut, queue &Q, const KernelType &KernelFunc) {
-	if (Shortcut) {
-		return Q.single_task<KernelName>(KernelFunc);
-	} else {
-		return Q.submit([&](handler &cgh) { cgh.single_task<KernelName>(KernelFunc); });
-	}
+template <typename KernelName, typename KernelType>
+event single_task_wrapper(bool ShortcutSubmitFunction, queue &Q,
+                          const KernelType &KernelFunc) {
+  if (ShortcutSubmitFunction) {
+    return Q.single_task<KernelName>(KernelFunc);
+  } else {
+    return Q.submit(
+        [&](handler &cgh) { cgh.single_task<KernelName>(KernelFunc); });
+  }
 }
 
-template<typename KernelName, typename KernelType>
-event single_task_wrapper(bool Shortcut, queue &Q, event DepEvent, const KernelType &KernelFunc) {
-	if (Shortcut) {
-		return Q.single_task<KernelName>(DepEvent, KernelFunc);
-	} else {
-		return Q.submit([&](handler &cgh) {
-			cgh.depends_on(DepEvent);
-			cgh.single_task<KernelName>(KernelFunc);
-		});
-	}
+template <typename KernelName, typename KernelType>
+event single_task_wrapper(bool ShortcutSubmitFunction, queue &Q, event DepEvent,
+                          const KernelType &KernelFunc) {
+  if (ShortcutSubmitFunction) {
+    return Q.single_task<KernelName>(DepEvent, KernelFunc);
+  } else {
+    return Q.submit([&](handler &cgh) {
+      cgh.depends_on(DepEvent);
+      cgh.single_task<KernelName>(KernelFunc);
+    });
+  }
 }

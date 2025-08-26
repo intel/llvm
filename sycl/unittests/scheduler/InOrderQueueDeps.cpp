@@ -9,9 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <helpers/CommandSubmitWrappers.hpp>
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
-#include <helpers/CommandSubmitWrappers.hpp>
 #include <sycl/usm.hpp>
 
 #include <iostream>
@@ -110,17 +110,17 @@ TEST_P(SchedulerTest, InOrderQueueIsolatedDeps) {
   context Ctx{Plt.get_devices()[0]};
   queue Q1{Ctx, default_selector_v, property::queue::in_order()};
   {
-    event E = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-      Q1, []() {});
+    event E =
+        single_task_wrapper<TestKernel>(ShortcutSubmitFunction, Q1, []() {});
     Q1.ext_oneapi_submit_barrier({E});
     EXPECT_FALSE(BarrierCalled);
   }
   queue Q2{Ctx, default_selector_v, property::queue::in_order()};
   {
-    event E1 = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-      Q1, []() {});
-    event E2 = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-      Q2, []() {});
+    event E1 =
+        single_task_wrapper<TestKernel>(ShortcutSubmitFunction, Q1, []() {});
+    event E2 =
+        single_task_wrapper<TestKernel>(ShortcutSubmitFunction, Q2, []() {});
     ExpectedEvent = detail::getSyclObjImpl(E2)->getHandle();
     Q1.ext_oneapi_submit_barrier({E1, E2});
     EXPECT_TRUE(BarrierCalled);
@@ -150,9 +150,9 @@ TEST_P(SchedulerTest, TwoInOrderQueuesOnSameContext) {
                            property::queue::in_order()};
 
   event EvFirst = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-    InOrderQueueFirst, []() {});
-  std::ignore = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-    InOrderQueueSecond, EvFirst, []() {});
+                                                  InOrderQueueFirst, []() {});
+  std::ignore = single_task_wrapper<TestKernel>(
+      ShortcutSubmitFunction, InOrderQueueSecond, EvFirst, []() {});
 
   InOrderQueueFirst.wait();
   InOrderQueueSecond.wait();
@@ -175,9 +175,9 @@ TEST_P(SchedulerTest, InOrderQueueNoSchedulerPath) {
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
   event EvFirst = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-    InOrderQueue, []() {});
+                                                  InOrderQueue, []() {});
   std::ignore = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-    InOrderQueue, EvFirst, []() {});
+                                                InOrderQueue, EvFirst, []() {});
 
   InOrderQueue.wait();
 
@@ -190,4 +190,5 @@ TEST_P(SchedulerTest, InOrderQueueNoSchedulerPath) {
 
 } // anonymous namespace
 
-INSTANTIATE_TEST_SUITE_P(SchedulerTestInstance, SchedulerTest, testing::Values(true, false));
+INSTANTIATE_TEST_SUITE_P(SchedulerTestInstance, SchedulerTest,
+                         testing::Values(true, false));
