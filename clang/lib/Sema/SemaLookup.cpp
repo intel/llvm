@@ -4630,7 +4630,7 @@ static void getNestedNameSpecifierIdentifiers(
         TemplateName Name =
             cast<TemplateSpecializationType>(T)->getTemplateName();
         if (const QualifiedTemplateName *QTN =
-                Name.getAsAdjustedQualifiedTemplateName()) {
+                Name.getAsQualifiedTemplateName()) {
           getNestedNameSpecifierIdentifiers(QTN->getQualifier(), Identifiers);
           Name = QTN->getUnderlyingTemplate();
         }
