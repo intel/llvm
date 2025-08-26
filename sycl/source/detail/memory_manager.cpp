@@ -35,11 +35,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GMemAllocStreamID;
-xpti::trace_event_data_t *GMemAllocEvent;
-#endif
-
 uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
                                 size_t GuardZone) {
   (void)ObjHandle;
