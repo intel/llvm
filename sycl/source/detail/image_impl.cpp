@@ -18,9 +18,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GImageStreamID;
-#endif
 
 template <typename Param>
 static bool checkImageValueRange(devices_range Devices, const size_t Value) {
