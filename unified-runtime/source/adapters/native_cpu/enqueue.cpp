@@ -431,7 +431,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  urEventWait(numEventsInWaitList, phEventWaitList);
   const void *SrcPtr = hBufferSrc->_mem + srcOffset;
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
