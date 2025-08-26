@@ -105,6 +105,10 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
       *detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
+queue::~queue() {
+  impl->throw_asynchronous(); // <-- this should be safe in a noexcept context.
+}
+
 cl_command_queue queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }

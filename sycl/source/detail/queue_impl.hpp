@@ -255,7 +255,7 @@ public:
       // notification and destroy the trace event for this queue.
       destructorNotification();
 #endif
-      throw_asynchronous();
+
       auto status =
           getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
