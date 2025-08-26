@@ -14,6 +14,7 @@
 #include <ur_api.h>
 
 #include "common.hpp"
+#include "event.hpp"
 
 constexpr size_t OOO_QUEUE_POOL_SIZE = 32;
 
@@ -38,7 +39,7 @@ struct ur_queue_handle_t_ : RefCounted {
   // Mutex guarding the offset and barrier for out of order queues
   std::mutex OooMutex;
   size_t QueueOffset;
-  ol_event_handle_t Barrier;
+  ur_event_handle_t Barrier;
   ol_device_handle_t OffloadDevice;
   ur_context_handle_t UrContext;
   ur_queue_flags_t Flags;
@@ -54,7 +55,7 @@ struct ur_queue_handle_t_ : RefCounted {
       }
 
       if (auto Event = Barrier) {
-        if (auto Res = olWaitEvents(Slot, &Event, 1)) {
+        if (auto Res = olWaitEvents(Slot, &Event->OffloadEvent, 1)) {
           return Res;
         }
       }

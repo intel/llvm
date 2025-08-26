@@ -513,7 +513,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     if (NULL == hPlatform)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_TYPE_VPU < DeviceType)
+    if (UR_DEVICE_TYPE_CUSTOM < DeviceType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (NumEntries == 0 && phDevices != NULL)
@@ -9822,7 +9822,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
