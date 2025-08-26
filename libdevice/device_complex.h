@@ -22,6 +22,12 @@
 #define CMPLXF(r, i) ((float __complex__){(float)(r), (float)(i)})
 #endif
 
+#define NANF __builtin_nanf("")
+#define INFINITYF __builtin_inff()
+
+#define NAN __builtin_nan("")
+#define INFINITY __builtin_inf()
+
 DEVICE_EXTERN_C
 double __devicelib_cimag(double __complex__ z);
 

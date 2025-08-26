@@ -10,7 +10,6 @@
 #include "device_complex.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
-#include <cmath>
 
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
