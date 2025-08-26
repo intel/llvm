@@ -12,7 +12,7 @@
 
 #include <gtest/gtest.h>
 
-class SchedulerTest : public ::testing::Test {
+class SchedulerTest : public testing::TestWithParam<bool> {
 protected:
   sycl::async_handler MAsyncHandler = [](sycl::exception_list ExceptionList) {
     for (std::exception_ptr ExceptionPtr : ExceptionList) {
