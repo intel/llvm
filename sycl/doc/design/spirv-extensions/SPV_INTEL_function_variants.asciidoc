@@ -557,7 +557,7 @@ If the *{spec_capability_name}* capability is declared:
 .. All 'Condition X' operands must be results of specialization constant of a scalar 'Boolean type'.
 
 . *{conditional_name}* :
-.. Only one <id> can be annotated with the *{conditional_name}* decoration.
+.. At most one *{conditional_name}* decoration must be applied to a single <id>.
 .. The *{conditional_name}* decoration must be applied only to *OpFunction*, *OpFunctionCall*, global (module scope) *OpVariable*, type declarations (*OpTypeXXX*), extended instruction set import (*OpExstInstImport*), or constant instructions (*OpConstantXXX* or *OpSpecConstantXXX*).
 .. If the SPV_INTEL_function_pointers extension is used, the *{conditional_name}* decoration can be applied also to *OpConstantFunctionPointerINTEL* and *OpFunctionPointerCallINTEL*.
 
