@@ -561,6 +561,9 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
 }
 #endif
 
+// Get the list of SYCL device libraries to link with user's device image if
+// some deprecated options are used including: -f[no-]sycl-device-lib=xxx,
+// -f[no-]sycl-device-lib-jit-link.
 // TODO: remove getDeviceLibrariesLegacy when we remove deprecated options
 // related to sycl device library link.
 static SmallVector<std::string, 8>
@@ -742,6 +745,7 @@ getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
   return LibraryList;
 }
 
+// Get the list of SYCL device libraries to link with user's device image.
 SmallVector<std::string, 8>
 SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
@@ -776,7 +780,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     return LibraryList;
   }
 
-  using SYCLDeviceLibsList = SmallVector<StringRef, 8>;
+  using SYCLDeviceLibsList = SmallVector<StringRef>;
   const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
                                              "libsycl-complex",
                                              "libsycl-complex-fp64",
@@ -806,9 +810,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const StringRef &Lib : LibsList) {
-      SmallString<128> LibName(Lib);
-      llvm::sys::path::replace_extension(LibName, LibSuffix);
-      LibraryList.push_back(Args.MakeArgString(LibName));
+      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
     }
   };
 
