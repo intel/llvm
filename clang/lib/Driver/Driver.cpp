@@ -8041,14 +8041,10 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
               assert(TC && "Unknown toolchain");
               if (isa<PreprocessJobAction>(A)) {
                 PackagerActions.push_back(OA);
-                // DDep.add(*A, *TC, BoundArch, Action::OFK_SYCL);
-                // Action *AA = C.MakeAction<OffloadAction>(DDep,
-                // types::TY_PP_CXX);
                 A->setCannotBeCollapsedWithNextDependentAction();
                 Action *CompileAction =
                     C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
                 DDeps.add(*CompileAction, *TC, BoundArch, Action::OFK_SYCL);
-                // PackagerActions.push_back(AA);
               }
             });
       }
