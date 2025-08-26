@@ -1475,6 +1475,13 @@ Error IRLinker::run() {
     EnableTripleWarning = !SrcHasLibDeviceTriple;
     EnableDLWarning = !(SrcHasLibDeviceTriple && SrcHasLibDeviceDL);
   }
+  // Likewise, during SYCL Native CPU compilation we link with bitcode with a
+  // generic data layout, which is compatible with the concrete host data layout
+  // and the concrete host target that we use later on.
+  if (SrcTriple.isNativeCPU()) {
+    EnableDLWarning = false;
+    EnableTripleWarning = false;
+  }
 
   if (EnableDLWarning && (SrcM->getDataLayout() != DstM.getDataLayout())) {
     emitWarning("Linking two modules of different data layouts: '" +

@@ -2162,6 +2162,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::RISCVVLSCC:
     OS << "riscv_vls_cc";
     break;
+  case attr::NativeCPULibclcCall:
+    OS << "libclc_call";
+    break;
   case attr::NoDeref:
     OS << "noderef";
     break;

@@ -789,7 +789,7 @@ static void GetProgModelBuiltinFctOverloads(
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
     SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
   FunctionProtoType::ExtProtoInfo PI(
-      Context.getTargetInfo().getDefaultCallingConv());
+      Context.getTargetInfo().getLibclcCallingConv());
   PI.Variadic = IsVariadic;
   PI.ExceptionSpec = FunctionProtoType::ExceptionSpecInfo{EST_BasicNoexcept};
 
