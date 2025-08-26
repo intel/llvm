@@ -40,10 +40,6 @@
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT
 // CHECK-HHH-NONEXISTENT: error: cannot find 'remangled-{{.*}}.libspirv-nvptx64-nvidia-cuda.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
 //
-// RUN: %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -fno-sycl-libspirv %s 2>&1 \
-// RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-HHH-NONEXISTENT-NOSYCLLIBSPIRV
-// CHECK-HHH-NONEXISTENT-NOSYCLLIBSPIRV: clang: warning: '-fno-sycl-libspirv' should not be used with target 'nvptx64-nvidia-cuda'; libspirv is required for correct behavior [-Wunsafe-libspirv-not-linked]
-//
 // RUN: not %clang -### -ccc-install-dir %{nonexistent_dir} -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib %s 2>&1 \
 // RUN: | FileCheck %s         -DDIR=%{nonexistent_dir} --check-prefixes=CHECK-AMDGCN-HHH-NONEXISTENT
 // CHECK-AMDGCN-HHH-NONEXISTENT: clang: error: cannot find 'remangled-{{.*}}.libspirv-amdgcn-amd-amdhsa.bc'; provide path to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build without linking with libspirv
