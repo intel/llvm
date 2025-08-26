@@ -61,8 +61,8 @@ when the kernel is submitted to the queue.
 == Overview
 
 This extension introduces a new free function `clock(scope)`. This function
-allows the user to sample the value from one of three clocks provided by compute
-units, depending on the value of the scope argument. `scope` is an
+allows the user to sample the value from one of three clocks provided by the
+compute units, depending on the value of the scope argument. `scope` is an
 enumeration constant of the new `clock_scope` enum. It should be passed to the
 function to define the clock source; e.g., `clock(clock_scope::sub_group)`
 samples the value from a clock shared by all work-items executing in the same
@@ -89,7 +89,8 @@ supports.
 |Description
 
 |1
-|Initial version of this extension.
+|The APIs of this experimental extension are not versioned, so the feature-test
+ macro always has this value.
 |===
 
 === New device aspect
@@ -126,7 +127,16 @@ enum class clock_scope : /* unspecified */ {
   work_group,
   device
 };
+```
 
+An enumerator from `clock_scope` should be passed to the `clock()` function to
+define the clock source. There are 3 clock sources: `sub_group`, `work_group`
+and `device`. Values from the first one (`sub_group`) are shared by all
+work-items executing in the same sub-group. Values from the second one
+(`work_group`) are are shared by all work-items executing in the same work-group
+etc.
+
+```c++
 uint64_t clock(clock_scope scope = clock_scope::sub_group);
 
 } // namespace sycl::ext::oneapi::experimental
