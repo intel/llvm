@@ -9,7 +9,7 @@
 :spec_const_architecture_name: OpSpecConstantArchitectureINTEL
 :spec_const_capabilities_name: OpSpecConstantCapabilitiesINTEL
 :conditional_copy_name: OpConditionalCopyObjectINTEL
-:devreg_version_name: OpDeviceRegistryVersion
+:devreg_version_name: OpDeviceRegistryVersionINTEL
 
 :spec_capability_token:         6245
 :fnvar_capability_token:        6246
