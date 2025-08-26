@@ -8,20 +8,6 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang|IntelLLVM" )
 endif()
 
 
-# Options to override the default behaviour of the FetchContent to include UR
-# source code.
-set(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO
-  "" CACHE STRING "Override the Unified Runtime FetchContent repository")
-set(SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG
-  "" CACHE STRING "Override the Unified Runtime FetchContent tag")
-
-# Options to disable use of FetchContent to include Unified Runtime source code
-# to improve developer workflow.
-option(SYCL_UR_USE_FETCH_CONTENT
-  "Use FetchContent to acquire the Unified Runtime source code" ON)
-set(SYCL_UR_SOURCE_DIR
-  "" CACHE PATH "Path to root of Unified Runtime repository")
-
 option(SYCL_UR_BUILD_TESTS "Build tests for UR" OFF)
 set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 # UR tests require the examples to be built
