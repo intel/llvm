@@ -345,7 +345,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     CGF(Handler);
   }
 
-
   // We might swap handlers as part of the CGH(Handler) call in the reduction
   // case, so need to retrieve the handler_impl reference after that.
   detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
