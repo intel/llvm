@@ -37,11 +37,11 @@ declare spir_func align 4 dereferenceable(4) i32 addrspace(4)* @_ZNK2cl4sycl3ext
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
 declare spir_func align 1 dereferenceable(1) i8 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.1" addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2
 
-attributes #0 = { "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" "sycl-device-image-scope"="false" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-device-global-size"="4" }
-attributes #1 = { "sycl-unique-id"="7da74a1187b9f35d____ZL7dg_int2" "sycl-implement-in-csr"="false" "sycl-init-mode"="1" "sycl-device-global-size"="4" }
-attributes #2 = { "sycl-unique-id"="9d329ad59055e972____ZL8dg_bool3" "sycl-device-image-scope"="true" "sycl-host-access"="0" "sycl-implement-in-csr" "sycl-init-mode"="0" "sycl-device-global-size"="1" }
-attributes #3 = { "sycl-unique-id"="dda2bad52c45c432____ZL8dg_bool4" "sycl-device-image-scope" "sycl-host-access"="2" "sycl-device-global-size"="1" }
-attributes #4 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+attributes #0 = { "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" "sycl-device-image-scope"="false" "sycl-host-access"="2" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-device-global-size"="4" }
+attributes #1 = { "sycl-unique-id"="7da74a1187b9f35d____ZL7dg_int2" "sycl-implement-in-csr"="false" "sycl-init-mode"="2" "sycl-device-global-size"="4" }
+attributes #2 = { "sycl-unique-id"="9d329ad59055e972____ZL8dg_bool3" "sycl-device-image-scope"="true" "sycl-host-access"="1" "sycl-implement-in-csr" "sycl-init-mode"="0" "sycl-device-global-size"="1" }
+attributes #3 = { "sycl-unique-id"="dda2bad52c45c432____ZL8dg_bool4" "sycl-device-image-scope" "sycl-host-access"="3" "sycl-device-global-size"="1" }
+attributes #4 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="1" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #5 = { convergent nounwind }
 ; no sycl-device-global-size attribute, this is not a device global variable but it contains compile-time properties,
 ; a metadata node will be generated.

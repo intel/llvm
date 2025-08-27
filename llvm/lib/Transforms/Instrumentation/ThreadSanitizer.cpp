@@ -719,7 +719,7 @@ void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   TsanSpirKernelMetadata->addAttribute(
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
-  TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  TsanSpirKernelMetadata->addAttribute("sycl-host-access", "1"); // read only
   TsanSpirKernelMetadata->addAttribute(
       "sycl-unique-id",
       computeKernelMetadataUniqueId("__TsanKernelMetadata", KernelNamesBytes));

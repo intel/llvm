@@ -64,7 +64,7 @@ entry:
 declare i64 @__msan_get_shadow(i64, i32)
 declare void @__msan_maybe_warning_1(i8, i32, ptr addrspace(2), i32, ptr addrspace(2))
 
-attributes #0 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata" }
+attributes #0 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="1" "sycl-unique-id"="_Z20__MsanKernelMetadata" }
 attributes #1 = { mustprogress norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="check_call.cpp" "sycl-single-task" "uniform-work-group-size"="true" }
 attributes #2 = { mustprogress noinline norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 

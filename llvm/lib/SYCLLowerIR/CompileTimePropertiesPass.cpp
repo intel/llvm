@@ -37,8 +37,8 @@ constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
-constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
-constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
+constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6188;
+constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 3; // Read/Write
 
 constexpr uint32_t SPIRV_INITIATION_INTERVAL_DECOR = 5917;
 constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;

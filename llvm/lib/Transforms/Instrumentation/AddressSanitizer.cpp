@@ -1460,7 +1460,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   AsanSpirKernelMetadata->addAttribute(
       "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
   AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
-  AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  AsanSpirKernelMetadata->addAttribute("sycl-host-access", "1"); // read only
   AsanSpirKernelMetadata->addAttribute(
       "sycl-unique-id",
       computeKernelMetadataUniqueId("__AsanKernelMetadata", KernelNamesBytes));
