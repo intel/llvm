@@ -11,7 +11,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/ranges_ref_view.hpp>
+#include <sycl/detail/nd_range_view.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
@@ -127,7 +127,7 @@ prepareSYCLEventAssociatedWithQueue(detail::queue_impl &QueueImpl) {
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
-sycl::detail::NDRDescT ranges_ref_view::toNDRDescT() const {
+sycl::detail::NDRDescT nd_range_view::toNDRDescT() const {
   NDRDescT NDRDesc;
 
   NDRDesc.Dims = Dims;
@@ -138,9 +138,9 @@ sycl::detail::NDRDescT ranges_ref_view::toNDRDescT() const {
     for (size_t i = 0; i < Dims; ++i) {
       NDRDesc.LocalSize[i] = LocalSize[i];
     }
-  if (GlobalOffset)
+  if (Offset)
     for (size_t i = 0; i < Dims; ++i) {
-      NDRDesc.GlobalOffset[i] = GlobalOffset[i];
+      NDRDesc.GlobalOffset[i] = Offset[i];
     }
   return NDRDesc;
 }

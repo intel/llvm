@@ -16,7 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-class ranges_ref_view;
+class nd_range_view;
 }
 
 /// Defines the iteration domain of both the work-groups and the overall
@@ -70,7 +70,7 @@ public:
     return !(*this == rhs);
   }
 
-  friend class sycl::_V1::detail::ranges_ref_view;
+  friend class sycl::_V1::detail::nd_range_view;
 };
 
 } // namespace _V1
