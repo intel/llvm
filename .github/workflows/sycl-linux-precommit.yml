@@ -81,7 +81,7 @@ jobs:
 
   compat_read_exclude:
     name: Read compatibility testing exclude list
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     outputs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}

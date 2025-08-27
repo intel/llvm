@@ -175,7 +175,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
-  pDdiTable->pfnMemBufferFill = nullptr;
+  pDdiTable->pfnMemBufferFill = urEnqueueMemBufferFill;
   pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
   pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
   pDdiTable->pfnMemBufferReadRect = nullptr;
@@ -186,7 +186,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemImageWrite = nullptr;
   pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
-  pDdiTable->pfnUSMFill = nullptr;
+  pDdiTable->pfnUSMFill = urEnqueueUSMFill;
   pDdiTable->pfnUSMAdvise = nullptr;
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
   pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;

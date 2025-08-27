@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/workitem/clc_get_sub_group_local_id.h>
 #include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupLocalInvocationId() {
-  return __nvvm_read_ptx_sreg_laneid();
+  return __clc_get_sub_group_local_id();
 }

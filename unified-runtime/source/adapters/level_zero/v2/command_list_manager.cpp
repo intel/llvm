@@ -911,7 +911,7 @@ ur_result_t ur_command_list_manager::bindlessImagesWaitExternalSemaphoreExp(
     uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
   auto hPlatform = hContext->getPlatform();
-  if (!hPlatform->ZeExternalSemaphoreExt.Supported == false) {
+  if (hPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
                   "{} function not supported!", __FUNCTION__);
@@ -941,7 +941,7 @@ ur_result_t ur_command_list_manager::bindlessImagesSignalExternalSemaphoreExp(
     uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
   auto hPlatform = hContext->getPlatform();
-  if (!hPlatform->ZeExternalSemaphoreExt.Supported == false) {
+  if (hPlatform->ZeExternalSemaphoreExt.Supported == false) {
     UR_LOG_LEGACY(ERR,
                   logger::LegacyMessage("[UR][L0] {} function not supported!"),
                   "{} function not supported!", __FUNCTION__);

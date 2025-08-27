@@ -65,7 +65,7 @@ __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT
     __spirv_GroupNonUniformShuffleUp(__spv::Scope::Flag, T, unsigned) noexcept;
 #endif
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 namespace detail {
 
