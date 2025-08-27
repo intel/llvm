@@ -28,8 +28,7 @@ public:
   nd_range_view &operator=(nd_range_view &&Desc) = default;
 
   template <int Dims_>
-  nd_range_view(sycl::range<Dims_> &GlobalSizes,
-                  sycl::range<Dims_> &LocalSizes)
+  nd_range_view(sycl::range<Dims_> &GlobalSizes, sycl::range<Dims_> &LocalSizes)
       : GlobalSize(&(GlobalSizes[0])), LocalSize(&(LocalSizes[0])),
         Dims{size_t(Dims_)} {}
 
