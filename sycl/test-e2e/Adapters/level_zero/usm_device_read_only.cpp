@@ -8,6 +8,8 @@
 
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 
+#include <sycl/usm/usm_allocator.hpp>
+
 using namespace std;
 using namespace sycl;
 
@@ -24,7 +26,22 @@ int main(int argc, char *argv[]) {
   // CHECK: ---> urUSMSharedAlloc
   // CHECK-NOT: zeMemAllocShared
 
-  free(ptr1, Q);
+  sycl::usm_allocator<int, sycl::usm::alloc::shared> allocator_no_prop{Q};
+
+  auto ptr3 = allocator_no_prop.allocate(1);
+  // CHECK: ---> urUSMSharedAlloc
+  // CHECK: zeMemAllocShared
+
+  sycl::usm_allocator<int, sycl::usm::alloc::shared> allocator_prop{
+      Q, {sycl::ext::oneapi::property::usm::device_read_only{}}};
+
+  auto ptr4 = allocator_prop.allocate(1);
+  // CHECK: ---> urUSMSharedAlloc
+  // CHECK-NOT: zeMemAllocShared
+
+  allocator_prop.deallocate(ptr4, 1);
+  allocator_no_prop.deallocate(ptr3, 1);
   free(ptr2, Q);
+  free(ptr1, Q);
   return 0;
 }
