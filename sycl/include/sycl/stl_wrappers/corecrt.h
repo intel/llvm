@@ -14,8 +14,8 @@
 
 // As a workaround, this wrapper defines a custom, empty defination of
 // _invalid_parameter and _invoke_watson for device code.
-// MSVC picks up these definitions instead of the ones defined in MSVC's
-// corecrt header.
+// MSVC picks up these definitions instead of the declarations from MSVC's
+// <corecrt> header.
 
 #pragma once
 
