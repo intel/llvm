@@ -1767,6 +1767,7 @@ public:
       // value
       if (StreamFlags.count(TraceType) == 0)
         return false;
+      // Otherwise, it is success
       return StreamFlags[TraceType];
     }
   }

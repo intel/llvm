@@ -670,9 +670,6 @@ etors:
 - name: BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP
   desc: Enumerator for $xBindlessImagesSupportsImportingHandleTypeExp
   value: '288'
-- name: ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP
-  desc: Enumerator for $xEnqueueKernelLaunchWithArgsExp
-  value: '289'
 ---
 type: enum
 desc: Defines structure types

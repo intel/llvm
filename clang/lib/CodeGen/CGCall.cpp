@@ -334,6 +334,9 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
     }
   }
 
+  if (D->hasAttr<NativeCPULibclcCallAttr>())
+    return CC_SpirFunction;
+
   return CC_C;
 }
 
@@ -2746,6 +2749,13 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // CPU/feature overrides.  addDefaultFunctionDefinitionAttributes
     // handles these separately to set them based on the global defaults.
     GetCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), FuncAttrs);
+
+    // Windows hotpatching support
+    if (!MSHotPatchFunctions.empty()) {
+      bool IsHotPatched = llvm::binary_search(MSHotPatchFunctions, Name);
+      if (IsHotPatched)
+        FuncAttrs.addAttribute("marked_for_windows_hot_patching");
+    }
   }
 
   // Mark functions that are replaceable by the loader.

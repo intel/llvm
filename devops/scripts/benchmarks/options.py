@@ -94,6 +94,8 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+    # Filename used to store Github summary files:
+    github_summary_filename: str = "github_summary.md"
     # Archiving settings
     # Archived runs are stored separately from the main dataset but are still accessible
     # via the HTML UI when "Include archived runs" is enabled.

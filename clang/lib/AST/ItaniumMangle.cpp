@@ -1088,6 +1088,9 @@ void CXXNameMangler::mangleNameWithAbiTags(GlobalDecl GD,
     return;
   }
 
+  while (DC->isRequiresExprBody())
+    DC = DC->getParent();
+
   if (DC->isTranslationUnit() || isStdNamespace(DC)) {
     // Check if we have a template.
     const TemplateArgumentList *TemplateArgs = nullptr;
@@ -4281,7 +4284,8 @@ void CXXNameMangler::mangleRISCVFixedRVVVectorType(const VectorType *T) {
 
   // Apend the LMUL suffix.
   auto VScale = getASTContext().getTargetInfo().getVScaleRange(
-      getASTContext().getLangOpts(), false);
+      getASTContext().getLangOpts(),
+      TargetInfo::ArmStreamingKind::NotStreaming);
   unsigned VLen = VScale->first * llvm::RISCV::RVVBitsPerBlock;
 
   if (T->getVectorKind() == VectorKind::RVVFixedLengthData) {
@@ -6640,7 +6644,7 @@ void CXXNameMangler::mangleValueInTemplateArg(QualType T, const APValue &V,
                            V.getStructField(Fields.back()->getFieldIndex())))) {
       Fields.pop_back();
     }
-    llvm::ArrayRef<CXXBaseSpecifier> Bases(RD->bases_begin(), RD->bases_end());
+    ArrayRef<CXXBaseSpecifier> Bases(RD->bases_begin(), RD->bases_end());
     if (Fields.empty()) {
       while (!Bases.empty() &&
              isZeroInitialized(Bases.back().getType(),

@@ -309,7 +309,8 @@ void CudaInstallationDetector::AddCudaIncludeArgs(
     CC1Args.push_back(DriverArgs.MakeArgString(P));
   }
 
-  if (DriverArgs.hasArg(options::OPT_nogpuinc))
+  if (!DriverArgs.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
+                          true))
     return;
 
   if (!isValid()) {
@@ -555,22 +556,16 @@ void NVPTX::FatBinary::ConstructJob(Compilation &C, const JobAction &JA,
     auto *A = II.getAction();
     assert(A->getInputs().size() == 1 &&
            "Device offload action is expected to have a single input");
-    const char *gpu_arch_str = A->getOffloadingArch();
-    assert(gpu_arch_str &&
+    StringRef GpuArch = A->getOffloadingArch();
+    assert(!GpuArch.empty() &&
            "Device action expected to have associated a GPU architecture!");
-    OffloadArch gpu_arch = StringToOffloadArch(gpu_arch_str);
 
-    if (II.getType() == types::TY_PP_Asm &&
-        !shouldIncludePTX(Args, gpu_arch_str))
+    if (II.getType() == types::TY_PP_Asm && !shouldIncludePTX(Args, GpuArch))
       continue;
-    // We need to pass an Arch of the form "sm_XX" for cubin files and
-    // "compute_XX" for ptx.
-    const char *Arch = (II.getType() == types::TY_PP_Asm)
-                           ? OffloadArchToVirtualArchString(gpu_arch)
-                           : gpu_arch_str;
-    CmdArgs.push_back(
-        Args.MakeArgString(llvm::Twine("--image=profile=") + Arch +
-                           ",file=" + getToolChain().getInputFilename(II)));
+    StringRef Kind = (II.getType() == types::TY_PP_Asm) ? "ptx" : "elf";
+    CmdArgs.push_back(Args.MakeArgString(
+        "--image3=kind=" + Kind + ",sm=" + GpuArch.drop_front(3) +
+        ",file=" + getToolChain().getInputFilename(II)));
   }
 
   for (const auto &A : Args.getAllArgValues(options::OPT_Xcuda_fatbinary))
@@ -897,7 +892,7 @@ Expected<SmallVector<std::string>>
 NVPTXToolChain::getSystemGPUArchs(const ArgList &Args) const {
   // Detect NVIDIA GPUs availible on the system.
   std::string Program;
-  if (Arg *A = Args.getLastArg(options::OPT_nvptx_arch_tool_EQ))
+  if (Arg *A = Args.getLastArg(options::OPT_offload_arch_tool_EQ))
     Program = A->getValue();
   else
     Program = GetProgramPath("nvptx-arch");
@@ -1055,7 +1050,8 @@ llvm::DenormalMode CudaToolChain::getDefaultDenormalModeForType(
 void CudaToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
   // Check our CUDA version if we're going to include the CUDA headers.
-  if (!DriverArgs.hasArg(options::OPT_nogpuinc) &&
+  if (DriverArgs.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
+                         true) &&
       !DriverArgs.hasArg(options::OPT_no_cuda_version_check)) {
     StringRef Arch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
     assert(!Arch.empty() && "Must have an explicit GPU arch.");
@@ -1146,7 +1142,9 @@ void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 
-  if (!DriverArgs.hasArg(options::OPT_nogpuinc) && CudaInstallation.isValid())
+  if (DriverArgs.hasFlag(options::OPT_offload_inc, options::OPT_no_offload_inc,
+                         true) &&
+      CudaInstallation.isValid())
     CC1Args.append(
         {"-internal-isystem",
          DriverArgs.MakeArgString(CudaInstallation.getIncludePath())});

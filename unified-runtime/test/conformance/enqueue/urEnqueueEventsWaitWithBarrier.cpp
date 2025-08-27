@@ -174,13 +174,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
   uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
   uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
 
-  addHelper.SetBuffer1DArg(buffer, nullptr);
-  mulHelper.SetBuffer1DArg(buffer, nullptr);
+  UUR_RETURN_ON_FATAL_FAILURE(addHelper.SetBuffer1DArg(buffer, nullptr));
+  UUR_RETURN_ON_FATAL_FAILURE(mulHelper.SetBuffer1DArg(buffer, nullptr));
 
   for (size_t i = 0; i < 10; i++) {
     constexpr uint32_t ONE = 1;
-    urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0,
-                            nullptr, &event);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(
+        queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, &event));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
                                          nullptr, 0, nullptr, 0, nullptr,
@@ -205,13 +205,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
   uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
   uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
 
-  addHelper.SetBuffer1DArg(buffer, nullptr);
-  mulHelper.SetBuffer1DArg(buffer, nullptr);
+  UUR_RETURN_ON_FATAL_FAILURE(addHelper.SetBuffer1DArg(buffer, nullptr));
+  UUR_RETURN_ON_FATAL_FAILURE(mulHelper.SetBuffer1DArg(buffer, nullptr));
 
   for (size_t i = 0; i < 10; i++) {
     constexpr uint32_t ONE = 1;
-    urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0,
-                            nullptr, nullptr);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(
+        queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
                                          nullptr, 0, nullptr, 1, &event,
@@ -235,13 +235,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest, SuccessEventDependencies) {
   uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
   uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
 
-  addHelper.SetBuffer1DArg(buffer, nullptr);
-  mulHelper.SetBuffer1DArg(buffer, nullptr);
+  UUR_RETURN_ON_FATAL_FAILURE(addHelper.SetBuffer1DArg(buffer, nullptr));
+  UUR_RETURN_ON_FATAL_FAILURE(mulHelper.SetBuffer1DArg(buffer, nullptr));
 
   for (size_t i = 0; i < 10; i++) {
     constexpr uint32_t ONE = 1;
-    urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0,
-                            nullptr, &event[0]);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(
+        queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, &event[0]));
     ASSERT_SUCCESS(
         urEnqueueEventsWaitWithBarrier(queue, 1, &event[0], &event[1]));
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
@@ -268,13 +268,13 @@ TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
   uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
   uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
 
-  addHelper.SetBuffer1DArg(buffer, nullptr);
-  mulHelper.SetBuffer1DArg(buffer, nullptr);
+  UUR_RETURN_ON_FATAL_FAILURE(addHelper.SetBuffer1DArg(buffer, nullptr));
+  UUR_RETURN_ON_FATAL_FAILURE(mulHelper.SetBuffer1DArg(buffer, nullptr));
 
   for (size_t i = 0; i < 10; i++) {
     constexpr uint32_t ONE = 1;
-    urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0,
-                            nullptr, nullptr);
+    ASSERT_SUCCESS(urEnqueueMemBufferWrite(
+        queue, buffer, true, 0, sizeof(uint32_t), &ONE, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset, &count,
                                          nullptr, 0, nullptr, 0, nullptr,

@@ -10,6 +10,6 @@
 #include <libspirv/spirv.h>
 
 #define FUNCTION __spirv_ocl_lgamma_r
-#define __CLC_FUNCTION(x) __clc_lgamma_r
+#define __IMPL_FUNCTION(x) __clc_lgamma_r
 #define __CLC_BODY <clc/math/unary_def_with_int_ptr.inc>
 #include <clc/math/gentype.inc>

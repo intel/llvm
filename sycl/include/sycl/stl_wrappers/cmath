@@ -8,6 +8,17 @@
 
 #pragma once
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+// Forward declare device _*dsign functions before including cmath to enable
+// compilation of math functions defined in UCRT headers.
+extern "C" __attribute__((sycl_device_only, always_inline)) int
+_fdsign(float x);
+extern "C" __attribute__((sycl_device_only, always_inline)) int
+_dsign(double x);
+#endif // defined(__NVPTX__) || defined(__AMDGCN__)
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(_WIN32)
+
 // Include real STL <cmath> header - the next one from the include search
 // directories.
 #if defined(__has_include_next)
@@ -32,13 +43,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
-extern __DPCPP_SYCL_EXTERNAL_LIBC int abs(int x);
-extern __DPCPP_SYCL_EXTERNAL_LIBC long int labs(long int x);
-extern __DPCPP_SYCL_EXTERNAL_LIBC long long int llabs(long long int x);
-
-extern __DPCPP_SYCL_EXTERNAL_LIBC div_t div(int x, int y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC ldiv_t ldiv(long int x, long int y);
-extern __DPCPP_SYCL_EXTERNAL_LIBC lldiv_t lldiv(long long int x, long long int y);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float scalbnf(float x, int n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC double scalbn(double x, int n);
 extern __DPCPP_SYCL_EXTERNAL_LIBC float logf(float x);

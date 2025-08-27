@@ -16,8 +16,7 @@
 
 // The 'sycl_device_only' attribute enables device-side overloading.
 #define __SYCL_DEVICE __attribute__((sycl_device_only, always_inline))
-#define __SYCL_DEVICE_C                                                        \
-  extern "C" __attribute__((sycl_device_only, always_inline))
+#define __SYCL_DEVICE_C extern "C" __SYCL_DEVICE
 
 #include <type_traits>
 
@@ -111,19 +110,6 @@ using __sycl_promote_t =
     using type = __sycl_promote_t<T, U>;                                       \
     return __spirv_ocl_##NAME((type)x, (type)y);                               \
   }
-
-/// <cstdlib>
-// FIXME: Move this to a cstdlib fallback header.
-
-__SYCL_DEVICE_C div_t div(int x, int y) { return {x / y, x % y}; }
-__SYCL_DEVICE_C ldiv_t ldiv(long x, long y) { return {x / y, x % y}; }
-__SYCL_DEVICE_C lldiv_t lldiv(long long x, long long y) {
-  return {x / y, x % y};
-}
-
-__SYCL_DEVICE int abs(int n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE_C long labs(long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE_C long long llabs(long long n) { return n < 0 ? -n : n; }
 
 /// Basic operations
 //
@@ -272,9 +258,16 @@ __SYCL_SPIRV_MAP_BINARY_C(nextafter);
 __SYCL_SPIRV_MAP_BINARY_C(copysign);
 
 /// Classification and comparison
-//
 
-// unsupported: fpclassify
+__SYCL_DEVICE_C int fpclassify(float x) {
+  return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL,
+                              FP_ZERO, x);
+}
+__SYCL_DEVICE_C int fpclassify(double x) {
+  return __builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, FP_SUBNORMAL,
+                              FP_ZERO, x);
+}
+
 // unsupported: isfinite
 // unsupported: isinf
 // unsupported: isnan
@@ -298,20 +291,6 @@ namespace std {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 #endif
-
-// <cstdlib>
-using ::abs;
-__SYCL_DEVICE long abs(long n) { return n < 0 ? -n : n; }
-__SYCL_DEVICE long long abs(long long n) { return n < 0 ? -n : n; }
-
-using ::div;
-__SYCL_DEVICE ldiv_t div(long x, long y) { return {x / y, x % y}; }
-__SYCL_DEVICE lldiv_t div(long long x, long long y) { return {x / y, x % y}; }
-
-using ::labs;
-using ::ldiv;
-using ::llabs;
-using ::lldiv;
 
 // Basic operations
 // using ::abs is already pulled in above
@@ -487,7 +466,7 @@ template <typename T> __SYCL_DEVICE __sycl_promote_t<T> scalbn(T x, int exp) {
 __SYCL_SPIRV_MAP_BINARY_CXX(copysign);
 
 // Classification and comparison
-// using ::fpclassify;
+using ::fpclassify;
 // using ::isfinite;
 // using ::isgreater;
 // using ::isgreaterequal;
@@ -509,11 +488,29 @@ _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 #endif
 
+#if defined(_WIN32)
+__SYCL_DEVICE_C double _Cosh(double x, double y) { return cosh(x) * y; }
+__SYCL_DEVICE_C float _FCosh(float x, float y) { return coshf(x) * y; }
+__SYCL_DEVICE_C short _Dtest(double *p) { return fpclassify(*p); }
+__SYCL_DEVICE_C short _FDtest(float *p) { return fpclassify(*p); }
+__SYCL_DEVICE_C double _Sinh(double x, double y) { return sinh(x) * y; }
+__SYCL_DEVICE_C float _FSinh(float x, float y) { return sinhf(x) * y; }
+__SYCL_DEVICE_C short _Exp(double *px, double y, short eoff) {
+  return exp(*px) * ldexp(y, eoff);
+}
+__SYCL_DEVICE_C short _FExp(float *px, float y, short eoff) {
+  return exp(*px) * ldexp(y, eoff);
+}
+__SYCL_DEVICE_C float _hypotf(float x, float y) { return hypotf(x, y); }
+__SYCL_DEVICE_C int _fdsign(float x) { return __builtin_signbit(x); }
+__SYCL_DEVICE_C int _dsign(double x) { return __builtin_signbit(x); }
+#endif // defined(_WIN32)
+
 #undef __SYCL_SPIRV_MAP_BINARY_C
 #undef __SYCL_SPIRV_MAP_BINARY_CXX
 #undef __SYCL_SPIRV_MAP_UNARY_C
 #undef __SYCL_SPIRV_MAP_UNARY_CXX
 #undef __SYCL_DEVICE_C
 #undef __SYCL_DEVICE
-#endif
-#endif
+#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_CMATH_WRAPPER_IMPL_HPP__

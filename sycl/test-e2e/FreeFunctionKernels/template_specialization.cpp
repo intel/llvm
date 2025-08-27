@@ -56,6 +56,13 @@ void sum1(T arg) {}
 template <>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
+void sum1<3, sycl::accessor<int, 1>>(sycl::accessor<int, 1> arg) {
+  arg[0] = 42;
+}
+
+template <>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
 void sum1<3, float>(float arg) {
   arg = 3.14f + static_cast<float>(3);
 }
@@ -137,6 +144,9 @@ void test_accessor() {
     h.set_args(acc);
     h.parallel_for(nd_range{{1}, {1}}, Kernel);
   });
+
+  auto acc = buf.get_host_access();
+  assert(acc[0] == 42);
 }
 
 void test_shared() {
@@ -163,7 +173,10 @@ int main() {
   test_func_custom_type<A::B::C::TestClass>();
   test_func<F<float>, float>();
   test_func<F<uint32_t>, uint32_t>();
-  test_func<variadic_templated<double>, double>();
+  // Variadic template functions do not work with free function kernels. See
+  // CMPLRLLVM-69528.
+  // TODO: Uncomment the following line once the tracker is resolved.
+  //  test_func<variadic_templated<double>, double>();
   test_func<sum1<3, float>, float>();
   test_accessor();
   test_shared();
