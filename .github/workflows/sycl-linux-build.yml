@@ -147,6 +147,9 @@ jobs:
     env:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: 8G
+    # 'id-token' needs write permission to sign artifacts
+    permissions:
+      id-token: write
     steps:
     - name: Deduce artifact archive params
       # To reduce number of inputs parameters that is limited for manual triggers.
@@ -308,6 +311,11 @@ jobs:
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
+    - name: Sign the archive
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      uses: sigstore/gh-action-sigstore-python@v3.0.1
+      with:
+        inputs: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
