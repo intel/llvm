@@ -494,6 +494,7 @@ def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
 def TargetSPIRV : TargetArch<["spirv", "spirv32", "spirv64"]>;
 def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
 def TargetNVPTX : TargetArch<["nvptx", "nvptx64"]>;
+def TargetNativeCPU : TargetArch<["native_cpu"]>;
 def TargetWindows : TargetSpec {
   let OSes = ["Win32"];
 }
@@ -4528,6 +4529,11 @@ def RISCVVLSCC: DeclOrTypeAttr, TargetSpecificAttr<TargetRISCV> {
                   Clang<"riscv_vls_cc">];
  let Args = [UnsignedArgument<"VectorWidth", /*opt*/1>];
  let Documentation = [RISCVVLSCCDocs];
+}
+
+def NativeCPULibclcCall : DeclOrTypeAttr, TargetSpecificAttr<TargetNativeCPU> {
+  let Spellings = [Clang<"libclc_call", 0>];
+  let Documentation = [Undocumented];
 }
 
 def Target : InheritableAttr {

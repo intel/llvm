@@ -24,77 +24,117 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-// We define a sycl stream name and this will be used by the instrumentation
-// framework
-inline constexpr const char *SYCL_STREAM_NAME = "sycl";
-inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
-    "sycl.experimental.mem_alloc";
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-extern uint8_t GBufferStreamID;
-extern uint8_t GImageStreamID;
-extern uint8_t GMemAllocStreamID;
-extern xpti::trace_event_data_t *GMemAllocEvent;
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-
-// We will pick a global constant so that the pointer in TLS never goes stale
-inline constexpr auto XPTI_QUEUE_INSTANCE_ID_KEY = "queue_id";
-
 #define STR(x) #x
+#define TO_STRING(x) STR(x)
 #define SYCL_VERSION_STR                                                       \
-  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
+  "sycl " TO_STRING(__LIBSYCL_MAJOR_VERSION) "." TO_STRING(                    \
+      __LIBSYCL_MINOR_VERSION)
 
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
 constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
 constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
 constexpr const char *GVerStr = SYCL_VERSION_STR;
-#endif
 
+/// We define all the streams used the instrumentation framework here
+inline constexpr const char *SYCL_STREAM_NAME = "sycl";
+inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
+    "sycl.experimental.mem_alloc";
 // Stream name being used to notify about buffer objects.
 inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
     "sycl.experimental.buffer";
-
 // Stream name being used to notify about image objects.
 inline constexpr const char *SYCL_IMAGE_STREAM_NAME = "sycl.experimental.image";
+inline constexpr const char *UR_API_STREAM_NAME = "ur.api";
+
+extern uint8_t GBufferStreamID;
+extern uint8_t GImageStreamID;
+extern uint8_t GMemAllocStreamID;
+extern uint8_t GSYCLStreamID;
+extern uint8_t GUrApiStreamID;
+
+extern xpti::trace_event_data_t *GMemAllocEvent;
+extern xpti::trace_event_data_t *GSYCLGraphEvent;
+extern xpti::trace_event_data_t *GSYCLCallEvent;
+extern xpti::trace_event_data_t *GApiEvent;
+
+// We will pick a global constant so that the pointer in TLS never goes stale
+inline constexpr auto XPTI_QUEUE_INSTANCE_ID_KEY = "queue_id";
+#endif
 
 class XPTIRegistry {
 public:
   void initializeFrameworkOnce() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     std::call_once(MInitialized, [this] {
-      xptiFrameworkInitialize();
-      // SYCL buffer events
-      GBufferStreamID = xptiRegisterStream(SYCL_BUFFER_STREAM_NAME);
-      this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
-      // SYCL image events
-      GImageStreamID = xptiRegisterStream(SYCL_IMAGE_STREAM_NAME);
-      this->initializeStream(SYCL_IMAGE_STREAM_NAME, 0, 1, "0.1");
+      if (!xptiTraceEnabled())
+        // If tracing is not enabled, do not initialize the framework
+        return;
 
+      // Initialize the XPTI framework
+      xptiFrameworkInitialize();
+      // Register the streams that we will be using
+      // SYCL events
+      detail::GSYCLStreamID =
+          this->initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+      // SYCL buffer events
+      detail::GBufferStreamID = this->initializeStream(
+          SYCL_BUFFER_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+      // SYCL image events
+      detail::GImageStreamID = this->initializeStream(
+          SYCL_IMAGE_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // Memory allocation events
-      GMemAllocStreamID = xptiRegisterStream(SYCL_MEM_ALLOC_STREAM_NAME);
-      this->initializeStream(SYCL_MEM_ALLOC_STREAM_NAME, 0, 1, "0.1");
-      xpti::payload_t MAPayload("SYCL Memory Allocations Layer");
-      uint64_t MAInstanceNo = 0;
-      GMemAllocEvent = xptiMakeEvent("SYCL Memory Allocations", &MAPayload,
-                                     xpti::trace_algorithm_event,
-                                     xpti_at::active, &MAInstanceNo);
+      detail::GMemAllocStreamID = this->initializeStream(
+          SYCL_MEM_ALLOC_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+      // UR API events
+      detail::GUrApiStreamID =
+          this->initializeStream(UR_API_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+
+      auto SYCLEventTP = xptiCreateTracepoint("sycl.application.graph", nullptr,
+                                              0, 0, nullptr);
+      detail::GSYCLGraphEvent = SYCLEventTP->event_ref();
+      if (detail::GSYCLGraphEvent) {
+        // The graph event is a global event and will be used as the parent for
+        // all nodes (command groups, memory allocations, etc)
+        xptiNotifySubscribers(detail::GSYCLStreamID, xpti::trace_graph_create,
+                              nullptr, detail::GSYCLGraphEvent,
+                              detail::GSYCLGraphEvent->instance_id, nullptr);
+      }
+      auto MemAllocEventTP =
+          xptiCreateTracepoint("sycl.memory.alloc", nullptr, 0, 0, nullptr);
+      detail::GMemAllocEvent = MemAllocEventTP->event_ref();
+
+      // We capture all API calls in a single event, so that we can minimize
+      // XPTI infra calls
+      auto APIEventTP =
+          xptiCreateTracepoint("api.function", nullptr, 0, 0, nullptr);
+      detail::GApiEvent = APIEventTP->event_ref();
+
+      auto SYCLExceptionsTP =
+          xptiCreateTracepoint("sycl.exceptions", nullptr, 0, 0, nullptr);
+      detail::GSYCLCallEvent = SYCLExceptionsTP->event_ref();
     });
 #endif
   }
 
-  /// Notifies XPTI subscribers about new stream.
+  /// Registers and notifies XPTI subscribers about new stream.
   ///
   /// \param StreamName is a name of newly initialized stream.
   /// \param MajVer is a stream major version.
   /// \param MinVer is a stream minor version.
   /// \param VerStr is a string of "MajVer.MinVer" format.
-  void initializeStream(const std::string &StreamName, uint32_t MajVer,
-                        uint32_t MinVer, const std::string &VerStr) {
+  uint8_t initializeStream(const std::string &StreamName, uint32_t MajVer,
+                           uint32_t MinVer, const std::string &VerStr) {
+    // We need to return an invalid ID if XPTI is not enabled
+    uint8_t StreamID = std::numeric_limits<uint8_t>::max();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+    StreamID = xptiRegisterStream(StreamName.c_str());
     MActiveStreams.insert(StreamName);
     xptiInitialize(StreamName.c_str(), MajVer, MinVer, VerStr.c_str());
 #endif // XPTI_ENABLE_INSTRUMENTATION
+    return StreamID;
   }
 
   ~XPTIRegistry() {
