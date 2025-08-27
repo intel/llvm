@@ -111,7 +111,7 @@ entry:
 ; CHECK-NEXT:    [[IDX1:%.*]] = and <vscale x 16 x i32> [[IDX0]], {{shufflevector \(<vscale x 16 x i32> insertelement \(<vscale x 16 x i32> (undef|poison), i32 3, (i32|i64) 0\), <vscale x 16 x i32> (undef|poison), <vscale x 16 x i32> zeroinitializer\)|splat \(i32 3\)}}
 ; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP0]]
-; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> {{shufflevector \(<vscale x 16 x i1> insertelement \(<vscale x 16 x i1> poison, i1 true, (i32|i64) 0\), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer\)|splat \(i1 true\)}}, <vscale x 16 x float> undef)
+; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> {{shufflevector \(<vscale x 16 x i1> insertelement \(<vscale x 16 x i1> poison, i1 true, (i32|i64) 0\), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer\)|splat \(i1 true\)}}, <vscale x 16 x float> poison)
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <vscale x 16 x float>, ptr addrspace(1) [[ARRAYIDX]], align 16

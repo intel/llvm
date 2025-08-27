@@ -114,7 +114,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
       if (CMask->isZeroValue()) {
         // A null mask means no lane executes the memory operation.
         if (BuiltinDesc->isLoad()) {
-          CI->replaceAllUsesWith(UndefValue::get(BuiltinDesc->getDataType()));
+          CI->replaceAllUsesWith(PoisonValue::get(BuiltinDesc->getDataType()));
         }
         ToDelete.push_back(CI);
       } else if (CMask->isAllOnesValue()) {

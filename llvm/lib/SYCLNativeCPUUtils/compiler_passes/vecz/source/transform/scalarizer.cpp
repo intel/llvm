@@ -129,7 +129,7 @@ Value *Scalarizer::getGather(Value *V) {
                B.CreateVectorSplat(ElementCount::getFixed(P->size()), splat);
   }
 
-  Value *Result = UndefValue::get(V->getType());
+  Value *Result = PoisonValue::get(V->getType());
   for (unsigned i = 0; i < P->size(); i++) {
     if (auto *At = P->at(i)) {
       if (!isa<UndefValue>(At)) {
@@ -452,7 +452,7 @@ Value *Scalarizer::scalarizeOperandsExtractElement(ExtractElementInst *Extr) {
     VECZ_FAIL_IF(!OrigVecPacket);
 
     IRBuilder<> B(Extr);
-    Value *Select = UndefValue::get(Extr->getType());
+    Value *Select = PoisonValue::get(Extr->getType());
     for (unsigned lane = 0; lane < VecWidth; lane++) {
       // Check if the the lane matches the extract index and select
       // the corresponding value
@@ -1415,7 +1415,7 @@ SimdPacket *Scalarizer::scalarizeShuffleVector(ShuffleVectorInst *Shuffle,
     Value *Extracted = nullptr;
     int MaskLane = Shuffle->getMaskValue(i);
     if (MaskLane < 0) {
-      Extracted = UndefValue::get(VecTy->getElementType());
+      Extracted = PoisonValue::get(VecTy->getElementType());
     } else if (MaskLane >= (int)SrcWidth) {
       MaskLane -= (int)SrcWidth;
       if (RHSPacket) {

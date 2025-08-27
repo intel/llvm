@@ -78,7 +78,7 @@ PreservedAnalyses vecz::SimplifyInfiniteLoopPass::run(
     // predecessor to it.
     for (Instruction &I : *target) {
       if (auto *PHI = dyn_cast<PHINode>(&I)) {
-        PHI->addIncoming(UndefValue::get(PHI->getType()), virtualExit);
+        PHI->addIncoming(PoisonValue::get(PHI->getType()), virtualExit);
       }
     }
 

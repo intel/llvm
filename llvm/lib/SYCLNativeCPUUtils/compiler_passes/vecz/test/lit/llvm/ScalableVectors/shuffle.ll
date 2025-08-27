@@ -26,8 +26,8 @@ define spir_kernel void @do_shuffle_splat(i32* %aptr, <4 x i32>* %bptr, <4 x i32
   %arrayidxb = getelementptr inbounds <4 x i32>, <4 x i32>* %bptr, i64 %idx
   %a = load i32, i32* %arrayidxa, align 4
   %b = load <4 x i32>, <4 x i32>* %arrayidxb, align 16
-  %insert = insertelement <4 x i32> undef, i32 %a, i32 0
-  %splat = shufflevector <4 x i32> %insert, <4 x i32> undef, <4 x i32> zeroinitializer
+  %insert = insertelement <4 x i32> poison, i32 %a, i32 0
+  %splat = shufflevector <4 x i32> %insert, <4 x i32> poison, <4 x i32> zeroinitializer
   %arrayidxz = getelementptr inbounds <4 x i32>, <4 x i32>* %zptr, i64 %idx
   store <4 x i32> %splat, <4 x i32>* %arrayidxz
   ret void
@@ -48,8 +48,8 @@ define spir_kernel void @do_shuffle_splat_uniform(i32 %a, <4 x i32>* %bptr, <4 x
   %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxb = getelementptr inbounds <4 x i32>, <4 x i32>* %bptr, i64 %idx
   %b = load <4 x i32>, <4 x i32>* %arrayidxb, align 16
-  %insert = insertelement <4 x i32> undef, i32 %a, i32 0
-  %splat = shufflevector <4 x i32> %insert, <4 x i32> undef, <4 x i32> zeroinitializer
+  %insert = insertelement <4 x i32> poison, i32 %a, i32 0
+  %splat = shufflevector <4 x i32> %insert, <4 x i32> poison, <4 x i32> zeroinitializer
   %arrayidxz = getelementptr inbounds <4 x i32>, <4 x i32>* %zptr, i64 %idx
   store <4 x i32> %splat, <4 x i32>* %arrayidxz
   ret void

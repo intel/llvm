@@ -29,9 +29,9 @@ define spir_kernel void @dummy(i32 addrspace(2)* %in, i32 addrspace(1)* %out) {
 declare <4 x i32> @__vecz_b_sub_group_scan_inclusive_add_Dv4_j(<4 x i32>)
 ; CHECK-LABEL: define <4 x i32> @__vecz_b_sub_group_scan_inclusive_add_Dv4_j(<4 x i32> %0) {
 ; CHECK: entry:
-; CHECK:  %[[SHUF1:.+]] = shufflevector <4 x i32> %0, <4 x i32> <i32 0, i32 undef, i32 undef, i32 undef>, <4 x i32> <i32 4, i32 0, i32 4, i32 2>
+; CHECK:  %[[SHUF1:.+]] = shufflevector <4 x i32> %0, <4 x i32> <i32 0, i32 poison, i32 poison, i32 poison>, <4 x i32> <i32 4, i32 0, i32 4, i32 2>
 ; CHECK:  %[[ADD1:.+]] = add <4 x i32> %0, %[[SHUF1]]
-; CHECK:  %[[SHUF2:.+]] = shufflevector <4 x i32> %[[ADD1]], <4 x i32> <i32 0, i32 undef, i32 undef, i32 undef>, <4 x i32> <i32 4, i32 4, i32 1, i32 1>
+; CHECK:  %[[SHUF2:.+]] = shufflevector <4 x i32> %[[ADD1]], <4 x i32> <i32 0, i32 poison, i32 poison, i32 poison>, <4 x i32> <i32 4, i32 4, i32 1, i32 1>
 ; CHECK:  %[[RESULT:.+]] = add <4 x i32> %[[ADD1]], %[[SHUF2]]
 ; CHECK:  ret <4 x i32> %[[RESULT]]
 ; CHECK: }
@@ -39,11 +39,11 @@ declare <4 x i32> @__vecz_b_sub_group_scan_inclusive_add_Dv4_j(<4 x i32>)
 declare <4 x i32> @__vecz_b_sub_group_scan_exclusive_add_Dv4_j(<4 x i32>)
 ; CHECK-LABEL: define <4 x i32> @__vecz_b_sub_group_scan_exclusive_add_Dv4_j(<4 x i32> %0) {
 ; CHECK: entry:
-; CHECK:  %[[SHUF1:.+]] = shufflevector <4 x i32> %0, <4 x i32> <i32 0, i32 undef, i32 undef, i32 undef>, <4 x i32> <i32 4, i32 0, i32 4, i32 2>
+; CHECK:  %[[SHUF1:.+]] = shufflevector <4 x i32> %0, <4 x i32> <i32 0, i32 poison, i32 poison, i32 poison>, <4 x i32> <i32 4, i32 0, i32 4, i32 2>
 ; CHECK:  %[[ADD1:.+]] = add <4 x i32> %0, %[[SHUF1]]
-; CHECK:  %[[SHUF2:.+]] = shufflevector <4 x i32> %[[ADD1]], <4 x i32> <i32 0, i32 undef, i32 undef, i32 undef>, <4 x i32> <i32 4, i32 4, i32 1, i32 1>
+; CHECK:  %[[SHUF2:.+]] = shufflevector <4 x i32> %[[ADD1]], <4 x i32> <i32 0, i32 poison, i32 poison, i32 poison>, <4 x i32> <i32 4, i32 4, i32 1, i32 1>
 ; CHECK:  %[[ADD2:.+]] = add <4 x i32> %[[ADD1]], %[[SHUF2]]
-; CHECK:  %[[ROTATE:.+]] = shufflevector <4 x i32> %[[ADD2]], <4 x i32> undef, <4 x i32> <i32 {{.+}}, i32 0, i32 1, i32 2>
+; CHECK:  %[[ROTATE:.+]] = shufflevector <4 x i32> %[[ADD2]], <4 x i32> poison, <4 x i32> <i32 {{.+}}, i32 0, i32 1, i32 2>
 ; CHECK:  %[[RESULT:.+]] = insertelement <4 x i32> %[[ROTATE]], i32 0, i64 0
 ; CHECK:  ret <4 x i32> %[[RESULT]]
 ; CHECK: }

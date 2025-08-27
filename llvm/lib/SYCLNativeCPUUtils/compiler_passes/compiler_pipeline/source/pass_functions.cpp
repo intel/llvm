@@ -204,7 +204,7 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
       // InsertElement to place it in a new vector and the second is a
       // ShuffleVector to duplicate the value across the vector.
       auto numEls = constantVec->getNumOperands();
-      llvm::Value *undef = llvm::UndefValue::get(
+      llvm::Value *undef = llvm::PoisonValue::get(
           llvm::FixedVectorType::get(splatVal->getType(), numEls));
       llvm::Type *i32Ty = llvm::Type::getInt32Ty(constant->getContext());
       auto insert = llvm::InsertElementInst::Create(
@@ -217,7 +217,7 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
     } else if (llvm::ConstantArray *constantArr =
                    llvm::dyn_cast<llvm::ConstantArray>(constant)) {
       auto numEls = constantArr->getNumOperands();
-      llvm::Value *undef = llvm::UndefValue::get(constantArr->getType());
+      llvm::Value *undef = llvm::PoisonValue::get(constantArr->getType());
       llvm::Instruction *insertedIns = nullptr;
       for (unsigned int i = 0; i < numEls; i++) {
         auto *insertNext = llvm::InsertValueInst::Create(

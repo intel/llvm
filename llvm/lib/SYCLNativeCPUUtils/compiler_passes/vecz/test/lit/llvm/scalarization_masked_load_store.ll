@@ -27,8 +27,8 @@ declare void @__vecz_b_masked_store4_Dv2_fPDv2_fDv2_b(<2 x float>, <2 x float>*,
 define spir_kernel void @scalarize_masked_memops(<2 x float>* %pa, <2 x float>* %pz) {
 entry:
   %idx = call i64 @__mux_get_global_id(i32 0)
-  %head = insertelement <2 x i64> undef, i64 %idx, i64 0
-  %splat = shufflevector <2 x i64> %head, <2 x i64> undef, <2 x i32> zeroinitializer
+  %head = insertelement <2 x i64> poison, i64 %idx, i64 0
+  %splat = shufflevector <2 x i64> %head, <2 x i64> poison, <2 x i32> zeroinitializer
   %idxs = add <2 x i64> %splat, <i64 0, i64 1>
   %mask = icmp slt <2 x i64> %idxs, <i64 8, i64 8>
   %aptr = getelementptr <2 x float>, <2 x float>* %pa, i64 %idx

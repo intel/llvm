@@ -35,6 +35,6 @@ declare i64 @__mux_get_global_id(i32) #1
 
 ; CHECK: define spir_kernel void @__vecz_v4_extract_constant_index
 ; CHECK: %[[LD:.+]] = load <16 x i64>
-; CHECK: %[[EXT:.+]] = shufflevector <16 x i64> %[[LD]], <16 x i64> undef, <4 x i32> <i32 0, i32 4, i32 8, i32 12>
+; CHECK: %[[EXT:.+]] = shufflevector <16 x i64> %[[LD]], <16 x i64> poison, <4 x i32> <i32 0, i32 4, i32 8, i32 12>
 ; CHECK: store <4 x i64> %[[EXT]]
 ; CHECK: ret void

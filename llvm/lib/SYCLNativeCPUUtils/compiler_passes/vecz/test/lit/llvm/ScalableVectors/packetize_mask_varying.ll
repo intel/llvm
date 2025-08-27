@@ -27,7 +27,7 @@ entry:
   %idx = call i64 @__mux_get_global_id(i32 0)
   %mod_idx = urem i64 %idx, 2
   %arrayidxa = getelementptr inbounds <4 x i32>, <4 x i32>* %aptr, i64 %idx
-  %ins = insertelement <4 x i1> undef, i1 true, i32 0
+  %ins = insertelement <4 x i1> poison, i1 true, i32 0
   %cmp = icmp slt i64 %idx, 64
   br i1 %cmp, label %if.then, label %if.end
 if.then:

@@ -75,5 +75,5 @@ attributes #3 = { nobuiltin nounwind }
 ; CHECK: %BroadcastAddr.splatinsert = insertelement <4 x ptr addrspace(1)> {{poison|undef}}, ptr addrspace(1) %0, {{i32|i64}} 0
 ; CHECK: %BroadcastAddr.splat = shufflevector <4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <4 x ptr addrspace(1)> {{poison|undef}}, <4 x i32> zeroinitializer
 ; CHECK: %1 = getelementptr double, <4 x ptr addrspace(1)> %BroadcastAddr.splat, <4 x i64> <i64 0, i64 4, i64 8, i64 12>
-; CHECK: %2 = call <4 x double> @llvm.masked.gather.v4f64.v4p1(<4 x ptr addrspace(1)> %1, i32{{( immarg)?}} 8, <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, <4 x double> undef)
+; CHECK: %2 = call <4 x double> @llvm.masked.gather.v4f64.v4p1(<4 x ptr addrspace(1)> %1, i32{{( immarg)?}} 8, <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, <4 x double> poison)
 ; CHECK: ret <4 x double> %2

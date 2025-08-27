@@ -49,12 +49,12 @@ define spir_kernel void @kernel(ptr %in, ptr %out) {
 ; CHECK: [[BASE:%.*]] = mul i32 %2, 2
 ; CHECK: [[IDX0:%.*]] = add i32 [[BASE]], 0
 ; CHECK: [[ELT0:%.*]] = extractelement <8 x float> %1, i32 [[IDX0]]
-; CHECK: [[TVEC:%.*]] = insertelement <2 x float> undef, float [[ELT0]], i32 0
+; CHECK: [[TVEC:%.*]] = insertelement <2 x float> poison, float [[ELT0]], i32 0
 ; CHECK: [[IDX1:%.*]] = add i32 [[BASE]], 1
 ; CHECK: [[ELT1:%.*]] = extractelement <8 x float> %1, i32 [[IDX1]]
 ; CHECK: [[VEC:%.*]] = insertelement <2 x float> [[TVEC]], float [[ELT1]], i32 1
 ; CHECK: [[SHUFFLE:%.*]] = call <2 x float> @__mux_sub_group_shuffle_v2f32(<2 x float> [[VEC]], i32 [[MUXIDX]])
-; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> [[SHUFFLE]], <2 x float> undef,
+; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> [[SHUFFLE]], <2 x float> poison,
 ; CHECK-SAME:                          <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1>
 define spir_kernel void @kernel_vec_data(ptr %in, ptr %out) {
   %gid = tail call i64 @__mux_get_global_id(i32 0)
@@ -89,7 +89,7 @@ define spir_kernel void @kernel_const_idx(ptr %in, ptr %out) {
 ; at element index 2
 ; CHECK: [[VEC:%.*]] = call <2 x float> @llvm.vector.extract.v2f32.v8f32(<8 x float> {{%.*}}, i64 2)
 ; CHECK: [[SHUFFLE:%.*]] = call <2 x float> @__mux_sub_group_shuffle_v2f32(<2 x float> [[VEC]], i32 0)
-; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> [[SHUFFLE]], <2 x float> undef,
+; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> [[SHUFFLE]], <2 x float> poison,
 ; CHECK-SAME:                          <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1>
 ; CHECK: store <8 x float> [[SPLAT]]
 define spir_kernel void @kernel_vec_data_const_idx(ptr %in, ptr %out) {
@@ -137,7 +137,7 @@ define spir_kernel void @kernel_uniform_data_varying_idx(i64 %val, ptr %idxs, pt
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_uniform_vec_data(<2 x float> %val, ptr %out)
 ; It doesn't matter what sub-group index we choose because the data is uniform.
 ; Just splat it.
-; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> %val, <2 x float> undef,
+; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> %val, <2 x float> poison,
 ; CHECK-SAME:                          <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1>
 ; CHECK: store <8 x float> [[SPLAT]]
 define spir_kernel void @kernel_uniform_vec_data(<2 x float> %val, ptr %out) {
@@ -153,7 +153,7 @@ define spir_kernel void @kernel_uniform_vec_data(<2 x float> %val, ptr %out) {
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_uniform_vec_data_varying_idx(<2 x float> %val, ptr %idxs, ptr %out)
 ; It doesn't matter what sub-group index we choose because the data is uniform.
 ; Just splat it.
-; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> %val, <2 x float> undef,
+; CHECK: [[SPLAT:%.*]] = shufflevector <2 x float> %val, <2 x float> poison,
 ; CHECK-SAME:                          <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1>
 ; CHECK: store <8 x float> [[SPLAT]]
 define spir_kernel void @kernel_uniform_vec_data_varying_idx(<2 x float> %val, ptr %idxs, ptr %out) {

@@ -29,7 +29,7 @@ entry:
   call void @llvm.lifetime.start.p0i8(i64 32, i8* nonnull %0)
   %1 = trunc i64 %call to i32
   %conv = add nuw nsw i32 %1, 2
-  %2 = insertelement <4 x i32> undef, i32 %conv, i64 0
+  %2 = insertelement <4 x i32> poison, i32 %conv, i64 0
   %conv2 = add nuw nsw i32 %1, 3
   %3 = insertelement <4 x i32> %2, i32 %conv2, i64 1
   %4 = insertelement <4 x i32> %3, i32 %1, i64 2

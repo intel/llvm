@@ -1691,7 +1691,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineCross(IRBuilder<> &B,
     Src1Lanes.push_back(B.CreateExtractElement(Src1, B.getInt32(i)));
   }
 
-  Value *Result = UndefValue::get(RetTy);
+  Value *Result = PoisonValue::get(RetTy);
   for (unsigned i = 0; i < 3; i++) {
     const int Idx0 = SrcIndices[(i * 2) + 0];
     const int Idx1 = SrcIndices[(i * 2) + 1];
@@ -2035,11 +2035,11 @@ Value *CLBuiltinInfo::emitBuiltinInlineAs(Function *F, llvm::IRBuilder<> &B,
       if (i < SrcVecTy->getNumElements()) {
         Indices.push_back(B.getInt32(i));
       } else {
-        Indices.push_back(UndefValue::get(B.getInt32Ty()));
+        Indices.push_back(PoisonValue::get(B.getInt32Ty()));
       }
     }
     Value *Mask = ConstantVector::get(Indices);
-    Src = B.CreateShuffleVector(Src, UndefValue::get(SrcVecTy), Mask);
+    Src = B.CreateShuffleVector(Src, PoisonValue::get(SrcVecTy), Mask);
   }
 
   // Common case: as_* is a simple bitcast.
@@ -2139,7 +2139,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVLoad(Function *F, unsigned Width,
     return nullptr;
   }
   auto *DataTy = FixedVectorType::get(EltTy, Width);
-  Value *Data = UndefValue::get(DataTy);
+  Value *Data = PoisonValue::get(DataTy);
 
   // Emit the base pointer.
   Value *Offset = Args[0];
@@ -2596,7 +2596,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineShuffle(BuiltinID BuiltinID,
       MaskedMask, FixedVectorType::get(B.getInt32Ty(), MaskWidth), false);
 
   // Create the shufflevector instruction.
-  Value *Arg1 = (isShuffle2 ? Args[1] : UndefValue::get(ShuffleTy));
+  Value *Arg1 = (isShuffle2 ? Args[1] : PoisonValue::get(ShuffleTy));
   return B.CreateShuffleVector(Args[0], Arg1, MaskedMask, "shuffle");
 }
 

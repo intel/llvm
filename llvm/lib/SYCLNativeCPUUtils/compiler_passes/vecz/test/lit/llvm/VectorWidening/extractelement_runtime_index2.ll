@@ -42,7 +42,7 @@ entry:
 ; Extract directly from the uniform source with vectorized indices and insert directly into result
 ; CHECK: %[[IND0:.+]] = extractelement <4 x i32> %[[LD]], i32 0
 ; CHECK: %[[EXT0:.+]] = extractelement <4 x i8> %x, i32 %[[IND0]]
-; CHECK: %[[INS0:.+]] = insertelement <4 x i8> undef, i8 %[[EXT0]], i32 0
+; CHECK: %[[INS0:.+]] = insertelement <4 x i8> poison, i8 %[[EXT0]], i32 0
 ; CHECK: %[[IND1:.+]] = extractelement <4 x i32> %[[LD]], i32 1
 ; CHECK: %[[EXT1:.+]] = extractelement <4 x i8> %x, i32 %[[IND1]]
 ; CHECK: %[[INS1:.+]] = insertelement <4 x i8> %[[INS0]], i8 %[[EXT1]], i32 1

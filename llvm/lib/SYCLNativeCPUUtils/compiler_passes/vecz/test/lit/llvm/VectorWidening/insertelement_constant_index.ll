@@ -46,7 +46,7 @@ entry:
 ; CHECK-NOT: call <4 x i32> @__vecz_b_interleaved_load4_Dv4_ju3ptr
 
 ; Insert elements turned into shufflevectors
-; CHECK: %[[WIDE:.+]] = shufflevector <4 x i32> %[[ELTS]], <4 x i32> undef, <16 x i32> <i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3>
+; CHECK: %[[WIDE:.+]] = shufflevector <4 x i32> %[[ELTS]], <4 x i32> poison, <16 x i32> <i32 0, i32 0, i32 0, i32 0, i32 1, i32 1, i32 1, i32 1, i32 2, i32 2, i32 2, i32 2, i32 3, i32 3, i32 3, i32 3>
 ; CHECK: %[[INS:.+]] = shufflevector <16 x i32> %[[WIDE]], <16 x i32> %[[INTO]], <16 x i32> <i32 16, i32 17, i32 2, i32 19, i32 20, i32 21, i32 6, i32 23, i32 24, i32 25, i32 10, i32 27, i32 28, i32 29, i32 14, i32 31>
 
 ; No more shuffles..

@@ -97,7 +97,7 @@ void IRCleanup::deleteInstructions() {
       } else if (PHINode *Phi = dyn_cast<PHINode>(I)) {
         if (AreUsersDead(Phi, InstructionsToDelete, WorkList,
                          VisitedForCycles)) {
-          Phi->replaceAllUsesWith(UndefValue::get(Phi->getType()));
+          Phi->replaceAllUsesWith(PoisonValue::get(Phi->getType()));
           Phi->eraseFromParent();
           progress = true;
         } else {
@@ -117,7 +117,7 @@ void IRCleanup::deleteInstructions() {
         if (Op && Op->isLoad()) {
           // We need to replace loads with nops, as we need to have a value for
           // their users, which will be removed later on.
-          I->replaceAllUsesWith(UndefValue::get(Op->getDataType()));
+          I->replaceAllUsesWith(PoisonValue::get(Op->getDataType()));
           I->eraseFromParent();
         } else {
           WorkList.insert(I);
@@ -138,6 +138,6 @@ void IRCleanup::deleteInstructions() {
 }
 
 void IRCleanup::deleteInstructionNow(Instruction *I) {
-  I->replaceAllUsesWith(UndefValue::get(I->getType()));
+  I->replaceAllUsesWith(PoisonValue::get(I->getType()));
   I->eraseFromParent();
 }

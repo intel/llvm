@@ -124,7 +124,7 @@ entry:
 ; CHECK-NEXT:  [[VS1:%.*]] = and <vscale x 16 x i32> [[IDX0]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK-NEXT:  [[XLEN:%.*]] = call i64 @llvm.vscale.i64()
 ; CHECK-NEXT:  [[TMP0:%.*]] = shl i64 [[XLEN]], 4
-; CHECK-NEXT:  [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> undef, <vscale x 16 x float> [[VS2]], <vscale x 16 x i32> [[VS1]], i64 [[TMP0]])
+; CHECK-NEXT:  [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> poison, <vscale x 16 x float> [[VS2]], <vscale x 16 x i32> [[VS1]], i64 [[TMP0]])
 ; CHECK-NEXT:  [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:  [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:  [[TMP3:%.*]] = load <vscale x 16 x float>, ptr addrspace(1) [[ARRAYIDX]], align 4
@@ -141,7 +141,7 @@ entry:
 ; CHECK-NEXT:    [[IDX1:%.*]] = and <vscale x 128 x i32> [[IDX0]], shufflevector (<vscale x 128 x i32> insertelement (<vscale x 128 x i32> {{(undef|poison)}}, i32 31, {{i32|i64}} 0), <vscale x 128 x i32> {{(undef|poison)}}, <vscale x 128 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 128 x i32> [[IDX1]] to <vscale x 128 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC]], <vscale x 128 x i64> [[TMP0]]
-; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 128 x float> @llvm.masked.gather.nxv128f32.nxv128p0(<vscale x 128 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 128 x i1> shufflevector (<vscale x 128 x i1> insertelement (<vscale x 128 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 128 x i1> poison, <vscale x 128 x i32> zeroinitializer), <vscale x 128 x float> undef)
+; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 128 x float> @llvm.masked.gather.nxv128f32.nxv128p0(<vscale x 128 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 128 x i1> shufflevector (<vscale x 128 x i1> insertelement (<vscale x 128 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 128 x i1> poison, <vscale x 128 x i32> zeroinitializer), <vscale x 128 x float> poison)
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds <32 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <vscale x 128 x float>, ptr addrspace(1) [[ARRAYIDX]], align 4
@@ -175,13 +175,13 @@ entry:
 ; CHECK-NEXT:  [[VS13:%.*]] = and <vscale x 16 x i32> [[IDX02]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK-NEXT:  [[XLEN:%.*]] = call i64 @llvm.vscale.i64()
 ; CHECK-NEXT:  [[TMP0:%.*]] = shl i64 [[XLEN]], 4
-; CHECK-NEXT:  [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> undef, <vscale x 16 x float> [[VS21]], <vscale x 16 x i32> [[VS13]], i64 [[TMP0]])
+; CHECK-NEXT:  [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> poison, <vscale x 16 x float> [[VS21]], <vscale x 16 x i32> [[VS13]], i64 [[TMP0]])
 ; CHECK-NEXT:  [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:  store <4 x i32> zeroinitializer, ptr [[EXISTINGALLOC]], align 16
 ; CHECK-NEXT:  store i32 1, ptr [[EXISTINGALLOC]], align 16
 ; CHECK-NEXT:  [[V:%.*]] = load <4 x i32>, ptr [[EXISTINGALLOC]], align 16
 ; CHECK-NEXT:  [[VS2:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental.)?}}vector.insert.nxv16i32.v4i32(<vscale x 16 x i32> poison, <4 x i32> [[V]], i64 0)
-; CHECK-NEXT:  [[TMP2:%.*]] = call <vscale x 16 x i32> @llvm.riscv.vrgather.vv.nxv16i32.i64(<vscale x 16 x i32> undef, <vscale x 16 x i32> [[VS2]], <vscale x 16 x i32> [[VS13]], i64 [[TMP0]])
+; CHECK-NEXT:  [[TMP2:%.*]] = call <vscale x 16 x i32> @llvm.riscv.vrgather.vv.nxv16i32.i64(<vscale x 16 x i32> poison, <vscale x 16 x i32> [[VS2]], <vscale x 16 x i32> [[VS13]], i64 [[TMP0]])
 ; CHECK-NEXT:  [[ARRAYIDX4:%.*]] = getelementptr inbounds <4 x i32>, ptr addrspace(1) [[OUT2:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:  store <vscale x 16 x i32> [[TMP2]], ptr addrspace(1) [[ARRAYIDX4]], align 16
 ; CHECK-NEXT:  [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
@@ -198,12 +198,12 @@ entry:
 ; CHECK-NEXT:    [[VS13:%.*]] = and <vscale x 16 x i32> [[IDX02]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[XLEN4:%.*]] = call i64 @llvm.vscale.i64()
 ; CHECK-NEXT:    [[TMP0:%.*]] = shl i64 [[XLEN4]], 4
-; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> undef, <vscale x 16 x float> [[VS21]], <vscale x 16 x i32> [[VS13]], i64 [[TMP0]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> poison, <vscale x 16 x float> [[VS21]], <vscale x 16 x i32> [[VS13]], i64 [[TMP0]])
 ; CHECK-NEXT:    [[TMP2:%.*]] = sext <4 x i1> [[INPUT:%.*]] to <4 x i8>
 ; CHECK-NEXT:    [[VS2:%.*]] = call <vscale x 16 x i8> @llvm.{{(experimental.)?}}vector.insert.nxv16i8.v4i8(<vscale x 16 x i8> poison, <4 x i8> [[TMP2]], i64 0)
 ; CHECK-NEXT:    [[IDX0:%.*]] = call <vscale x 16 x i16> @llvm.experimental.stepvector.nxv16i16()
 ; CHECK-NEXT:    [[VS1:%.*]] = and <vscale x 16 x i16> [[IDX0]], shufflevector (<vscale x 16 x i16> insertelement (<vscale x 16 x i16> {{(undef|poison)}}, i16 3, {{i32|i64}} 0), <vscale x 16 x i16> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
-; CHECK-NEXT:    [[TMP3:%.*]] = call <vscale x 16 x i8> @llvm.riscv.vrgatherei16.vv.nxv16i8.i64(<vscale x 16 x i8> undef, <vscale x 16 x i8> [[VS2]], <vscale x 16 x i16> [[VS1]], i64 [[TMP0]])
+; CHECK-NEXT:    [[TMP3:%.*]] = call <vscale x 16 x i8> @llvm.riscv.vrgatherei16.vv.nxv16i8.i64(<vscale x 16 x i8> poison, <vscale x 16 x i8> [[VS2]], <vscale x 16 x i16> [[VS1]], i64 [[TMP0]])
 ; CHECK: [[TMP4:%.*]] = trunc <vscale x 16 x i8> [[TMP3]] to <vscale x 16 x i1>
 ; CHECK: [[TMP5:%.*]] = fcmp oeq <vscale x 16 x float>
 ; CHECK: [[TMP8:%.*]] = and <vscale x 16 x i1> [[TMP5]], [[TMP4]]

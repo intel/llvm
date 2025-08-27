@@ -37,7 +37,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; Shuffle across any hardware sub-group
 ; CHECK: [[SHUFF_ELT0:%.*]] = call half @__mux_sub_group_shuffle_f16(half [[ELT0]], i32 [[ID0]])
 ; Put that result into the final vector
-; CHECK: [[SHUFF_VEC0:%.*]] = insertelement <4 x half> undef, half [[SHUFF_ELT0]], i32 0
+; CHECK: [[SHUFF_VEC0:%.*]] = insertelement <4 x half> poison, half [[SHUFF_ELT0]], i32 0
 
 ; And so on for the other shuffle values
 ; CHECK: [[IDXELT1:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 1
@@ -78,7 +78,7 @@ define spir_kernel void @kernel_varying_data_const_value(ptr %in, ptr %out) {
 ; CHECK: [[ELT0:%.*]] = extractelement <4 x half> [[DATA:%.*]], i32 [[IDXELT0]]
 ; CHECK: [[ID0:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 0
 ; CHECK: [[SHUFF_ELT0:%.*]] = call half @__mux_sub_group_shuffle_f16(half [[ELT0]], i32 [[ID0]])
-; CHECK: [[SHUFF_VEC0:%.*]] = insertelement <4 x half> undef, half [[SHUFF_ELT0]], i32 0
+; CHECK: [[SHUFF_VEC0:%.*]] = insertelement <4 x half> poison, half [[SHUFF_ELT0]], i32 0
 ; CHECK: [[IDXELT1:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 1
 ; CHECK: [[ELT1:%.*]] = extractelement <4 x half> [[DATA]], i32 [[IDXELT1]]
 ; CHECK: [[ID1:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 1
@@ -126,7 +126,7 @@ define spir_kernel void @kernel_uniform_data_uniform_value(half %data, i32 %val,
 ; CHECK: [[ELT0:%.*]] = extractelement <4 x half> [[DATA:%.*]], i32 [[IDXELT0]]
 ; CHECK: [[ID0:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 0
 ; CHECK: [[SHUFF_ELT0:%.*]] = call half @__mux_sub_group_shuffle_f16(half [[ELT0]], i32 [[ID0]])
-; CHECK: [[SHUFF_VEC0:%.*]] = insertelement <4 x half> undef, half [[SHUFF_ELT0]], i32 0
+; CHECK: [[SHUFF_VEC0:%.*]] = insertelement <4 x half> poison, half [[SHUFF_ELT0]], i32 0
 ; CHECK: [[IDXELT1:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 1
 ; CHECK: [[ELT1:%.*]] = extractelement <4 x half> [[DATA]], i32 [[IDXELT1]]
 ; CHECK: [[ID1:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 1
@@ -164,20 +164,20 @@ define spir_kernel void @kernel_varying_data_varying_value(ptr %in, ptr %vals, p
 ; CHECK: [[MULIDXELT0:%.*]] = mul i32 [[IDXELT0]], 2
 ; CHECK: [[MADIDXELT00:%.*]] = add i32 [[MULIDXELT0]], 0
 ; CHECK: [[ELT00:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT00]]
-; CHECK: [[DATAELT00:%.*]] = insertelement <2 x float> undef, float [[ELT00]], i32 0
+; CHECK: [[DATAELT00:%.*]] = insertelement <2 x float> poison, float [[ELT00]], i32 0
 ; CHECK: [[MADIDXELT01:%.*]] = add i32 [[MULIDXELT0]], 1
 ; CHECK: [[ELT01:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT01]]
 ; CHECK: [[DATAELT01:%.*]] = insertelement <2 x float> [[DATAELT00]], float [[ELT01]], i32 1
 ; CHECK: [[ID0:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 0
 ; CHECK: [[SHUFF_ELT0:%.*]] = call <2 x float> @__mux_sub_group_shuffle_v2f32(<2 x float> [[DATAELT01]], i32 [[ID0]])
 ; CHECK: [[SHUFF_RES0:%.*]] = call <8 x float> @llvm.vector.insert.v8f32.v2f32(
-; CHECK-SAME:                                      <8 x float> undef, <2 x float> [[SHUFF_ELT0]], i64 0)
+; CHECK-SAME:                                      <8 x float> poison, <2 x float> [[SHUFF_ELT0]], i64 0)
 
 ; CHECK: [[IDXELT1:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 1
 ; CHECK: [[MULIDXELT1:%.*]] = mul i32 [[IDXELT1]], 2
 ; CHECK: [[MADIDXELT10:%.*]] = add i32 [[MULIDXELT1]], 0
 ; CHECK: [[ELT10:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT10]]
-; CHECK: [[DATAELT10:%.*]] = insertelement <2 x float> undef, float [[ELT10]], i32 0
+; CHECK: [[DATAELT10:%.*]] = insertelement <2 x float> poison, float [[ELT10]], i32 0
 ; CHECK: [[MADIDXELT11:%.*]] = add i32 [[MULIDXELT1]], 1
 ; CHECK: [[ELT11:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT11]]
 ; CHECK: [[DATAELT11:%.*]] = insertelement <2 x float> [[DATAELT10]], float [[ELT11]], i32 1
@@ -190,7 +190,7 @@ define spir_kernel void @kernel_varying_data_varying_value(ptr %in, ptr %vals, p
 ; CHECK: [[MULIDXELT2:%.*]] = mul i32 [[IDXELT2]], 2
 ; CHECK: [[MADIDXELT20:%.*]] = add i32 [[MULIDXELT2]], 0
 ; CHECK: [[ELT20:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT20]]
-; CHECK: [[DATAELT20:%.*]] = insertelement <2 x float> undef, float [[ELT20]], i32 0
+; CHECK: [[DATAELT20:%.*]] = insertelement <2 x float> poison, float [[ELT20]], i32 0
 ; CHECK: [[MADIDXELT21:%.*]] = add i32 [[MULIDXELT2]], 1
 ; CHECK: [[ELT21:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT21]]
 ; CHECK: [[DATAELT21:%.*]] = insertelement <2 x float> [[DATAELT20]], float [[ELT21]], i32 1
@@ -203,7 +203,7 @@ define spir_kernel void @kernel_varying_data_varying_value(ptr %in, ptr %vals, p
 ; CHECK: [[MULIDXELT3:%.*]] = mul i32 [[IDXELT3]], 2
 ; CHECK: [[MADIDXELT30:%.*]] = add i32 [[MULIDXELT3]], 0
 ; CHECK: [[ELT30:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT30]]
-; CHECK: [[DATAELT30:%.*]] = insertelement <2 x float> undef, float [[ELT30]], i32 0
+; CHECK: [[DATAELT30:%.*]] = insertelement <2 x float> poison, float [[ELT30]], i32 0
 ; CHECK: [[MADIDXELT31:%.*]] = add i32 [[MULIDXELT3]], 1
 ; CHECK: [[ELT31:%.*]] = extractelement <8 x float> [[DATA:%.*]], i32 [[MADIDXELT31]]
 ; CHECK: [[DATAELT31:%.*]] = insertelement <2 x float> [[DATAELT30]], float [[ELT31]], i32 1
