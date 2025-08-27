@@ -30,7 +30,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPV-IR: call spir_func <4 x i32> @_Z23__spirv_ImageRead_Rint4PU3AS133__spirv_Image__void_0_0_0_0_0_0_0ii(
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @imagereads(ptr addrspace(1) %im, ptr addrspace(1) %ima, ptr addrspace(1) nocapture %res, ptr addrspace(1) nocapture %resu) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 {
+define dso_local spir_kernel void @imagereads(ptr addrspace(1) %im, ptr addrspace(1) %ima, ptr addrspace(1) captures(none) %res, ptr addrspace(1) captures(none) %resu) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 {
 entry:
   %0 = tail call ptr addrspace(2) @__translate_sampler_initializer(i32 19) #2
   %call = tail call spir_func <4 x i32> @_Z12read_imageui14ocl_image1d_ro11ocl_sampleri(ptr addrspace(1) %im, ptr addrspace(2) %0, i32 42) #3
@@ -53,7 +53,7 @@ entry:
 ; CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_ji(
 
 ; Function Attrs: alwaysinline convergent nounwind
-define spir_kernel void @imagewrites(i32 %offset, ptr addrspace(1) nocapture readonly %input, ptr addrspace(1) nocapture readonly %inputu, ptr addrspace(1) %output) local_unnamed_addr #0 !kernel_arg_addr_space !14 !kernel_arg_access_qual !15 !kernel_arg_type !16 !kernel_arg_base_type !17 !kernel_arg_type_qual !18 !kernel_arg_name !19 !kernel_attributes !20 {
+define spir_kernel void @imagewrites(i32 %offset, ptr addrspace(1) captures(none) readonly %input, ptr addrspace(1) captures(none) readonly %inputu, ptr addrspace(1) %output) local_unnamed_addr #0 !kernel_arg_addr_space !14 !kernel_arg_access_qual !15 !kernel_arg_type !16 !kernel_arg_base_type !17 !kernel_arg_type_qual !18 !kernel_arg_name !19 !kernel_attributes !20 {
   entry:
   %idxprom = sext i32 %offset to i64
   %arrayidx = getelementptr inbounds <4 x i32>, ptr addrspace(1) %input, i64 %idxprom

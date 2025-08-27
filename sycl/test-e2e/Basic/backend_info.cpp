@@ -1,3 +1,6 @@
+// UNSUPPORTED: preview-mode
+// UNSUPPORTED-INTENDED: Functionality is removed under
+//                       `-fpreview-breaking-changes`
 // RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //
@@ -15,6 +18,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 

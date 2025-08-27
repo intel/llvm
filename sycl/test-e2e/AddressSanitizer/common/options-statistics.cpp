@@ -28,8 +28,8 @@ int main() {
         });
   });
   Q.wait();
-  // CHECK-STATS: Stats
-  // CHECK-NOT: Stats
+  // CHECK-STATS: Stats: Context
+  // CHECK-NOT: Stats: Context
 
   sycl::free(array1, Q);
 

@@ -73,16 +73,16 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.start.p0i8(i64, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0i8(i64, i8* captures(none)) #1
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.memcpy.p0i8.p2i8.i32(i8* nocapture writeonly, i8 addrspace(2)* nocapture readonly, i32, i1) #1
+declare void @llvm.memcpy.p0i8.p2i8.i32(i8* captures(none) writeonly, i8 addrspace(2)* captures(none) readonly, i32, i1) #1
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture writeonly, i8* nocapture readonly, i32, i1) #1
+declare void @llvm.memcpy.p0i8.p0i8.i32(i8* captures(none) writeonly, i8* captures(none) readonly, i32, i1) #1
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0i8(i64, i8* captures(none)) #1
 
 ; Function Attrs: convergent nounwind
 define spir_func void @bar(%struct.B* noalias sret(%struct.B) %agg.result) #0 {

@@ -1,0 +1,34 @@
+; Check translation of OpVariable with Function storage and initializer.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int64
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %kernel "test"
+               OpName %pvalue "pvalue"
+       %uint = OpTypeInt 32 0
+      %ulong = OpTypeInt 64 0
+       %void = OpTypeVoid
+   %gptr_int = OpTypePointer CrossWorkgroup %uint
+   %pptr_int = OpTypePointer Function %uint
+ %kernel_sig = OpTypeFunction %void %gptr_int
+    %uint_42 = OpConstant %uint 42
+    %ulong_4 = OpConstant %ulong 4
+     %kernel = OpFunction %void None %kernel_sig
+        %dst = OpFunctionParameter %gptr_int
+      %entry = OpLabel
+     %pvalue = OpVariable %pptr_int Function %uint_42
+               OpCopyMemorySized %dst %pvalue %ulong_4 Volatile
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-LABEL: define spir_kernel void @test
+; CHECK: %pvalue = alloca i32, align 4
+; CHECK: store i32 42, ptr %pvalue, align 4
+; CHECK: call void @llvm.memcpy.p1.p0.i64

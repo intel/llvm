@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <relational.h>
+#include <libspirv/relational.h>
 #include <libspirv/spirv.h>
 
 #define _CLC_SPIRV_BUILTIN __spirv_FOrdGreaterThanEqual

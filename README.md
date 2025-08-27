@@ -79,10 +79,6 @@ for general guidelines around contributing to this project. You can then see
 [ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md) for DPC++ specific 
 guidelines.
 
-## Late-outline OpenMP\* and OpenMP\* Offload
-
-See [openmp](/openmp) branch.
-
 # License
 
 See [LICENSE](./sycl/LICENSE.TXT) for details.

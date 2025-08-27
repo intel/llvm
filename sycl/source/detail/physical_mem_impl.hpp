@@ -37,37 +37,37 @@ inline ur_virtual_mem_access_flag_t AccessModeToVirtualAccessFlags(
 
 class physical_mem_impl {
 public:
-  physical_mem_impl(const device &SyclDevice, const context &SyclContext,
+  physical_mem_impl(device_impl &DeviceImpl, const context &SyclContext,
                     size_t NumBytes)
-      : MDevice(getSyclObjImpl(SyclDevice)),
-        MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes) {
-    const AdapterPtr &Adapter = MContext->getAdapter();
+      : MDevice(DeviceImpl), MContext(getSyclObjImpl(SyclContext)),
+        MNumBytes(NumBytes) {
+    adapter_impl &Adapter = MContext->getAdapter();
 
-    auto Err = Adapter->call_nocheck<UrApiKind::urPhysicalMemCreate>(
-        MContext->getHandleRef(), MDevice->getHandleRef(), MNumBytes, nullptr,
+    auto Err = Adapter.call_nocheck<UrApiKind::urPhysicalMemCreate>(
+        MContext->getHandleRef(), MDevice.getHandleRef(), MNumBytes, nullptr,
         &MPhysicalMem);
 
     if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
         Err == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY)
       throw sycl::exception(make_error_code(errc::memory_allocation),
                             "Failed to allocate physical memory.");
-    Adapter->checkUrResult(Err);
+    Adapter.checkUrResult(Err);
   }
 
   ~physical_mem_impl() noexcept(false) {
-    const AdapterPtr &Adapter = MContext->getAdapter();
-    Adapter->call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
+    adapter_impl &Adapter = MContext->getAdapter();
+    Adapter.call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
     auto AccessFlags = AccessModeToVirtualAccessFlags(Mode);
-    const AdapterPtr &Adapter = MContext->getAdapter();
+    adapter_impl &Adapter = MContext->getAdapter();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
-    Adapter->call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
-                                              ResultPtr, NumBytes, MPhysicalMem,
-                                              Offset, AccessFlags);
+    Adapter.call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
+                                             ResultPtr, NumBytes, MPhysicalMem,
+                                             Offset, AccessFlags);
     return ResultPtr;
   }
 
@@ -82,7 +82,7 @@ public:
 
 private:
   ur_physical_mem_handle_t MPhysicalMem = nullptr;
-  const std::shared_ptr<device_impl> MDevice;
+  device_impl &MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;
 };

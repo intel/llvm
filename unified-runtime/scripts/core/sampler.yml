@@ -1,0 +1,239 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "4"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: Sampler Filter Mode
+class: $xSampler
+name: $x_sampler_filter_mode_t
+etors:
+    - name: NEAREST
+      desc: Filter mode nearest.
+    - name: LINEAR
+      desc: Filter mode linear.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Sampler addressing mode"
+class: $xSampler
+name: $x_sampler_addressing_mode_t
+etors:
+    - name: NONE
+      value: "0"
+      desc: "None"
+    - name: CLAMP_TO_EDGE
+      value: "1"
+      desc: "Clamp to edge"
+    - name: CLAMP
+      value: "2"
+      desc: "Clamp"
+    - name: REPEAT
+      value: "3"
+      desc: "Repeat"
+    - name: MIRRORED_REPEAT
+      value: "4"
+      desc: "Mirrored Repeat"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Get sample object information"
+class: $xSampler
+name: $x_sampler_info_t
+typed_etors: True
+etors:
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the sampler object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] Sampler context info"
+    - name: NORMALIZED_COORDS
+      desc: "[$x_bool_t] Sampler normalized coordinate setting"
+    - name: ADDRESSING_MODE
+      desc: "[$x_sampler_addressing_mode_t] Sampler addressing mode setting"
+    - name: FILTER_MODE
+      desc: "[$x_sampler_filter_mode_t] Sampler filter mode setting"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Sampler description."
+class: $xSampler
+name: $x_sampler_desc_t
+base: $x_base_desc_t
+members:
+    - type: bool
+      name: normalizedCoords
+      desc: "[in] Specify if image coordinates are normalized (true) or not (false)"
+    - type: $x_sampler_addressing_mode_t
+      name: addressingMode
+      desc: "[in] Specify the address mode of the sampler"
+    - type: $x_sampler_filter_mode_t
+      name: filterMode
+      desc: "[in] Specify the filter mode of the sampler"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a sampler object in a context"
+class: $xSampler
+name: Create
+ordinal: "0"
+details:
+    - "The props parameter specifies a list of sampler property names and their corresponding values."
+    - "The list is terminated with 0. If the list is NULL, default values will be used."
+analogue:
+    - "**clCreateSamplerWithProperties**"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: const $x_sampler_desc_t*
+      name: pDesc
+      desc: "[in] pointer to the sampler description"
+    - type: $x_sampler_handle_t*
+      name: phSampler
+      desc: "[out][alloc] pointer to handle of sampler object created"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to the sampler object handle. Increment its reference count"
+class: $xSampler
+name: Retain
+ordinal: "0"
+analogue:
+    - "**clRetainSampler**"
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in][retain] handle of the sampler object to get access"
+returns:
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the sampler's reference count and delete the sampler if the reference count becomes zero."
+class: $xSampler
+name: Release
+ordinal: "0"
+analogue:
+    - "**clReleaseSampler**"
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in][release] handle of the sampler object to release"
+returns:
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query information about a sampler object"
+class: $xSampler
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetSamplerInfo**"
+params:
+    - type: $x_sampler_handle_t
+      name: hSampler
+      desc: "[in] handle of the sampler object"
+    - type: "$x_sampler_info_t"
+      name: propName
+      desc: "[in] name of the sampler property to query"
+    - type: "size_t"
+      name: propSize
+      desc: "[in] size in bytes of the sampler property value provided"
+    - type: "void*"
+      name: pPropValue
+      desc: "[out][typename(propName, propSize)][optional] value of the sampler property"
+    - type: "size_t*"
+      name: pPropSizeRet
+      desc: "[out][optional] size in bytes returned in sampler property value"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_SAMPLER
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return sampler native sampler handle."
+class: $xSampler
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability sampler extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_sampler_handle_t"
+      name: hSampler
+      desc: |
+            [in] handle of the sampler.
+    - type: $x_native_handle_t*
+      name: phNativeSampler
+      desc: |
+            [out] a pointer to the native handle of the sampler.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Native sampler creation properties"
+class: $xSampler
+name: $x_sampler_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime sampler object from native sampler handle."
+class: $xSampler
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime sampler handle from native driver sampler handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_native_handle_t
+      name: hNativeSampler
+      desc: "[in][nocheck] the native handle of the sampler."
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: const $x_sampler_native_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to native sampler properties struct."
+    - type: "$x_sampler_handle_t*"
+      name: phSampler
+      desc: "[out][alloc] pointer to the handle of the sampler object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."

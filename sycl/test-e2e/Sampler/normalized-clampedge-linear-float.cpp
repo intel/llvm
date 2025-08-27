@@ -1,12 +1,12 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: cuda
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: hip
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14732
 
-// CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
-// type (such as unorm_int8)
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA works with image_channel_type::fp32, but not with
+// any 8-bit per channel type (such as unorm_int8). Bindless images should be
+// used instead.
 
 /*
     This file sets up an image, initializes it with data,

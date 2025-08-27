@@ -33,7 +33,7 @@
 #include <sycl/nd_range.hpp>
 #include <type_traits>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 // Equivalent to C++20's std::type_identity (used to create non-deduced
 // contexts)
@@ -87,7 +87,7 @@ template <int Dim> struct range_to_item_map<sycl::nd_range<Dim>> {
   using ItemT = sycl::nd_item<Dim>;
 };
 template <int Dim> struct range_to_item_map<sycl::range<Dim>> {
-  using ItemT = sycl::item<Dim>;
+  using ItemT = sycl::item<Dim, false>;
 };
 
 template <typename T>

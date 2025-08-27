@@ -25,7 +25,12 @@
 #endif // __SYCL_ALWAYS_INLINE
 
 #ifdef SYCL_EXTERNAL
+#ifdef __NativeCPU__
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL __attribute__((__libclc_call__))
+#define __DPCPP_SYCL_EXTERNAL_LIBC SYCL_EXTERNAL
+#else
 #define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#endif
 #else
 #ifdef __SYCL_DEVICE_ONLY__
 #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
@@ -33,6 +38,10 @@
 #define __DPCPP_SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif
+#endif
+
+#ifndef __DPCPP_SYCL_EXTERNAL_LIBC
+#define __DPCPP_SYCL_EXTERNAL_LIBC __DPCPP_SYCL_EXTERNAL
 #endif
 
 // Helper for enabling empty-base optimizations on MSVC.

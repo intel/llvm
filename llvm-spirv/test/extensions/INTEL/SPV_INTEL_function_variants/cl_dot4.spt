@@ -1,0 +1,353 @@
+;;; 32-bit and 16-bit variants of a dot product kernel generated from OpenCL C.
+
+; RUN: llvm-spirv --to-binary %s -o %t_multitarget.spv
+
+;;; The following should produce the base (32-bit float) variant:
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 --fnvar-arch 1 \
+; RUN:   --fnvar-target 7 \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 --fnvar-arch 3 \
+; RUN:   --fnvar-target 8 --fnvar-features '1,2,3,4'\
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 --fnvar-arch 4 \
+; RUN:   --fnvar-target 7 \
+; RUN:   --fnvar-capabilities '4,5,6,11,39' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+;;; The following should produce 16-bit floating point  variant:
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 --fnvar-arch 4 \
+; RUN:   --fnvar-target 7 \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-FP16
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 \
+; RUN:   --fnvar-target 7 \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-FP16
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 --fnvar-arch 5 \
+; RUN:   --fnvar-target 8 --fnvar-features '1,2,3,4'\
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-FP16
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 2 --fnvar-family 3 --fnvar-arch 4 \
+; RUN:   --fnvar-target 7 \
+; RUN:   --fnvar-capabilities '4,5,6,8,9,11,39' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-FP16
+
+; CHECK-SPIRV-COMMON: EntryPoint
+; CHECK-SPIRV-FP16: TypeFloat {{[0-9]+}} 16
+; CHECK-SPIRV-BASE: TypeFloat {{[0-9]+}} 32
+; CHECK-SPIRV-FP16-NOT: TypeFloat {{[0-9]+}} 32
+; CHECK-SPIRV-BASE-NOT: TypeFloat {{[0-9]+}} 16
+; CHECK-SPIRV-COMMON: Dot
+; CHECK-SPIRV-COMMON-NOT: Capability FunctionVariantsINTEL
+; CHECK-SPIRV-COMMON-NOT: Capability SpecConditionalINTEL
+; CHECK-SPIRV-COMMON-NOT: Extension "SPV_INTEL_function_variants"
+; CHECK-SPIRV-COMMON-NOT: ConditionalINTEL
+; CHECK-SPIRV-COMMON-NOT: ConditionalExtension
+; CHECK-SPIRV-COMMON-NOT: ConditionalCapability
+; CHECK-SPIRV-COMMON-NOT: ConditionalEntryPoint
+; CHECK-SPIRV-COMMON-NOT: SpecConstant
+; CHECK-SPIRV-COMMON-NOT: ConditionalCopyObjectINTEL
+
+;;; Input multi-target SPIR-V module
+119734787 67072 1114112 110 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Int64
+2 Capability Int8
+2 Capability FunctionVariantsINTEL
+3 ConditionalCapabilityINTEL 1 Float16Buffer
+3 ConditionalCapabilityINTEL 1 Float16
+8 Extension "SPV_INTEL_function_variants"
+5 ExtInstImport 2 "OpenCL.std"
+3 MemoryModel 2 2
+7 ConditionalEntryPointINTEL 3 6 4 "dot4" 5
+7 ConditionalEntryPointINTEL 1 6 6 "dot4" 7
+3 ExecutionMode 4 31
+3 ExecutionMode 6 31
+3 Source 3 102000
+6 Name 1 "dot4_fp16.spv"
+6 Name 3 "dot4_fp32.spv"
+11 Name 5 "__spirv_BuiltInGlobalInvocationId"
+11 Name 7 "__spirv_BuiltInGlobalInvocationId"
+3 Name 8 "A"
+3 Name 9 "B"
+3 Name 10 "C"
+4 Name 11 "call.i"
+4 Name 12 "conv.i"
+4 Name 13 "shl.i"
+4 Name 14 "conv1.i"
+4 Name 15 "call2.i"
+4 Name 16 "call4.i"
+4 Name 17 "call5.i"
+4 Name 18 "sext.i"
+5 Name 19 "arrayidx.i"
+4 Name 20 "entry"
+3 Name 21 "A"
+3 Name 22 "B"
+3 Name 23 "C"
+9 Name 24 "__clang_ocl_kern_imp_dot4"
+4 Name 25 "call"
+4 Name 26 "conv"
+3 Name 27 "shl"
+4 Name 28 "conv1"
+4 Name 29 "call2"
+4 Name 30 "call4"
+4 Name 31 "call5"
+4 Name 32 "sext"
+5 Name 33 "arrayidx"
+4 Name 34 "entry"
+3 Name 35 "A"
+3 Name 36 "B"
+3 Name 37 "C"
+4 Name 38 "call.i"
+4 Name 39 "conv.i"
+4 Name 40 "shl.i"
+4 Name 41 "conv1.i"
+4 Name 42 "call2.i"
+4 Name 43 "call4.i"
+4 Name 44 "call5.i"
+4 Name 45 "sext.i"
+5 Name 46 "arrayidx.i"
+4 Name 47 "entry"
+3 Name 48 "A"
+3 Name 49 "B"
+3 Name 50 "C"
+9 Name 51 "__clang_ocl_kern_imp_dot4"
+4 Name 52 "call"
+4 Name 53 "conv"
+3 Name 54 "shl"
+4 Name 55 "conv1"
+4 Name 56 "call2"
+4 Name 57 "call4"
+4 Name 58 "call5"
+4 Name 59 "sext"
+5 Name 60 "arrayidx"
+4 Name 61 "entry"
+
+4 Decorate 8 Alignment 4
+4 Decorate 8 FuncParamAttr 4
+4 Decorate 9 Alignment 4
+4 Decorate 9 FuncParamAttr 4
+4 Decorate 10 Alignment 4
+4 Decorate 10 FuncParamAttr 4
+3 Decorate 5 Constant
+4 Decorate 5 BuiltIn 28
+4 Decorate 21 Alignment 4
+4 Decorate 21 FuncParamAttr 4
+4 Decorate 22 Alignment 4
+4 Decorate 22 FuncParamAttr 4
+4 Decorate 23 Alignment 4
+4 Decorate 23 FuncParamAttr 4
+11 Decorate 24 LinkageAttributes "__clang_ocl_kern_imp_dot4" Export
+4 Decorate 62 DecorationConditionalINTEL 3
+4 Decorate 63 DecorationConditionalINTEL 3
+4 Decorate 64 DecorationConditionalINTEL 3
+4 Decorate 5 DecorationConditionalINTEL 3
+4 Decorate 4 DecorationConditionalINTEL 3
+4 Decorate 24 DecorationConditionalINTEL 3
+4 Decorate 35 Alignment 2
+4 Decorate 35 FuncParamAttr 4
+4 Decorate 36 Alignment 2
+4 Decorate 36 FuncParamAttr 4
+4 Decorate 37 Alignment 2
+4 Decorate 37 FuncParamAttr 4
+3 Decorate 7 Constant
+4 Decorate 7 BuiltIn 28
+4 Decorate 48 Alignment 2
+4 Decorate 48 FuncParamAttr 4
+4 Decorate 49 Alignment 2
+4 Decorate 49 FuncParamAttr 4
+4 Decorate 50 Alignment 2
+4 Decorate 50 FuncParamAttr 4
+11 Decorate 51 LinkageAttributes "__clang_ocl_kern_imp_dot4" Export
+4 Decorate 65 DecorationConditionalINTEL 1
+4 Decorate 66 DecorationConditionalINTEL 1
+4 Decorate 67 DecorationConditionalINTEL 1
+4 Decorate 7 DecorationConditionalINTEL 1
+4 Decorate 6 DecorationConditionalINTEL 1
+4 Decorate 51 DecorationConditionalINTEL 1
+4 Decorate 68 DecorationConditionalINTEL 3
+4 Decorate 69 DecorationConditionalINTEL 3
+4 Decorate 70 DecorationConditionalINTEL 3
+4 Decorate 71 DecorationConditionalINTEL 3
+4 Decorate 72 DecorationConditionalINTEL 1
+4 Decorate 73 DecorationConditionalINTEL 1
+4 Decorate 74 DecorationConditionalINTEL 1
+4 Decorate 75 DecorationConditionalINTEL 1
+4 TypeInt 76 8 0
+4 TypeInt 79 64 0
+4 TypeInt 80 32 0
+5 Constant 79 62 30 0
+5 Constant 79 63 32 0
+4 Constant 80 64 2
+5 Constant 79 65 31 0
+5 Constant 79 66 32 0
+4 Constant 80 67 2
+3 TypeFloat 68 32
+4 TypePointer 69 5 68
+2 TypeVoid 78
+4 TypePointer 77 5 76
+6 TypeFunction 70 78 69 69 77
+4 TypeVector 71 68 4
+3 TypeFloat 72 16
+4 TypePointer 73 5 72
+6 TypeFunction 74 78 73 73 77
+4 TypeVector 75 72 4
+4 TypeVector 81 79 3
+4 TypePointer 82 1 81
+2 TypeBool 83
+10 SpecConstantCapabilitiesINTEL 83 94 4 5 6 8 9 11 39
+7 SpecConstantArchitectureINTEL 83 91 2 3 UGreaterThanEqual 4
+6 SpecConstantOp 83 96 167 94 91
+4 SpecConstantTargetINTEL 83 92 7
+4 SpecConstantTargetINTEL 83 93 8
+6 SpecConstantOp 83 95 166 92 93
+6 SpecConstantOp 83 1 167 96 95
+8 SpecConstantCapabilitiesINTEL 83 87 4 5 6 11 39
+7 SpecConstantArchitectureINTEL 83 84 2 3 UGreaterThanEqual 0
+6 SpecConstantOp 83 89 167 87 84
+4 SpecConstantTargetINTEL 83 85 7
+4 SpecConstantTargetINTEL 83 86 8
+6 SpecConstantOp 83 88 166 85 86
+6 SpecConstantOp 83 90 167 89 88
+5 SpecConstantOp 83 97 168 1
+6 SpecConstantOp 83 3 167 90 97
+4 Variable 82 5 1
+4 Variable 82 7 1
+
+5 Function 78 4 0 70
+3 FunctionParameter 69 8
+3 FunctionParameter 69 9
+3 FunctionParameter 77 10
+
+2 Label 20
+6 Load 81 98 5 2 1
+5 CompositeExtract 79 11 98 0
+4 UConvert 80 12 11
+5 ShiftLeftLogical 80 13 12 64
+4 SConvert 79 14 13
+8 ExtInst 71 15 2 vloadn 14 8 4
+8 ExtInst 71 16 2 vloadn 14 9 4
+5 Dot 68 17 15 16
+5 ShiftLeftLogical 79 18 11 63
+5 ShiftRightArithmetic 79 99 18 62
+5 InBoundsPtrAccessChain 77 19 10 99
+4 Bitcast 69 100 19
+5 Store 100 17 2 4
+1 Return
+
+1 FunctionEnd
+
+5 Function 78 24 1 70
+3 FunctionParameter 69 21
+3 FunctionParameter 69 22
+3 FunctionParameter 77 23
+
+2 Label 34
+6 Load 81 101 5 2 1
+5 CompositeExtract 79 25 101 0
+4 UConvert 80 26 25
+5 ShiftLeftLogical 80 27 26 64
+4 SConvert 79 28 27
+8 ExtInst 71 29 2 vloadn 28 21 4
+8 ExtInst 71 30 2 vloadn 28 22 4
+5 Dot 68 31 29 30
+5 ShiftLeftLogical 79 32 25 63
+5 ShiftRightArithmetic 79 102 32 62
+5 InBoundsPtrAccessChain 77 33 23 102
+4 Bitcast 69 103 33
+5 Store 103 31 2 4
+1 Return
+
+1 FunctionEnd
+
+5 Function 78 6 0 74
+3 FunctionParameter 73 35
+3 FunctionParameter 73 36
+3 FunctionParameter 77 37
+
+2 Label 47
+6 Load 81 104 7 2 1
+5 CompositeExtract 79 38 104 0
+4 UConvert 80 39 38
+5 ShiftLeftLogical 80 40 39 67
+4 SConvert 79 41 40
+8 ExtInst 75 42 2 vloadn 41 35 4
+8 ExtInst 75 43 2 vloadn 41 36 4
+5 Dot 72 44 42 43
+5 ShiftLeftLogical 79 45 38 66
+5 ShiftRightArithmetic 79 105 45 65
+5 InBoundsPtrAccessChain 77 46 37 105
+4 Bitcast 73 106 46
+5 Store 106 44 2 2
+1 Return
+
+1 FunctionEnd
+
+5 Function 78 51 1 74
+3 FunctionParameter 73 48
+3 FunctionParameter 73 49
+3 FunctionParameter 77 50
+
+2 Label 61
+6 Load 81 107 7 2 1
+5 CompositeExtract 79 52 107 0
+4 UConvert 80 53 52
+5 ShiftLeftLogical 80 54 53 67
+4 SConvert 79 55 54
+8 ExtInst 75 56 2 vloadn 55 48 4
+8 ExtInst 75 57 2 vloadn 55 49 4
+5 Dot 72 58 56 57
+5 ShiftLeftLogical 79 59 52 66
+5 ShiftRightArithmetic 79 108 59 65
+5 InBoundsPtrAccessChain 77 60 50 108
+4 Bitcast 73 109 60
+5 Store 109 58 2 2
+1 Return
+
+1 FunctionEnd

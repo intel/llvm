@@ -146,16 +146,7 @@ struct image_sampler {
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::sampler> {
-  size_t operator()(const sycl::sampler &s) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    (void)s;
-    return 0;
-#else
-    return hash<std::shared_ptr<sycl::detail::sampler_impl>>()(
-        sycl::detail::getSyclObjImpl(s));
-#endif
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::sampler>
+    : public sycl::detail::sycl_obj_hash<sycl::sampler,
+                                         false /*SupportedOnDevice*/> {};

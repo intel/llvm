@@ -83,6 +83,11 @@ public:
       BuiltIn BI = static_cast<BuiltIn>(Literals.back());
       return getCapability(BI);
     }
+    case DecorationUniform:
+    case DecorationUniformId:
+      if (Module->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+        return getVec(CapabilityUniformDecoration);
+      return getVec(CapabilityShader);
 
     default:
       return getCapability(Dec);
@@ -178,8 +183,6 @@ public:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
-    case internal::DecorationCallableFunctionINTEL:
-      return ExtensionID::SPV_INTEL_fast_composite;
     case DecorationMathOpDSPModeINTEL:
       return ExtensionID::SPV_INTEL_fpga_dsp_control;
     case DecorationInitiationIntervalINTEL:

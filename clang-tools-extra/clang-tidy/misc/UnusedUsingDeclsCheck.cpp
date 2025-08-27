@@ -51,6 +51,10 @@ UnusedUsingDeclsCheck::UnusedUsingDeclsCheck(StringRef Name,
       HeaderFileExtensions(Context->getHeaderFileExtensions()) {}
 
 void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
+  // We don't emit warnings on unused-using-decls from headers, so bail out if
+  // the main file is a header.
+  if (utils::isFileExtension(getCurrentMainFile(), HeaderFileExtensions))
+    return;
   Finder->addMatcher(usingDecl(isExpansionInMainFile()).bind("using"), this);
   auto DeclMatcher = hasDeclaration(namedDecl().bind("used"));
   Finder->addMatcher(loc(templateSpecializationType(DeclMatcher)), this);
@@ -82,12 +86,6 @@ void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
 
 void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
   if (Result.Context->getDiagnostics().hasUncompilableErrorOccurred())
-    return;
-  // We don't emit warnings on unused-using-decls from headers, so bail out if
-  // the main file is a header.
-  if (auto MainFile = Result.SourceManager->getFileEntryRefForID(
-          Result.SourceManager->getMainFileID());
-      utils::isFileExtension(MainFile->getName(), HeaderFileExtensions))
     return;
 
   if (const auto *Using = Result.Nodes.getNodeAs<UsingDecl>("using")) {
@@ -186,8 +184,16 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
     return;
   }
   // Check user-defined literals
-  if (const auto *UDL = Result.Nodes.getNodeAs<UserDefinedLiteral>("used"))
-    removeFromFoundDecls(UDL->getCalleeDecl());
+  if (const auto *UDL = Result.Nodes.getNodeAs<UserDefinedLiteral>("used")) {
+    const Decl *CalleeDecl = UDL->getCalleeDecl();
+    if (const auto *FD = dyn_cast<FunctionDecl>(CalleeDecl)) {
+      if (const FunctionTemplateDecl *FPT = FD->getPrimaryTemplate()) {
+        removeFromFoundDecls(FPT);
+        return;
+      }
+    }
+    removeFromFoundDecls(CalleeDecl);
+  }
 }
 
 void UnusedUsingDeclsCheck::removeFromFoundDecls(const Decl *D) {

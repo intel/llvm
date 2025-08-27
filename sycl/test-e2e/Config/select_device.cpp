@@ -58,6 +58,7 @@
 #include <regex>
 #include <string>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 
@@ -111,7 +112,7 @@ static std::vector<DevDescT> getAllowListDesc(std::string_view allowList) {
     auto result =  allowList.substr(0, pattern_end);
     allowList.remove_prefix(pattern_end + 2);
 
-    if (allowList[0] == ',')
+    if (!allowList.empty() && allowList[0] == ',')
       allowList.remove_prefix(1);
     return {std::string{result}};
   };

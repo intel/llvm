@@ -45,19 +45,9 @@ options are:
 - `l0_leak_check`: `lit` substitution which, on the `level-zero` backend, enables
 checks for memory leaks caused by mismatched number of calls to memory
 allocation / release APIs in `Unified Runtime`.
-- `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS`: Environment variable which, 
-on the `level-zero` backend, enables or disables
-[immediate command-lists](https://spec.oneapi.io/level-zero/latest/core/PROG.html#low-latency-immediate-command-lists).
-Without this option, depending on the hardware, immediate command-lists might be
-enabled or disabled by default.
 
-Tests might be run multiple times using different combination of the options 
+Tests might be run multiple times using different combination of the options
 described above. Most tests do the following:
 
-1. A default run which runs for all backends. 
-2. On the `level-zero` backend only, tests for leaks and forcefully **disables**
-immediate command-lists in order to test this codepath on hardware that enables
-immediate command-lists by default.
-3. On the `level-zero` backend only, tests for leaks and forcefully **enables**
-immediate command-lists in order to test this codepath on hardware that disables
-immediate command-lists by default.
+1. A default run which runs for all backends.
+2. On the `level-zero` backend only, tests for leaks.

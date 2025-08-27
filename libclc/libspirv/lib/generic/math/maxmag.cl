@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_maxmag.h>
 #include <libspirv/spirv.h>
-#include <clc/utils.h>
 
-#define __CLC_BODY <maxmag.inc>
+#define FUNCTION __spirv_ocl_maxmag
+#define __IMPL_FUNCTION(x) __clc_maxmag
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

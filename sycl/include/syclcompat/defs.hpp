@@ -66,7 +66,7 @@ template <int Arg> class syclcompat_kernel_scalar;
   SYCLCOMPAT_MAKE_VERSION(SYCLCOMPAT_MAJOR_VERSION, SYCLCOMPAT_MINOR_VERSION,  \
                           SYCLCOMPAT_PATCH_VERSION)
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 enum error_code { success = 0, backend_error = 1, default_error = 999 };
 /// A dummy function introduced to assist auto migration.
 /// The SYCLomatic user should replace it with a real error-handling function.

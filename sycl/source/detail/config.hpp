@@ -199,35 +199,64 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
 private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
-                          size_t &MinRange) {
-    static const char *RoundParams = BaseT::getRawValue();
+                          size_t &MinRange, bool ForceUpdate = false) {
+    const char *RoundParams = BaseT::getRawValue();
     if (RoundParams == nullptr)
       return;
 
     static bool ProcessedFactors = false;
+    static bool FactorsAreValid = false;
     static size_t MF;
     static size_t GF;
     static size_t MR;
-    if (!ProcessedFactors) {
+    if (!ProcessedFactors || ForceUpdate) {
+      auto GuardedStoi = [](size_t &val, const std::string &str) {
+        try {
+          int ParsedResult = std::stoi(str);
+          if (ParsedResult < 0)
+            return false;
+          val = ParsedResult;
+          return true;
+          // Ignore parsing exceptions, but throw on unexpected exceptions:
+        } catch (const std::invalid_argument &) {
+        } catch (const std::out_of_range &) {
+        }
+        return false;
+      };
+
       // Parse optional parameters of this form (all values required):
       // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
-      if (Pos != std::string::npos) {
-        MF = std::stoi(Params.substr(0, Pos));
+      if (Pos != std::string::npos && GuardedStoi(MF, Params.substr(0, Pos)) &&
+          MF > 0) {
         Params.erase(0, Pos + 1);
         Pos = Params.find(':');
-        if (Pos != std::string::npos) {
-          GF = std::stoi(Params.substr(0, Pos));
+        if (Pos != std::string::npos &&
+            GuardedStoi(GF, Params.substr(0, Pos)) && GF > 0) {
           Params.erase(0, Pos + 1);
-          MR = std::stoi(Params);
+          // Factors are valid only if all parsed successfully:
+          FactorsAreValid = GuardedStoi(MR, Params);
+          // Note that MinRange = 0 is considered valid.
         }
       }
-      ProcessedFactors = true;
+      if (FactorsAreValid) {
+        ProcessedFactors = true;
+      } else {
+        std::cerr
+            << "WARNING: Invalid value passed for "
+            << "SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS (Expected format "
+            << "MinRound:PreferredRound:MinRange, where MinRound, "
+               "PreferredRound"
+            << " > 0, MinRange >= 0). Provided parameters will be ignored."
+            << std::endl;
+      }
     }
-    MinFactor = MF;
-    GoodFactor = GF;
-    MinRange = MR;
+    if (FactorsAreValid) {
+      MinFactor = MF;
+      GoodFactor = GF;
+      MinRange = MR;
+    }
   }
 };
 
@@ -251,7 +280,7 @@ getSyclDeviceTypeMap() {
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -558,34 +587,6 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_ENABLE_FUSION_CACHING> {
-  using BaseT = SYCLConfigBase<SYCL_ENABLE_FUSION_CACHING>;
-
-public:
-  static bool get() {
-    constexpr bool DefaultValue = true;
-
-    const char *ValStr = getCachedValue();
-
-    if (!ValStr)
-      return DefaultValue;
-
-    return ValStr[0] == '1';
-  }
-
-  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
-
-  static const char *getName() { return BaseT::MConfigName; }
-
-private:
-  static const char *getCachedValue(bool ResetCache = false) {
-    static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
-    return ValStr;
-  }
-};
-
 template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
   using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
 
@@ -647,7 +648,7 @@ template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
 
 public:
   static std::string get() {
-    const std::string DefaultValue{""};
+    std::string DefaultValue{""};
 
     const char *ValStr = getCachedValue();
 
@@ -675,7 +676,7 @@ template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
 
 public:
   static std::string get() {
-    const std::string DefaultValue{""};
+    std::string DefaultValue{""};
 
     const char *ValStr = getCachedValue();
 

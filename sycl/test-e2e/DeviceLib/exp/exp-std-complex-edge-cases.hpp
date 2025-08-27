@@ -1,9 +1,12 @@
 // This test checks edge cases handling for std::exp(std::complex<T>) used
 // in SYCL kernels.
 
+// This include should happen before <sycl/detail/core.hpp> or otherwise NAN
+// may not be constexpr on some Windows configurations. See intel/llvm#19114
+#include <cmath>
+
 #include <sycl/detail/core.hpp>
 
-#include <cmath>
 #include <complex>
 #include <type_traits>
 
@@ -333,13 +336,6 @@ template <typename T> bool test() {
       } else if (std::isfinite(testcases[i].imag()) &&
                  std::abs(testcases[i].imag()) <= 1) {
         CHECK(!std::signbit(r.real()), passed, i);
-#ifdef _WIN32
-        // This check fails on win, temporary skipping:
-        // CMPLRLLVM-64900
-        // TODO: Delete this macro block when fixed
-        if (std::is_same_v<typename decltype(r)::value_type, float>)
-          continue;
-#endif
         CHECK(std::signbit(r.imag()) == std::signbit(testcases[i].imag()),
               passed, i);
         // Those tests were taken from oneDPL, not sure what is the corner case

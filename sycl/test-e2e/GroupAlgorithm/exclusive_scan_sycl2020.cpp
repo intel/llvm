@@ -1,6 +1,9 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/18390
+
 #include "../helpers.hpp"
 #include "support.h"
 #include <algorithm>

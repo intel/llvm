@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/spirv.hpp>
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/multi_ptr.hpp>
 
 namespace sycl {

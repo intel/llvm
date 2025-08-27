@@ -11,8 +11,8 @@
 
 int __clc_nvvm_reflect_arch();
 
-_CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
-                                                  unsigned int semantics) {
+_CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(int memory,
+                                                  int semantics) {
 
   // for sm_70 and above membar becomes semantically identical to fence.sc.
   // However sm_70 and above also introduces a lightweight fence.acq_rel that
@@ -21,7 +21,7 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
   // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-membar-fence
   // for details.
 
-  unsigned int order = semantics & 0x1F;
+  int order = semantics & 0x1F;
   if (__clc_nvvm_reflect_arch() < 700 ||
              order == SequentiallyConsistent) {
     if (memory == CrossDevice) {
@@ -43,9 +43,9 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
-__spirv_ControlBarrier(unsigned int scope, unsigned int memory,
-                       unsigned int semantics) {
-  unsigned int order = semantics & 0x1F;
+__spirv_ControlBarrier(int scope, int memory,
+                       int semantics) {
+  int order = semantics & 0x1F;
   if (scope == Subgroup) {
     // use a full mask as barriers are required to be convergent and exited
     // threads can safely be in the mask

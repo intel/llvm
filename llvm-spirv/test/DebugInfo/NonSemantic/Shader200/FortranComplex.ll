@@ -73,10 +73,10 @@ alloca_0:
   ret void, !dbg !16
 }
 
-declare !llfort.intrin_id !17 !llfort.type_idx !18 i32 @for_set_fpe_(ptr addrspace(1) nocapture readonly) local_unnamed_addr
+declare !llfort.intrin_id !17 !llfort.type_idx !18 i32 @for_set_fpe_(ptr addrspace(1) captures(none) readonly) local_unnamed_addr
 
 ; Function Attrs: nofree
-declare !llfort.intrin_id !19 !llfort.type_idx !20 i32 @for_set_reentrancy(ptr addrspace(1) nocapture readonly) local_unnamed_addr
+declare !llfort.intrin_id !19 !llfort.type_idx !20 i32 @for_set_reentrancy(ptr addrspace(1) captures(none) readonly) local_unnamed_addr
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare void @llvm.dbg.value(metadata, metadata, metadata)

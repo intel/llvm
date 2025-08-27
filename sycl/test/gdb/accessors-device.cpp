@@ -31,9 +31,9 @@ int main() {
 
 // accessor.impl must be present and of AccessorImplDevice type
 
-// CHECK:           0 | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>
-// CHECK-NEXT:      0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT:      0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> > (base) (empty)
+// CHECK:           0 | class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::device, sycl::access::placeholder::false_t>
+// CHECK-NEXT:      0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::device, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT:      0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::device, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT:      0 |   class sycl::detail::AccessorImplDevice<1> impl
 // CHECK-NEXT:      0 |     class sycl::id<1> Offset
 // CHECK-NEXT:      0 |       class sycl::detail::array<> (base)
@@ -44,7 +44,7 @@ int main() {
 // CHECK-NEXT:     16 |     class sycl::range<> MemRange
 // CHECK-NEXT:     16 |       class sycl::detail::array<> (base)
 // CHECK-NEXT:     16 |         size_t[1] common_array
-// CHECK-NEXT:     24 |   union sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t>::(anonymous at
+// CHECK-NEXT:     24 |   union sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::device, sycl::access::placeholder::false_t>::(anonymous at
 // CHECK-NEXT:     24 |     ConcreteASPtrType MData
 // CHECK-NEXT:        | [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT:        |  nvsize=32, nvalign=8]

@@ -82,6 +82,12 @@ bool isKernel(const Function &F) {
 
 bool isESIMDKernel(const Function &F) { return isKernel(F) && isESIMD(F); }
 
+bool moduleContainsInvokeSimdBuiltin(Module &M) {
+  return std::any_of(M.begin(), M.end(), [](Function &F) {
+    return !F.isDeclaration() && F.getName().starts_with(INVOKE_SIMD_PREF);
+  });
+}
+
 Type *getVectorTyOrNull(StructType *STy) {
   Type *Res = nullptr;
   while (STy && (STy->getStructNumElements() == 1)) {

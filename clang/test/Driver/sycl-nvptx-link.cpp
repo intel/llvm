@@ -39,10 +39,9 @@
 
 // CHECK: llvm-link
 // CHECK-SAME: -only-needed
-// CHECK-SAME: devicelib-nvptx64-nvidia-cuda.bc
 // CHECK-SAME: libspirv-nvptx64-nvidia-cuda.bc
 // LIBDEVICE10-SAME: libdevice.10.bc
 // LIBDEVICE30-SAME: libdevice.compute_30.10.bc
 // LIBDEVICE35-SAME: libdevice.compute_35.10.bc
 // LIBDEVICE50-SAME: libdevice.compute_50.10.bc
-// NOLIBDEVICE-NOT: libdevice.{{.*}}.10.bc
+// NOLIBDEVICE-NOT: libdevice{{.*}}.10.bc

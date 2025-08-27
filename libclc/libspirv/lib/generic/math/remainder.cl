@@ -7,10 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <libspirv/spirv.h>
+#include <clc/math/clc_remainder.h>
 
-#include <math/clc_remainder.h>
-
-#define __CLC_FUNC __spirv_ocl_remainder
-#define __CLC_SW_FUNC __clc_remainder
-#define __CLC_BODY <clc_sw_binary.inc>
+#define FUNCTION __spirv_ocl_remainder
+#define __IMPL_FUNCTION(x) __clc_remainder
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

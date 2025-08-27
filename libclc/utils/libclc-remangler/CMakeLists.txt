@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   TransformUtils
   IRReader
+  TargetParser
   )
 
 add_clang_tool(libclc-remangler LibclcRemangler.cpp)

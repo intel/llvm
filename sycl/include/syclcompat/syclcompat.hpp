@@ -22,10 +22,29 @@
 
 #pragma once
 
+// MSVC ignores [[deprecated]] attribute on namespace unless compiled with
+// /W3 or above.
+#ifdef _MSC_VER
+#define __SYCLCOMPAT_STRINGIFY(x) #x
+#define __SYCLCOMPAT_TOSTRING(x) __SYCLCOMPAT_STRINGIFY(x)
+
+#define __SYCLCOMPAT_WARNING(msg)                                              \
+  __pragma(message(__FILE__                                                    \
+                   "(" __SYCLCOMPAT_TOSTRING(__LINE__) "): warning: " msg))
+
+__SYCLCOMPAT_WARNING("syclcompat is deprecated and the deprecation warnings "
+                     "are ignored unless compiled with /W3 or above.")
+
+#undef __SYCLCOMPAT_WARNING
+#undef __SYCLCOMPAT_TOSTRING
+#undef __SYCLCOMPAT_STRINGIFY
+#endif
+
 #include <syclcompat/atomic.hpp>
 #include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
+#include <syclcompat/group_utils.hpp>
 #include <syclcompat/id_query.hpp>
 #include <syclcompat/kernel.hpp>
 #include <syclcompat/launch.hpp>

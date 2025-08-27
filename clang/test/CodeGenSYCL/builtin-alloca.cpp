@@ -25,11 +25,11 @@ constexpr sycl::specialization_id<int> intSize(1);
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[KH_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // CHECK-NEXT:    [[PTR0:%.*]] = alloca %"class.sycl::_V1::multi_ptr", align 8
-// CHECK-NEXT:    [[TMP0:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64(ptr addrspace(4) addrspacecast (ptr {{.*}} to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, double 0.000000e+00, i64 8)
+// CHECK-NEXT:    [[TMP0:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64(ptr addrspace(4) @__usid_str{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, double 0.000000e+00, i64 8)
 // CHECK-NEXT:    [[PTR1:%.*]] = alloca %"class.sycl::_V1::multi_ptr.0", align 8
-// CHECK-NEXT:    [[TMP2:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.i32(ptr addrspace(4) addrspacecast (ptr {{.*}} to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, i32 0, i64 4)
+// CHECK-NEXT:    [[TMP2:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.i32(ptr addrspace(4) @__usid_str{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, i32 0, i64 4)
 // CHECK-NEXT:    [[PTR2:%.*]] = alloca %"class.sycl::_V1::multi_ptr.2", align 8
-// CHECK-NEXT:    [[TMP4:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_struct.myStructs(ptr addrspace(4) addrspacecast (ptr {{.*}} to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, %struct.myStruct zeroinitializer, i64 1)
+// CHECK-NEXT:    [[TMP4:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_struct.myStructs(ptr addrspace(4) @__usid_str{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, %struct.myStruct zeroinitializer, i64 1)
 // CHECK-NEXT:    [[KH_ADDR_ASCAST:%.*]] = addrspacecast ptr [[KH_ADDR]] to ptr addrspace(4)
 // CHECK-NEXT:    [[PTR0_ASCAST:%.*]] = addrspacecast ptr [[PTR0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[PTR1_ASCAST:%.*]] = addrspacecast ptr [[PTR1]] to ptr addrspace(4)
@@ -56,11 +56,11 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[KH_ADDR:%.*]] = alloca ptr addrspace(4), align 8
 // CHECK-NEXT:    [[PTR0:%.*]] = alloca %"class.sycl::_V1::multi_ptr", align 8
-// CHECK-NEXT:    [[TMP0:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64(ptr addrspace(4) addrspacecast (ptr {{.*}} to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, double 0.000000e+00, i64 16)
+// CHECK-NEXT:    [[TMP0:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64(ptr addrspace(4) @__usid_str{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, double 0.000000e+00, i64 16)
 // CHECK-NEXT:    [[PTR1:%.*]] = alloca %"class.sycl::_V1::multi_ptr.0", align 8
-// CHECK-NEXT:    [[TMP2:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.i32(ptr addrspace(4) addrspacecast (ptr {{.*}} to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, i32 0, i64 8)
+// CHECK-NEXT:    [[TMP2:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.i32(ptr addrspace(4) @__usid_str{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, i32 0, i64 8)
 // CHECK-NEXT:    [[PTR2:%.*]] = alloca %"class.sycl::_V1::multi_ptr.2", align 8
-// CHECK-NEXT:    [[TMP4:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_struct.myStructs(ptr addrspace(4) addrspacecast (ptr {{.*}} to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, %struct.myStruct zeroinitializer, i64 4)
+// CHECK-NEXT:    [[TMP4:%.*]] = call ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_struct.myStructs(ptr addrspace(4) @__usid_str{{.*}}, ptr addrspace(4) addrspacecast (ptr addrspace(1) {{.*}} to ptr addrspace(4)), ptr addrspace(4) null, %struct.myStruct zeroinitializer, i64 4)
 // CHECK-NEXT:    [[KH_ADDR_ASCAST:%.*]] = addrspacecast ptr [[KH_ADDR]] to ptr addrspace(4)
 // CHECK-NEXT:    [[PTR0_ASCAST:%.*]] = addrspacecast ptr [[PTR0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[PTR1_ASCAST:%.*]] = addrspacecast ptr [[PTR1]] to ptr addrspace(4)

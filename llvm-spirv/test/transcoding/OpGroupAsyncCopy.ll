@@ -13,9 +13,9 @@
 ; CHECK-LLVM: declare spir_func ptr @_Z29async_work_group_strided_copyPU3AS1Dv2_hPU3AS3KS_jj9ocl_event(ptr addrspace(1), ptr addrspace(3), i32, i32, ptr)
 ; CHECK-LLVM: declare spir_func void @_Z17wait_group_eventsiPU3AS49ocl_event(i32, ptr addrspace(4))
 
-; CHECK-SPV-IR: call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_iiP13__spirv_Event(i32 2
+; CHECK-SPV-IR: call spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_jjP13__spirv_Event(i32 2
 ; CHECK-SPV-IR: call spir_func void @_Z23__spirv_GroupWaitEventsiiPU3AS4P13__spirv_Event(i32 2
-; CHECK-SPV-IR: declare spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_iiP13__spirv_Event(i32, ptr addrspace(1), ptr addrspace(3), i32, i32, target("spirv.Event")
+; CHECK-SPV-IR: declare spir_func target("spirv.Event") @_Z22__spirv_GroupAsyncCopyiPU3AS1Dv2_cPU3AS3S_jjP13__spirv_Event(i32, ptr addrspace(1), ptr addrspace(3), i32, i32, target("spirv.Event")
 ; CHECK-SPV-IR: declare spir_func void @_Z23__spirv_GroupWaitEventsiiPU3AS4P13__spirv_Event(i32, i32, ptr addrspace(4))
 
 ; CHECK-SPIRV-DAG: GroupAsyncCopy {{[0-9]+}} {{[0-9]+}} [[Scope:[0-9]+]]

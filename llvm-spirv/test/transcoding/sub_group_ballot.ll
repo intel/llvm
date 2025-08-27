@@ -1176,7 +1176,7 @@ declare dso_local spir_func double @_Z25sub_group_broadcast_firstd(double) local
 ; CHECK-SPV-IR: call spir_func i32 @_Z36__spirv_GroupNonUniformBallotFindMSBiDv4_j(i32 3, <4 x i32> %[[ballot]])
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testBallotOperations(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @testBallotOperations(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
   %2 = tail call spir_func <4 x i32> @_Z16sub_group_balloti(i32 0) #7
   %3 = tail call spir_func i32 @_Z24sub_group_inverse_ballotDv4_j(<4 x i32> %2) #8
   store i32 %3, ptr addrspace(1) %0, align 4, !tbaa !8
@@ -1248,7 +1248,7 @@ declare dso_local spir_func i32 @_Z25sub_group_ballot_find_msbDv4_j(<4 x i32>) l
 ; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_BuiltInSubgroupLtMaskKHRv()
 
 ; Function Attrs: convergent nofree nounwind writeonly
-define dso_local spir_kernel void @testSubgroupMasks(ptr addrspace(1) nocapture) local_unnamed_addr #6 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !12 !kernel_arg_base_type !13 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @testSubgroupMasks(ptr addrspace(1) captures(none)) local_unnamed_addr #6 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !12 !kernel_arg_base_type !13 !kernel_arg_type_qual !7 {
   %2 = tail call spir_func <4 x i32> @_Z21get_sub_group_eq_maskv() #8
   store <4 x i32> %2, ptr addrspace(1) %0, align 16, !tbaa !14
   %3 = tail call spir_func <4 x i32> @_Z21get_sub_group_ge_maskv() #8

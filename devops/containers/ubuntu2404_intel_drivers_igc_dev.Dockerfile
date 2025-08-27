@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 USER root
 
-RUN apt update && apt install -yqq libllvm14
+RUN apt update && apt install -yqq libllvm14 libllvm15 libz3-4
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /

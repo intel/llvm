@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 // This test checks that operators ++, +=, *=, |=, &=, ^= are supported
 // whent the corresponding std::plus<>, std::multiplies, etc are defined.
 

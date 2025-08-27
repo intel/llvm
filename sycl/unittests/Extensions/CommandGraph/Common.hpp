@@ -9,7 +9,9 @@
 #include <sycl/sycl.hpp>
 
 #include "../../thread_safety/ThreadUtils.h"
-#include "detail/graph_impl.hpp"
+#include "detail/graph/dynamic_impl.hpp"
+#include "detail/graph/graph_impl.hpp"
+#include "detail/graph/node_impl.hpp"
 
 #include <detail/config.hpp>
 #include <helpers/ScopedEnvVar.hpp>
@@ -18,8 +20,12 @@
 
 #include <gtest/gtest.h>
 
+#include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+
+using sycl::detail::getSyclObjImpl;
 
 // Common Test fixture
 class CommandGraphTest : public ::testing::Test {

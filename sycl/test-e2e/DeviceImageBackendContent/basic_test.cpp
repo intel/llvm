@@ -1,4 +1,4 @@
-// RUN: %{build} -std=c++20 -o %t.out
+// RUN: %{build} %cxx_std_optionc++20 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

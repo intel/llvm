@@ -71,7 +71,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
 template <typename TResult, typename T, size_t TM, size_t TN, size_t TK>
 void test() {
   static constexpr size_t MATRIX_M = TM * 2;
-  static constexpr size_t MATRIX_N = TN * 2;
+  static constexpr size_t MATRIX_N = TN * 4;
   static constexpr size_t MATRIX_K = TK * 2;
   T A[MATRIX_M][MATRIX_K];
   T B[MATRIX_K][MATRIX_N];

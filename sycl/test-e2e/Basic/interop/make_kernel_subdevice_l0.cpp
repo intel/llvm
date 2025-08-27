@@ -1,5 +1,5 @@
-// REQUIRES: level_zero, opencl, level_zero_dev_kit
-// RUN: %{build} %level_zero_options -lOpenCL -o %t.ze.out
+// REQUIRES: level_zero, opencl, level_zero_dev_kit, opencl_icd
+// RUN: %{build} %level_zero_options %opencl_lib -o %t.ze.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
 
 #include <cstdlib>
@@ -93,6 +93,15 @@ ze_kernel_handle_t create_kernel(ze_module_handle_t module,
 }
 
 int main() {
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed with error code: " << result << std::endl;
+    return 1;
+  }
+
   device D{gpu_selector_v};
 
   try {

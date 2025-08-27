@@ -1,6 +1,7 @@
 // RUN: %clang -fsycl -fsyntax-only -std=c++20 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class kernel;
 

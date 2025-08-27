@@ -1,0 +1,30 @@
+* text=auto
+
+# These are files generated from Mako templates and the yaml specification,
+# mark them so they are not displayed by default in diffs in GitHub PRs.
+include/ur_api.h linguist-generated=true
+include/ur_api_funcs.def linguist-generated=true
+include/ur_ddi.h linguist-generated=true
+include/ur_print.h linguist-generated=true
+include/ur_print.hpp linguist-generated=true
+source/adapters/adapter.def.in linguist-generated=true
+source/adapters/adapter.map.in linguist-generated=true
+source/adapters/level_zero/ur_interface_loader.cpp linguist-generated=true
+source/adapters/level_zero/ur_interface_loader.hpp linguist-generated=true
+source/adapters/level_zero/v2/queue_api.cpp linguist-generated=true
+source/adapters/level_zero/v2/queue_api.hpp linguist-generated=true
+source/adapters/mock/ur_mockddi.cpp linguist-generated=true
+source/common/stype_map_helpers.def linguist-generated=true
+source/loader/layers/tracing/ur_trcddi.cpp linguist-generated=true
+source/loader/layers/validation/ur_valddi.cpp linguist-generated=true
+source/loader/loader.def.in linguist-generated=true
+source/loader/loader.map.in linguist-generated=true
+source/loader/ur_ldrddi.cpp linguist-generated=true
+source/loader/ur_ldrddi.hpp linguist-generated=true
+source/loader/ur_libapi.cpp linguist-generated=true
+source/loader/ur_libddi.cpp linguist-generated=true
+source/loader/ur_manifests.hpp linguist-generated=true
+source/loader/ur_print.cpp linguist-generated=true
+source/ur_api.cpp linguist-generated=true
+test/conformance/testing/include/uur/optional_queries.h linguist-generated=true
+tools/urinfo/urinfo.hpp linguist-generated=true

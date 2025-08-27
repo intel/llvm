@@ -35,4 +35,4 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: define spir_kernel void @test(ptr addrspace(1) nocapture %src1, ptr addrspace(1) nocapture %src2, ptr addrspace(1) nocapture %dst) {{.*}}
+; CHECK-LLVM: define spir_kernel void @test(ptr addrspace(1) captures(none) %src1, ptr addrspace(1) captures(none) %src2, ptr addrspace(1) captures(none) %dst) {{.*}}

@@ -583,7 +583,8 @@ class ObjCARCOpt {
       const ColorVector &CV = BlockEHColors.find(BB)->second;
       assert(CV.size() > 0 && "Uncolored block");
       for (BasicBlock *EHPadBB : CV)
-        if (auto *EHPad = dyn_cast<FuncletPadInst>(EHPadBB->getFirstNonPHI())) {
+        if (auto *EHPad =
+                dyn_cast<FuncletPadInst>(EHPadBB->getFirstNonPHIIt())) {
           OpBundles.emplace_back("funclet", EHPad);
           return;
         }
@@ -2300,11 +2301,8 @@ FindPredecessorRetainWithSafePath(const Value *Arg, BasicBlock *BB,
 /// Look for an ``autorelease'' instruction dependent on Arg such that there are
 /// no instructions dependent on Arg that need a positive ref count in between
 /// the autorelease and the ret.
-static CallInst *
-FindPredecessorAutoreleaseWithSafePath(const Value *Arg, BasicBlock *BB,
-                                       ReturnInst *Ret,
-                                       ProvenanceAnalysis &PA) {
-  SmallPtrSet<Instruction *, 4> DepInsts;
+static CallInst *FindPredecessorAutoreleaseWithSafePath(
+    const Value *Arg, BasicBlock *BB, ReturnInst *Ret, ProvenanceAnalysis &PA) {
   auto *Autorelease = dyn_cast_or_null<CallInst>(
       findSingleDependency(NeedsPositiveRetainCount, Arg, BB, Ret, PA));
 
@@ -2425,7 +2423,7 @@ bool ObjCARCOpt::run(Function &F, AAResults &AA) {
     return false;
 
   Changed = CFGChanged = false;
-  BundledRetainClaimRVs BRV(/*ContractPass=*/false);
+  BundledRetainClaimRVs BRV(EP, /*ContractPass=*/false, /*UseClaimRV=*/false);
   BundledInsts = &BRV;
 
   LLVM_DEBUG(dbgs() << "<<< ObjCARCOpt: Visiting Function: " << F.getName()

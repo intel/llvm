@@ -3,12 +3,10 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
 // RUN: %{run-unfiltered-devices} %t.out
 
-// XFAIL: spirv-backend && cpu
-// XFAIL-TRACKER: CMPLRLLVM-64705
-
 #include <cassert>
 #include <exception>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 #define CL_CHECK_ERRORS(ERR)                                                   \

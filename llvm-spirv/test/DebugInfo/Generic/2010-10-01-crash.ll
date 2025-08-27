@@ -15,7 +15,7 @@ entry:
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
-declare void @llvm.memcpy.p0.p0.i32(ptr nocapture, ptr nocapture, i32, i1) nounwind
+declare void @llvm.memcpy.p0.p0.i32(ptr captures(none), ptr captures(none), i32, i1) nounwind
 
 
 !llvm.dbg.cu = !{!2}

@@ -19,6 +19,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -100,7 +101,19 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
     break;
   }
   BuiltinCall.replaceAllUsesWith(Replacement);
-  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  // ConstantFolder may fold original arguments to a constant, meaning we might
+  // have no instruction anymore.
+  if (auto *ReplacementI = dyn_cast<Instruction>(Replacement)) {
+    ReplacementI->copyFastMathFlags(&BuiltinCall);
+    // Copy accuracy from fp-max-error attribute to fpmath metadata just in case
+    // if the backend can do something useful with it.
+    std::optional<float> Accuracy = BuiltinCall.getRequiredAccuracy();
+    if (Accuracy.has_value()) {
+      llvm::MDBuilder MDHelper(BuiltinCall.getContext());
+      llvm::MDNode *Node = MDHelper.createFPMath(Accuracy.value());
+      ReplacementI->setMetadata(LLVMContext::MD_fpmath, Node);
+    }
+  }
   LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
                     << BuiltinCall.getCalledFunction()->getName()
                     << "` with equivalent IR. \n `");

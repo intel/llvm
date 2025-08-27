@@ -6,4 +6,4 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupLocalInvocationId();
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupLocalInvocationId();

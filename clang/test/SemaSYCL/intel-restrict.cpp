@@ -9,7 +9,7 @@ template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 #ifdef CHECKDIAG
-  [[intel::kernel_args_restrict]] int invalid = 42; // expected-error{{'kernel_args_restrict' attribute only applies to functions}}
+  [[intel::kernel_args_restrict]] int invalid = 42; // expected-error{{'intel::kernel_args_restrict' attribute only applies to functions}}
 #endif
 }
 

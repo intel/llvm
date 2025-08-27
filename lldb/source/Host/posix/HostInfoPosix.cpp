@@ -119,7 +119,7 @@ std::optional<std::string> PosixUserIDResolver::DoGetUserName(id_t uid) {
 }
 
 std::optional<std::string> PosixUserIDResolver::DoGetGroupName(id_t gid) {
-#ifndef __ANDROID__
+#if !defined(__ANDROID__) || __ANDROID_API__ >= 24
   char group_buffer[PATH_MAX];
   size_t group_buffer_size = sizeof(group_buffer);
   struct group group_info;
@@ -138,6 +138,12 @@ std::optional<std::string> PosixUserIDResolver::DoGetGroupName(id_t gid) {
   }
 #endif
   return std::nullopt;
+}
+
+/// The SDK is the directory where the system C headers, libraries, can be
+/// found. On POSIX platforms this is simply the root directory.
+llvm::Expected<llvm::StringRef> HostInfoPosix::GetSDKRoot(SDKOptions options) {
+  return "/";
 }
 
 static llvm::ManagedStatic<PosixUserIDResolver> g_user_id_resolver;

@@ -305,12 +305,14 @@ struct builtin_enable
 } // namespace _V1
 } // namespace sycl
 
-// The headers below are specifically implemented without including all the
-// necessary headers to allow preprocessing them on their own and providing
-// human-friendly result. One can use a command like this to achieve that:
-// clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc
-//         -I <..>/llvm/sycl/include -E -o -
-//     | grep -v '^#' | clang-format > math_functions.{host|device}.ii
+/*
+The headers below are specifically implemented without including all the
+necessary headers to allow preprocessing them on their own and providing
+human-friendly result. One can use a command like this to achieve that:
+clang++ -[DU]__SYCL_DEVICE_ONLY__ -x c++ math_functions.inc  \
+        -I <..>/llvm/sycl/include -E -o - \
+    | grep -v '^#' | clang-format > math_functions.{host|device}.ii
+*/
 
 #include <sycl/detail/builtins/common_functions.inc>
 #include <sycl/detail/builtins/geometric_functions.inc>

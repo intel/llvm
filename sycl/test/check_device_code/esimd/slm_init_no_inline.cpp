@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl -O0 -fsycl-device-only -Xclang -emit-llvm -o %t.comp.ll %s
-// RUN: sycl-post-link -ir-output-only -lower-esimd -S %t.comp.ll -O0 -o %t.out.ll
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -ir-output-only -lower-esimd -S %t.comp.ll -O0 -force-disable-esimd-opt -o %t.out.ll
 // RUN: FileCheck --input-file=%t.out.ll %s
 
 // This test verifies that calls the call of slm_init<N>() that is originally

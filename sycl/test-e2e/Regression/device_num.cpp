@@ -1,6 +1,3 @@
-// UNSUPPORTED: any-device-is-hip
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16805
-
 // RUN: %{build} -o %t.out
 // RUN: env PRINT_FULL_DEVICE_INFO=1 %{run-unfiltered-devices} %t.out > %t1.conf
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:0" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
@@ -14,6 +11,7 @@
 #include <map>
 #include <sstream>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -28,7 +26,8 @@ const std::map<backend, std::string> BackendStringMap = {
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
     {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
     {backend::ext_oneapi_hip, "ext_oneapi_hip"},
-    {backend::ext_oneapi_native_cpu, "ext_oneapi_native_cpu"}};
+    {backend::ext_oneapi_native_cpu, "ext_oneapi_native_cpu"},
+    {backend::ext_oneapi_offload, "ext_oneapi_offload"}};
 
 std::string getDeviceTypeName(const device &d) {
   auto DeviceType = d.get_info<info::device::device_type>();

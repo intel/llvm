@@ -26,6 +26,8 @@ add_llvm_component_library(LLVMCore
   DiagnosticInfo.cpp
   DiagnosticPrinter.cpp
   Dominators.cpp
+  DroppedVariableStats.cpp
+  DroppedVariableStatsIR.cpp
   EHPersonalities.cpp
   FPAccuracy.cpp
   FPEnv.cpp
@@ -73,7 +75,6 @@ add_llvm_component_library(LLVMCore
   User.cpp
   Value.cpp
   ValueSymbolTable.cpp
-  VectorBuilder.cpp
   VectorTypeUtils.cpp
   Verifier.cpp
   VFABIDemangler.cpp

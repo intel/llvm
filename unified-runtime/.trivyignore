@@ -1,0 +1,6 @@
+# Docs: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#trivyignore
+
+# In docker files:
+# HEALTHCHECK is not required for development, nor in CI (failed docker = failed CI).
+# We're not hosting any application with usage of the dockers.
+AVD-DS-0026

@@ -1,9 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This property is not yet supported by all UR adapters
-// XFAIL: level_zero, opencl, hip
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16403
+// This feature is currently only supported on CUDA.
+// REQUIRES: cuda
 
 #include <sycl/detail/core.hpp>
 
@@ -52,7 +51,7 @@ template <size_t I> struct KernelFunctorWithMaxWGSizeProp {
   void operator()(nd_item<1>) const {}
   void operator()(item<1>) const {}
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::max_linear_work_group_size<I>};
   }

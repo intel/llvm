@@ -21,7 +21,6 @@ int main() {
 
   Queue.memset(PtrA, 0, Size * sizeof(int)).wait();
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_0>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
@@ -38,7 +37,6 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == i);
   }
-#endif
   sycl::free(PtrA, Queue);
 
   return 0;

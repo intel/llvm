@@ -13,11 +13,8 @@
 // RUN: %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
 // RUN: %{run} %t3.out
 
-// This causes SEG. FAULT.
-// Enable the lines below when the issue is fixed:
-// https://github.com/intel/llvm/issues/16031
-// %{compile} -o %t4.out -DRUN_LAST
-// %{run} %t4.out
+// RUN: %{compile} -o %t4.out -DRUN_LAST
+// RUN: %{run} %t4.out
 
 #include <sycl/detail/core.hpp>
 

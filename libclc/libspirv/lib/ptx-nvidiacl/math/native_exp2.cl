@@ -8,7 +8,7 @@
 
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
+#define FUNCTION __spirv_ocl_native_exp2
 
 extern int __clc_nvvm_reflect_ftz();
 
@@ -17,8 +17,10 @@ _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_native_exp2(float x) {
                                     : __nvvm_ex2_approx_f(x);
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_native_exp2,
-                     float)
+#define __FLOAT_ONLY
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __FLOAT_ONLY
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
@@ -38,9 +40,19 @@ _CLC_DEF _CLC_OVERLOAD half2 __clc_native_exp2(half2 x) {
                        __spirv_ocl_native_exp2((float)x.y));
 }
 
-_CLC_UNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __clc_native_exp2,
-                           half)
+#undef FUNCTION
+#define FUNCTION __clc_native_exp2
+
+#undef __CLC_MIN_VECSIZE
+#define __CLC_MIN_VECSIZE 3
+#define __HALF_ONLY
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __HALF_ONLY
+#undef __CLC_MIN_VECSIZE
 
 #undef __USE_HALF_EXP2_APPROX
 
 #endif // cl_khr_fp16
+
+#undef FUNCTION

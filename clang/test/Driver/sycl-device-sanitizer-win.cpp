@@ -22,3 +22,13 @@
 // RUN:   | FileCheck --check-prefix=SYCL-MSAN %s
 
 // SYCL-MSAN: ignoring '-fsanitize=memory' option as it is not currently supported for target 'spir64-unknown-unknown'
+
+/// ###########################################################################
+
+// We need to add "not" here since "error: unsupported option '-fsanitize=thread' for target 'x86_64-pc-windows-msvc'"
+// RUN: not %clangxx -fsycl -fsanitize=thread -c %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-TSAN %s
+// RUN: %clangxx -fsycl -Xarch_device -fsanitize=thread -c %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-TSAN %s
+
+// SYCL-TSAN: ignoring '-fsanitize=thread' option as it is not currently supported for target 'spir64-unknown-unknown'

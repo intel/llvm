@@ -1,0 +1,277 @@
+;;; A function "foo" compiled for three devices and called from one main "work"
+;;; function. To differentiate them, the "foo" functions perform floating-point
+;;; addition, subtraction and multiplication, respectively. In addition, two
+;;; function variants contain inline assembly (to test conditional extensions).
+
+; RUN: llvm-spirv --to-binary %s -o %t_multitarget.spv
+
+;;; The following should select the base variant (FAdd)
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 --fnvar-family 1 --fnvar-arch 1 \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8,9' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 --fnvar-family 1 --fnvar-arch 2 \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8,9,10' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-BASE
+
+;;; The following should select the ASM1 variant (FSub)
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 --fnvar-family 1 --fnvar-arch 1 \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8,9,10' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM1
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 --fnvar-family 1 \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8,9,10' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM1
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8,9,10' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM1
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-target 4 --fnvar-features '7,8,9,10' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM1
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-target 4 \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM1
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM1
+
+;;; The following should select the ASM2 variant (FMul)
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 --fnvar-family 21 --fnvar-arch 0 \
+; RUN:   --fnvar-target 5 --fnvar-features '2,3,4,5,6' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM2
+
+; RUN: llvm-spirv -r \
+; RUN:   --spirv-ext=+SPV_INTEL_function_variants,+SPV_INTEL_inline_assembly \
+; RUN:   --fnvar-spec-enable \
+; RUN:   --fnvar-spv-out %t_targeted.spv \
+; RUN:   --fnvar-category 1 --fnvar-family 21 --fnvar-arch 0 \
+; RUN:   --fnvar-target 6 --fnvar-features '2,3,4,5,6' \
+; RUN:   %t_multitarget.spv -o %t_targeted.bc
+; RUN: llvm-spirv %t_targeted.spv -to-text -o %t_targeted.spt
+; RUN: FileCheck < %t_targeted.spt %s --check-prefixes=CHECK-SPIRV-COMMON,CHECK-SPIRV-ASM2
+
+; CHECK-SPIRV-COMMON-NOT: Capability FunctionVariantsINTEL
+; CHECK-SPIRV-COMMON-NOT: Capability SpecConditionalINTEL
+; CHECK-SPIRV-COMMON-NOT: Extension "SPV_INTEL_function_variants"
+; CHECK-SPIRV-COMMON-NOT: ConditionalINTEL
+; CHECK-SPIRV-COMMON-NOT: ConditionalExtension
+; CHECK-SPIRV-COMMON-NOT: ConditionalCapability
+; CHECK-SPIRV-COMMON-NOT: ConditionalEntryPoint
+; CHECK-SPIRV-COMMON-NOT: ConditionalCopyObjectINTEL
+; CHECK-SPIRV-COMMON-NOT: SpecConstant
+
+; CHECK-SPIRV-BASE: FAdd
+; CHECK-SPIRV-BASE-NOT: AsmTargetINTEL
+; CHECK-SPIRV-BASE-NOT: AsmINTEL
+; CHECK-SPIRV-BASE-NOT: AsmCallINTEL
+
+; CHECK-SPIRV-ASM1: AsmTargetINTEL
+; CHECK-SPIRV-ASM1: AsmINTEL
+; CHECK-SPIRV-ASM1: "nop1"
+; CHECK-SPIRV-ASM1: FSub
+; CHECK-SPIRV-ASM1: AsmCallINTEL
+
+; CHECK-SPIRV-ASM2: AsmTargetINTEL
+; CHECK-SPIRV-ASM2: AsmINTEL
+; CHECK-SPIRV-ASM2: "nop2"
+; CHECK-SPIRV-ASM2: FMul
+; CHECK-SPIRV-ASM2: AsmCallINTEL
+
+;;; Input multi-target SPIR-V module
+119734787 67072 458752 61 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+2 Capability AsmINTEL 
+2 Capability SpecConditionalINTEL 
+2 Capability FunctionVariantsINTEL 
+3 ConditionalCapabilityINTEL 1 Int64 
+3 ConditionalCapabilityINTEL 1 Int8 
+3 ConditionalCapabilityINTEL 2 AsmINTEL 
+8 Extension "SPV_INTEL_function_variants" 
+9 ConditionalExtensionINTEL 2 "SPV_INTEL_inline_assembly" 
+5 ExtInstImport 3 "OpenCL.std" 
+3 MemoryModel 2 2 
+3 Source 4 100000 
+3 Name 4 "foo" 
+4 Name 5 "work" 
+3 Name 6 "foo" 
+3 Name 10 "foo" 
+
+5 Decorate 4 LinkageAttributes "foo" Export 
+6 Decorate 5 LinkageAttributes "work" Export 
+4 Decorate 4 DecorationConditionalINTEL 1 
+5 Decorate 6 LinkageAttributes "foo" Export 
+3 Decorate 7 SideEffectsINTEL 
+4 Decorate 8 DecorationConditionalINTEL 9 
+4 Decorate 7 DecorationConditionalINTEL 9 
+4 Decorate 6 DecorationConditionalINTEL 9 
+5 Decorate 10 LinkageAttributes "foo" Export 
+3 Decorate 11 SideEffectsINTEL 
+4 Decorate 12 DecorationConditionalINTEL 13 
+4 Decorate 11 DecorationConditionalINTEL 13 
+4 Decorate 10 DecorationConditionalINTEL 13 
+4 Decorate 14 DecorationConditionalINTEL 1 
+4 Decorate 15 DecorationConditionalINTEL 9 
+4 Decorate 16 DecorationConditionalINTEL 13 
+4 Decorate 17 DecorationConditionalINTEL 1 
+4 Decorate 18 DecorationConditionalINTEL 1 
+4 Decorate 19 DecorationConditionalINTEL 1 
+4 Decorate 20 DecorationConditionalINTEL 2 
+4 Decorate 21 DecorationConditionalINTEL 2 
+4 TypeInt 17 8 0 
+4 TypeInt 18 64 0 
+4 TypePointer 19 7 17 
+2 TypeVoid 20 
+3 TypeFunction 21 20 
+3 TypeFloat 22 32 
+4 TypePointer 23 7 22 
+6 TypeFunction 24 22 23 23 23 
+2 TypeBool 25 
+4 SpecConstantTargetINTEL 25 26 4 
+7 SpecConstantArchitectureINTEL 25 27 1 1 IEqual 1 
+6 SpecConstantTargetINTEL 25 28 4 9 10 
+6 SpecConstantOp 25 9 167 27 28 
+7 SpecConstantTargetINTEL 25 29 5 2 4 5 
+7 SpecConstantTargetINTEL 25 30 6 2 4 5 
+6 SpecConstantOp 25 13 166 29 30 
+6 SpecConstantOp 25 31 166 9 13 
+5 SpecConstantOp 25 32 168 31 
+6 SpecConstantOp 25 1 167 26 32 
+6 SpecConstantOp 25 2 166 9 13 
+
+8 AsmTargetINTEL 8 "spirv64-unknown-unknown" 
+8 AsmTargetINTEL 12 "spirv64-unknown-unknown" 
+8 AsmINTEL 20 7 21 8 "nop1" "" 
+8 AsmINTEL 20 11 21 12 "nop2" "" 
+
+
+5 Function 22 4 2 24 
+3 FunctionParameter 23 33 
+3 FunctionParameter 23 34 
+3 FunctionParameter 23 35 
+
+2 Label 36 
+6 Load 22 37 33 2 4 
+6 Load 22 38 34 2 4 
+5 FAdd 22 39 37 38 
+5 Store 35 39 2 4 
+2 ReturnValue 39 
+
+1 FunctionEnd 
+
+5 Function 22 5 0 24 
+3 FunctionParameter 23 40 
+3 FunctionParameter 23 41 
+3 FunctionParameter 23 42 
+
+2 Label 43 
+7 FunctionCall 22 14 4 40 41 42 
+7 FunctionCall 22 15 6 40 41 42 
+7 FunctionCall 22 16 10 40 41 42 
+9 ConditionalCopyObjectINTEL 22 44 1 14 9 15 13 16 
+2 ReturnValue 44 
+
+1 FunctionEnd 
+
+5 Function 22 6 0 24 
+3 FunctionParameter 23 45 
+3 FunctionParameter 23 46 
+3 FunctionParameter 23 47 
+
+2 Label 48 
+6 Load 22 49 45 2 4 
+6 Load 22 50 46 2 4 
+5 FSub 22 51 49 50 
+5 Store 47 51 2 4 
+4 AsmCallINTEL 20 52 7 
+2 ReturnValue 51 
+
+1 FunctionEnd 
+
+5 Function 22 10 0 24 
+3 FunctionParameter 23 53 
+3 FunctionParameter 23 54 
+3 FunctionParameter 23 55 
+
+2 Label 56 
+6 Load 22 57 53 2 4 
+6 Load 22 58 54 2 4 
+5 FMul 22 59 57 58 
+5 Store 55 59 2 4 
+4 AsmCallINTEL 20 60 11 
+2 ReturnValue 59 
+
+1 FunctionEnd 

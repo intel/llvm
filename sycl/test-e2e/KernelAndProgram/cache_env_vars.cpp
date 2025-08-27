@@ -1,6 +1,6 @@
 // No JITing for host devices.
 // REQUIRES: opencl || level_zero
-// RUN: rm -rf %t/cache_dir
+// RUN: %{run-aux} rm -rf %t/cache_dir
 // RUN: %{build} -o %t.out -DTARGET_IMAGE=INC100
 // Build program and add item to cache
 // RUN: env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_DIR=%t/cache_dir SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --check-prefixes=CHECK-BUILD

@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../thread_safety/ThreadUtils.h"
 #include <detail/compression.hpp>
+#include <sycl/sycl.hpp>
 
 #include <string>
 
@@ -77,4 +79,37 @@ TEST(CompressionTest, EmptyInputTest) {
 
   std::string decompressedStr((char *)decompressedData.get(), decompressedSize);
   ASSERT_EQ(input, decompressedStr);
+}
+
+// Test to check for concurrent compression and decompression.
+TEST(CompressionTest, ConcurrentCompressionDecompression) {
+  std::string data = "Concurrent compression and decompression test!";
+
+  constexpr size_t ThreadCount = 20;
+
+  Barrier b(ThreadCount);
+  {
+    auto testCompressDecompress = [&](size_t threadId) {
+      b.wait();
+      size_t compressedDataSize = 0;
+      auto compressedData = ZSTDCompressor::CompressBlob(
+          data.c_str(), data.size(), compressedDataSize, 3);
+
+      ASSERT_NE(compressedData, nullptr);
+      ASSERT_GT(compressedDataSize, (size_t)0);
+
+      size_t decompressedSize = 0;
+      auto decompressedData = ZSTDCompressor::DecompressBlob(
+          compressedData.get(), compressedDataSize, decompressedSize);
+
+      ASSERT_NE(decompressedData, nullptr);
+      ASSERT_GT(decompressedSize, (size_t)0);
+
+      std::string decompressedStr((char *)decompressedData.get(),
+                                  decompressedSize);
+      ASSERT_EQ(data, decompressedStr);
+    };
+
+    ::ThreadPool MPool(ThreadCount, testCompressDecompress);
+  }
 }

@@ -603,7 +603,6 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::SubstNonTypeTemplateParmPackExprClass:
   case Stmt::FunctionParmPackExprClass:
   case Stmt::UnresolvedLookupExprClass:
-  case Stmt::TypoExprClass: // A typo could actually be a DeclRef or a MemberRef
     K = CXCursor_DeclRefExpr;
     break;
 
@@ -681,6 +680,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::OMPTileDirectiveClass:
     K = CXCursor_OMPTileDirective;
     break;
+  case Stmt::OMPStripeDirectiveClass:
+    K = CXCursor_OMPStripeDirective;
+    break;
   case Stmt::OMPUnrollDirectiveClass:
     K = CXCursor_OMPUnrollDirective;
     break;
@@ -688,7 +690,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     K = CXCursor_OMPReverseDirective;
     break;
   case Stmt::OMPInterchangeDirectiveClass:
-    K = CXCursor_OMPTileDirective;
+    K = CXCursor_OMPInterchangeDirective;
     break;
   case Stmt::OMPForDirectiveClass:
     K = CXCursor_OMPForDirective;
@@ -912,6 +914,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::OpenACCWaitConstructClass:
     K = CXCursor_OpenACCWaitConstruct;
     break;
+  case Stmt::OpenACCCacheConstructClass:
+    K = CXCursor_OpenACCCacheConstruct;
+    break;
   case Stmt::OpenACCInitConstructClass:
     K = CXCursor_OpenACCInitConstruct;
     break;
@@ -923,6 +928,9 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OpenACCUpdateConstructClass:
     K = CXCursor_OpenACCUpdateConstruct;
+    break;
+  case Stmt::OpenACCAtomicConstructClass:
+    K = CXCursor_OpenACCAtomicConstruct;
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
     K = CXCursor_OMPTargetParallelGenericLoopDirective;
@@ -1634,7 +1642,7 @@ unsigned clang_CXCursorSet_contains(CXCursorSet set, CXCursor cursor) {
   CXCursorSet_Impl *setImpl = unpackCXCursorSet(set);
   if (!setImpl)
     return 0;
-  return setImpl->find(cursor) != setImpl->end();
+  return setImpl->contains(cursor);
 }
 
 unsigned clang_CXCursorSet_insert(CXCursorSet set, CXCursor cursor) {

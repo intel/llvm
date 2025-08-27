@@ -37,9 +37,8 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 namespace matrix {
-
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
+          layout Layout = layout::dynamic>
 struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -432,8 +431,7 @@ template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
     sycl::detail::convertTypeToMatrixTypeString<Tc>(),
     sycl::detail::convertTypeToMatrixTypeString<Td>(), M, K, N)]]
 #endif // defined(__SYCL_DEVICE_ONLY__)
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_mad(
+inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
     Group,
     joint_matrix<Group, Td, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
@@ -463,9 +461,9 @@ joint_matrix_mad(
   }
 #else
   constexpr uint32_t MatrixOperand =
-      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc>();
-  D.spvm =
-      __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm, MatrixOperand);
+      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc, Td>();
+  D.spvm = __spirv_CooperativeMatrixMulAddKHR<Ta, Tb, Tc, Td>(
+      A.spvm, B.spvm, C.spvm, MatrixOperand);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = A;
@@ -490,10 +488,23 @@ void joint_matrix_copy(
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
           T2>::storage_element_type;
+  using src_storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T1>::storage_element_type;
+
   auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
   auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
   for (int i = 0; i < wi_data_c.length(); i++) {
-    wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+    if constexpr (std::is_same_v<T1, sycl::half>) {
+      // Special case for SRC type sycl:half since we can't
+      // cast directly from wi_element(typed half) to other type.
+      // first cast is from wi_element to half (T1).
+      // second cast is from half to dst type (T2).
+      wi_data_dst[i] = static_cast<storage_element_type>(
+          static_cast<src_storage_element_type>(wi_data_c[i]));
+    } else {
+      wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+    }
   }
 #endif // defined(__NVPTX__)
 #else

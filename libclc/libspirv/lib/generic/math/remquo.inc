@@ -6,10 +6,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_remquo(
-    __CLC_GENTYPE x, __CLC_GENTYPE y, __CLC_ADDRESS_SPACE __CLC_INTN *q) {
-  __private __CLC_INTN private_q;
-  __CLC_GENTYPE ret = __clc_remquo(x, y, &private_q);
-  *q = private_q;
-  return ret;
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_remquo(__CLC_GENTYPE x,
+                                                        __CLC_GENTYPE y,
+                                                        private __CLC_INTN *q) {
+  return __clc_remquo(x, y, q);
 }
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_remquo(__CLC_GENTYPE x,
+                                                        __CLC_GENTYPE y,
+                                                        global __CLC_INTN *q) {
+  return __clc_remquo(x, y, q);
+}
+
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_remquo(__CLC_GENTYPE x,
+                                                        __CLC_GENTYPE y,
+                                                        local __CLC_INTN *q) {
+  return __clc_remquo(x, y, q);
+}
+
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_remquo(__CLC_GENTYPE x,
+                                                        __CLC_GENTYPE y,
+                                                        generic __CLC_INTN *q) {
+  return __clc_remquo(x, y, q);
+}
+#endif

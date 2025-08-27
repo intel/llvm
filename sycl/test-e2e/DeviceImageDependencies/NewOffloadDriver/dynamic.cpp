@@ -1,8 +1,5 @@
 // Test -fsycl-allow-device-image-dependencies with dynamic libraries.
 
-// UNSUPPORTED: target-nvidia || target-amd
-// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
-
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 
@@ -18,9 +15,6 @@
 // RUN:   %{-L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -Wl,-rpath=%T%}
 
 // RUN: %{run} %t.out
-
-// XFAIL: spirv-backend && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16319
 
 #include "a.hpp"
 #include <iostream>

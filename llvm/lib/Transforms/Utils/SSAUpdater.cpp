@@ -173,8 +173,8 @@ Value *SSAUpdater::GetValueInMiddleOfBlock(BasicBlock *BB) {
 
   // Set the DebugLoc of the inserted PHI, if available.
   DebugLoc DL;
-  if (const Instruction *I = BB->getFirstNonPHI())
-      DL = I->getDebugLoc();
+  if (BasicBlock::iterator It = BB->getFirstNonPHIIt(); It != BB->end())
+    DL = It->getDebugLoc();
   InsertedPHI->setDebugLoc(DL);
 
   // If the client wants to know about all new instructions, tell it.
@@ -318,6 +318,11 @@ public:
                                SSAUpdater *Updater) {
     PHINode *PHI =
         PHINode::Create(Updater->ProtoType, NumPreds, Updater->ProtoName);
+    // FIXME: Ordinarily we don't care about or try to assign DebugLocs to PHI
+    // nodes, but loop optimizations may try to use a PHI node as a DebugLoc
+    // source (e.g. if this is an induction variable), and it's not clear what
+    // location we could attach here, so mark this unknown for now.
+    PHI->setDebugLoc(DebugLoc::getUnknown());
     PHI->insertBefore(BB->begin());
     return PHI;
   }

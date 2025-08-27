@@ -204,9 +204,15 @@ public:
   /// Return this platform's default context
   ///
   /// \return the default context
+  __SYCL_DEPRECATED("use khr_get_default_context() instead")
   context ext_oneapi_get_default_context() const;
 
   std::vector<device> ext_oneapi_get_composite_devices() const;
+
+  /// Returns a copy of the default context object for this platform.
+  ///
+  /// \return the default context
+  context khr_get_default_context() const;
 
 private:
   ur_native_handle_t getNative() const;
@@ -217,7 +223,11 @@ private:
   platform(const device &Device);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   template <class Obj>
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);
@@ -236,11 +246,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::platform> {
-  size_t operator()(const sycl::platform &p) const {
-    return hash<std::shared_ptr<sycl::detail::platform_impl>>()(
-        sycl::detail::getSyclObjImpl(p));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::platform>
+    : public sycl::detail::sycl_obj_hash<sycl::platform> {};

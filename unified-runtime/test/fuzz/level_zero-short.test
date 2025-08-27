@@ -1,0 +1,7 @@
+RUN: %fuzz-options %use-level_zero fuzztest-base %p/corpus/alloc -verbosity=1 -detect_leaks=0
+RUN: %fuzz-options %use-level_zero fuzztest-base %p/corpus/create-release -verbosity=1 -detect_leaks=0
+RUN: %fuzz-options %use-level_zero fuzztest-base %p/corpus/kernel-launch -verbosity=1 -detect_leaks=0
+RUN: %fuzz-options %use-level_zero fuzztest-base %p/corpus/pool-alloc -verbosity=1 -detect_leaks=0
+
+REQUIRES: adapter-level_zero
+REQUIRES: fuzztesting

@@ -46,7 +46,7 @@ declare void @llvm.instrprof.increment.step(ptr, i64, i32, i32, i64) #1
 declare void @llvm.instrprof.value.profile(ptr, i64, i64, i32, i32) #1
 
 ; Function Attrs: nounwind
-declare void @llvm.memcpy.p0.p1.i64(ptr nocapture, ptr addrspace(1) nocapture readonly, i64, i1) #1
+declare void @llvm.memcpy.p0.p1.i64(ptr captures(none), ptr addrspace(1) captures(none) readonly, i64, i1) #1
 
 attributes #0 = { convergent mustprogress norecurse }
 attributes #1 = { nounwind }

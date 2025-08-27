@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda
-
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
 // RUN: %{build} -DNDEBUG -o %t1.out
 // RUN: %{run} %t1.out | FileCheck %s
 
@@ -22,36 +22,11 @@
 
 */
 
+#include <cstring>
 #include <sycl/detail/core.hpp>
 
 #include <sycl/stream.hpp>
 using namespace sycl;
-
-// llvm/sycl/doc/design/DeviceLibExtensions.rst
-// Our devicelib support for <cstring> only includes three memory
-// operations, none of the string ones. So we need to provide
-// our own string comparison for kernel calls.
-bool stringsAreSameP(const char *a, const char *b) {
-  // If both are nullptr, then they are the same,
-  if ((a == nullptr) && (b == nullptr))
-    return true;
-  // but if only one, they are not.
-  if ((a == nullptr) || (b == nullptr))
-    return false;
-
-  int index = 0;
-  while (true) {
-    if (a[index] != b[index]) {
-      return false;
-    }
-    if (a[index] == '\0') {
-      return true;
-    } // If we are on this line we know a[i]==b[i].
-    index++;
-  }
-  // We will never arrive here.
-  return true;
-}
 
 template <typename OS> void report(OS &out, detail::code_location code_loc) {
   out << "function {line:col} => " << code_loc.functionName() << " {"
@@ -73,9 +48,8 @@ void test(OS &out, detail::code_location &code_loc, const char *fileName,
   // functionName
   auto funcNameStr = code_loc.functionName();
   auto fNameResult =
-      ((funcNameStr != nullptr) && stringsAreSameP(funcNameStr, funcName))
-          ? "OK"
-          : "WRONG";
+      ((funcNameStr != nullptr) && !strcmp(funcNameStr, funcName)) ? "OK"
+                                                                   : "WRONG";
   out << "code_location.functionName: " << fNameResult << "\n";
 
   // lineNumber
@@ -95,7 +69,7 @@ void test(OS &out, detail::code_location &code_loc, const char *fileName,
           ? "OK"
           : "WRONG - fileName should not be present when NDEBUG defined";
 #else
-  auto fileNameResult = stringsAreSameP(fileName, fileNameStr) ? "OK" : "WRONG";
+  auto fileNameResult = (strcmp(fileName, fileNameStr) == 0) ? "OK" : "WRONG";
 #endif
   out << "code_location.fileName: " << fileNameResult << "\n";
 }

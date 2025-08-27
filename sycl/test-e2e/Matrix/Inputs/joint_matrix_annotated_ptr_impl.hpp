@@ -124,5 +124,11 @@ int main() {
   bool res1 = matrix_compare(M, N, C, D);
   std::cout << (res1 ? "B VNNI passed" : "failed") << std::endl;
 
+  free(A, q);
+  free(B, q);
+  free(vnniB, q);
+  free(C, q);
+  free(D, q);
+
   return !(res0 & res1);
 }

@@ -9,19 +9,32 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
+
+#define FUNCTION __spirv_ocl_fma
 
 extern int __clc_nvvm_reflect_arch();
 
-_CLC_DEFINE_TERNARY_BUILTIN_SCALARIZE(float, __spirv_ocl_fma, __nv_fmaf, float,
-                                      float, float)
+#define __FLOAT_ONLY
+#define __CLC_MIN_VECSIZE 1
+#define __IMPL_FUNCTION __nv_fmaf
+#define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_MIN_VECSIZE
+#undef __FLOAT_ONLY
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_TERNARY_BUILTIN_SCALARIZE(double, __spirv_ocl_fma, __nv_fma, double,
-                                      double, double)
+#define __DOUBLE_ONLY
+#define __CLC_MIN_VECSIZE 1
+#define __IMPL_FUNCTION __nv_fma
+#define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_MIN_VECSIZE
+#undef __DOUBLE_ONLY
 
 #endif
 
@@ -43,10 +56,19 @@ _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fma(half2 x, half2 y, half2 z) {
   return (half2)(__spirv_ocl_fma(x.x, y.x, z.x),
                  __spirv_ocl_fma(x.y, y.y, z.y));
 }
-_CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fma,
-                             half, half, half)
+
+#define __HALF_ONLY
+#define __CLC_MIN_VECSIZE 3
+#define __CLC_BODY <clc/shared/ternary_def_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __IMPL_FUNCTION
+#undef __CLC_MIN_VECSIZE
+#undef __HALF_ONLY
 
 #endif
+
+#undef FUNCTION
+#define FUNCTION __clc_fma
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fma(ushort x, ushort y, ushort z) {
@@ -54,8 +76,12 @@ _CLC_DEF _CLC_OVERLOAD ushort __clc_fma(ushort x, ushort y, ushort z) {
     __asm__("fma.rn.bf16 %0, %1, %2, %3;" : "=h"(res) : "h"(x), "h"(y), "h"(z));
     return res;
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma, ushort,
-                       ushort, ushort)
+
+#define __CLC_SCALAR
+
+#define __CLC_GENTYPE ushort
+#include <clc/shared/ternary_def_scalarize.inc>
+#undef __CLC_GENTYPE
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD uint __clc_fma(uint x, uint y, uint z) {
@@ -63,9 +89,11 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fma(uint x, uint y, uint z) {
     __asm__("fma.rn.bf16x2 %0, %1, %2, %3;" : "=r"(res) : "r"(x), "r"(y), "r"(z));
     return res;
 }
-_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fma, uint,
-                       uint, uint)
 
-#undef __CLC_BUILTIN
-#undef __CLC_BUILTIN_F
-#undef __CLC_FUNCTION
+#define __CLC_GENTYPE uint
+#include <clc/shared/ternary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+
+#undef __CLC_SCALAR
+
+#undef FUNCTION

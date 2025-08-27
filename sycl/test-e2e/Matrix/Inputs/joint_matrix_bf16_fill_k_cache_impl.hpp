@@ -9,6 +9,10 @@
 #include <random>
 #include <sycl/usm.hpp>
 
+#ifdef _WIN32
+#include <chrono>
+#endif
+
 #ifdef SLM
 #include "slm_utils.hpp"
 #endif
@@ -325,6 +329,9 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
 #else  // MANUAL_UNROLL
             for (unsigned int n = 0; n < NCache1 / TN; n++) {
 #endif // MANUAL_UNROLL
+#ifdef GELU
+              joint_matrix_apply(sg, tC[m][n], [=](float &x) { x = gelu(x); });
+#endif // GELU
 #ifdef OOB
               ext::intel::experimental::matrix::joint_matrix_store_checked(
                   sg, tC[m][n], pC, colsB, layout::row_major, rowsA, colsB,
@@ -383,9 +390,13 @@ void test(size_t matrix_size_input) {
   matrix_rand<T>(matrix_size, matrix_size, A, T(1));
   matrix_rand<T>(matrix_size, matrix_size, B, T(1));
 
-  matrix_multiply_ref<T, T, TResult, 1>(A, B, refC, matrix_size, matrix_size,
-                                        matrix_size);
-
+  matrix_multiply_ref<T, T, TResult, 1>(
+      A, B, refC, matrix_size, matrix_size, matrix_size
+#ifdef GELU
+      ,
+      false, false, false, [](float &x) { x = gelu(x); }
+#endif // GELU
+  );
 #ifdef VNNI
   T *vnniB = malloc_shared<T>(matrix_size * matrix_size, q);
   matrix_vnni<T>(matrix_size, matrix_size, B, vnniB, vnniFactor);
@@ -483,13 +494,10 @@ int main(
            MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
       test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16,
            MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>(matrix_size);
-// `#ifndef PREFETCH` is a workaround for GSD-10535.
-#ifndef PREFETCH
       // The test is commented out due flaky results: GSD-10537.
       // test<bfloat16, float, VnniFactor, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32,
       // MCache1,
       //      NCache1, /*KCache1*/ 32, MCache2, NCache2, KCache2>(matrix_size);
-#endif // PREFETCH
       test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32,
            MCache1, NCache1, /*KCache1*/ 32, MCache2, NCache2, KCache2>(
           matrix_size);

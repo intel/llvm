@@ -42,33 +42,31 @@ struct EmulateUnsupportedFloatsPass
 
 struct EmulateFloatPattern final : ConversionPattern {
   EmulateFloatPattern(const TypeConverter &converter, MLIRContext *ctx)
-      : ConversionPattern(converter, Pattern::MatchAnyOpTypeTag(), 1, ctx) {}
+      : ConversionPattern::ConversionPattern(
+            converter, Pattern::MatchAnyOpTypeTag(), 1, ctx) {}
 
-  LogicalResult match(Operation *op) const override;
-  void rewrite(Operation *op, ArrayRef<Value> operands,
-               ConversionPatternRewriter &rewriter) const override;
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override;
 };
 } // end namespace
 
-LogicalResult EmulateFloatPattern::match(Operation *op) const {
+LogicalResult EmulateFloatPattern::matchAndRewrite(
+    Operation *op, ArrayRef<Value> operands,
+    ConversionPatternRewriter &rewriter) const {
   if (getTypeConverter()->isLegal(op))
     return failure();
   // The rewrite doesn't handle cloning regions.
   if (op->getNumRegions() != 0)
     return failure();
-  return success();
-}
 
-void EmulateFloatPattern::rewrite(Operation *op, ArrayRef<Value> operands,
-                                  ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
   const TypeConverter *converter = getTypeConverter();
   SmallVector<Type> resultTypes;
   if (failed(converter->convertTypes(op->getResultTypes(), resultTypes))) {
     // Note to anyone looking for this error message: this is a "can't happen".
     // If you're seeing it, there's a bug.
-    op->emitOpError("type conversion failed in float emulation");
-    return;
+    return op->emitOpError("type conversion failed in float emulation");
   }
   Operation *expandedOp =
       rewriter.create(loc, op->getName().getIdentifier(), operands, resultTypes,
@@ -83,6 +81,7 @@ void EmulateFloatPattern::rewrite(Operation *op, ArrayRef<Value> operands,
     }
   }
   rewriter.replaceOp(op, newResults);
+  return success();
 }
 
 void mlir::arith::populateEmulateUnsupportedFloatsConversions(
@@ -124,7 +123,7 @@ void mlir::arith::populateEmulateUnsupportedFloatsLegality(
       vector::FMAOp, vector::OuterProductOp, vector::MatmulOp, vector::ScanOp>(
       [&](Operation *op) { return converter.isLegal(op); });
   target.addLegalOp<arith::BitcastOp, arith::ExtFOp, arith::TruncFOp,
-                    arith::ConstantOp, vector::SplatOp>();
+                    arith::ConstantOp, vector::SplatOp, vector::BroadcastOp>();
 }
 
 void EmulateUnsupportedFloatsPass::runOnOperation() {

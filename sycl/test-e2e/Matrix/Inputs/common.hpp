@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <bitset>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
@@ -17,6 +19,18 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace syclintelex = sycl::ext::intel::experimental;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
+
+void print_float_as_hex(float value) {
+  union {
+    float f;
+    uint32_t i;
+  } v;
+  v.f = value;
+
+  std::ios_base::fmtflags f(std::cout.flags());
+  std::cout << std::hex << std::setw(8) << std::setfill('0') << v.i;
+  std::cout.flags(f);
+}
 
 // Most of the time, failures related to floating-point calculations (both float
 // and bfloat16) are caused by accumulation errors rather than the algorithm
@@ -53,7 +67,7 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
     for (unsigned int n = 0; n < N; n++) {
       int c_ind = transpose_c ? (n * M + m) : m * N + n;
       Tc acc = *(C + c_ind);
-
+      float tmp = 0.f;
       for (unsigned int k = 0; k < K; k++) {
         int a_ind = colmajor_a ? (k * M + m) : m * K + k;
         int b_ind = colmajor_b ? (n * K + k) : k * N + n;
@@ -66,6 +80,9 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
           else if constexpr (std::is_same_v<Ta, sycl::half>)
             acc += (float)va[i] * (float)vb[i];
+          else if constexpr (std::is_same_v<Ta, bfloat16> &&
+                             std::is_same_v<Tc, bfloat16>)
+            tmp += (float)va[i] * (float)vb[i];
           else if constexpr (std::is_same_v<Ta, float> &&
                                  std::is_same_v<Tc, float> ||
                              std::is_integral_v<Ta> && std::is_integral_v<Tc> ||
@@ -78,6 +95,9 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
       }
+      if constexpr (std::is_same_v<Ta, bfloat16> &&
+                    std::is_same_v<Tc, bfloat16>)
+        acc += (bfloat16)tmp;
 
       if constexpr (!std::is_same_v<F, std::nullptr_t>) {
         lambda(acc);
@@ -168,10 +188,11 @@ template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if constexpr (!exact && (std::is_same_v<T1, float> ||
-                               std::is_same_v<T1, bfloat16> ||
-                               (std::is_same_v<T1, double> &&
-                                std::is_same_v<T2, double>))) {
+      if constexpr (!exact &&
+                    (std::is_same_v<T1, float> ||
+                     std::is_same_v<T1, bfloat16> || std::is_same_v<T1, half> ||
+                     (std::is_same_v<T1, double> &&
+                      std::is_same_v<T2, double>))) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cerr << "Incorrect result in matrix. "
@@ -223,13 +244,19 @@ template <typename KernelName> size_t get_sg_size(queue q) {
 }
 
 template <typename T>
-void matrix_print(unsigned int rows, unsigned int cols, T *mat) {
+void matrix_print(unsigned int rows, unsigned int cols, T *mat,
+                  bool hex = false) {
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
       if constexpr (std::is_integral_v<T>)
         std::cout << (int)mat[i * cols + j] << " ";
-      else
-        std::cout << (float)mat[i * cols + j] << " ";
+      else {
+        if (hex)
+          print_float_as_hex((float)mat[i * cols + j]);
+        else
+          std::cout << (float)mat[i * cols + j];
+        std::cout << " ";
+      }
     }
     std::cout << "\n";
   }
@@ -240,4 +267,10 @@ template <typename T, layout Layout> constexpr int vnni_factor() {
     return 1;
   static_assert(sizeof(T) <= 4 && "Unsupported type in vnni_factor().");
   return 4 / sizeof(T);
+}
+
+inline float gelu(float val) {
+  return val *
+         (0.5f + 0.5f * sycl::tanh(val * (0.7978845608028654f +
+                                          0.035677408136300125f * val * val)));
 }

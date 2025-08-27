@@ -13,11 +13,8 @@
 // RUN: %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
 // RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-AFTER,CHECK --implicit-check-not=piProgramBuild
 
-// clang-format off
-// This causes SEG. FAULT.
-// Enable the lines below when the issue is fixed - https://github.com/intel/llvm/issues/16031
-// %{compile} -DRUN_LAST
-// env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
+// RUN: %{compile} -o %t4.out -DRUN_LAST
+// RUN: env SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 // clang-format on
 
 #include <sycl/detail/core.hpp>
