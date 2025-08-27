@@ -5489,10 +5489,9 @@ class OffloadingActionBuilder final {
         } else
           FullLinkObjects = LinkObjects;
 
-        // FIXME: Link all wrapper and fallback device libraries as default,
-        // When spv online link is supported by all backends, the fallback
-        // device libraries are only needed when current toolchain is using
-        // AOT compilation.
+        // TODO: spv online link is deprecated and will be removed in the
+        // future, need to remove the logic handling jit link when the option
+        // is removed in compiler.
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
         if (IsSPIR || IsNVPTX || IsAMDGCN || IsNativeCPU) {
