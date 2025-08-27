@@ -779,23 +779,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   using SYCLDeviceLibsList = SmallVector<StringRef>;
-  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
-                                             "libsycl-complex",
-                                             "libsycl-complex-fp64",
-                                             "libsycl-cmath",
-                                             "libsycl-cmath-fp64",
-#if defined(_WIN32)
-                                             "libsycl-msvc-math",
-#endif
-                                             "libsycl-imf",
-                                             "libsycl-imf-fp64",
-                                             "libsycl-imf-bf16",
-                                             "libsycl-fallback-cassert",
-                                             "libsycl-fallback-cstring",
-                                             "libsycl-fallback-complex",
-                                             "libsycl-fallback-complex-fp64",
-                                             "libsycl-fallback-cmath",
-                                             "libsycl-fallback-cmath-fp64",
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-devicelib",
                                              "libsycl-fallback-imf",
                                              "libsycl-fallback-imf-fp64",
                                              "libsycl-fallback-imf-bf16"};
@@ -946,6 +930,7 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
+    "devicelib",
     "bfloat16",
     "crt",
     "cmath",

@@ -6,36 +6,44 @@
 
 /// ###########################################################################
 
-/// test behavior of device library default link and fno-sycl-device-lib-jit-link
+/// test behavior of device library link with deprecated option
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-device-lib-jit-link %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --offload-new-driver %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-device-lib-jit-link %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --offload-new-driver %s -fsycl-device-lib=libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// RUN: %clangxx -fsycl --offload-new-driver %s -fsycl-device-lib=libc,libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
-// SYCL_DEVICE_LIB_LINK_DEFAULT: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-complex.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-complex-fp64.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
+
+/// ###########################################################################
+
+/// test behavior of device library link with deprecated option
+// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-device-lib-jit-link %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT_DEP
+// RUN: %clangxx -fsycl --offload-new-driver %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT_DEP
+// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-device-lib-jit-link %s -fsycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT_DEP
+// RUN: %clangxx -fsycl --offload-new-driver %s -fsycl-device-lib=libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT_DEP
+// RUN: %clangxx -fsycl --offload-new-driver %s -fsycl-device-lib=libc,libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT_DEP
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-complex.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-complex-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-cmath.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-imf.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-imf-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-imf-bf16.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-cassert.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-cstring.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-complex.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-cmath.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-imf.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT_DEP-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
 
 /// ###########################################################################
 /// test sycl fallback device libraries are not linked by default
@@ -169,20 +177,7 @@
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_ASAN_MACRO
 // SYCL_DEVICE_LIB_ASAN: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_ASAN: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -212,20 +207,7 @@
 // RUN: -Xarch_device -fsanitize=address -Xs "-device 12.60.7" -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_PVC
 // SYCL_DEVICE_LIB_ASAN_PVC: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_ASAN_PVC: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_PVC-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -236,20 +218,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_CPU
 // SYCL_DEVICE_LIB_ASAN_CPU: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_ASAN_CPU: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_CPU-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -269,20 +238,7 @@
 // RUN: -Xarch_device -fsanitize=address -Xs "-device dg2" -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // SYCL_DEVICE_LIB_ASAN_DG2: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_ASAN_DG2: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_DG2-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -298,20 +254,7 @@
 // RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend=spir64_gen "-device pvc,dg2" -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_MUL
 // SYCL_DEVICE_LIB_ASAN_MUL: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_ASAN_MUL: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_ASAN_MUL-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -333,20 +276,7 @@
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=memory -DUSE_SYCL_DEVICE_MSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_MSAN_MACRO
 // SYCL_DEVICE_LIB_MSAN: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_MSAN: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_MSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -382,20 +312,7 @@
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=thread -DUSE_SYCL_DEVICE_TSAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_TSAN_MACRO
 // SYCL_DEVICE_LIB_TSAN: clang-linker-wrapper{{.*}} "-sycl-device-libraries
-// SYCL_DEVICE_LIB_TSAN: {{.*}}libsycl-crt.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-complex.
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-complex-fp64.
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-cmath.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-cmath-fp64.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-fp64.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-imf-bf16.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cassert.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cstring.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-complex.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cmath.new.o
-// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-devicelib.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_TSAN-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
