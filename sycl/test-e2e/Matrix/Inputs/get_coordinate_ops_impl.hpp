@@ -197,7 +197,6 @@ int main() {
       // std::cout << "8x16x16 float/bfloat16" << std::endl;
       // test_get_coord_op<bfloat16, float, /*TM*/ 8, /*TK*/ 16, use::a,
       //                   layout::row_major, 1>();
-      // // B
       // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
       //                   layout::ext_intel_packed, 2>();
       // test_get_coord_op<bfloat16, float, /*TK*/ 16, /*TN*/ 16, use::b,
