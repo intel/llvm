@@ -654,6 +654,12 @@ sycl_ls = FindTool("sycl-ls").resolve(
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
+llvm_link = FindTool("llvm-link").resolve(
+    llvm_config, os.pathsep.join([config.dpcpp_bin_dir, config.llvm_tools_dir])
+)
+if not llvm_link:
+    lit_config.fatal("can't find `llvm-link`")
+
 if (
     len(config.sycl_build_targets) == 1
     and next(iter(config.sycl_build_targets)) == "target-all"
@@ -821,7 +827,6 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 # Tools for which we add a corresponding feature when available.
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
-    ToolSubst("llvm-link", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
 ]
@@ -834,6 +839,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("llvm-link", command=llvm_link, unresolved="ignore"),
     ToolSubst("syclbin-dump", unresolved="fatal"),
     ToolSubst("llvm-ar", unresolved="fatal"),
     ToolSubst("clang-offload-bundler", unresolved="fatal"),
