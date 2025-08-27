@@ -3,7 +3,7 @@
 // RUN: %clang_cc1 -O1 -triple spirv32 -cl-std=CL3.0 -x cl %s -emit-llvm -o - | FileCheck %s
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_EXTERNAL [[clang::sycl_external]]
+#define SYCL_EXTERNAL [[clang::sycl_external]] __attribute__((sycl_device))
 #else
 #define SYCL_EXTERNAL
 #endif
