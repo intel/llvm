@@ -50,15 +50,16 @@ class dynamic_command_group_impl;
 class partition {
 public:
   /// Constructor.
-  partition() : MSchedule(), MCommandBuffers() {}
+  partition() : MSchedule() {}
 
   /// List of root nodes.
   std::set<node_impl *> MRoots;
   /// Execution schedule of nodes in the graph.
   std::list<node_impl *> MSchedule;
-  /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, ur_exp_command_buffer_handle_t>
-      MCommandBuffers;
+
+  /// Command buffer associated with this partition
+  ur_exp_command_buffer_handle_t MCommandBuffer = nullptr;
+
   /// List of predecessors to this partition.
   std::vector<partition *> MPredecessors;
 
@@ -588,7 +589,7 @@ private:
 };
 
 /// Class representing the implementation of command_graph<executable>.
-class exec_graph_impl {
+class exec_graph_impl : public std::enable_shared_from_this<exec_graph_impl> {
 public:
   using ReadLock = std::shared_lock<std::shared_mutex>;
   using WriteLock = std::unique_lock<std::shared_mutex>;
@@ -628,7 +629,7 @@ public:
   /// @return Returns an event if EventNeeded is true. Returns nullptr
   /// otherwise.
   EventImplPtr enqueue(sycl::detail::queue_impl &Queue,
-                       sycl::detail::CG::StorageInitHelper CGData,
+                       sycl::detail::CG::StorageInitHelper &CGData,
                        bool EventNeeded);
 
   /// Iterates through all the nodes in the graph to build the list of

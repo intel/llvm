@@ -737,7 +737,9 @@ protected:
 
     MEmpty.store(false, std::memory_order_release);
 
-    synchronizeWithExternalEvent(Handler);
+    if (MInOrderExternalEvent.read_unlocked()) {
+      synchronizeWithExternalEvent(Handler);
+    }
 
     auto Event = parseEvent(Handler.finalize());
 
@@ -778,7 +780,9 @@ protected:
     MEmpty = false;
     MNoLastEventMode = false;
 
-    synchronizeWithExternalEvent(Handler);
+    if (MInOrderExternalEvent.read_unlocked()) {
+      synchronizeWithExternalEvent(Handler);
+    }
 
     EventToBuildDeps = parseEvent(Handler.finalize());
     assert(EventToBuildDeps);
@@ -808,7 +812,9 @@ protected:
 
     MEmpty = false;
 
-    synchronizeWithExternalEvent(Handler);
+    if (MInOrderExternalEvent.read_unlocked()) {
+      synchronizeWithExternalEvent(Handler);
+    }
 
     EventToBuildDeps = parseEvent(Handler.finalize());
     if (EventToBuildDeps)
@@ -1010,12 +1016,16 @@ protected:
         }
       }
     }
+
     DataType read() {
       if (!MIsSet.load(std::memory_order_acquire))
         return DataType{};
       std::lock_guard<std::mutex> Lock(MDataMtx);
       return MData;
     }
+
+    // To use when the queue is already acquired a mutex lock.
+    DataType read_unlocked() { return MData; }
   };
 
   const bool MIsInorder;
