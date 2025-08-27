@@ -71,7 +71,7 @@ if(UR_BUILD_ADAPTER_L0)
           set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
           list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL level_zero_utils)
         endif()
-        if(TARGET ze-loader)
+        if(TARGET ze_loader)
           list(APPEND ADAPTER_L0_TARGETS_TO_INSTALL ze_loader)
         endif()
         install(TARGETS ${ADAPTER_L0_TARGETS_TO_INSTALL}
