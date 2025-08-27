@@ -131,7 +131,11 @@ on:
         options:
           - "sycl_linux_default"
 
-permissions: read-all
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  packages: read
 
 jobs:
   build:
@@ -147,9 +151,6 @@ jobs:
     env:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: 8G
-    # 'id-token' needs write permission to sign artifacts
-    permissions:
-      id-token: write
     steps:
     - name: Deduce artifact archive params
       # To reduce number of inputs parameters that is limited for manual triggers.
