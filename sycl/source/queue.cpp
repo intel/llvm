@@ -106,7 +106,7 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
 }
 
 queue::~queue() {
-  if(impl){
+  if (impl) {
     impl->throw_asynchronous();
   }
 }
