@@ -44,22 +44,13 @@ struct ddi_getter {
 using handle_base = ur::handle_base<ddi_getter>;
 } // namespace ur::native_cpu
 
-// Todo: replace this with a common helper once it is available
-struct RefCounted : ur::native_cpu::handle_base {
-  std::atomic_uint32_t _refCount;
-  uint32_t incrementReferenceCount() { return ++_refCount; }
-  uint32_t decrementReferenceCount() { return --_refCount; }
-  RefCounted() : handle_base(), _refCount{1} {}
-  uint32_t getReferenceCount() const { return _refCount; }
-};
-
 // Base class to store common data
-struct ur_object : RefCounted {
+struct ur_object {
   ur_shared_mutex Mutex;
 };
 
 template <typename T> inline void decrementOrDelete(T *refC) {
-  if (refC->decrementReferenceCount() == 0)
+  if (refC->RefCount.release())
     delete refC;
 }
 

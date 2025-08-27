@@ -10,22 +10,21 @@
 
 #pragma once
 
-#include <ur_api.h>
-
-#include "context.hpp"
-
 #include <array>
 #include <map>
+
+#include <ur_api.h>
+
+#include "common/ur_ref_count.hpp"
+#include "context.hpp"
 
 namespace native_cpu {
 using WGSize_t = std::array<uint32_t, 3>;
 }
 
-struct ur_program_handle_t_ : RefCounted {
+struct ur_program_handle_t_ {
   ur_program_handle_t_(ur_context_handle_t ctx, const unsigned char *pBinary)
       : _ctx{ctx}, _ptr{pBinary} {}
-
-  uint32_t getReferenceCount() const noexcept { return _refCount; }
 
   ur_context_handle_t _ctx;
   const unsigned char *_ptr;
@@ -41,6 +40,8 @@ struct ur_program_handle_t_ : RefCounted {
   std::unordered_map<std::string, native_cpu::WGSize_t>
       KernelMaxWorkGroupSizeMD;
   std::unordered_map<std::string, uint64_t> KernelMaxLinearWorkGroupSizeMD;
+
+  ur::RefCount RefCount;
 };
 
 // The nativecpu_entry struct is also defined as LLVM-IR in the
