@@ -10,8 +10,10 @@
 // UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on
 // DG2
 
-// XFAIL: linux && run-mode && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
-// XFAIL-TRACKER: CMPLRLLVM-69742
+// The failure is sporadic across runs so marking as unsupported instead of
+// xfail
+// UNSUPPORTED: linux && run-mode && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
+// UNSUPPORTED-TRACKER: CMPLRLLVM-69742
 
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
