@@ -144,12 +144,6 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        # When tracing, reduce internal iterations of benchmarks to shorten
-        # trace capture time while keeping representative behavior. This
-        # rewrites common iteration flags in the command line.
-        if run_trace != TracingType.NONE:
-            command = self._reduce_internal_iterations_for_tracing(command)
-
         unitrace_output = None
         if (
             self.traceable(TracingType.UNITRACE) or force_trace
@@ -210,84 +204,6 @@ class Benchmark(ABC):
             return result.stdout.decode()
         else:
             return result.stderr.decode()
-
-    def _reduce_internal_iterations_for_tracing(self, command: list[str]) -> list[str]:
-        """Reduce internal benchmark iterations when tracing to avoid long runs.
-
-        This function scans common iteration/count flags and reduces their
-        values. It is conservative and only applies to known patterns.
-
-        Handled patterns (with default caps):
-        - --iterations=N  -> min(int(N*0.1), 1000)
-        - --count=N       -> min(int(N*0.1),  100)
-        - --repetitions=N -> min(int(N*0.1),   50)
-        - --repeat=N      -> min(int(N*0.1),   50)
-        - --niter=N       -> min(int(N*0.1), 1000)
-
-        Never goes below 1 and only changes numeric values.
-        """
-        def _scale(value: int, factor: float, cap: int) -> int:
-            scaled = max(1, int(value * factor))
-            return min(scaled, cap)
-
-        patterns = {
-            "--iterations": (0.1, 1000),
-            "--count": (0.1, 100),
-            "--repetitions": (0.1, 50),
-            "--repeat": (0.1, 50),
-            "--niter": (0.1, 1000),
-        }
-
-        new_cmd: list[str] = []
-        changes: list[tuple[str, int, int]] = []
-        i = 0
-        while i < len(command):
-            tok = command[i]
-            replaced = False
-            # Handle --flag=value form
-            for flag, (factor, cap) in patterns.items():
-                prefix = flag + "="
-                if tok.startswith(prefix):
-                    val_str = tok[len(prefix) :]
-                    if val_str.isdigit():
-                        old = int(val_str)
-                        new = _scale(old, factor, cap)
-                        if new != old:
-                            new_tok = f"{flag}={new}"
-                            new_cmd.append(new_tok)
-                            changes.append((flag, old, new))
-                            replaced = True
-                            break
-            if replaced:
-                i += 1
-                continue
-
-            # Handle "--flag <value>" form
-            if tok in patterns and i + 1 < len(command):
-                val_str = command[i + 1]
-                if isinstance(val_str, str) and val_str.isdigit():
-                    factor, cap = patterns[tok]
-                    old = int(val_str)
-                    new = _scale(old, factor, cap)
-                    if new != old:
-                        new_cmd.append(tok)
-                        new_cmd.append(str(new))
-                        changes.append((tok, old, new))
-                        i += 2
-                        continue
-
-            # default: keep token
-            new_cmd.append(tok)
-            i += 1
-
-        if changes:
-            for flag, old, new in changes:
-                log.debug(
-                    f"Tracing: adjusted internal iterations {flag}: {old} -> {new}"
-                )
-            log.debug("Tracing: adjusted command: " + " ".join(new_cmd))
-
-        return new_cmd
 
     def create_data_path(self, name, skip_data_dir=False):
         if skip_data_dir:
