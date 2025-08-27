@@ -19,7 +19,6 @@
 #include <chrono>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
 #include <atomic>
 #include <detail/xpti_registry.hpp>
 #include <sstream>
@@ -28,10 +27,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-#endif
-
 // If we do not yet have a context, use the default one.
 void event_impl::initContextIfNeeded() {
   if (MContext || !MIsDefaultConstructed)
@@ -293,8 +288,7 @@ void event_impl::wait(bool *Success) {
   void *TelemetryEvent = nullptr;
   uint64_t IId = 0;
   std::string Name;
-  xpti::stream_id_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
+  TelemetryEvent = instrumentationProlog(Name, GSYCLStreamID, IId);
 #endif
 
   auto EventHandle = getHandle();
@@ -306,7 +300,7 @@ void event_impl::wait(bool *Success) {
     detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  instrumentationEpilog(TelemetryEvent, Name, GSYCLStreamID, IId);
 #endif
 }
 

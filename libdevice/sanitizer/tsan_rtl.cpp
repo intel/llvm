@@ -127,13 +127,13 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_PVC__)
   shadow_ptr = MemToShadow_PVC(addr, as);
 #else
-  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
+  if (GetDeviceTy() == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr, as);
-  } else if (TsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
   } else {
     TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_unsupport_device_type,
-                                  (int)TsanLaunchInfo->DeviceTy));
+                                  (int)GetDeviceTy()));
     return nullptr;
   }
 #endif
@@ -186,10 +186,16 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
         return;
       }
 
-      if (as == ADDRESS_SPACE_GENERIC &&
-          TsanLaunchInfo->DeviceTy != DeviceType::CPU) {
+#if defined(__LIBDEVICE_CPU__)
+#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
+      if (as == ADDRESS_SPACE_GENERIC) {
         ConvertGenericPointer(addr, as);
       }
+#else
+      if (as == ADDRESS_SPACE_GENERIC && GetDeviceTy() != DeviceType::CPU) {
+        ConvertGenericPointer(addr, as);
+      }
+#endif
 
       // Check if current address already being recorded before.
       for (uint32_t i = 0; i < TsanLaunchInfo->RecordedReportCount; i++) {
@@ -467,7 +473,7 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, size_t size) {
 #elif defined(__LIBDEVICE_PVC__)
   return;
 #else
-  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
+  if (GetDeviceTy() != DeviceType::CPU)
     return;
 
   __tsan_cleanup_private_cpu_impl(addr, size);

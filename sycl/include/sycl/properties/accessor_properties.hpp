@@ -188,8 +188,8 @@ struct is_property<ext::intel::property::buffer_location> : std::true_type {};
 
 template <typename T>
 struct is_property_of<property::noinit, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
-                         detail::acc_properties::is_host_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T> ||
+                         detail::acc_properties::is_host_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<property::no_init, T>
@@ -201,15 +201,15 @@ struct is_property_of<property::no_init, T>
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_offset, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_alias, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::intel::property::buffer_location, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 namespace detail {
 template <int I>
