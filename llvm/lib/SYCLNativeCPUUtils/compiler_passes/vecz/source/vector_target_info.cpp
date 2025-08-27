@@ -132,7 +132,7 @@ Value *TargetInfo::createLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   }
 
   // Create a vector out of these values.
-  Value *Result = UndefValue::get(Ty);
+  Value *Result = PoisonValue::get(Ty);
   for (unsigned i = 0; i < SimdWidth; i++) {
     Result = B.CreateInsertElement(Result, Values[i], B.getInt32(i));
   }
@@ -268,7 +268,7 @@ Value *TargetInfo::createMaskedLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   }
   Exit = BasicBlock::Create(Ctx, "masked_load_exit", F);
 
-  Constant *const DefaultEleData = UndefValue::get(EleTy);
+  Constant *const DefaultEleData = PoisonValue::get(EleTy);
   SmallVector<Value *, 4> LoadedLanes;
   SmallVector<Value *, 4> LanePhis;
   for (unsigned i = 0; i < Width; i++) {
@@ -307,7 +307,7 @@ Value *TargetInfo::createMaskedLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
 
   Value *Result = nullptr;
   if (Width > 1) {
-    Result = UndefValue::get(Ty);
+    Result = PoisonValue::get(Ty);
     for (unsigned i = 0; i < Width; i++) {
       Result = B.CreateInsertElement(Result, LanePhis[i], B.getInt32(i));
     }
@@ -494,7 +494,7 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   PointerType *PtrTy = dyn_cast<PointerType>(VecPtrTy->getElementType());
   VECZ_FAIL_IF(!PtrTy);
   Type *EleTy = Ty->getScalarType();
-  Constant *DefaultEleData = UndefValue::get(EleTy);
+  Constant *DefaultEleData = PoisonValue::get(EleTy);
 
   if (Ty->isVectorTy()) {
     const auto Legality =
@@ -511,7 +511,8 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
         Mask = applyEVLToMask(B, EVL, Mask);
         VECZ_FAIL_IF(!Mask);
         // Create the call to the function
-        Value *Args[] = {Ptr, B.getInt32(Alignment), Mask, UndefValue::get(Ty)};
+        Value *Args[] = {Ptr, B.getInt32(Alignment), Mask,
+                         PoisonValue::get(Ty)};
         CallInst *CI = B.CreateCall(MaskedGather, Args);
         if (CI) {
           CI->setCallingConv(MaskedGather->getCallingConv());
@@ -575,7 +576,7 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   LastLanePhi->addIncoming(LoadedLanes[Width - 1], LoadBlocks[Width - 1]);
   LastLanePhi->addIncoming(DefaultEleData, TestBlocks[Width - 1]);
   LanePhis.push_back(LastLanePhi);
-  Value *Result = UndefValue::get(Ty);
+  Value *Result = PoisonValue::get(Ty);
   for (unsigned i = 0; i < Width; i++) {
     Result = B.CreateInsertElement(Result, LanePhis[i], B.getInt32(i));
   }
@@ -781,7 +782,7 @@ Value *TargetInfo::createScalableBroadcast(IRBuilder<> &B, Value *vector,
   // Set the alignment to that of vector element type.
   auto alignment = MaybeAlign(eltTy->getScalarSizeInBits() / 8).valueOrOne();
   return B.CreateMaskedGather(wideTy, gep, alignment, mask,
-                              UndefValue::get(wideTy));
+                              PoisonValue::get(wideTy));
 }
 
 Value *TargetInfo::createBroadcastIndexVector(IRBuilder<> &B, Type *ty,
@@ -943,7 +944,7 @@ llvm::Value *TargetInfo::createVectorShuffle(llvm::IRBuilder<> &B,
 
   if (isa<Constant>(mask)) {
     // Special case if the mask happens to be a constant.
-    return B.CreateShuffleVector(src, UndefValue::get(srcTy), mask);
+    return B.CreateShuffleVector(src, PoisonValue::get(srcTy), mask);
   }
 
   // The alloca must be inserted at the beginning of the function.
@@ -982,7 +983,7 @@ llvm::Value *TargetInfo::createVectorShuffle(llvm::IRBuilder<> &B,
   }
 
   return B.CreateMaskedGather(dstTy, gep, alignment, gatherMask,
-                              UndefValue::get(dstTy));
+                              PoisonValue::get(dstTy));
 }
 
 llvm::Value *TargetInfo::createVectorSlideUp(llvm::IRBuilder<> &B,
@@ -993,7 +994,7 @@ llvm::Value *TargetInfo::createVectorSlideUp(llvm::IRBuilder<> &B,
   assert(srcTy &&
          "TargetInfo::createVectorShuffle: source must have vector type");
 
-  auto *const undef = UndefValue::get(srcTy);
+  auto *const undef = PoisonValue::get(srcTy);
   const auto EC = srcTy->getElementCount();
   if (!EC.isScalable()) {
     // Special case for fixed-width vectors

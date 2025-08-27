@@ -31,8 +31,8 @@ for.cond:                                         ; preds = %entry, %for.body
   %storemerge = phi <4 x i32> [ %inc, %for.body ], [ zeroinitializer, %entry ]
   %call1 = call i64 @__mux_get_global_size(i32 0)
   %conv = trunc i64 %call1 to i32
-  %splat.splatinsert = insertelement <4 x i32> undef, i32 %conv, i32 0
-  %splat.splat = shufflevector <4 x i32> %splat.splatinsert, <4 x i32> undef, <4 x i32> zeroinitializer
+  %splat.splatinsert = insertelement <4 x i32> poison, i32 %conv, i32 0
+  %splat.splat = shufflevector <4 x i32> %splat.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
   %cmp2 = icmp slt <4 x i32> %storemerge, %splat.splat
   %0 = extractelement <4 x i1> %cmp2, i64 0
   br i1 %0, label %for.body, label %for.end

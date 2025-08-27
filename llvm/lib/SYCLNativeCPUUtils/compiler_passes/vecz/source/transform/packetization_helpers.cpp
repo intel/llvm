@@ -106,7 +106,7 @@ Value *createOptimalShuffle(IRBuilder<> &B, Value *srcA, Value *srcB,
   if (shuffleA && isa<UndefValue>(srcB)) {
     auto *const srcMask = getShuffleMask(shuffleA);
     auto *const newMask = ConstantExpr::getShuffleVector(
-        srcMask, UndefValue::get(srcMask->getType()), maskC);
+        srcMask, PoisonValue::get(srcMask->getType()), maskC);
 
     return B.CreateShuffleVector(shuffleA->getOperand(0),
                                  shuffleA->getOperand(1), newMask, name);
@@ -229,7 +229,7 @@ bool createSubSplats(const vecz::TargetInfo &TI, IRBuilder<> &B,
     }
   }
 
-  auto *undef = UndefValue::get(srcs.front()->getType());
+  auto *undef = PoisonValue::get(srcs.front()->getType());
   for (auto &src : srcs) {
     src = createOptimalShuffle(B, src, undef, mask);
   }
@@ -385,7 +385,8 @@ Value *Packetizer::Result::getAsValue() const {
   auto name = scalar->getName();
 
   if (FixedVectorType::isValidElementType(eleTy)) {
-    Value *gather = UndefValue::get(FixedVectorType::get(eleTy, packet.size()));
+    Value *gather =
+        PoisonValue::get(FixedVectorType::get(eleTy, packet.size()));
 
     IRBuilder<> B(buildAfter(packet.back(), packetizer.F));
     for (unsigned i = 0; i < packet.size(); i++) {
@@ -408,7 +409,7 @@ Value *Packetizer::Result::getAsValue() const {
     info->vector = B.CreateShuffleVector(parts[0], parts[1], mask,
                                          Twine(name, ".concatenate"));
   } else {
-    Value *gather = UndefValue::get(ArrayType::get(eleTy, packet.size()));
+    Value *gather = PoisonValue::get(ArrayType::get(eleTy, packet.size()));
 
     IRBuilder<> B(buildAfter(packet.back(), packetizer.F));
     for (unsigned i = 0; i < packet.size(); i++) {
@@ -455,7 +456,7 @@ PacketRange Packetizer::Result::getAsPacket(unsigned width) const {
     assert(isa<FixedVectorType>(vecTy) && "Must be a fixed vector type here!");
     const unsigned scalarWidth = vecTy->getNumElements() / width;
     if (scalarWidth > 1 || scalar->getType()->isVectorTy()) {
-      auto *const undef = UndefValue::get(vec->getType());
+      auto *const undef = PoisonValue::get(vec->getType());
 
       // Build shuffle mask to perform the subvector extracts.
       IRBuilder<> B(buildAfter(vec, packetizer.F));
@@ -535,7 +536,7 @@ PacketRange Packetizer::Result::widen(unsigned width) const {
   auto *it = parts.begin();
   IRBuilder<> B(buildAfter(parts.back(), packetizer.F));
   if (newWidth > 1) {
-    auto *const undef = UndefValue::get(vecTy);
+    auto *const undef = PoisonValue::get(vecTy);
 
     // Build shuffle mask to perform the subvector extracts.
     for (size_t i = 0, origIdx = 0; i < width; ++i) {
@@ -580,7 +581,7 @@ PacketRange Packetizer::Result::narrow(unsigned width) const {
     // Build vectors out of pairs of scalar values
     const auto name = scalar->getName();
     IRBuilder<> B(buildAfter(parts.back(), packetizer.F));
-    Value *undef = UndefValue::get(FixedVectorType::get(ty, 2));
+    Value *undef = PoisonValue::get(FixedVectorType::get(ty, 2));
     for (size_t i = 0, pairIdx = 0; i < width; ++i, pairIdx += 2) {
       Value *in = B.CreateInsertElement(undef, parts[pairIdx], B.getInt32(0),
                                         Twine(name, ".gather"));
@@ -684,7 +685,7 @@ const Packetizer::Result &Packetizer::Result::broadcast(unsigned width) const {
   if (isa<PoisonValue>(scalar)) {
     result = PoisonValue::get(getWideType(ty, factor));
   } else if (isa<UndefValue>(scalar)) {
-    result = UndefValue::get(getWideType(ty, factor));
+    result = PoisonValue::get(getWideType(ty, factor));
   } else if (ty->isVectorTy() && factor.isScalable()) {
     IRBuilder<> B(buildAfter(scalar, F));
     result = createScalableBroadcastOfFixedVector(TI, B, scalar, factor);
@@ -703,7 +704,7 @@ const Packetizer::Result &Packetizer::Result::broadcast(unsigned width) const {
     }
 
     IRBuilder<> B(buildAfter(scalar, packetizer.F));
-    result = createOptimalShuffle(B, scalar, UndefValue::get(ty), mask,
+    result = createOptimalShuffle(B, scalar, PoisonValue::get(ty), mask,
                                   Twine(scalar->getName(), ".broadcast"));
   } else if (auto *const C = dyn_cast<Constant>(scalar)) {
     result = ConstantVector::getSplat(factor, C);

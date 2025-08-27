@@ -41,7 +41,7 @@ entry:
 
 ; Extract directly from the widened source and insert directly into result
 ; CHECK: %[[EXT0:.+]] = extractelement <16 x float> %[[LD]], i32 %x
-; CHECK: %[[INS0:.+]] = insertelement <4 x float> undef, float %[[EXT0]], i32 0
+; CHECK: %[[INS0:.+]] = insertelement <4 x float> poison, float %[[EXT0]], i32 0
 ; CHECK: %[[IDX1:.+]] = add i32 %x, 4
 ; CHECK: %[[EXT1:.+]] = extractelement <16 x float> %[[LD]], i32 %[[IDX1]]
 ; CHECK: %[[INS1:.+]] = insertelement <4 x float> %[[INS0]], float %[[EXT1]], i32 1

@@ -860,7 +860,7 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
   if (!EC.isScalable() && !IsVP) {
     auto *const NeutralVal = compiler::utils::getNeutralVal(OpKind, EltTy);
     const auto Width = EC.getFixedValue();
-    auto *const UndefVal = UndefValue::get(VecTy);
+    auto *const UndefVal = PoisonValue::get(VecTy);
 
     // Put the Neutral element in a vector so we can shuffle it in.
     auto *const NeutralVec =

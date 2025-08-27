@@ -79,5 +79,5 @@ declare i64 @__mux_get_global_id(i32)
 ; Test if the masked gather load is defined correctly
 ; CHECK: define <4 x i32> @__vecz_b_masked_gather_load4_Dv4_jDv4_u3ptrU3AS1Dv4_b(<4 x ptr addrspace(1)>{{( %0)?}}, <4 x i1>{{( %1)?}})
 ; CHECK: entry:
-; CHECK: %2 = call <4 x i32> @llvm.masked.gather.v4i32.v4p1(<4 x ptr addrspace(1)> %0, i32{{( immarg)?}} 4, <4 x i1> %1, <4 x i32> undef)
+; CHECK: %2 = call <4 x i32> @llvm.masked.gather.v4i32.v4p1(<4 x ptr addrspace(1)> %0, i32{{( immarg)?}} 4, <4 x i1> %1, <4 x i32> poison)
 ; CHECK: ret <4 x i32> %2

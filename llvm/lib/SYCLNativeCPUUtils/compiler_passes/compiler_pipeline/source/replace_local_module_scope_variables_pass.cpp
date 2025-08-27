@@ -484,7 +484,7 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
           castedLocal->insertBefore(inst->getIterator());
 
           auto indexTy = Type::getInt32Ty(M.getContext());
-          Value *newCv = UndefValue::get(cv->getType());
+          Value *newCv = PoisonValue::get(cv->getType());
 
           // We can't simply 'setOperand' in a 'ConstantVector'. We have to
           // recreate it from scratch.

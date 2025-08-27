@@ -357,8 +357,8 @@ llvm::Value *TargetInfoRISCV::createScalableExtractElement(
                                  indices, zero);
 
   SmallVector<Value *, 4> ops;
-  // Add the a pass-through operand - we set it to undef.
-  ops.push_back(UndefValue::get(srcTy));
+  // Add the a pass-through operand - we set it to poison.
+  ops.push_back(PoisonValue::get(srcTy));
   ops.push_back(src);
   ops.push_back(indices);
   ops.push_back(avl);
@@ -423,8 +423,8 @@ llvm::Value *TargetInfoRISCV::createScalableBroadcast(llvm::IRBuilder<> &B,
   auto *const avl = getIntrinsicVL(B, VL, wideTy, getTargetMachine());
 
   SmallVector<Value *, 4> ops;
-  // Add the pass-through operand - we set it to undef.
-  ops.push_back(UndefValue::get(vs2->getType()));
+  // Add the pass-through operand - we set it to poison.
+  ops.push_back(PoisonValue::get(vs2->getType()));
   ops.push_back(vs2);
   ops.push_back(vs1);
   ops.push_back(avl);
@@ -574,7 +574,7 @@ llvm::Value *TargetInfoRISCV::createVectorShuffle(llvm::IRBuilder<> &B,
   auto *const srcTy = cast<VectorType>(src->getType());
   if (isa<Constant>(mask)) {
     // Special case if the mask happens to be a constant.
-    return B.CreateShuffleVector(src, UndefValue::get(srcTy), mask);
+    return B.CreateShuffleVector(src, PoisonValue::get(srcTy), mask);
   }
 
   if (isa<FixedVectorType>(srcTy)) {
@@ -645,8 +645,8 @@ llvm::Value *TargetInfoRISCV::createVectorShuffle(llvm::IRBuilder<> &B,
   auto *const avl = getIntrinsicVL(B, VL, gatherTy, getTargetMachine());
 
   SmallVector<Value *, 4> ops;
-  // Add the pass-through operand - we set it to undef.
-  ops.push_back(UndefValue::get(gatherTy));
+  // Add the pass-through operand - we set it to poison.
+  ops.push_back(PoisonValue::get(gatherTy));
   ops.push_back(src);
   ops.push_back(mask);
   ops.push_back(avl);
@@ -678,8 +678,8 @@ llvm::Value *TargetInfoRISCV::createVectorSlideUp(llvm::IRBuilder<> &B,
   auto *const avl = getIntrinsicVL(B, VL, srcTy, getTargetMachine());
 
   SmallVector<Value *, 4> ops;
-  // Add the pass-through operand - we set it to undef.
-  ops.push_back(UndefValue::get(srcTy));
+  // Add the pass-through operand - we set it to poison.
+  ops.push_back(PoisonValue::get(srcTy));
   ops.push_back(src);
   ops.push_back(insert);
   ops.push_back(avl);

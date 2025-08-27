@@ -48,7 +48,7 @@ entry:
 ; Extract directly from the widened source with vectorized indices and insert directly into result
 ; CHECK: %[[IND0:.+]] = extractelement <4 x i32> %[[ADD]], i32 0
 ; CHECK: %[[EXT0:.+]] = extractelement <16 x float> %[[SRC]], i32 %[[IND0]]
-; CHECK: %[[INS0:.+]] = insertelement <4 x float> undef, float %[[EXT0]], i32 0
+; CHECK: %[[INS0:.+]] = insertelement <4 x float> poison, float %[[EXT0]], i32 0
 ; CHECK: %[[IND1:.+]] = extractelement <4 x i32> %[[ADD]], i32 1
 ; CHECK: %[[EXT1:.+]] = extractelement <16 x float> %[[SRC]], i32 %[[IND1]]
 ; CHECK: %[[INS1:.+]] = insertelement <4 x float> %[[INS0]], float %[[EXT1]], i32 1

@@ -101,7 +101,7 @@ define spir_kernel void @kernel(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 ; CHECK: [[ELTBASE0:%.*]] = mul i32 [[SUBVECIDX0]], 4
 ; CHECK: [[VECIDX00:%.*]] = add i32 [[ELTBASE0]], 0
 ; CHECK: [[ELT00:%.*]] = extractelement <16 x i8> [[SHUFF0]], i32 [[VECIDX00]]
-; CHECK: [[VEC00:%.*]] = insertelement <4 x i8> undef, i8 [[ELT00]], i32 0
+; CHECK: [[VEC00:%.*]] = insertelement <4 x i8> poison, i8 [[ELT00]], i32 0
 ; CHECK: [[VECIDX01:%.*]] = add i32 [[ELTBASE0]], 1
 ; CHECK: [[ELT01:%.*]] = extractelement <16 x i8> [[SHUFF0]], i32 [[VECIDX01]]
 ; CHECK: [[VEC01:%.*]] = insertelement <4 x i8> [[VEC00]], i8 [[ELT01]], i32 1
@@ -119,7 +119,7 @@ define spir_kernel void @kernel(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 ; CHECK: [[ELTBASE1:%.*]] = mul i32 [[SUBVECIDX1]], 4
 ; CHECK: [[VECIDX10:%.*]] = add i32 [[ELTBASE1]], 0
 ; CHECK: [[ELT10:%.*]] = extractelement <16 x i8> [[SHUFF1]], i32 [[VECIDX10]]
-; CHECK: [[VEC10:%.*]] = insertelement <4 x i8> undef, i8 [[ELT10]], i32 0
+; CHECK: [[VEC10:%.*]] = insertelement <4 x i8> poison, i8 [[ELT10]], i32 0
 ; CHECK: [[VECIDX11:%.*]] = add i32 [[ELTBASE1]], 1
 ; CHECK: [[ELT11:%.*]] = extractelement <16 x i8> [[SHUFF1]], i32 [[VECIDX11]]
 ; CHECK: [[VEC11:%.*]] = insertelement <4 x i8> [[VEC10]], i8 [[ELT11]], i32 1
@@ -137,7 +137,7 @@ define spir_kernel void @kernel(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 ; CHECK: [[ELTBASE2:%.*]] = mul i32 [[SUBVECIDX2]], 4
 ; CHECK: [[VECIDX20:%.*]] = add i32 [[ELTBASE2]], 0
 ; CHECK: [[ELT20:%.*]] = extractelement <16 x i8> [[SHUFF2]], i32 [[VECIDX20]]
-; CHECK: [[VEC20:%.*]] = insertelement <4 x i8> undef, i8 [[ELT20]], i32 0
+; CHECK: [[VEC20:%.*]] = insertelement <4 x i8> poison, i8 [[ELT20]], i32 0
 ; CHECK: [[VECIDX21:%.*]] = add i32 [[ELTBASE2]], 1
 ; CHECK: [[ELT21:%.*]] = extractelement <16 x i8> [[SHUFF2]], i32 [[VECIDX21]]
 ; CHECK: [[VEC21:%.*]] = insertelement <4 x i8> [[VEC20]], i8 [[ELT21]], i32 1
@@ -155,7 +155,7 @@ define spir_kernel void @kernel(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 ; CHECK: [[ELTBASE3:%.*]] = mul i32 [[SUBVECIDX3]], 4
 ; CHECK: [[VECIDX30:%.*]] = add i32 [[ELTBASE3]], 0
 ; CHECK: [[ELT30:%.*]] = extractelement <16 x i8> [[SHUFF3]], i32 [[VECIDX30]]
-; CHECK: [[VEC30:%.*]] = insertelement <4 x i8> undef, i8 [[ELT30]], i32 0
+; CHECK: [[VEC30:%.*]] = insertelement <4 x i8> poison, i8 [[ELT30]], i32 0
 ; CHECK: [[VECIDX31:%.*]] = add i32 [[ELTBASE3]], 1
 ; CHECK: [[ELT31:%.*]] = extractelement <16 x i8> [[SHUFF3]], i32 [[VECIDX31]]
 ; CHECK: [[VEC31:%.*]] = insertelement <4 x i8> [[VEC30]], i8 [[ELT31]], i32 1

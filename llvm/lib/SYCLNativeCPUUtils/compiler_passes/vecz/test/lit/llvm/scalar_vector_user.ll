@@ -45,7 +45,7 @@ loop:                                              ; preds = %entry, %loop
   %i.inc = add nuw nsw i64 %i, 1
   %cmp = icmp slt i64 %i.inc, %n
   %inout.vload = tail call spir_func <4 x float> @_Z6vload4mPU3AS3Kf(i64 0, float addrspace(1)* %inout.address)
-  %inout.vec0 = shufflevector <4 x float> %inout.vload, <4 x float> undef, <4 x i32> zeroinitializer
+  %inout.vec0 = shufflevector <4 x float> %inout.vload, <4 x float> poison, <4 x i32> zeroinitializer
   %madv4 = tail call spir_func <4 x float> @_Z3madDv4_fS_S_(<4 x float> %inout.vload, <4 x float> %inout.vec0, <4 x float> %madv4.prev) #0
   br i1 %cmp, label %loop, label %end
 

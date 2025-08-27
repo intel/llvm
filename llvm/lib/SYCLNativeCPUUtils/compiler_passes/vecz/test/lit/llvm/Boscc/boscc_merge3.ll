@@ -46,7 +46,7 @@ if.then2:                                     ; preds = %if.then1
 
 if.then3:                                     ; preds = %x51
   %load1 = load float, float addrspace(1)* %gep2, align 4
-  %ie_load1 = insertelement <4 x float> undef, float %load1, i32 0
+  %ie_load1 = insertelement <4 x float> poison, float %load1, i32 0
   br label %if.end2
 
 if.else3:                                    ; preds = %x51
@@ -60,8 +60,8 @@ if.then4:                                    ; preds = %x175
 
 if.end2:                                    ; preds = %x274, %x271, %if.then4, %x175, %x155, %x132
   %phi_gep2_load = phi <4 x float> [ %ie_load1, %if.then3 ], [ %vload2, %if.then4 ], [ %vload1, %if.else3 ]
-  %ie_m = insertelement <4 x float> undef, float %m, i32 0
-  %shuffle_ie_m = shufflevector <4 x float> %ie_m, <4 x float> undef, <4 x i32> zeroinitializer
+  %ie_m = insertelement <4 x float> poison, float %m, i32 0
+  %shuffle_ie_m = shufflevector <4 x float> %ie_m, <4 x float> poison, <4 x i32> zeroinitializer
   %fmul = fmul <4 x float> %shuffle_ie_m, %phi_gep2_load
   br label %if.end1
 

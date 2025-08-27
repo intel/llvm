@@ -50,7 +50,7 @@ FixedVectorType *vecz::getVectorType(Value *V) {
 /// @param[in] T Type to get default value of.
 /// @param[in] V Default value to use for numeric type
 ///
-/// @return Default value, which will be undef for non-numeric types
+/// @return Default value, which will be poison for non-numeric types
 Value *vecz::getDefaultValue(Type *T, uint64_t V) {
   if (T->isIntegerTy()) {
     return ConstantInt::get(T, V);
@@ -60,7 +60,7 @@ Value *vecz::getDefaultValue(Type *T, uint64_t V) {
     return ConstantFP::get(T, V);
   }
 
-  return UndefValue::get(T);
+  return PoisonValue::get(T);
 }
 
 /// @brief Get the shuffle mask as sequence of integers.

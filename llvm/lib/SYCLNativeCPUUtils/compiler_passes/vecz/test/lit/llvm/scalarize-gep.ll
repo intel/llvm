@@ -50,11 +50,11 @@ declare <2 x i32> @llvm.masked.gather.v2i32.v2p1(<2 x ptr addrspace(1)>, i32, <2
 ; CHECK:   %1 = getelementptr ptr addrspace(1), ptr addrspace(1) %ptrdata, i32 1
 ; CHECK:   %ptrdatavec1 = load ptr addrspace(1), ptr addrspace(1) %0, align 1
 ; CHECK:   %ptrdatavec2 = load ptr addrspace(1), ptr addrspace(1) %1, align 1
-; CHECK:   %2 = insertelement <2 x ptr addrspace(1)> undef, ptr addrspace(1) %ptrdatavec1, i32 0
+; CHECK:   %2 = insertelement <2 x ptr addrspace(1)> poison, ptr addrspace(1) %ptrdatavec1, i32 0
 ; CHECK:   %3 = insertelement <2 x ptr addrspace(1)> %2, ptr addrspace(1) %ptrdatavec2, i32 1
 ; CHECK:   %ptrdatavec.gep3 = getelementptr i32, ptr addrspace(1) %ptrdatavec1, i64 1
 ; CHECK:   %ptrdatavec.gep4 = getelementptr i32, ptr addrspace(1) %ptrdatavec2, i64 1
-; CHECK:   %4 = insertelement <2 x ptr addrspace(1)> undef, ptr addrspace(1) %ptrdatavec.gep3, i32 0
+; CHECK:   %4 = insertelement <2 x ptr addrspace(1)> poison, ptr addrspace(1) %ptrdatavec.gep3, i32 0
 ; CHECK:   %5 = insertelement <2 x ptr addrspace(1)> %4, ptr addrspace(1) %ptrdatavec.gep4, i32 1
 ; CHECK:   %vec1 = call <2 x i32> @llvm.masked.gather.v2i32.v2p1(<2 x ptr addrspace(1)> %3, i32 16, <2 x i1> zeroinitializer, <2 x ptr addrspace(1)> zeroinitializer)
 ; CHECK:   %6 = extractelement <2 x i32> %vec1, i32 0

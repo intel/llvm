@@ -52,7 +52,7 @@ entry:
   %reass.add = add nuw nsw i64 %mul7, %call1
   %reass.mul = mul nuw nsw i64 %reass.add, %call3
   %add8 = add nuw nsw i64 %reass.mul, %call
-  %vecinit = insertelement <4 x i64> undef, i64 %call3, i64 0
+  %vecinit = insertelement <4 x i64> poison, i64 %call3, i64 0
   %vecinit11 = insertelement <4 x i64> %vecinit, i64 %call5, i64 1
   %call12 = tail call i64 @__mux_get_global_size(i32 noundef 2)
   %vecinit13 = insertelement <4 x i64> %vecinit11, i64 %call12, i64 2

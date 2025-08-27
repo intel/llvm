@@ -56,7 +56,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_add_u5nxv4j(<vscal
 ;------- target-dependent dynamic shuffle code:
 ; CHECK:   %[[VLSCALE:.+]] = call i64 @llvm.vscale.i64()
 ; CHECK:   %[[VL:.+]] = mul i64 %[[VLSCALE]], 4
-; CHECK:   %[[SHUFFLE:.+]] = call <vscale x 4 x i32> @llvm.riscv.vrgather.vv.nxv4i32.i64({{(<vscale x 4 x i32> undef, )?}}<vscale x 4 x i32> %[[VEC]], <vscale x 4 x i32> %[[MASK]], i64 %[[VL]])
+; CHECK:   %[[SHUFFLE:.+]] = call <vscale x 4 x i32> @llvm.riscv.vrgather.vv.nxv4i32.i64({{(<vscale x 4 x i32> poison, )?}}<vscale x 4 x i32> %[[VEC]], <vscale x 4 x i32> %[[MASK]], i64 %[[VL]])
 
 ; CHECK:   %[[ACCUM:.+]] = add <vscale x 4 x i32> %[[VEC]], %{{.+}}
 ; CHECK:   %[[BIT:.+]] = and <vscale x 4 x i32> %[[MASKPHI]], %[[N_SPLAT]]
@@ -89,7 +89,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_u5nxv4j(<vscal
 ;------- target-dependent dynamic shuffle code:
 ; CHECK:   %[[VLSCALE:.+]] = call i64 @llvm.vscale.i64()
 ; CHECK:   %[[VL:.+]] = mul i64 %[[VLSCALE]], 4
-; CHECK:   %[[SHUFFLE:.+]] = call <vscale x 4 x i32> @llvm.riscv.vrgather.vv.nxv4i32.i64({{(<vscale x 4 x i32> undef, )?}}<vscale x 4 x i32> %[[VEC]], <vscale x 4 x i32> %[[MASK]], i64 %[[VL]])
+; CHECK:   %[[SHUFFLE:.+]] = call <vscale x 4 x i32> @llvm.riscv.vrgather.vv.nxv4i32.i64({{(<vscale x 4 x i32> poison, )?}}<vscale x 4 x i32> %[[VEC]], <vscale x 4 x i32> %[[MASK]], i64 %[[VL]])
 
 ; CHECK:   %[[ACCUM:.+]] = add <vscale x 4 x i32> %[[VEC]], %{{.+}}
 ; CHECK:   %[[BIT:.+]] = and <vscale x 4 x i32> %[[MASKPHI]], %[[N_SPLAT]]
@@ -105,7 +105,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_u5nxv4j(<vscal
 ;------- target-dependent slide-up code:
 ; CHECK:   %[[VLSCALE2:.+]] = call i64 @llvm.vscale.i64()
 ; CHECK:   %[[VL2:.+]] = mul i64 %[[VLSCALE2]], 4
-; CHECK:   %[[RESULT:.+]] = call <vscale x 4 x i32> @llvm.riscv.vslide1up.nxv4i32.i32.i64({{(<vscale x 4 x i32> undef, )?}}<vscale x 4 x i32> %[[SCAN]], i32 0, i64 %[[VL2]])
+; CHECK:   %[[RESULT:.+]] = call <vscale x 4 x i32> @llvm.riscv.vslide1up.nxv4i32.i32.i64({{(<vscale x 4 x i32> poison, )?}}<vscale x 4 x i32> %[[SCAN]], i32 0, i64 %[[VL2]])
 
 ; CHECK:   ret <vscale x 4 x i32> %[[RESULT]]
 ; CHECK: }
@@ -126,7 +126,7 @@ declare <vscale x 4 x float> @__vecz_b_sub_group_scan_exclusive_add_u5nxv4f(<vsc
 ; CHECK:   %{{.+}} = fadd <vscale x 4 x float> %[[VEC]], %{{.+}}
 
 ; Make sure the floating point version of the slide1up intrinsic is created
-; CHECK:   call <vscale x 4 x float> @llvm.riscv.vfslide1up.nxv4f32.f32.i64({{(<vscale x 4 x float> undef, )?}}<vscale x 4 x float> %{{.+}}, float 0.000000e+00, i64 %{{.+}})
+; CHECK:   call <vscale x 4 x float> @llvm.riscv.vfslide1up.nxv4f32.f32.i64({{(<vscale x 4 x float> poison, )?}}<vscale x 4 x float> %{{.+}}, float 0.000000e+00, i64 %{{.+}})
 
 declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_smin_u5nxv4j(<vscale x 4 x i32>)
 ; CHECK-LABEL: define <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_smin_u5nxv4j(<vscale x 4 x i32>{{.*}})

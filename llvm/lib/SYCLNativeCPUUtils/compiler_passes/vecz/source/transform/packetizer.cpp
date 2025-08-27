@@ -1491,7 +1491,7 @@ Value *Packetizer::Impl::packetizeSubgroupShuffle(Instruction *I) {
     // It's possible that for some targets and for some combinations of vector
     // width and vectorization factor, that going through memory would be
     // faster.
-    Value *ExtractedVec = UndefValue::get(DataVecTy);
+    Value *ExtractedVec = PoisonValue::get(DataVecTy);
     const unsigned DataNumElts = DataVecTy->getElementCount().getFixedValue();
     auto *const BaseIdx = B.CreateMul(VecIdx, B.getInt32(DataNumElts));
     for (unsigned i = 0; i < DataNumElts; i++) {
@@ -1625,7 +1625,7 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleXor(
   assert(RegularShuffleFn);
 
   auto *const VecData = PackData.getAsValue();
-  Value *CombinedShuffle = UndefValue::get(VecData->getType());
+  Value *CombinedShuffle = PoisonValue::get(VecData->getType());
 
   for (unsigned i = 0; i < VF; i++) {
     auto *Idx = B.getInt32(i);
@@ -1638,7 +1638,7 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleXor(
     if (auto *DataVecTy = dyn_cast<VectorType>(Data->getType()); !DataVecTy) {
       DataElt = B.CreateExtractElement(VecData, VecGroupIdx);
     } else {
-      DataElt = UndefValue::get(DataVecTy);
+      DataElt = PoisonValue::get(DataVecTy);
       auto VecWidth = DataVecTy->getElementCount().getFixedValue();
       // VecGroupIdx is the 'base' of the subvector, whose elements are stored
       // sequentially from that point.
@@ -1893,7 +1893,7 @@ Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleUpDown(
     } else {
       // For vector data types we need to extract consecutive elements starting
       // at the sub-vector whose index is Idx.
-      Elt = UndefValue::get(DataVecTy);
+      Elt = PoisonValue::get(DataVecTy);
       auto VecWidth = DataVecTy->getElementCount().getFixedValue();
       // Idx is the 'base' of the subvector, whose elements are stored
       // sequentially from that point.
@@ -2624,7 +2624,7 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
       auto *const newPtrTy = FixedVectorType::get(ptrTy, simdWidth);
 
       auto *const idxVector = ConstantVector::get(indices);
-      auto *const undef = UndefValue::get(newPtrTy);
+      auto *const undef = PoisonValue::get(newPtrTy);
       for (auto &vecPtr : ptrPacket) {
         vecPtr = B.CreateBitCast(vecPtr, newPtrTy);
         vecPtr = B.CreateShuffleVector(vecPtr, undef, widenMask);
@@ -2792,7 +2792,7 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
           }
         }
 
-        auto *const undef = UndefValue::get(maskPacket.front()->getType());
+        auto *const undef = PoisonValue::get(maskPacket.front()->getType());
         for (auto &vecMask : maskPacket) {
           vecMask = createOptimalShuffle(B, vecMask, undef, widenMask);
         }
@@ -3533,7 +3533,7 @@ Value *Packetizer::Impl::vectorizeExtractValue(ExtractValueInst *ExtractValue) {
   }
 
   Type *CompositeTy = getWideType(Extracts[0]->getType(), SimdWidth);
-  Value *Result = UndefValue::get(CompositeTy);
+  Value *Result = PoisonValue::get(CompositeTy);
   for (decltype(Width) i = 0; i < Width; i++) {
     Result = B.CreateInsertElement(Result, Extracts[i], B.getInt32(i));
   }
@@ -3655,7 +3655,7 @@ ValuePacket Packetizer::Impl::packetizeInsertElement(
         Mask.push_back(i / ScalarWidth);
       }
 
-      auto *Undef = UndefValue::get(Elts.front()->getType());
+      auto *Undef = PoisonValue::get(Elts.front()->getType());
       for (unsigned i = 0; i < packetWidth; ++i) {
         results.push_back(createOptimalShuffle(B, Elts[i], Undef, Mask, Name));
       }
@@ -3792,7 +3792,7 @@ ValuePacket Packetizer::Impl::packetizeExtractElement(
 
     auto resultWidth = Width / packetWidth;
     if (packetWidth == 1) {
-      srcVals.push_back(UndefValue::get(srcVals.front()->getType()));
+      srcVals.push_back(PoisonValue::get(srcVals.front()->getType()));
     } else {
       resultWidth *= 2;
     }
@@ -3813,7 +3813,8 @@ ValuePacket Packetizer::Impl::packetizeExtractElement(
     Value *Indices = packetizeIfVarying(Index);
     PACK_FAIL_IF(!Indices);
 
-    Result = UndefValue::get(getWideType(ExtractElement->getType(), SimdWidth));
+    Result =
+        PoisonValue::get(getWideType(ExtractElement->getType(), SimdWidth));
     if (Indices != Index) {
       Type *IdxTy = Index->getType();
       SmallVector<Constant *, 16> Offsets;

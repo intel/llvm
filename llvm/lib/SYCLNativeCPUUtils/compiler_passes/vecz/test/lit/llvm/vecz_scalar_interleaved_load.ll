@@ -41,7 +41,7 @@ if.then2:                                     ; preds = %if.then1
   %gep2 = getelementptr inbounds float, float addrspace(1)* %gep1, i64 %mul1
   %cmp3 = icmp slt i64 %gid1, %n
   %load1 = load float, float addrspace(1)* %gep2, align 4
-  %ie1 = insertelement <4 x float> undef, float %load1, i32 0
+  %ie1 = insertelement <4 x float> poison, float %load1, i32 0
   br i1 %cmp3, label %if.then3, label %if.else3
 
 if.then3:                                     ; preds = %if.then2
