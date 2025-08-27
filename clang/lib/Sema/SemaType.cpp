@@ -22,7 +22,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/LocInfoType.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/LangOptions.h"
@@ -9711,12 +9711,8 @@ bool Sema::RequireLiteralType(SourceLocation Loc, QualType T,
   if (T->isVariableArrayType())
     return true;
 
-  const RecordType *RT = ElemType->getAs<RecordType>();
-  if (!RT)
+  if (!ElemType->isRecordType())
     return true;
-
-  const CXXRecordDecl *RD =
-      cast<CXXRecordDecl>(RT->getOriginalDecl())->getDefinitionOrSelf();
 
   // A partially-defined class type can't be a literal type, because a literal
   // class type must have a trivial destructor (which can't be checked until
@@ -9724,6 +9720,7 @@ bool Sema::RequireLiteralType(SourceLocation Loc, QualType T,
   if (RequireCompleteType(Loc, ElemType, diag::note_non_literal_incomplete, T))
     return true;
 
+  const auto *RD = ElemType->castAsCXXRecordDecl();
   // [expr.prim.lambda]p3:
   //   This class type is [not] a literal type.
   if (RD->isLambda() && !getLangOpts().CPlusPlus17) {

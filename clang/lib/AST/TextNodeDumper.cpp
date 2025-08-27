@@ -17,7 +17,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/LocInfoType.h"
 #include "clang/AST/NestedNameSpecifier.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/AST/TypeLocVisitor.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
@@ -1401,7 +1401,7 @@ static void dumpBasePath(raw_ostream &OS, const CastExpr *Node) {
       OS << " -> ";
 
     const auto *RD = cast<CXXRecordDecl>(
-        Base->getType()->castAs<RecordType>()->getOriginalDecl());
+        Base->getType()->castAsCanonical<RecordType>()->getOriginalDecl());
 
     if (Base->isVirtual())
       OS << "virtual ";

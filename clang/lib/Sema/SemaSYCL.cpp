@@ -18,7 +18,7 @@
 #include "clang/AST/SYCLKernelInfo.h"
 #include "clang/AST/StmtSYCL.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Analysis/CallGraph.h"

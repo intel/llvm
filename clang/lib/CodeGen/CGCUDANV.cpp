@@ -1133,8 +1133,7 @@ void CGNVCUDARuntime::handleVarRegistration(const VarDecl *D,
     // Builtin surfaces and textures and their template arguments are
     // also registered with CUDA runtime.
     const auto *TD = cast<ClassTemplateSpecializationDecl>(
-                         D->getType()->castAs<RecordType>()->getOriginalDecl())
-                         ->getDefinitionOrSelf();
+        D->getType()->castAsCXXRecordDecl());
     const TemplateArgumentList &Args = TD->getTemplateArgs();
     if (TD->hasAttr<CUDADeviceBuiltinSurfaceTypeAttr>()) {
       assert(Args.size() == 2 &&

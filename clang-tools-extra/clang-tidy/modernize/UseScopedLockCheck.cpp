@@ -10,7 +10,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/SourceLocation.h"
@@ -28,7 +28,7 @@ static bool isLockGuardDecl(const NamedDecl *Decl) {
 }
 
 static bool isLockGuard(const QualType &Type) {
-  if (const auto *Record = Type->getAs<RecordType>())
+  if (const auto *Record = Type->getAsCanonical<RecordType>())
     if (const RecordDecl *Decl = Record->getOriginalDecl())
       return isLockGuardDecl(Decl);
 

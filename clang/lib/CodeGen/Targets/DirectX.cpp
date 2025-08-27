@@ -10,7 +10,7 @@
 #include "CodeGenModule.h"
 #include "HLSLBufferLayoutBuilder.h"
 #include "TargetInfo.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
@@ -77,7 +77,8 @@ llvm::Type *DirectXTargetCodeGenInfo::getHLSLType(
 
     llvm::Type *BufferLayoutTy =
         HLSLBufferLayoutBuilder(CGM, "dx.Layout")
-            .createLayoutType(ContainedTy->getAsStructureType(), Packoffsets);
+            .createLayoutType(ContainedTy->castAsCanonical<RecordType>(),
+                              Packoffsets);
     if (!BufferLayoutTy)
       return nullptr;
 

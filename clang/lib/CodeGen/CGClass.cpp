@@ -180,11 +180,7 @@ CharUnits CodeGenModule::computeNonVirtualBaseClassOffset(
     // Get the layout.
     const ASTRecordLayout &Layout = Context.getASTRecordLayout(RD);
 
-    const auto *BaseDecl =
-        cast<CXXRecordDecl>(
-            Base->getType()->castAs<RecordType>()->getOriginalDecl())
-            ->getDefinitionOrSelf();
-
+    const auto *BaseDecl = Base->getType()->castAsCXXRecordDecl();
     // Add the offset.
     Offset += Layout.getBaseClassOffset(BaseDecl);
 
@@ -303,9 +299,7 @@ Address CodeGenFunction::GetAddressOfBaseClass(
   // *start* with a step down to the correct virtual base subobject,
   // and hence will not require any further steps.
   if ((*Start)->isVirtual()) {
-    VBase = cast<CXXRecordDecl>(
-                (*Start)->getType()->castAs<RecordType>()->getOriginalDecl())
-                ->getDefinitionOrSelf();
+    VBase = (*Start)->getType()->castAsCXXRecordDecl();
     ++Start;
   }
 
@@ -560,10 +554,7 @@ static void EmitBaseInitializer(CodeGenFunction &CGF,
 
   Address ThisPtr = CGF.LoadCXXThisAddress();
 
-  const Type *BaseType = BaseInit->getBaseClass();
-  const auto *BaseClassDecl =
-      cast<CXXRecordDecl>(BaseType->castAs<RecordType>()->getOriginalDecl())
-          ->getDefinitionOrSelf();
+  const auto *BaseClassDecl = BaseInit->getBaseClass()->castAsCXXRecordDecl();
 
   bool isBaseVirtual = BaseInit->isBaseVirtual();
 
@@ -1268,10 +1259,7 @@ namespace {
 
 static bool isInitializerOfDynamicClass(const CXXCtorInitializer *BaseInit) {
   const Type *BaseType = BaseInit->getBaseClass();
-  const auto *BaseClassDecl =
-      cast<CXXRecordDecl>(BaseType->castAs<RecordType>()->getOriginalDecl())
-          ->getDefinitionOrSelf();
-  return BaseClassDecl->isDynamicClass();
+  return BaseType->castAsCXXRecordDecl()->isDynamicClass();
 }
 
 /// EmitCtorPrologue - This routine generates necessary code to initialize
@@ -1378,10 +1366,7 @@ HasTrivialDestructorBody(ASTContext &Context,
     if (I.isVirtual())
       continue;
 
-    const CXXRecordDecl *NonVirtualBase =
-        cast<CXXRecordDecl>(
-            I.getType()->castAs<RecordType>()->getOriginalDecl())
-            ->getDefinitionOrSelf();
+    const auto *NonVirtualBase = I.getType()->castAsCXXRecordDecl();
     if (!HasTrivialDestructorBody(Context, NonVirtualBase,
                                   MostDerivedClassDecl))
       return false;
@@ -1390,10 +1375,7 @@ HasTrivialDestructorBody(ASTContext &Context,
   if (BaseClassDecl == MostDerivedClassDecl) {
     // Check virtual bases.
     for (const auto &I : BaseClassDecl->vbases()) {
-      const auto *VirtualBase =
-          cast<CXXRecordDecl>(
-              I.getType()->castAs<RecordType>()->getOriginalDecl())
-              ->getDefinitionOrSelf();
+      const auto *VirtualBase = I.getType()->castAsCXXRecordDecl();
       if (!HasTrivialDestructorBody(Context, VirtualBase,
                                     MostDerivedClassDecl))
         return false;
@@ -1905,11 +1887,7 @@ void CodeGenFunction::EnterDtorCleanups(const CXXDestructorDecl *DD,
     // We push them in the forward order so that they'll be popped in
     // the reverse order.
     for (const auto &Base : ClassDecl->vbases()) {
-      auto *BaseClassDecl =
-          cast<CXXRecordDecl>(
-              Base.getType()->castAs<RecordType>()->getOriginalDecl())
-              ->getDefinitionOrSelf();
-
+      auto *BaseClassDecl = Base.getType()->castAsCXXRecordDecl();
       if (BaseClassDecl->hasTrivialDestructor()) {
         // Under SanitizeMemoryUseAfterDtor, poison the trivial base class
         // memory. For non-trival base classes the same is done in the class
@@ -2128,10 +2106,7 @@ void CodeGenFunction::EmitCXXAggrConstructorCall(const CXXConstructorDecl *ctor,
 void CodeGenFunction::destroyCXXObject(CodeGenFunction &CGF,
                                        Address addr,
                                        QualType type) {
-  const RecordType *rtype = type->castAs<RecordType>();
-  const auto *record =
-      cast<CXXRecordDecl>(rtype->getOriginalDecl())->getDefinitionOrSelf();
-  const CXXDestructorDecl *dtor = record->getDestructor();
+  const CXXDestructorDecl *dtor = type->castAsCXXRecordDecl()->getDestructor();
   assert(!dtor->isTrivial());
   CGF.EmitCXXDestructorCall(dtor, Dtor_Complete, /*for vbase*/ false,
                             /*Delegating=*/false, addr, type);
@@ -2655,10 +2630,7 @@ void CodeGenFunction::getVTablePointers(BaseSubobject Base,
 
   // Traverse bases.
   for (const auto &I : RD->bases()) {
-    auto *BaseDecl = cast<CXXRecordDecl>(
-                         I.getType()->castAs<RecordType>()->getOriginalDecl())
-                         ->getDefinitionOrSelf();
-
+    auto *BaseDecl = I.getType()->castAsCXXRecordDecl();
     // Ignore classes without a vtable.
     if (!BaseDecl->isDynamicClass())
       continue;

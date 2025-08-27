@@ -18,7 +18,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/LLVM.h"

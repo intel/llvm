@@ -27,7 +27,7 @@
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/CIR/Dialect/IR/CIRDialect.h"
 #include "clang/CIR/MissingFeatures.h"
 #include "clang/CIR/TypeEvaluationKind.h"
@@ -574,6 +574,9 @@ public:
     const clang::CXXRecordDecl *vtableClass;
   };
 
+  using VisitedVirtualBasesSetTy =
+      llvm::SmallPtrSet<const clang::CXXRecordDecl *, 4>;
+
   using VPtrsVector = llvm::SmallVector<VPtr, 4>;
   VPtrsVector getVTablePointers(const clang::CXXRecordDecl *vtableClass);
   void getVTablePointers(clang::BaseSubobject base,
@@ -581,7 +584,7 @@ public:
                          clang::CharUnits offsetFromNearestVBase,
                          bool baseIsNonVirtualPrimaryBase,
                          const clang::CXXRecordDecl *vtableClass,
-                         VPtrsVector &vptrs);
+                         VisitedVirtualBasesSetTy &vbases, VPtrsVector &vptrs);
   /// Return the Value of the vtable pointer member pointed to by thisAddr.
   mlir::Value getVTablePtr(mlir::Location loc, Address thisAddr,
                            const clang::CXXRecordDecl *vtableClass);

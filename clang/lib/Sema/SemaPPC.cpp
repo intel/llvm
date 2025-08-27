@@ -15,7 +15,7 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Decl.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetBuiltins.h"
@@ -41,10 +41,7 @@ void SemaPPC::checkAIXMemberAlignment(SourceLocation Loc, const Expr *Arg) {
     return;
 
   QualType ArgType = Arg->getType();
-  for (const FieldDecl *FD : ArgType->castAs<RecordType>()
-                                 ->getOriginalDecl()
-                                 ->getDefinitionOrSelf()
-                                 ->fields()) {
+  for (const FieldDecl *FD : ArgType->castAsRecordDecl()->fields()) {
     if (const auto *AA = FD->getAttr<AlignedAttr>()) {
       CharUnits Alignment = getASTContext().toCharUnitsFromBits(
           AA->getAlignment(getASTContext()));

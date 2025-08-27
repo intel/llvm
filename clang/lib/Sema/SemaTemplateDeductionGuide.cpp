@@ -26,7 +26,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
@@ -1056,7 +1056,7 @@ BuildDeductionGuideForTypeAlias(Sema &SemaRef,
   // The (trailing) return type of the deduction guide.
   const TemplateSpecializationType *FReturnType =
       RType->getAs<TemplateSpecializationType>();
-  if (const auto *ICNT = RType->getAs<InjectedClassNameType>())
+  if (const auto *ICNT = RType->getAsCanonical<InjectedClassNameType>())
     // implicitly-generated deduction guide.
     FReturnType = cast<TemplateSpecializationType>(
         ICNT->getOriginalDecl()->getCanonicalTemplateSpecializationType(

@@ -22,7 +22,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/DarwinSDKInfo.h"
@@ -279,7 +279,7 @@ static const RecordDecl *getRecordDecl(QualType QT) {
     return RD;
 
   // Now check if we point to a record.
-  if (const auto *PT = QT->getAs<PointerType>())
+  if (const auto *PT = QT->getAsCanonical<PointerType>())
     return PT->getPointeeType()->getAsRecordDecl();
 
   return nullptr;

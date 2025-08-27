@@ -34,7 +34,7 @@
 #include "clang/AST/Redeclarable.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
-#include "clang/AST/Type.h"
+#include "clang/AST/TypeBase.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -2992,7 +2992,7 @@ bool ParmVarDecl::isDestroyedInCallee() const {
 
   // FIXME: isParamDestroyedInCallee() should probably imply
   // isDestructedType()
-  const auto *RT = getType()->getAs<RecordType>();
+  const auto *RT = getType()->getAsCanonical<RecordType>();
   if (RT &&
       RT->getOriginalDecl()
           ->getDefinitionOrSelf()
@@ -3507,7 +3507,7 @@ bool FunctionDecl::isUsableAsGlobalAllocationFunctionInConstantEvaluation(
     while (const auto *TD = T->getAs<TypedefType>())
       T = TD->getDecl()->getUnderlyingType();
     const IdentifierInfo *II =
-        T->castAs<EnumType>()->getOriginalDecl()->getIdentifier();
+        T->castAsCanonical<EnumType>()->getOriginalDecl()->getIdentifier();
     if (II && II->isStr("__hot_cold_t"))
       Consume();
   }
@@ -4664,7 +4664,7 @@ bool FieldDecl::isAnonymousStructOrUnion() const {
   if (!isImplicit() || getDeclName())
     return false;
 
-  if (const auto *Record = getType()->getAs<RecordType>())
+  if (const auto *Record = getType()->getAsCanonical<RecordType>())
     return Record->getOriginalDecl()->isAnonymousStructOrUnion();
 
   return false;
@@ -4722,7 +4722,7 @@ bool FieldDecl::isZeroSize(const ASTContext &Ctx) const {
     return false;
 
   //     -- is not of class type, or
-  const auto *RT = getType()->getAs<RecordType>();
+  const auto *RT = getType()->getAsCanonical<RecordType>();
   if (!RT)
     return false;
   const RecordDecl *RD = RT->getOriginalDecl()->getDefinition();
@@ -5149,7 +5149,7 @@ bool RecordDecl::isOrContainsUnion() const {
 
   if (const RecordDecl *Def = getDefinition()) {
     for (const FieldDecl *FD : Def->fields()) {
-      const RecordType *RT = FD->getType()->getAs<RecordType>();
+      const RecordType *RT = FD->getType()->getAsCanonical<RecordType>();
       if (RT && RT->getOriginalDecl()->isOrContainsUnion())
         return true;
     }
