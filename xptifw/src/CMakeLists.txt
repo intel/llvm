@@ -8,17 +8,22 @@ if (NOT SYCL_EMHASH_DIR)
   include(FetchEmhash)
 endif()
 
-set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
-message(STATUS "Will fetch parallel-hashmap from ${PARALLEL_HASHMAP_REPO}")
-FetchContent_Declare(parallel-hashmap
-  GIT_REPOSITORY    ${PARALLEL_HASHMAP_REPO}
-  GIT_TAG           8a889d3699b3c09ade435641fb034427f3fd12b6
-)
+find_path(PHMAP_LOC phmap_base.h PATH_SUFFIXES parallel_hashmap)
+if(PHMAP_LOC)
+  set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${PHMAP_LOC}")
+else() 
+  set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
+  message(STATUS "Will fetch parallel-hashmap from ${PARALLEL_HASHMAP_REPO}")
+  FetchContent_Declare(parallel-hashmap
+    GIT_REPOSITORY    ${PARALLEL_HASHMAP_REPO}
+    GIT_TAG           8a889d3699b3c09ade435641fb034427f3fd12b6
+  )
+  
+  FetchContent_GetProperties(parallel-hashmap)
+  FetchContent_MakeAvailable(parallel-hashmap)
+  set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${parallel-hashmap_SOURCE_DIR}")
+endif()
 
-FetchContent_GetProperties(parallel-hashmap)
-FetchContent_MakeAvailable(parallel-hashmap)
-
-set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${parallel-hashmap_SOURCE_DIR}")
 
 file(GLOB SOURCES *.cpp)
 
