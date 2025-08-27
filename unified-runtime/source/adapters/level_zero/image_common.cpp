@@ -884,22 +884,26 @@ ur_result_t bindlessImagesHandleCopyFlags(
   };
   case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST: {
     // Copy between (possibly) pitched USM regions
-    uint32_t DstRowPitch =
-        std::max(pDstImageDesc->rowPitch, pCopyRegion->copyExtent.width);
-    uint32_t SrcRowPitch =
-        std::max(pSrcImageDesc->rowPitch, pCopyRegion->copyExtent.width);
-    ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
-                                    (uint32_t)pCopyRegion->dstOffset.y,
-                                    (uint32_t)pCopyRegion->dstOffset.z,
-                                    (uint32_t)pCopyRegion->copyExtent.width,
-                                    (uint32_t)pCopyRegion->copyExtent.height,
-                                    (uint32_t)pCopyRegion->copyExtent.depth};
-    ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
-                                    (uint32_t)pCopyRegion->srcOffset.y,
-                                    (uint32_t)pCopyRegion->srcOffset.z,
-                                    (uint32_t)pCopyRegion->copyExtent.width,
-                                    (uint32_t)pCopyRegion->copyExtent.height,
-                                    (uint32_t)pCopyRegion->copyExtent.depth};
+    uint32_t DstRowPitch = pDstImageDesc->rowPitch;
+    uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
+    ze_copy_region_t ZeDstRegion = {
+        (uint32_t)(pCopyRegion->dstOffset.x *
+                   getPixelSizeBytes(pDstImageFormat)),
+        (uint32_t)pCopyRegion->dstOffset.y,
+        (uint32_t)pCopyRegion->dstOffset.z,
+        (uint32_t)(pCopyRegion->copyExtent.width *
+                   getPixelSizeBytes(pDstImageFormat)),
+        (uint32_t)pCopyRegion->copyExtent.height,
+        (uint32_t)pCopyRegion->copyExtent.depth};
+    ze_copy_region_t ZeSrcRegion = {
+        (uint32_t)(pCopyRegion->dstOffset.x *
+                   getPixelSizeBytes(pSrcImageFormat)),
+        (uint32_t)pCopyRegion->srcOffset.y,
+        (uint32_t)pCopyRegion->srcOffset.z,
+        (uint32_t)(pCopyRegion->copyExtent.width *
+                   getPixelSizeBytes(pSrcImageFormat)),
+        (uint32_t)pCopyRegion->copyExtent.height,
+        (uint32_t)pCopyRegion->copyExtent.depth};
     uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
