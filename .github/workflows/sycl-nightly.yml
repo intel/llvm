@@ -25,6 +25,11 @@ jobs:
 
   ubuntu2204_build:
     if: github.repository == 'intel/llvm'
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
     with:
@@ -32,6 +37,7 @@ jobs:
       build_configure_extra_args: '--hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
+      sign_artifacts: true
       retention-days: 90
       toolchain_artifact: sycl_linux_default
       # We upload the build for people to download/use, override its name and

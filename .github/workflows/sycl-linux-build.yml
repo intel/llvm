@@ -46,6 +46,10 @@ on:
 
       # Artifacts:
 
+      sign_artifacts:
+        type: boolean
+        default: false
+
       retention-days:
         description: 'Artifacts retention period'
         type: string
@@ -131,7 +135,11 @@ on:
         options:
           - "sycl_linux_default"
 
-permissions: read-all
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  packages: read
 
 jobs:
   build:
@@ -308,6 +316,12 @@ jobs:
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
+    - name: Sign the toolchain archive & upload the signature artifact
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.sign_artifacts == true }}
+      uses: ./devops/actions/sign_artifacts_and_upload_signature
+      with:
+        archive_path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        artifact_name: ${{ inputs.toolchain_artifact }}_signing_artifact
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4

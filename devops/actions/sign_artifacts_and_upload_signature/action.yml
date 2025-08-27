@@ -1,0 +1,25 @@
+name: "Sign and upload artifacts"
+
+description: "Signs an archive and uploads the signing artifacts."
+
+inputs:
+  archive_path:
+    description: "Path to the archive to sign"
+    required: true
+  artifact_name:
+    description: "Name for the signing artifact"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Sign the archive
+      uses: sigstore/gh-action-sigstore-python@v3.0.1
+      with:
+        inputs: ${{ inputs.archive_path }}
+
+    - name: Upload signing artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: ${{ inputs.archive_path }}.sigstore.json
