@@ -5959,7 +5959,7 @@ def no_offloadlib
     : Flag<["--"], "no-offloadlib">,
       MarshallingInfoFlag<LangOpts<"NoGPULib">>,
       Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
-      HelpText<"Do not link device library for CUDA/HIP device compilation">;
+      HelpText<"Do not link device library for CUDA/HIP/SYCL device compilation">;
 def offloadlib : Flag<["--"], "offloadlib">,
                  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
                  HelpText<"Link device libraries for GPU device compilation">;
@@ -9265,14 +9265,11 @@ class CLRemainingArgsJoined<string name,
 // (We don't put any of these in cl_compile_Group as the options they alias are
 // already in the right group.)
 
-// INTEL_CUSTOMIZATION
 def _SLASH_Qfp_accuracy_EQ : CLJoined<"Qfp-accuracy=">,
   Alias<ffp_accuracy_EQ>;
 def _SLASH_Qfp_accuracy_COL : CLJoined<"Qfp-accuracy:">,
   Alias<ffp_accuracy_EQ>,HelpText<"Specifies the required accuracy for "
   "floating-point operations and library calls.">;
-// END INTEL_CUSTOMIZATION
-
 def _SLASH_Brepro : CLFlag<"Brepro">,
   HelpText<"Do not write current time into COFF output (breaks link.exe /incremental)">,
   Alias<mno_incremental_linker_compatible>;

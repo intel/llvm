@@ -426,8 +426,146 @@ static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
   return false;
 }
 
-SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+#if !defined(_WIN32)
+static void
+addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
+                           StringRef LibSuffix,
+                           SmallVector<std::string, 8> &LibraryList) {
+  const llvm::opt::ArgList &Args = C.getArgs();
+  enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
+  auto addSingleLibrary = [&](StringRef DeviceLibName) {
+    LibraryList.push_back(Args.MakeArgString(Twine(DeviceLibName) + LibSuffix));
+  };
+
+  // This function is used to check whether there is only one GPU device
+  // (PVC or DG2) specified in AOT compilation mode. If yes, we can use
+  // corresponding libsycl-asan-* to improve device sanitizer performance,
+  // otherwise stick to fallback device sanitizer library used in  JIT mode.
+  auto getSpecificGPUTarget = [](const ArgStringList &CmdArgs) -> size_t {
+    std::string DeviceArg = getDeviceArg(CmdArgs);
+    if ((DeviceArg.empty()) || (DeviceArg.find(",") != std::string::npos))
+      return JIT;
+
+    std::string Temp;
+    if (checkPVCDevice(DeviceArg, Temp))
+      return AOT_PVC;
+
+    if (DeviceArg == "dg2")
+      return AOT_DG2;
+
+    return JIT;
+  };
+
+  auto getSingleBuildTarget = [&]() -> size_t {
+    if (!IsSpirvAOT)
+      return JIT;
+
+    llvm::opt::Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+    if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
+      return JIT;
+
+    StringRef SYCLTargetStr = SYCLTarget->getValue();
+    if (SYCLTargetStr.starts_with("spir64_x86_64"))
+      return AOT_CPU;
+
+    if (SYCLTargetStr == "intel_gpu_pvc")
+      return AOT_PVC;
+
+    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+      return AOT_DG2;
+
+    if (SYCLTargetStr.starts_with("spir64_gen")) {
+      ArgStringList TargArgs;
+      Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
+      Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
+      llvm::opt::Arg *A = nullptr;
+      if ((A = Args.getLastArg(options::OPT_Xsycl_backend_EQ)) &&
+          StringRef(A->getValue()).starts_with("spir64_gen"))
+        TargArgs.push_back(A->getValue(1));
+
+      return getSpecificGPUTarget(TargArgs);
+    }
+
+    return JIT;
+  };
+
+  std::string SanitizeVal;
+  size_t sanitizer_lib_idx = getSingleBuildTarget();
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                               options::OPT_fno_sanitize_EQ)) {
+    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+        A->getValues().size() == 1) {
+      SanitizeVal = A->getValue();
+    }
+  } else {
+    // User can pass -fsanitize=address to device compiler via
+    // -Xsycl-target-frontend, sanitize device library must be
+    // linked with user's device image if so.
+    std::vector<std::string> EnabledDeviceSanitizers;
+
+    // NOTE: "-fsanitize=" applies to all device targets
+    auto SyclFEArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend);
+    auto SyclFEEQArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
+    auto ArchDeviceVals = Args.getAllArgValues(options::OPT_Xarch_device);
+
+    std::vector<std::string> ArgVals(
+        SyclFEArgVals.size() + SyclFEEQArgVals.size() + ArchDeviceVals.size());
+    ArgVals.insert(ArgVals.end(), SyclFEArgVals.begin(), SyclFEArgVals.end());
+    ArgVals.insert(ArgVals.end(), SyclFEEQArgVals.begin(),
+                   SyclFEEQArgVals.end());
+    ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
+
+    // Driver will report error if more than one of address sanitizer, memory
+    // sanitizer or thread sanitizer is enabled, so we only need to check first
+    // one here.
+    for (const std::string &Arg : ArgVals) {
+      if (Arg.find("-fsanitize=address") != std::string::npos) {
+        SanitizeVal = "address";
+        break;
+      }
+      if (Arg.find("-fsanitize=memory") != std::string::npos) {
+        SanitizeVal = "memory";
+        break;
+      }
+      if (Arg.find("-fsanitize=thread") != std::string::npos) {
+        SanitizeVal = "thread";
+        break;
+      }
+    }
+  }
+
+  const SmallVector<StringRef, 5> SYCLDeviceAsanLibs = {
+      "libsycl-asan", "libsycl-asan-cpu", "libsycl-asan-dg2",
+      "libsycl-asan-pvc"};
+  const SmallVector<StringRef, 5> SYCLDeviceMsanLibs = {
+      "libsycl-msan", "libsycl-msan-cpu",
+      // Currently, we only provide aot msan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-msan as placeholder.
+      "libsycl-msan", "libsycl-msan-pvc"};
+  const SmallVector<StringRef, 5> SYCLDeviceTsanLibs = {
+      "libsycl-tsan", "libsycl-tsan-cpu",
+      // Currently, we only provide aot tsan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-tsan as placeholder.
+      // TODO: replace "libsycl-tsan" with "libsycl-tsan-dg2" when DG2
+      // AOT support is added.
+      "libsycl-tsan", "libsycl-tsan-pvc"};
+
+  if (SanitizeVal == "address")
+    addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "memory")
+    addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "thread")
+    addSingleLibrary(SYCLDeviceTsanLibs[sanitizer_lib_idx]);
+}
+#endif
+
+// Get the list of SYCL device libraries to link with user's device image if
+// some deprecated options are used including: -f[no-]sycl-device-lib=xxx,
+// -f[no-]sycl-device-lib-jit-link.
+// TODO: remove getDeviceLibrariesLegacy when we remove deprecated options
+// related to sycl device library link.
+static SmallVector<std::string, 8>
+getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
@@ -551,30 +689,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-user-wrappers", "internal"},
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
-#if !defined(_WIN32)
-  const SYCLDeviceLibsList SYCLDeviceAsanLibs = {
-      {"libsycl-asan", "internal"},
-      {"libsycl-asan-cpu", "internal"},
-      {"libsycl-asan-dg2", "internal"},
-      {"libsycl-asan-pvc", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {
-      {"libsycl-msan", "internal"},
-      {"libsycl-msan-cpu", "internal"},
-      // Currently, we only provide aot msan libdevice for PVC and CPU.
-      // For DG2, we just use libsycl-msan as placeholder.
-      {"libsycl-msan", "internal"},
-      {"libsycl-msan-pvc", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {
-      {"libsycl-tsan", "internal"},
-      {"libsycl-tsan-cpu", "internal"},
-      // Currently, we only provide aot tsan libdevice for PVC and CPU.
-      // For DG2, we just use libsycl-tsan as placeholder.
-      // TODO: replace "libsycl-tsan" with "libsycl-tsan-dg2" when DG2
-      // AOT support is added.
-      {"libsycl-tsan", "internal"},
-      {"libsycl-tsan-pvc", "internal"}};
-#endif
-
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
       {"libsycl-nativecpu_utils", "internal"}};
 
@@ -616,123 +730,120 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
+  // Currently, device sanitizer support is required by some developers on
+  // Linux platform only, so compiler only provides device sanitizer libraries
+  // on Linux platform.
 #if !defined(_WIN32)
-
-  auto addSingleLibrary = [&](const DeviceLibOptInfo &Lib) {
-    if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
-      return;
-    SmallString<128> LibName(Lib.DeviceLibName);
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
-    LibraryList.push_back(Args.MakeArgString(LibName));
-  };
-
-  // This function is used to check whether there is only one GPU device
-  // (PVC or DG2) specified in AOT compilation mode. If yes, we can use
-  // corresponding libsycl-asan-* to improve device sanitizer performance,
-  // otherwise stick to fallback device sanitizer library used in  JIT mode.
-  auto getSpecificGPUTarget = [](const ArgStringList &CmdArgs) -> size_t {
-    std::string DeviceArg = getDeviceArg(CmdArgs);
-    if ((DeviceArg.empty()) || (DeviceArg.find(",") != std::string::npos))
-      return JIT;
-
-    std::string Temp;
-    if (checkPVCDevice(DeviceArg, Temp))
-      return AOT_PVC;
-
-    if (DeviceArg == "dg2")
-      return AOT_DG2;
-
-    return JIT;
-  };
-
-  auto getSingleBuildTarget = [&]() -> size_t {
-    if (!IsSpirvAOT)
-      return JIT;
-
-    llvm::opt::Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ);
-    if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
-      return JIT;
-
-    StringRef SYCLTargetStr = SYCLTarget->getValue();
-    if (SYCLTargetStr.starts_with("spir64_x86_64"))
-      return AOT_CPU;
-
-    if (SYCLTargetStr == "intel_gpu_pvc")
-      return AOT_PVC;
-
-    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
-      return AOT_DG2;
-
-    if (SYCLTargetStr.starts_with("spir64_gen")) {
-      ArgStringList TargArgs;
-      Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
-      Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
-      llvm::opt::Arg *A = nullptr;
-      if ((A = Args.getLastArg(options::OPT_Xsycl_backend_EQ)) &&
-          StringRef(A->getValue()).starts_with("spir64_gen"))
-        TargArgs.push_back(A->getValue(1));
-
-      return getSpecificGPUTarget(TargArgs);
-    }
-
-    return JIT;
-  };
-
-  std::string SanitizeVal;
-  size_t sanitizer_lib_idx = getSingleBuildTarget();
-  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
-                               options::OPT_fno_sanitize_EQ)) {
-    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1) {
-      SanitizeVal = A->getValue();
-    }
-  } else {
-    // User can pass -fsanitize=address to device compiler via
-    // -Xsycl-target-frontend, sanitize device library must be
-    // linked with user's device image if so.
-    std::vector<std::string> EnabledDeviceSanitizers;
-
-    // NOTE: "-fsanitize=" applies to all device targets
-    auto SyclFEArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend);
-    auto SyclFEEQArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
-    auto ArchDeviceVals = Args.getAllArgValues(options::OPT_Xarch_device);
-
-    std::vector<std::string> ArgVals(
-        SyclFEArgVals.size() + SyclFEEQArgVals.size() + ArchDeviceVals.size());
-    ArgVals.insert(ArgVals.end(), SyclFEArgVals.begin(), SyclFEArgVals.end());
-    ArgVals.insert(ArgVals.end(), SyclFEEQArgVals.begin(),
-                   SyclFEEQArgVals.end());
-    ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
-
-    // Driver will report error if more than one of address sanitizer, memory
-    // sanitizer or thread sanitizer is enabled, so we only need to check first
-    // one here.
-    for (const std::string &Arg : ArgVals) {
-      if (Arg.find("-fsanitize=address") != std::string::npos) {
-        SanitizeVal = "address";
-        break;
-      }
-      if (Arg.find("-fsanitize=memory") != std::string::npos) {
-        SanitizeVal = "memory";
-        break;
-      }
-      if (Arg.find("-fsanitize=thread") != std::string::npos) {
-        SanitizeVal = "thread";
-        break;
-      }
-    }
-  }
-
-  if (SanitizeVal == "address")
-    addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
-  else if (SanitizeVal == "memory")
-    addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
-  else if (SanitizeVal == "thread")
-    addSingleLibrary(SYCLDeviceTsanLibs[sanitizer_lib_idx]);
+  addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
 #endif
 
   if (TargetTriple.isNativeCPU())
     addLibraries(SYCLNativeCpuDeviceLibs);
+
+  return LibraryList;
+}
+
+// Get the list of SYCL device libraries to link with user's device image.
+SmallVector<std::string, 8>
+SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+                         bool IsSpirvAOT) {
+  SmallVector<std::string, 8> LibraryList;
+  const llvm::opt::ArgList &Args = C.getArgs();
+  if (Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                      options::OPT_fno_sycl_device_lib_EQ) ||
+      Args.getLastArg(options::OPT_fsycl_device_lib_jit_link,
+                      options::OPT_fno_sycl_device_lib_jit_link))
+    return getDeviceLibrariesLegacy(C, TargetTriple, IsSpirvAOT);
+
+  bool NoOffloadLib =
+      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+  if (TargetTriple.isNVPTX()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    return LibraryList;
+  }
+
+  if (TargetTriple.isAMDGCN()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+    return LibraryList;
+  }
+
+  // Ignore no-offloadlib for NativeCPU device library, it provides some
+  // critical builtins which must be linked with user's device image.
+  if (TargetTriple.isNativeCPU()) {
+    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
+    return LibraryList;
+  }
+
+  using SYCLDeviceLibsList = SmallVector<StringRef>;
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
+                                             "libsycl-complex",
+                                             "libsycl-complex-fp64",
+                                             "libsycl-cmath",
+                                             "libsycl-cmath-fp64",
+#if defined(_WIN32)
+                                             "libsycl-msvc-math",
+#endif
+                                             "libsycl-imf",
+                                             "libsycl-imf-fp64",
+                                             "libsycl-imf-bf16",
+                                             "libsycl-fallback-cassert",
+                                             "libsycl-fallback-cstring",
+                                             "libsycl-fallback-complex",
+                                             "libsycl-fallback-complex-fp64",
+                                             "libsycl-fallback-cmath",
+                                             "libsycl-fallback-cmath-fp64",
+                                             "libsycl-fallback-imf",
+                                             "libsycl-fallback-imf-fp64",
+                                             "libsycl-fallback-imf-bf16"};
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
+  StringRef LibSuffix = ".bc";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+    for (const StringRef &Lib : LibsList) {
+      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
+    }
+  };
+
+  if (!NoOffloadLib)
+    addLibraries(SYCLDeviceLibs);
+
+  // ITT annotation libraries are linked in separately whenever the device
+  // code instrumentation is enabled.
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
+      "libsycl-fallback-bfloat16"};
+  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
+      "libsycl-native-bfloat16"};
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs && !NoOffloadLib) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
+  // Currently, device sanitizer support is required by some developers on
+  // Linux platform only, so compiler only provides device sanitizer libraries
+  // on Linux platform.
+#if !defined(_WIN32)
+  addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
+#endif
 
   return LibraryList;
 }
