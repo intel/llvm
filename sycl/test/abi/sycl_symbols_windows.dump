@@ -229,9 +229,9 @@
 ??$get_info_impl@Unative_vector_width_int@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_long@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unative_vector_width_short@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Unode_mask@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unum_args@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
-??$get_info_impl@Unode_mask@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Uopencl_c_version@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uparent_device@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV012@XZ
 ??$get_info_impl@Upartition_affinity_domains@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4partition_affinity_domain@info@_V1@sycl@@V?$allocator@W4partition_affinity_domain@info@_V1@sycl@@@std@@@std@@XZ
@@ -4188,8 +4188,8 @@
 ?get_impl@handler@_V1@sycl@@AEAAPEAVhandler_impl@detail@23@XZ
 ?get_kernel@kernel_bundle_plain@detail@_V1@sycl@@IEBA?AVkernel@34@AEBVkernel_id@34@@Z
 ?get_kernel_bundle@kernel@_V1@sycl@@QEBA?AV?$kernel_bundle@$01@23@XZ
-?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$span@D$0?0@23@W4bundle_state@23@@Z
+?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@W4bundle_state@23@AEBV?$function@$$A6A_NAEBV?$shared_ptr@Vdevice_image_impl@detail@_V1@sycl@@@std@@@Z@5@@Z
 ?get_kernel_id_impl@detail@_V1@sycl@@YA?AVkernel_id@23@Vstring_view@123@@Z
@@ -4429,8 +4429,8 @@
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@@Z
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@@Z
 ?setNDRangeDescriptor@handler@_V1@sycl@@AEAAXV?$range@$02@23@_N@Z
-?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
+?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
 ?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@_NH@Z
 ?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
