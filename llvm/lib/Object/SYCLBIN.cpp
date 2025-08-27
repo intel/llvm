@@ -55,7 +55,7 @@ public:
   Expected<StringRef> GetBinaryBlob(size_t ByteOffset, uint64_t BlobSize) {
     if (Error ReadSizeError = ReadSizeCheck(ByteOffset, BlobSize))
       return ReadSizeError;
-    return llvm::StringRef{Data + ByteOffset, BlobSize};
+    return llvm::StringRef{Data + ByteOffset, static_cast<size_t>(BlobSize)};
   }
 
   Expected<std::unique_ptr<llvm::util::PropertySetRegistry>>
@@ -334,15 +334,15 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                                  std::to_string(FileHeader->Version) + ".");
   Result->Version = FileHeader->Version;
 
-  const uint64_t AMHeaderBlockSize =
+  const size_t AMHeaderBlockSize =
       sizeof(AbstractModuleHeaderType) * FileHeader->AbstractModuleCount;
-  const uint64_t IRMHeaderBlockSize =
+  const size_t IRMHeaderBlockSize =
       sizeof(IRModuleHeaderType) * FileHeader->IRModuleCount;
-  const uint64_t NDCIHeaderBlockSize = sizeof(NativeDeviceCodeImageHeaderType) *
-                                       FileHeader->NativeDeviceCodeImageCount;
-  const uint64_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
-                                   IRMHeaderBlockSize + NDCIHeaderBlockSize;
-  const uint64_t AlignedMetadataByteTableSize =
+  const size_t NDCIHeaderBlockSize = sizeof(NativeDeviceCodeImageHeaderType) *
+                                     FileHeader->NativeDeviceCodeImageCount;
+  const size_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
+                                 IRMHeaderBlockSize + NDCIHeaderBlockSize;
+  const size_t AlignedMetadataByteTableSize =
       alignTo(FileHeader->MetadataByteTableSize, 8);
   if (Source.getBufferSize() < HeaderBlockSize + AlignedMetadataByteTableSize +
                                    FileHeader->BinaryByteTableSize)
@@ -354,10 +354,10 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                                              HeaderBlockSize};
   SYCLBINByteTableBlockReader MetadataByteTableBlockReader{
       Source.getBufferStart() + HeaderBlockSize,
-      FileHeader->MetadataByteTableSize};
+      static_cast<size_t>(FileHeader->MetadataByteTableSize)};
   SYCLBINByteTableBlockReader BinaryByteTableBlockReader{
       Source.getBufferStart() + HeaderBlockSize + AlignedMetadataByteTableSize,
-      FileHeader->BinaryByteTableSize};
+      static_cast<size_t>(FileHeader->BinaryByteTableSize)};
 
   // Read global metadata.
   if (Error E = MetadataByteTableBlockReader
@@ -373,7 +373,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
     // Read the header for the current abstract module.
     const AbstractModuleHeaderType *AMHeader = nullptr;
-    const uint64_t AMHeaderByteOffset =
+    const size_t AMHeaderByteOffset =
         sizeof(FileHeaderType) + sizeof(AbstractModuleHeaderType) * I;
     if (Error E =
             HeaderBlockReader
@@ -395,7 +395,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
       // Read the header for the current IR module.
       const IRModuleHeaderType *IRMHeader = nullptr;
-      const uint64_t IRMHeaderByteOffset =
+      const size_t IRMHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize +
           sizeof(IRModuleHeaderType) * (AMHeader->IRModuleOffset + J);
       if (Error E = HeaderBlockReader
@@ -425,7 +425,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
       // Read the header for the current native device code image.
       const NativeDeviceCodeImageHeaderType *NDCIHeader = nullptr;
-      const uint64_t NDCIHeaderByteOffset =
+      const size_t NDCIHeaderByteOffset =
           sizeof(FileHeaderType) + AMHeaderBlockSize + IRMHeaderBlockSize +
           sizeof(NativeDeviceCodeImageHeaderType) *
               (AMHeader->NativeDeviceCodeImageOffset + J);
