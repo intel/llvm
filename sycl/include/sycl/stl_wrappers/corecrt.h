@@ -36,6 +36,14 @@ extern "C" inline void __cdecl _invalid_parameter(wchar_t const *,
   // Do nothing when called in device code
 }
 
+extern "C" __declspec(noreturn) void __cdecl
+_invoke_watson(wchar_t const *const expression,
+               wchar_t const *const function_name,
+               wchar_t const *const file_name, unsigned int const line_number,
+               uintptr_t const reserved) {
+  // Do nothing.
+}
+
 #endif
 
 #if defined(__has_include_next)
