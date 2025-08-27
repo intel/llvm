@@ -1,3 +1,7 @@
+**⚠️ DEPRECATION NOTICE ⚠️**
+
+**SYCLcompat is deprecated and will be removed in a future release. Users are encouraged to migrate to native SYCL APIs or alternative compatibility solutions. The `syclcompat` namespace has been marked with `[[deprecated]]` attribute.**
+
 # SYCLcompat
 
 SYCLcompat is a header-only library that intends to help developers familiar
