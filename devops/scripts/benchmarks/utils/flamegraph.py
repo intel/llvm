@@ -78,7 +78,7 @@ class FlameGraph:
             "record",
             "-g",
             "-F",
-            "750",
+            "5000",
             "--call-graph",
             "dwarf",
             "-o",
