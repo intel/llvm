@@ -12,6 +12,7 @@
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -30,10 +31,8 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
-               bool EventNeeded)
-      : MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
-        MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
+  handler_impl(queue_impl &Queue, bool EventNeeded)
+      : MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
 
   handler_impl(ext::oneapi::experimental::detail::graph_impl &Graph)
       : MQueueOrGraph{Graph} {}
@@ -64,10 +63,6 @@ public:
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
 
-  /// Pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission.
-  queue_impl *MSubmissionSecondaryQueue = nullptr;
-
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.
   bool MEventNeeded = true;
@@ -90,6 +85,10 @@ public:
   /// Boolean flag for whether the device_global had the device_image_scope
   /// property.
   bool MIsDeviceImageScoped = false;
+
+  /// Direction of USM prefetch / destination device.
+  sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
+      sycl::ext::oneapi::experimental::prefetch_type::device;
 
   // Program scope pipe information.
 

@@ -265,7 +265,7 @@ public:
   bool MKernelUsesClusterLaunch = false;
   size_t MKernelWorkGroupMemorySize = 0;
 
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
+  CGExecKernel(const NDRDescT &NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
@@ -276,9 +276,8 @@ public:
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
                size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
+      : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
+        MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)),
         MKernelNameBasedCachePtr(KernelNameBasedCachePtr),
@@ -398,14 +397,19 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
-  void *getDst() { return MDst; }
-  size_t getLength() { return MLength; }
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() const { return MDst; }
+  size_t getLength() const { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() const {
+    return MPrefetchType;
+  }
 };
 
 /// "Advise USM" command group class.

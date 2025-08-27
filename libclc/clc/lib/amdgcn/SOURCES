@@ -7,3 +7,8 @@ math/clc_log.cl
 math/clc_sinpi.cl
 math/clc_sqrt.cl
 math/clc_sqrt_fp64.cl
+workitem/clc_get_global_offset.cl
+workitem/clc_get_global_size.cl
+workitem/clc_get_group_id.cl
+workitem/clc_get_local_id.cl
+workitem/clc_get_work_dim.cl

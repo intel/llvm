@@ -255,6 +255,15 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // The function inserts or initializes a kernel global desc into the
+  // kernel global map.
+  void registerKernelGlobalInfo(
+      std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy);
+
+  // The function returns a pointer to the kernel global desc identified by
+  // the unique ID from the kernel global map.
+  std::optional<unsigned> getKernelGlobalInfoDesc(const char *UniqueId);
+
   // Returns true if any available image is compatible with the device Dev.
   bool hasCompatibleImage(const device_impl &DeviceImpl);
 
@@ -431,7 +440,6 @@ protected:
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
-  // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_multimap<kernel_id, const RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
@@ -450,6 +458,12 @@ protected:
   /// avoid deadlocks care must be taken not to acquire
   /// \ref Sync::getGlobalLock() while holding this mutex.
   std::mutex m_KernelIDsMutex;
+
+  /// Keeps track of binary image to kernel name reference count.
+  /// Used for checking if the last image referencing the kernel name
+  /// is removed in order to trigger cleanup of kernel name based information.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_map<KernelNameStrT, int> m_KernelNameRefCount;
 
   /// Caches all found service kernels to expedite future checks. A SYCL service
   /// kernel is a kernel that has not been defined by the user but is instead
@@ -534,6 +548,10 @@ protected:
   // The ownership of entry resources is taken to allow contexts to cleanup
   // their associated entry resources when they die.
   DeviceGlobalMap m_DeviceGlobals{/*OwnerControlledCleanup=*/true};
+
+  // Maps between free function kernel name and associated kernel global
+  // information.
+  std::unordered_map<std::string_view, unsigned> m_FreeFunctionKernelGlobalInfo;
 
   // Maps between host_pipe identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<HostPipeMapEntry>>

@@ -33,39 +33,58 @@ on:
         type: string
         required: false
         default: "--hip --cuda --native_cpu"
-      build_artifact_suffix:
-        type: string
-        required: true
       build_target:
         type: string
         required: false
         default: sycl-toolchain
-      artifact_archive_name:
-        type: string
-        default: llvm_sycl.tar.zst
+
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
         required: false
+
+      # Artifacts:
+
       retention-days:
         description: 'Artifacts retention period'
         type: string
         default: 3
+
+      toolchain_artifact:
+        type: string
+        required: true
+      toolchain_artifact_filename:
+        type: string
+        default: llvm_sycl.tar.zst
+
+      release_toolchain_artifact:
+        type: string
+        required: false
+        description: |
+          If provided, create an additional toolchain artifact without utilities
+          used for testing in it. File name of the archive is the same as in the
+          `toolchain_artifact` above.
+
       e2e_binaries_artifact:
         type: string
         required: false
-      pack_release:
+      e2e_binaries_spirv_backend_artifact:
+        type: string
+        required: false
+      e2e_binaries_preview_artifact:
         type: string
         required: false
 
     outputs:
       build_conclusion:
         value: ${{ jobs.build.outputs.build_conclusion }}
-      artifact_archive_name:
-        value: ${{ jobs.build.outputs.artifact_archive_name }}
-      artifact_decompress_command:
-        value: ${{ jobs.build.outputs.artifact_decompress_command }}
+      toolchain_artifact:
+        value: ${{ inputs.toolchain_artifact }}
+      toolchain_artifact_filename:
+        value: ${{ jobs.build.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command:
+        value: ${{ jobs.build.outputs.toolchain_decompress_command }}
 
   workflow_dispatch:
     inputs:
@@ -102,18 +121,15 @@ on:
         options:
           - "default"
 
-      build_artifact_suffix:
-        type: choice
-        options:
-          - "default"
       retention-days:
         type: choice
         options:
           - 3
 
-      pack_release:
-        type: string
-        required: false
+      toolchain_artifact:
+        type: choice
+        options:
+          - "sycl_linux_default"
 
 permissions: read-all
 
@@ -126,8 +142,8 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
-      artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
-      artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
+      toolchain_artifact_filename: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+      toolchain_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
     env:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: 8G
@@ -136,7 +152,7 @@ jobs:
       # To reduce number of inputs parameters that is limited for manual triggers.
       id: artifact_info
       run: |
-        NAME="${{inputs.artifact_archive_name}}"
+        NAME="${{inputs.toolchain_artifact_filename}}"
         if [ -z "$NAME" ]; then
           NAME=llvm_sycl.tar.zst
         fi
@@ -167,6 +183,10 @@ jobs:
       if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
       uses: ./devops/actions/setup_linux_oneapi_env
     - name: Configure
+      # Setting `CMAKE_INSTALL_PREFIX` is important because that's the location
+      # where `sycl-linux-run-tests.yml` unpacks the toolchain to. That location
+      # *must* match between build-only and run-only E2E tests runs and we might
+      # be creating pre-built E2E tests' binaries in this workflow.
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
@@ -176,7 +196,9 @@ jobs:
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
+          -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
+          -t Release \
           --ci-defaults ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -188,8 +210,11 @@ jobs:
       run: cmake --build $GITHUB_WORKSPACE/build --target ${{ inputs.build_target || 'sycl-toolchain' }}
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      env:
+        # Can't inline to support possible quotes inside:
+        BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
-        if [[ "${{ inputs.build_configure_extra_args }}" == *"--use-libcxx"* ]]; then
+        if [[ "${BUILD_CONFIGURE_EXTRA_ARGS}" == *"--use-libcxx"* ]]; then
           # https://github.com/llvm/llvm-project/issues/59429
           export LIT_FILTER_OUT="ExecutionEngine/MCJIT"
         fi
@@ -197,10 +222,13 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always() && !cancelled() && contains(inputs.changes, 'clang')
+      env:
+        # Can't inline to support possible quotes inside:
+        BUILD_CONFIGURE_EXTRA_ARGS: ${{ inputs.build_configure_extra_args }}
       run: |
         # Can we move this to Dockerfile? Hopefully, noop on Windows.
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
-        if [[ "${{ inputs.build_configure_extra_args }}" == *"--use-libcxx"* ]]; then
+        if [[ "${BUILD_CONFIGURE_EXTRA_ARGS}" == *"--use-libcxx"* ]]; then
           # https://github.com/llvm/llvm-project/issues/59428
           export LIT_FILTER_OUT="(E|e)xception"
         fi
@@ -245,13 +273,13 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
 
     - name: Pack toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
-      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain release
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_linux_release
+        name: ${{ inputs.release_toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
 
@@ -268,6 +296,9 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
+        # This is required to perform the DeviceConfigFile consistency test, see
+        # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
+        cmake --install $GITHUB_WORKSPACE/build --component DeviceConfigFile
     - name: Additional Install for "--shared-libs" build
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}
       run: |
@@ -276,23 +307,20 @@ jobs:
 
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_linux_${{ inputs.build_artifact_suffix }}
+        name: ${{ inputs.toolchain_artifact }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Copy toolchain
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
-      # We must have the compiler in the same location as it will be in the E2E
-      # run-tests job.
-      run: cp -r $GITHUB_WORKSPACE/build/install $GITHUB_WORKSPACE/toolchain
 
     - name: Source OneAPI TBB vars.sh
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      # Tasks that use the just built toolchain below, need extra environment
+      # setup. No harm in it if all of those tasks would get skipped.
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         # https://github.com/actions/runner/issues/1964 prevents us from using
         # the ENTRYPOINT in the image.
@@ -320,31 +348,31 @@ jobs:
         extra_lit_opts: --param sycl_build_targets="spir;nvidia;amd"
 
     - name: Remove E2E tests before spirv-backend run
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_spirv_backend_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: rm -rf build-e2e
 
     - name: Build E2E tests with SPIR-V Backend
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_spirv_backend_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only
         target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_spirv_backend
+        binaries_artifact: ${{ inputs.e2e_binaries_spirv_backend_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param spirv-backend=True
 
     - name: Remove E2E tests before preview-mode run
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_preview_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: rm -rf build-e2e
 
     - name: Build E2E tests in Preview Mode
-      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_preview_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
         testing_mode: build-only
         target_devices: all
-        binaries_artifact: ${{ inputs.e2e_binaries_artifact }}_preview
+        binaries_artifact: ${{ inputs.e2e_binaries_preview_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
         extra_lit_opts: --param test-preview-mode=True

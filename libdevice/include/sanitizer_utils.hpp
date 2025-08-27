@@ -7,29 +7,29 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "sanitizer_common/sanitizer_libdevice.hpp"
 #include "sanitizer_defs.hpp"
-#include "spirv_vars.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 inline size_t WorkGroupLinearId() {
-  return __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-             __spirv_BuiltInNumWorkgroups.z +
-         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-         __spirv_BuiltInWorkgroupId.z;
+  return __spirv_BuiltInWorkgroupId(0) * __spirv_BuiltInNumWorkgroups(1) *
+             __spirv_BuiltInNumWorkgroups(2) +
+         __spirv_BuiltInWorkgroupId(1) * __spirv_BuiltInNumWorkgroups(2) +
+         __spirv_BuiltInWorkgroupId(2);
 }
 
 static inline size_t LocalLinearId() {
-  return __spirv_BuiltInLocalInvocationId.x * __spirv_BuiltInWorkgroupSize.y *
-             __spirv_BuiltInWorkgroupSize.z +
-         __spirv_BuiltInLocalInvocationId.y * __spirv_BuiltInWorkgroupSize.z +
-         __spirv_BuiltInLocalInvocationId.z;
+  return __spirv_BuiltInLocalInvocationId(0) * __spirv_BuiltInWorkgroupSize(1) *
+             __spirv_BuiltInWorkgroupSize(2) +
+         __spirv_BuiltInLocalInvocationId(1) * __spirv_BuiltInWorkgroupSize(2) +
+         __spirv_BuiltInLocalInvocationId(2);
 }
 
 // For GPU device, each sub group is a hardware thread
 inline size_t SubGroupLinearId() {
-  return WorkGroupLinearId() * __spirv_BuiltInNumSubgroups +
-         __spirv_BuiltInSubgroupId;
+  return WorkGroupLinearId() * __spirv_BuiltInNumSubgroups() +
+         __spirv_BuiltInSubgroupId();
 }
 
 inline void SubGroupBarrier() {
@@ -47,6 +47,11 @@ inline __SYCL_LOCAL__ void *ToLocal(void *ptr) {
 }
 inline __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
+}
+
+inline DeviceType GetDeviceTy() {
+  return static_cast<DeviceType>(
+      __spirv_SpecConstant(SPEC_CONSTANT_DEVICE_TYPE_ID, 0));
 }
 
 template <typename T> T Memset(T ptr, int value, size_t size) {

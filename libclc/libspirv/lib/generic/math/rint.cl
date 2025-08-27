@@ -9,7 +9,7 @@
 #include <clc/math/clc_rint.h>
 
 #define FUNCTION __spirv_ocl_rint
-#define __CLC_FUNCTION(x) __clc_rint
+#define __IMPL_FUNCTION(x) __clc_rint
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>

@@ -127,13 +127,13 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_PVC__)
   shadow_ptr = MemToShadow_PVC(addr, as);
 #else
-  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
+  if (GetDeviceTy() == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr, as);
-  } else if (TsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
   } else {
     TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_unsupport_device_type,
-                                  (int)TsanLaunchInfo->DeviceTy));
+                                  (int)GetDeviceTy()));
     return nullptr;
   }
 #endif
@@ -149,8 +149,8 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
 inline int GetCurrentSid() {
   const size_t lid = LocalLinearId();
   const size_t ThreadPerWorkGroup =
-      Min(4, __spirv_BuiltInWorkgroupSize.x * __spirv_BuiltInWorkgroupSize.y *
-                 __spirv_BuiltInWorkgroupSize.z);
+      Min(4, __spirv_BuiltInWorkgroupSize(0) * __spirv_BuiltInWorkgroupSize(1) *
+                 __spirv_BuiltInWorkgroupSize(2));
   if (lid >= ThreadPerWorkGroup)
     return -1;
 
@@ -186,10 +186,16 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
         return;
       }
 
-      if (as == ADDRESS_SPACE_GENERIC &&
-          TsanLaunchInfo->DeviceTy != DeviceType::CPU) {
+#if defined(__LIBDEVICE_CPU__)
+#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
+      if (as == ADDRESS_SPACE_GENERIC) {
         ConvertGenericPointer(addr, as);
       }
+#else
+      if (as == ADDRESS_SPACE_GENERIC && GetDeviceTy() != DeviceType::CPU) {
+        ConvertGenericPointer(addr, as);
+      }
+#endif
 
       // Check if current address already being recorded before.
       for (uint32_t i = 0; i < TsanLaunchInfo->RecordedReportCount; i++) {
@@ -235,12 +241,12 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
       SanitizerReport.Func[MaxFuncIdx] = '\0';
 
       SanitizerReport.Line = line;
-      SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-      SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-      SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-      SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-      SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-      SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+      SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+      SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+      SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+      SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+      SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+      SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
       atomicStore(&TsanLaunchInfo->Lock, 0);
       break;
@@ -467,7 +473,7 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, size_t size) {
 #elif defined(__LIBDEVICE_PVC__)
   return;
 #else
-  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
+  if (GetDeviceTy() != DeviceType::CPU)
     return;
 
   __tsan_cleanup_private_cpu_impl(addr, size);
@@ -483,8 +489,9 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_static_local(uptr addr,
     return;
 
   // Update shadow memory of local memory only on first work-item
-  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-          __spirv_LocalInvocationId_z() ==
+  if (__spirv_BuiltInLocalInvocationId(0) +
+          __spirv_BuiltInLocalInvocationId(1) +
+          __spirv_BuiltInLocalInvocationId(2) ==
       0) {
     if (TsanLaunchInfo->LocalShadowOffset == 0)
       return;

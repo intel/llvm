@@ -133,7 +133,7 @@ public:
 
   id<Dimensions> get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "get_local_id() is not implemented on host");
@@ -175,20 +175,30 @@ public:
 
   bool leader() const { return (get_local_linear_id() == 0); }
 
+  // Note: These signatures for parallel_for_work_item are intentionally
+  // non-conforming. The spec says this should take const WorkItemFunctionT &,
+  // but we take it by value, and rely on passing by value being done as passing
+  // a copy by reference (ptr byval) to ensure that the special handling in
+  // SYCLLowerWGScopePass to mutate the passed functor object works.
+
   template <typename WorkItemFunctionT>
-  void parallel_for_work_item(WorkItemFunctionT Func) const {
+#ifdef __NativeCPU__
+  __attribute__((__libclc_call__))
+#endif
+  void
+  parallel_for_work_item(WorkItemFunctionT Func) const {
     // need barriers to enforce SYCL semantics for the work item loop -
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
-        __spirv::initGlobalSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
     range<Dimensions> LocalSize{
-        __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
     id<Dimensions> GlobalId{
-        __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
     id<Dimensions> LocalId{
-        __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>()};
 
     // no 'iterate' in the device code variant, because
     // (1) this code is already invoked by each work item as a part of the
@@ -227,18 +237,22 @@ public:
   }
 
   template <typename WorkItemFunctionT>
-  void parallel_for_work_item(range<Dimensions> flexibleRange,
-                              WorkItemFunctionT Func) const {
+#ifdef __NativeCPU__
+  __attribute__((__libclc_call__))
+#endif
+  void
+  parallel_for_work_item(range<Dimensions> flexibleRange,
+                         WorkItemFunctionT Func) const {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
-        __spirv::initGlobalSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
     range<Dimensions> LocalSize{
-        __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
     id<Dimensions> GlobalId{
-        __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
     id<Dimensions> LocalId{
-        __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>()};
 
     item<Dimensions, false> GlobalItem =
         detail::Builder::createItem<Dimensions, false>(GlobalSize, GlobalId);

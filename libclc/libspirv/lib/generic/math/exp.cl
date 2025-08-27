@@ -10,6 +10,6 @@
 #include <clc/math/clc_exp.h>
 
 #define FUNCTION __spirv_ocl_exp
-#define __CLC_FUNCTION(x) __clc_exp
+#define __IMPL_FUNCTION(x) __clc_exp
 #define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

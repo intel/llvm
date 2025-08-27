@@ -21,15 +21,9 @@ namespace {
 
 size_t LocalBufferArgSize = 0;
 
-ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
-  auto params =
-      *static_cast<ur_enqueue_kernel_launch_with_args_exp_params_t *>(pParams);
-  auto Args = *params.ppArgs;
-  for (uint32_t i = 0; i < *params.pnumArgs; i++) {
-    if (Args[i].type == UR_EXP_KERNEL_ARG_TYPE_LOCAL) {
-      LocalBufferArgSize = Args[i].size;
-    }
-  }
+ur_result_t redefined_urKernelSetArgLocal(void *pParams) {
+  auto params = *static_cast<ur_kernel_set_arg_local_params_t *>(pParams);
+  LocalBufferArgSize = *params.pargSize;
 
   return UR_RESULT_SUCCESS;
 }
@@ -37,9 +31,8 @@ ur_result_t redefined_urEnqueueKernelLaunchWithArgsExp(void *pParams) {
 TEST(HandlerSetArg, LocalAccessor) {
   sycl::unittest::UrMock<> Mock;
   redefineMockForKernelInterop(Mock);
-  mock::getCallbacks().set_replace_callback(
-      "urEnqueueKernelLaunchWithArgsExp",
-      &redefined_urEnqueueKernelLaunchWithArgsExp);
+  mock::getCallbacks().set_replace_callback("urKernelSetArgLocal",
+                                            &redefined_urKernelSetArgLocal);
 
   constexpr size_t Size = 128;
   sycl::queue Q;

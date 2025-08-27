@@ -264,16 +264,15 @@ inline uptr MemToShadow(uptr addr, uint32_t as,
 #elif defined(__LIBDEVICE_DG2__)
   shadow_ptr = MemToShadow_DG2(addr, as, debug);
 #else
-  auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
-  if (launch_info->DeviceTy == DeviceType::CPU) {
+  if (GetDeviceTy() == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr);
-  } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as, debug);
-  } else if (launch_info->DeviceTy == DeviceType::GPU_DG2) {
+  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
     shadow_ptr = MemToShadow_DG2(addr, as, debug);
   } else {
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_unsupport_device_type,
-                                  (int)launch_info->DeviceTy));
+                                  (int)GetDeviceTy()));
     ReportUnknownDevice(debug);
     return 0;
   }
@@ -395,12 +394,12 @@ void SaveReport(ErrorType error_type, MemoryType memory_type, bool is_recover,
     SanitizerReport.Func[MaxFuncIdx] = '\0';
 
     SanitizerReport.Line = line;
-    SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-    SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-    SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-    SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-    SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-    SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+    SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+    SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+    SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+    SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+    SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+    SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
     SanitizerReport.Address = ptr;
     SanitizerReport.IsWrite = is_write;
@@ -889,19 +888,31 @@ DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr shadow, uptr size,
 static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
     "[kernel] set_private_base: %llu -> %p\n";
 
-DEVICE_EXTERN_C_NOINLINE void
-__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
+inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   const size_t sid = SubGroupLinearId();
   if (!launch_info || sid >= ASAN_MAX_SG_PRIVATE ||
       launch_info->PrivateShadowOffset == 0 || launch_info->PrivateBase == 0)
     return;
   // Only set on the first sub-group item
-  if (__spirv_BuiltInSubgroupLocalInvocationId == 0) {
+  if (__spirv_BuiltInSubgroupLocalInvocationId() == 0) {
     launch_info->PrivateBase[sid] = (uptr)ptr;
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
   }
   SubGroupBarrier();
+}
+
+DEVICE_EXTERN_C_NOINLINE void
+__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
+#if defined(__LIBDEVICE_CPU__)
+  return;
+#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
+  SetPrivateBaseImpl(ptr);
+#else
+  if (GetDeviceTy() == DeviceType::CPU)
+    return;
+  SetPrivateBaseImpl(ptr);
+#endif
 }
 
 #endif // __SPIR__ || __SPIRV__

@@ -101,7 +101,7 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   return UR_RESULT_SUCCESS;
 }
 
-void ContextInfo::insertAllocInfo(TsanAllocInfo AI) {
+void DeviceInfo::insertAllocInfo(TsanAllocInfo AI) {
   std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMutex);
   AllocInfos.insert(std::move(AI));
 }
@@ -153,7 +153,15 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
-  CI->insertAllocInfo(std::move(AI));
+  if (Device) {
+    auto DI = getDeviceInfo(Device);
+    DI->insertAllocInfo(std::move(AI));
+  } else {
+    for (const auto &Device : CI->DeviceList) {
+      auto DI = getDeviceInfo(Device);
+      DI->insertAllocInfo(AI);
+    }
+  }
 
   *ResultPtr = Allocated;
   return UR_RESULT_SUCCESS;
@@ -163,11 +171,14 @@ ur_result_t TsanInterceptor::releaseMemory(ur_context_handle_t Context,
                                            void *Ptr) {
   auto CI = getContextInfo(Context);
   auto Addr = reinterpret_cast<uptr>(Ptr);
-  {
-    std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMutex);
-    auto It = std::find_if(CI->AllocInfos.begin(), CI->AllocInfos.end(),
+
+  for (const auto &Device : CI->DeviceList) {
+    auto DI = getDeviceInfo(Device);
+    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
                            [&](auto &P) { return P.AllocBegin == Addr; });
-    CI->AllocInfos.erase(It);
+    if (It != DI->AllocInfos.end())
+      DI->AllocInfos.erase(It);
   }
 
   UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context, Ptr));
@@ -296,6 +307,19 @@ ur_result_t TsanInterceptor::insertProgram(ur_program_handle_t Program) {
   if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
     return UR_RESULT_SUCCESS;
   }
+  auto CI = getContextInfo(GetContext(Program));
+  auto DI = getDeviceInfo(CI->DeviceList[0]);
+  ur_specialization_constant_info_t SpecConstantInfo{
+      SPEC_CONSTANT_DEVICE_TYPE_ID, sizeof(DeviceType), &DI->Type};
+  ur_result_t URes =
+      getContext()->urDdiTable.Program.pfnSetSpecializationConstants(
+          Program, 1, &SpecConstantInfo);
+  if (URes != UR_RESULT_SUCCESS) {
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "Set specilization constant for device type failed: {}, the "
+             "program may not be sanitized or is created from binary.",
+             URes);
+  }
   m_ProgramMap.emplace(Program, Program);
   return UR_RESULT_SUCCESS;
 }
@@ -343,7 +367,7 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
 
-  UR_CALL(updateShadowMemory(CI, DI, Kernel, InternalQueue));
+  UR_CALL(updateShadowMemory(DI, Kernel, InternalQueue));
 
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
@@ -414,7 +438,6 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   // Prepare launch info data
   LaunchInfo.Data.Host.GlobalShadowOffset = DI->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DI->Shadow->ShadowEnd;
-  LaunchInfo.Data.Host.DeviceTy = DI->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
   const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
@@ -470,12 +493,12 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t TsanInterceptor::updateShadowMemory(
-    std::shared_ptr<ContextInfo> &CI, std::shared_ptr<DeviceInfo> &DI,
-    ur_kernel_handle_t Kernel, ur_queue_handle_t Queue) {
+ur_result_t TsanInterceptor::updateShadowMemory(std::shared_ptr<DeviceInfo> &DI,
+                                                ur_kernel_handle_t Kernel,
+                                                ur_queue_handle_t Queue) {
   auto &PI = getProgramInfo(GetProgram(Kernel));
-  std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMutex);
-  for (auto &AllocInfo : CI->AllocInfos) {
+  std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+  for (auto &AllocInfo : DI->AllocInfos) {
     UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
                                     AllocInfo.AllocSize));
   }

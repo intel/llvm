@@ -1,4 +1,3 @@
-integer/popcount.cl
 math/sqrt.cl
 math/clc_sqrt.cl
 math/fma.cl
@@ -16,6 +15,8 @@ atomic/atomic_max.ll
 atomic/atomic_min.ll
 workitem/get_global_id.cl
 workitem/get_global_size.cl
+workitem/get_local_linear_id.cl
 workitem/get_num_sub_groups.cl
+workitem/get_sub_group_id.cl
 workitem/get_sub_group_size.cl
 cl_khr_int64_extended_atomics/minmax_helpers.ll

@@ -144,7 +144,8 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_M68kRTD:                                                 \
   case ParsedAttr::AT_PreserveNone:                                            \
   case ParsedAttr::AT_RISCVVectorCC:                                           \
-  case ParsedAttr::AT_RISCVVLSCC
+  case ParsedAttr::AT_RISCVVLSCC:                                              \
+  case ParsedAttr::AT_NativeCPULibclcCall
 
 // Function type attributes.
 #define FUNCTION_TYPE_ATTRS_CASELIST                                           \
@@ -4741,7 +4742,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // Build the type anyway.
       }
       DeclaratorChunk::ArrayTypeInfo &ATI = DeclType.Arr;
-      Expr *ArraySize = static_cast<Expr*>(ATI.NumElts);
+      Expr *ArraySize = ATI.NumElts;
       ArraySizeModifier ASM;
 
       // Microsoft property fields can have multiple sizeless array chunks
@@ -4874,7 +4875,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             S.Diag(First->getBeginLoc(),
                    diag::err_explicit_object_parameter_invalid)
                 << First->getSourceRange();
-
+          // Do let non-member function have explicit parameters
+          // to not break assumptions elsewhere in the code.
+          First->setExplicitObjectParameterLoc(SourceLocation());
           D.setInvalidType();
           AreDeclaratorChunksValid = false;
         }
@@ -7659,6 +7662,8 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
 
     return ::new (Ctx) RISCVVLSCCAttr(Ctx, Attr, ABIVLen);
   }
+  case ParsedAttr::AT_NativeCPULibclcCall:
+    return createSimpleAttr<NativeCPULibclcCallAttr>(Ctx, Attr);
   }
   llvm_unreachable("unexpected attribute kind!");
 }
@@ -8608,8 +8613,8 @@ static void HandleRISCVRVVVectorBitsTypeAttr(QualType &CurType,
     return;
   }
 
-  auto VScale =
-      S.Context.getTargetInfo().getVScaleRange(S.getLangOpts(), false);
+  auto VScale = S.Context.getTargetInfo().getVScaleRange(
+      S.getLangOpts(), TargetInfo::ArmStreamingKind::NotStreaming);
   if (!VScale || !VScale->first || VScale->first != VScale->second) {
     S.Diag(Attr.getLoc(), diag::err_attribute_riscv_rvv_bits_unsupported)
         << Attr;
