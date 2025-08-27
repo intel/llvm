@@ -126,7 +126,7 @@ class VectorizationChoices {
   /// @brief Check if a choice is enabled or not
   /// @param C The choice to check for
   /// @return true if the choice is enabled, false otherwise
-  bool isEnabled(Choice C) const { return Enabled.count(C) > 0; }
+  bool isEnabled(Choice C) const { return Enabled.contains(C); }
 
   /// @brief Enable a choice
   /// @param C The choice to enable
