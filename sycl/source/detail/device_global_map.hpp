@@ -88,7 +88,11 @@ public:
         if (findDevGlobalByValue != MPtr2DeviceGlobal.end())
           MPtr2DeviceGlobal.erase(findDevGlobalByValue);
 
-        MDeviceGlobals.erase(DevGlobalIt);
+        // Must properly free the memory, will do in
+        // removeAssociatedResources(). Now we blank the key so it isn't used.
+        auto h = MDeviceGlobals.extract(DevGlobalIt);
+        h.key() = "";
+        MDeviceGlobals.insert(std::move(h));
       }
     }
   }
