@@ -787,13 +787,21 @@ ur_result_t bindlessImagesHandleCopyFlags(
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
+      // UR accepts copy regions as byte-pixel-pixel format, i.e. X-axis offset
+      // and width are specified as bytes, whilst Y/Z-axis offsets, height and
+      // depth are specified as pixels (or rows and slices). ze_image_region_t,
+      // however, accepts everything as pixels, so we need to do a conversion
+      // here.
+      auto PixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+      DstRegion.originX /= PixelSizeInBytes;
+      DstRegion.width /= PixelSizeInBytes;
+
       auto *urDstImg = static_cast<ur_bindless_mem_handle_t *>(pDst);
 
-      const char *SrcPtr =
-          static_cast<const char *>(pSrc) +
-          pCopyRegion->srcOffset.z * SrcSlicePitch +
-          pCopyRegion->srcOffset.y * SrcRowPitch +
-          pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
+      const char *SrcPtr = static_cast<const char *>(pSrc) +
+                           pCopyRegion->srcOffset.z * SrcSlicePitch +
+                           pCopyRegion->srcOffset.y * SrcRowPitch +
+                           pCopyRegion->srcOffset.x;
 
       ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
                  (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion,
@@ -830,13 +838,20 @@ ur_result_t bindlessImagesHandleCopyFlags(
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                    &pCopyRegion->copyExtent, SrcRegion));
+      // UR accepts copy regions as byte-pixel-pixel format, i.e. X-axis offset
+      // and width are specified as bytes, whilst Y/Z-axis offsets, height and
+      // depth are specified as pixels (or rows and slices). ze_image_region_t,
+      // however, accepts everything as pixels, so we need to do a conversion
+      // here.
+      auto PixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+      SrcRegion.originX /= PixelSizeInBytes;
+      SrcRegion.width /= PixelSizeInBytes;
 
       auto *urSrcImg = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
 
       char *DstPtr =
           static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
-          pCopyRegion->dstOffset.y * DstRowPitch +
-          pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
+          pCopyRegion->dstOffset.y * DstRowPitch + pCopyRegion->dstOffset.x;
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
                  (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion,
                   DstRowPitch, DstSlicePitch, zeSignalEvent, numWaitEvents,
@@ -866,11 +881,30 @@ ur_result_t bindlessImagesHandleCopyFlags(
   };
   case UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE: {
     ze_image_region_t DstRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
+    UR_CALL(getImageRegionHelper(zeSrcImageDesc,
+                                 &pCopyRegion->dstOffset,
                                  &pCopyRegion->copyExtent, DstRegion));
+    // UR accepts copy regions as byte-pixel-pixel format, i.e. X-axis offset
+    // and width are specified as bytes, whilst Y/Z-axis offsets, height and
+    // depth are specified as pixels (or rows and slices). ze_image_region_t,
+    // however, accepts everything as pixels, so we need to do a conversion
+    // here.
+    auto PixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+    DstRegion.originX /= PixelSizeInBytes;
+    DstRegion.width /= PixelSizeInBytes;
+
     ze_image_region_t SrcRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
+    UR_CALL(getImageRegionHelper(zeSrcImageDesc,
+                                 &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
+    // UR accepts copy regions as byte-pixel-pixel format, i.e. X-axis offset
+    // and width are specified as bytes, whilst Y/Z-axis offsets, height and
+    // depth are specified as pixels (or rows and slices). ze_image_region_t,
+    // however, accepts everything as pixels, so we need to do a conversion
+    // here.
+    PixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+    SrcRegion.originX /= PixelSizeInBytes;
+    SrcRegion.width /= PixelSizeInBytes;
 
     auto *urImgSrc = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
     auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
@@ -884,26 +918,20 @@ ur_result_t bindlessImagesHandleCopyFlags(
   };
   case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST: {
     // Copy between (possibly) pitched USM regions
+    ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
+                                    (uint32_t)pCopyRegion->dstOffset.y,
+                                    (uint32_t)pCopyRegion->dstOffset.z,
+                                    (uint32_t)pCopyRegion->copyExtent.width,
+                                    (uint32_t)pCopyRegion->copyExtent.height,
+                                    (uint32_t)pCopyRegion->copyExtent.depth};
+    ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->dstOffset.x,
+                                    (uint32_t)pCopyRegion->srcOffset.y,
+                                    (uint32_t)pCopyRegion->srcOffset.z,
+                                    (uint32_t)pCopyRegion->copyExtent.width,
+                                    (uint32_t)pCopyRegion->copyExtent.height,
+                                    (uint32_t)pCopyRegion->copyExtent.depth};
     uint32_t DstRowPitch = pDstImageDesc->rowPitch;
     uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
-    ze_copy_region_t ZeDstRegion = {
-        (uint32_t)(pCopyRegion->dstOffset.x *
-                   getPixelSizeBytes(pDstImageFormat)),
-        (uint32_t)pCopyRegion->dstOffset.y,
-        (uint32_t)pCopyRegion->dstOffset.z,
-        (uint32_t)(pCopyRegion->copyExtent.width *
-                   getPixelSizeBytes(pDstImageFormat)),
-        (uint32_t)pCopyRegion->copyExtent.height,
-        (uint32_t)pCopyRegion->copyExtent.depth};
-    ze_copy_region_t ZeSrcRegion = {
-        (uint32_t)(pCopyRegion->dstOffset.x *
-                   getPixelSizeBytes(pSrcImageFormat)),
-        (uint32_t)pCopyRegion->srcOffset.y,
-        (uint32_t)pCopyRegion->srcOffset.z,
-        (uint32_t)(pCopyRegion->copyExtent.width *
-                   getPixelSizeBytes(pSrcImageFormat)),
-        (uint32_t)pCopyRegion->copyExtent.height,
-        (uint32_t)pCopyRegion->copyExtent.depth};
     uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
