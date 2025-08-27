@@ -41,7 +41,6 @@ void DeviceKernelInfo::initIfNeeded(KernelNameStrRefT KernelName) {
 template <typename OtherTy>
 inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
                                  const OtherTy &RHS) {
-
   // TODO replace with std::tie(...) == std::tie(...) once there is
   // implicit conversion from detail to std string_view.
   return std::string_view{LHS.Name} == std::string_view{RHS.Name} &&
