@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 #include "cmath_wrapper.cpp"
 #include "fallback-cmath.cpp"
-#if defined(_WIN32)
-#include "msvc_math.cpp"
-#endif
 #include "cmath_wrapper_fp64.cpp"
 #include "complex_wrapper.cpp"
 #include "complex_wrapper_fp64.cpp"
