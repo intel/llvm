@@ -8,17 +8,43 @@ if (NOT TARGET emhash::emhash)
   include(FetchEmhash)
 endif()
 
-set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
-message(STATUS "Will fetch parallel-hashmap from ${PARALLEL_HASHMAP_REPO}")
-FetchContent_Declare(parallel-hashmap
-  GIT_REPOSITORY    ${PARALLEL_HASHMAP_REPO}
-  GIT_TAG           8a889d3699b3c09ade435641fb034427f3fd12b6
-)
+set(PHMAP_REQUIRED_VER "1.3.12")
 
-FetchContent_GetProperties(parallel-hashmap)
-FetchContent_MakeAvailable(parallel-hashmap)
+find_path(PHMAP_LOC phmap_base.h PATH_SUFFIXES parallel_hashmap)
+if(PHMAP_LOC)
+ file(READ "${PHMAP_LOC}/phmap_config.h" PHMAP_CONFIG_H)
+ string(REGEX MATCH "#define PHMAP_VERSION_MAJOR [0-9]+" PHMAP_VER_MAJOR_LINE "${PHMAP_CONFIG_H}")
+ string(REGEX MATCH "#define PHMAP_VERSION_MINOR [0-9]+" PHMAP_VER_MINOR_LINE "${PHMAP_CONFIG_H}")
+ string(REGEX MATCH "#define PHMAP_VERSION_PATCH [0-9]+" PHMAP_VER_PATCH_LINE "${PHMAP_CONFIG_H}")
 
-set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${parallel-hashmap_SOURCE_DIR}")
+ # We mached the whole line, extract out the number.
+ string(REGEX REPLACE ".*PHMAP_VERSION_MAJOR ([0-9]+).*" "\\1" PHMAP_VER_MAJOR "${PHMAP_VER_MAJOR_LINE}")
+ string(REGEX REPLACE ".*PHMAP_VERSION_MINOR ([0-9]+).*" "\\1" PHMAP_VER_MINOR "${PHMAP_VER_MINOR_LINE}")
+ string(REGEX REPLACE ".*PHMAP_VERSION_PATCH ([0-9]+).*" "\\1" PHMAP_VER_PATCH "${PHMAP_VER_PATCH_LINE}")
+ set(PHMAP_VER "${PHMAP_VER_MAJOR}.${PHMAP_VER_MINOR}.${PHMAP_VER_PATCH}")
+ if(${PHMAP_VER} VERSION_LESS ${PHMAP_REQUIRED_VER})
+   message(WARNING "Found system install of parallel-hashmap, but it is version ${PHMAP_VER}"
+     " and ${PHMAP_REQUIRED_VER} or later is required, building from source")
+   set(PHMAP_LOC 0)
+ endif()
+endif()
+if(PHMAP_LOC)
+  set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${PHMAP_LOC}")
+  message(STATUS "Using system parallel-hashmap version ${PHMAP_VER}")
+else() 
+  set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
+  message(STATUS "Will fetch parallel-hashmap version ${PHMAP_REQUIRED_VER} from ${PARALLEL_HASHMAP_REPO}")
+  # When updating the tag, please check phmap_config.h and update PHMAP_REQUIRED_VER above as well.
+  FetchContent_Declare(parallel-hashmap
+    GIT_REPOSITORY    ${PARALLEL_HASHMAP_REPO}
+    GIT_TAG           8a889d3699b3c09ade435641fb034427f3fd12b6
+  )
+  
+  FetchContent_GetProperties(parallel-hashmap)
+  FetchContent_MakeAvailable(parallel-hashmap)
+  set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${parallel-hashmap_SOURCE_DIR}")
+endif()
+
 
 file(GLOB SOURCES *.cpp)
 
