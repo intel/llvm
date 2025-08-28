@@ -167,9 +167,9 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: %for.cond.entry_mask = phi i1 [ true, %entry ], [ %for.body.exit_mask, %for.body ]
 ; CHECK: %for.end.loop_exit_mask = phi i1 [ false, %entry ], [ %for.end.loop_exit_mask.update, %for.body ]
 ; CHECK: %cmp = icmp slt i32 %storemerge, 16
-; CHECK: %for.body.exit_mask = and i1 %for.cond.entry_mask, %cmp
+; CHECK: %for.body.exit_mask = select i1 %for.cond.entry_mask, i1 %cmp, i1 false
 ; CHECK: %cmp.not = xor i1 %cmp, true
-; CHECK: %for.end.exit_mask = and i1 %for.cond.entry_mask, %cmp.not
+; CHECK: %for.end.exit_mask = select i1 %for.cond.entry_mask, i1 %cmp.not, i1 false
 ; CHECK: %for.end.loop_exit_mask.update = or i1 %for.end.loop_exit_mask, %for.end.exit_mask
 ; CHECK: br label %for.body
 
