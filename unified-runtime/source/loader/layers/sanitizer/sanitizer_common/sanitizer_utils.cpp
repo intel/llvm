@@ -176,6 +176,11 @@ bool IsHostUSM(ur_context_handle_t Context, const void *MemPtr) {
   return USMType == UR_USM_TYPE_HOST;
 }
 
+bool IsDeviceUSM(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
+  return USMType == UR_USM_TYPE_DEVICE;
+}
+
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
   assert(IsUSM(Context, MemPtr));
