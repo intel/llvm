@@ -1711,6 +1711,11 @@ public:
     return CC_C;
   }
 
+  /// Gets the calling convention for libclc built-ins for the given target.
+  virtual CallingConv getLibclcCallingConv() const {
+    return getDefaultCallingConv();
+  }
+
   /// Get the default atomic options.
   AtomicOptions getAtomicOpts() const { return AtomicOpts; }
 

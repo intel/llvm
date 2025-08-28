@@ -192,6 +192,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
+    ur_queue_handle_t hQueue, void *pMem, size_t patternSize,
+    const void *pPattern, size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+
+  OL_RETURN_ON_ERR(
+      olMemFill(Queue, pMem, patternSize, const_cast<void *>(pPattern), size));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_FILL, Queue, hQueue, phEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ur_queue_handle_t, void *, size_t, size_t, const void *, size_t, size_t,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
@@ -277,6 +292,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                   hQueue->OffloadDevice, DevPtrSrc + srcOffset,
                   hQueue->OffloadDevice, size, false, numEventsInWaitList,
                   phEventWaitList, phEvent);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
+    size_t patternSize, size_t offset, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+
+  char *DevPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+
+  OL_RETURN_ON_ERR(olMemFill(Queue, DevPtr + offset, patternSize,
+                             const_cast<void *>(pPattern), size));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_FILL, Queue, hQueue, phEvent));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
