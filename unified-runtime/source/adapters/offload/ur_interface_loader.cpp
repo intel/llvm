@@ -237,7 +237,7 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   }
   pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
   pDdiTable->pfnFree = urUSMFree;
-  pDdiTable->pfnGetMemAllocInfo = nullptr;
+  pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
   pDdiTable->pfnPoolCreate = nullptr;
   pDdiTable->pfnPoolRetain = nullptr;

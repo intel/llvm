@@ -55,3 +55,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
   hContext->AllocTypeMap.erase(pMem);
   return offloadResultToUR(olMemFree(pMem));
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] ur_usm_alloc_info_t propName,
+    [[maybe_unused]] size_t propSize, [[maybe_unused]] void *pPropValue,
+    [[maybe_unused]] size_t *pPropSizeRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

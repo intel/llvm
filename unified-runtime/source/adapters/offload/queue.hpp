@@ -46,6 +46,26 @@ struct ur_queue_handle_t_ : RefCounted {
 
   bool isInOrder() const { return OffloadQueues.size() == 1; }
 
+  // This queue is empty if and only if all queues are empty
+  ol_result_t isEmpty(bool &Empty) const {
+    Empty = true;
+
+    for (auto *Q : OffloadQueues) {
+      if (!Q) {
+        continue;
+      }
+      if (auto Err =
+              olGetQueueInfo(Q, OL_QUEUE_INFO_EMPTY, sizeof(Empty), &Empty)) {
+        return Err;
+      }
+      if (!Empty) {
+        return OL_SUCCESS;
+      }
+    }
+
+    return OL_SUCCESS;
+  }
+
   ol_result_t nextQueueNoLock(ol_queue_handle_t &Handle) {
     auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
 
