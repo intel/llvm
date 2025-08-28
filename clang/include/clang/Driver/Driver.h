@@ -1031,6 +1031,9 @@ bool isObjectFile(std::string FileName);
 /// \return True if the filename has a static archive/lib extension.
 bool isStaticArchiveFile(const StringRef &FileName);
 
+/// \return True if the filename is an Offload Binary file.
+bool isOffloadBinaryFile(const StringRef &FileName);
+
 /// \return True if the argument combination will end up generating remarks.
 bool willEmitRemarks(const llvm::opt::ArgList &Args);
 

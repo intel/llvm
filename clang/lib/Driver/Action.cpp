@@ -46,6 +46,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-wrapper";
   case OffloadPackagerJobClass:
     return "clang-offload-packager";
+  case OffloadPackagerExtractJobClass:
+    return "clang-offload-packager-extract";
   case OffloadDepsJobClass:
     return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
@@ -87,6 +89,15 @@ void Action::propagateDeviceOffloadInfo(OffloadKind OKind, const char *OArch,
     return;
   // Deps job uses the host kinds.
   if (Kind == OffloadDepsJobClass)
+    return;
+  // Packaging actions can use host kinds for preprocessing.  When packaging
+  // preprocessed files, these packaged files will contain both host and device
+  // files, where the host side does not have any device info to propagate.
+  bool hasPreprocessJob =
+      std::any_of(Inputs.begin(), Inputs.end(), [](const Action *A) {
+        return A->getKind() == PreprocessJobClass;
+      });
+  if (Kind == OffloadPackagerJobClass && hasPreprocessJob)
     return;
 
   assert((OffloadingDeviceKind == OKind || OffloadingDeviceKind == OFK_None) &&
@@ -486,6 +497,12 @@ void OffloadPackagerJobAction::anchor() {}
 OffloadPackagerJobAction::OffloadPackagerJobAction(ActionList &Inputs,
                                                    types::ID Type)
     : JobAction(OffloadPackagerJobClass, Inputs, Type) {}
+
+void OffloadPackagerExtractJobAction::anchor() {}
+
+OffloadPackagerExtractJobAction::OffloadPackagerExtractJobAction(
+    ActionList &Inputs, types::ID Type)
+    : JobAction(OffloadPackagerExtractJobClass, Inputs, Type) {}
 
 void OffloadDepsJobAction::anchor() {}
 

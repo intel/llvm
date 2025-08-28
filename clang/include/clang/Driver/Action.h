@@ -76,6 +76,7 @@ public:
     OffloadUnbundlingJobClass,
     OffloadWrapperJobClass,
     OffloadPackagerJobClass,
+    OffloadPackagerExtractJobClass,
     OffloadDepsJobClass,
     SPIRVTranslatorJobClass,
     SYCLPostLinkJobClass,
@@ -717,6 +718,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadPackagerJobClass;
+  }
+};
+
+class OffloadPackagerExtractJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  OffloadPackagerExtractJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == OffloadPackagerExtractJobClass;
   }
 };
 
