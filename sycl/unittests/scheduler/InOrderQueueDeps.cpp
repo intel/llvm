@@ -101,7 +101,7 @@ TEST_P(SchedulerTest, InOrderQueueIsolatedDeps) {
   // are handled properly during filtering.
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
-  bool ShortcutSubmitFunction = GetParam();
+  bool UseShortcutFunction = GetParam();
   mock::getCallbacks().set_before_callback(
       "urEnqueueEventsWaitWithBarrierExt",
       &redefinedEnqueueEventsWaitWithBarrierExt);
@@ -110,17 +110,17 @@ TEST_P(SchedulerTest, InOrderQueueIsolatedDeps) {
   context Ctx{Plt.get_devices()[0]};
   queue Q1{Ctx, default_selector_v, property::queue::in_order()};
   {
-    event E =
-        single_task_wrapper<TestKernel>(ShortcutSubmitFunction, Q1, []() {});
+    event E = sycl::unittest::single_task_wrapper<TestKernel>(
+        UseShortcutFunction, Q1, []() {});
     Q1.ext_oneapi_submit_barrier({E});
     EXPECT_FALSE(BarrierCalled);
   }
   queue Q2{Ctx, default_selector_v, property::queue::in_order()};
   {
-    event E1 =
-        single_task_wrapper<TestKernel>(ShortcutSubmitFunction, Q1, []() {});
-    event E2 =
-        single_task_wrapper<TestKernel>(ShortcutSubmitFunction, Q2, []() {});
+    event E1 = sycl::unittest::single_task_wrapper<TestKernel>(
+        UseShortcutFunction, Q1, []() {});
+    event E2 = sycl::unittest::single_task_wrapper<TestKernel>(
+        UseShortcutFunction, Q2, []() {});
     ExpectedEvent = detail::getSyclObjImpl(E2)->getHandle();
     Q1.ext_oneapi_submit_barrier({E1, E2});
     EXPECT_TRUE(BarrierCalled);
@@ -138,7 +138,7 @@ inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
 TEST_P(SchedulerTest, TwoInOrderQueuesOnSameContext) {
   KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
-  bool ShortcutSubmitFunction = GetParam();
+  bool UseShortcutFunction = GetParam();
   mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
                                            &customEnqueueKernelLaunch);
 
@@ -149,10 +149,10 @@ TEST_P(SchedulerTest, TwoInOrderQueuesOnSameContext) {
   queue InOrderQueueSecond{Ctx, default_selector_v,
                            property::queue::in_order()};
 
-  event EvFirst = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-                                                  InOrderQueueFirst, []() {});
-  std::ignore = single_task_wrapper<TestKernel>(
-      ShortcutSubmitFunction, InOrderQueueSecond, EvFirst, []() {});
+  event EvFirst = sycl::unittest::single_task_wrapper<TestKernel>(
+      UseShortcutFunction, InOrderQueueFirst, []() {});
+  std::ignore = sycl::unittest::single_task_wrapper<TestKernel>(
+      UseShortcutFunction, InOrderQueueSecond, EvFirst, []() {});
 
   InOrderQueueFirst.wait();
   InOrderQueueSecond.wait();
@@ -165,7 +165,7 @@ TEST_P(SchedulerTest, TwoInOrderQueuesOnSameContext) {
 TEST_P(SchedulerTest, InOrderQueueNoSchedulerPath) {
   KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
-  bool ShortcutSubmitFunction = GetParam();
+  bool UseShortcutFunction = GetParam();
   mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
                                            &customEnqueueKernelLaunch);
 
@@ -174,10 +174,10 @@ TEST_P(SchedulerTest, InOrderQueueNoSchedulerPath) {
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
-  event EvFirst = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-                                                  InOrderQueue, []() {});
-  std::ignore = single_task_wrapper<TestKernel>(ShortcutSubmitFunction,
-                                                InOrderQueue, EvFirst, []() {});
+  event EvFirst = sycl::unittest::single_task_wrapper<TestKernel>(
+      UseShortcutFunction, InOrderQueue, []() {});
+  std::ignore = sycl::unittest::single_task_wrapper<TestKernel>(
+      UseShortcutFunction, InOrderQueue, EvFirst, []() {});
 
   InOrderQueue.wait();
 
@@ -190,5 +190,8 @@ TEST_P(SchedulerTest, InOrderQueueNoSchedulerPath) {
 
 } // anonymous namespace
 
-INSTANTIATE_TEST_SUITE_P(SchedulerTestInstance, SchedulerTest,
-                         testing::Values(true, false));
+INSTANTIATE_TEST_SUITE_P(
+    SchedulerTestInstance, SchedulerTest,
+    testing::Values(
+        true,
+        false)); /* Whether to use the shortcut command submission function */
