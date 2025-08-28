@@ -313,7 +313,7 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/toolchain .
     - name: Sign the archive
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.release_toolchain_artifact != '' }}
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: sigstore/gh-action-sigstore-python@v3.0.1
       with:
         inputs: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
