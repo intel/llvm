@@ -80,6 +80,10 @@ class Benchmark(ABC):
         """
         return True
 
+    def tracing_enabled(self, run_trace, force_trace, tr_type: TracingType):
+        """Returns whether tracing is enabled for the given type."""
+        return (self.traceable(tr_type) or force_trace) and run_trace == tr_type
+
     @abstractmethod
     def setup(self):
         pass
@@ -145,9 +149,7 @@ class Benchmark(ABC):
         ld_libraries.extend(ld_library)
 
         unitrace_output = None
-        if (
-            self.traceable(TracingType.UNITRACE) or force_trace
-        ) and run_trace == TracingType.UNITRACE:
+        if self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE):
             if extra_trace_opt is None:
                 extra_trace_opt = []
             unitrace_output, command = get_unitrace().setup(
@@ -159,9 +161,7 @@ class Benchmark(ABC):
         # flamegraph run
 
         perf_data_file = None
-        if (
-            self.traceable(TracingType.FLAMEGRAPH) or force_trace
-        ) and run_trace == TracingType.FLAMEGRAPH:
+        if self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH):
             perf_data_file, command = get_flamegraph().setup(
                 self.name(), self.get_suite_name(), command
             )
@@ -184,15 +184,13 @@ class Benchmark(ABC):
             raise
 
         if (
-            (self.traceable(TracingType.UNITRACE) or force_trace)
-            and run_trace == TracingType.UNITRACE
+            self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE)
             and unitrace_output
         ):
             get_unitrace().handle_output(unitrace_output)
 
         if (
-            (self.traceable(TracingType.FLAMEGRAPH) or force_trace)
-            and run_trace == TracingType.FLAMEGRAPH
+            self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH)
             and perf_data_file
         ):
             svg_file = get_flamegraph().handle_output(
