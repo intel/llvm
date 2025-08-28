@@ -763,7 +763,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                                   (CUdeviceptr)pSrc) != CUDA_SUCCESS;
 
-        size_t CopyExtentBytes = CopyRegion->copyExtent.width;
+        size_t CopyExtentBytes = pCopyRegion->copyExtent.width;
         void *DstWithOffset = static_cast<void *>(static_cast<char *>(pDst) +
                                                   pCopyRegion->dstOffset.x);
 
