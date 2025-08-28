@@ -11,7 +11,6 @@ import math
 from enum import Enum
 
 from utils.utils import run, git_clone, create_build_path
-from utils.logger import log
 from .base import Benchmark, Suite, TracingType
 from utils.result import BenchmarkMetadata, Result
 from .base import Benchmark, Suite
@@ -97,7 +96,7 @@ class ComputeBench(Suite):
         run(configure_command, add_sycl=True)
 
         run(
-            f"cmake --build {build_path} -j {options.build_jobs} -- -k -i ",
+            f"cmake --build {build_path} -j {options.build_jobs}",
             add_sycl=True,
         )
 
@@ -310,23 +309,17 @@ class ComputeBenchmark(Benchmark):
         # Subclasses MUST set both `self.iterations_regular` and
         # `self.iterations_trace` (positive ints) in their __init__ before
         # calling super().__init__(). The base class enforces this.
-        if (
-            not hasattr(self, "iterations_regular")
-            or not isinstance(getattr(self, "iterations_regular", None), int)
-            or getattr(self, "iterations_regular", 0) <= 0
-        ):
-            raise ValueError(
-                f"{self.bench_name}: subclasses must set `iterations_regular` (positive int) before calling super().__init__"
-            )
 
-        if (
-            not hasattr(self, "iterations_trace")
-            or not isinstance(getattr(self, "iterations_trace", None), int)
-            or getattr(self, "iterations_trace", 0) <= 0
-        ):
-            raise ValueError(
-                f"{self.bench_name}: subclasses must set `iterations_trace` (positive int) before calling super().__init__"
-            )
+        self._validate_attr("iterations_regular")
+        self._validate_attr("iterations_trace")
+
+    def get_iters(self, run_trace: TracingType):
+        """Returns the number of iterations to run for the given tracing type."""
+        return (
+            self.iterations_trace
+            if run_trace != TracingType.NONE
+            else self.iterations_regular
+        )
 
     def supported_runtimes(self) -> list[RUNTIMES]:
         """Base runtimes supported by this benchmark, can be overridden."""
@@ -452,6 +445,16 @@ class ComputeBenchmark(Benchmark):
     def teardown(self):
         return
 
+    def _validate_attr(self, attr_name: str):
+        if (
+            not hasattr(self, attr_name)
+            or not isinstance(getattr(self, attr_name, None), int)
+            or getattr(self, attr_name, 0) <= 0
+        ):
+            raise ValueError(
+                f"{self.bench_name}: subclasses must set `{attr_name}` (positive int) before calling super().__init__"
+            )
+
 
 class SubmitKernel(ComputeBenchmark):
     def __init__(
@@ -541,11 +544,7 @@ class SubmitKernel(ComputeBenchmark):
         return (0.0, None)
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--Ioq={self.ioq}",
@@ -605,11 +604,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         return ["memory", "submit", "latency", "SYCL", "micro"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--ioq={self.ioq}",
@@ -650,11 +645,7 @@ class QueueInOrderMemcpy(ComputeBenchmark):
         return ["memory", "latency", "SYCL", "micro"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--IsCopyOnly={self.isCopyOnly}",
@@ -692,11 +683,7 @@ class QueueMemcpy(ComputeBenchmark):
         return ["memory", "latency", "SYCL", "micro"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--sourcePlacement={self.source}",
@@ -735,11 +722,7 @@ class StreamMemory(ComputeBenchmark):
         return ["memory", "throughput", "SYCL", "micro"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--type={self.type}",
@@ -775,11 +758,7 @@ class VectorSum(ComputeBenchmark):
         return ["math", "throughput", "SYCL", "micro"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             "--numberOfElementsX=512",
@@ -873,11 +852,7 @@ class MemcpyExecute(ComputeBenchmark):
         return ["memory", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             "--Ioq=1",
@@ -934,11 +909,7 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         ]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--numKernels={self.numKernels}",
@@ -1002,11 +973,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         ]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--NumKernels={self.numKernels}",
@@ -1052,11 +1019,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--wgs={self.wgs}",
@@ -1108,11 +1071,7 @@ class UllsKernelSwitch(ComputeBenchmark):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--count={self.count}",
@@ -1172,11 +1131,7 @@ class UsmMemoryAllocation(ComputeBenchmark):
         )
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--type={self.usm_memory_placement}",
@@ -1240,11 +1195,7 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
         )
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--type={self.usm_memory_placement}",
@@ -1316,11 +1267,7 @@ class GraphApiFinalizeGraph(ComputeBenchmark):
         ]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
-        iters = (
-            self.iterations_trace
-            if run_trace != TracingType.NONE
-            else self.iterations_regular
-        )
+        iters = self.get_iters(run_trace)
         return [
             f"--iterations={iters}",
             f"--rebuildGraphEveryIter={self.rebuild_graph_every_iteration}",

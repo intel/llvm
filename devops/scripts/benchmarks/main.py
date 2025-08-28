@@ -28,8 +28,6 @@ from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
 from utils.logger import log
-from utils.unitrace import get_unitrace
-from utils.flamegraph import get_flamegraph
 from presets import enabled_suites, presets
 
 # Update this if you are changing the layout of the results files
@@ -403,16 +401,6 @@ def main(directory, additional_env_vars, compare_names, filter):
                 os.path.join(os.path.dirname(__file__), "html")
             )
         log.info(f"Generating HTML with benchmark results in {html_path}...")
-
-        # Reload history after saving to include the current results in HTML output
-        if not options.dry_run:
-            log.debug(
-                "Reloading history for HTML generation to include current results..."
-            )
-            history.load()
-            log.debug(
-                f"Reloaded {len(history.runs)} benchmark runs for HTML generation."
-            )
 
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")

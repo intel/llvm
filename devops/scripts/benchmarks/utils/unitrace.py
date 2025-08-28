@@ -33,7 +33,7 @@ class Unitrace:
             options.workdir,
             "pti-gpu-repo",
             "https://github.com/intel/pti-gpu.git",
-            "master",
+            "pti-0.12.4",
         )
         build_dir = os.path.join(options.workdir, "unitrace-build")
         unitrace_src = os.path.join(repo_dir, "tools", "unitrace")

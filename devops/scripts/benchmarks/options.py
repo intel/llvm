@@ -74,7 +74,6 @@ class Options:
     exit_on_failure: bool = False
     flamegraph: bool = False
     unitrace: bool = False
-    TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"  # Format for timestamps in filenames and logs, including Unitrace traces.
 
     # Options intended for CI:
 
