@@ -840,13 +840,17 @@ bool ControlFlowConversionState::Impl::createExitMasks(BasicBlock &BB,
 
     Value *cond = BI->getCondition();
     if (isVarying) {
-      maskInfo.exitMasks[trueBB] = B.CreateAnd(
-          maskInfo.entryMask, cond, trueBB->getName() + ".exit_mask");
+      Value *constantFalse = getDefaultValue(cond->getType());
+
+      maskInfo.exitMasks[trueBB] =
+          B.CreateSelect(maskInfo.entryMask, cond, constantFalse,
+                         trueBB->getName() + ".exit_mask");
 
       // For the false edge, we have to negate the condition.
-      Value *falseCond = B.CreateNot(cond, cond->getName() + ".not");
-      maskInfo.exitMasks[falseBB] = B.CreateAnd(
-          maskInfo.entryMask, falseCond, falseBB->getName() + ".exit_mask");
+      Value *negCond = B.CreateNot(cond, cond->getName() + ".not");
+      maskInfo.exitMasks[falseBB] =
+          B.CreateSelect(maskInfo.entryMask, negCond, constantFalse,
+                         falseBB->getName() + ".exit_mask");
 
       LLVM_DEBUG(dbgs() << BB.getName() << ": varying exit mask to "
                         << trueBB->getName() << ": "
@@ -883,9 +887,15 @@ bool ControlFlowConversionState::Impl::createExitMasks(BasicBlock &BB,
     // condition, so that if no case has its condition true, then we can choose
     // default.
     Value *caseConds = nullptr;
+    Value *constantFalse = nullptr;
     for (auto c : SI->cases()) {
       Value *caseCond = B.CreateICmpEQ(cond, c.getCaseValue());
-      caseConds = !caseConds ? caseCond : B.CreateOr(caseConds, caseCond);
+      if (!caseConds) {
+        caseConds = caseCond;
+        constantFalse = getDefaultValue(caseCond->getType());
+      } else {
+        caseConds = B.CreateOr(caseConds, caseCond);
+      }
       BasicBlock *caseBlock = c.getCaseSuccessor();
       if (isBOSCCEntry) {
         if (BasicBlock *caseBlockUniform = BOSCC->getBlock(caseBlock)) {
@@ -894,15 +904,16 @@ bool ControlFlowConversionState::Impl::createExitMasks(BasicBlock &BB,
       }
 
       if (isVarying) {
-        maskInfo.exitMasks[caseBlock] = B.CreateAnd(
-            maskInfo.entryMask, caseCond, caseBlock->getName() + ".exit_mask");
+        maskInfo.exitMasks[caseBlock] =
+            B.CreateSelect(maskInfo.entryMask, caseCond, constantFalse,
+                           caseBlock->getName() + ".exit_mask");
         LLVM_DEBUG(dbgs() << BB.getName() << ": varying exit mask to "
                           << caseBlock->getName() << ": "
                           << *maskInfo.exitMasks[caseBlock] << "\n");
       } else {
-        maskInfo.exitMasks[caseBlock] = B.CreateSelect(
-            caseCond, maskInfo.entryMask, getDefaultValue(caseCond->getType()),
-            caseBlock->getName() + ".exit_mask");
+        maskInfo.exitMasks[caseBlock] =
+            B.CreateSelect(maskInfo.entryMask, caseCond, constantFalse,
+                           caseBlock->getName() + ".exit_mask");
         LLVM_DEBUG(dbgs() << BB.getName() << ": uniform exit mask to "
                           << caseBlock->getName() << ": "
                           << *maskInfo.exitMasks[caseBlock] << "\n");
@@ -913,15 +924,16 @@ bool ControlFlowConversionState::Impl::createExitMasks(BasicBlock &BB,
 
     Value *negCond = B.CreateNot(caseConds, caseConds->getName() + ".not");
     if (isVarying) {
-      maskInfo.exitMasks[defaultDest] = B.CreateAnd(
-          negCond, maskInfo.entryMask, defaultDest->getName() + ".exit_mask");
+      maskInfo.exitMasks[defaultDest] =
+          B.CreateSelect(maskInfo.entryMask, negCond, constantFalse,
+                         defaultDest->getName() + ".exit_mask");
       LLVM_DEBUG(dbgs() << BB.getName() << ": varying exit mask to "
                         << defaultDest->getName() << ": "
                         << *maskInfo.exitMasks[defaultDest] << "\n");
     } else {
-      maskInfo.exitMasks[defaultDest] = B.CreateSelect(
-          negCond, maskInfo.entryMask, getDefaultValue(negCond->getType()),
-          defaultDest->getName() + ".exit_mask");
+      maskInfo.exitMasks[defaultDest] =
+          B.CreateSelect(maskInfo.entryMask, negCond, constantFalse,
+                         defaultDest->getName() + ".exit_mask");
       LLVM_DEBUG(dbgs() << BB.getName() << ": uniform exit mask to "
                         << defaultDest->getName() << ": "
                         << *maskInfo.exitMasks[defaultDest] << "\n");
@@ -1551,9 +1563,9 @@ bool ControlFlowConversionState::Impl::createBranchReductions() {
         if (auto *LTag = DR->getTag(&BB).loop;
             DR->isDivergent(BB) && (!LTag || LTag->isLoopDivergent())) {
           if (!isBranchCondTrulyUniform(cond, *UVR)) {
-            auto *newcond = BinaryOperator::Create(
-                Instruction::BinaryOps::And, cond, MaskInfos[&BB].entryMask,
-                cond->getName() + "_active");
+            auto *newcond = SelectInst::Create(MaskInfos[&BB].entryMask, cond,
+                                               getDefaultValue(cond->getType()),
+                                               cond->getName() + "_active");
             newcond->insertBefore(Branch->getIterator());
             cond = newcond;
           }

@@ -100,7 +100,7 @@ declare void @llvm.memset.p0i8.i32(i8*,i8,i32,i32,i1)
 ; Check if the operations that use integer types are vectorized
 ; CHECK: zext <4 x i32>
 ; CHECK: icmp ugt <4 x i64>
-; CHECK: and <4 x i1>
+; CHECK: select <4 x i1>
 ; CHECK: %[[L423:.+]] = call <4 x i32> @__vecz_b_masked_load4_Dv4_ju3ptrDv4_b(ptr %{{.*}}, <4 x i1>
 ; CHECK: call void @__vecz_b_masked_store4_Dv4_ju3ptrDv4_b(<4 x i32> %[[L423]], ptr{{( nonnull)? %.*}}, <4 x i1>
 

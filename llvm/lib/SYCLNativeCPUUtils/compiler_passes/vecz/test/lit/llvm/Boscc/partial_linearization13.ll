@@ -230,7 +230,7 @@ attributes #2 = { nobuiltin nounwind readonly }
 ; CHECK: %[[TRUNC:.+]] = icmp
 ; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
 ; on inactive lanes.
-; CHECK: %[[TRUNC_ACTIVE:.+]] = and i1 %[[TRUNC]], {{%.*}}
+; CHECK: %[[TRUNC_ACTIVE:.+]] = select i1 {{%.*}}, i1 %[[TRUNC]], i1 false
 ; CHECK: %[[TRUNC_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[TRUNC_ACTIVE]])
 ; CHECK: br i1 %[[TRUNC_ACTIVE_ANY]], label %[[SWBB8:.+]], label %[[SWBB:.+]]
 

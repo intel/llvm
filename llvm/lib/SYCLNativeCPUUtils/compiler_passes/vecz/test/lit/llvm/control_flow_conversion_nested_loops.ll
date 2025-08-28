@@ -174,9 +174,9 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: %[[ENTRYMASK_FORCOND:.+]] = phi i1 [ true, %entry ], [ %[[FORINC12EXITMASK3:.+]], %[[FORINC12:.+]] ]
 ; CHECK: %[[EXITMASK1:.+]] = phi i1 [ false, %entry ], [ %[[LOOPEXITMASK2:.+]], %[[FORINC12]] ]
 ; CHECK: %[[CMP:.+]] = icmp slt i32 %[[STOREMERGE:.+]], 16
-; CHECK: %[[EDGEMASK_FORBODY:.+]] = and i1 %[[ENTRYMASK_FORCOND]], %[[CMP]]
+; CHECK: %[[EDGEMASK_FORBODY:.+]] = select i1 %[[ENTRYMASK_FORCOND]], i1 %[[CMP]], i1 false
 ; CHECK: %[[NOT_CMP:.+]] = xor i1 %[[CMP]], true
-; CHECK: %[[EDGEMASK_FOREND14:.+]] = and i1 %[[ENTRYMASK_FORCOND]], %[[NOT_CMP]]
+; CHECK: %[[EDGEMASK_FOREND14:.+]] = select i1 %[[ENTRYMASK_FORCOND]], i1 %[[NOT_CMP]], i1 false
 ; CHECK: %[[LOOPEXITMASK2]] = or i1 %[[EXITMASK1]], %[[EDGEMASK_FOREND14]]
 ; CHECK: br label %[[FORBODY:.+]]
 
@@ -187,9 +187,9 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: %[[ENTRYMASK_FORCOND3:.+]] = phi i1 [ %[[EDGEMASK_FORBODY:.+]], %[[FORBODY]] ], [ %[[FORBODY6EXITMASK:.+]], %[[FORBODY6:.+]] ]
 ; CHECK: %[[PREVEXITMASK:.+]] = phi i1 [ false, %[[FORBODY]] ], [ %[[FORINC12LOOPEXITMASKUPDATE:.+]], %[[FORBODY6]] ]
 ; CHECK: %[[CMP4:.+]] = icmp slt i32 %[[STOREMERGE]], 24
-; CHECK: %[[EDGEMASK_FORBODY6:.+]] = and i1 %[[ENTRYMASK_FORCOND3]], %[[CMP4]]
+; CHECK: %[[EDGEMASK_FORBODY6:.+]] = select i1 %[[ENTRYMASK_FORCOND3]], i1 %[[CMP4]], i1 false
 ; CHECK: %[[NOT_CMP4:.+]] = xor i1 %[[CMP4]], true
-; CHECK: %[[EDGEMASK_FORINC12:.+]] = and i1 %[[ENTRYMASK_FORCOND3]], %[[NOT_CMP4]]
+; CHECK: %[[EDGEMASK_FORINC12:.+]] = select i1 %[[ENTRYMASK_FORCOND3]], i1 %[[NOT_CMP4]], i1 false
 ; CHECK: %[[FORINC12LOOPEXITMASKUPDATE]] = or i1 %[[PREVEXITMASK]], %[[EDGEMASK_FORINC12]]
 ; CHECK: br label %[[FORBODY6:.+]]
 

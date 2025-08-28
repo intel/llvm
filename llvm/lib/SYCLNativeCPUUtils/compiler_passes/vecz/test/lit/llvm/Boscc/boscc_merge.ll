@@ -223,7 +223,7 @@ if.else6:                                             ; preds = %if.then6, %if.e
 ; CHECK: %[[CMP3:.+]] = icmp
 ; FIXME: We shouldn't need to mask this comparison, as it's truly uniform even
 ; on inactive lanes.
-; CHECK: %[[CMP3_ACTIVE:.+]] = and i1 %[[CMP3]], %[[CMP2]]
+; CHECK: %[[CMP3_ACTIVE:.+]] = select i1 %[[CMP2]], i1 %[[CMP3]], i1 false
 ; CHECK: %[[CMP3_ACTIVE_ANY:.+]] = call i1 @__vecz_b_divergence_any(i1 %[[CMP3_ACTIVE]])
 ; CHECK: br i1 %[[CMP3_ACTIVE_ANY]], label %[[IFTHEN3PREHEADER:.+]], label %[[IFELSE3PREHEADER:.+]]
 

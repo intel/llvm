@@ -54,7 +54,7 @@ entry.if.end17_crit_edge:                          ; preds = %entry
 ; CHECK: %cmp11 = fcmp uge float %mul7, 0.000000e+00
 ; CHECK: %cmp14 = fcmp ult float %mul7, 6.400000e+01
 ; CHECK: %or.cond = and i1 %cmp11, %cmp14
-; CHECK: %or.cond_active = and i1 %or.cond, [[CMP_NOT_NOT]]
+; CHECK: %or.cond_active = select i1 [[CMP_NOT_NOT]], i1 %or.cond, i1 false
 ; CHECK: %or.cond_active_any = call i1 @__vecz_b_divergence_any(i1 %or.cond_active)
 ; CHECK: br i1 %or.cond_active_any, label %if.then.if.end_crit_edge, label %if.then16
 if.then:                                           ; preds = %entry
@@ -119,7 +119,7 @@ entry.if.end17_crit_edge:                          ; preds = %entry
 ; CHECK: %cmp11 = fcmp uge float %mul7, 0.000000e+00
 ; CHECK: %cmp14 = fcmp ult float %mul7, 6.400000e+01
 ; CHECK: %or.cond = and i1 %cmp11, %cmp14
-; CHECK: %or.cond_active = and i1 %or.cond, [[CMP_NOT_NOT]]
+; CHECK: %or.cond_active = select i1 [[CMP_NOT_NOT]], i1 %or.cond, i1 false
 ; CHECK: %or.cond_active_any = call i1 @__vecz_b_divergence_any(i1 %or.cond_active)
 ; CHECK: br i1 %or.cond_active_any, label %if.else.crit_edge, label %if.then16
 if.then:                                           ; preds = %entry
