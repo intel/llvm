@@ -851,8 +851,6 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      // Force hasSpecialCaptures to be evaluated at compile-time.
-      constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
       setKernelInfo((void *)MHostKernel->getPtr(),
                     &detail::getDeviceKernelInfo<KernelName>());
 
