@@ -1,4 +1,4 @@
-//==-------------------- kernel_name_based_cache_t.hpp ---------------------==//
+//==---------------------- device_kernel_info.hpp ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,8 @@
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <hash_table8.hpp>
+#include <sycl/detail/compile_time_kernel_info.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -23,9 +25,9 @@ using FastKernelCacheKeyT = std::pair<ur_device_handle_t, ur_context_handle_t>;
 
 struct FastKernelCacheVal {
   Managed<ur_kernel_handle_t> MKernelHandle; /* UR kernel. */
-  std::mutex *MMutex;                  /* Mutex guarding this kernel. When
-                                     caching is disabled, the pointer is
-                                     nullptr. */
+  std::mutex *MMutex;                        /* Mutex guarding this kernel. When
+                                           caching is disabled, the pointer is
+                                           nullptr. */
   const KernelArgMask *MKernelArgMask; /* Eliminated kernel argument mask. */
   Managed<ur_program_handle_t> MProgramHandle; /* UR program handle
                                     corresponding to this kernel. */
@@ -71,18 +73,53 @@ struct FastKernelEntryT {
 
 using FastKernelSubcacheEntriesT = std::vector<FastKernelEntryT>;
 
+// Structure for caching built kernels with a specific name.
+// Used by instances of the kernel program cache class (potentially multiple).
 struct FastKernelSubcacheT {
   FastKernelSubcacheEntriesT Entries;
   FastKernelSubcacheMutexT Mutex;
 };
 
-struct KernelNameBasedCacheT {
-  FastKernelSubcacheT FastKernelSubcache;
-  std::optional<bool> UsesAssert;
-  // Implicit local argument position is represented by an optional int, this
-  // uses another optional on top of that to represent lazy initialization of
-  // the cached value.
-  std::optional<std::optional<int>> ImplicitLocalArgPos;
+// This class aggregates information specific to device kernels (i.e.
+// information that is uniform between different submissions of the same
+// kernel). Pointers to instances of this class are stored in header function
+// templates as a static variable to avoid repeated runtime lookup overhead.
+// TODO Currently this class duplicates information fetched from the program
+// manager. Instead, we should merge all of this information
+// into this structure and get rid of the other KernelName -> * maps.
+class DeviceKernelInfo : public CompileTimeKernelInfoTy {
+public:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Needs to own the kernel name string in non-preview builds since we pass it
+  // using a temporary string instead of a string view there.
+  std::string Name;
+#endif
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  DeviceKernelInfo() = default;
+#endif
+  DeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+
+  void init(KernelNameStrRefT KernelName);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void initIfNeeded(KernelNameStrRefT KernelName);
+#endif
+  void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
+
+  FastKernelSubcacheT &getKernelSubcache();
+  bool usesAssert();
+  const std::optional<int> &getImplicitLocalArgPos();
+
+private:
+  void assertInitialized();
+  bool isCompileTimeInfoSet() const;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::atomic<bool> MInitialized = false;
+#endif
+  FastKernelSubcacheT MFastKernelSubcache;
+  bool MUsesAssert;
+  std::optional<int> MImplicitLocalArgPos;
 };
 
 } // namespace detail

@@ -76,10 +76,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   }
 
   std::unique_ptr<ur_mem_handle_t_> MemObjPtr(hMem);
-  if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
-    // TODO: Handle registered host memory
-    auto &BufferImpl = std::get<BufferMem>(MemObjPtr->Mem);
-    OL_RETURN_ON_ERR(olMemFree(BufferImpl.Ptr));
+  if (auto *BufferImpl = MemObjPtr->AsBufferMem()) {
+    // Subbuffers should not free their parents
+    if (!BufferImpl->Parent) {
+      // TODO: Handle registered host memory
+      OL_RETURN_ON_ERR(olMemFree(BufferImpl->Ptr));
+    } else {
+      return urMemRelease(BufferImpl->Parent);
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -106,4 +110,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
+    ur_buffer_create_type_t /*BufferCreateType*/,
+    const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
+  auto *SrcBuffer = hBuffer->AsBufferMem();
+  if (!SrcBuffer || SrcBuffer->Parent) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // Default value for flags means UR_MEM_FLAG_READ_WRITE.
+  if (flags == 0) {
+    flags = UR_MEM_FLAG_READ_WRITE;
+  }
+  UR_ASSERT(subBufferFlagsAreLegal(hBuffer->MemFlags, flags),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  UR_ASSERT(((pRegion->origin + pRegion->size) <= SrcBuffer->getSize()),
+            UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+
+  void *DeviceBase =
+      reinterpret_cast<uint8_t *>(SrcBuffer->Ptr) + pRegion->origin;
+  void *HostBase =
+      reinterpret_cast<uint8_t *>(SrcBuffer->HostPtr) + pRegion->origin;
+  auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+      hBuffer->getContext(), hBuffer, flags, SrcBuffer->MemAllocMode,
+      DeviceBase, HostBase, pRegion->size});
+  *phMem = URMemObj.release();
+
+  return urMemRetain(hBuffer);
 }

@@ -13,8 +13,8 @@
 
 #include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
+#include <detail/device_kernel_info.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/kernel_name_based_cache_t.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -231,12 +231,15 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 KernelNameBasedCacheT *GlobalHandler::createKernelNameBasedCache() {
-  static std::deque<KernelNameBasedCacheT> &KernelNameBasedCaches =
-      getOrCreate(MKernelNameBasedCaches);
-  LockGuard LG{MKernelNameBasedCaches.Lock};
-  return &KernelNameBasedCaches.emplace_back();
+  static std::deque<DeviceKernelInfo> &DeviceKernelInfoStorage =
+      getOrCreate(MDeviceKernelInfoStorage);
+  LockGuard LG{MDeviceKernelInfoStorage.Lock};
+  return reinterpret_cast<KernelNameBasedCacheT *>(
+      &DeviceKernelInfoStorage.emplace_back());
 }
+#endif
 
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
@@ -372,9 +375,11 @@ void shutdown_late() {
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
 
-  // Cache stores handles to the adapter, so clear it before
-  // releasing adapters.
-  Handler->MKernelNameBasedCaches.Inst.reset(nullptr);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Kernel cache, which is part of device kernel info,
+  // stores handles to the adapter, so clear it before releasing adapters.
+  Handler->MDeviceKernelInfoStorage.Inst.reset(nullptr);
+#endif
 
   // Clear the adapters and reset the instance if it was there.
   Handler->unloadAdapters();

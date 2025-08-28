@@ -61,6 +61,12 @@ public:
     return NativePrograms;
   }
 
+  std::unordered_map<sycl::detail::KernelNameStrT,
+                     sycl::detail::DeviceKernelInfo> &
+  getDeviceKernelInfoMap() {
+    return m_DeviceKernelInfoMap;
+  }
+
   std::unordered_map<sycl::detail::KernelNameStrT, int> &
   getKernelNameRefCount() {
     return m_KernelNameRefCount;
@@ -307,6 +313,9 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
   checkContainer(PM.getVFSet2BinImage(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "VF"),
                  "VFSet2BinImage " + CommentPostfix);
+  checkContainer(PM.getDeviceKernelInfoMap(), ExpectedEntryCount,
+                 generateRefNames(ImgIds, "Kernel"),
+                 "Device kernel info map " + CommentPostfix);
   checkContainer(PM.getKernelNameRefCount(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "Kernel"),
                  "Kernel name reference count " + CommentPostfix);
@@ -366,6 +375,10 @@ TEST(ImageRemoval, BaseContainers) {
                             generateRefName("B", "HostPipe").c_str());
   PM.addOrInitHostPipeEntry(PipeC::get_host_ptr(),
                             generateRefName("C", "HostPipe").c_str());
+  std::vector<std::string> KernelNames =
+      generateRefNames({"A", "B", "C"}, "Kernel");
+  for (const std::string &Name : KernelNames)
+    PM.getOrCreateDeviceKernelInfo(Name);
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
@@ -389,6 +402,8 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
   convertAndAddImages(PM, ImagesToRemoveSameEntries, NativeImagesForRemoval,
                       TestBinaries);
 
+  std::string KernelName = generateRefName("A", "Kernel");
+  PM.getOrCreateDeviceKernelInfo(KernelName);
   checkAllInvolvedContainers(
       PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
       /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",
