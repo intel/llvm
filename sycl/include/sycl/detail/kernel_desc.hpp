@@ -277,7 +277,6 @@ template <typename KernelNameType> constexpr bool hasSpecialCaptures() {
   }
   return FoundSpecialCapture;
 }
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
