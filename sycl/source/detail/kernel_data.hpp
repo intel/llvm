@@ -13,7 +13,6 @@
 #include <detail/graph/dynamic_impl.hpp>
 
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/kernel_name_based_cache.hpp>
 
 #include <vector>
 
