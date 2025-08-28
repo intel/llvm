@@ -45,6 +45,7 @@ add_llvm_library(sycl-jit
    clangCodeGen
    clangTooling
    clangSerialization
+   sycl-jit-resource
 )
 
 if(WIN32)
