@@ -318,6 +318,7 @@ jobs:
       with:
         inputs: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         upload-signing-artifacts: true
+        internal-be-careful-debug: true
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
