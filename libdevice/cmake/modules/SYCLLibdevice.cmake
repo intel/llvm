@@ -348,6 +348,11 @@ set(cmath_obj_deps device_math.h device.h ${sycl-compiler_deps})
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
 set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
+set(devicelib_combine_obj_deps device_math.h device.h device_complex.h
+  cmath_wrapper.cpp fallback-cmath.cpp cmath_wrapper_fp64.cpp fallback-cmath-fp64.cpp
+  complex_wrapper.cpp fallback-complex.cpp complex_wrapper_fp64.cpp fallback-complex-fp64.cpp
+  crt_wrapper.cpp fallback-cassert.cpp fallback-cstring.cpp imf_wrapper.cpp imf_wrapper_fp64.cpp
+  imf_wrapper_bf16.cpp ${sycl-compiler-deps})
 if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
   set(asan_obj_deps
     device.h atomic.hpp spirv_vars.h
@@ -622,6 +627,13 @@ add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
+
+set(devicelib_combine_archs)
+add_devicelibs(libsycl-devicelib
+  SRC devicelib_combine.cpp
+  BUILD_ARCHS ${devicelib_combine_archs}
+  FILETYPES "${filetypes_no_spv}"
+  DEPENDENCIES ${devicelib_combine_obj_deps})
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
