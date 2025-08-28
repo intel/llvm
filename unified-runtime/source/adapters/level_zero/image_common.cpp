@@ -889,7 +889,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     // depth are specified as pixels (or rows and slices). ze_image_region_t,
     // however, accepts everything as pixels, so we need to do a conversion
     // here.
-    auto PixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+    auto PixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
     DstRegion.originX /= PixelSizeInBytes;
     DstRegion.width /= PixelSizeInBytes;
 
@@ -934,7 +934,6 @@ ur_result_t bindlessImagesHandleCopyFlags(
         std::max(pDstImageDesc->rowPitch, pCopyRegion->copyExtent.width);
     uint32_t SrcRowPitch =
         std::max(pSrcImageDesc->rowPitch, pCopyRegion->copyExtent.width);
-    ;
     uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
     ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
