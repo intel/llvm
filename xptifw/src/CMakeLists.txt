@@ -3,7 +3,7 @@ include(FetchContent)
 
 # The sycl target should download or find emhash but may not
 # for standalone builds.
-if (NOT SYCL_EMHASH_DIR)
+if (NOT TARGET emhash::emhash)
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../sycl/cmake/modules")
   include(FetchEmhash)
 endif()
@@ -37,10 +37,11 @@ function(add_xpti_library LIB_NAME)
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
   target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
-    $<BUILD_INTERFACE:${SYCL_EMHASH_DIR}>
     $<BUILD_INTERFACE:${XPTIFW_PARALLEL_HASHMAP_HEADERS}>
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
   )
+
+  target_link_libraries(${LIB_NAME} PUBLIC emhash::emhash)
 
   find_package(Threads REQUIRED)
   target_link_libraries(${LIB_NAME} PUBLIC ${CMAKE_DL_LIBS} Threads::Threads)
