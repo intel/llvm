@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <set>
@@ -443,6 +444,10 @@ public:
   size_t get_local_mem_size() const {
     return get_device_info().get_local_mem_size();
   }
+
+  int get_max_pitch() const { return std::numeric_limits<int>::max(); }
+
+  int get_async_engine_count() const { return 0; }
 
   /// Get the number of bytes of free and total memory on the SYCL device.
   /// \param [out] free_memory The number of bytes of free memory on the SYCL
