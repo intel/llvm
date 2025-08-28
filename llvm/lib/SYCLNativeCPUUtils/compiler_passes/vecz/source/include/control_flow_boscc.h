@@ -110,7 +110,7 @@ class ControlFlowConversionState::BOSCCGadget final {
     /// @param[in] B Block to look for in the region
     /// @return Whether the block belong to the region or not.
     bool contains(llvm::BasicBlock *B) const {
-      return predicatedBlocks.count(B);
+      return predicatedBlocks.contains(B);
     }
   };
   /// @brief List of all duplicated uniform regions.

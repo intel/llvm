@@ -61,7 +61,7 @@ class PacketizationAnalysisResult {
   /// @param[in] V the value to query
   /// @return true if the value was marked for packetization, false otherwise.
   bool needsPacketization(const llvm::Value *V) const {
-    return toPacketize.count(V) != 0;
+    return toPacketize.contains(V);
   }
 
  private:
