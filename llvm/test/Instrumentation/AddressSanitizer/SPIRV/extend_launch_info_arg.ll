@@ -25,5 +25,5 @@ entry:
 
 attributes #0 = { sanitize_address }
 ;; sycl-device-global-size = 16 * 2
-;; sycl-host-access = 0 read-only
-; CHECK: attributes [[ATTR0]] = { "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="__AsanKernelMetadata833c47834a0b74946e370c23c39607cc" }
+;; sycl-host-access = 1 read-only
+; CHECK: attributes [[ATTR0]] = { "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="1" "sycl-unique-id"="__AsanKernelMetadata833c47834a0b74946e370c23c39607cc" }
