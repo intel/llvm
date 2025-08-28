@@ -15,7 +15,7 @@ union _Fval { // pun floating type as integer array
   float _Val;
 };
 
-union _Dconst2 {            // pun float types as integer array
+union _Dconst2 {           // pun float types as integer array
   unsigned short _Word[2]; // TRANSITION, ABI: Twice as large as necessary.
   float _Float;
 };
@@ -29,8 +29,7 @@ union _Dconst2 {            // pun float types as integer array
 #define F_NBITS (16 + _FOFF)
 #define FSIGN(x) (((_Fval *)(char *)&(x))->_Sh[_F0] & _FSIGN)
 
-#define INIT2(w0)                                                               \
-  { 0, w0 }
+#define INIT2(w0) {0, w0}
 
 #define _FXbig (float)((F_NBITS + 1) * 347L / 1000)
 
@@ -292,8 +291,7 @@ float _FSinh(float x, float y) { // compute y * sinh(x), |y| <= 1
 
 #define D_NBITS (48 + _DOFF)
 
-#define INIT4(w0)                                                               \
-  { 0, 0, 0, w0 }
+#define INIT4(w0) {0, 0, 0, w0}
 
 // double declarations
 union _Dval { // pun floating type as integer array
@@ -301,7 +299,7 @@ union _Dval { // pun floating type as integer array
   double _Val;
 };
 
-union _Dconst4 {            // pun float types as integer array
+union _Dconst4 {           // pun float types as integer array
   unsigned short _Word[4]; // TRANSITION, ABI: Twice as large as necessary.
   double _Double;
 };
