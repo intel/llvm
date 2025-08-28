@@ -275,19 +275,29 @@ void convertAndAddImages(
 template <typename T>
 void checkContainer(const T &Container, size_t ExpectedCount,
                     const std::vector<std::string> &ExpectedEntries,
-                    const std::string &Comment) {
-  EXPECT_EQ(Container.size(), ExpectedCount) << Comment;
+                    const std::string &Comment,
+                    const std::vector<std::string> &AbsentEntries = {}) {
+
+  // Device globals aren't removed, they merely have their keys blanked.
+  if (AbsentEntries.size() == 0) {
+    EXPECT_EQ(Container.size(), ExpectedCount) << Comment;
+  }
+  // So when AbsentEntries are provided, we check them each individually.
+  for (const std::string &Entry : AbsentEntries) {
+    EXPECT_TRUE(Container.count(Entry) == 0) << Comment;
+  }
+
   for (const std::string &Entry : ExpectedEntries) {
     EXPECT_TRUE(Container.count(Entry) > 0) << Comment;
   }
 }
 
-void checkAllInvolvedContainers(ProgramManagerExposed &PM,
-                                size_t ExpectedImgCount,
-                                size_t ExpectedEntryCount,
-                                const std::vector<std::string> &ImgIds,
-                                const std::string &CommentPostfix,
-                                bool MultipleImgsPerEntryTestCase = false) {
+void checkAllInvolvedContainers(
+    ProgramManagerExposed &PM, size_t ExpectedImgCount,
+    size_t ExpectedEntryCount, const std::vector<std::string> &ImgIds,
+    const std::string &CommentPostfix,
+    bool MultipleImgsPerEntryTestCase = false,
+    const std::vector<std::string> &ImgIdsRemoved = {}) {
   EXPECT_EQ(PM.getKernelID2BinImage().size(), ExpectedImgCount)
       << "KernelID2BinImg " + CommentPostfix;
   checkContainer(PM.getKernelName2KernelID(), ExpectedEntryCount,
@@ -323,7 +333,7 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
     // purging all info for symbols associated with the removed image.
     checkContainer(PM.getDeviceGlobals(), ExpectedEntryCount,
                    generateRefNames(ImgIds, "DeviceGlobal"),
-                   "Device globals " + CommentPostfix);
+                   "Device globals " + CommentPostfix, ImgIdsRemoved);
 
     // The test case with the same entries in multiple images doesn't support
     // host pipes since those are assumed to be unique.
@@ -335,12 +345,13 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
   }
 }
 
-void checkAllInvolvedContainers(ProgramManagerExposed &PM, size_t ExpectedCount,
-                                const std::vector<std::string> &ImgIds,
-                                const std::string &CommentPostfix,
-                                bool CheckHostPipes = false) {
+void checkAllInvolvedContainers(
+    ProgramManagerExposed &PM, size_t ExpectedCount,
+    const std::vector<std::string> &ImgIds, const std::string &CommentPostfix,
+    bool CheckHostPipes = false,
+    const std::vector<std::string> &ImgIdsRemoved = {}) {
   checkAllInvolvedContainers(PM, ExpectedCount, ExpectedCount, ImgIds,
-                             CommentPostfix, CheckHostPipes);
+                             CommentPostfix, CheckHostPipes, ImgIdsRemoved);
 }
 
 TEST(ImageRemoval, BaseContainers) {
@@ -373,7 +384,7 @@ TEST(ImageRemoval, BaseContainers) {
   PM.removeImages(&TestBinaries);
 
   checkAllInvolvedContainers(PM, ImagesToKeep.size(), {"A", "B"},
-                             "check failed after removal");
+                             "check failed after removal", false, {"C"});
 }
 
 TEST(ImageRemoval, MultipleImagesPerEntry) {
