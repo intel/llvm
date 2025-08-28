@@ -617,6 +617,12 @@ Tool *ToolChain::getOffloadPackager() const {
   return OffloadPackager.get();
 }
 
+Tool *ToolChain::getOffloadPackagerExtract() const {
+  if (!OffloadPackagerExtract)
+    OffloadPackagerExtract.reset(new tools::OffloadPackagerExtract(*this));
+  return OffloadPackagerExtract.get();
+}
+
 Tool *ToolChain::getOffloadDeps() const {
   if (!OffloadDeps)
     OffloadDeps.reset(new tools::OffloadDeps(*this));
@@ -707,6 +713,8 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
     return getOffloadWrapper();
   case Action::OffloadPackagerJobClass:
     return getOffloadPackager();
+  case Action::OffloadPackagerExtractJobClass:
+    return getOffloadPackagerExtract();
 
   case Action::OffloadDepsJobClass:
     return getOffloadDeps();
