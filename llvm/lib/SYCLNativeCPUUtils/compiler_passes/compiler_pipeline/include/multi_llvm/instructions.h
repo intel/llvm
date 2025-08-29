@@ -36,9 +36,6 @@ struct BinOpHelper;
 #define LLVM 20
 #include <multi_llvm/instructions.inc>
 #undef LLVM
-#define LLVM 19
-#include <multi_llvm/instructions.inc>
-#undef LLVM
 
 }  // namespace detail
 

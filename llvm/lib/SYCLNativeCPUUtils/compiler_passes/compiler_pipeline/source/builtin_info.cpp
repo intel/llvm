@@ -545,7 +545,7 @@ Function *BuiltinInfo::getScalarEquivalent(const Builtin &B, Module *M) {
     Type *ScalarType = VecRetTy->getElementType();
     // Get the scalar version of the intrinsic
     Function *ScalarIntrinsic =
-        multi_llvm::GetOrInsertIntrinsicDeclaration(M, IntrinsicID, ScalarType);
+        Intrinsic::getOrInsertDeclaration(M, IntrinsicID, ScalarType);
 
     return ScalarIntrinsic;
   }

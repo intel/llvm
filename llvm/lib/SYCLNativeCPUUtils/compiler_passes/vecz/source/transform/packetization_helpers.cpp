@@ -30,7 +30,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Transforms/Utils/LoopUtils.h>
-#include <multi_llvm/intrinsic.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
@@ -241,7 +240,7 @@ Value *createMaybeVPReduction(IRBuilderBase &B, Value *Val, RecurKind Kind,
   assert(isa<VectorType>(Val->getType()) && "Must be vector type");
   // If VL is null, it's not a vector-predicated reduction.
   if (!VL) {
-    return multi_llvm::createSimpleReduction(B, Val, Kind);
+    return createSimpleReduction(B, Val, Kind);
   }
   auto IntrinsicOp = Intrinsic::not_intrinsic;
   switch (Kind) {
@@ -290,7 +289,7 @@ Value *createMaybeVPReduction(IRBuilderBase &B, Value *Val, RecurKind Kind,
       break;
   }
 
-  auto *const F = multi_llvm::GetOrInsertIntrinsicDeclaration(
+  auto *const F = Intrinsic::getOrInsertDeclaration(
       B.GetInsertBlock()->getModule(), IntrinsicOp, Val->getType());
   assert(F && "Could not declare vector-predicated reduction intrinsic");
 

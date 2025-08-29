@@ -120,7 +120,7 @@ InstructionCost calculateBoolReductionCost(LLVMContext &context, Module *module,
   auto *F = Function::Create(new_fty, Function::InternalLinkage, "tmp", module);
   auto *BB = BasicBlock::Create(context, "reduce", F);
   IRBuilder<> B(BB);
-  multi_llvm::createSimpleReduction(B, &*F->arg_begin(), RecurKind::And);
+  createSimpleReduction(B, &*F->arg_begin(), RecurKind::And);
   const InstructionCost cost = calculateBlockCost(*BB, TTI);
 
   // We don't really need that function in the module anymore because it's

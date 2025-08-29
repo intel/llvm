@@ -20,7 +20,6 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Triple.h>
-#include <multi_llvm/intrinsic.h>
 #include <multi_llvm/target_transform_info.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -504,7 +503,7 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
       const SmallVector<llvm::Type *, 2> Tys = {Ty, VecPtrTy};
       return B.CreateIntrinsic(llvm::Intrinsic::vp_gather, Tys, Args);
     } else if (Legality.isMaskLegal()) {
-      Function *MaskedGather = multi_llvm::GetOrInsertIntrinsicDeclaration(
+      Function *MaskedGather = Intrinsic::getOrInsertDeclaration(
           F->getParent(), Intrinsic::masked_gather, {Ty, VecPtrTy});
 
       if (MaskedGather) {
@@ -606,7 +605,7 @@ Value *TargetInfo::createMaskedScatterStore(IRBuilder<> &B, Value *Data,
       const SmallVector<llvm::Type *, 2> Tys = {Data->getType(), VecPtrTy};
       return B.CreateIntrinsic(llvm::Intrinsic::vp_scatter, Tys, Args);
     } else if (Legality.isMaskLegal()) {
-      Function *MaskedScatter = multi_llvm::GetOrInsertIntrinsicDeclaration(
+      Function *MaskedScatter = Intrinsic::getOrInsertDeclaration(
           F->getParent(), Intrinsic::masked_scatter, {DataTy, VecPtrTy});
 
       if (MaskedScatter) {

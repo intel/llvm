@@ -19,11 +19,11 @@
 #include <compiler/utils/attributes.h>
 #include <compiler/utils/metadata.h>
 #include <llvm/IR/Attributes.h>
+#include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <multi_llvm/dibuilder.h>
 
 #include <optional>
 
@@ -274,7 +274,7 @@ void cloneDebugInfo(const VectorizationUnit &VU) {
   }
 
   // Create a DISubprogram entry for the vectorized kernel
-  multi_llvm::DIBuilder DIB(*VU.scalarFunction()->getParent(), false);
+  DIBuilder DIB(*VU.scalarFunction()->getParent(), false);
   DICompileUnit *CU =
       DIB.createCompileUnit(dwarf::DW_LANG_OpenCL, ScalarDI->getFile(), "",
                             ScalarDI->isOptimized(), "", 0);

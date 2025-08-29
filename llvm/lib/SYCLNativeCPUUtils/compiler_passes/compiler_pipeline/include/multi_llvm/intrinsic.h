@@ -22,19 +22,7 @@
 
 namespace multi_llvm {
 
-static inline auto GetOrInsertIntrinsicDeclaration(
-    llvm::Module *M, llvm::Intrinsic::ID id,
-    llvm::ArrayRef<llvm::Type *> Tys = {}) {
-#if LLVM_VERSION_GREATER_EQUAL(20, 0)
-  return llvm::Intrinsic::getOrInsertDeclaration(M, id, Tys);
-#else
-  return llvm::Intrinsic::getDeclaration(M, id, Tys);
-#endif
-}
-
-// Drop getAttributes workaround when LLVM 20 is minimum version
-// This can also be simplified once DPC++ catches up with getAttributes
-// with FunctionType as the last argument.
+// Drop getAttributes workaround when LLVM 21 is minimum version
 namespace detail {
 template <typename... T>
 auto getAttributes(T... args)

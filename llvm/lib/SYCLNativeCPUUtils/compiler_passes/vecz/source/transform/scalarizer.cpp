@@ -20,6 +20,7 @@
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/Analysis/InstructionSimplify.h>
+#include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -27,7 +28,6 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/dibuilder.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -683,7 +683,7 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
   // instructions and is used to avoid duplicate LLVM dbg.value's.
   SmallPtrSet<Value *, 4> VectorElements;
 
-  multi_llvm::DIBuilder DIB(*Original->getModule(), false);
+  DIBuilder DIB(*Original->getModule(), false);
 
   for (DbgVariableRecord *const DVR : LAM->getAllDbgVariableRecordUsers()) {
     DILocalVariable *DILocal = nullptr;

@@ -18,7 +18,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicsAArch64.h>
 #include <llvm/IR/IntrinsicsARM.h>
-#include <multi_llvm/intrinsic.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
@@ -224,7 +223,7 @@ bool TargetInfoArm::optimizeInterleavedGroup(IRBuilder<> &B,
     Tys = {VecTy, PtrTy};
   }
 
-  Function *IntrFn = multi_llvm::GetOrInsertIntrinsicDeclaration(
+  Function *IntrFn = Intrinsic::getOrInsertDeclaration(
       Op0->getModule(), (Intrinsic::ID)IntrID, Tys);
   if (!IntrFn) {
     return false;
@@ -379,7 +378,7 @@ bool TargetInfoAArch64::optimizeInterleavedGroup(
     VecTy = cast<FixedVectorType>(Op0->getType());
   }
 
-  Function *IntrFn = multi_llvm::GetOrInsertIntrinsicDeclaration(
+  Function *IntrFn = Intrinsic::getOrInsertDeclaration(
       Op0->getModule(), (Intrinsic::ID)IntrID, {VecTy, PtrTy});
   if (!IntrFn) {
     return false;

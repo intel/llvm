@@ -14,20 +14,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#if LLVM == 19
-template <typename T>
-struct BinOpHelper<T, std::enable_if_t<T::LAST_BINOP - T::FIRST_BINOP == 16>>
-#define BINOP_LLVM20(OP, STR)
-#define BINOP_LLVM21(OP, STR)
-#elif LLVM == 20
+#if LLVM == 20
 template <typename T>
 struct BinOpHelper<T, std::enable_if_t<T::LAST_BINOP - T::FIRST_BINOP == 18>>
-#define BINOP_LLVM20(OP, STR) BINOP(OP, STR)
 #define BINOP_LLVM21(OP, STR)
 #elif LLVM == 21
 template <typename T, typename>
 struct BinOpHelper
-#define BINOP_LLVM20(OP, STR) BINOP(OP, STR)
 #define BINOP_LLVM21(OP, STR) BINOP(OP, STR)
 #endif
 {
@@ -51,8 +44,8 @@ struct BinOpHelper
   BINOP_LLVM21(FMinimum, "fminumum") \
   BINOP(UIncWrap, "uincwrap")        \
   BINOP(UDecWrap, "udecwrap")        \
-  BINOP_LLVM20(USubCond, "usubcond") \
-  BINOP_LLVM20(USubSat, "usubsat")
+  BINOP(USubCond, "usubcond")        \
+  BINOP(USubSat, "usubsat")
 
   static std::optional<T> consume_front_with_underscore(
       llvm::StringRef &String) {
@@ -79,6 +72,5 @@ struct BinOpHelper
   }
 
 #undef BINOPS
-#undef BINOP_LLVM20
 #undef BINOP_LLVM21
 };
