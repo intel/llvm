@@ -16,10 +16,13 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
     : CompileTimeKernelInfoTy(Info)
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       ,
-      Name(Info.Name.data())
+      Name(Info.Name)
 #endif
 {
-  init(Name.data());
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  this->CompileTimeKernelInfoTy::Name = this->Name;
+#endif
+  init(static_cast<KernelNameStrRefT>(Name));
 }
 
 void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {

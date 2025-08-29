@@ -200,7 +200,6 @@ public:
 
   FastKernelCacheValPtr getOrCreateKernel(context_impl &ContextImpl,
                                           device_impl &DeviceImpl,
-                                          KernelNameStrRefT KernelName,
                                           DeviceKernelInfo &DeviceKernelInfo,
                                           const NDRDescT &NDRDesc = {});
 
@@ -378,7 +377,6 @@ public:
 
   DeviceKernelInfo &
   getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName);
 
   std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -562,6 +560,7 @@ protected:
 
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, Managed<ur_kernel_handle_t>>;
+  // FIXME: Move to `DeviceKernelInfo`:
   std::unordered_map<KernelNameStrT, MaterializedEntries> m_MaterializedKernels;
 
   // Holds bfloat16 device library images, the 1st element is for fallback
