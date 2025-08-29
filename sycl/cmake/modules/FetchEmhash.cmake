@@ -1,25 +1,22 @@
 # Finds or fetches emhash.
-if(DEFINED SYCL_EMHASH_DIR OR DEFINED EMHASH_SYS_LOC)
+if(TARGET emhash::emhash)
   return()
 endif()
-find_file(EMHASH_SYS_LOC "hash_table8.hpp" PATH_SUFFIXES "emhash")
-if(NOT EMHASH_SYS_LOC)
+find_package(emhash QUIET)
+if(NOT emhash_FOUND)
   set(EMHASH_REPO https://github.com/ktprime/emhash)
   message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
   include(FetchContent)
   FetchContent_Declare(emhash
     GIT_REPOSITORY    ${EMHASH_REPO}
-    GIT_TAG           3ba9abdfdc2e0430fcc2fd8993cad31945b6a02b
+    GIT_TAG           09fb0439de0c65e387498232c89d561ee95fbd60
     SOURCE_SUBDIR  emhash
   )
   FetchContent_MakeAvailable(emhash)
 
-  # FetchContent downloads the files into a directory with
-  # '-src' as the suffix and emhash has the headers in the
-  # top level directory in the repo, so copy the headers to a directory
-  # named `emhash` so source files can include with <emhash/header.hpp>
-  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/include/emhash)
-  file(GLOB HEADERS "${emhash_SOURCE_DIR}/*.h*")
-  file(COPY ${HEADERS} DESTINATION ${CMAKE_BINARY_DIR}/include/emhash)
-  set(SYCL_EMHASH_DIR ${CMAKE_BINARY_DIR}/include/ CACHE INTERNAL "")
+  # The official cmake install target uses the 'emhash' namespace,
+  # so emulate that here so client code can use a single target name for both cases.
+  add_library(emhash INTERFACE)
+  target_include_directories(emhash SYSTEM INTERFACE ${emhash_SOURCE_DIR})
+  add_library(emhash::emhash ALIAS emhash)
 endif()

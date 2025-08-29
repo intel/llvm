@@ -25,11 +25,15 @@ ol_result_t waitOnEvents(ol_queue_handle_t Queue,
   if (NumEvents) {
     std::vector<ol_event_handle_t> OlEvents;
     OlEvents.reserve(NumEvents);
+    size_t RealEventCount = 0;
     for (size_t I = 0; I < NumEvents; I++) {
-      OlEvents.push_back(UrEvents[I]->OffloadEvent);
+      if (UrEvents[I]->OffloadEvent) {
+        RealEventCount++;
+        OlEvents.push_back(UrEvents[I]->OffloadEvent);
+      }
     }
 
-    return olWaitEvents(Queue, OlEvents.data(), NumEvents);
+    return olWaitEvents(Queue, OlEvents.data(), RealEventCount);
   }
   return OL_SUCCESS;
 }
