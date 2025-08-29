@@ -1,4 +1,4 @@
-get_host_tool_path( clang CLANG clang_exe clang_target )
+
 
 set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
 set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
@@ -15,13 +15,19 @@ add_custom_command(
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
 # CMAKE_CXX_COMPILER might not have support for it. As such, use freshly built
 # `clang++` instead.
-set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions)
-if (LLVM_ENABLE_PIC)
-list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -fPIC)
-endif()
+set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17)
 
-if (NOT WIN32)
-list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -fvisibility=hidden)
+if (WIN32)
+  set(clang_exe ${CMAKE_BINARY_DIR}/bin/clang-cl.exe)
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS /O2 /std:c++17 /W0)
+  if (CMAKE_BUILD_TYPE MATCHES "Debug")
+    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MDd)
+  else()
+    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MD)
+  endif()
+else()
+  get_host_tool_path( clang CLANG clang_exe clang_target )
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
 endif()
 
 add_custom_command(

@@ -38,7 +38,7 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
                     out.write(
                         f"""
 {{
-    {{"{args.prefix}{os.path.relpath(file_path, toolchain_dir)}"}} ,
+    {{"{args.prefix}{os.path.relpath(file_path, toolchain_dir).replace(os.sep, "/")}"}} ,
     []() {{
     static const char data[] = {{
     #embed "{file_path}"
