@@ -5,8 +5,9 @@
 //
 
 // UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: The following limitation is not restricted to Sycl-Graph
-// but comes from the orignal test : `SpecConstants/2020/kernel-bundle-api.cpp`
+// UNSUPPORTED-INTENDED: The following limitation is not restricted to
+// Sycl-Graph but comes from the orignal test :
+// `SpecConstants/2020/kernel-bundle-api.cpp`
 
 #define GRAPH_E2E_RECORD_REPLAY
 
