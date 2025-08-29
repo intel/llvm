@@ -65,7 +65,8 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_last = kind_dynamic_accessor
+    kind_struct_with_special_type,
+    kind_last = kind_struct_with_special_type
   };
 
 public:
@@ -267,6 +268,10 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
 
+  // A map that keeps track of all structs encountered with
+  // special types inside. Relevant for free function kernels only.
+  llvm::DenseSet<const RecordDecl *> StructsWithSpecialTypes;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -316,6 +321,13 @@ public:
   void addSYCLKernelFunction(const FunctionDecl *FD) {
     SYCLKernelFunctions.insert(FD);
   }
+
+  /// Add ParentStruct to StructsWithSpecialTypes.
+  void addStructWithSpecialType(const RecordDecl *ParentStruct) {
+    StructsWithSpecialTypes.insert(ParentStruct);
+  }
+
+  auto &getStructsWithSpecialType() const { return StructsWithSpecialTypes; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {

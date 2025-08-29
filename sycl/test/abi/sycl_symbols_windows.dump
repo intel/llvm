@@ -3830,6 +3830,7 @@
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@KAXAEBVproperty_list@67@@Z
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
+?updateArgShift@handler@_V1@sycl@@AEAAXH@Z
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
 ?compile_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$00@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@std@@PEAVstring@156@2@Z
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
