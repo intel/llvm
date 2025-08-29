@@ -23,7 +23,8 @@ inputs:
     type: string
     required: False
     default: ""
-  gdb_mode:
+  # 0 - run normally, 1 - run with gdb, 2 - run with unitrace
+  debug_mode:
     type: string
     required: False
     default: "0"
@@ -280,7 +281,7 @@ runs:
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
       BENCHMARK_RESULTS_REPO_PATH: ${{ steps.establish_outputs.outputs.BENCHMARK_RESULTS_REPO_PATH }}
-      LLVM_BENCHMARKS_USE_GDB: ${{ inputs.gdb_mode }}
+      LLVM_BENCHMARKS_DEBUG_MODE: ${{ inputs.debug_mode }}
       CR_BUILD_REF: ${{ steps.establish_outputs.outputs.CR_BUILD_REF }}
     run: |
       # Build and run benchmarks
@@ -309,13 +310,15 @@ runs:
         --detect-version sycl,compute_runtime \
         --produce-github-summary \
         $([[ -n "${CR_BUILD_REF}" ]] && echo "--compute-runtime ${CR_BUILD_REF}" || echo '') \
-        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
+        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }} \
+        ${{ inputs.debug_mode == '1' && '--unitrace inclusive' || '' }}
       # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "::endgroup::"
       echo "::group::compare_results"
 
-      if [ "$LLVM_BENCHMARKS_USE_GDB" == "0" ]; then
+      # Skip comparison if in debug mode
+      if [ "$LLVM_BENCHMARKS_DEBUG_MODE" == "0" ]; then
         python3 ./devops/scripts/benchmarks/compare.py to_hist \
           --avg-type EWMA \
           --cutoff "$(date -u -d '7 days ago' +'%Y%m%d_%H%M%S')" \
@@ -328,7 +331,7 @@ runs:
           --produce-github-summary \
           ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
       else
-        echo "Skipping regression comparison due to GDB mode enabled."
+        echo "Skipping regression comparison due to debug mode enabled."
       fi
 
       echo "::endgroup::"
@@ -361,7 +364,7 @@ runs:
         cp "$diff" "../cached_changes/$diff"
       done
   - name: Push benchmarks results
-    if: always() && inputs.upload_results == 'true' &&  inputs.gdb_mode == '0'
+    if: always() && inputs.upload_results == 'true' &&  inputs.debug_mode == '0'
     shell: bash
     env:
       BENCH_WORKDIR: ${{ steps.establish_outputs.outputs.BENCH_WORKDIR }}
@@ -412,9 +415,16 @@ runs:
           --dry-run
         cd -
       done
+  - name: Archive unitrace results
+    if: inputs.debug_mode == '2' && always()
+    uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+    with:
+      name: "Unitrace ${{ env.SAVE_NAME }} (run id: ${{ github.run_id }})"
+      path: ./llvm-ci-perf-results/traces
+      retention-days: 30
   - name: Archive benchmark results
     if: always()
-    uses: actions/upload-artifact@v4
+    uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
     with:
-      name: Benchmark run ${{ github.run_id }} (${{ env.SAVE_NAME }})
+      name: "Benchmark ${{ env.SAVE_NAME }} (run id: ${{ github.run_id }})"
       path: ./cached_changes

@@ -79,7 +79,7 @@ class GitProject:
     ) -> None:
         """Configures the project."""
 
-        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_DEBUG_MODE", "") == "1"
         build_type = "RelWithDebInfo" if is_gdb_mode else "Release"
 
         cmd = [

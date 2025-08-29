@@ -151,7 +151,7 @@ class ComputeBenchmark(Benchmark):
         return runtimes
 
     def __parse_output(self, output: str) -> list[tuple[float, float]]:
-        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_DEBUG_MODE", "") == "1"
 
         if is_gdb_mode:
             log.info(output)

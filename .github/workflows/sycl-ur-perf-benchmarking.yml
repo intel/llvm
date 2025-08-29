@@ -90,12 +90,13 @@ on:
           - 'false'
           - 'true'
         default: 'false'
-      gdb_mode:
-        description: Whether or not to run benchmarks under gdb.
+      debug_mode:
+        description: Whether or not to run benchmarks in debug mode. 0 - run normally, 1 - run with gdb, 2 - run with unitrace
         type: choice
         options:
           - '0'
           - '1'
+          - '2'
         default: '0'
       custom_cr:
         description: Custom Compute Runtime to use in benchmarks.
@@ -205,7 +206,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }}, gdb_mode: ${{ inputs.gdb_mode }})"
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }}, debug: ${{ inputs.debug_mode }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -215,7 +216,7 @@ jobs:
       benchmark_save_name: ${{ needs.sanitize_inputs_dispatch.outputs.benchmark_save_name }}
       benchmark_preset: ${{ inputs.preset }}
       benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
-      benchmark_gdb_mode: ${{ inputs.gdb_mode }}
+      benchmark_debug_mode: ${{ inputs.debug_mode }}
       benchmark_custom_cr: ${{ inputs.custom_cr }}
       repo_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl_dispatch.outputs.toolchain_artifact }}

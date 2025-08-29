@@ -131,9 +131,9 @@ on:
         type: string
         default: 'false'
         required: False
-      benchmark_gdb_mode:
+      benchmark_debug_mode:
         description: |
-          Whether or not to run benchmarks under gdb.
+          Whether or not to run benchmarks in debug mode.
         type: string
         required: False
         default: '0'
@@ -373,7 +373,7 @@ jobs:
         exit_on_failure: ${{ inputs.benchmark_exit_on_failure }}
         build_ref: ${{ inputs.repo_ref }}
         runner: ${{ inputs.runner }}
-        gdb_mode: ${{ inputs.benchmark_gdb_mode }}
+        debug_mode: ${{ inputs.benchmark_debug_mode }}
         custom_cr: ${{ inputs.benchmark_custom_cr }}
 
     - name: Debug CI platform information

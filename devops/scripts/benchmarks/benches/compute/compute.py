@@ -71,7 +71,7 @@ class ComputeBench(Suite):
             f"-DCMAKE_PREFIX_PATH={options.sycl}",
         ]
 
-        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_DEBUG_MODE", "") == "1"
         if is_gdb_mode:
             extra_args += [
                 f"-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG -fdebug-info-for-profiling",

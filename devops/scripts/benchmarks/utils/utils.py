@@ -50,7 +50,7 @@ def run(
         if isinstance(command, str):
             command = command.split()
 
-        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_USE_GDB", "") == "1"
+        is_gdb_mode = os.environ.get("LLVM_BENCHMARKS_DEBUG_MODE", "") == "1"
         if any("/compute-benchmarks-build/bin/" in x for x in command) and is_gdb_mode:
             command = [
                 "gdb",
