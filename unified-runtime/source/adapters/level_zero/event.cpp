@@ -1349,15 +1349,17 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 // The "HostVisible" argument specifies if event needs to be allocated from
 // a host-visible pool.
 //
-ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent,
-                        bool CounterBasedEventEnabled,
-                        bool ForceDisableProfiling,
-                        bool InterruptBasedEventEnabled) {
+ur_result_t
+EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
+            bool IsMultiDevice, bool HostVisible, ur_event_handle_t *RetEvent,
+            bool CounterBasedEventEnabled, bool ForceDisableProfiling,
+            bool InterruptBasedEventEnabled, std::optional<bool> IsInternal) {
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
+
+  // Handle optional IsInternal parameter - default to false if not provided
+  bool isInternalValue = IsInternal.value_or(false);
 
   ur_device_handle_t Device = nullptr;
 
@@ -1380,7 +1382,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
           CounterBasedEventEnabled, UsingImmediateCommandlists,
-          InterruptBasedEventEnabled))
+          InterruptBasedEventEnabled, Queue, isInternalValue))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
