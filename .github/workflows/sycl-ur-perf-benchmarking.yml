@@ -47,6 +47,12 @@ on:
       backend:
         type: string
         required: true
+      enable_unitrace:
+        type: string # true/false: workflow_dispatch does not support booleans
+        description: |
+          Enable --unitrace
+        required: false
+        default: 'false'
 
   workflow_dispatch:
     inputs:
@@ -102,6 +108,13 @@ on:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
             # As of #17407, sycl-linux-build now builds v2 by default
+      enable_unitrace:
+        description: Enable unitrace
+        type: choice
+        options:
+          - false
+          - true
+        default: false
 
 permissions: read-all
 
@@ -196,3 +209,4 @@ jobs:
       toolchain_artifact: ${{ needs.build_sycl.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl.outputs.toolchain_artifact_filename }}
       toolchain_decompress_command: ${{ needs.build_sycl.outputs.toolchain_decompress_command }}
+      enable_unitrace: ${{ inputs.enable_unitrace }}
