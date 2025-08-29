@@ -32,6 +32,10 @@ inputs:
   dry_run:
     type: string
     required: False
+  enable_unitrace:
+    type: string # true/false: workflow_dispatch does not support booleans
+    required: False
+    default: "false"
 
 runs:
   using: "composite"
@@ -203,7 +207,8 @@ runs:
         --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
-        --detect-version sycl,compute_runtime
+        --detect-version sycl,compute_runtime \
+        ${{ inputs.enable_unitrace == 'true' && '--unitrace' || '' }}
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
