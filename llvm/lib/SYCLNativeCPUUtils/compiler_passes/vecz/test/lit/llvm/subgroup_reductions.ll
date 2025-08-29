@@ -114,7 +114,7 @@ entry:
 ; scalar.
 ; CHECK: [[CALL:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> {{%.*}})
 ; CHECK: %call1 = tail call spir_func i32 @__mux_sub_group_reduce_add_i32(i32 [[CALL]])
-; CHECK: [[INS:%.*]] = insertelement <4 x i32> {{(undef|poison)}}, i32 %call1, {{(i32|i64)}} 0
+; CHECK: [[INS:%.*]] = insertelement <4 x i32> poison, i32 %call1, {{(i32|i64)}} 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[INS]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK: store <4 x i32> [[SPLAT]],
 }

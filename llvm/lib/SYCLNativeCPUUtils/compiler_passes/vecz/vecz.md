@@ -656,7 +656,7 @@ with a call to a masked version of the function.
 The masked version is nothing more than a wrapper around the original call. The
 wrapper function accepts the same arguments as the unmasked version and an
 additional boolean (`i8`) argument for the mask. If the mask is true, the
-wrapped function is executed and its result is returned, otherwise  `undef` is
+wrapped function is executed and its result is returned, otherwise `poison` is
 returned, without executing the wrapped function.
 
 After replacing the call with the masked call, we mark the call for

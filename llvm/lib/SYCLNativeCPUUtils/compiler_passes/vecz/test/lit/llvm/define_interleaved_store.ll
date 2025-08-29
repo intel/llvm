@@ -29,7 +29,7 @@ entry:
   call void @__mux_work_group_barrier(i32 0, i32 2, i32 528)
   store double 1.600000e+01, double addrspace(1)* %.cast, align 8
   %1 = load <4 x double>, <4 x double> addrspace(1)* %add.ptr, align 32
-  %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 undef>
+  %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 poison>
   %vecins7 = shufflevector <4 x double> %vecins5, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 2, i32 7>
   %arrayidx = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %c, i64 %call
   %2 = load <4 x double>, <4 x double> addrspace(1)* %arrayidx, align 32
@@ -56,8 +56,8 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 ; Test if the interleaved store is defined correctly
 ; CHECK: define void @__vecz_b_interleaved_store8_4_Dv4_du3ptrU3AS1(<4 x double>{{( %0)?}}, ptr addrspace(1){{( %1)?}})
 ; CHECK: entry:
-; CHECK: %BroadcastAddr.splatinsert = insertelement <4 x ptr addrspace(1)> {{poison|undef}}, ptr addrspace(1) %1, {{i32|i64}} 0
-; CHECK: %BroadcastAddr.splat = shufflevector <4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <4 x ptr addrspace(1)> {{poison|undef}}, <4 x i32> zeroinitializer
+; CHECK: %BroadcastAddr.splatinsert = insertelement <4 x ptr addrspace(1)> poison, ptr addrspace(1) %1, {{i32|i64}} 0
+; CHECK: %BroadcastAddr.splat = shufflevector <4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <4 x ptr addrspace(1)> poison, <4 x i32> zeroinitializer
 ; CHECK: %2 = getelementptr double, <4 x ptr addrspace(1)> %BroadcastAddr.splat, <4 x i64> <i64 0, i64 4, i64 8, i64 12>
 ; CHECK: call void @llvm.masked.scatter.v4f64.v4p1(<4 x double> %0, <4 x ptr addrspace(1)> %2, i32{{( immarg)?}} 8, <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}})
 ; CHECK: ret void

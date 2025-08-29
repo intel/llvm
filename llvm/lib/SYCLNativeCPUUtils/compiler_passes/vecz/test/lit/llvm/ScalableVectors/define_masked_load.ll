@@ -66,5 +66,5 @@ declare i64 @__mux_get_group_id(i32)
 ; Test if the masked load is defined correctly
 ; CHECK: define <vscale x 4 x i32> @__vecz_b_masked_load4_u5nxv4ju3ptrU3AS2u5nxv4b(ptr addrspace(2){{( %0)?}}, <vscale x 4 x i1>{{( %1)?}})
 ; CHECK: entry:
-; CHECK: %2 = call <vscale x 4 x i32> @llvm.masked.load.nxv4i32.p2(ptr addrspace(2) %0, i32{{( immarg)?}} 4, <vscale x 4 x i1> %1, <vscale x 4 x i32> {{undef|poison}})
+; CHECK: %2 = call <vscale x 4 x i32> @llvm.masked.load.nxv4i32.p2(ptr addrspace(2) %0, i32{{( immarg)?}} 4, <vscale x 4 x i1> %1, <vscale x 4 x i32> poison)
 ; CHECK: ret <vscale x 4 x i32> %2

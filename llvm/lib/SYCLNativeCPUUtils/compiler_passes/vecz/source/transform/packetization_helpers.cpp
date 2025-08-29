@@ -134,7 +134,7 @@ Value *createOptimalShuffle(IRBuilder<> &B, Value *srcA, Value *srcB,
   // If either operand is a unary shuffle, we can pull a few more tricks..
   // For instance:
   //
-  //    shuffle(shuffle(A, undef, maskA), shuffle(B, undef, maskB), maskC)
+  //    shuffle(shuffle(A, poison, maskA), shuffle(B, poison, maskB), maskC)
   // => shuffle(A, B, shuffle(maskA, adjust(maskB), maskC))
   // where "adjust" refers to adjusting the mask values to refer to the second
   // source vector by adding the width of the first operand to the indices.
@@ -229,9 +229,9 @@ bool createSubSplats(const vecz::TargetInfo &TI, IRBuilder<> &B,
     }
   }
 
-  auto *undef = PoisonValue::get(srcs.front()->getType());
+  auto *poison = PoisonValue::get(srcs.front()->getType());
   for (auto &src : srcs) {
-    src = createOptimalShuffle(B, src, undef, mask);
+    src = createOptimalShuffle(B, src, poison, mask);
   }
   return true;
 }
@@ -456,7 +456,7 @@ PacketRange Packetizer::Result::getAsPacket(unsigned width) const {
     assert(isa<FixedVectorType>(vecTy) && "Must be a fixed vector type here!");
     const unsigned scalarWidth = vecTy->getNumElements() / width;
     if (scalarWidth > 1 || scalar->getType()->isVectorTy()) {
-      auto *const undef = PoisonValue::get(vec->getType());
+      auto *const poison = PoisonValue::get(vec->getType());
 
       // Build shuffle mask to perform the subvector extracts.
       IRBuilder<> B(buildAfter(vec, packetizer.F));
@@ -465,7 +465,7 @@ PacketRange Packetizer::Result::getAsPacket(unsigned width) const {
         for (size_t j = 0; j < scalarWidth; ++j, ++k) {
           mask.push_back(k);
         }
-        packet[i] = createOptimalShuffle(B, vec, undef, mask,
+        packet[i] = createOptimalShuffle(B, vec, poison, mask,
                                          Twine(scalar->getName(), ".split"));
       }
     } else {
@@ -536,7 +536,7 @@ PacketRange Packetizer::Result::widen(unsigned width) const {
   auto *it = parts.begin();
   IRBuilder<> B(buildAfter(parts.back(), packetizer.F));
   if (newWidth > 1) {
-    auto *const undef = PoisonValue::get(vecTy);
+    auto *const poison = PoisonValue::get(vecTy);
 
     // Build shuffle mask to perform the subvector extracts.
     for (size_t i = 0, origIdx = 0; i < width; ++i) {
@@ -549,7 +549,7 @@ PacketRange Packetizer::Result::widen(unsigned width) const {
         mask.push_back(origIdx);
       }
       packet[i] =
-          createOptimalShuffle(B, *it, undef, mask, Twine(name, ".split"));
+          createOptimalShuffle(B, *it, poison, mask, Twine(name, ".split"));
     }
   } else {
     for (size_t i = 0, origIdx = 0; i < width; ++i, ++origIdx) {
@@ -581,9 +581,9 @@ PacketRange Packetizer::Result::narrow(unsigned width) const {
     // Build vectors out of pairs of scalar values
     const auto name = scalar->getName();
     IRBuilder<> B(buildAfter(parts.back(), packetizer.F));
-    Value *undef = PoisonValue::get(FixedVectorType::get(ty, 2));
+    Value *poison = PoisonValue::get(FixedVectorType::get(ty, 2));
     for (size_t i = 0, pairIdx = 0; i < width; ++i, pairIdx += 2) {
-      Value *in = B.CreateInsertElement(undef, parts[pairIdx], B.getInt32(0),
+      Value *in = B.CreateInsertElement(poison, parts[pairIdx], B.getInt32(0),
                                         Twine(name, ".gather"));
       packet[i] = B.CreateInsertElement(in, parts[pairIdx + 1], B.getInt32(1),
                                         Twine(name, ".gather"));

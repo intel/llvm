@@ -50,8 +50,8 @@ declare i64 @__mux_get_global_id(i32)
 
 ; The splat of the uniform value
 ; CHECK: %uniform = load
-; CHECK: %[[SPLATINS:.+]] = insertelement <4 x i32> {{undef|poison}}, i32 %uniform, {{(i32|i64)}} 0
-; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i32> %[[SPLATINS]], <4 x i32> {{undef|poison}}, <4 x i32> zeroinitializer
+; CHECK: %[[SPLATINS:.+]] = insertelement <4 x i32> poison, i32 %uniform, {{(i32|i64)}} 0
+; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i32> %[[SPLATINS]], <4 x i32> poison, <4 x i32> zeroinitializer
 
 ; Ensure the two varyings are added together directly
 ; CHECK: %[[REASSOC:.+]] = add <4 x i32> %[[VARYING1]], %[[VARYING2]]

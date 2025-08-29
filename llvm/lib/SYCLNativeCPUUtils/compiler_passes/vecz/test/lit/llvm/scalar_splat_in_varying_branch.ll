@@ -50,6 +50,6 @@ merge:
 
 ; CHECK: define spir_kernel void @__vecz_v4_test
 ; CHECK: %[[LOAD:.+]] = load i32, ptr addrspace(1) %in
-; CHECK: %[[SPLAT_IN:.+]] = insertelement <4 x i32> {{poison|undef}}, i32 %[[LOAD]], {{(i32|i64)}} 0
-; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i32> %[[SPLAT_IN]], <4 x i32> {{poison|undef}}, <4 x i32> zeroinitializer
+; CHECK: %[[SPLAT_IN:.+]] = insertelement <4 x i32> poison, i32 %[[LOAD]], {{(i32|i64)}} 0
+; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i32> %[[SPLAT_IN]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK: call void @__vecz_b_masked_store4_Dv4_ju3ptrU3AS1Dv4_b(<4 x i32> %[[SPLAT]], ptr addrspace(1){{( nonnull)? %.*}}, <4 x i1> %{{.+}})

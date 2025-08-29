@@ -811,15 +811,15 @@ bool VectorizationContext::emitMaskedScatterGatherMemOpBody(
 //   Iteration 0:
 //     %e.0 = extractelement %v, 0          (A)
 //     %s.0 = add N, %e.0                   (A)
-//     %v.0 = insertelement undef, %s.0, 0  (<A,U,U,U>)
+//     %v.0 = insertelement poison, %s.0, 0 (<A,P,P,P>)
 //   Iteration 1:
 //     %e.1 = extractelement %v, 1          (B)
 //     %s.1 = add %s.0, %e.1                (A+B)
-//     %v.1 = insertelement  %v.0, %s.1, 1  (<A,A+B,U,U>)
+//     %v.1 = insertelement  %v.0, %s.1, 1  (<A,A+B,P,P>)
 //   Iteration 2:
 //     %e.2 = extractelement %v, 2          (C)
 //     %s.2 = add %s.1, %e.2                (A+B+C)
-//     %v.2 = insertelement  %v.1, %s.2, 2  (<A,A+B,A+B+C,U>)
+//     %v.2 = insertelement  %v.1, %s.2, 2  (<A,A+B,A+B+C,P>)
 //   Iteration 3:
 //     %e.3 = extractelement %v, 3          (D)
 //     %s.3 = add %s.2, %e.2                (A+B+C+D)
@@ -830,11 +830,11 @@ bool VectorizationContext::emitMaskedScatterGatherMemOpBody(
 // Exclusive scans operate by pre-filling the vector with the neutral value,
 // looping from 1 onwards, and extracting from one less than the current
 // iteration:
-//   %z = insertelement undef, N, 0
+//   %z = insertelement poison, N, 0
 //   Iteration 0:
 //     %e.0 = extractelement %v, 0          (A)
 //     %s.0 = add N, %e.0                   (A)
-//     %v.0 = insertelement %z, %s.0, 1     (<N,A,U,U>)
+//     %v.0 = insertelement %z, %s.0, 1     (<N,A,P,P>)
 // This loop operates up to the VL input, if it is a vector-predicated scan.
 // Elements past the vector length will receive a default zero value.
 // Note: This method is not optimal for fixed-length code, but serves as a way

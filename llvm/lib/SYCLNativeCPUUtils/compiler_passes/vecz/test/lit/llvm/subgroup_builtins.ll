@@ -67,7 +67,7 @@ define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspac
 ; CHECK: [[EXT:%.*]] = extractelement <4 x i32> [[LD]], i64 0
 ; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 0)
 ; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[BDCAST]], i64 0
-; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK: store <4 x i32> [[SPLAT]], ptr addrspace(1)
 }
 
@@ -85,7 +85,7 @@ define spir_kernel void @sub_group_broadcast_wider_than_vf(i32 addrspace(1)* %in
 ; CHECK: [[EXT:%.*]] = extractelement <4 x i32> [[LD]], i64 2
 ; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 1)
 ; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[BDCAST]], i64 0
-; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK: store <4 x i32> [[SPLAT]], ptr addrspace(1)
 }
 
