@@ -1130,7 +1130,7 @@ RemoveLifetimeIntrinsicsPass
 The LLVM intrinsics ``llvm.lifetime.start`` and ``llvm.lifetime.end`` take as an
 argument a pointer to memory and define where in the code referencing that
 memory objects is valid. Before the start intrinsic memory pointed to is
-undefined and a load to it can be replaced with an ``undef``. Likewise the memory
+undefined and a load to it can be replaced with ``poison``. Likewise the memory
 is undefined after the end intrinsic and any stores can be removed as dead.
 
 The function pass ``RemoveLifetimeIntrinsicsPass`` removes these intrinsics

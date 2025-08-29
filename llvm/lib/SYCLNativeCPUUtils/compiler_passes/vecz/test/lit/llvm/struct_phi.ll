@@ -29,7 +29,7 @@ entry:
   %o = load i32, i32* %oup
   ; do this little compare + phi to throw off the InstCombine pass and ensure
   ; we end up with a phi %struct_type that must be instantiated
-  %s = insertvalue %struct_type undef, i32 %o, 1
+  %s = insertvalue %struct_type poison, i32 %o, 1
   %cmpcall = icmp ult i64 16, %call
   br i1 %cmpcall, label %lower, label %higher
 
@@ -82,10 +82,10 @@ declare void @llvm.memset.p0i8.i32(i8*,i8,i32,i32,i1)
 ; CHECK: %[[V4:[0-9]+]] = extractelement <4 x i32> %[[V2]], {{(i32|i64)}} 1
 ; CHECK: %[[V5:[0-9]+]] = extractelement <4 x i32> %[[V2]], {{(i32|i64)}} 2
 ; CHECK: %[[V6:[0-9]+]] = extractelement <4 x i32> %[[V2]], {{(i32|i64)}} 3
-; CHECK: %[[S24:.+]] = insertvalue %struct_type undef, i32 %[[V3]], 1
-; CHECK: %[[S25:.+]] = insertvalue %struct_type undef, i32 %[[V4]], 1
-; CHECK: %[[S26:.+]] = insertvalue %struct_type undef, i32 %[[V5]], 1
-; CHECK: %[[S27:.+]] = insertvalue %struct_type undef, i32 %[[V6]], 1
+; CHECK: %[[S24:.+]] = insertvalue %struct_type poison, i32 %[[V3]], 1
+; CHECK: %[[S25:.+]] = insertvalue %struct_type poison, i32 %[[V4]], 1
+; CHECK: %[[S26:.+]] = insertvalue %struct_type poison, i32 %[[V5]], 1
+; CHECK: %[[S27:.+]] = insertvalue %struct_type poison, i32 %[[V6]], 1
 
 ; Check if the phi node has been instantiated
 ; CHECK: phi %struct_type [ %{{.+}}, %entry ], [ %{{.+}}, %for.cond ]

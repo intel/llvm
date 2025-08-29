@@ -29,7 +29,7 @@ entry:
   call void @__mux_work_group_barrier(i32 0, i32 2, i32 528)
   store double 1.600000e+01, double addrspace(1)* %.cast, align 8
   %1 = load <4 x double>, <4 x double> addrspace(1)* %add.ptr, align 32
-  %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 undef>
+  %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 poison>
   %vecins7 = shufflevector <4 x double> %vecins5, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 2, i32 7>
   %arrayidx = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %c, i64 %call
   %2 = load <4 x double>, <4 x double> addrspace(1)* %arrayidx, align 32
@@ -56,8 +56,8 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 ; Test if the interleaved store is defined correctly
 ; CHECK: define void @__vecz_b_interleaved_store8_4_u5nxv4du3ptrU3AS1(<vscale x 4 x double>{{( %0)?}}, ptr addrspace(1){{( %1)?}})
 ; CHECK: entry:
-; CHECK: %BroadcastAddr.splatinsert = insertelement <vscale x 4 x ptr addrspace(1)> {{poison|undef}}, ptr addrspace(1) %1, {{i32|i64}} 0
-; CHECK: %BroadcastAddr.splat = shufflevector <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <vscale x 4 x ptr addrspace(1)> {{poison|undef}}, <vscale x 4 x i32> zeroinitializer
+; CHECK: %BroadcastAddr.splatinsert = insertelement <vscale x 4 x ptr addrspace(1)> poison, ptr addrspace(1) %1, {{i32|i64}} 0
+; CHECK: %BroadcastAddr.splat = shufflevector <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <vscale x 4 x ptr addrspace(1)> poison, <vscale x 4 x i32> zeroinitializer
 ; CHECK: %2 = call <vscale x 4 x i64> @llvm.{{(experimental\.)?}}stepvector.nxv4i64()
 ; CHECK: %3 = mul <vscale x 4 x i64> {{shufflevector \(<vscale x 4 x i64> insertelement \(<vscale x 4 x i64> poison, i64 4, (i32|i64) 0\), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer\)|splat \(i64 4\)}}, %2
 ; CHECK: %4 = getelementptr double, <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splat, <vscale x 4 x i64> %3

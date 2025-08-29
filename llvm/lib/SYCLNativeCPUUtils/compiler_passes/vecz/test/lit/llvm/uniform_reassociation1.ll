@@ -50,9 +50,9 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: %[[REASSOC:.+]] = add i32 %uniform1, %uniform2
 
 ; Ensure there is only one vector splat
-; CHECK: %[[SPLATINS:.+]] = insertelement <4 x i32> {{undef|poison}}, i32 %[[REASSOC]], {{(i32|i64)}} 0
-; CHECK-NOT: insertelement <4 x i32> {{undef|poison}}, i32 %{{.+}}, {{(i32|i64)}} 0
+; CHECK: %[[SPLATINS:.+]] = insertelement <4 x i32> poison, i32 %[[REASSOC]], {{(i32|i64)}} 0
+; CHECK-NOT: insertelement <4 x i32> poison, i32 %{{.+}}, {{(i32|i64)}} 0
 
-; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i32> %[[SPLATINS]], <4 x i32> {{undef|poison}}, <4 x i32> zeroinitializer
+; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i32> %[[SPLATINS]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK: %[[RESULT:.+]] = add <4 x i32> %{{.*}}, %[[SPLAT]]
 ; CHECK: store <4 x i32> %vuu{{.*}}, ptr addrspace(1) %{{.+}}

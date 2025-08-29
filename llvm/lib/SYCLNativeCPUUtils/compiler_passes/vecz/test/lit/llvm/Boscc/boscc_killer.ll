@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 declare i64 @__mux_get_local_id(i32)
 declare i64 @__mux_get_local_size(i32)
 
-@boscc_killer.shared = internal unnamed_addr addrspace(3) global i32 undef, align 4
+@boscc_killer.shared = internal unnamed_addr addrspace(3) global i32 poison, align 4
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @boscc_killer(float addrspace(1)* %A, float addrspace(1)* %B, i32 %N, i32 %lda) {

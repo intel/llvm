@@ -86,5 +86,5 @@ attributes #6 = { nounwind }
 ; Test if the masked load is defined correctly
 ; CHECK: define <4 x i32> @__vecz_b_masked_load4_Dv4_ju3ptrU3AS2Dv4_b(ptr addrspace(2){{( %0)?}}, <4 x i1>{{( %1)?}})
 ; CHECK: entry:
-; CHECK: %2 = call <4 x i32> @llvm.masked.load.v4i32.p2(ptr addrspace(2) %0, i32{{( immarg)?}} 4, <4 x i1> %1, <4 x i32> {{undef|poison}})
+; CHECK: %2 = call <4 x i32> @llvm.masked.load.v4i32.p2(ptr addrspace(2) %0, i32{{( immarg)?}} 4, <4 x i1> %1, <4 x i32> poison)
 ; CHECK: ret <4 x i32> %2
