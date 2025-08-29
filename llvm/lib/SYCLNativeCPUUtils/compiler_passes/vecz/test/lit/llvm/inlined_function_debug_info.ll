@@ -16,8 +16,7 @@
 
 ; Check VECZ debug info for inlined DILocation metadata nodes
 
-; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: veczc -k functions_one -vecz-passes=builtin-inlining -vecz-simd-width=4 -S < %s | FileCheck %t
+; RUN: veczc -k functions_one -vecz-passes=builtin-inlining -vecz-simd-width=4 -S < %s | FileCheck %s
 
 ; ModuleID = '/tmp/inlined_function.ll'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

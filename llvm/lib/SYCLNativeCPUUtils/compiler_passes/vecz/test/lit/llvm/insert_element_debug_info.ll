@@ -18,8 +18,7 @@
 ; intrinsics across all lanes even when scalarization masks disable some
 ; of the lanes. This occurs when we scalarize insertelement instructions.
 
-; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: veczc -k unaligned_load -vecz-passes="function(instcombine,adce),scalarize,packetizer,instcombine" -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %t
+; RUN: veczc -k unaligned_load -vecz-passes="function(instcombine,adce),scalarize,packetizer,instcombine" -vecz-simd-width=4 -vecz-choices=FullScalarization -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

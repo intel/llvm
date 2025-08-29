@@ -17,8 +17,7 @@
 ; Check that debug info is preserved in the vectorized kernel.
 ; Specifically that the packetization pass creates vector types
 ; in the DI for the variables.
-; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: veczc -k add -S < %s | FileCheck %t
+; RUN: veczc -k add -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
