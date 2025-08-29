@@ -82,9 +82,10 @@ static bool IncrementPtr(const char **fmt) {
   return false;
 }
 
-GlobalVariable *GetNewFormatStringAsGlobalVar(
-    Module &module, GlobalVariable *const string_value,
-    const std::string &new_format_string) {
+GlobalVariable *
+GetNewFormatStringAsGlobalVar(Module &module,
+                              GlobalVariable *const string_value,
+                              const std::string &new_format_string) {
   const ArrayRef<uint8_t> Elts((const uint8_t *)new_format_string.data(),
                                new_format_string.size());
   Constant *new_format_string_const =
@@ -186,61 +187,61 @@ EnumPrintfError ScalarizeAndCheckFormatString(const std::string &str,
           return kPrintfError_invalidFormatString;
         }
         switch (*fmt) {
-          default:
-            LLVM_DEBUG(dbgs() << "Unexpected character in format string \""
-                              << str.c_str() << "\"");
+        default:
+          LLVM_DEBUG(dbgs() << "Unexpected character in format string \""
+                            << str.c_str() << "\"");
+          return kPrintfError_invalidFormatString;
+        case '1':
+          // Must be 16, else error
+          if (IncrementPtr(&fmt)) {
+            LLVM_DEBUG(dbgs()
+                       << "Expected vector width of 16 in format string \""
+                       << str.c_str() << "\"");
             return kPrintfError_invalidFormatString;
-          case '1':
-            // Must be 16, else error
-            if (IncrementPtr(&fmt)) {
-              LLVM_DEBUG(dbgs()
-                         << "Expected vector width of 16 in format string \""
-                         << str.c_str() << "\"");
-              return kPrintfError_invalidFormatString;
-            }
-            if (*fmt != '6') {
-              LLVM_DEBUG(dbgs()
-                         << "Expected vector width of 16 in format string \""
-                         << str.c_str() << "\"");
-              return kPrintfError_invalidFormatString;
-            }
-            vector_length = 16u;
-            break;
-          case '2':
-            vector_length = 2u;
-            break;
-          case '3':
-            vector_length = 3u;
-            // Lookahead for vectors of width 32. We know that we won't go out
-            // of bounds because worst case scenario there should be a null byte
-            // after the '3'.
-            if (*(fmt + 1) == '2') {
-              IncrementPtr(&fmt);
-              vector_length = 32u;
-            }
-            break;
-          case '4':
-            vector_length = 4u;
-            break;
-          case '6':
-            // Must be 64, else error
-            if (IncrementPtr(&fmt)) {
-              LLVM_DEBUG(dbgs()
-                         << "Expected vector width of 64 in format string \""
-                         << str.c_str() << "\"");
-              return kPrintfError_invalidFormatString;
-            }
-            if (*fmt != '4') {
-              LLVM_DEBUG(dbgs()
-                         << "Expected vector width of 64 in format string \""
-                         << str.c_str() << "\"");
-              return kPrintfError_invalidFormatString;
-            }
-            vector_length = 64u;
-            break;
-          case '8':
-            vector_length = 8u;
-            break;
+          }
+          if (*fmt != '6') {
+            LLVM_DEBUG(dbgs()
+                       << "Expected vector width of 16 in format string \""
+                       << str.c_str() << "\"");
+            return kPrintfError_invalidFormatString;
+          }
+          vector_length = 16u;
+          break;
+        case '2':
+          vector_length = 2u;
+          break;
+        case '3':
+          vector_length = 3u;
+          // Lookahead for vectors of width 32. We know that we won't go out
+          // of bounds because worst case scenario there should be a null byte
+          // after the '3'.
+          if (*(fmt + 1) == '2') {
+            IncrementPtr(&fmt);
+            vector_length = 32u;
+          }
+          break;
+        case '4':
+          vector_length = 4u;
+          break;
+        case '6':
+          // Must be 64, else error
+          if (IncrementPtr(&fmt)) {
+            LLVM_DEBUG(dbgs()
+                       << "Expected vector width of 64 in format string \""
+                       << str.c_str() << "\"");
+            return kPrintfError_invalidFormatString;
+          }
+          if (*fmt != '4') {
+            LLVM_DEBUG(dbgs()
+                       << "Expected vector width of 64 in format string \""
+                       << str.c_str() << "\"");
+            return kPrintfError_invalidFormatString;
+          }
+          vector_length = 64u;
+          break;
+        case '8':
+          vector_length = 8u;
+          break;
         }
         if (IncrementPtr(&fmt)) {
           LLVM_DEBUG(dbgs() << "Unexpected \\0 character in format string \""
@@ -265,76 +266,74 @@ EnumPrintfError ScalarizeAndCheckFormatString(const std::string &str,
       if (has_supplied_length_modifier) {
         bool consume_next_char = true;
         switch (*fmt) {
-          default:
-            // The 'j', 'z', 't', and 'L' length modifiers are not supported by
-            // OpenCL C.
-            LLVM_DEBUG(dbgs() << "Unsupported length modifier '" << *fmt
-                              << "'specifier in format string \"" << str.c_str()
-                              << "\"");
+        default:
+          // The 'j', 'z', 't', and 'L' length modifiers are not supported by
+          // OpenCL C.
+          LLVM_DEBUG(dbgs() << "Unsupported length modifier '" << *fmt
+                            << "'specifier in format string \"" << str.c_str()
+                            << "\"");
+          return kPrintfError_invalidFormatString;
+        case 'h':
+          if (IncrementPtr(&fmt)) {
+            LLVM_DEBUG(dbgs() << "Unexpected \\0 character in format string \""
+                              << str.c_str() << "\"");
             return kPrintfError_invalidFormatString;
-          case 'h':
-            if (IncrementPtr(&fmt)) {
+          }
+          if (*fmt == 'h') {
+            specifier_string += "hh";
+          } else if (*fmt == 'l') {
+            // Native printf doesn't recognize 'hl' so we don't
+            // add it to the new format string.  Luckily, 'hl'
+            // is sizeof(int) - the same as the default on
+            // native printf!
+
+            // Additionally, 'hl' modifier may only be used in
+            // conjunction with the vector specifier
+            if (!is_vector) {
               LLVM_DEBUG(dbgs()
                          << "Unexpected \\0 character in format string \""
                          << str.c_str() << "\"");
               return kPrintfError_invalidFormatString;
             }
-            if (*fmt == 'h') {
-              specifier_string += "hh";
-            } else if (*fmt == 'l') {
-              // Native printf doesn't recognize 'hl' so we don't
-              // add it to the new format string.  Luckily, 'hl'
-              // is sizeof(int) - the same as the default on
-              // native printf!
-
-              // Additionally, 'hl' modifier may only be used in
-              // conjunction with the vector specifier
-              if (!is_vector) {
-                LLVM_DEBUG(dbgs()
-                           << "Unexpected \\0 character in format string \""
-                           << str.c_str() << "\"");
-                return kPrintfError_invalidFormatString;
-              }
-            } else {
-              specifier_string += 'h';
-              // We've already incremented the ptr and we found nothing; don't
-              // do it again
-              consume_next_char = false;
-            }
-            break;
-          case 'l':
-            specifier_string += *fmt;
-            // Check ahead to see if the user is using the invalid 'll' length
-            // modifier
-            if (IncrementPtr(&fmt)) {
-              LLVM_DEBUG(dbgs()
-                         << "Unexpected \\0 character in format string \""
-                         << str.c_str() << "\"");
-              return kPrintfError_invalidFormatString;
-            }
-            if (*fmt == 'l') {
-              LLVM_DEBUG(dbgs()
-                         << "The 'll' length specifier is invalid in OpenCL "
-                            "printf\n  > "
-                         << str.c_str() << "\"");
-              return kPrintfError_invalidFormatString;
-            }
-            // We've already incremented the ptr; don't do it again
-
-            // The 'l' specifier for the OpenCL printf expects 64 bits
-            // integers, check if the system's long are actually 64 bits wide
-            // and if not upgrade the format specifier to 'll'.
-            //
-            // FIXME: This only works for host based devices, which is fine for
-            // our current printf implementation, but it should really be
-            // removed once we have a proper printf implementation.
-            if (sizeof(long) != 8) {
-              specifier_string += 'l';
-            }
-
+          } else {
+            specifier_string += 'h';
+            // We've already incremented the ptr and we found nothing; don't
+            // do it again
             consume_next_char = false;
-            has_used_l_length_modifier = true;
-            break;
+          }
+          break;
+        case 'l':
+          specifier_string += *fmt;
+          // Check ahead to see if the user is using the invalid 'll' length
+          // modifier
+          if (IncrementPtr(&fmt)) {
+            LLVM_DEBUG(dbgs() << "Unexpected \\0 character in format string \""
+                              << str.c_str() << "\"");
+            return kPrintfError_invalidFormatString;
+          }
+          if (*fmt == 'l') {
+            LLVM_DEBUG(dbgs()
+                       << "The 'll' length specifier is invalid in OpenCL "
+                          "printf\n  > "
+                       << str.c_str() << "\"");
+            return kPrintfError_invalidFormatString;
+          }
+          // We've already incremented the ptr; don't do it again
+
+          // The 'l' specifier for the OpenCL printf expects 64 bits
+          // integers, check if the system's long are actually 64 bits wide
+          // and if not upgrade the format specifier to 'll'.
+          //
+          // FIXME: This only works for host based devices, which is fine for
+          // our current printf implementation, but it should really be
+          // removed once we have a proper printf implementation.
+          if (sizeof(long) != 8) {
+            specifier_string += 'l';
+          }
+
+          consume_next_char = false;
+          has_used_l_length_modifier = true;
+          break;
         }
         if (consume_next_char) {
           if (IncrementPtr(&fmt)) {
@@ -349,27 +348,27 @@ EnumPrintfError ScalarizeAndCheckFormatString(const std::string &str,
       specifier_string += *fmt;
 
       switch (*fmt) {
-        default:
-          break;
-        case 'n':
-          // The 'n' conversion specifier is not supported by OpenCL C.
+      default:
+        break;
+      case 'n':
+        // The 'n' conversion specifier is not supported by OpenCL C.
+        LLVM_DEBUG(
+            dbgs() << "The 'n' conversion specifier is invalid in OpenCL "
+                      "printf\n  > "
+                   << str.c_str() << "\"");
+        return kPrintfError_invalidFormatString;
+      case 's': // Intentional fall-through
+      case 'c':
+        // The 'l' length modifier followed by the 'c' or 's' conversion
+        // specifiers is not supported by OpenCL C.
+        if (has_used_l_length_modifier) {
           LLVM_DEBUG(dbgs()
-                     << "The 'n' conversion specifier is invalid in OpenCL "
-                        "printf\n  > "
+                     << "The 'l' length modifier followed by the 'c' or "
+                        "'s' conversion is invalid in OpenCL printf\n  > "
                      << str.c_str() << "\"");
           return kPrintfError_invalidFormatString;
-        case 's':  // Intentional fall-through
-        case 'c':
-          // The 'l' length modifier followed by the 'c' or 's' conversion
-          // specifiers is not supported by OpenCL C.
-          if (has_used_l_length_modifier) {
-            LLVM_DEBUG(dbgs()
-                       << "The 'l' length modifier followed by the 'c' or "
-                          "'s' conversion is invalid in OpenCL printf\n  > "
-                       << str.c_str() << "\"");
-            return kPrintfError_invalidFormatString;
-          }
-          break;
+        }
+        break;
       }
 
       // Output the %specifier for each element of the vector,
@@ -389,4 +388,4 @@ EnumPrintfError ScalarizeAndCheckFormatString(const std::string &str,
 
   return kPrintfError_success;
 }
-}  // namespace vecz
+} // namespace vecz

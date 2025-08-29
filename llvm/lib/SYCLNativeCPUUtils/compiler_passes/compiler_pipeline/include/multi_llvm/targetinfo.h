@@ -44,7 +44,7 @@ auto createTargetInfo(clang::DiagnosticsEngine &Diags,
       Diags, std::make_shared<clang::TargetOptions>(Opts));
 }
 
-}  // namespace detail
+} // namespace detail
 
 struct TargetInfo {
   static clang::TargetInfo *CreateTargetInfo(clang::DiagnosticsEngine &Diags,
@@ -53,6 +53,6 @@ struct TargetInfo {
   }
 };
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_TARGET_TARGETINFO_H_INCLUDED
+#endif // MULTI_LLVM_TARGET_TARGETINFO_H_INCLUDED

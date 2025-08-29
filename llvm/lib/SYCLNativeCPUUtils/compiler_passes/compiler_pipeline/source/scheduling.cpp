@@ -151,5 +151,5 @@ void populateStructGetterFunction(llvm::Function &F, Argument &structPtrArg,
   ir.CreateRet(ret);
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

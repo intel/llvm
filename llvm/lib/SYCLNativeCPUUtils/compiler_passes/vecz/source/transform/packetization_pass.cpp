@@ -38,9 +38,8 @@ using namespace llvm;
 
 STATISTIC(VeczPacketizeFail,
           "Number of kernels that failed to packetize [ID#P80]");
-STATISTIC(VeczSimdAnalysisFail,
-          "Number of kernels that SIMD Width Analysis "
-          "suggested not to packetize [ID#P81]");
+STATISTIC(VeczSimdAnalysisFail, "Number of kernels that SIMD Width Analysis "
+                                "suggested not to packetize [ID#P81]");
 
 char PacketizationPass::PassID = 0;
 

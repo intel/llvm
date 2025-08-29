@@ -24,7 +24,7 @@
 namespace llvm {
 class Function;
 class StringRef;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 class VectorizationUnit;
@@ -77,6 +77,6 @@ void cloneDebugInfo(const VectorizationUnit &VU);
 /// vectorized one. Obviously, the kernel itself has to be cloned before
 /// calling this function.
 void cloneOpenCLMetadata(const VectorizationUnit &VU);
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECTORIZATION_HELPERS_H_INCLUDED
+#endif // VECZ_VECTORIZATION_HELPERS_H_INCLUDED

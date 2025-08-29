@@ -112,11 +112,11 @@ void VeczPassMachinery::registerPasses() {
 
 void VeczPassMachinery::addClassToPassNames() {
   {
-#define MODULE_PASS(NAME, CREATE_PASS) \
+#define MODULE_PASS(NAME, CREATE_PASS)                                         \
   PIC.addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
-#define FUNCTION_PASS(NAME, CREATE_PASS) \
+#define FUNCTION_PASS(NAME, CREATE_PASS)                                       \
   PIC.addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
-#define LOOP_PASS(NAME, CREATE_PASS) \
+#define LOOP_PASS(NAME, CREATE_PASS)                                           \
   PIC.addClassToPassName(decltype(CREATE_PASS)::name(), NAME);
 #include "passes.def"
   }
@@ -153,21 +153,21 @@ void VeczPassMachinery::registerPassCallbacks() {
   PB.registerPipelineParsingCallback(
       [](StringRef Name, ModulePassManager &PM,
          ArrayRef<PassBuilder::PipelineElement>) {
-#define MODULE_PASS(NAME, CREATE_PASS) \
-  if (Name == NAME) {                  \
-    PM.addPass(CREATE_PASS);           \
-    return true;                       \
+#define MODULE_PASS(NAME, CREATE_PASS)                                         \
+  if (Name == NAME) {                                                          \
+    PM.addPass(CREATE_PASS);                                                   \
+    return true;                                                               \
   }
-#define FUNCTION_PASS(NAME, CREATE_PASS)                        \
-  if (Name == NAME) {                                           \
-    PM.addPass(createModuleToFunctionPassAdaptor(CREATE_PASS)); \
-    return true;                                                \
+#define FUNCTION_PASS(NAME, CREATE_PASS)                                       \
+  if (Name == NAME) {                                                          \
+    PM.addPass(createModuleToFunctionPassAdaptor(CREATE_PASS));                \
+    return true;                                                               \
   }
-#define LOOP_PASS(NAME, CREATE_PASS)                    \
-  if (Name == NAME) {                                   \
-    PM.addPass(createModuleToFunctionPassAdaptor(       \
-        createFunctionToLoopPassAdaptor(CREATE_PASS))); \
-    return true;                                        \
+#define LOOP_PASS(NAME, CREATE_PASS)                                           \
+  if (Name == NAME) {                                                          \
+    PM.addPass(createModuleToFunctionPassAdaptor(                              \
+        createFunctionToLoopPassAdaptor(CREATE_PASS)));                        \
+    return true;                                                               \
   }
 #include "passes.def"
         return false;

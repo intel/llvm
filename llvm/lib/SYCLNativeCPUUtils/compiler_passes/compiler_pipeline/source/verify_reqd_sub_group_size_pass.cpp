@@ -28,7 +28,7 @@ namespace {
 class DiagnosticInfoReqdSGSize : public DiagnosticInfoWithLocationBase {
   uint32_t SGSize;
 
- public:
+public:
   static int DK_FailedReqdSGSize;
   static int DK_UnsupportedReqdSGSize;
 
@@ -59,12 +59,12 @@ int DiagnosticInfoReqdSGSize::DK_FailedReqdSGSize =
     getNextAvailablePluginDiagnosticKind();
 int DiagnosticInfoReqdSGSize::DK_UnsupportedReqdSGSize =
     getNextAvailablePluginDiagnosticKind();
-}  // namespace
+} // namespace
 
 namespace compiler {
 namespace utils {
-PreservedAnalyses VerifyReqdSubGroupSizeLegalPass::run(
-    Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses
+VerifyReqdSubGroupSizeLegalPass::run(Module &M, ModuleAnalysisManager &AM) {
   auto &DI = AM.getResult<DeviceInfoAnalysis>(M);
   const auto &SGSizes = DI.reqd_sub_group_sizes;
   for (auto &F : M) {
@@ -83,8 +83,8 @@ PreservedAnalyses VerifyReqdSubGroupSizeLegalPass::run(
   return PreservedAnalyses::all();
 }
 
-PreservedAnalyses VerifyReqdSubGroupSizeSatisfiedPass::run(
-    Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses
+VerifyReqdSubGroupSizeSatisfiedPass::run(Module &M, ModuleAnalysisManager &) {
   for (auto &F : M) {
     // We only check kernel entry points
     if (!isKernelEntryPt(F)) {
@@ -113,5 +113,5 @@ PreservedAnalyses VerifyReqdSubGroupSizeSatisfiedPass::run(
   return PreservedAnalyses::all();
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

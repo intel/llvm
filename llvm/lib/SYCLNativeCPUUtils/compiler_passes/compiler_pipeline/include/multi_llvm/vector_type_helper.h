@@ -64,6 +64,6 @@ inline unsigned getVectorKnownMinNumElements(llvm::Type *ty) {
 inline unsigned getVectorKnownMinNumElements(const llvm::Type *ty) {
   return getVectorElementCount(ty).getKnownMinValue();
 }
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_VECTOR_TYPE_HELPER_H_INCLUDED
+#endif // MULTI_LLVM_VECTOR_TYPE_HELPER_H_INCLUDED

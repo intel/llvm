@@ -28,7 +28,7 @@ namespace llvm {
 class Module;
 class TargetTransformInfo;
 class TargetMachine;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 class VectorizationContext;
@@ -36,7 +36,7 @@ class VectorizationContext;
 /// @brief A class that manages the lifetime and initialization of all
 /// components required to set up an LLVM pass manager to run Vecz passes.
 class VeczPassMachinery final : public compiler::utils::PassMachinery {
- public:
+public:
   /// @brief Construct the pass machinery.
   /// The base class method `initialize(TargetInfo)` must also be called.
   ///
@@ -51,7 +51,7 @@ class VeczPassMachinery final : public compiler::utils::PassMachinery {
 
   virtual void registerPasses() override;
 
- private:
+private:
   virtual void addClassToPassNames() override;
   virtual void registerPassCallbacks() override;
 
@@ -63,6 +63,6 @@ class VeczPassMachinery final : public compiler::utils::PassMachinery {
 /// @param[in] PM The Module Pass Manager to build.
 /// @return true on success.
 bool buildPassPipeline(llvm::ModulePassManager &PM);
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECZ_PASS_BUILDER_H_INCLUDED
+#endif // VECZ_VECZ_PASS_BUILDER_H_INCLUDED

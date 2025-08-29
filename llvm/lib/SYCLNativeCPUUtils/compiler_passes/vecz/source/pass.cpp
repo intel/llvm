@@ -48,9 +48,9 @@ using namespace llvm;
 /// @brief Provide debug logging for Vecz's PassManager
 ///
 /// This flag is intended for testing and debugging purposes.
-static cl::opt<bool> DebugVeczPipeline(
-    "debug-vecz-pipeline",
-    cl::desc("Enable debug logging of the vecz PassManager"));
+static cl::opt<bool>
+    DebugVeczPipeline("debug-vecz-pipeline",
+                      cl::desc("Enable debug logging of the vecz PassManager"));
 
 /// @brief Provide debug logging for Vecz's PassManager
 ///
@@ -270,8 +270,8 @@ std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(Function &F) {
   return std::nullopt;
 }
 
-std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
-    Function &F, ModuleAnalysisManager &AM) {
+std::optional<VeczPassOptions>
+getAutoSubgroupSizeOpts(Function &F, ModuleAnalysisManager &AM) {
   // If there's a required sub-group size, we must return a vectorization
   // factor that gets us there.
   if (auto opts = getReqdSubgroupSizeOpts(F)) {
@@ -361,4 +361,4 @@ std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
   return vecz_opts;
 }
 
-}  // namespace vecz
+} // namespace vecz

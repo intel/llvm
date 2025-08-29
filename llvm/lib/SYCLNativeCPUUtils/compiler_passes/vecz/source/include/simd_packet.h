@@ -94,6 +94,6 @@ struct SimdPacket : public llvm::SmallVector<llvm::Value *, 4> {
   PacketMask Mask;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_SIMD_PACKET_H_INCLUDED
+#endif // VECZ_SIMD_PACKET_H_INCLUDED

@@ -29,7 +29,7 @@
 namespace llvm {
 class StringRef;
 class Twine;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -39,7 +39,7 @@ namespace vecz {
 /// related. Since they are not always the best choice for a given target, they
 /// are controlled at runtime by this class.
 class VectorizationChoices {
- public:
+public:
   VectorizationChoices();
   ~VectorizationChoices() = default;
 
@@ -274,7 +274,7 @@ class VectorizationChoices {
 
   static llvm::ArrayRef<ChoiceInfo> queryAvailableChoices();
 
- private:
+private:
   /// @brief All the choices enabled
   llvm::SmallSet<Choice, 2> Enabled;
 
@@ -290,5 +290,5 @@ class VectorizationChoices {
                                      llvm::Twine Msg);
 };
 
-}  // namespace vecz
-#endif  // VECZ_VECZ_CHOICES_H_INCLUDED
+} // namespace vecz
+#endif // VECZ_VECZ_CHOICES_H_INCLUDED

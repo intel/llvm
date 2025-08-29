@@ -27,13 +27,13 @@
 namespace compiler {
 namespace utils {
 class BuiltinInfo;
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
 namespace vecz {
 class SimplifyInfiniteLoopPass
     : public llvm::PassInfoMixin<SimplifyInfiniteLoopPass> {
- public:
+public:
   SimplifyInfiniteLoopPass() = default;
 
   llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &,
@@ -44,7 +44,7 @@ class SimplifyInfiniteLoopPass
 /// @brief This pass replaces calls to builtins that require special attention
 /// (e.g. there is no scalar or vector equivalent) with inline implementations.
 class BuiltinInliningPass : public llvm::PassInfoMixin<BuiltinInliningPass> {
- public:
+public:
   /// @brief Create a new pass object.
   BuiltinInliningPass() = default;
 
@@ -58,7 +58,7 @@ class BuiltinInliningPass : public llvm::PassInfoMixin<BuiltinInliningPass> {
   /// @return pointer to text description.
   static llvm::StringRef name() { return "OpenCL builtin inlining pass"; }
 
- private:
+private:
   /// @brief Process a call site, inlining it or marking it as needing inlining
   /// if required.
   ///
@@ -73,7 +73,7 @@ class BuiltinInliningPass : public llvm::PassInfoMixin<BuiltinInliningPass> {
 /// away by LLVM's Mem2Reg pass, for example in the presence of bitcasts. It is
 /// however much simpler than LLVM's.
 class BasicMem2RegPass : public llvm::PassInfoMixin<BasicMem2RegPass> {
- public:
+public:
   BasicMem2RegPass() {};
 
   /// @brief The entry point to the pass.
@@ -86,7 +86,7 @@ class BasicMem2RegPass : public llvm::PassInfoMixin<BasicMem2RegPass> {
   /// @return pointer to text description.
   static llvm::StringRef name() { return "Basic Mem2Reg Pass"; }
 
- private:
+private:
   /// @brief Determine whether the alloca can be promoted or not.
   ///
   /// This is the case when it is inside the entry block, there is at most one
@@ -104,7 +104,7 @@ class BasicMem2RegPass : public llvm::PassInfoMixin<BasicMem2RegPass> {
 };
 
 class PreLinearizePass : public llvm::PassInfoMixin<PreLinearizePass> {
- public:
+public:
   PreLinearizePass() = default;
 
   llvm::PreservedAnalyses run(llvm::Function &F,
@@ -116,7 +116,7 @@ class PreLinearizePass : public llvm::PassInfoMixin<PreLinearizePass> {
 /// @brief Wraps llvm's LoopRotatePass but retricts the range of loops on which
 /// it works.
 class VeczLoopRotatePass : public llvm::PassInfoMixin<VeczLoopRotatePass> {
- public:
+public:
   VeczLoopRotatePass() {}
 
   llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &,
@@ -127,7 +127,7 @@ class VeczLoopRotatePass : public llvm::PassInfoMixin<VeczLoopRotatePass> {
 };
 
 class RemoveIntPtrPass : public llvm::PassInfoMixin<RemoveIntPtrPass> {
- public:
+public:
   RemoveIntPtrPass() = default;
 
   static llvm::StringRef name() { return "Remove IntPtr instructions"; }
@@ -138,7 +138,7 @@ class RemoveIntPtrPass : public llvm::PassInfoMixin<RemoveIntPtrPass> {
 
 class SquashSmallVectorsPass
     : public llvm::PassInfoMixin<SquashSmallVectorsPass> {
- public:
+public:
   SquashSmallVectorsPass() = default;
 
   static llvm::StringRef name() { return "Squash Small Vectors"; }
@@ -151,7 +151,7 @@ class SquashSmallVectorsPass
 /// not needed or can be converted to non-masked operations.
 class SimplifyMaskedMemOpsPass
     : public llvm::PassInfoMixin<SimplifyMaskedMemOpsPass> {
- public:
+public:
   /// @brief Create a new pass object.
   SimplifyMaskedMemOpsPass() = default;
 
@@ -173,7 +173,7 @@ class SimplifyMaskedMemOpsPass
 /// @brief reassociate uniform binary operators and split branches
 class UniformReassociationPass
     : public llvm::PassInfoMixin<UniformReassociationPass> {
- public:
+public:
   UniformReassociationPass() = default;
 
   static llvm::StringRef name() { return "Reassociate uniform binops"; }
@@ -185,7 +185,7 @@ class UniformReassociationPass
 /// @brief Removes uniform divergence reductions created by CFG conversion
 class DivergenceCleanupPass
     : public llvm::PassInfoMixin<DivergenceCleanupPass> {
- public:
+public:
   /// @brief Create a new pass object.
   DivergenceCleanupPass() = default;
 
@@ -204,6 +204,6 @@ class DivergenceCleanupPass
   }
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_PASSES_H_INCLUDED
+#endif // VECZ_TRANSFORM_PASSES_H_INCLUDED

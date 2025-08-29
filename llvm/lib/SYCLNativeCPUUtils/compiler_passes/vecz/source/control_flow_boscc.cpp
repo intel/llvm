@@ -73,7 +73,7 @@ bool isTrivialBlock(const BasicBlock &BB) {
   return true;
 }
 
-}  // namespace
+} // namespace
 
 /// @brief Check whether a uniform region is viable and worth keeping.
 /// @param[in] region the region to check
@@ -1083,9 +1083,8 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
       for (Instruction &I : *connectionPoint) {
         if (PHINode *PHI = dyn_cast<PHINode>(&I)) {
           const int idx = PHI->getBasicBlockIndex(target);
-          VECZ_ERROR_IF(idx == -1,
-                        "Connection point PHIs must have incoming "
-                        "block from the target");
+          VECZ_ERROR_IF(idx == -1, "Connection point PHIs must have incoming "
+                                   "block from the target");
           if (Instruction *incoming =
                   dyn_cast<Instruction>(PHI->getIncomingValue(idx))) {
             LLVM_DEBUG(dbgs()
@@ -1173,8 +1172,8 @@ void ControlFlowConversionState::BOSCCGadget::addInRegions(BasicBlock *newB,
   }
 }
 
-Value *ControlFlowConversionState::BOSCCGadget::getUniformV(
-    Value *predicatedV) {
+Value *
+ControlFlowConversionState::BOSCCGadget::getUniformV(Value *predicatedV) {
   auto uniformVIt = VMap.find(predicatedV);
   if (uniformVIt != VMap.end()) {
     return uniformVIt->second;

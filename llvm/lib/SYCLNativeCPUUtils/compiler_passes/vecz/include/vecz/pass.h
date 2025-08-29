@@ -35,13 +35,13 @@ class ModulePass;
 class StringRef;
 class Module;
 class TargetMachine;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
 class BuiltinInfo;
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
 namespace vecz {
 /// @addtogroup vecz
@@ -80,8 +80,8 @@ std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(llvm::Function &);
 /// preferring ones which fit the known local work-group size and powers of
 /// two. The device's sub-group sizes can be sorted such that preferable sizes
 /// are placed towards the front.
-std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
-    llvm::Function &, llvm::ModuleAnalysisManager &);
+std::optional<VeczPassOptions>
+getAutoSubgroupSizeOpts(llvm::Function &, llvm::ModuleAnalysisManager &);
 
 /// @brief Analysis pass which determines on which functions @ref RunVeczPass
 /// should operate.
@@ -103,7 +103,7 @@ class VeczPassOptionsAnalysis
     return true;
   };
 
- public:
+public:
   VeczPassOptionsAnalysis() = default;
   /// @brief explicit constructor which uses the given callback to determine
   /// whether vectorization should be performed on the passed function. If the
@@ -123,7 +123,7 @@ class VeczPassOptionsPrinterPass
     : public llvm::PassInfoMixin<VeczPassOptionsPrinterPass> {
   llvm::raw_ostream &OS;
 
- public:
+public:
   explicit VeczPassOptionsPrinterPass(llvm::raw_ostream &OS) : OS(OS) {}
 
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
@@ -139,12 +139,12 @@ class VeczPassOptionsPrinterPass
 /// manager's ModuleAnalysisManager is configured with a custom @ref
 /// `VeczShouldRunOnFunctionAnalysis`
 class RunVeczPass : public llvm::PassInfoMixin<RunVeczPass> {
- public:
+public:
   /// @brief llvm's entry point for the PassManager
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_PASS_H
+#endif // VECZ_PASS_H

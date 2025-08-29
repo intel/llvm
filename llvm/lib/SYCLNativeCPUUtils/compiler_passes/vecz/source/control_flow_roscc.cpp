@@ -64,7 +64,7 @@ bool isReturnBlock(const llvm::BasicBlock &BB) {
 
   return isa<ReturnInst>(T);
 }
-}  // namespace
+} // namespace
 
 bool ControlFlowConversionState::ROSCCGadget::run(Function &F) {
   bool changed = false;

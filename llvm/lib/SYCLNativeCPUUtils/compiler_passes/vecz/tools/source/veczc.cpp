@@ -52,39 +52,39 @@
 #include "vecz/pass.h"
 #include "vecz/vecz_target_info.h"
 
-static llvm::cl::opt<std::string> InputFilename(
-    llvm::cl::Positional, llvm::cl::desc("<input .bc file>"),
-    llvm::cl::init("-"));
+static llvm::cl::opt<std::string>
+    InputFilename(llvm::cl::Positional, llvm::cl::desc("<input .bc file>"),
+                  llvm::cl::init("-"));
 
-static llvm::cl::opt<std::string> OutputFilename(
-    "o", llvm::cl::desc("Override output filename"),
-    llvm::cl::value_desc("filename"));
-static llvm::cl::opt<bool, false> WriteTextual(
-    "S", llvm::cl::desc("Write module as text"));
+static llvm::cl::opt<std::string>
+    OutputFilename("o", llvm::cl::desc("Override output filename"),
+                   llvm::cl::value_desc("filename"));
+static llvm::cl::opt<bool, false>
+    WriteTextual("S", llvm::cl::desc("Write module as text"));
 
-static llvm::cl::list<std::string> KernelNameSpecs(
-    "k", llvm::cl::desc("Kernel to vectorize"), llvm::cl::ZeroOrMore,
-    llvm::cl::value_desc("name"));
+static llvm::cl::list<std::string>
+    KernelNameSpecs("k", llvm::cl::desc("Kernel to vectorize"),
+                    llvm::cl::ZeroOrMore, llvm::cl::value_desc("name"));
 
-static llvm::cl::opt<unsigned> SIMDDimIdx(
-    "d", llvm::cl::desc("Dimension index to vectorize on"), llvm::cl::init(0),
-    llvm::cl::value_desc("dimension"));
+static llvm::cl::opt<unsigned>
+    SIMDDimIdx("d", llvm::cl::desc("Dimension index to vectorize on"),
+               llvm::cl::init(0), llvm::cl::value_desc("dimension"));
 
-static llvm::cl::opt<unsigned> SIMDWidth(
-    "w", llvm::cl::desc("Width to vectorize to"), llvm::cl::init(0),
-    llvm::cl::value_desc("width"));
+static llvm::cl::opt<unsigned>
+    SIMDWidth("w", llvm::cl::desc("Width to vectorize to"), llvm::cl::init(0),
+              llvm::cl::value_desc("width"));
 
 static llvm::cl::opt<bool> FailQuietly(
     "vecz-fail-quietly",
     llvm::cl::desc("don't return an error code on vectorization failure"));
 
-static llvm::cl::opt<bool> ChoicesHelp(
-    "vecz-choices-help",
-    llvm::cl::desc("see information about available choices"));
+static llvm::cl::opt<bool>
+    ChoicesHelp("vecz-choices-help",
+                llvm::cl::desc("see information about available choices"));
 
-static llvm::cl::opt<bool> VeczAuto(
-    "vecz-auto",
-    llvm::cl::desc("run the vectorizer if it is found to be useful"));
+static llvm::cl::opt<bool>
+    VeczAuto("vecz-auto",
+             llvm::cl::desc("run the vectorizer if it is found to be useful"));
 
 static llvm::cl::opt<unsigned, 0> VeczSimdWidth(
     "vecz-simd-width",
@@ -96,27 +96,29 @@ static llvm::cl::opt<llvm::cl::boolOrDefault> VeczScalable(
 
 // Allow the passing of Vecz Choices string on the command line. This is parsed
 // after the choices environment variable, thus overriding it.
-static llvm::cl::opt<std::string> ChoicesString(
-    "vecz-choices", llvm::cl::desc("Set vecz choices"));
+static llvm::cl::opt<std::string>
+    ChoicesString("vecz-choices", llvm::cl::desc("Set vecz choices"));
 
-static llvm::cl::opt<bool> VeczCollectStats(
-    "vecz-llvm-stats", llvm::cl::desc("enable reporting LLVM statistics"));
+static llvm::cl::opt<bool>
+    VeczCollectStats("vecz-llvm-stats",
+                     llvm::cl::desc("enable reporting LLVM statistics"));
 
-static llvm::cl::opt<std::string> UserTriple(
-    "vecz-target-triple", llvm::cl::desc("the target triple"));
+static llvm::cl::opt<std::string>
+    UserTriple("vecz-target-triple", llvm::cl::desc("the target triple"));
 static llvm::cl::opt<std::string> UserCPU("vecz-target-mcpu",
                                           llvm::cl::desc("Set the CPU model"));
-static llvm::cl::opt<std::string> CPUFeatures(
-    "vecz-target-features", llvm::cl::desc("Set the CPU feature string"));
+static llvm::cl::opt<std::string>
+    CPUFeatures("vecz-target-features",
+                llvm::cl::desc("Set the CPU feature string"));
 static llvm::cl::opt<bool> DoubleSupport(
     "vecz-double-support", llvm::cl::init(true),
     llvm::cl::desc(
         "Assume the target has double-precision floating point support"));
 
-static llvm::cl::list<unsigned> SGSizes(
-    "device-sg-sizes",
-    llvm::cl::desc("Comma-separated list of supported sub-group sizes"),
-    llvm::cl::CommaSeparated);
+static llvm::cl::list<unsigned>
+    SGSizes("device-sg-sizes",
+            llvm::cl::desc("Comma-separated list of supported sub-group sizes"),
+            llvm::cl::CommaSeparated);
 
 static llvm::TargetMachine *initLLVMTarget(llvm::StringRef triple_string,
                                            llvm::StringRef cpu_model,
@@ -203,9 +205,9 @@ static vecz::VeczPassOptions getDefaultPassOptions() {
 // <simd_width> ::= '@' <number>
 // <scalable_spec> ::= 's'
 // <predicated_spec> ::= 'p'
-static bool parsePassOptionsSwitch(
-    const llvm::StringRef spec, llvm::StringRef &name,
-    llvm::SmallVectorImpl<vecz::VeczPassOptions> &opts) {
+static bool
+parsePassOptionsSwitch(const llvm::StringRef spec, llvm::StringRef &name,
+                       llvm::SmallVectorImpl<vecz::VeczPassOptions> &opts) {
   auto pair = spec.split(':');
   name = pair.first;
   auto vals = pair.second;

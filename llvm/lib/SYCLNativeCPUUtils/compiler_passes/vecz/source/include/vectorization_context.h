@@ -37,13 +37,13 @@
 
 namespace llvm {
 class TargetTransformInfo;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
 class BuiltinInfo;
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
 namespace vecz {
 class MemOpDesc;
@@ -58,7 +58,7 @@ using ActiveUnitMap = llvm::DenseMap<llvm::PoisoningVH<const llvm::Function>,
 
 /// @brief Holds global (per-module) vectorization state.
 class VectorizationContext {
- public:
+public:
   /// @brief Create a new vectorization context object.
   ///
   /// @param[in] target Module in which vectorization happens.
@@ -195,8 +195,8 @@ class VectorizationContext {
   /// @param[in] F The function to check
   /// @return A MaskedAtomic instance detailing the atomic operation if the
   /// function is a masked atomic, or std::nullopt otherwise
-  std::optional<MaskedAtomic> isMaskedAtomicFunction(
-      const llvm::Function &F) const;
+  std::optional<MaskedAtomic>
+  isMaskedAtomicFunction(const llvm::Function &F) const;
   /// @brief Get (if it exists already) or create the function representing the
   /// masked version of an atomicrmw/cmpxchg operation.
   ///
@@ -204,9 +204,10 @@ class VectorizationContext {
   /// @param[in] Choices Choices to mangle into the function name
   /// @param[in] VF The vectorization factor of the atomic operation
   /// @return The masked version of the function
-  llvm::Function *getOrCreateMaskedAtomicFunction(
-      MaskedAtomic &I, const VectorizationChoices &Choices,
-      llvm::ElementCount VF);
+  llvm::Function *
+  getOrCreateMaskedAtomicFunction(MaskedAtomic &I,
+                                  const VectorizationChoices &Choices,
+                                  llvm::ElementCount VF);
 
   /// @brief Create a VectorizationUnit to use to vectorize the given scalar
   /// function.
@@ -254,7 +255,7 @@ class VectorizationContext {
 
   static const char *InternalBuiltinPrefix;
 
- private:
+private:
   /// @brief Determine whether this scalar builtin function can be safely
   /// expanded at vector call sites, i.e. it has not side effects.
   ///
@@ -359,7 +360,7 @@ class VectorizationContext {
 /// @brief Implement internal builtins.
 class DefineInternalBuiltinsPass
     : public llvm::PassInfoMixin<DefineInternalBuiltinsPass> {
- public:
+public:
   /// @brief Create a new pass object.
   DefineInternalBuiltinsPass() {}
 
@@ -376,12 +377,12 @@ class DefineInternalBuiltinsPass
 
   static llvm::StringRef name() { return "Define internal builtins"; }
 
- private:
+private:
   /// @brief Identifier for the DefineInternalBuiltin pass.
   static char PassID;
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECTORIZATION_CONTEXT_H_INCLUDED
+#endif // VECZ_VECTORIZATION_CONTEXT_H_INCLUDED

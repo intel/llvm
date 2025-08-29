@@ -50,7 +50,7 @@ class InsertElementInst;
 class PHINode;
 class ExtractElementInst;
 class IntrinsicInst;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -66,7 +66,7 @@ struct SimdPacket;
 
 /// @brief Holds the result of scalarization analysis for a given function.
 class Scalarizer {
- public:
+public:
   /// @brief Create new scalarization results for the function.
   ///
   /// @param[in] F Function to scalarize.
@@ -88,7 +88,7 @@ class Scalarizer {
   /// @brief Get the list of instructions that failed to scalarize
   const FailureSet &failures() const { return Failures; }
 
- private:
+private:
   /// @brief Vectorization context for the function to scalarize.
   VectorizationContext &Ctx;
   llvm::Function &F;
@@ -318,6 +318,6 @@ class Scalarizer {
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_SCALARIZER_H_INCLUDED
+#endif // VECZ_TRANSFORM_SCALARIZER_H_INCLUDED

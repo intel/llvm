@@ -26,7 +26,7 @@
 
 namespace llvm {
 class Function;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -39,7 +39,7 @@ class VectorizationUnit;
 /// @brief Scalarization pass where vector instructions that need it are
 /// scalarized, starting from leaves.
 class ScalarizationPass : public llvm::PassInfoMixin<ScalarizationPass> {
- public:
+public:
   /// @brief Create a new scalarizaation pass.
   ScalarizationPass();
 
@@ -58,11 +58,11 @@ class ScalarizationPass : public llvm::PassInfoMixin<ScalarizationPass> {
   /// @brief Name of the pass.
   static llvm::StringRef name() { return "Function scalarization"; }
 
- private:
+private:
   static char PassID;
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_SCALARIZATION_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_SCALARIZATION_PASS_H_INCLUDED

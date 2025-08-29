@@ -49,10 +49,10 @@ std::string NameMangler::mangleName(StringRef Name, ArrayRef<Type *> Tys,
   return MangledName;
 }
 
-StringRef NameMangler::demangleName(
-    StringRef Name, SmallVectorImpl<llvm::Type *> &Types,
-    SmallVectorImpl<llvm::Type *> &PointerElementTypes,
-    SmallVectorImpl<TypeQualifiers> &Quals) {
+StringRef
+NameMangler::demangleName(StringRef Name, SmallVectorImpl<llvm::Type *> &Types,
+                          SmallVectorImpl<llvm::Type *> &PointerElementTypes,
+                          SmallVectorImpl<TypeQualifiers> &Quals) {
   // Parse the name part.
   Lexer L(Name);
   Name = demangleName(L);
@@ -152,49 +152,49 @@ bool NameMangler::emitSubstitution(raw_ostream &O, Type *Ty,
 bool NameMangler::isTypeBuiltin(Type *Ty, TypeQualifiers &Quals) {
   (void)Quals;
   switch (Ty->getTypeID()) {
-    default:
-    case Type::StructTyID:
-    case Type::ArrayTyID:
-    case Type::PointerTyID:
-    case Type::FixedVectorTyID:
-      return false;
-    case Type::VoidTyID:
-    case Type::HalfTyID:
-    case Type::FloatTyID:
-    case Type::DoubleTyID:
-    case Type::IntegerTyID:
-      return true;
+  default:
+  case Type::StructTyID:
+  case Type::ArrayTyID:
+  case Type::PointerTyID:
+  case Type::FixedVectorTyID:
+    return false;
+  case Type::VoidTyID:
+  case Type::HalfTyID:
+  case Type::FloatTyID:
+  case Type::DoubleTyID:
+  case Type::IntegerTyID:
+    return true;
   }
 }
 
 const char *NameMangler::mangleSimpleType(Type *Ty, TypeQualifier Qual) {
   const bool IsSigned = (Qual & eTypeQualSignedInt);
   switch (Ty->getTypeID()) {
+  default:
+    break;
+  case Type::VoidTyID:
+    return "v";
+  case Type::HalfTyID:
+    return "Dh";
+  case Type::FloatTyID:
+    return "f";
+  case Type::DoubleTyID:
+    return "d";
+  case Type::IntegerTyID:
+    switch (cast<IntegerType>(Ty)->getBitWidth()) {
     default:
       break;
-    case Type::VoidTyID:
-      return "v";
-    case Type::HalfTyID:
-      return "Dh";
-    case Type::FloatTyID:
-      return "f";
-    case Type::DoubleTyID:
-      return "d";
-    case Type::IntegerTyID:
-      switch (cast<IntegerType>(Ty)->getBitWidth()) {
-        default:
-          break;
-        case 1:
-          return "b";  // bool
-        case 8:
-          return IsSigned ? "c" : "h";
-        case 16:
-          return IsSigned ? "s" : "t";
-        case 32:
-          return IsSigned ? "i" : "j";
-        case 64:
-          return IsSigned ? "l" : "m";
-      }
+    case 1:
+      return "b"; // bool
+    case 8:
+      return IsSigned ? "c" : "h";
+    case 16:
+      return IsSigned ? "s" : "t";
+    case 32:
+      return IsSigned ? "i" : "j";
+    case 64:
+      return IsSigned ? "l" : "m";
+    }
   }
   return nullptr;
 }
@@ -272,54 +272,54 @@ bool NameMangler::demangleSimpleType(Lexer &L, Type *&Ty, TypeQualifier &Qual) {
   }
 
   switch (c) {
-    default:
+  default:
+    return false;
+  case 'v':
+    Ty = llvm::Type::getVoidTy(*Context);
+    break;
+  case 'D':
+    if (!L.Consume("Dh")) {
       return false;
-    case 'v':
-      Ty = llvm::Type::getVoidTy(*Context);
-      break;
-    case 'D':
-      if (!L.Consume("Dh")) {
-        return false;
-      }
-      Ty = llvm::Type::getHalfTy(*Context);
-      return true;
-    case 'f':
-      Ty = llvm::Type::getFloatTy(*Context);
-      break;
-    case 'd':
-      Ty = llvm::Type::getDoubleTy(*Context);
-      break;
-    case 'b':
-      Ty = llvm::Type::getInt1Ty(*Context);
-      break;
-    case 'c':
-    case 'h':
-      Ty = llvm::Type::getInt8Ty(*Context);
-      if (c == 'c') {
-        Qual = eTypeQualSignedInt;
-      }
-      break;
-    case 's':
-    case 't':
-      Ty = llvm::Type::getInt16Ty(*Context);
-      if (c == 's') {
-        Qual = eTypeQualSignedInt;
-      }
-      break;
-    case 'i':
-    case 'j':
-      Ty = llvm::Type::getInt32Ty(*Context);
-      if (c == 'i') {
-        Qual = eTypeQualSignedInt;
-      }
-      break;
-    case 'l':
-    case 'm':
-      Ty = llvm::Type::getInt64Ty(*Context);
-      if (c == 'l') {
-        Qual = eTypeQualSignedInt;
-      }
-      break;
+    }
+    Ty = llvm::Type::getHalfTy(*Context);
+    return true;
+  case 'f':
+    Ty = llvm::Type::getFloatTy(*Context);
+    break;
+  case 'd':
+    Ty = llvm::Type::getDoubleTy(*Context);
+    break;
+  case 'b':
+    Ty = llvm::Type::getInt1Ty(*Context);
+    break;
+  case 'c':
+  case 'h':
+    Ty = llvm::Type::getInt8Ty(*Context);
+    if (c == 'c') {
+      Qual = eTypeQualSignedInt;
+    }
+    break;
+  case 's':
+  case 't':
+    Ty = llvm::Type::getInt16Ty(*Context);
+    if (c == 's') {
+      Qual = eTypeQualSignedInt;
+    }
+    break;
+  case 'i':
+  case 'j':
+    Ty = llvm::Type::getInt32Ty(*Context);
+    if (c == 'i') {
+      Qual = eTypeQualSignedInt;
+    }
+    break;
+  case 'l':
+  case 'm':
+    Ty = llvm::Type::getInt64Ty(*Context);
+    if (c == 'l') {
+      Qual = eTypeQualSignedInt;
+    }
+    break;
   }
   L.Consume();
   return true;
@@ -354,20 +354,20 @@ std::optional<std::string> NameMangler::mangleBuiltinType(Type *Ty) {
   std::string MangledName = "ocl_image";
 
   switch (Dim) {
-    default:
-      return std::nullopt;
-    case tgtext::ImageDim1D:
-      MangledName += "1d";
-      break;
-    case tgtext::ImageDim2D:
-      MangledName += "2d";
-      break;
-    case tgtext::ImageDim3D:
-      MangledName += "3d";
-      break;
-    case tgtext::ImageDimBuffer:
-      MangledName += "1dbuffer";
-      break;
+  default:
+    return std::nullopt;
+  case tgtext::ImageDim1D:
+    MangledName += "1d";
+    break;
+  case tgtext::ImageDim2D:
+    MangledName += "2d";
+    break;
+  case tgtext::ImageDim3D:
+    MangledName += "3d";
+    break;
+  case tgtext::ImageDimBuffer:
+    MangledName += "1dbuffer";
+    break;
   }
 
   if (Arrayed == tgtext::ImageArrayed) {
@@ -511,20 +511,20 @@ static std::optional<PointerASQuals> demanglePointerQuals(Lexer &L) {
   }
 
   switch (L.Current()) {
-    default:
-      break;
-    case 'K':
-      PointerQual = eTypeQualPointerConst;
-      L.Consume();
-      break;
-    case 'r':
-      PointerQual = eTypeQualPointerRestrict;
-      L.Consume();
-      break;
-    case 'V':
-      PointerQual = eTypeQualPointerVolatile;
-      L.Consume();
-      break;
+  default:
+    break;
+  case 'K':
+    PointerQual = eTypeQualPointerConst;
+    L.Consume();
+    break;
+  case 'r':
+    PointerQual = eTypeQualPointerRestrict;
+    L.Consume();
+    break;
+  case 'V':
+    PointerQual = eTypeQualPointerVolatile;
+    L.Consume();
+    break;
   }
 
   if (!DemangledAS && L.Consume("U3AS") && !L.ConsumeInteger(AddressSpace)) {
@@ -885,5 +885,5 @@ bool Lexer::ConsumeWhitespace() {
 
   return consumed;
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

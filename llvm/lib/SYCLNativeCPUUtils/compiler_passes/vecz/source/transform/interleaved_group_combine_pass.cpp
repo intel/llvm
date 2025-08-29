@@ -186,7 +186,7 @@ bool canMoveDown(const SmallVectorImpl<Value *> &Group, Instruction *IA) {
   return false;
 }
 
-}  // namespace
+} // namespace
 
 bool InterleavedGroupCombinePass::InterleavedGroupInfo::canDeinterleaveMask(
     const Instruction &Mask) const {
@@ -237,8 +237,8 @@ bool InterleavedGroupCombinePass::InterleavedGroupInfo::canDeinterleaveMask(
   return true;
 }
 
-PreservedAnalyses InterleavedGroupCombinePass::run(
-    Function &F, FunctionAnalysisManager &AM) {
+PreservedAnalyses
+InterleavedGroupCombinePass::run(Function &F, FunctionAnalysisManager &AM) {
   auto &Ctx = AM.getResult<VectorizationContextAnalysis>(F).getContext();
   IRCleanup IC;
 
@@ -492,11 +492,13 @@ bool InterleavedGroupCombinePass::findGroup(
 
       // If the same offset occurs several times, we can still de-interleave
       // the unique ones, and maybe catch the rest the next time round.
-      InfoE = Group.Info.erase(
-          std::unique(InfoB, InfoE,
-                      [](const GroupMemberInfo &a, const GroupMemberInfo &b)
-                          -> bool { return a.Offset == b.Offset; }),
-          InfoE);
+      InfoE =
+          Group.Info.erase(std::unique(InfoB, InfoE,
+                                       [](const GroupMemberInfo &a,
+                                          const GroupMemberInfo &b) -> bool {
+                                         return a.Offset == b.Offset;
+                                       }),
+                           InfoE);
 
       if (Group.Info.size() <= 1) {
         // This could happen if our entire group has the same address, in

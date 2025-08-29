@@ -29,7 +29,7 @@ class Function;
 class Module;
 class StructType;
 class Argument;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -137,7 +137,7 @@ void populateStructSetterFunction(llvm::Function &F,
                                   llvm::StructType *const structTy,
                                   uint32_t structFieldIdx, bool hasRankArg);
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_SCHEDULING_H_INCLUDED
+#endif // COMPILER_UTILS_SCHEDULING_H_INCLUDED

@@ -4,7 +4,7 @@
 # Exceptions; you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://github.com/uxlfoundation/oneapi-construction-kit/blob/main/LICENSE.txt
+#     https://github.com/codeplaysoftware/oneapi-construction-kit/blob/main/LICENSE.txt
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -14,5 +14,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Scalable vectorization is only supported on LLVM 12+
-config.unsupported |= config.llvm_version_major < 12
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lit)

@@ -32,13 +32,13 @@ class DominatorTree;
 class Function;
 class LoopInfo;
 class PostDominatorTree;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
 /// @brief A data structure to handle reachability queries
 class Reachability {
- public:
+public:
   /// @brief Construct the Reachability computation from a Dominator Tree
   ///        and a Post-Dominator Tree, that are used to speed up the queries.
   /// @param[in] DT the Dominator Tree
@@ -77,7 +77,7 @@ class Reachability {
   /// @return True if "to" is reachable from "from"
   bool isReachable(llvm::BasicBlock *from, llvm::BasicBlock *to) const;
 
- private:
+private:
   /// @brief Internal implementation of isReachable
   ///
   /// @param[in] from the graph node index to start from
@@ -111,6 +111,6 @@ class Reachability {
   /// @brief A mapping between BasicBlock pointers and graph node indices.
   llvm::DenseMap<llvm::BasicBlock *, size_t> indexMap;
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_REACHABILITY_H_INCLUDED
+#endif // VECZ_REACHABILITY_H_INCLUDED

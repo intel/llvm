@@ -14,15 +14,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "transform/passes.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Scalar/LoopRotation.h"
-#include "transform/passes.h"
 
 using namespace llvm;
 
-llvm::PreservedAnalyses vecz::VeczLoopRotatePass::run(
-    llvm::Loop &L, llvm::LoopAnalysisManager &LAM,
-    llvm::LoopStandardAnalysisResults &AR, llvm::LPMUpdater &LU) {
+llvm::PreservedAnalyses
+vecz::VeczLoopRotatePass::run(llvm::Loop &L, llvm::LoopAnalysisManager &LAM,
+                              llvm::LoopStandardAnalysisResults &AR,
+                              llvm::LPMUpdater &LU) {
   // Only process loops whose latch cannot exit the loop and its predecessors
   // cannot either.
   if (L.isLoopExiting(L.getLoopLatch())) {

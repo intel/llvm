@@ -32,6 +32,6 @@ inline llvm::Value *createSimpleReduction(llvm::IRBuilderBase &B,
 #endif
 }
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_LOOP_UTILS_H_INCLUDED
+#endif // MULTI_LLVM_LOOP_UTILS_H_INCLUDED

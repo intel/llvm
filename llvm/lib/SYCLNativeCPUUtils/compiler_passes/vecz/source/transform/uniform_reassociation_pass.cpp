@@ -83,11 +83,11 @@ void updatePHIs(BasicBlock &BB, BasicBlock *original, BasicBlock *extra) {
   }
 }
 
-}  // namespace
+} // namespace
 
 namespace vecz {
 class Reassociator {
- public:
+public:
   Reassociator() {}
 
   /// @brief perform the Branch Split transformation
@@ -97,7 +97,7 @@ class Reassociator {
   /// @returns true iff any branches were split
   bool run(llvm::Function &F, llvm::FunctionAnalysisManager &AM);
 
- private:
+private:
   /// @brief classification of a binary operand according to whether its
   ///        operands are Uniform, Varying, both (Varying Op Uniform), or non-
   ///        canonically both (i.e. Uniform Op Varying).
@@ -355,4 +355,4 @@ PreservedAnalyses UniformReassociationPass::run(Function &F,
   PA.preserve<LoopAnalysis>();
   return PA;
 }
-}  // namespace vecz
+} // namespace vecz

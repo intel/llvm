@@ -52,8 +52,9 @@ using AlignIntTy = uint64_t;
 
 /// @brief it returns true if and only if the instruction is a work group
 /// collective call, and returns false otherwise.
-std::optional<compiler::utils::GroupCollective> getWorkGroupCollectiveCall(
-    Instruction *inst, compiler::utils::BuiltinInfo &bi) {
+std::optional<compiler::utils::GroupCollective>
+getWorkGroupCollectiveCall(Instruction *inst,
+                           compiler::utils::BuiltinInfo &bi) {
   auto *const ci = dyn_cast_or_null<CallInst>(inst);
   if (!ci) {
     return std::nullopt;
@@ -295,7 +296,7 @@ bool isStructWithScalables(Type *ty) {
   return false;
 }
 
-}  // namespace
+} // namespace
 
 Value *compiler::utils::Barrier::LiveValuesHelper::getExtractValueGEP(
     const Value *live) {
@@ -560,8 +561,8 @@ void compiler::utils::Barrier::SplitBlockwithBarrier() {
     const auto barrier_id = kBarrier_StartNewID + id->getZExtValue();
 
     if (is_debug_) {
-      assert(entry_stub != nullptr);  // Guaranteed as is_debug_ is const.
-      assert(exit_stub != nullptr);   // Guaranteed as is_debug_ is const.
+      assert(entry_stub != nullptr); // Guaranteed as is_debug_ is const.
+      assert(exit_stub != nullptr);  // Guaranteed as is_debug_ is const.
 
       // Create call instructions invoking debug stubs for every barrier. We
       // don't insert these into a basic block yet since we want to insert
@@ -757,7 +758,7 @@ void compiler::utils::Barrier::FindLiveVariables() {
       assert(!isa<AllocaInst>(inst) && "Alloca found outside entry block!");
     }
   }
-#endif  // ndef NDEBUG
+#endif // ndef NDEBUG
 
   // Put all the original allocas into the barrier struct, in case they get
   // indirectly referenced from the other side of a barrier.
@@ -969,7 +970,7 @@ void compiler::utils::Barrier::MakeLiveVariableMemType() {
   // Pad the end of the struct to the max alignment as we are creating an
   // array
   offset = PadTypeToAlignment(field_tys, offset, max_live_var_alignment);
-  live_var_mem_size_fixed = offset;  // No more offsets required.
+  live_var_mem_size_fixed = offset; // No more offsets required.
 
   // Now deal with any scalable members. We reset the offset to zero because
   // scalables are indexed bytewise starting from the beginning of the
@@ -992,7 +993,7 @@ void compiler::utils::Barrier::MakeLiveVariableMemType() {
   // array
   offset =
       PadTypeToAlignment(field_tys_scalable, offset, max_live_var_alignment);
-  live_var_mem_size_scalable = offset;  // No more offsets required.
+  live_var_mem_size_scalable = offset; // No more offsets required.
 
   LLVMContext &context = module_.getContext();
   // if the barrier contains scalables, add a flexible byte array on the end
@@ -1415,12 +1416,14 @@ BasicBlock *compiler::utils::Barrier::CloneBasicBlock(
     BasicBlock *bb, ValueToValueMapTy &vmap, const Twine &name_suffix,
     live_variable_mem_t &live_defs_info, Function *F) {
   BasicBlock *new_bb = BasicBlock::Create(bb->getContext(), "", F);
-  if (bb->hasName()) new_bb->setName(bb->getName() + name_suffix);
+  if (bb->hasName())
+    new_bb->setName(bb->getName() + name_suffix);
 
   // Loop over all instructions, and copy them over.
   for (Instruction &i : *bb) {
     Instruction *new_inst = i.clone();
-    if (i.hasName()) new_inst->setName(i.getName() + name_suffix);
+    if (i.hasName())
+      new_inst->setName(i.getName() + name_suffix);
     new_inst->insertInto(new_bb, new_bb->end());
 
     // Record live variables' defs which are in current kernel.
@@ -1435,7 +1438,8 @@ BasicBlock *compiler::utils::Barrier::CloneBasicBlock(
 
 /// @brief Seperate kernel function with barrier boundary.
 void compiler::utils::Barrier::SeperateKernelWithBarrier() {
-  if (barriers_.empty()) return;
+  if (barriers_.empty())
+    return;
 
   for (auto &[i, region] : barrier_region_id_map_) {
     kernel_id_map_[region.id] = GenerateNewKernel(region);

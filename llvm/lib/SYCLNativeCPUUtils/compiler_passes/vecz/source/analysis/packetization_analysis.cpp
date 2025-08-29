@@ -41,7 +41,7 @@ bool isDivergenceReduction(const Function &F) {
   return (L.Consume(VectorizationContext::InternalBuiltinPrefix) &&
           L.Consume("divergence_"));
 }
-}  // namespace
+} // namespace
 
 llvm::AnalysisKey PacketizationAnalysis::Key;
 
@@ -169,8 +169,8 @@ void PacketizationAnalysisResult::markForPacketization(Value *V) {
   }
 }
 
-PacketizationAnalysisResult PacketizationAnalysis::run(
-    Function &F, llvm::FunctionAnalysisManager &AM) {
+PacketizationAnalysisResult
+PacketizationAnalysis::run(Function &F, llvm::FunctionAnalysisManager &AM) {
   auto &SAR = AM.getResult<StrideAnalysis>(F);
   return Result(F, SAR);
 }

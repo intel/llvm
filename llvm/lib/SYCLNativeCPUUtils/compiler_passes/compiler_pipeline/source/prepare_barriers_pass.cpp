@@ -29,8 +29,9 @@ using namespace llvm;
 
 #define DEBUG_TYPE "ca-barriers"
 
-PreservedAnalyses compiler::utils::PrepareBarriersPass::run(
-    Module &M, ModuleAnalysisManager &AM) {
+PreservedAnalyses
+compiler::utils::PrepareBarriersPass::run(Module &M,
+                                          ModuleAnalysisManager &AM) {
   SmallPtrSet<Function *, 4> Kernels;
   auto &BI = AM.getResult<BuiltinInfoAnalysis>(M);
   for (auto &F : M.functions()) {

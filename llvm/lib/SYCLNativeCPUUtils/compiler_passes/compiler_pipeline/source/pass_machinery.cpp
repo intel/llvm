@@ -116,8 +116,8 @@ void PassMachinery::registerLLVMAnalyses() {
   PB.registerLoopAnalyses(LAM);
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
 namespace compiler {
 namespace utils {
@@ -130,5 +130,5 @@ void printPassName(StringRef PassName, StringRef Params, raw_ostream &OS) {
   OS << "  " << PassName << "<" << Params << ">\n";
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

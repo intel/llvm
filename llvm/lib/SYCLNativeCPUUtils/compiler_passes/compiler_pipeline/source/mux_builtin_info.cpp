@@ -50,33 +50,33 @@ static Function *defineLocalWorkItemBuiltin(BIMuxInfoConcept &BI, BuiltinID ID,
   bool HasRankArg = false;
   std::optional<WorkItemInfoStructField::Type> WIFieldIdx;
   switch (ID) {
-    default:
-      return nullptr;
-    case eMuxBuiltinSetLocalId:
-      IsSetter = true;
-      LLVM_FALLTHROUGH;
-    case eMuxBuiltinGetLocalId:
-      HasRankArg = true;
-      WIFieldIdx = WorkItemInfoStructField::local_id;
-      break;
-    case eMuxBuiltinSetSubGroupId:
-      IsSetter = true;
-      LLVM_FALLTHROUGH;
-    case eMuxBuiltinGetSubGroupId:
-      WIFieldIdx = WorkItemInfoStructField::sub_group_id;
-      break;
-    case eMuxBuiltinSetNumSubGroups:
-      IsSetter = true;
-      LLVM_FALLTHROUGH;
-    case eMuxBuiltinGetNumSubGroups:
-      WIFieldIdx = WorkItemInfoStructField::num_sub_groups;
-      break;
-    case eMuxBuiltinSetMaxSubGroupSize:
-      IsSetter = true;
-      LLVM_FALLTHROUGH;
-    case eMuxBuiltinGetMaxSubGroupSize:
-      WIFieldIdx = WorkItemInfoStructField::max_sub_group_size;
-      break;
+  default:
+    return nullptr;
+  case eMuxBuiltinSetLocalId:
+    IsSetter = true;
+    LLVM_FALLTHROUGH;
+  case eMuxBuiltinGetLocalId:
+    HasRankArg = true;
+    WIFieldIdx = WorkItemInfoStructField::local_id;
+    break;
+  case eMuxBuiltinSetSubGroupId:
+    IsSetter = true;
+    LLVM_FALLTHROUGH;
+  case eMuxBuiltinGetSubGroupId:
+    WIFieldIdx = WorkItemInfoStructField::sub_group_id;
+    break;
+  case eMuxBuiltinSetNumSubGroups:
+    IsSetter = true;
+    LLVM_FALLTHROUGH;
+  case eMuxBuiltinGetNumSubGroups:
+    WIFieldIdx = WorkItemInfoStructField::num_sub_groups;
+    break;
+  case eMuxBuiltinSetMaxSubGroupSize:
+    IsSetter = true;
+    LLVM_FALLTHROUGH;
+  case eMuxBuiltinGetMaxSubGroupSize:
+    WIFieldIdx = WorkItemInfoStructField::max_sub_group_size;
+    break;
   }
 
   Function *F = M.getFunction(BuiltinInfo::getMuxBuiltinName(ID));
@@ -110,29 +110,29 @@ static Function *defineLocalWorkGroupBuiltin(BIMuxInfoConcept &BI, BuiltinID ID,
   size_t DefaultVal = 0;
   std::optional<WorkGroupInfoStructField::Type> WGFieldIdx;
   switch (ID) {
-    default:
-      return nullptr;
-    case eMuxBuiltinGetLocalSize:
-      DefaultVal = 1;
-      WGFieldIdx = WorkGroupInfoStructField::local_size;
-      break;
-    case eMuxBuiltinGetGroupId:
-      DefaultVal = 0;
-      WGFieldIdx = WorkGroupInfoStructField::group_id;
-      break;
-    case eMuxBuiltinGetNumGroups:
-      DefaultVal = 1;
-      WGFieldIdx = WorkGroupInfoStructField::num_groups;
-      break;
-    case eMuxBuiltinGetGlobalOffset:
-      DefaultVal = 0;
-      WGFieldIdx = WorkGroupInfoStructField::global_offset;
-      break;
-    case eMuxBuiltinGetWorkDim:
-      DefaultVal = 1;
-      HasRankArg = false;
-      WGFieldIdx = WorkGroupInfoStructField::work_dim;
-      break;
+  default:
+    return nullptr;
+  case eMuxBuiltinGetLocalSize:
+    DefaultVal = 1;
+    WGFieldIdx = WorkGroupInfoStructField::local_size;
+    break;
+  case eMuxBuiltinGetGroupId:
+    DefaultVal = 0;
+    WGFieldIdx = WorkGroupInfoStructField::group_id;
+    break;
+  case eMuxBuiltinGetNumGroups:
+    DefaultVal = 1;
+    WGFieldIdx = WorkGroupInfoStructField::num_groups;
+    break;
+  case eMuxBuiltinGetGlobalOffset:
+    DefaultVal = 0;
+    WGFieldIdx = WorkGroupInfoStructField::global_offset;
+    break;
+  case eMuxBuiltinGetWorkDim:
+    DefaultVal = 1;
+    HasRankArg = false;
+    WGFieldIdx = WorkGroupInfoStructField::work_dim;
+    break;
   }
 
   Function *F = M.getFunction(BuiltinInfo::getMuxBuiltinName(ID));
@@ -167,61 +167,61 @@ static Function *defineSubGroupGroupOpBuiltin(Function &F,
 
   [&] {
     switch (GroupOp.Op) {
-      case GroupCollective::OpKind::Any:
-      case GroupCollective::OpKind::All:
-      case GroupCollective::OpKind::Broadcast:
-      case GroupCollective::OpKind::Reduction:
-      case GroupCollective::OpKind::ScanInclusive:
-        // In the trivial size=1 case, all of these operations just return the
-        // argument back again
-        B.CreateRet(Arg);
-        return;
-      case GroupCollective::OpKind::ScanExclusive: {
-        // In the trivial size=1 case, exclusive scans return the identity.
-        assert(!OverloadInfo.empty());
-        auto *const IdentityVal =
-            getIdentityVal(GroupOp.Recurrence, OverloadInfo[0]);
-        assert(IdentityVal && "Unable to deduce identity val");
-        B.CreateRet(IdentityVal);
-        return;
-      }
-      case GroupCollective::OpKind::Shuffle:
-      case GroupCollective::OpKind::ShuffleXor:
-        // In the trivial size=1 case, all of these operations just return the
-        // argument back again. Any computed shuffle index other than the only
-        // one in the sub-group would be out of bounds anyway.
-        B.CreateRet(Arg);
-        return;
-      case GroupCollective::OpKind::ShuffleUp: {
-        auto *const Prev = F.getArg(0);
-        auto *const Curr = F.getArg(1);
-        auto *const Delta = F.getArg(2);
-        // In the trivial size=1 case, negative delta is the desired index
-        // (since we're subtracting it from zero). If it's greater than zero and
-        // less than the size, we return 'current', else if it's less than zero
-        // and greater than or equal to the negative size, we return 'prev'. So
-        // if 'delta' is zero, return 'current', else return 'prev'. Anything
-        // else is out of bounds so we can simplify things here.
-        auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
-        auto *const Sel = B.CreateSelect(EqZero, Curr, Prev, "sel");
-        B.CreateRet(Sel);
-        return;
-      }
-      case GroupCollective::OpKind::ShuffleDown: {
-        auto *const Curr = F.getArg(0);
-        auto *const Next = F.getArg(1);
-        auto *const Delta = F.getArg(2);
-        // In the trivial size=1 case, the delta is the desired index (since
-        // we're adding it to zero). If it's less than the size, we return
-        // 'current', else if it's greater or equal to the size but less than
-        // twice the size, we return 'next'. So if 'delta' is zero, return
-        // 'current', else return 'next'. Anything else is out of bounds so we
-        // can simplify things here.
-        auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
-        auto *const Sel = B.CreateSelect(EqZero, Curr, Next, "sel");
-        B.CreateRet(Sel);
-        return;
-      }
+    case GroupCollective::OpKind::Any:
+    case GroupCollective::OpKind::All:
+    case GroupCollective::OpKind::Broadcast:
+    case GroupCollective::OpKind::Reduction:
+    case GroupCollective::OpKind::ScanInclusive:
+      // In the trivial size=1 case, all of these operations just return the
+      // argument back again
+      B.CreateRet(Arg);
+      return;
+    case GroupCollective::OpKind::ScanExclusive: {
+      // In the trivial size=1 case, exclusive scans return the identity.
+      assert(!OverloadInfo.empty());
+      auto *const IdentityVal =
+          getIdentityVal(GroupOp.Recurrence, OverloadInfo[0]);
+      assert(IdentityVal && "Unable to deduce identity val");
+      B.CreateRet(IdentityVal);
+      return;
+    }
+    case GroupCollective::OpKind::Shuffle:
+    case GroupCollective::OpKind::ShuffleXor:
+      // In the trivial size=1 case, all of these operations just return the
+      // argument back again. Any computed shuffle index other than the only
+      // one in the sub-group would be out of bounds anyway.
+      B.CreateRet(Arg);
+      return;
+    case GroupCollective::OpKind::ShuffleUp: {
+      auto *const Prev = F.getArg(0);
+      auto *const Curr = F.getArg(1);
+      auto *const Delta = F.getArg(2);
+      // In the trivial size=1 case, negative delta is the desired index
+      // (since we're subtracting it from zero). If it's greater than zero and
+      // less than the size, we return 'current', else if it's less than zero
+      // and greater than or equal to the negative size, we return 'prev'. So
+      // if 'delta' is zero, return 'current', else return 'prev'. Anything
+      // else is out of bounds so we can simplify things here.
+      auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
+      auto *const Sel = B.CreateSelect(EqZero, Curr, Prev, "sel");
+      B.CreateRet(Sel);
+      return;
+    }
+    case GroupCollective::OpKind::ShuffleDown: {
+      auto *const Curr = F.getArg(0);
+      auto *const Next = F.getArg(1);
+      auto *const Delta = F.getArg(2);
+      // In the trivial size=1 case, the delta is the desired index (since
+      // we're adding it to zero). If it's less than the size, we return
+      // 'current', else if it's greater or equal to the size but less than
+      // twice the size, we return 'next'. So if 'delta' is zero, return
+      // 'current', else return 'next'. Anything else is out of bounds so we
+      // can simplify things here.
+      auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
+      auto *const Sel = B.CreateSelect(EqZero, Curr, Next, "sel");
+      B.CreateRet(Sel);
+      return;
+    }
     }
 
     llvm_unreachable("Unhandled group operation");
@@ -790,41 +790,41 @@ Function *BIMuxInfoConcept::defineMuxBuiltin(BuiltinID ID, Module &M,
   }
 
   switch (ID) {
-    default:
-      break;
-    case eMuxBuiltinGetGlobalId:
-      return defineGetGlobalId(M);
-    case eMuxBuiltinGetGlobalSize:
-      return defineGetGlobalSize(M);
-    case eMuxBuiltinGetLocalLinearId:
-      return defineGetLocalLinearId(M);
-    case eMuxBuiltinGetGlobalLinearId:
-      return defineGetGlobalLinearId(M);
-    case eMuxBuiltinGetEnqueuedLocalSize:
-      return defineGetEnqueuedLocalSize(M);
-    // Just handle the memory synchronization requirements of any barrier
-    // builtin. We assume that the control requirements of work-group and
-    // sub-group control barriers have been handled by earlier passes.
-    case eMuxBuiltinMemBarrier:
-      return defineMemBarrier(*F, 0, 1);
-    case eMuxBuiltinSubGroupBarrier:
-    case eMuxBuiltinWorkGroupBarrier:
-      return defineMemBarrier(*F, 1, 2);
-    case eMuxBuiltinDMARead1D:
-    case eMuxBuiltinDMAWrite1D:
-      return defineDMA1D(*F);
-    case eMuxBuiltinDMARead2D:
-    case eMuxBuiltinDMAWrite2D:
-      return defineDMA2D(*F);
-    case eMuxBuiltinDMARead3D:
-    case eMuxBuiltinDMAWrite3D:
-      return defineDMA3D(*F);
-    case eMuxBuiltinDMAWait:
-      return defineDMAWait(*F);
-    case eMuxBuiltinGetSubGroupSize:
-      return defineGetSubGroupSize(*F);
-    case eMuxBuiltinGetSubGroupLocalId:
-      return defineGetSubGroupLocalId(*F);
+  default:
+    break;
+  case eMuxBuiltinGetGlobalId:
+    return defineGetGlobalId(M);
+  case eMuxBuiltinGetGlobalSize:
+    return defineGetGlobalSize(M);
+  case eMuxBuiltinGetLocalLinearId:
+    return defineGetLocalLinearId(M);
+  case eMuxBuiltinGetGlobalLinearId:
+    return defineGetGlobalLinearId(M);
+  case eMuxBuiltinGetEnqueuedLocalSize:
+    return defineGetEnqueuedLocalSize(M);
+  // Just handle the memory synchronization requirements of any barrier
+  // builtin. We assume that the control requirements of work-group and
+  // sub-group control barriers have been handled by earlier passes.
+  case eMuxBuiltinMemBarrier:
+    return defineMemBarrier(*F, 0, 1);
+  case eMuxBuiltinSubGroupBarrier:
+  case eMuxBuiltinWorkGroupBarrier:
+    return defineMemBarrier(*F, 1, 2);
+  case eMuxBuiltinDMARead1D:
+  case eMuxBuiltinDMAWrite1D:
+    return defineDMA1D(*F);
+  case eMuxBuiltinDMARead2D:
+  case eMuxBuiltinDMAWrite2D:
+    return defineDMA2D(*F);
+  case eMuxBuiltinDMARead3D:
+  case eMuxBuiltinDMAWrite3D:
+    return defineDMA3D(*F);
+  case eMuxBuiltinDMAWait:
+    return defineDMAWait(*F);
+  case eMuxBuiltinGetSubGroupSize:
+    return defineGetSubGroupSize(*F);
+  case eMuxBuiltinGetSubGroupLocalId:
+    return defineGetSubGroupLocalId(*F);
   }
 
   if (auto *const NewF = defineLocalWorkItemBuiltin(*this, ID, M)) {
@@ -847,32 +847,32 @@ Function *BIMuxInfoConcept::defineMuxBuiltin(BuiltinID ID, Module &M,
 
 bool BIMuxInfoConcept::requiresSchedulingParameters(BuiltinID ID) {
   switch (ID) {
-    default:
-      return false;
-    case eMuxBuiltinGetLocalId:
-    case eMuxBuiltinSetLocalId:
-    case eMuxBuiltinGetSubGroupId:
-    case eMuxBuiltinSetSubGroupId:
-    case eMuxBuiltinGetNumSubGroups:
-    case eMuxBuiltinSetNumSubGroups:
-    case eMuxBuiltinGetMaxSubGroupSize:
-    case eMuxBuiltinSetMaxSubGroupSize:
-    case eMuxBuiltinGetLocalLinearId:
-      // Work-item struct only
-      return true;
-    case eMuxBuiltinGetWorkDim:
-    case eMuxBuiltinGetGroupId:
-    case eMuxBuiltinGetNumGroups:
-    case eMuxBuiltinGetGlobalSize:
-    case eMuxBuiltinGetLocalSize:
-    case eMuxBuiltinGetGlobalOffset:
-    case eMuxBuiltinGetEnqueuedLocalSize:
-      // Work-group struct only
-      return true;
-    case eMuxBuiltinGetGlobalId:
-    case eMuxBuiltinGetGlobalLinearId:
-      // Work-item and work-group structs
-      return true;
+  default:
+    return false;
+  case eMuxBuiltinGetLocalId:
+  case eMuxBuiltinSetLocalId:
+  case eMuxBuiltinGetSubGroupId:
+  case eMuxBuiltinSetSubGroupId:
+  case eMuxBuiltinGetNumSubGroups:
+  case eMuxBuiltinSetNumSubGroups:
+  case eMuxBuiltinGetMaxSubGroupSize:
+  case eMuxBuiltinSetMaxSubGroupSize:
+  case eMuxBuiltinGetLocalLinearId:
+    // Work-item struct only
+    return true;
+  case eMuxBuiltinGetWorkDim:
+  case eMuxBuiltinGetGroupId:
+  case eMuxBuiltinGetNumGroups:
+  case eMuxBuiltinGetGlobalSize:
+  case eMuxBuiltinGetLocalSize:
+  case eMuxBuiltinGetGlobalOffset:
+  case eMuxBuiltinGetEnqueuedLocalSize:
+    // Work-group struct only
+    return true;
+  case eMuxBuiltinGetGlobalId:
+  case eMuxBuiltinGetGlobalLinearId:
+    // Work-item and work-group structs
+    return true;
   }
 }
 
@@ -902,8 +902,9 @@ Type *BIMuxInfoConcept::getRemappedTargetExtTy(Type *Ty, Module &M) {
   return nullptr;
 }
 
-Function *BIMuxInfoConcept::getOrDeclareMuxBuiltin(
-    BuiltinID ID, Module &M, ArrayRef<Type *> OverloadInfo) {
+Function *
+BIMuxInfoConcept::getOrDeclareMuxBuiltin(BuiltinID ID, Module &M,
+                                         ArrayRef<Type *> OverloadInfo) {
   assert(BuiltinInfo::isMuxBuiltinID(ID) && "Only handling mux builtins");
   auto FnName = BuiltinInfo::getMuxBuiltinName(ID, OverloadInfo);
   if (auto *const F = M.getFunction(FnName)) {
@@ -920,236 +921,232 @@ Function *BIMuxInfoConcept::getOrDeclareMuxBuiltin(
   SmallVector<std::string, 4> ParamNames;
 
   switch (ID) {
-    // Ranked Getters
-    case eMuxBuiltinGetLocalId:
-    case eMuxBuiltinGetGlobalId:
-    case eMuxBuiltinGetLocalSize:
-    case eMuxBuiltinGetGlobalSize:
-    case eMuxBuiltinGetGlobalOffset:
-    case eMuxBuiltinGetNumGroups:
-    case eMuxBuiltinGetGroupId:
-    case eMuxBuiltinGetEnqueuedLocalSize:
+  // Ranked Getters
+  case eMuxBuiltinGetLocalId:
+  case eMuxBuiltinGetGlobalId:
+  case eMuxBuiltinGetLocalSize:
+  case eMuxBuiltinGetGlobalSize:
+  case eMuxBuiltinGetGlobalOffset:
+  case eMuxBuiltinGetNumGroups:
+  case eMuxBuiltinGetGroupId:
+  case eMuxBuiltinGetEnqueuedLocalSize:
+    ParamTys.push_back(Int32Ty);
+    ParamNames.push_back("idx");
+    LLVM_FALLTHROUGH;
+  // Unranked Getters
+  case eMuxBuiltinGetWorkDim:
+  case eMuxBuiltinGetSubGroupId:
+  case eMuxBuiltinGetNumSubGroups:
+  case eMuxBuiltinGetSubGroupSize:
+  case eMuxBuiltinGetMaxSubGroupSize:
+  case eMuxBuiltinGetSubGroupLocalId:
+  case eMuxBuiltinGetLocalLinearId:
+  case eMuxBuiltinGetGlobalLinearId: {
+    // Some builtins return uint, others return size_t
+    RetTy =
+        (ID == eMuxBuiltinGetWorkDim || ID == eMuxBuiltinGetSubGroupId ||
+         ID == eMuxBuiltinGetNumSubGroups || ID == eMuxBuiltinGetSubGroupSize ||
+         ID == eMuxBuiltinGetMaxSubGroupSize ||
+         ID == eMuxBuiltinGetSubGroupLocalId)
+            ? Int32Ty
+            : SizeTy;
+    // All of our mux getters are readonly - they may never write data
+    AB.addMemoryAttr(MemoryEffects::readOnly());
+    break;
+  }
+  // Ranked Setters
+  case eMuxBuiltinSetLocalId:
+    ParamTys.push_back(Int32Ty);
+    ParamNames.push_back("idx");
+    LLVM_FALLTHROUGH;
+  // Unranked Setters
+  case eMuxBuiltinSetSubGroupId:
+  case eMuxBuiltinSetNumSubGroups:
+  case eMuxBuiltinSetMaxSubGroupSize: {
+    RetTy = VoidTy;
+    ParamTys.push_back(ID == eMuxBuiltinSetLocalId ? SizeTy : Int32Ty);
+    ParamNames.push_back("val");
+    break;
+  }
+  case eMuxBuiltinMemBarrier: {
+    RetTy = VoidTy;
+    for (auto PName : {"scope", "semantics"}) {
       ParamTys.push_back(Int32Ty);
-      ParamNames.push_back("idx");
-      LLVM_FALLTHROUGH;
-    // Unranked Getters
-    case eMuxBuiltinGetWorkDim:
-    case eMuxBuiltinGetSubGroupId:
-    case eMuxBuiltinGetNumSubGroups:
-    case eMuxBuiltinGetSubGroupSize:
-    case eMuxBuiltinGetMaxSubGroupSize:
-    case eMuxBuiltinGetSubGroupLocalId:
-    case eMuxBuiltinGetLocalLinearId:
-    case eMuxBuiltinGetGlobalLinearId: {
-      // Some builtins return uint, others return size_t
-      RetTy = (ID == eMuxBuiltinGetWorkDim || ID == eMuxBuiltinGetSubGroupId ||
-               ID == eMuxBuiltinGetNumSubGroups ||
-               ID == eMuxBuiltinGetSubGroupSize ||
-               ID == eMuxBuiltinGetMaxSubGroupSize ||
-               ID == eMuxBuiltinGetSubGroupLocalId)
-                  ? Int32Ty
-                  : SizeTy;
-      // All of our mux getters are readonly - they may never write data
-      AB.addMemoryAttr(MemoryEffects::readOnly());
-      break;
+      ParamNames.push_back(PName);
     }
-    // Ranked Setters
-    case eMuxBuiltinSetLocalId:
+    AB.addAttribute(Attribute::NoMerge);
+    AB.addAttribute(Attribute::NoDuplicate);
+    AB.addAttribute(Attribute::Convergent);
+    break;
+  }
+  case eMuxBuiltinSubGroupBarrier:
+  case eMuxBuiltinWorkGroupBarrier: {
+    RetTy = VoidTy;
+    for (auto PName : {"id", "scope", "semantics"}) {
       ParamTys.push_back(Int32Ty);
-      ParamNames.push_back("idx");
-      LLVM_FALLTHROUGH;
-    // Unranked Setters
-    case eMuxBuiltinSetSubGroupId:
-    case eMuxBuiltinSetNumSubGroups:
-    case eMuxBuiltinSetMaxSubGroupSize: {
-      RetTy = VoidTy;
-      ParamTys.push_back(ID == eMuxBuiltinSetLocalId ? SizeTy : Int32Ty);
-      ParamNames.push_back("val");
-      break;
+      ParamNames.push_back(PName);
     }
-    case eMuxBuiltinMemBarrier: {
-      RetTy = VoidTy;
-      for (auto PName : {"scope", "semantics"}) {
-        ParamTys.push_back(Int32Ty);
-        ParamNames.push_back(PName);
-      }
-      AB.addAttribute(Attribute::NoMerge);
-      AB.addAttribute(Attribute::NoDuplicate);
-      AB.addAttribute(Attribute::Convergent);
-      break;
-    }
-    case eMuxBuiltinSubGroupBarrier:
-    case eMuxBuiltinWorkGroupBarrier: {
-      RetTy = VoidTy;
-      for (auto PName : {"id", "scope", "semantics"}) {
-        ParamTys.push_back(Int32Ty);
-        ParamNames.push_back(PName);
-      }
-      AB.addAttribute(Attribute::NoMerge);
-      AB.addAttribute(Attribute::NoDuplicate);
-      AB.addAttribute(Attribute::Convergent);
-      break;
-    }
-    case eMuxBuiltinDMAWait:
-      RetTy = VoidTy;
-      // Num events
-      ParamTys.push_back(Int32Ty);
-      ParamNames.push_back("num_events");
-      // The events list
-      ParamTys.push_back(PointerType::getUnqual(Ctx));
-      ParamNames.push_back("events");
-      AB.addAttribute(Attribute::Convergent);
-      break;
-    case eMuxBuiltinDMARead1D:
-    case eMuxBuiltinDMAWrite1D: {
-      // We need to be told the target event type to declare this builtin.
-      assert(!OverloadInfo.empty() && "Missing event type");
-      auto *const EventTy = OverloadInfo[0];
-      RetTy = EventTy;
-      const bool IsRead = ID == eMuxBuiltinDMARead1D;
+    AB.addAttribute(Attribute::NoMerge);
+    AB.addAttribute(Attribute::NoDuplicate);
+    AB.addAttribute(Attribute::Convergent);
+    break;
+  }
+  case eMuxBuiltinDMAWait:
+    RetTy = VoidTy;
+    // Num events
+    ParamTys.push_back(Int32Ty);
+    ParamNames.push_back("num_events");
+    // The events list
+    ParamTys.push_back(PointerType::getUnqual(Ctx));
+    ParamNames.push_back("events");
+    AB.addAttribute(Attribute::Convergent);
+    break;
+  case eMuxBuiltinDMARead1D:
+  case eMuxBuiltinDMAWrite1D: {
+    // We need to be told the target event type to declare this builtin.
+    assert(!OverloadInfo.empty() && "Missing event type");
+    auto *const EventTy = OverloadInfo[0];
+    RetTy = EventTy;
+    const bool IsRead = ID == eMuxBuiltinDMARead1D;
 
-      PointerType *const LocalPtrTy =
-          PointerType::get(Ctx, AddressSpace::Local);
-      PointerType *const GlobalPtrTy =
-          PointerType::get(Ctx, AddressSpace::Global);
+    PointerType *const LocalPtrTy = PointerType::get(Ctx, AddressSpace::Local);
+    PointerType *const GlobalPtrTy =
+        PointerType::get(Ctx, AddressSpace::Global);
 
-      ParamTys.push_back(IsRead ? LocalPtrTy : GlobalPtrTy);
-      ParamNames.push_back("dst");
+    ParamTys.push_back(IsRead ? LocalPtrTy : GlobalPtrTy);
+    ParamNames.push_back("dst");
 
-      ParamTys.push_back(IsRead ? GlobalPtrTy : LocalPtrTy);
-      ParamNames.push_back("src");
+    ParamTys.push_back(IsRead ? GlobalPtrTy : LocalPtrTy);
+    ParamNames.push_back("src");
 
+    ParamTys.push_back(SizeTy);
+    ParamNames.push_back("num_bytes");
+
+    ParamTys.push_back(EventTy);
+    ParamNames.push_back("event");
+    break;
+  }
+  case eMuxBuiltinDMARead2D:
+  case eMuxBuiltinDMAWrite2D: {
+    // We need to be told the target event type to declare this builtin.
+    assert(!OverloadInfo.empty() && "Missing event type");
+    auto *const EventTy = OverloadInfo[0];
+    RetTy = EventTy;
+    const bool IsRead = ID == eMuxBuiltinDMARead2D;
+
+    PointerType *const LocalPtrTy = PointerType::get(Ctx, AddressSpace::Local);
+    PointerType *const GlobalPtrTy =
+        PointerType::get(Ctx, AddressSpace::Global);
+
+    ParamTys.push_back(IsRead ? LocalPtrTy : GlobalPtrTy);
+    ParamNames.push_back("dst");
+
+    ParamTys.push_back(IsRead ? GlobalPtrTy : LocalPtrTy);
+    ParamNames.push_back("src");
+
+    for (auto &P : {"num_bytes", "dst_stride", "src_stride", "height"}) {
       ParamTys.push_back(SizeTy);
-      ParamNames.push_back("num_bytes");
-
-      ParamTys.push_back(EventTy);
-      ParamNames.push_back("event");
-      break;
+      ParamNames.push_back(P);
     }
-    case eMuxBuiltinDMARead2D:
-    case eMuxBuiltinDMAWrite2D: {
-      // We need to be told the target event type to declare this builtin.
-      assert(!OverloadInfo.empty() && "Missing event type");
-      auto *const EventTy = OverloadInfo[0];
-      RetTy = EventTy;
-      const bool IsRead = ID == eMuxBuiltinDMARead2D;
 
-      PointerType *const LocalPtrTy =
-          PointerType::get(Ctx, AddressSpace::Local);
-      PointerType *const GlobalPtrTy =
-          PointerType::get(Ctx, AddressSpace::Global);
+    ParamTys.push_back(EventTy);
+    ParamNames.push_back("event");
+    break;
+  }
+  case eMuxBuiltinDMARead3D:
+  case eMuxBuiltinDMAWrite3D: {
+    // We need to be told the target event type to declare this builtin.
+    assert(!OverloadInfo.empty() && "Missing event type");
+    auto *const EventTy = OverloadInfo[0];
+    RetTy = EventTy;
+    const bool IsRead = ID == eMuxBuiltinDMARead3D;
 
-      ParamTys.push_back(IsRead ? LocalPtrTy : GlobalPtrTy);
-      ParamNames.push_back("dst");
+    PointerType *const LocalPtrTy = PointerType::get(Ctx, AddressSpace::Local);
+    PointerType *const GlobalPtrTy =
+        PointerType::get(Ctx, AddressSpace::Global);
 
-      ParamTys.push_back(IsRead ? GlobalPtrTy : LocalPtrTy);
-      ParamNames.push_back("src");
+    ParamTys.push_back(IsRead ? LocalPtrTy : GlobalPtrTy);
+    ParamNames.push_back("dst");
 
-      for (auto &P : {"num_bytes", "dst_stride", "src_stride", "height"}) {
-        ParamTys.push_back(SizeTy);
-        ParamNames.push_back(P);
-      }
+    ParamTys.push_back(IsRead ? GlobalPtrTy : LocalPtrTy);
+    ParamNames.push_back("src");
 
-      ParamTys.push_back(EventTy);
-      ParamNames.push_back("event");
-      break;
+    for (auto &P : {"num_bytes", "dst_line_stride", "src_line_stride", "height",
+                    "dst_plane_stride", "src_plane_stride", "depth"}) {
+      ParamTys.push_back(SizeTy);
+      ParamNames.push_back(P);
     }
-    case eMuxBuiltinDMARead3D:
-    case eMuxBuiltinDMAWrite3D: {
-      // We need to be told the target event type to declare this builtin.
-      assert(!OverloadInfo.empty() && "Missing event type");
-      auto *const EventTy = OverloadInfo[0];
-      RetTy = EventTy;
-      const bool IsRead = ID == eMuxBuiltinDMARead3D;
 
-      PointerType *const LocalPtrTy =
-          PointerType::get(Ctx, AddressSpace::Local);
-      PointerType *const GlobalPtrTy =
-          PointerType::get(Ctx, AddressSpace::Global);
-
-      ParamTys.push_back(IsRead ? LocalPtrTy : GlobalPtrTy);
-      ParamNames.push_back("dst");
-
-      ParamTys.push_back(IsRead ? GlobalPtrTy : LocalPtrTy);
-      ParamNames.push_back("src");
-
-      for (auto &P :
-           {"num_bytes", "dst_line_stride", "src_line_stride", "height",
-            "dst_plane_stride", "src_plane_stride", "depth"}) {
-        ParamTys.push_back(SizeTy);
-        ParamNames.push_back(P);
-      }
-
-      ParamTys.push_back(EventTy);
-      ParamNames.push_back("event");
-      break;
-    }
-    default:
-      // Group builtins are more easily found using this helper rather than
-      // explicitly enumerating each switch case.
-      if (auto Group = BuiltinInfo::isMuxGroupCollective(ID)) {
-        RetTy = OverloadInfo.front();
-        AB.addAttribute(Attribute::Convergent);
-        switch (Group->Op) {
-          default:
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("val");
-            break;
-          case GroupCollective::OpKind::Broadcast:
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("val");
-            // Broadcasts additionally add ID parameters
-            if (Group->isSubGroupScope()) {
-              ParamTys.push_back(Int32Ty);
-              ParamNames.push_back("lid");
-            } else {
-              ParamTys.push_back(SizeTy);
-              ParamNames.push_back("lidx");
-              ParamTys.push_back(SizeTy);
-              ParamNames.push_back("lidy");
-              ParamTys.push_back(SizeTy);
-              ParamNames.push_back("lidz");
-            }
-            break;
-          case GroupCollective::OpKind::Shuffle:
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("val");
-            ParamTys.push_back(Int32Ty);
-            ParamNames.push_back("lid");
-            break;
-          case GroupCollective::OpKind::ShuffleXor:
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("val");
-            ParamTys.push_back(Int32Ty);
-            ParamNames.push_back("xor_val");
-            break;
-          case GroupCollective::OpKind::ShuffleUp:
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("prev");
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("curr");
-            ParamTys.push_back(Int32Ty);
-            ParamNames.push_back("delta");
-            break;
-          case GroupCollective::OpKind::ShuffleDown:
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("curr");
-            ParamTys.push_back(RetTy);
-            ParamNames.push_back("next");
-            ParamTys.push_back(Int32Ty);
-            ParamNames.push_back("delta");
-            break;
+    ParamTys.push_back(EventTy);
+    ParamNames.push_back("event");
+    break;
+  }
+  default:
+    // Group builtins are more easily found using this helper rather than
+    // explicitly enumerating each switch case.
+    if (auto Group = BuiltinInfo::isMuxGroupCollective(ID)) {
+      RetTy = OverloadInfo.front();
+      AB.addAttribute(Attribute::Convergent);
+      switch (Group->Op) {
+      default:
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("val");
+        break;
+      case GroupCollective::OpKind::Broadcast:
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("val");
+        // Broadcasts additionally add ID parameters
+        if (Group->isSubGroupScope()) {
+          ParamTys.push_back(Int32Ty);
+          ParamNames.push_back("lid");
+        } else {
+          ParamTys.push_back(SizeTy);
+          ParamNames.push_back("lidx");
+          ParamTys.push_back(SizeTy);
+          ParamNames.push_back("lidy");
+          ParamTys.push_back(SizeTy);
+          ParamNames.push_back("lidz");
         }
-        // All work-group operations have a 'barrier id' operand as their first
-        // parameter.
-        if (Group->isWorkGroupScope()) {
-          ParamTys.insert(ParamTys.begin(), Int32Ty);
-          ParamNames.insert(ParamNames.begin(), "id");
-        }
-      } else {
-        // Unknown mux builtin
-        return nullptr;
+        break;
+      case GroupCollective::OpKind::Shuffle:
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("val");
+        ParamTys.push_back(Int32Ty);
+        ParamNames.push_back("lid");
+        break;
+      case GroupCollective::OpKind::ShuffleXor:
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("val");
+        ParamTys.push_back(Int32Ty);
+        ParamNames.push_back("xor_val");
+        break;
+      case GroupCollective::OpKind::ShuffleUp:
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("prev");
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("curr");
+        ParamTys.push_back(Int32Ty);
+        ParamNames.push_back("delta");
+        break;
+      case GroupCollective::OpKind::ShuffleDown:
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("curr");
+        ParamTys.push_back(RetTy);
+        ParamNames.push_back("next");
+        ParamTys.push_back(Int32Ty);
+        ParamNames.push_back("delta");
+        break;
       }
+      // All work-group operations have a 'barrier id' operand as their first
+      // parameter.
+      if (Group->isWorkGroupScope()) {
+        ParamTys.insert(ParamTys.begin(), Int32Ty);
+        ParamNames.insert(ParamNames.begin(), "id");
+      }
+    } else {
+      // Unknown mux builtin
+      return nullptr;
+    }
   }
 
   assert(RetTy);
@@ -1283,40 +1280,40 @@ std::optional<llvm::ConstantRange> BIMuxInfoConcept::getBuiltinRange(
   std::array<std::optional<uint64_t>, 3> *SizesPtr = &MaxGlobalSizes;
 
   switch (ID) {
-    default:
+  default:
+    return std::nullopt;
+  case eMuxBuiltinGetWorkDim:
+    return ConstantRange::getNonEmpty(APInt(Bits, 1), APInt(Bits, 4));
+  case eMuxBuiltinGetLocalId:
+  case eMuxBuiltinGetLocalSize:
+  case eMuxBuiltinGetEnqueuedLocalSize:
+    // Use the local sizes array, and fall through to common handling.
+    SizesPtr = &MaxLocalSizes;
+    [[fallthrough]];
+  case eMuxBuiltinGetGlobalSize: {
+    auto *DimIdx = CI.getOperand(0);
+    if (!isa<ConstantInt>(DimIdx)) {
       return std::nullopt;
-    case eMuxBuiltinGetWorkDim:
-      return ConstantRange::getNonEmpty(APInt(Bits, 1), APInt(Bits, 4));
-    case eMuxBuiltinGetLocalId:
-    case eMuxBuiltinGetLocalSize:
-    case eMuxBuiltinGetEnqueuedLocalSize:
-      // Use the local sizes array, and fall through to common handling.
-      SizesPtr = &MaxLocalSizes;
-      [[fallthrough]];
-    case eMuxBuiltinGetGlobalSize: {
-      auto *DimIdx = CI.getOperand(0);
-      if (!isa<ConstantInt>(DimIdx)) {
-        return std::nullopt;
-      }
-      const uint64_t DimVal = cast<ConstantInt>(DimIdx)->getZExtValue();
-      if (DimVal >= SizesPtr->size()) {
-        return std::nullopt;
-      }
-      const std::optional<uint64_t> Size = (*SizesPtr)[DimVal];
-      if (!Size) {
-        return std::nullopt;
-      }
-      // ID builtins range [0,size) (exclusive), and size builtins [1,size]
-      // (inclusive). Thus offset the range by 1 at each low/high end when
-      // returning the range for a size builtin.
-      const int SizeAdjust = ID == eMuxBuiltinGetLocalSize ||
-                             ID == eMuxBuiltinGetEnqueuedLocalSize ||
-                             ID == eMuxBuiltinGetGlobalSize;
-      return ConstantRange::getNonEmpty(APInt(Bits, SizeAdjust),
-                                        APInt(Bits, Size.value() + SizeAdjust));
     }
+    const uint64_t DimVal = cast<ConstantInt>(DimIdx)->getZExtValue();
+    if (DimVal >= SizesPtr->size()) {
+      return std::nullopt;
+    }
+    const std::optional<uint64_t> Size = (*SizesPtr)[DimVal];
+    if (!Size) {
+      return std::nullopt;
+    }
+    // ID builtins range [0,size) (exclusive), and size builtins [1,size]
+    // (inclusive). Thus offset the range by 1 at each low/high end when
+    // returning the range for a size builtin.
+    const int SizeAdjust = ID == eMuxBuiltinGetLocalSize ||
+                           ID == eMuxBuiltinGetEnqueuedLocalSize ||
+                           ID == eMuxBuiltinGetGlobalSize;
+    return ConstantRange::getNonEmpty(APInt(Bits, SizeAdjust),
+                                      APInt(Bits, Size.value() + SizeAdjust));
+  }
   }
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

@@ -30,7 +30,7 @@ namespace vecz {
 /// after vectorization.
 class InlinePostVectorizationPass
     : public llvm::PassInfoMixin<InlinePostVectorizationPass> {
- public:
+public:
   /// @brief Create a new pass object.
   InlinePostVectorizationPass() {}
 
@@ -44,6 +44,6 @@ class InlinePostVectorizationPass
   /// @return pointer to text description.
   static llvm::StringRef name() { return "Inline Post Vectorization pass"; }
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_INLINE_POST_VECTORIZATION_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_INLINE_POST_VECTORIZATION_PASS_H_INCLUDED

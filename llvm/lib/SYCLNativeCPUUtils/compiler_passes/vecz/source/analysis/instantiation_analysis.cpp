@@ -106,7 +106,7 @@ bool analyzeAlloca(const VectorizationContext &Ctx, AllocaInst *alloca) {
   const uint64_t align = alloca->getAlign().value();
   return (align != 0 && (memSize % align) != 0);
 }
-}  // namespace
+} // namespace
 
 namespace vecz {
 bool needsInstantiation(const VectorizationContext &Ctx, Instruction &I) {
@@ -132,4 +132,4 @@ bool needsInstantiation(const VectorizationContext &Ctx, Instruction &I) {
     return analyzeType(I.getType());
   }
 }
-}  // namespace vecz
+} // namespace vecz

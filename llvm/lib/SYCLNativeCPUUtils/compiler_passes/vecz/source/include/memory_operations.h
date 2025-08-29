@@ -37,7 +37,7 @@ class Function;
 class Instruction;
 class Value;
 class Type;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -108,10 +108,11 @@ llvm::CallInst *createMaskedStore(VectorizationContext &Ctx, llvm::Value *Data,
 /// @param[in] IsVP true if defining a vector-predicated operation
 ///
 /// @return (Masked) interleaved builtin function.
-llvm::Function *getOrCreateInterleavedMemOpFn(
-    VectorizationContext &Ctx, llvm::Type *DataTy, llvm::PointerType *PtrTy,
-    llvm::Value *Stride, llvm::Type *MaskTy, unsigned Alignment, bool IsLoad,
-    bool IsVP);
+llvm::Function *
+getOrCreateInterleavedMemOpFn(VectorizationContext &Ctx, llvm::Type *DataTy,
+                              llvm::PointerType *PtrTy, llvm::Value *Stride,
+                              llvm::Type *MaskTy, unsigned Alignment,
+                              bool IsLoad, bool IsVP);
 
 /// @brief Create a call to a (masked) interleaved load builtin function. Also
 /// known as a strided load.
@@ -282,7 +283,7 @@ class MemOpDesc {
 
   friend struct MemOp;
 
- public:
+public:
   /// @brief Create an invalid memory operation.
   MemOpDesc();
 
@@ -406,8 +407,8 @@ class MemOpDesc {
   ///
   /// @return A MemOpDesc if the given function is a masked interleaved memory
   /// operation. std::nullopt otherwise.
-  static std::optional<MemOpDesc> analyzeMaskedInterleavedMemOp(
-      llvm::Function &F);
+  static std::optional<MemOpDesc>
+  analyzeMaskedInterleavedMemOp(llvm::Function &F);
 
   /// @brief Determine whether the given function is a scatter/gather memory
   /// operation or not. If that's the case, the descriptor is populated and
@@ -427,39 +428,39 @@ class MemOpDesc {
   ///
   /// @return A MemOpDesc if the given function is a masked scatter/gather
   /// operation. std::nullopt otherwise.
-  static std::optional<MemOpDesc> analyzeMaskedScatterGatherMemOp(
-      llvm::Function &F);
+  static std::optional<MemOpDesc>
+  analyzeMaskedScatterGatherMemOp(llvm::Function &F);
 
   /// @brief Determine whether the operation is a load or not.
   bool isLoad() const {
     switch (Kind) {
-      default:
-        return false;
-      case MemOpKind::LoadInstruction:
-      case MemOpKind::LoadCall:
-        return true;
+    default:
+      return false;
+    case MemOpKind::LoadInstruction:
+    case MemOpKind::LoadCall:
+      return true;
     }
   }
 
   /// @brief Determine whether the operation is a store or not.
   bool isStore() const {
     switch (Kind) {
-      default:
-        return false;
-      case MemOpKind::StoreInstruction:
-      case MemOpKind::StoreCall:
-        return true;
+    default:
+      return false;
+    case MemOpKind::StoreInstruction:
+    case MemOpKind::StoreCall:
+      return true;
     }
   }
 
   /// @brief Determine whether the operation is an instruction or not.
   bool isLoadStoreInst() const {
     switch (Kind) {
-      default:
-        return false;
-      case MemOpKind::LoadInstruction:
-      case MemOpKind::StoreInstruction:
-        return true;
+    default:
+      return false;
+    case MemOpKind::LoadInstruction:
+    case MemOpKind::StoreInstruction:
+      return true;
     }
   }
 
@@ -568,7 +569,7 @@ struct MemOp {
     return Desc.getStrideAsConstantInt();
   }
 
- private:
+private:
   /// @brief Access an operand of the call instruction.
   ///
   /// @param[in] OpIdx Index of the operand to access.
@@ -608,7 +609,7 @@ inline llvm::IntegerType *getSizeTy(llvm::Module &M) {
 inline llvm::IntegerType *getSizeTy(llvm::IRBuilder<> &B) {
   return getSizeTy(*(B.GetInsertBlock()->getModule()));
 }
-}  // namespace
-}  // namespace vecz
+} // namespace
+} // namespace vecz
 
-#endif  // VECZ_MEMORY_OPERATIONS_H_INCLUDED
+#endif // VECZ_MEMORY_OPERATIONS_H_INCLUDED

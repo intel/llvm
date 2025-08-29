@@ -14,8 +14,7 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: veczc -k irreducible_loop -S < %s | FileCheck %t
+; RUN: veczc -k irreducible_loop -S < %s | FileCheck %s
 
 ; ModuleID = 'Unknown buffer'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -49,17 +48,10 @@ declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_v4_irreducible_loop
 ; CHECK: entry:
-; CHECK-LT20:   br label %irr.guard.outer
-
-; CHECK-LT20: irr.guard.outer:                                  ; preds = %irr.guard.pure_exit, %entry
 ; CHECK:   br label %irr.guard
-
-; CHECK-LT20: do.end:                                           ; preds = %irr.guard.pure_exit
-; CHECK-LT20:   ret void
 
 ; CHECK: irr.guard:
 ; CHECK:   br i1 %{{.+}}, label %irr.guard.pure_exit, label %irr.guard
 
 ; CHECK: irr.guard.pure_exit:                              ; preds = %irr.guard
-; CHECK-LT20:   br i1 %{{.+}}, label %do.end, label %irr.guard.outer
-; CHECK-GE20:   ret void
+; CHECK:   ret void

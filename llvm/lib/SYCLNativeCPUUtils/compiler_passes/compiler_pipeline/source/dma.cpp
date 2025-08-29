@@ -70,5 +70,5 @@ llvm::StructType *getOrCreateMuxDMAEventType(llvm::Module &m) {
 
   return llvm::StructType::create(m.getContext(), MuxBuiltins::dma_event_type);
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

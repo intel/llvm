@@ -45,7 +45,7 @@ extern DebugLogging DebugPasses;
 /// @brief A class that manages the lifetime and initialization of all
 /// components required to set up a new-style LLVM pass manager.
 class PassMachinery {
- public:
+public:
   PassMachinery(llvm::LLVMContext &Ctx, llvm::TargetMachine *TM,
                 bool VerifyEach = false,
                 DebugLogging debugLogLevel = DebugLogging::None);
@@ -105,7 +105,7 @@ class PassMachinery {
   llvm::TargetMachine *getTM() { return TM; }
   const llvm::TargetMachine *getTM() const { return TM; }
 
- protected:
+protected:
   /// @brief TargetMachine to be used for passes. May be nullptr.
   llvm::TargetMachine *TM;
   // Note: the order here is important! They must be destructed in this order.
@@ -142,7 +142,7 @@ void printPassName(llvm::StringRef PassName, llvm::raw_ostream &OS);
 void printPassName(llvm::StringRef PassName, llvm::StringRef Params,
                    llvm::raw_ostream &OS);
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_PASS_MACHINERY_H_INCLUDED
+#endif // COMPILER_UTILS_PASS_MACHINERY_H_INCLUDED

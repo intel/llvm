@@ -26,7 +26,7 @@
 
 namespace llvm {
 class Function;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -69,6 +69,6 @@ bool createVectorizedFunctionMetadata(VectorizationUnit &VU);
 /// @param[in] VU the vectorization Unit of to create metadata for
 /// @returns true iff vectorization succeeded.
 void trackVeczSuccessFailure(VectorizationUnit &VU);
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECTORIZER_H_INCLUDED
+#endif // VECZ_VECTORIZER_H_INCLUDED

@@ -45,12 +45,13 @@ using namespace vecz;
 using namespace llvm;
 
 namespace {
-static cl::opt<bool> VeczDumpReport(
-    "vecz-dump-report", cl::desc("report the post-vectorization status"));
+static cl::opt<bool>
+    VeczDumpReport("vecz-dump-report",
+                   cl::desc("report the post-vectorization status"));
 // static cl options allow us to access these options from other cpp files,
 // such as vectorization_unit.cpp
 
-}  // namespace
+} // namespace
 
 // Statistics
 STATISTIC(VeczSuccess, "Number of kernels successfully vectorized [ID#V80]");
@@ -238,7 +239,7 @@ void collectStatistics(VectorizationUnit &VU, Function *Scalar,
                         ScalarVectorInsts * MaxScalarVectorWidth)) /
           VeczInstructions;
 }
-}  // namespace
+} // namespace
 
 VectorizationUnit *vecz::createVectorizationUnit(VectorizationContext &Ctx,
                                                  Function *Kernel,
@@ -349,13 +350,13 @@ bool vecz::createVectorizedFunctionMetadata(VectorizationUnit &vu) {
   const compiler::utils::VectorizationInfo info{
       finalVF, dim, vu.choices().vectorPredication()};
 
-  if (vectorizedFn && vectorizedFn != fn) {  // success
+  if (vectorizedFn && vectorizedFn != fn) { // success
     // Link the original function to the vectorized one.
     compiler::utils::linkOrigToVeczFnMetadata(*fn, *vectorizedFn, info);
 
     // Link the vectorized function back to the original one.
     compiler::utils::linkVeczToOrigFnMetadata(*vectorizedFn, *fn, info);
-  } else {  // fail or bail
+  } else { // fail or bail
     compiler::utils::encodeVectorizationFailedMetadata(*fn, info);
   }
   return vectorizedFn;

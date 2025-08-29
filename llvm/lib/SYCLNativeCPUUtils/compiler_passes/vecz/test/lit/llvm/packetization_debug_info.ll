@@ -17,8 +17,7 @@
 ; Check that debug info is preserved in the vectorized kernel.
 ; Specifically that the packetization pass creates vector types
 ; in the DI for the variables.
-; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
-; RUN: veczc -k add -S < %s | FileCheck %t
+; RUN: veczc -k add -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -52,7 +51,7 @@ entry:
   call void @llvm.dbg.declare(metadata i64* %tid, metadata !14, metadata !29), !dbg !31
   %call = call i64 @__mux_get_global_id(i32 0) #3, !dbg !31
   store i64 %call, i64* %tid, align 8, !dbg !31
-; CHECK: #dbg_value(i32 {{undef|poison}}, [[DI_A:![0-9]+]], !DIExpression(),
+; CHECK: #dbg_value(i32 poison, [[DI_A:![0-9]+]], !DIExpression(),
 ; CHECK-SAME: [[A_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32* %a, metadata !19, metadata !29), !dbg !32
   %0 = load i64, i64* %tid, align 8, !dbg !32
@@ -60,7 +59,7 @@ entry:
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %1, i64 %0, !dbg !32
   %2 = load i32, i32 addrspace(1)* %arrayidx, align 4, !dbg !32
   store i32 %2, i32* %a, align 4, !dbg !32
-; CHECK: #dbg_value(i32 {{undef|poison}}, [[DI_B:![0-9]+]], !DIExpression(),
+; CHECK: #dbg_value(i32 poison, [[DI_B:![0-9]+]], !DIExpression(),
 ; CHECK-SAME: [[B_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32* %b, metadata !20, metadata !29), !dbg !33
   %3 = load i64, i64* %tid, align 8, !dbg !33

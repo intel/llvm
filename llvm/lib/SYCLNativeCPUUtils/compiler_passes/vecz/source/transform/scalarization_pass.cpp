@@ -180,7 +180,7 @@ struct OperandTracer {
   }
 };
 
-}  // namespace
+} // namespace
 
 PreservedAnalyses ScalarizationPass::run(llvm::Function &F,
                                          llvm::FunctionAnalysisManager &AM) {

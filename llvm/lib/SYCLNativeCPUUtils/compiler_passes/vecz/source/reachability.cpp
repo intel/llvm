@@ -278,4 +278,4 @@ bool Reachability::isReachable(BasicBlock *from, BasicBlock *to) const {
   return from == to || isReachableImpl(fromI->second, toI->second);
 }
 
-}  // namespace vecz
+} // namespace vecz

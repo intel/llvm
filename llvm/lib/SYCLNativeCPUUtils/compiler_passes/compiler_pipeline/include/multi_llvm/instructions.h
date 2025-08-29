@@ -40,10 +40,10 @@ struct BinOpHelper;
 #include <multi_llvm/instructions.inc>
 #undef LLVM
 
-}  // namespace detail
+} // namespace detail
 
-static std::optional<llvm::AtomicRMWInst::BinOp> consume_binop_with_underscore(
-    llvm::StringRef &String) {
+static std::optional<llvm::AtomicRMWInst::BinOp>
+consume_binop_with_underscore(llvm::StringRef &String) {
   return multi_llvm::detail::BinOpHelper<>::consume_front_with_underscore(
       String);
 }
@@ -52,6 +52,6 @@ static llvm::StringRef to_string(llvm::AtomicRMWInst::BinOp BinOp) {
   return multi_llvm::detail::BinOpHelper<>::to_string(BinOp);
 }
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_MULTI_INSTRUCTIONS_H_INCLUDED
+#endif // MULTI_LLVM_MULTI_INSTRUCTIONS_H_INCLUDED

@@ -30,7 +30,7 @@ namespace llvm {
 class TargetMachine;
 class TargetTransformInfo;
 class Type;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 class VectorizationContext;
@@ -55,7 +55,7 @@ enum InterleavedOperation : int {
 /// @brief Used by the vectorizer to query for target capabilities and
 /// materialize memory intrinsics.
 class TargetInfo {
- public:
+public:
   /// @brief Create a new vector target info instance.
   /// @param[in] tm LLVM target machine that will be used for compilation, can
   /// be NULL if no target data is available.
@@ -192,9 +192,10 @@ class TargetInfo {
   /// @param[in] alignment Alignment of the load
   ///
   /// @return IR value that results from the interleaved vector store.
-  virtual llvm::Value *createInterleavedStore(
-      llvm::IRBuilder<> &builder, llvm::Value *data, llvm::Value *ptr,
-      llvm::Value *stride, llvm::Value *evl, unsigned alignment) const;
+  virtual llvm::Value *
+  createInterleavedStore(llvm::IRBuilder<> &builder, llvm::Value *data,
+                         llvm::Value *ptr, llvm::Value *stride,
+                         llvm::Value *evl, unsigned alignment) const;
 
   /// @brief Create a masked interleaved vector load.
   ///        Only lanes with a non-zero mask will be loaded from the address.
@@ -212,10 +213,11 @@ class TargetInfo {
   /// @param[in] alignment Alignment of the load
   ///
   /// @return IR value that results from the masked interleaved vector load.
-  virtual llvm::Value *createMaskedInterleavedLoad(
-      llvm::IRBuilder<> &builder, llvm::Type *ty, llvm::Value *ptr,
-      llvm::Value *mask, llvm::Value *stride, llvm::Value *evl,
-      unsigned alignment) const;
+  virtual llvm::Value *
+  createMaskedInterleavedLoad(llvm::IRBuilder<> &builder, llvm::Type *ty,
+                              llvm::Value *ptr, llvm::Value *mask,
+                              llvm::Value *stride, llvm::Value *evl,
+                              unsigned alignment) const;
 
   /// @brief Create a masked interleaved vector store.
   ///        Only lanes with a non-zero mask will be stored to the address.
@@ -233,10 +235,11 @@ class TargetInfo {
   /// @param[in] alignment Alignment of the load
   ///
   /// @return IR value that results from the masked interleaved vector store.
-  virtual llvm::Value *createMaskedInterleavedStore(
-      llvm::IRBuilder<> &builder, llvm::Value *data, llvm::Value *ptr,
-      llvm::Value *mask, llvm::Value *stride, llvm::Value *evl,
-      unsigned alignment) const;
+  virtual llvm::Value *
+  createMaskedInterleavedStore(llvm::IRBuilder<> &builder, llvm::Value *data,
+                               llvm::Value *ptr, llvm::Value *mask,
+                               llvm::Value *stride, llvm::Value *evl,
+                               unsigned alignment) const;
 
   /// @brief Create a gather vector load.
   ///        Vector lanes are loaded from different memory addresses.
@@ -314,9 +317,10 @@ class TargetInfo {
   /// @param[in] alignment Alignment of the store.
   ///
   /// @return IR value that results from the masked scatter vector store.
-  virtual llvm::Value *createMaskedScatterStore(
-      llvm::IRBuilder<> &builder, llvm::Value *data, llvm::Value *ptr,
-      llvm::Value *mask, llvm::Value *evl, unsigned alignment) const;
+  virtual llvm::Value *
+  createMaskedScatterStore(llvm::IRBuilder<> &builder, llvm::Value *data,
+                           llvm::Value *ptr, llvm::Value *mask,
+                           llvm::Value *evl, unsigned alignment) const;
 
   /// @brief Create a scalable extractelement instruction. Note that the
   /// operands are expected to have been pre-packetized before passing to this
@@ -349,9 +353,10 @@ class TargetInfo {
   /// @param[in] vector Vector to broadcast.
   /// @param[in] VL Vector length.
   /// @param[in] factor Broadcast factor.
-  virtual llvm::Value *createOuterScalableBroadcast(
-      llvm::IRBuilder<> &builder, llvm::Value *vector, llvm::Value *VL,
-      llvm::ElementCount factor) const;
+  virtual llvm::Value *
+  createOuterScalableBroadcast(llvm::IRBuilder<> &builder, llvm::Value *vector,
+                               llvm::Value *VL,
+                               llvm::ElementCount factor) const;
 
   /// @brief Create an inner broadcast of a vector. An inner broadcast is one
   /// where a vector with length V has its lanes individually and sequentially
@@ -364,9 +369,10 @@ class TargetInfo {
   /// @param[in] vector Vector to broadcast.
   /// @param[in] VL Vector length.
   /// @param[in] factor Broadcast factor.
-  virtual llvm::Value *createInnerScalableBroadcast(
-      llvm::IRBuilder<> &builder, llvm::Value *vector, llvm::Value *VL,
-      llvm::ElementCount factor) const;
+  virtual llvm::Value *
+  createInnerScalableBroadcast(llvm::IRBuilder<> &builder, llvm::Value *vector,
+                               llvm::Value *VL,
+                               llvm::ElementCount factor) const;
 
   /// @brief Utility function for packetizing an insertelement instruction by a
   /// scalable factor. Note that the operands are expected to have been
@@ -498,9 +504,10 @@ class TargetInfo {
   /// @param[in] width the widest SIMD width to consider
   /// @return the widest SIMD width that is expected to fit into registers, or
   ///         zero if the set can never fit into registers.
-  virtual unsigned estimateSimdWidth(
-      const llvm::TargetTransformInfo &TTI,
-      const llvm::ArrayRef<const llvm::Value *> vals, unsigned width) const;
+  virtual unsigned
+  estimateSimdWidth(const llvm::TargetTransformInfo &TTI,
+                    const llvm::ArrayRef<const llvm::Value *> vals,
+                    unsigned width) const;
 
   /// @brief Get the preferred vector width for the given scalar type
   ///
@@ -522,11 +529,11 @@ class TargetInfo {
   /// binary vp intrinsic.
   virtual bool isVPVectorLegal(const llvm::Function &F, llvm::Type *Ty) const;
 
- protected:
+protected:
   /// @brief This type indicates legality of a VP/Masked memory operation in a
   /// target.
   class VPMemOpLegality {
-   public:
+  public:
     constexpr VPMemOpLegality() = default;
     constexpr VPMemOpLegality(bool VPLegal, bool MaskLegal)
         : VPLegal(VPLegal), MaskLegal(MaskLegal) {}
@@ -545,7 +552,7 @@ class TargetInfo {
     /// operation.
     constexpr bool isMaskLegal() const { return MaskLegal; }
 
-   private:
+  private:
     bool VPLegal = false;
     bool MaskLegal = false;
   };
@@ -617,16 +624,17 @@ class TargetInfo {
   /// @brief LLVM target machine that will be used for compilation.
   llvm::TargetMachine *TM_;
 
- private:
+private:
   /// @brief Helper function to check legality of memory operations.
   ///
   /// @return Illegal in LLVM < 13 and check leagality in LLVM >= 13.
-  VPMemOpLegality checkMemOpLegality(
-      const llvm::Function *F,
-      llvm::function_ref<bool(const llvm::TargetTransformInfo &, llvm::Type *,
-                              unsigned, unsigned)>
-          Checker,
-      llvm::Type *Ty, unsigned Alignment, unsigned AddrSpace) const;
+  VPMemOpLegality
+  checkMemOpLegality(const llvm::Function *F,
+                     llvm::function_ref<bool(const llvm::TargetTransformInfo &,
+                                             llvm::Type *, unsigned, unsigned)>
+                         Checker,
+                     llvm::Type *Ty, unsigned Alignment,
+                     unsigned AddrSpace) const;
 
   /// @brief Create a broadcast of a vector.
   ///
@@ -646,7 +654,7 @@ class TargetInfo {
 class TargetInfoAnalysis : public llvm::AnalysisInfoMixin<TargetInfoAnalysis> {
   friend AnalysisInfoMixin<TargetInfoAnalysis>;
 
- public:
+public:
   struct Result {
     Result(std::unique_ptr<TargetInfo> &&I) : Info(std::move(I)) {}
     /// Handle the invalidation of this information.
@@ -681,7 +689,7 @@ class TargetInfoAnalysis : public llvm::AnalysisInfoMixin<TargetInfoAnalysis> {
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "TargetInfo analysis"; }
 
- private:
+private:
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
 
@@ -699,10 +707,10 @@ std::unique_ptr<TargetInfo> createTargetInfoRISCV(llvm::TargetMachine *tm);
 /// @param[in] tm LLVM target machine that will be used for compilation, can
 /// be NULL if no target data is available.
 /// @return The new TargetInfo instance.
-std::unique_ptr<TargetInfo> createTargetInfoFromTargetMachine(
-    llvm::TargetMachine *tm);
+std::unique_ptr<TargetInfo>
+createTargetInfoFromTargetMachine(llvm::TargetMachine *tm);
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECZ_TARGET_INFO_H_INCLUDED
+#endif // VECZ_VECZ_TARGET_INFO_H_INCLUDED

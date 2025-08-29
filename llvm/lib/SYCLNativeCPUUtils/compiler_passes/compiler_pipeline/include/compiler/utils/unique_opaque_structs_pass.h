@@ -44,12 +44,12 @@ namespace utils {
 /// problematic types and replacing them with their unsuffixed version.
 class UniqueOpaqueStructsPass
     : public llvm::PassInfoMixin<UniqueOpaqueStructsPass> {
- public:
+public:
   UniqueOpaqueStructsPass() = default;
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_UNIQUE_OPAQUE_STRUCTS_PASS_H_INCLUDED
+#endif // COMPILER_UTILS_UNIQUE_OPAQUE_STRUCTS_PASS_H_INCLUDED

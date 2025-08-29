@@ -90,21 +90,21 @@ BuiltinInfo::identifyMuxBuiltin(const Function &F) const {
           .Default(std::nullopt);
   if (ID) {
     switch (*ID) {
-      default:
-        return {{*ID, {}}};
-      case eMuxBuiltinDMARead1D:
-      case eMuxBuiltinDMARead2D:
-      case eMuxBuiltinDMARead3D:
-      case eMuxBuiltinDMAWrite1D:
-      case eMuxBuiltinDMAWrite2D:
-      case eMuxBuiltinDMAWrite3D:
-        // Return the event type used by these builtins. The event type is
-        // required to declare/define these builtins, so return it here for
-        // the sake of completeness. The event type doesn't change the
-        // builtins' name (i.e., it's not mangled) as it's required to be
-        // consistent at any single snapshot of the module, though it may
-        // change through time.
-        return {{*ID, {F.getReturnType()}}};
+    default:
+      return {{*ID, {}}};
+    case eMuxBuiltinDMARead1D:
+    case eMuxBuiltinDMARead2D:
+    case eMuxBuiltinDMARead3D:
+    case eMuxBuiltinDMAWrite1D:
+    case eMuxBuiltinDMAWrite2D:
+    case eMuxBuiltinDMAWrite3D:
+      // Return the event type used by these builtins. The event type is
+      // required to declare/define these builtins, so return it here for
+      // the sake of completeness. The event type doesn't change the
+      // builtins' name (i.e., it's not mangled) as it's required to be
+      // consistent at any single snapshot of the module, though it may
+      // change through time.
+      return {{*ID, {F.getReturnType()}}};
     }
   }
 
@@ -118,9 +118,9 @@ BuiltinInfo::identifyMuxBuiltin(const Function &F) const {
     return std::nullopt;
   }
 
-#define SCOPED_GROUP_OP(OP)                 \
-  (IsSubgroupOp   ? eMuxBuiltinSubgroup##OP \
-   : IsVecgroupOp ? eMuxBuiltinVecgroup##OP \
+#define SCOPED_GROUP_OP(OP)                                                    \
+  (IsSubgroupOp   ? eMuxBuiltinSubgroup##OP                                    \
+   : IsVecgroupOp ? eMuxBuiltinVecgroup##OP                                    \
                   : eMuxBuiltinWorkgroup##OP)
 
   // Most group operations have one argument, except for broadcasts. Despite
@@ -159,7 +159,7 @@ BuiltinInfo::identifyMuxBuiltin(const Function &F) const {
     Name = Name.drop_front(Group.size());
 
     if (Group == "logical") {
-      Name = Name.drop_front();  // Drop the underscore
+      Name = Name.drop_front(); // Drop the underscore
       auto NextIdx = Name.find_first_of('_');
       auto RealGroup = Name.substr(0, NextIdx);
       Group += "_" + RealGroup.str();
@@ -279,44 +279,43 @@ BuiltinUniformity BuiltinInfo::isBuiltinUniform(const Builtin &B,
                                                 const CallInst *CI,
                                                 unsigned SimdDimIdx) const {
   switch (B.ID) {
-    default:
-      break;
-    case eMuxBuiltinGetGlobalId:
-    case eMuxBuiltinGetLocalId: {
-      // We need to know the dimension requested from these builtins at compile
-      // time to infer their uniformity.
-      if (!CI || CI->arg_empty()) {
-        return eBuiltinUniformityNever;
-      }
-      auto *Rank = dyn_cast<ConstantInt>(CI->getArgOperand(0));
-      if (!Rank) {
-        // The Rank is some function, which "might" evaluate to zero
-        // sometimes, so we let the packetizer sort it out with some
-        // conditional magic.
-        // TODO Make sure this can never go haywire in weird edge cases.
-        // Where we have one get_global_id() dependent on another, this is
-        // not packetized correctly. Doing so is very hard!  We should
-        // probably just fail to packetize in this case.  We might also be
-        // able to return eBuiltinUniformityNever here, in cases where we can
-        // prove that the value can never be zero.
-        return eBuiltinUniformityMaybeInstanceID;
-      }
-      // Only vectorize on selected dimension. The value of get_global_id with
-      // other ranks is uniform.
-      if (Rank->getZExtValue() == SimdDimIdx) {
-        return eBuiltinUniformityInstanceID;
-      }
-
-      return eBuiltinUniformityAlways;
+  default:
+    break;
+  case eMuxBuiltinGetGlobalId:
+  case eMuxBuiltinGetLocalId: {
+    // We need to know the dimension requested from these builtins at compile
+    // time to infer their uniformity.
+    if (!CI || CI->arg_empty()) {
+      return eBuiltinUniformityNever;
     }
-    case eMuxBuiltinGetSubGroupLocalId:
+    auto *Rank = dyn_cast<ConstantInt>(CI->getArgOperand(0));
+    if (!Rank) {
+      // The Rank is some function, which "might" evaluate to zero
+      // sometimes, so we let the packetizer sort it out with some
+      // conditional magic.
+      // TODO Make sure this can never go haywire in weird edge cases.
+      // Where we have one get_global_id() dependent on another, this is
+      // not packetized correctly. Doing so is very hard!  We should
+      // probably just fail to packetize in this case.  We might also be
+      // able to return eBuiltinUniformityNever here, in cases where we can
+      // prove that the value can never be zero.
+      return eBuiltinUniformityMaybeInstanceID;
+    }
+    // Only vectorize on selected dimension. The value of get_global_id with
+    // other ranks is uniform.
+    if (Rank->getZExtValue() == SimdDimIdx) {
       return eBuiltinUniformityInstanceID;
-    case eMuxBuiltinGetLocalLinearId:
-    case eMuxBuiltinGetGlobalLinearId:
-      // TODO: This is fine for vectorizing in the x-axis, but currently we do
-      // not support vectorizing along y or z.
-      return SimdDimIdx ? eBuiltinUniformityNever
-                        : eBuiltinUniformityInstanceID;
+    }
+
+    return eBuiltinUniformityAlways;
+  }
+  case eMuxBuiltinGetSubGroupLocalId:
+    return eBuiltinUniformityInstanceID;
+  case eMuxBuiltinGetLocalLinearId:
+  case eMuxBuiltinGetGlobalLinearId:
+    // TODO: This is fine for vectorizing in the x-axis, but currently we do
+    // not support vectorizing along y or z.
+    return SimdDimIdx ? eBuiltinUniformityNever : eBuiltinUniformityInstanceID;
   }
 
   // Reductions and broadcasts are always uniform
@@ -343,68 +342,68 @@ std::optional<Builtin> BuiltinInfo::analyzeBuiltin(const Function &F) const {
     const bool NoSideEffect = F.onlyReadsMemory();
     bool SafeIntrinsic = false;
     switch (IntrID) {
-      default:
-        SafeIntrinsic = false;
-        break;
-      case Intrinsic::smin:
-      case Intrinsic::smax:
-      case Intrinsic::umin:
-      case Intrinsic::umax:
-      case Intrinsic::abs:
-      case Intrinsic::ctlz:
-      case Intrinsic::cttz:
-      case Intrinsic::sqrt:
-      case Intrinsic::sin:
-      case Intrinsic::cos:
-      case Intrinsic::pow:
-      case Intrinsic::exp:
-      case Intrinsic::exp2:
-      case Intrinsic::log:
-      case Intrinsic::log10:
-      case Intrinsic::log2:
-      case Intrinsic::fma:
-      case Intrinsic::fabs:
-      case Intrinsic::minnum:
-      case Intrinsic::maxnum:
-      case Intrinsic::copysign:
-      case Intrinsic::floor:
-      case Intrinsic::ceil:
-      case Intrinsic::trunc:
-      case Intrinsic::rint:
-      case Intrinsic::nearbyint:
-      case Intrinsic::round:
-      case Intrinsic::ctpop:
-      case Intrinsic::fmuladd:
-      case Intrinsic::fshl:
-      case Intrinsic::fshr:
-      case Intrinsic::sadd_sat:
-      case Intrinsic::uadd_sat:
-      case Intrinsic::ssub_sat:
-      case Intrinsic::usub_sat:
-      case Intrinsic::bitreverse:
-        // All these function are overloadable and have both scalar and vector
-        // versions.
-        Properties |= eBuiltinPropertyVectorEquivalent;
-        SafeIntrinsic = true;
-        break;
-      case Intrinsic::assume:
-      case Intrinsic::dbg_declare:
-      case Intrinsic::dbg_value:
-      case Intrinsic::invariant_start:
-      case Intrinsic::invariant_end:
-      case Intrinsic::lifetime_start:
-      case Intrinsic::lifetime_end:
-      case Intrinsic::objectsize:
-      case Intrinsic::ptr_annotation:
-      case Intrinsic::var_annotation:
-      case Intrinsic::experimental_noalias_scope_decl:
-        SafeIntrinsic = true;
-        break;
-      case Intrinsic::memset:
-      case Intrinsic::memcpy:
-        Properties |= eBuiltinPropertyNoVectorEquivalent;
-        Properties |= eBuiltinPropertySideEffects;
-        break;
+    default:
+      SafeIntrinsic = false;
+      break;
+    case Intrinsic::smin:
+    case Intrinsic::smax:
+    case Intrinsic::umin:
+    case Intrinsic::umax:
+    case Intrinsic::abs:
+    case Intrinsic::ctlz:
+    case Intrinsic::cttz:
+    case Intrinsic::sqrt:
+    case Intrinsic::sin:
+    case Intrinsic::cos:
+    case Intrinsic::pow:
+    case Intrinsic::exp:
+    case Intrinsic::exp2:
+    case Intrinsic::log:
+    case Intrinsic::log10:
+    case Intrinsic::log2:
+    case Intrinsic::fma:
+    case Intrinsic::fabs:
+    case Intrinsic::minnum:
+    case Intrinsic::maxnum:
+    case Intrinsic::copysign:
+    case Intrinsic::floor:
+    case Intrinsic::ceil:
+    case Intrinsic::trunc:
+    case Intrinsic::rint:
+    case Intrinsic::nearbyint:
+    case Intrinsic::round:
+    case Intrinsic::ctpop:
+    case Intrinsic::fmuladd:
+    case Intrinsic::fshl:
+    case Intrinsic::fshr:
+    case Intrinsic::sadd_sat:
+    case Intrinsic::uadd_sat:
+    case Intrinsic::ssub_sat:
+    case Intrinsic::usub_sat:
+    case Intrinsic::bitreverse:
+      // All these function are overloadable and have both scalar and vector
+      // versions.
+      Properties |= eBuiltinPropertyVectorEquivalent;
+      SafeIntrinsic = true;
+      break;
+    case Intrinsic::assume:
+    case Intrinsic::dbg_declare:
+    case Intrinsic::dbg_value:
+    case Intrinsic::invariant_start:
+    case Intrinsic::invariant_end:
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end:
+    case Intrinsic::objectsize:
+    case Intrinsic::ptr_annotation:
+    case Intrinsic::var_annotation:
+    case Intrinsic::experimental_noalias_scope_decl:
+      SafeIntrinsic = true;
+      break;
+    case Intrinsic::memset:
+    case Intrinsic::memcpy:
+      Properties |= eBuiltinPropertyNoVectorEquivalent;
+      Properties |= eBuiltinPropertySideEffects;
+      break;
     }
     if (NoSideEffect || SafeIntrinsic) {
       Properties |= eBuiltinPropertyNoSideEffects;
@@ -434,49 +433,49 @@ std::optional<Builtin> BuiltinInfo::analyzeBuiltin(const Function &F) const {
   bool IsConvergent = false;
   unsigned Properties = eBuiltinPropertyNone;
   switch (ID) {
-    default:
-      break;
-    case eMuxBuiltinMemBarrier:
-      Properties = eBuiltinPropertySideEffects;
-      break;
-    case eMuxBuiltinSubGroupBarrier:
-    case eMuxBuiltinWorkGroupBarrier:
-      IsConvergent = true;
-      Properties = eBuiltinPropertyExecutionFlow | eBuiltinPropertySideEffects;
-      break;
-    case eMuxBuiltinDMARead1D:
-    case eMuxBuiltinDMARead2D:
-    case eMuxBuiltinDMARead3D:
-    case eMuxBuiltinDMAWrite1D:
-    case eMuxBuiltinDMAWrite2D:
-    case eMuxBuiltinDMAWrite3D:
-    case eMuxBuiltinDMAWait:
-      // Our DMA builtins, by default, rely on thread checks against specific
-      // work-item IDs, so they must be convergent.
-      IsConvergent = true;
-      Properties = eBuiltinPropertyNoSideEffects;
-      break;
-    case eMuxBuiltinGetWorkDim:
-    case eMuxBuiltinGetGroupId:
-    case eMuxBuiltinGetGlobalSize:
-    case eMuxBuiltinGetGlobalOffset:
-    case eMuxBuiltinGetLocalSize:
-    case eMuxBuiltinGetNumGroups:
-    case eMuxBuiltinGetGlobalLinearId:
-    case eMuxBuiltinGetLocalLinearId:
-    case eMuxBuiltinGetGlobalId:
-    case eMuxBuiltinGetSubGroupLocalId:
-      Properties = eBuiltinPropertyWorkItem | eBuiltinPropertyRematerializable;
-      break;
-    case eMuxBuiltinGetLocalId:
-      Properties = eBuiltinPropertyWorkItem | eBuiltinPropertyLocalID |
-                   eBuiltinPropertyRematerializable;
-      break;
-    case eMuxBuiltinIsFTZ:
-    case eMuxBuiltinIsEmbeddedProfile:
-    case eMuxBuiltinUseFast:
-      Properties = eBuiltinPropertyNoSideEffects;
-      break;
+  default:
+    break;
+  case eMuxBuiltinMemBarrier:
+    Properties = eBuiltinPropertySideEffects;
+    break;
+  case eMuxBuiltinSubGroupBarrier:
+  case eMuxBuiltinWorkGroupBarrier:
+    IsConvergent = true;
+    Properties = eBuiltinPropertyExecutionFlow | eBuiltinPropertySideEffects;
+    break;
+  case eMuxBuiltinDMARead1D:
+  case eMuxBuiltinDMARead2D:
+  case eMuxBuiltinDMARead3D:
+  case eMuxBuiltinDMAWrite1D:
+  case eMuxBuiltinDMAWrite2D:
+  case eMuxBuiltinDMAWrite3D:
+  case eMuxBuiltinDMAWait:
+    // Our DMA builtins, by default, rely on thread checks against specific
+    // work-item IDs, so they must be convergent.
+    IsConvergent = true;
+    Properties = eBuiltinPropertyNoSideEffects;
+    break;
+  case eMuxBuiltinGetWorkDim:
+  case eMuxBuiltinGetGroupId:
+  case eMuxBuiltinGetGlobalSize:
+  case eMuxBuiltinGetGlobalOffset:
+  case eMuxBuiltinGetLocalSize:
+  case eMuxBuiltinGetNumGroups:
+  case eMuxBuiltinGetGlobalLinearId:
+  case eMuxBuiltinGetLocalLinearId:
+  case eMuxBuiltinGetGlobalId:
+  case eMuxBuiltinGetSubGroupLocalId:
+    Properties = eBuiltinPropertyWorkItem | eBuiltinPropertyRematerializable;
+    break;
+  case eMuxBuiltinGetLocalId:
+    Properties = eBuiltinPropertyWorkItem | eBuiltinPropertyLocalID |
+                 eBuiltinPropertyRematerializable;
+    break;
+  case eMuxBuiltinIsFTZ:
+  case eMuxBuiltinIsEmbeddedProfile:
+  case eMuxBuiltinUseFast:
+    Properties = eBuiltinPropertyNoSideEffects;
+    break;
   }
 
   // Group functions are convergent.
@@ -491,8 +490,8 @@ std::optional<Builtin> BuiltinInfo::analyzeBuiltin(const Function &F) const {
   return Builtin{F, ID, (BuiltinProperties)Properties, OverloadInfo};
 }
 
-std::optional<BuiltinCall> BuiltinInfo::analyzeBuiltinCall(
-    const CallInst &CI, unsigned SimdDimIdx) const {
+std::optional<BuiltinCall>
+BuiltinInfo::analyzeBuiltinCall(const CallInst &CI, unsigned SimdDimIdx) const {
   if (auto *const callee = dyn_cast<Function>(CI.getCalledOperand())) {
     if (const auto B = analyzeBuiltin(*callee)) {
       const auto U = isBuiltinUniform(*B, &CI, SimdDimIdx);
@@ -648,25 +647,25 @@ std::string BuiltinInfo::getMangledTypeStr(Type *Ty) {
 
   if (Ty) {
     switch (Ty->getTypeID()) {
-      default:
-        break;
-      case Type::HalfTyID:
-        return "f16";
-      case Type::BFloatTyID:
-        return "bf16";
-      case Type::FloatTyID:
-        return "f32";
-      case Type::DoubleTyID:
-        return "f64";
-      case Type::IntegerTyID:
-        return "i" + utostr(cast<IntegerType>(Ty)->getBitWidth());
+    default:
+      break;
+    case Type::HalfTyID:
+      return "f16";
+    case Type::BFloatTyID:
+      return "bf16";
+    case Type::FloatTyID:
+      return "f32";
+    case Type::DoubleTyID:
+      return "f64";
+    case Type::IntegerTyID:
+      return "i" + utostr(cast<IntegerType>(Ty)->getBitWidth());
     }
   }
   llvm_unreachable("Unhandled type");
 }
 
-std::pair<Type *, StringRef> BuiltinInfo::getDemangledTypeFromStr(
-    StringRef TyStr, LLVMContext &Ctx) {
+std::pair<Type *, StringRef>
+BuiltinInfo::getDemangledTypeFromStr(StringRef TyStr, LLVMContext &Ctx) {
   const bool IsScalable = TyStr.consume_front("nx");
   if (TyStr.consume_front("v")) {
     unsigned EC;
@@ -702,199 +701,199 @@ std::string BuiltinInfo::getMuxBuiltinName(BuiltinID ID,
                                            ArrayRef<Type *> OverloadInfo) {
   assert(isMuxBuiltinID(ID));
   switch (ID) {
-    default:
-      break;
-    case eMuxBuiltinIsFTZ:
-      return MuxBuiltins::isftz;
-    case eMuxBuiltinUseFast:
-      return MuxBuiltins::usefast;
-    case eMuxBuiltinIsEmbeddedProfile:
-      return MuxBuiltins::isembeddedprofile;
-    case eMuxBuiltinGetGlobalSize:
-      return MuxBuiltins::get_global_size;
-    case eMuxBuiltinGetGlobalId:
-      return MuxBuiltins::get_global_id;
-    case eMuxBuiltinGetGlobalOffset:
-      return MuxBuiltins::get_global_offset;
-    case eMuxBuiltinGetLocalSize:
-      return MuxBuiltins::get_local_size;
-    case eMuxBuiltinGetLocalId:
-      return MuxBuiltins::get_local_id;
-    case eMuxBuiltinSetLocalId:
-      return MuxBuiltins::set_local_id;
-    case eMuxBuiltinGetSubGroupId:
-      return MuxBuiltins::get_sub_group_id;
-    case eMuxBuiltinSetSubGroupId:
-      return MuxBuiltins::set_sub_group_id;
-    case eMuxBuiltinGetNumGroups:
-      return MuxBuiltins::get_num_groups;
-    case eMuxBuiltinGetNumSubGroups:
-      return MuxBuiltins::get_num_sub_groups;
-    case eMuxBuiltinSetNumSubGroups:
-      return MuxBuiltins::set_num_sub_groups;
-    case eMuxBuiltinGetMaxSubGroupSize:
-      return MuxBuiltins::get_max_sub_group_size;
-    case eMuxBuiltinSetMaxSubGroupSize:
-      return MuxBuiltins::set_max_sub_group_size;
-    case eMuxBuiltinGetGroupId:
-      return MuxBuiltins::get_group_id;
-    case eMuxBuiltinGetWorkDim:
-      return MuxBuiltins::get_work_dim;
-    case eMuxBuiltinDMARead1D:
-      return MuxBuiltins::dma_read_1d;
-    case eMuxBuiltinDMARead2D:
-      return MuxBuiltins::dma_read_2d;
-    case eMuxBuiltinDMARead3D:
-      return MuxBuiltins::dma_read_3d;
-    case eMuxBuiltinDMAWrite1D:
-      return MuxBuiltins::dma_write_1d;
-    case eMuxBuiltinDMAWrite2D:
-      return MuxBuiltins::dma_write_2d;
-    case eMuxBuiltinDMAWrite3D:
-      return MuxBuiltins::dma_write_3d;
-    case eMuxBuiltinDMAWait:
-      return MuxBuiltins::dma_wait;
-    case eMuxBuiltinGetGlobalLinearId:
-      return MuxBuiltins::get_global_linear_id;
-    case eMuxBuiltinGetLocalLinearId:
-      return MuxBuiltins::get_local_linear_id;
-    case eMuxBuiltinGetEnqueuedLocalSize:
-      return MuxBuiltins::get_enqueued_local_size;
-    case eMuxBuiltinGetSubGroupSize:
-      return MuxBuiltins::get_sub_group_size;
-    case eMuxBuiltinGetSubGroupLocalId:
-      return MuxBuiltins::get_sub_group_local_id;
-    case eMuxBuiltinMemBarrier:
-      return MuxBuiltins::mem_barrier;
-    case eMuxBuiltinWorkGroupBarrier:
-      return MuxBuiltins::work_group_barrier;
-    case eMuxBuiltinSubGroupBarrier:
-      return MuxBuiltins::sub_group_barrier;
+  default:
+    break;
+  case eMuxBuiltinIsFTZ:
+    return MuxBuiltins::isftz;
+  case eMuxBuiltinUseFast:
+    return MuxBuiltins::usefast;
+  case eMuxBuiltinIsEmbeddedProfile:
+    return MuxBuiltins::isembeddedprofile;
+  case eMuxBuiltinGetGlobalSize:
+    return MuxBuiltins::get_global_size;
+  case eMuxBuiltinGetGlobalId:
+    return MuxBuiltins::get_global_id;
+  case eMuxBuiltinGetGlobalOffset:
+    return MuxBuiltins::get_global_offset;
+  case eMuxBuiltinGetLocalSize:
+    return MuxBuiltins::get_local_size;
+  case eMuxBuiltinGetLocalId:
+    return MuxBuiltins::get_local_id;
+  case eMuxBuiltinSetLocalId:
+    return MuxBuiltins::set_local_id;
+  case eMuxBuiltinGetSubGroupId:
+    return MuxBuiltins::get_sub_group_id;
+  case eMuxBuiltinSetSubGroupId:
+    return MuxBuiltins::set_sub_group_id;
+  case eMuxBuiltinGetNumGroups:
+    return MuxBuiltins::get_num_groups;
+  case eMuxBuiltinGetNumSubGroups:
+    return MuxBuiltins::get_num_sub_groups;
+  case eMuxBuiltinSetNumSubGroups:
+    return MuxBuiltins::set_num_sub_groups;
+  case eMuxBuiltinGetMaxSubGroupSize:
+    return MuxBuiltins::get_max_sub_group_size;
+  case eMuxBuiltinSetMaxSubGroupSize:
+    return MuxBuiltins::set_max_sub_group_size;
+  case eMuxBuiltinGetGroupId:
+    return MuxBuiltins::get_group_id;
+  case eMuxBuiltinGetWorkDim:
+    return MuxBuiltins::get_work_dim;
+  case eMuxBuiltinDMARead1D:
+    return MuxBuiltins::dma_read_1d;
+  case eMuxBuiltinDMARead2D:
+    return MuxBuiltins::dma_read_2d;
+  case eMuxBuiltinDMARead3D:
+    return MuxBuiltins::dma_read_3d;
+  case eMuxBuiltinDMAWrite1D:
+    return MuxBuiltins::dma_write_1d;
+  case eMuxBuiltinDMAWrite2D:
+    return MuxBuiltins::dma_write_2d;
+  case eMuxBuiltinDMAWrite3D:
+    return MuxBuiltins::dma_write_3d;
+  case eMuxBuiltinDMAWait:
+    return MuxBuiltins::dma_wait;
+  case eMuxBuiltinGetGlobalLinearId:
+    return MuxBuiltins::get_global_linear_id;
+  case eMuxBuiltinGetLocalLinearId:
+    return MuxBuiltins::get_local_linear_id;
+  case eMuxBuiltinGetEnqueuedLocalSize:
+    return MuxBuiltins::get_enqueued_local_size;
+  case eMuxBuiltinGetSubGroupSize:
+    return MuxBuiltins::get_sub_group_size;
+  case eMuxBuiltinGetSubGroupLocalId:
+    return MuxBuiltins::get_sub_group_local_id;
+  case eMuxBuiltinMemBarrier:
+    return MuxBuiltins::mem_barrier;
+  case eMuxBuiltinWorkGroupBarrier:
+    return MuxBuiltins::work_group_barrier;
+  case eMuxBuiltinSubGroupBarrier:
+    return MuxBuiltins::sub_group_barrier;
   }
 
-    // A sneaky macro to do case statements on all scopes of a group operation.
-    // Note that it is missing a leading 'case' and a trailing ':' to trick
-    // clang-format into formatting it like a regular case statement.
-#define CASE_GROUP_OP_ALL_SCOPES(OP)                      \
-  eMuxBuiltinVecgroup##OP : case eMuxBuiltinSubgroup##OP: \
+  // A sneaky macro to do case statements on all scopes of a group operation.
+  // Note that it is missing a leading 'case' and a trailing ':' to trick
+  // clang-format into formatting it like a regular case statement.
+#define CASE_GROUP_OP_ALL_SCOPES(OP)                                           \
+  eMuxBuiltinVecgroup##OP : case eMuxBuiltinSubgroup##OP:                      \
   case eMuxBuiltinWorkgroup##OP
 
   std::string BaseName = [](BuiltinID ID) {
     // For simplicity, return all group operations as 'work_group' and replace
     // the string with 'sub_group' or 'vec_group' post-hoc.
     switch (ID) {
-      default:
-        return "";
-      case CASE_GROUP_OP_ALL_SCOPES(All):
-        return "__mux_work_group_all";
-      case CASE_GROUP_OP_ALL_SCOPES(Any):
-        return "__mux_work_group_any";
-      case CASE_GROUP_OP_ALL_SCOPES(Broadcast):
-        return "__mux_work_group_broadcast";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceAdd):
-        return "__mux_work_group_reduce_add";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFAdd):
-        return "__mux_work_group_reduce_fadd";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceSMin):
-        return "__mux_work_group_reduce_smin";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceUMin):
-        return "__mux_work_group_reduce_umin";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFMin):
-        return "__mux_work_group_reduce_fmin";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceSMax):
-        return "__mux_work_group_reduce_smax";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceUMax):
-        return "__mux_work_group_reduce_umax";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFMax):
-        return "__mux_work_group_reduce_fmax";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceMul):
-        return "__mux_work_group_reduce_mul";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFMul):
-        return "__mux_work_group_reduce_fmul";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceAnd):
-        return "__mux_work_group_reduce_and";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceOr):
-        return "__mux_work_group_reduce_or";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceXor):
-        return "__mux_work_group_reduce_xor";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalAnd):
-        return "__mux_work_group_reduce_logical_and";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalOr):
-        return "__mux_work_group_reduce_logical_or";
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalXor):
-        return "__mux_work_group_reduce_logical_xor";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAddInclusive):
-        return "__mux_work_group_scan_inclusive_add";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFAddInclusive):
-        return "__mux_work_group_scan_inclusive_fadd";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAddExclusive):
-        return "__mux_work_group_scan_exclusive_add";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFAddExclusive):
-        return "__mux_work_group_scan_exclusive_fadd";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMinInclusive):
-        return "__mux_work_group_scan_inclusive_smin";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMinInclusive):
-        return "__mux_work_group_scan_inclusive_umin";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMinInclusive):
-        return "__mux_work_group_scan_inclusive_fmin";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMinExclusive):
-        return "__mux_work_group_scan_exclusive_smin";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMinExclusive):
-        return "__mux_work_group_scan_exclusive_umin";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMinExclusive):
-        return "__mux_work_group_scan_exclusive_fmin";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxInclusive):
-        return "__mux_work_group_scan_inclusive_smax";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxInclusive):
-        return "__mux_work_group_scan_inclusive_umax";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxInclusive):
-        return "__mux_work_group_scan_inclusive_fmax";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxExclusive):
-        return "__mux_work_group_scan_exclusive_smax";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxExclusive):
-        return "__mux_work_group_scan_exclusive_umax";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxExclusive):
-        return "__mux_work_group_scan_exclusive_fmax";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanMulInclusive):
-        return "__mux_work_group_scan_inclusive_mul";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMulInclusive):
-        return "__mux_work_group_scan_inclusive_fmul";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanMulExclusive):
-        return "__mux_work_group_scan_exclusive_mul";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMulExclusive):
-        return "__mux_work_group_scan_exclusive_fmul";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAndInclusive):
-        return "__mux_work_group_scan_inclusive_and";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAndExclusive):
-        return "__mux_work_group_scan_exclusive_and";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanOrInclusive):
-        return "__mux_work_group_scan_inclusive_or";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanOrExclusive):
-        return "__mux_work_group_scan_exclusive_or";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanXorInclusive):
-        return "__mux_work_group_scan_inclusive_xor";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanXorExclusive):
-        return "__mux_work_group_scan_exclusive_xor";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndInclusive):
-        return "__mux_work_group_scan_inclusive_logical_and";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndExclusive):
-        return "__mux_work_group_scan_exclusive_logical_and";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrInclusive):
-        return "__mux_work_group_scan_inclusive_logical_or";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrExclusive):
-        return "__mux_work_group_scan_exclusive_logical_or";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorInclusive):
-        return "__mux_work_group_scan_inclusive_logical_xor";
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorExclusive):
-        return "__mux_work_group_scan_exclusive_logical_xor";
-      case eMuxBuiltinSubgroupShuffle:
-        return "__mux_work_group_shuffle";
-      case eMuxBuiltinSubgroupShuffleUp:
-        return "__mux_work_group_shuffle_up";
-      case eMuxBuiltinSubgroupShuffleDown:
-        return "__mux_work_group_shuffle_down";
-      case eMuxBuiltinSubgroupShuffleXor:
-        return "__mux_work_group_shuffle_xor";
+    default:
+      return "";
+    case CASE_GROUP_OP_ALL_SCOPES(All):
+      return "__mux_work_group_all";
+    case CASE_GROUP_OP_ALL_SCOPES(Any):
+      return "__mux_work_group_any";
+    case CASE_GROUP_OP_ALL_SCOPES(Broadcast):
+      return "__mux_work_group_broadcast";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceAdd):
+      return "__mux_work_group_reduce_add";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFAdd):
+      return "__mux_work_group_reduce_fadd";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceSMin):
+      return "__mux_work_group_reduce_smin";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceUMin):
+      return "__mux_work_group_reduce_umin";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMin):
+      return "__mux_work_group_reduce_fmin";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceSMax):
+      return "__mux_work_group_reduce_smax";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceUMax):
+      return "__mux_work_group_reduce_umax";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMax):
+      return "__mux_work_group_reduce_fmax";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceMul):
+      return "__mux_work_group_reduce_mul";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMul):
+      return "__mux_work_group_reduce_fmul";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceAnd):
+      return "__mux_work_group_reduce_and";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceOr):
+      return "__mux_work_group_reduce_or";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceXor):
+      return "__mux_work_group_reduce_xor";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalAnd):
+      return "__mux_work_group_reduce_logical_and";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalOr):
+      return "__mux_work_group_reduce_logical_or";
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalXor):
+      return "__mux_work_group_reduce_logical_xor";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAddInclusive):
+      return "__mux_work_group_scan_inclusive_add";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFAddInclusive):
+      return "__mux_work_group_scan_inclusive_fadd";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAddExclusive):
+      return "__mux_work_group_scan_exclusive_add";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFAddExclusive):
+      return "__mux_work_group_scan_exclusive_fadd";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMinInclusive):
+      return "__mux_work_group_scan_inclusive_smin";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMinInclusive):
+      return "__mux_work_group_scan_inclusive_umin";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMinInclusive):
+      return "__mux_work_group_scan_inclusive_fmin";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMinExclusive):
+      return "__mux_work_group_scan_exclusive_smin";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMinExclusive):
+      return "__mux_work_group_scan_exclusive_umin";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMinExclusive):
+      return "__mux_work_group_scan_exclusive_fmin";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxInclusive):
+      return "__mux_work_group_scan_inclusive_smax";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxInclusive):
+      return "__mux_work_group_scan_inclusive_umax";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxInclusive):
+      return "__mux_work_group_scan_inclusive_fmax";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxExclusive):
+      return "__mux_work_group_scan_exclusive_smax";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxExclusive):
+      return "__mux_work_group_scan_exclusive_umax";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxExclusive):
+      return "__mux_work_group_scan_exclusive_fmax";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanMulInclusive):
+      return "__mux_work_group_scan_inclusive_mul";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMulInclusive):
+      return "__mux_work_group_scan_inclusive_fmul";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanMulExclusive):
+      return "__mux_work_group_scan_exclusive_mul";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMulExclusive):
+      return "__mux_work_group_scan_exclusive_fmul";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAndInclusive):
+      return "__mux_work_group_scan_inclusive_and";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAndExclusive):
+      return "__mux_work_group_scan_exclusive_and";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanOrInclusive):
+      return "__mux_work_group_scan_inclusive_or";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanOrExclusive):
+      return "__mux_work_group_scan_exclusive_or";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanXorInclusive):
+      return "__mux_work_group_scan_inclusive_xor";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanXorExclusive):
+      return "__mux_work_group_scan_exclusive_xor";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndInclusive):
+      return "__mux_work_group_scan_inclusive_logical_and";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndExclusive):
+      return "__mux_work_group_scan_exclusive_logical_and";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrInclusive):
+      return "__mux_work_group_scan_inclusive_logical_or";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrExclusive):
+      return "__mux_work_group_scan_exclusive_logical_or";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorInclusive):
+      return "__mux_work_group_scan_inclusive_logical_xor";
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorExclusive):
+      return "__mux_work_group_scan_exclusive_logical_xor";
+    case eMuxBuiltinSubgroupShuffle:
+      return "__mux_work_group_shuffle";
+    case eMuxBuiltinSubgroupShuffleUp:
+      return "__mux_work_group_shuffle_up";
+    case eMuxBuiltinSubgroupShuffleDown:
+      return "__mux_work_group_shuffle_down";
+    case eMuxBuiltinSubgroupShuffleXor:
+      return "__mux_work_group_shuffle_xor";
     }
   }(ID);
 
@@ -966,94 +965,94 @@ std::optional<GroupCollective> BuiltinInfo::isMuxGroupCollective(BuiltinID ID) {
   // A sneaky macro to do case statements on all scopes of a group operation.
   // Note that it is missing a leading 'case' and a trailing ':' to trick
   // clang-format into formatting it like a regular case statement.
-#define CASE_GROUP_OP_ALL_SCOPES(OP)                      \
-  eMuxBuiltinVecgroup##OP : case eMuxBuiltinSubgroup##OP: \
+#define CASE_GROUP_OP_ALL_SCOPES(OP)                                           \
+  eMuxBuiltinVecgroup##OP : case eMuxBuiltinSubgroup##OP:                      \
   case eMuxBuiltinWorkgroup##OP
 
   switch (ID) {
-    default:
-      llvm_unreachable("Unhandled mux group builtin");
-    case CASE_GROUP_OP_ALL_SCOPES(All):
-      Collective.Op = GroupCollective::OpKind::All;
-      break;
-    case CASE_GROUP_OP_ALL_SCOPES(Any):
-      Collective.Op = GroupCollective::OpKind::Any;
-      break;
-    case CASE_GROUP_OP_ALL_SCOPES(Broadcast):
-      Collective.Op = GroupCollective::OpKind::Broadcast;
-      break;
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalAnd):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalOr):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalXor):
-      Collective.IsLogical = true;
-      [[fallthrough]];
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceAdd):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceFAdd):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceMul):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMul):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceSMin):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceUMin):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMin):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceSMax):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceUMax):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMax):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceAnd):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceOr):
-    case CASE_GROUP_OP_ALL_SCOPES(ReduceXor):
-      Collective.Op = GroupCollective::OpKind::Reduction;
-      break;
-    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorInclusive):
-      Collective.IsLogical = true;
-      [[fallthrough]];
-    case CASE_GROUP_OP_ALL_SCOPES(ScanAddInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFAddInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanMulInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFMulInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanSMinInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanUMinInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFMinInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanAndInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanOrInclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanXorInclusive):
-      Collective.Op = GroupCollective::OpKind::ScanInclusive;
-      break;
-    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorExclusive):
-      Collective.IsLogical = true;
-      [[fallthrough]];
-    case CASE_GROUP_OP_ALL_SCOPES(ScanAddExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFAddExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanMulExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFMulExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanSMinExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanUMinExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFMinExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanAndExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanOrExclusive):
-    case CASE_GROUP_OP_ALL_SCOPES(ScanXorExclusive):
-      Collective.Op = GroupCollective::OpKind::ScanExclusive;
-      break;
-    case eMuxBuiltinSubgroupShuffle:
-      Collective.Op = GroupCollective::OpKind::Shuffle;
-      break;
-    case eMuxBuiltinSubgroupShuffleUp:
-      Collective.Op = GroupCollective::OpKind::ShuffleUp;
-      break;
-    case eMuxBuiltinSubgroupShuffleDown:
-      Collective.Op = GroupCollective::OpKind::ShuffleDown;
-      break;
-    case eMuxBuiltinSubgroupShuffleXor:
-      Collective.Op = GroupCollective::OpKind::ShuffleXor;
-      break;
+  default:
+    llvm_unreachable("Unhandled mux group builtin");
+  case CASE_GROUP_OP_ALL_SCOPES(All):
+    Collective.Op = GroupCollective::OpKind::All;
+    break;
+  case CASE_GROUP_OP_ALL_SCOPES(Any):
+    Collective.Op = GroupCollective::OpKind::Any;
+    break;
+  case CASE_GROUP_OP_ALL_SCOPES(Broadcast):
+    Collective.Op = GroupCollective::OpKind::Broadcast;
+    break;
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalAnd):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalOr):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalXor):
+    Collective.IsLogical = true;
+    [[fallthrough]];
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceAdd):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceFAdd):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceMul):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceFMul):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceSMin):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceUMin):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceFMin):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceSMax):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceUMax):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceFMax):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceAnd):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceOr):
+  case CASE_GROUP_OP_ALL_SCOPES(ReduceXor):
+    Collective.Op = GroupCollective::OpKind::Reduction;
+    break;
+  case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorInclusive):
+    Collective.IsLogical = true;
+    [[fallthrough]];
+  case CASE_GROUP_OP_ALL_SCOPES(ScanAddInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFAddInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanMulInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFMulInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanSMinInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanUMinInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFMinInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanAndInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanOrInclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanXorInclusive):
+    Collective.Op = GroupCollective::OpKind::ScanInclusive;
+    break;
+  case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorExclusive):
+    Collective.IsLogical = true;
+    [[fallthrough]];
+  case CASE_GROUP_OP_ALL_SCOPES(ScanAddExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFAddExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanMulExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFMulExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanSMinExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanUMinExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFMinExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanAndExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanOrExclusive):
+  case CASE_GROUP_OP_ALL_SCOPES(ScanXorExclusive):
+    Collective.Op = GroupCollective::OpKind::ScanExclusive;
+    break;
+  case eMuxBuiltinSubgroupShuffle:
+    Collective.Op = GroupCollective::OpKind::Shuffle;
+    break;
+  case eMuxBuiltinSubgroupShuffleUp:
+    Collective.Op = GroupCollective::OpKind::ShuffleUp;
+    break;
+  case eMuxBuiltinSubgroupShuffleDown:
+    Collective.Op = GroupCollective::OpKind::ShuffleDown;
+    break;
+  case eMuxBuiltinSubgroupShuffleXor:
+    Collective.Op = GroupCollective::OpKind::ShuffleXor;
+    break;
   }
 
   // Then the recurrence kind.
@@ -1065,82 +1064,82 @@ std::optional<GroupCollective> BuiltinInfo::isMuxGroupCollective(BuiltinID ID) {
              Collective.Op == GroupCollective::OpKind::ScanExclusive ||
              Collective.Op == GroupCollective::OpKind::ScanInclusive) {
     switch (ID) {
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceAdd):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAddInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAddExclusive):
-        Collective.Recurrence = RecurKind::Add;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFAdd):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFAddInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFAddExclusive):
-        Collective.Recurrence = RecurKind::FAdd;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceMul):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanMulInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanMulExclusive):
-        Collective.Recurrence = RecurKind::Mul;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFMul):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMulInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMulExclusive):
-        Collective.Recurrence = RecurKind::FMul;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceSMin):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMinInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMinExclusive):
-        Collective.Recurrence = RecurKind::SMin;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceUMin):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMinInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMinExclusive):
-        Collective.Recurrence = RecurKind::UMin;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFMin):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMinInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMinExclusive):
-        Collective.Recurrence = RecurKind::FMin;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceSMax):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxExclusive):
-        Collective.Recurrence = RecurKind::SMax;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceUMax):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxExclusive):
-        Collective.Recurrence = RecurKind::UMax;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceFMax):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxExclusive):
-        Collective.Recurrence = RecurKind::FMax;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceAnd):
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalAnd):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAndInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanAndExclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndExclusive):
-        Collective.Recurrence = RecurKind::And;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceOr):
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalOr):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanOrInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanOrExclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrExclusive):
-        Collective.Recurrence = RecurKind::Or;
-        break;
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceXor):
-      case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalXor):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanXorInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanXorExclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorInclusive):
-      case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorExclusive):
-        Collective.Recurrence = RecurKind::Xor;
-        break;
-      default:
-        llvm_unreachable("Unhandled mux group operation");
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceAdd):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAddInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAddExclusive):
+      Collective.Recurrence = RecurKind::Add;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFAdd):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFAddInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFAddExclusive):
+      Collective.Recurrence = RecurKind::FAdd;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceMul):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanMulInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanMulExclusive):
+      Collective.Recurrence = RecurKind::Mul;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMul):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMulInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMulExclusive):
+      Collective.Recurrence = RecurKind::FMul;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceSMin):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMinInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMinExclusive):
+      Collective.Recurrence = RecurKind::SMin;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceUMin):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMinInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMinExclusive):
+      Collective.Recurrence = RecurKind::UMin;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMin):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMinInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMinExclusive):
+      Collective.Recurrence = RecurKind::FMin;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceSMax):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanSMaxExclusive):
+      Collective.Recurrence = RecurKind::SMax;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceUMax):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanUMaxExclusive):
+      Collective.Recurrence = RecurKind::UMax;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceFMax):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanFMaxExclusive):
+      Collective.Recurrence = RecurKind::FMax;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceAnd):
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalAnd):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAndInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanAndExclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalAndExclusive):
+      Collective.Recurrence = RecurKind::And;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceOr):
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalOr):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanOrInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanOrExclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalOrExclusive):
+      Collective.Recurrence = RecurKind::Or;
+      break;
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceXor):
+    case CASE_GROUP_OP_ALL_SCOPES(ReduceLogicalXor):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanXorInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanXorExclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorInclusive):
+    case CASE_GROUP_OP_ALL_SCOPES(ScanLogicalXorExclusive):
+      Collective.Recurrence = RecurKind::Xor;
+      break;
+    default:
+      llvm_unreachable("Unhandled mux group operation");
     }
   } else if (!Collective.isBroadcast() && !Collective.isShuffleLike()) {
     llvm_unreachable("Unhandled mux group operation");
@@ -1150,100 +1149,100 @@ std::optional<GroupCollective> BuiltinInfo::isMuxGroupCollective(BuiltinID ID) {
 #undef CASE_GROUP_OP_ALL_SCOPES
 }
 
-std::optional<BuiltinID> BuiltinInfo::getMuxGroupCollective(
-    const GroupCollective &Group) {
-#define SIMPLE_SCOPE_SWITCH(OP)                     \
-  do {                                              \
-    switch (Group.Scope) {                          \
-      case GroupCollective::ScopeKind::SubGroup:    \
-        return eMuxBuiltinSubgroup##OP;             \
-      case GroupCollective::ScopeKind::WorkGroup:   \
-        return eMuxBuiltinWorkgroup##OP;            \
-      case GroupCollective::ScopeKind::VectorGroup: \
-        return eMuxBuiltinVecgroup##OP;             \
-    }                                               \
-    llvm_unreachable("Impossible scope kind");      \
+std::optional<BuiltinID>
+BuiltinInfo::getMuxGroupCollective(const GroupCollective &Group) {
+#define SIMPLE_SCOPE_SWITCH(OP)                                                \
+  do {                                                                         \
+    switch (Group.Scope) {                                                     \
+    case GroupCollective::ScopeKind::SubGroup:                                 \
+      return eMuxBuiltinSubgroup##OP;                                          \
+    case GroupCollective::ScopeKind::WorkGroup:                                \
+      return eMuxBuiltinWorkgroup##OP;                                         \
+    case GroupCollective::ScopeKind::VectorGroup:                              \
+      return eMuxBuiltinVecgroup##OP;                                          \
+    }                                                                          \
+    llvm_unreachable("Impossible scope kind");                                 \
   } while (0)
 
-#define COMPLEX_SCOPE_SWITCH(OP, SUFFIX)               \
-  do {                                                 \
-    switch (Group.Recurrence) {                        \
-      default:                                         \
-        llvm_unreachable("Unhandled recursion kind");  \
-      case RecurKind::Add:                             \
-        SIMPLE_SCOPE_SWITCH(OP##Add##SUFFIX);          \
-      case RecurKind::Mul:                             \
-        SIMPLE_SCOPE_SWITCH(OP##Mul##SUFFIX);          \
-      case RecurKind::FAdd:                            \
-        SIMPLE_SCOPE_SWITCH(OP##FAdd##SUFFIX);         \
-      case RecurKind::FMul:                            \
-        SIMPLE_SCOPE_SWITCH(OP##FMul##SUFFIX);         \
-      case RecurKind::SMin:                            \
-        SIMPLE_SCOPE_SWITCH(OP##SMin##SUFFIX);         \
-      case RecurKind::UMin:                            \
-        SIMPLE_SCOPE_SWITCH(OP##UMin##SUFFIX);         \
-      case RecurKind::FMin:                            \
-        SIMPLE_SCOPE_SWITCH(OP##FMin##SUFFIX);         \
-      case RecurKind::SMax:                            \
-        SIMPLE_SCOPE_SWITCH(OP##SMax##SUFFIX);         \
-      case RecurKind::UMax:                            \
-        SIMPLE_SCOPE_SWITCH(OP##UMax##SUFFIX);         \
-      case RecurKind::FMax:                            \
-        SIMPLE_SCOPE_SWITCH(OP##FMax##SUFFIX);         \
-      case RecurKind::And:                             \
-        if (Group.IsLogical) {                         \
-          SIMPLE_SCOPE_SWITCH(OP##LogicalAnd##SUFFIX); \
-        } else {                                       \
-          SIMPLE_SCOPE_SWITCH(OP##And##SUFFIX);        \
-        }                                              \
-      case RecurKind::Or:                              \
-        if (Group.IsLogical) {                         \
-          SIMPLE_SCOPE_SWITCH(OP##LogicalOr##SUFFIX);  \
-        } else {                                       \
-          SIMPLE_SCOPE_SWITCH(OP##Or##SUFFIX);         \
-        }                                              \
-      case RecurKind::Xor:                             \
-        if (Group.IsLogical) {                         \
-          SIMPLE_SCOPE_SWITCH(OP##LogicalXor##SUFFIX); \
-        } else {                                       \
-          SIMPLE_SCOPE_SWITCH(OP##Xor##SUFFIX);        \
-        }                                              \
-    }                                                  \
+#define COMPLEX_SCOPE_SWITCH(OP, SUFFIX)                                       \
+  do {                                                                         \
+    switch (Group.Recurrence) {                                                \
+    default:                                                                   \
+      llvm_unreachable("Unhandled recursion kind");                            \
+    case RecurKind::Add:                                                       \
+      SIMPLE_SCOPE_SWITCH(OP##Add##SUFFIX);                                    \
+    case RecurKind::Mul:                                                       \
+      SIMPLE_SCOPE_SWITCH(OP##Mul##SUFFIX);                                    \
+    case RecurKind::FAdd:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##FAdd##SUFFIX);                                   \
+    case RecurKind::FMul:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##FMul##SUFFIX);                                   \
+    case RecurKind::SMin:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##SMin##SUFFIX);                                   \
+    case RecurKind::UMin:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##UMin##SUFFIX);                                   \
+    case RecurKind::FMin:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##FMin##SUFFIX);                                   \
+    case RecurKind::SMax:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##SMax##SUFFIX);                                   \
+    case RecurKind::UMax:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##UMax##SUFFIX);                                   \
+    case RecurKind::FMax:                                                      \
+      SIMPLE_SCOPE_SWITCH(OP##FMax##SUFFIX);                                   \
+    case RecurKind::And:                                                       \
+      if (Group.IsLogical) {                                                   \
+        SIMPLE_SCOPE_SWITCH(OP##LogicalAnd##SUFFIX);                           \
+      } else {                                                                 \
+        SIMPLE_SCOPE_SWITCH(OP##And##SUFFIX);                                  \
+      }                                                                        \
+    case RecurKind::Or:                                                        \
+      if (Group.IsLogical) {                                                   \
+        SIMPLE_SCOPE_SWITCH(OP##LogicalOr##SUFFIX);                            \
+      } else {                                                                 \
+        SIMPLE_SCOPE_SWITCH(OP##Or##SUFFIX);                                   \
+      }                                                                        \
+    case RecurKind::Xor:                                                       \
+      if (Group.IsLogical) {                                                   \
+        SIMPLE_SCOPE_SWITCH(OP##LogicalXor##SUFFIX);                           \
+      } else {                                                                 \
+        SIMPLE_SCOPE_SWITCH(OP##Xor##SUFFIX);                                  \
+      }                                                                        \
+    }                                                                          \
   } while (0)
 
   switch (Group.Op) {
-    case GroupCollective::OpKind::All:
-      SIMPLE_SCOPE_SWITCH(All);
-    case GroupCollective::OpKind::Any:
-      SIMPLE_SCOPE_SWITCH(Any);
-    case GroupCollective::OpKind::Broadcast:
-      SIMPLE_SCOPE_SWITCH(Broadcast);
-    case GroupCollective::OpKind::Reduction:
-      COMPLEX_SCOPE_SWITCH(Reduce, );
-    case GroupCollective::OpKind::ScanExclusive:
-      COMPLEX_SCOPE_SWITCH(Scan, Exclusive);
-    case GroupCollective::OpKind::ScanInclusive:
-      COMPLEX_SCOPE_SWITCH(Scan, Inclusive);
+  case GroupCollective::OpKind::All:
+    SIMPLE_SCOPE_SWITCH(All);
+  case GroupCollective::OpKind::Any:
+    SIMPLE_SCOPE_SWITCH(Any);
+  case GroupCollective::OpKind::Broadcast:
+    SIMPLE_SCOPE_SWITCH(Broadcast);
+  case GroupCollective::OpKind::Reduction:
+    COMPLEX_SCOPE_SWITCH(Reduce, );
+  case GroupCollective::OpKind::ScanExclusive:
+    COMPLEX_SCOPE_SWITCH(Scan, Exclusive);
+  case GroupCollective::OpKind::ScanInclusive:
+    COMPLEX_SCOPE_SWITCH(Scan, Inclusive);
+    break;
+  case GroupCollective::OpKind::Shuffle:
+  case GroupCollective::OpKind::ShuffleUp:
+  case GroupCollective::OpKind::ShuffleDown:
+  case GroupCollective::OpKind::ShuffleXor:
+    if (!Group.isSubGroupScope()) {
       break;
+    }
+    switch (Group.Op) {
+    default:
+      llvm_unreachable("Unhandled op");
     case GroupCollective::OpKind::Shuffle:
+      return eMuxBuiltinSubgroupShuffle;
     case GroupCollective::OpKind::ShuffleUp:
+      return eMuxBuiltinSubgroupShuffleUp;
     case GroupCollective::OpKind::ShuffleDown:
+      return eMuxBuiltinSubgroupShuffleDown;
     case GroupCollective::OpKind::ShuffleXor:
-      if (!Group.isSubGroupScope()) {
-        break;
-      }
-      switch (Group.Op) {
-        default:
-          llvm_unreachable("Unhandled op");
-        case GroupCollective::OpKind::Shuffle:
-          return eMuxBuiltinSubgroupShuffle;
-        case GroupCollective::OpKind::ShuffleUp:
-          return eMuxBuiltinSubgroupShuffleUp;
-        case GroupCollective::OpKind::ShuffleDown:
-          return eMuxBuiltinSubgroupShuffleDown;
-        case GroupCollective::OpKind::ShuffleXor:
-          return eMuxBuiltinSubgroupShuffleXor;
-      }
+      return eMuxBuiltinSubgroupShuffleXor;
+    }
   }
   return std::nullopt;
 #undef COMPLEX_SCOPE_SWITCH
@@ -1255,17 +1254,17 @@ bool BuiltinInfo::isOverloadableMuxBuiltinID(BuiltinID ID) {
     return false;
   }
   switch (ID) {
-    default:
-      return isMuxGroupCollective(ID).has_value();
-    case eMuxBuiltinDMARead1D:
-    case eMuxBuiltinDMAWrite1D:
-    case eMuxBuiltinDMARead2D:
-    case eMuxBuiltinDMAWrite2D:
-    case eMuxBuiltinDMARead3D:
-    case eMuxBuiltinDMAWrite3D:
-      return true;
+  default:
+    return isMuxGroupCollective(ID).has_value();
+  case eMuxBuiltinDMARead1D:
+  case eMuxBuiltinDMAWrite1D:
+  case eMuxBuiltinDMARead2D:
+  case eMuxBuiltinDMAWrite2D:
+  case eMuxBuiltinDMARead3D:
+  case eMuxBuiltinDMAWrite3D:
+    return true;
   }
 }
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
