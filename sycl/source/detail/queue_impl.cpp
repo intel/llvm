@@ -465,7 +465,7 @@ detail::EventImplPtr queue_impl::submit_direct_impl(
   assert(!hasCommandGraph());
 
   // No special captures supported yet for the no-handler path
-  assert(!KRInfo.KernelHasSpecialCaptures());
+  assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
 
   // Set the No Last Event Mode to false, since the no-handler path
   // does not support it yet.
@@ -501,15 +501,16 @@ detail::EventImplPtr queue_impl::submit_direct_impl(
     }
   }
 
-  Args = extractArgsAndReqsFromLambda(KRInfo.GetKernelFuncPtr(),
-                                      KRInfo.KernelParamDescGetter(),
-                                      KRInfo.KernelNumArgs());
+  Args = extractArgsAndReqsFromLambda(
+      KRInfo.GetKernelFuncPtr(), KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
+      KRInfo.DeviceKernelInfoPtr()->NumParams);
 
   CommandGroup.reset(new detail::CGExecKernel(
       std::move(NDRDesc), KRInfo.HostKernel(),
       nullptr, // MKernel
       nullptr, // MKernelBundle
-      std::move(CGData), std::move(Args), toKernelNameStrT(KRInfo.KernelName()),
+      std::move(CGData), std::move(Args),
+      toKernelNameStrT(KRInfo.DeviceKernelInfoPtr()->Name),
       *KRInfo.DeviceKernelInfoPtr(), std::move(StreamStorage),
       std::move(AuxiliaryResources), detail::CGType::Kernel,
       UR_KERNEL_CACHE_CONFIG_DEFAULT,

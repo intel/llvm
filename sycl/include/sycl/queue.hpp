@@ -180,24 +180,6 @@ public:
   char *GetKernelFuncPtr() { return (*MHostKernel).getPtr(); }
   char *GetKernelFuncPtr() const { return (*MHostKernel).getPtr(); }
 
-  int &KernelNumArgs() { return MKernelNumArgs; }
-  const int &KernelNumArgs() const { return MKernelNumArgs; }
-
-  KernelParamDescGetterFuncPtr &KernelParamDescGetter() {
-    return MKernelParamDescGetter;
-  }
-  const KernelParamDescGetterFuncPtr &KernelParamDescGetter() const {
-    return MKernelParamDescGetter;
-  }
-
-  bool &KernelIsESIMD() { return MKernelIsESIMD; }
-  const bool &KernelIsESIMD() const { return MKernelIsESIMD; }
-
-  bool &KernelHasSpecialCaptures() { return MKernelHasSpecialCaptures; }
-  const bool &KernelHasSpecialCaptures() const {
-    return MKernelHasSpecialCaptures;
-  }
-
   detail::DeviceKernelInfo *&DeviceKernelInfoPtr() {
     return MDeviceKernelInfoPtr;
   }
@@ -208,10 +190,6 @@ public:
 private:
   detail::ABINeutralKernelNameStrT MKernelName;
   std::shared_ptr<detail::HostKernelBase> MHostKernel;
-  int MKernelNumArgs = 0;
-  KernelParamDescGetterFuncPtr MKernelParamDescGetter = nullptr;
-  bool MKernelIsESIMD = false;
-  bool MKernelHasSpecialCaptures = true;
   detail::DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
 };
 
@@ -3744,12 +3722,7 @@ private:
             KernelFunc));
 
     KRInfo.KernelName() = detail::getKernelName<KernelName>();
-    KRInfo.KernelNumArgs() = detail::getKernelNumParams<KernelName>();
-    KRInfo.KernelParamDescGetter() = &(detail::getKernelParamDesc<KernelName>);
-    KRInfo.KernelIsESIMD() = detail::isKernelESIMD<KernelName>();
-    KRInfo.KernelHasSpecialCaptures() =
-        detail::hasSpecialCaptures<KernelName>();
-    KRInfo.DeviceKernelInfoPtr() = detail::getDeviceKernelInfo<KernelName>();
+    KRInfo.DeviceKernelInfoPtr() = &detail::getDeviceKernelInfo<KernelName>();
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
