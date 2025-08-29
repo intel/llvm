@@ -5,9 +5,9 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Intended - Concurrent access to shared USM allocations is not supported by
-// CUDA on Windows
 // UNSUPPORTED: cuda && windows
+// UNSUPPORTED-INTENDED: Concurrent access to shared USM allocations is not supported by
+// CUDA on Windows
 
 // Test is flaky on Windows for all targets, disable until it can be fixed
 // UNSUPPORTED: windows
