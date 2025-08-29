@@ -37,6 +37,7 @@ add_custom_command(
   DEPENDS
   ${SYCL_JIT_RESOURCE_CPP}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
+  ${clang_exe}
 )
 
 add_llvm_library(sycl-jit
