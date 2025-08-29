@@ -198,11 +198,11 @@ public:
     return MKernelHasSpecialCaptures;
   }
 
-  detail::KernelNameBasedCacheT *&KernelNameBasedCachePtr() {
-    return MKernelNameBasedCachePtr;
+  detail::DeviceKernelInfo *&DeviceKernelInfoPtr() {
+    return MDeviceKernelInfoPtr;
   }
-  detail::KernelNameBasedCacheT *KernelNameBasedCachePtr() const {
-    return MKernelNameBasedCachePtr;
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr() const {
+    return MDeviceKernelInfoPtr;
   }
 
 private:
@@ -212,7 +212,7 @@ private:
   KernelParamDescGetterFuncPtr MKernelParamDescGetter = nullptr;
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
-  detail::KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+  detail::DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
 };
 
 } // namespace v1
@@ -3749,8 +3749,7 @@ private:
     KRInfo.KernelIsESIMD() = detail::isKernelESIMD<KernelName>();
     KRInfo.KernelHasSpecialCaptures() =
         detail::hasSpecialCaptures<KernelName>();
-    KRInfo.KernelNameBasedCachePtr() =
-        detail::getKernelNameBasedCache<KernelName>();
+    KRInfo.DeviceKernelInfoPtr() = detail::getDeviceKernelInfo<KernelName>();
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

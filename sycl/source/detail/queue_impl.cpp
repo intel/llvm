@@ -510,7 +510,7 @@ detail::EventImplPtr queue_impl::submit_direct_impl(
       nullptr, // MKernel
       nullptr, // MKernelBundle
       std::move(CGData), std::move(Args), toKernelNameStrT(KRInfo.KernelName()),
-      KRInfo.KernelNameBasedCachePtr(), std::move(StreamStorage),
+      *KRInfo.DeviceKernelInfoPtr(), std::move(StreamStorage),
       std::move(AuxiliaryResources), detail::CGType::Kernel,
       UR_KERNEL_CACHE_CONFIG_DEFAULT,
       false, // MKernelIsCooperative
