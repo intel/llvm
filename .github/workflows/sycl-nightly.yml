@@ -36,7 +36,8 @@ jobs:
       build_configure_extra_args: '--hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
 
-      retention-days: 90
+      sign_artifacts: true
+      retention_days: 90
       toolchain_artifact: sycl_linux_default
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
