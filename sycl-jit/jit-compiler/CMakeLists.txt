@@ -1,8 +1,7 @@
 get_host_tool_path( clang CLANG clang_exe clang_target )
 
 set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
-# NOTE: has to have a name different from the "default" object target:
-set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.custom.o")
+set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
 
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
@@ -16,10 +15,22 @@ add_custom_command(
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
 # CMAKE_CXX_COMPILER might not have support for it. As such, use freshly built
 # `clang++` instead.
+set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions)
+if (LLVM_ENABLE_PIC)
+list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -fPIC)
+endif()
+
+if (NOT WIN32)
+list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -fvisibility=hidden)
+endif()
+
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
-  COMMAND ${clang_exe} ${SYCL_JIT_RESOURCE_CPP} -c -o ${SYCL_JIT_RESOURCE_OBJ} -O2 -Wno-c23-extensions -fPIC
-  DEPENDS ${SYCL_JIT_RESOURCE_CPP}
+  COMMAND
+  ${clang_exe} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+  DEPENDS
+  ${SYCL_JIT_RESOURCE_CPP}
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
 )
 
 add_llvm_library(sycl-jit

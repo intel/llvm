@@ -9,6 +9,7 @@
 #include "DeviceCompilation.h"
 #include "ESIMD.h"
 #include "JITBinaryInfo.h"
+#include "Resource.h"
 #include "translation/Translation.h"
 
 #include <clang/Basic/DiagnosticDriver.h>
@@ -50,13 +51,6 @@
 #include <algorithm>
 #include <array>
 #include <sstream>
-
-namespace jit_compiler {
-// Defined in the auto-generated file:
-extern const std::pair<std::string_view, std::string_view> ToolchainFiles[];
-extern size_t NumToolchainFiles;
-extern std::string_view ToolchainPrefix;
-} // namespace jit_compiler
 
 using namespace clang;
 using namespace clang::tooling;

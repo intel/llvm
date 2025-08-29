@@ -25,11 +25,9 @@ def main():
     with open(args.output, "w") as out:
         out.write(
             """
-#include <utility>
-#include <string_view>
+#include <Resource.h>
 
 namespace jit_compiler {
-extern const std::pair<std::string_view, std::string_view> ToolchainFiles[];
 const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
         )
 
@@ -57,9 +55,7 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
             f"""
 }};
 
-extern size_t NumToolchainFiles;
 size_t NumToolchainFiles = std::size(ToolchainFiles);
-extern std::string_view ToolchainPrefix;
 std::string_view ToolchainPrefix = "{args.prefix}";
 }} // namespace jit_compiler
 """
