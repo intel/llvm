@@ -5,7 +5,7 @@
 
 import random
 from utils.utils import git_clone
-from .base import Benchmark, Suite
+from .base import Benchmark, Suite, TracingType
 from utils.result import BenchmarkMetadata, Result
 from utils.utils import run, create_build_path
 from options import options
@@ -88,7 +88,12 @@ class TestBench(Benchmark):
     def unstable(self) -> str:
         return self.unstable_text
 
-    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         random_value = self.value + random.uniform(-1 * (self.diff), self.diff)
         return [
             Result(
