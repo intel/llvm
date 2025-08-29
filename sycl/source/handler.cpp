@@ -542,6 +542,17 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
+    if (impl->MDeviceKernelInfoPtr) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+      impl->MDeviceKernelInfoPtr->initIfNeeded(toKernelNameStrT(MKernelName));
+#endif
+    } else {
+      // Fetch the device kernel info pointer if it hasn't been set (e.g.
+      // in kernel bundle or free function cases).
+      impl->MDeviceKernelInfoPtr =
+          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+              toKernelNameStrT(MKernelName));
+    }
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
         getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
@@ -615,10 +626,8 @@ event handler::finalize() {
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
-        bool KernelUsesAssert =
-            !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(
-                toKernelNameStrT(MKernelName), impl->MKernelNameBasedCachePtr);
+        bool KernelUsesAssert = !(MKernel && MKernel->isInterop()) &&
+                                impl->MDeviceKernelInfoPtr->usesAssert();
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -638,7 +647,7 @@ event handler::finalize() {
         if (xptiEnabled) {
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               detail::GSYCLStreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), impl->MKernelNameBasedCachePtr,
+              MKernelName.data(), *impl->MDeviceKernelInfoPtr,
               impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
               impl->MArgs);
           detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
@@ -655,8 +664,8 @@ event handler::finalize() {
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
             MKernel.get(), toKernelNameStrT(MKernelName),
-            impl->MKernelNameBasedCachePtr, RawEvents, ResultEvent.get(),
-            nullptr, impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            *impl->MDeviceKernelInfoPtr, RawEvents, ResultEvent.get(), nullptr,
+            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
             BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
             impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
@@ -717,7 +726,7 @@ event handler::finalize() {
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
         std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        impl->MKernelNameBasedCachePtr, std::move(MStreamStorage),
+        *impl->MDeviceKernelInfoPtr, std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -2598,9 +2607,18 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  impl->MKernelNameBasedCachePtr = KernelNameBasedCachePtr;
+  setDeviceKernelInfoPtr(reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
+      KernelNameBasedCachePtr));
+}
+#endif
+
+void handler::setDeviceKernelInfoPtr(
+    sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
+  assert(!impl->MDeviceKernelInfoPtr && "Already set!");
+  impl->MDeviceKernelInfoPtr = DeviceKernelInfoPtr;
 }
 
 void handler::setKernelInfo(
