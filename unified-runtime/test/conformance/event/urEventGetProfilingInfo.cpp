@@ -158,8 +158,9 @@ TEST_P(urEventGetProfilingInfoTest, InvalidNullHandle) {
 
   const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
   size_t property_size;
-  ASSERT_SUCCESS(urEventGetProfilingInfo(event, property_name, 0, nullptr,
-                                         &property_size));
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
+      UR_PROFILING_INFO_COMMAND_QUEUED);
   ASSERT_NE(property_size, 0);
 
   ASSERT_EQ_RESULT(urEventGetProfilingInfo(nullptr, property_name, 0, nullptr,
@@ -270,7 +271,8 @@ TEST_P(urEventGetProfilingInfoInvalidQueue, ProfilingInfoNotAvailable) {
 
   const ur_profiling_info_t property_name = UR_PROFILING_INFO_COMMAND_QUEUED;
   size_t property_size;
-  ASSERT_EQ_RESULT(
-      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size),
-      UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+  auto res =
+      urEventGetProfilingInfo(event, property_name, 0, nullptr, &property_size);
+  ASSERT_TRUE(res == UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE ||
+              res == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
 }

@@ -6,22 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-// When std::array is used in device code, MSVC's STL uses a _invalid_parameter
-// function. This causes issue when _invalid_parameter is invoked from device
-// code:
+// MSVC's STL emits functions like _invalid_parameter and _invoke_watson
+// to validate parameters passed to STL containers, like std::array, when
+// compiled in debug mode.
+// STL containers when used in device code fails to compile on Windows
+// because these functions are not marked with SYCL_EXTERNAL attribute.
 
-// 1. `_invalid_parameter` is provided via ucrtbased.dll at runtime: DLLs are
-//    not loaded for device code, thus causing undefined symbol errors.
-
-// 2. MSVC's STL never defined the function as SYCL_EXTERNAL, errors are thrown
-//    when device code tries to invoke `_invalid_parameter`.
-
-// As a workaround, this wrapper wraps around corecrt.h and defines a custom
-// _invalid_parameter for device code compilation.
-
-// This new SYCL_EXTERNAL definition of _invalid_parameter has to be declared
-// before corecrt.h is included: Thus, we have this STL wrapper instead of
-// declaring _invalid_parameter function in SYCL headers.
+// As a workaround, this wrapper defines a custom, empty defination of
+// _invalid_parameter and _invoke_watson for device code.
+// MSVC picks up these definitions instead of the declarations from MSVC's
+// <corecrt> header.
 
 #pragma once
 
@@ -36,6 +30,12 @@ extern "C" inline void __cdecl _invalid_parameter(wchar_t const *,
   // Do nothing when called in device code
 }
 
+extern "C" __declspec(noreturn) void __cdecl _invoke_watson(
+    wchar_t const *const expression, wchar_t const *const function_name,
+    wchar_t const *const file_name, unsigned int const line_number,
+    uintptr_t const reserved) {
+  // Do nothing.
+}
 #endif
 
 #if defined(__has_include_next)

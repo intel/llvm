@@ -2937,61 +2937,24 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
-struct hash<sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                           IsPlaceholder>> {
-  using AccType = sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                                 IsPlaceholder>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    // getSyclObjImpl() here returns a pointer to either AccessorImplHost
-    // or LocalAccessorImplHost depending on the AccessTarget.
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<
+    sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                         IsPlaceholder>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
-struct hash<sycl::host_accessor<DataT, Dimensions, AccessMode>> {
-  using AccType = sycl::host_accessor<DataT, Dimensions, AccessMode>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    // getSyclObjImpl() here returns a pointer to AccessorImplHost.
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<sycl::host_accessor<DataT, Dimensions, AccessMode>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::host_accessor<DataT, Dimensions, AccessMode>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions>
-struct hash<sycl::local_accessor<DataT, Dimensions>> {
-  using AccType = sycl::local_accessor<DataT, Dimensions>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    // getSyclObjImpl() here returns a pointer to LocalAccessorImplHost.
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
-
-} // namespace std
+struct std::hash<sycl::local_accessor<DataT, Dimensions>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::local_accessor<DataT, Dimensions>,
+          false /*SupportedOnDevice*/> {};

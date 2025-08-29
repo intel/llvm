@@ -155,8 +155,13 @@ ur_result_t urDeviceGet(
       bool isComposite =
           isCombinedMode && (D->ZeDeviceProperties->flags &
                              ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (!isComposite)
+      if (!isComposite) {
         MatchedDevices.push_back(D.get());
+        // For UR_DEVICE_TYPE_DEFAULT only a single device should be returned,
+        // so exit the loop after first proper match.
+        if (DeviceType == UR_DEVICE_TYPE_DEFAULT)
+          break;
+      }
     }
   }
 

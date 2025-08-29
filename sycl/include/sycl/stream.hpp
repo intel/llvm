@@ -1304,16 +1304,8 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
 
 } // namespace _V1
 } // namespace sycl
-namespace std {
-template <> struct hash<sycl::stream> {
-  size_t operator()(const sycl::stream &S) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    (void)S;
-    return 0;
-#else
-    return hash<std::shared_ptr<sycl::detail::stream_impl>>()(
-        sycl::detail::getSyclObjImpl(S));
-#endif
-  }
-};
-} // namespace std
+
+template <>
+struct std::hash<sycl::stream>
+    : public sycl::detail::sycl_obj_hash<sycl::stream,
+                                         false /*SupportedOnDevice*/> {};

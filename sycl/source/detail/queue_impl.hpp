@@ -278,7 +278,8 @@ public:
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
+    __SYCL_OCL_CALL(clRetainCommandQueue,
+                    ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -928,9 +929,7 @@ protected:
       // Kernel only uses assert if it's non interop one
       KernelUsesAssert =
           (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.data(),
-              Handler.impl->MKernelNameBasedCachePtr);
+          Handler.impl->MDeviceKernelInfoPtr->usesAssert();
 
     auto &PostProcess = *PostProcessorFunc;
     PostProcess(IsKernel, KernelUsesAssert, Event);
@@ -1116,8 +1115,6 @@ protected:
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
-  /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 

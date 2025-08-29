@@ -136,44 +136,15 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
-    ze_external_semaphore_wait_params_ext_t WaitParams = {
-        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
-    WaitParams.value = hasValue ? waitValue : 0;
-    ze_external_semaphore_ext_handle_t hExtSemaphore =
-        reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexCommandListAppendWaitExternalSemaphoresExp,
-               (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
-                WaitList.Length, WaitList.ZeEventList));
-  } else {
-    ze_command_list_handle_t translatedCommandList;
-    ZE2UR_CALL(zelLoaderTranslateHandle,
-               (ZEL_HANDLE_COMMAND_LIST, ZeCommandList,
-                (void **)&translatedCommandList));
-    ze_event_handle_t translatedEvent = ZeEvent;
-    if (ZeEvent) {
-      ZE2UR_CALL(zelLoaderTranslateHandle,
-                 (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
-    }
-    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
-    if (WaitList.Length > 0) {
-      for (size_t i = 0; i < WaitList.Length; i++) {
-        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
-        ZE2UR_CALL(zelLoaderTranslateHandle,
-                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
-      }
-    }
-    ze_intel_external_semaphore_wait_params_exp_t WaitParams = {
-        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
-    WaitParams.value = hasValue ? waitValue : 0;
-    const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
-        reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexExpCommandListAppendWaitExternalSemaphoresExp,
-               (translatedCommandList, 1, &hExtSemaphore, &WaitParams,
-                translatedEvent, WaitList.Length, EventHandles.data()));
-  }
+  ze_external_semaphore_wait_params_ext_t WaitParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
+  WaitParams.value = hasValue ? waitValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendWaitExternalSemaphoresExp,
+             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
+              WaitList.Length, WaitList.ZeEventList));
 
   return UR_RESULT_SUCCESS;
 }
@@ -221,47 +192,16 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
-    ze_external_semaphore_signal_params_ext_t SignalParams = {
-        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
-    SignalParams.value = hasValue ? signalValue : 0;
-    ze_external_semaphore_ext_handle_t hExtSemaphore =
-        reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+  ze_external_semaphore_signal_params_ext_t SignalParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
+  SignalParams.value = hasValue ? signalValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
 
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexCommandListAppendSignalExternalSemaphoresExp,
-               (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
-                WaitList.Length, WaitList.ZeEventList));
-  } else {
-    ze_intel_external_semaphore_signal_params_exp_t SignalParams = {
-        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP, nullptr,
-        0};
-    SignalParams.value = hasValue ? signalValue : 0;
-    const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
-        reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
-
-    ze_command_list_handle_t translatedCommandList;
-    ZE2UR_CALL(zelLoaderTranslateHandle,
-               (ZEL_HANDLE_COMMAND_LIST, ZeCommandList,
-                (void **)&translatedCommandList));
-    ze_event_handle_t translatedEvent = ZeEvent;
-    if (ZeEvent) {
-      ZE2UR_CALL(zelLoaderTranslateHandle,
-                 (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
-    }
-    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
-    if (WaitList.Length > 0) {
-      for (size_t i = 0; i < WaitList.Length; i++) {
-        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
-        ZE2UR_CALL(zelLoaderTranslateHandle,
-                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
-      }
-    }
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexExpCommandListAppendSignalExternalSemaphoresExp,
-               (translatedCommandList, 1, &hExtSemaphore, &SignalParams,
-                translatedEvent, WaitList.Length, EventHandles.data()));
-  }
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendSignalExternalSemaphoresExp,
+             (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
+              WaitList.Length, WaitList.ZeEventList));
 
   return UR_RESULT_SUCCESS;
 }
