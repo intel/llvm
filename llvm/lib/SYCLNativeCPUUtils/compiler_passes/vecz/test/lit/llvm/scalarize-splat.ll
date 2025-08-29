@@ -41,9 +41,9 @@ declare spir_func float @not_scalarizable(<4 x float> noundef)
 ; CHECK: void @__vecz_v4_splat({{.*}})
 ; CHECK: entry:
 ; CHECK:   %[[LD:.*]] = load float
-; CHECK:   %[[INS0:.*]] = insertelement <4 x float> {{undef|poison}}, float %[[LD]], {{i32|i64}} 0
+; CHECK:   %[[INS0:.*]] = insertelement <4 x float> poison, float %[[LD]], {{i32|i64}} 0
 ; CHECK-NOT: %{{.*}} = insertelement <4 x float> %{{.*}}, float %[[LD]], {{i32|i64}} 1
 ; CHECK-NOT: %{{.*}} = insertelement <4 x float> %{{.*}}, float %[[LD]], {{i32|i64}} 2
 ; CHECK-NOT: %{{.*}} = insertelement <4 x float> %{{.*}}, float %[[LD]], {{i32|i64}} 3
-; CHECK:   %[[SPLAT:.*]] = shufflevector <4 x float> %[[INS0]], <4 x float> {{undef|poison}}, <4 x i32> zeroinitializer
+; CHECK:   %[[SPLAT:.*]] = shufflevector <4 x float> %[[INS0]], <4 x float> poison, <4 x i32> zeroinitializer
 ; CHECK:   %{{.*}} = tail call spir_func float @not_scalarizable(<4 x float> noundef %[[SPLAT]])

@@ -47,7 +47,7 @@ declare spir_func i32 @not_scalarizable(<4 x i32> noundef)
 ; CHECK:   %[[ADD1:.*]] = add i32 %[[LD]]
 ; CHECK:   %[[ADD2:.*]] = add i32 %[[LD]]
 ; CHECK:   %[[ADD3:.*]] = add i32 %[[LD]]
-; CHECK:   %[[INS0:.*]] = insertelement <4 x i32> {{undef|poison}}, i32 %[[ADD0]], i32 0
+; CHECK:   %[[INS0:.*]] = insertelement <4 x i32> poison, i32 %[[ADD0]], i32 0
 ; CHECK:   %[[INS1:.+]] = insertelement <4 x i32> %[[INS0]], i32 %[[ADD1]], i32 1
 ; CHECK:   %[[INS2:.+]] = insertelement <4 x i32> %[[INS1]], i32 %[[ADD2]], i32 2
 ; CHECK:   %[[INS3:.+]] = insertelement <4 x i32> %[[INS2]], i32 %[[ADD3]], i32 3

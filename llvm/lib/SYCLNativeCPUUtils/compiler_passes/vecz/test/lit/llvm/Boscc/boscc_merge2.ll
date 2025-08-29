@@ -27,8 +27,8 @@ declare spir_func float @_Z3maxff(float, float) #1
 declare i64 @__mux_get_local_id(i32) #1
 declare i64 @__mux_get_group_id(i32) #1
 
-@fuse_conv2d_broadcast_add_relu_1_kernel0.pad_temp_shared = internal addrspace(3) global [640 x float] undef, align 4
-@fuse_conv2d_broadcast_add_relu_1_kernel0.input1_shared = internal addrspace(3) global [1152 x float] undef, align 4
+@fuse_conv2d_broadcast_add_relu_1_kernel0.pad_temp_shared = internal addrspace(3) global [640 x float] poison, align 4
+@fuse_conv2d_broadcast_add_relu_1_kernel0.input1_shared = internal addrspace(3) global [1152 x float] poison, align 4
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @boscc_merge2(float addrspace(1)* noalias %input0, float addrspace(1)* noalias %input1, float addrspace(1)* noalias %tensor, float addrspace(1)* noalias %input2) #2 {

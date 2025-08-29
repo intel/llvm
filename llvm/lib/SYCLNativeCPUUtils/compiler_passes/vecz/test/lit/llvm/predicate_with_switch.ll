@@ -23,7 +23,7 @@ declare i64 @__mux_get_local_id(i32)
 
 declare i64 @__mux_get_global_id(i32)
 
-@predicate_with_switch.tmpIn = internal addrspace(3) global [16 x i32] undef, align 4
+@predicate_with_switch.tmpIn = internal addrspace(3) global [16 x i32] poison, align 4
 
 define spir_kernel void @predicate_with_switch(i32 addrspace(1)* %A, i32 addrspace(1)* %B) #0 {
 entry:

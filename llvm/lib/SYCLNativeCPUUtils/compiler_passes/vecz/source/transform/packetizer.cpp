@@ -806,7 +806,7 @@ bool Packetizer::Impl::packetize() {
 void Packetizer::Impl::onFailure() {
   // On failure, clean up pending Phis, which may still be invalid in that they
   // have no incoming operands. For simplicity, just erase and replace all of
-  // them with undef: the failed vectorized function will be removed anyway.
+  // them with poison: the failed vectorized function will be removed anyway.
   for (auto *Phi : pendingPhis) {
     auto &info = packets[Phi];
     assert(info.numInstances > 0 && "A PHI pending packetization has no stub");
@@ -2624,10 +2624,10 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
       auto *const newPtrTy = FixedVectorType::get(ptrTy, simdWidth);
 
       auto *const idxVector = ConstantVector::get(indices);
-      auto *const undef = PoisonValue::get(newPtrTy);
+      auto *const poison = PoisonValue::get(newPtrTy);
       for (auto &vecPtr : ptrPacket) {
         vecPtr = B.CreateBitCast(vecPtr, newPtrTy);
-        vecPtr = B.CreateShuffleVector(vecPtr, undef, widenMask);
+        vecPtr = B.CreateShuffleVector(vecPtr, poison, widenMask);
         vecPtr = B.CreateInBoundsGEP(scalarTy, vecPtr, idxVector);
       }
     }
@@ -2792,9 +2792,9 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
           }
         }
 
-        auto *const undef = PoisonValue::get(maskPacket.front()->getType());
+        auto *const poison = PoisonValue::get(maskPacket.front()->getType());
         for (auto &vecMask : maskPacket) {
-          vecMask = createOptimalShuffle(B, vecMask, undef, widenMask);
+          vecMask = createOptimalShuffle(B, vecMask, poison, widenMask);
         }
       }
 

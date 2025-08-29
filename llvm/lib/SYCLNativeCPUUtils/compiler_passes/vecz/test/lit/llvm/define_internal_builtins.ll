@@ -27,6 +27,6 @@ define spir_kernel void @dummy(i32 addrspace(2)* %in, i32 addrspace(1)* %out) {
 
 declare <4 x i32> @__vecz_b_masked_load4_Dv4_jPU3AS2Dv4_jDv4_b(<4 x i32> addrspace(2)*, <4 x i1>)
 ; CHECK-LABEL: define <4 x i32> @__vecz_b_masked_load4_Dv4_jPU3AS2Dv4_jDv4_b(ptr addrspace(2){{.*}}, <4 x i1>{{.*}}) {
-; CHECK:   %2 = call <4 x i32> @llvm.masked.load.v4i32.p2(ptr addrspace(2) %0, i32 4, <4 x i1> %1, <4 x i32> {{undef|poison}})
+; CHECK:   %2 = call <4 x i32> @llvm.masked.load.v4i32.p2(ptr addrspace(2) %0, i32 4, <4 x i1> %1, <4 x i32> poison)
 ; CHECK:   ret <4 x i32> %2
 ; CHECK: }

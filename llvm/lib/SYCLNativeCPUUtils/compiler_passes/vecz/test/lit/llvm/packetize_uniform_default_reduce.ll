@@ -152,7 +152,7 @@ if.end:                                           ; preds = %entry, %if.then
 ; packetized.
 
 ; CHECK: define spir_kernel void @__vecz_v4_reduce(ptr addrspace(3) %in, ptr addrspace(3) %out)
-; CHECK: insertelement <4 x i64> {{poison|undef}}, i64
+; CHECK: insertelement <4 x i64> poison, i64
 ; CHECK: shufflevector <4 x i64>
 ; CHECK: %[[LOCAL_SIZE:[^ ]+]] = call i64 @__mux_get_local_size(i32 0)
 ; CHECK: icmp {{(ugt|ult)}} i64 %[[LOCAL_SIZE]], {{(1|2)}}

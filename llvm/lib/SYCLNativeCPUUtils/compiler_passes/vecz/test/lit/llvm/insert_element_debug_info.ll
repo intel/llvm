@@ -50,7 +50,7 @@ entry:
 ; FIXME: This llvm.dbg.value marks a 'kill location' and denotes the
 ; termination of the previous value assigned to %tmp - we could probably do
 ; better here by manifesting a vectorized value?
-; CHECK: #dbg_value(i32 {{(poison|undef)}}, [[VAR:![0-9]+]],
+; CHECK: #dbg_value(i32 poison, [[VAR:![0-9]+]],
 ; CHECK-SAME:   !DIExpression({{.*}}),
 ; CHECK-SAME:   !{{[0-9]+}}
   %1 = load i32, i32* %tid, align 4, !dbg !32
@@ -58,7 +58,7 @@ entry:
   %idx.ext = sext i32 %mul to i64, !dbg !32
   %add.ptr = getelementptr inbounds i32, i32 addrspace(1)* %0, i64 %idx.ext, !dbg !32
   %call1 = call spir_func <3 x i32> @_Z6vload3mPKU3AS1i(i64 0, i32 addrspace(1)* %add.ptr) #3, !dbg !32
-  %extractVec = shufflevector <3 x i32> %call1, <3 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 undef>, !dbg !32
+  %extractVec = shufflevector <3 x i32> %call1, <3 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>, !dbg !32
   %storetmp = bitcast <3 x i32>* %tmp to <4 x i32>*, !dbg !32
   store <4 x i32> %extractVec, <4 x i32>* %storetmp, align 16, !dbg !32
   %2 = load <3 x i32>, <3 x i32>* %tmp, align 16, !dbg !33

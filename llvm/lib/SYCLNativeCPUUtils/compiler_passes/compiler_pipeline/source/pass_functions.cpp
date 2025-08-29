@@ -204,24 +204,25 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
       // InsertElement to place it in a new vector and the second is a
       // ShuffleVector to duplicate the value across the vector.
       auto numEls = constantVec->getNumOperands();
-      llvm::Value *undef = llvm::PoisonValue::get(
+      llvm::Value *poison = llvm::PoisonValue::get(
           llvm::FixedVectorType::get(splatVal->getType(), numEls));
       llvm::Type *i32Ty = llvm::Type::getInt32Ty(constant->getContext());
       auto insert = llvm::InsertElementInst::Create(
-          undef, splatVal, llvm::ConstantInt::get(i32Ty, 0));
+          poison, splatVal, llvm::ConstantInt::get(i32Ty, 0));
       insert->insertBefore(useFunc->getEntryBlock().getFirstNonPHIIt());
       llvm::Value *zeros = llvm::ConstantAggregateZero::get(
           llvm::FixedVectorType::get(i32Ty, numEls));
-      newInst = new llvm::ShuffleVectorInst(insert, undef, zeros);
+      newInst = new llvm::ShuffleVectorInst(insert, poison, zeros);
       newInst->insertAfter(insert);
     } else if (llvm::ConstantArray *constantArr =
                    llvm::dyn_cast<llvm::ConstantArray>(constant)) {
       auto numEls = constantArr->getNumOperands();
-      llvm::Value *undef = llvm::PoisonValue::get(constantArr->getType());
+      llvm::Value *poison = llvm::PoisonValue::get(constantArr->getType());
       llvm::Instruction *insertedIns = nullptr;
       for (unsigned int i = 0; i < numEls; i++) {
-        auto *insertNext = llvm::InsertValueInst::Create(
-            insertedIns ? insertedIns : undef, constantArr->getOperand(i), {i});
+        auto *insertNext =
+            llvm::InsertValueInst::Create(insertedIns ? insertedIns : poison,
+                                          constantArr->getOperand(i), {i});
         if (insertedIns) {
           insertNext->insertAfter(insertedIns);
         } else {

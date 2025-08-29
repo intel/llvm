@@ -64,8 +64,8 @@ for.end:                                          ; preds = %for.cond
 ; values only.
 
 ; CHECK: define spir_kernel void @__vecz_v4_reduce(ptr addrspace(3) %in, ptr addrspace(3) %out)
-; CHECK: insertelement <4 x i64> {{poison|undef}}, i64 %{{.+}}, {{(i32|i64)}} 0
-; CHECK: shufflevector <4 x i64> %{{.+}}, <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
+; CHECK: insertelement <4 x i64> poison, i64 %{{.+}}, {{(i32|i64)}} 0
+; CHECK: shufflevector <4 x i64> %{{.+}}, <4 x i64> poison, <4 x i32> zeroinitializer
 ; CHECK: phi <4 x i32>
 ; CHECK: mul <4 x i32> %{{.+}}, {{<(i32 3(, )?)+>|splat \(i32 3\)}}
 ; CHECK: urem <4 x i64>

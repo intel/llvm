@@ -21,7 +21,7 @@ source_filename = "kernel.opencl"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@scan_fact.temp = internal addrspace(3) global [16 x i32] undef, align 4
+@scan_fact.temp = internal addrspace(3) global [16 x i32] poison, align 4
 
 ; Function Attrs: convergent nounwind readonly
 declare i64 @__mux_get_global_id(i32) #0

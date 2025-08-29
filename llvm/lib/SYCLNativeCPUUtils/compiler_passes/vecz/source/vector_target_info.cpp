@@ -994,7 +994,7 @@ llvm::Value *TargetInfo::createVectorSlideUp(llvm::IRBuilder<> &B,
   assert(srcTy &&
          "TargetInfo::createVectorShuffle: source must have vector type");
 
-  auto *const undef = PoisonValue::get(srcTy);
+  auto *const poison = PoisonValue::get(srcTy);
   const auto EC = srcTy->getElementCount();
   if (!EC.isScalable()) {
     // Special case for fixed-width vectors
@@ -1007,11 +1007,11 @@ llvm::Value *TargetInfo::createVectorSlideUp(llvm::IRBuilder<> &B,
     }
 
     auto *const rotate =
-        createOptimalShuffle(B, src, undef, mask, Twine("slide_up"));
+        createOptimalShuffle(B, src, poison, mask, Twine("slide_up"));
     return B.CreateInsertElement(rotate, insert, B.getInt64(0), "slide_in");
   }
 
-  auto *const rotate = B.CreateVectorSplice(undef, src, -1, "slide_up");
+  auto *const rotate = B.CreateVectorSplice(poison, src, -1, "slide_up");
   return B.CreateInsertElement(rotate, insert, B.getInt64(0), "slide_in");
 }
 

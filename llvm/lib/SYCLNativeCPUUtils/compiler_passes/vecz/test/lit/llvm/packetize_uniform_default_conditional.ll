@@ -153,7 +153,7 @@ if.end:                                           ; preds = %entry, %if.then
 
 ; CHECK: define spir_kernel void @__vecz_v4_conditional(ptr addrspace(1) %in, ptr addrspace(1) %out)
 ; CHECK: load i32, ptr
-; CHECK: insertelement <4 x i32> {{poison|undef}}
+; CHECK: insertelement <4 x i32> poison
 ; CHECK: shufflevector <4 x i32>
 ; CHECK: store <4 x i32>
 ; CHECK: ret void

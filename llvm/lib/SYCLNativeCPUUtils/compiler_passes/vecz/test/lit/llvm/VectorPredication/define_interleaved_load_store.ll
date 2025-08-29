@@ -28,7 +28,7 @@ entry:
   %0 = load <4 x double>, <4 x double> addrspace(1)* %add.ptr, align 32
   store double 1.600000e+01, double addrspace(1)* %.cast, align 8
   %1 = load <4 x double>, <4 x double> addrspace(1)* %add.ptr, align 32
-  %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 undef>
+  %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 poison>
   %vecins7 = shufflevector <4 x double> %vecins5, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 2, i32 7>
   %arrayidx = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %c, i64 %call
   %2 = load <4 x double>, <4 x double> addrspace(1)* %arrayidx, align 32

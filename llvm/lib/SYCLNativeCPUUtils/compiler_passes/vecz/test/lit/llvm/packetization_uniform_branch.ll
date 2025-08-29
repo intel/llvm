@@ -84,8 +84,8 @@ declare i64 @__mux_get_global_id(i32)
 ; node is also vectorized properly
 ; CHECK: define spir_kernel void @__vecz_v4_test_uniform_branch(i32 %a, ptr %b)
 ; CHECK: %call = call i64 @__mux_get_global_id(i32 0)
-; CHECK: %[[SPLATINSERT:.+]] = insertelement <4 x i64> {{poison|undef}}, i64 %call, {{i32|i64}} 0
-; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i64> %[[SPLATINSERT]], <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
+; CHECK: %[[SPLATINSERT:.+]] = insertelement <4 x i64> poison, i64 %call, {{i32|i64}} 0
+; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i64> %[[SPLATINSERT]], <4 x i64> poison, <4 x i32> zeroinitializer
 ; CHECK: %[[GID:.+]] = add <4 x i64> %[[SPLAT]], <i64 0, i64 1, i64 2, i64 3>
 ; CHECK: %cmp = icmp eq i32 %a, 42
 ; CHECK: br i1 %cmp, label %if.then, label %if.else

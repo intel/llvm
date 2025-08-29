@@ -28,16 +28,16 @@ declare i32 @__mux_get_local_id(i32) #2
 define spir_kernel void @test() #0 {
 entry:
   %call8 = call i32 @__mux_get_local_id(i32 0) #3
-  %arrayidx = getelementptr inbounds i8, i8 addrspace(1)* undef, i32 %call8
+  %arrayidx = getelementptr inbounds i8, i8 addrspace(1)* poison, i32 %call8
   %0 = load i8, i8 addrspace(1)* %arrayidx, align 1
   %conv9 = uitofp i8 %0 to float
   %phitmp = fptoui float %conv9 to i8
-  %arrayidx16 = getelementptr inbounds i8, i8 addrspace(1)* undef, i32 %call8
+  %arrayidx16 = getelementptr inbounds i8, i8 addrspace(1)* poison, i32 %call8
   store i8 %phitmp, i8 addrspace(1)* %arrayidx16, align 1
   ret void
 }
 
-; The "undefs" in the above IR should "optimize" to a trap call and an unreachable
+; The "poison"s in the above IR should "optimize" to a trap call and an unreachable
 ; terminator instruction.
 ; CHECK: define spir_kernel void @__vecz_v4_test
 ; CHECK: unreachable

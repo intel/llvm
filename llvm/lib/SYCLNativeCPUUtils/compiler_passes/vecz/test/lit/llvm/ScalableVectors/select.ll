@@ -55,7 +55,7 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: [[lhs:%[0-9a-z]+]] = load <vscale x 4 x i32>, ptr
 ; CHECK: [[rhs:%[0-9a-z]+]] = load <vscale x 4 x i32>, ptr
 ; CHECK: [[cmp:%[0-9a-z]+]] = icmp slt <vscale x 4 x i32> [[lhs]], [[rhs]]
-; CHECK: [[sel:%[0-9a-z]+]] = select <vscale x 4 x i1> [[cmp]], <vscale x 4 x i32> [[rhs]], <vscale x 4 x i32> {{shufflevector \(<vscale x 4 x i32> insertelement \(<vscale x 4 x i32> (undef|poison), i32 4, (i32|i64) 0\), <vscale x 4 x i32> (undef|poison), <vscale x 4 x i32> zeroinitializer\)|splat \(i32 4\)}}
+; CHECK: [[sel:%[0-9a-z]+]] = select <vscale x 4 x i1> [[cmp]], <vscale x 4 x i32> [[rhs]], <vscale x 4 x i32> {{shufflevector \(<vscale x 4 x i32> insertelement \(<vscale x 4 x i32> poison, i32 4, (i32|i64) 0\), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer\)|splat \(i32 4\)}}
 ; CHECK: store <vscale x 4 x i32> [[sel]],
 
 ; CHECK: define spir_kernel void @__vecz_nxv4_select_vector_vector
@@ -63,5 +63,5 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: [[y:%[0-9a-z]+]] = load <vscale x 8 x i32>, ptr
 ; CHECK: [[z:%[0-9a-z]+]] = load <vscale x 8 x i32>, ptr
 ; CHECK: [[cmp:%[0-9a-z]+]] = icmp slt <vscale x 8 x i32> [[x]], [[y]]
-; CHECK: [[sel:%[0-9a-z]+]] = select <vscale x 8 x i1> [[cmp]], <vscale x 8 x i32> [[z]], <vscale x 8 x i32> {{shufflevector \(<vscale x 8 x i32> insertelement \(<vscale x 8 x i32> (undef|poison), i32 4, (i32|i64) 0\), <vscale x 8 x i32> (undef|poison), <vscale x 8 x i32> zeroinitializer\)|splat \(i32 4\)}}
+; CHECK: [[sel:%[0-9a-z]+]] = select <vscale x 8 x i1> [[cmp]], <vscale x 8 x i32> [[z]], <vscale x 8 x i32> {{shufflevector \(<vscale x 8 x i32> insertelement \(<vscale x 8 x i32> poison, i32 4, (i32|i64) 0\), <vscale x 8 x i32> poison, <vscale x 8 x i32> zeroinitializer\)|splat \(i32 4\)}}
 ; CHECK: store <vscale x 8 x i32> [[sel]],

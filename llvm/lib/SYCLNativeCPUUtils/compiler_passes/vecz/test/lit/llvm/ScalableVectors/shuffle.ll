@@ -33,7 +33,7 @@ define spir_kernel void @do_shuffle_splat(i32* %aptr, <4 x i32>* %bptr, <4 x i32
   ret void
 ; CHECK: define spir_kernel void @__vecz_nxv4_do_shuffle_splat
 ; CHECK: [[idx0:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv16i32()
-; CHECK: [[idx1:%.*]] = lshr <vscale x 16 x i32> [[idx0]], {{shufflevector \(<vscale x 16 x i32> insertelement \(<vscale x 16 x i32> (undef|poison), i32 2, (i32|i64) 0\), <vscale x 16 x i32> (undef|poison), <vscale x 16 x i32> zeroinitializer\)|splat \(i32 2\)}}
+; CHECK: [[idx1:%.*]] = lshr <vscale x 16 x i32> [[idx0]], {{shufflevector \(<vscale x 16 x i32> insertelement \(<vscale x 16 x i32> poison, i32 2, (i32|i64) 0\), <vscale x 16 x i32> poison, <vscale x 16 x i32> zeroinitializer\)|splat \(i32 2\)}}
 
 ; Note that since we just did a lshr 2 on the input of the extend, it doesn't
 ; make any difference whether it's a zext or sext, but LLVM 16 prefers zext.
@@ -55,7 +55,7 @@ define spir_kernel void @do_shuffle_splat_uniform(i32 %a, <4 x i32>* %bptr, <4 x
   ret void
 ; CHECK: define spir_kernel void @__vecz_nxv4_do_shuffle_splat_uniform
 ; CHECK: [[ins:%.*]] = insertelement <vscale x 16 x i32> poison, i32 %a, {{(i32|i64)}} 0
-; CHECK: [[splat:%.*]] = shufflevector <vscale x 16 x i32> [[ins]], <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer
+; CHECK: [[splat:%.*]] = shufflevector <vscale x 16 x i32> [[ins]], <vscale x 16 x i32> poison, <vscale x 16 x i32> zeroinitializer
 ; CHECK: store <vscale x 16 x i32> [[splat]], ptr
 }
 
