@@ -366,6 +366,63 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+  event submit_direct_with_event(nd_range<1> Range,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::v1::KernelRuntimeInfo &KRInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl = submit_direct_impl(
+        NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  event submit_direct_with_event(nd_range<2> Range,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::v1::KernelRuntimeInfo &KRInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl = submit_direct_impl(
+        NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  event submit_direct_with_event(nd_range<3> Range,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::v1::KernelRuntimeInfo &KRInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl = submit_direct_impl(
+        NDRDescT{Range}, SubmitInfo, KRInfo, true, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  void submit_direct_without_event(nd_range<1> Range,
+                                   const detail::v1::SubmissionInfo &SubmitInfo,
+                                   const detail::v1::KernelRuntimeInfo &KRInfo,
+                                   const detail::code_location &CodeLoc,
+                                   bool IsTopCodeLoc) {
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+                       IsTopCodeLoc);
+  }
+
+  void submit_direct_without_event(nd_range<2> Range,
+                                   const detail::v1::SubmissionInfo &SubmitInfo,
+                                   const detail::v1::KernelRuntimeInfo &KRInfo,
+                                   const detail::code_location &CodeLoc,
+                                   bool IsTopCodeLoc) {
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+                       IsTopCodeLoc);
+  }
+
+  void submit_direct_without_event(nd_range<3> Range,
+                                   const detail::v1::SubmissionInfo &SubmitInfo,
+                                   const detail::v1::KernelRuntimeInfo &KRInfo,
+                                   const detail::code_location &CodeLoc,
+                                   bool IsTopCodeLoc) {
+    submit_direct_impl(NDRDescT{Range}, SubmitInfo, KRInfo, false, CodeLoc,
+                       IsTopCodeLoc);
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
@@ -891,6 +948,29 @@ protected:
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
+
+  std::vector<ArgDesc> extractArgsAndReqsFromLambda(
+      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+      size_t NumKernelParams);
+
+  /// Performs kernel submission to the queue.
+  ///
+  /// \param NDRDesc is an NDRange descriptor
+  /// \param SubmitInfo is additional optional information for the submission.
+  /// \param KRInfo is a descriptor of the kernel
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  detail::EventImplPtr submit_direct_impl(const NDRDescT &NDRDesc,
+                                          const v1::SubmissionInfo &SubmitInfo,
+                                          const v1::KernelRuntimeInfo &KRInfo,
+                                          bool CallerNeedsEvent,
+                                          const detail::code_location &CodeLoc,
+                                          bool IsTopCodeLoc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
