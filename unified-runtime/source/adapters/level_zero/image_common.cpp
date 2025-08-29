@@ -765,6 +765,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
 }
 
 ur_result_t bindlessImagesHandleCopyFlags(
+    ze_context_handle_t hContext,
     const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
     const ur_image_desc_t *pDstImageDesc,
     const ur_image_format_t *pSrcImageFormat,
@@ -781,7 +782,12 @@ ur_result_t bindlessImagesHandleCopyFlags(
   case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE: {
     uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
-    if (pDstImageDesc->rowPitch == 0) {
+    ze_memory_allocation_properties_t props {
+      .stype = ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES,
+      .pNext = nullptr
+    };
+    ZE2UR_CALL(zeMemGetAllocProperties, (hContext, pDst, &props, nullptr));
+    if (props.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Copy to Non-USM memory
 
       ze_image_region_t DstRegion;
@@ -813,14 +819,14 @@ ur_result_t bindlessImagesHandleCopyFlags(
       ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                       (uint32_t)pCopyRegion->dstOffset.y,
                                       (uint32_t)pCopyRegion->dstOffset.z,
-                                      DstRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.width,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       uint32_t DstSlicePitch = 0;
       ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
                                       (uint32_t)pCopyRegion->srcOffset.y,
                                       (uint32_t)pCopyRegion->srcOffset.z,
-                                      SrcRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.width,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
@@ -833,7 +839,12 @@ ur_result_t bindlessImagesHandleCopyFlags(
   case UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST: {
     uint32_t DstRowPitch = pDstImageDesc->rowPitch;
     uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
-    if (pSrcImageDesc->rowPitch == 0) {
+    ze_memory_allocation_properties_t props {
+      .stype = ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES,
+      .pNext = nullptr
+    };
+    ZE2UR_CALL(zeMemGetAllocProperties, (hContext, pSrc, &props, nullptr));
+    if (props.type == ZE_MEMORY_TYPE_UNKNOWN) {
       // Copy from Non-USM memory to host
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
@@ -861,14 +872,14 @@ ur_result_t bindlessImagesHandleCopyFlags(
       ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                       (uint32_t)pCopyRegion->dstOffset.y,
                                       (uint32_t)pCopyRegion->dstOffset.z,
-                                      DstRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.width,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
       ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
                                       (uint32_t)pCopyRegion->srcOffset.y,
                                       (uint32_t)pCopyRegion->srcOffset.z,
-                                      SrcRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.width,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       uint32_t SrcSlicePitch = 0;

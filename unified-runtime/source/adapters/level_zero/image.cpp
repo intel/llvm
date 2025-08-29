@@ -83,6 +83,7 @@ ur_result_t urBindlessImagesImageCopyExp(
   const auto &WaitList = (*Event)->WaitList;
 
   auto res = bindlessImagesHandleCopyFlags(
+      hQueue->Context->getZeHandle(),
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
       pDstImageFormat, pCopyRegion, imageCopyFlags, ZeCommandList, ZeEvent,
       WaitList.Length, WaitList.ZeEventList);

@@ -54,6 +54,7 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
                                  ze_image_region_t &ZeRegion);
 
 ur_result_t bindlessImagesHandleCopyFlags(
+    ze_context_handle_t hContext,
     const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
     const ur_image_desc_t *pDstImageDesc,
     const ur_image_format_t *pSrcImageFormat,
