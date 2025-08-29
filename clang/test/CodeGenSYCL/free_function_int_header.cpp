@@ -508,7 +508,7 @@ void ff_24(int arg) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
+// CHECK: template <typename T> void ff_3(T *, T, T);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_3<int>;
 // CHECK-NEXT: }
@@ -540,7 +540,7 @@ void ff_24(int arg) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
+// CHECK: template <typename T> void ff_3(T *, T, T);
 // CHECK-NEXT: static constexpr auto __sycl_shim4() {
 // CHECK-NEXT:   return (void (*)(float *, float, float))ff_3<float>;
 // CHECK-NEXT: }
@@ -572,7 +572,7 @@ void ff_24(int arg) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
+// CHECK: template <typename T> void ff_3(T *, T, T);
 // CHECK: template <> void ff_3<double>(double * ptr, double start, double end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(double *, double, double))ff_3<double>;
@@ -641,7 +641,7 @@ void ff_24(int arg) {
 // CHECK: Definition of _Z18__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: struct Derived;
-// CHECK: template <typename T1, typename T2> void ff_6(T1 S1, T2 S2, int end);
+// CHECK: template <typename T1, typename T2> void ff_6(T1, T2, int);
 // CHECK-NEXT: static constexpr auto __sycl_shim7() {
 // CHECK-NEXT:   return (void (*)(struct Agg, struct Derived, int))ff_6<struct Agg, struct Derived>;
 // CHECK-NEXT: }
@@ -676,7 +676,7 @@ void ff_24(int arg) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <int ArrSize> struct KArgWithPtrArray;
 //
-// CHECK: template <int ArrSize> void ff_7(KArgWithPtrArray<ArrSize> KArg);
+// CHECK: template <int ArrSize> void ff_7(KArgWithPtrArray<ArrSize>);
 // CHECK-NEXT: static constexpr auto __sycl_shim8() {
 // CHECK-NEXT:   return (void (*)(struct KArgWithPtrArray<3>))ff_7<3>;
 // CHECK-NEXT: }
@@ -1021,7 +1021,7 @@ void ff_24(int arg) {
 
 // CHECK: Forward declarations of kernel and its argument types:
 
-// CHECK: template <typename DataT> void ff_11(sycl::local_accessor<DataT, 1> lacc);
+// CHECK: template <typename DataT> void ff_11(sycl::local_accessor<DataT, 1>);
 // CHECK-NEXT: static constexpr auto __sycl_shim
 // CHECK-NEXT:  return (void (*)(class sycl::local_accessor<float, 1>))ff_11<float>;
 
