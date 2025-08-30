@@ -61,6 +61,16 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
   return UR_RESULT_SUCCESS;
 }
 
+v2::raii::command_list_unique_handle &&
+ur_command_list_manager::releaseCommandList() {
+  return std::move(zeCommandList);
+}
+
+void ur_command_list_manager::replaceCommandList(
+    v2::raii::command_list_unique_handle &&cmdlist) {
+  zeCommandList = std::move(cmdlist);
+}
+
 ur_result_t ur_command_list_manager::appendGenericCopyUnlocked(
     ur_mem_buffer_t *src, ur_mem_buffer_t *dst, bool blocking, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
@@ -129,6 +139,7 @@ wait_list_view ur_command_list_manager::getWaitListView(
       numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
+    phWaitEvents[i]->runBatch();
     waitList[i] = phWaitEvents[i]->getZeEvent();
   }
   if (additionalWaitEvent != nullptr) {
