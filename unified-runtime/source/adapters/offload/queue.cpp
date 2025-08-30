@@ -55,12 +55,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
+  case UR_QUEUE_INFO_CONTEXT:
+    return ReturnValue(hQueue->UrContext);
+  case UR_QUEUE_INFO_DEVICE:
+    return ReturnValue(hQueue->UrContext->Device);
+  case UR_QUEUE_INFO_EMPTY: {
+    bool Empty;
+    OL_RETURN_ON_ERR(hQueue->isEmpty(Empty));
+    return ReturnValue(Empty);
+  }
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(hQueue->Flags);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return ReturnValue(hQueue->RefCount.load());
-  default:
+  // These two are not technically optional, but other backends return
+  // UNSUPPORTED
+  case UR_QUEUE_INFO_SIZE:
+  case UR_QUEUE_INFO_DEVICE_DEFAULT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;
