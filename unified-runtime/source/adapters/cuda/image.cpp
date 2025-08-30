@@ -645,7 +645,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   };
 
   unsigned int NumChannels = 0;
-  size_t PixelSizeBytes = 0;
+  [[maybe_unused]] size_t PixelSizeBytes = 0;
 
   UR_CALL(urCalculateNumChannels(pSrcImageFormat->channelOrder, &NumChannels));
 
@@ -673,19 +673,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                                   (CUdeviceptr)pDst) != CUDA_SUCCESS;
 
-        size_t CopyExtentBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
-        const char *SrcWithOffset = static_cast<const char *>(pSrc) +
-                                    (pCopyRegion->srcOffset.x * PixelSizeBytes);
+        size_t CopyExtentBytes = pCopyRegion->copyExtent.width;
+        const char *SrcWithOffset =
+            static_cast<const char *>(pSrc) + pCopyRegion->srcOffset.x;
 
         if (isCudaArray) {
-          UR_CHECK_ERROR(cuMemcpyHtoAAsync(
-              (CUarray)pDst, pCopyRegion->dstOffset.x * PixelSizeBytes,
-              static_cast<const void *>(SrcWithOffset), CopyExtentBytes,
-              Stream));
+          UR_CHECK_ERROR(
+              cuMemcpyHtoAAsync((CUarray)pDst, pCopyRegion->dstOffset.x,
+                                static_cast<const void *>(SrcWithOffset),
+                                CopyExtentBytes, Stream));
         } else if (memType == CU_MEMORYTYPE_DEVICE) {
-          void *DstWithOffset =
-              static_cast<void *>(static_cast<char *>(pDst) +
-                                  (PixelSizeBytes * pCopyRegion->dstOffset.x));
+          void *DstWithOffset = static_cast<void *>(static_cast<char *>(pDst) +
+                                                    pCopyRegion->dstOffset.x);
           UR_CHECK_ERROR(
               cuMemcpyHtoDAsync((CUdeviceptr)DstWithOffset,
                                 static_cast<const void *>(SrcWithOffset),
@@ -698,11 +697,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         CUDA_MEMCPY2D cpy_desc = {};
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         if (pDstImageDesc->rowPitch == 0) {
@@ -717,10 +716,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
       } else if (pDstImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         CUDA_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
@@ -729,7 +728,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcHeight = pSrcImageDesc->height;
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
@@ -737,10 +736,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                  pDstImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
                  pDstImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         CUDA_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
@@ -749,7 +748,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcHeight = std::max(uint64_t{1}, pSrcImageDesc->height);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
@@ -764,20 +763,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                                   (CUdeviceptr)pSrc) != CUDA_SUCCESS;
 
-        size_t CopyExtentBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
-        void *DstWithOffset =
-            static_cast<void *>(static_cast<char *>(pDst) +
-                                (PixelSizeBytes * pCopyRegion->dstOffset.x));
+        size_t CopyExtentBytes = pCopyRegion->copyExtent.width;
+        void *DstWithOffset = static_cast<void *>(static_cast<char *>(pDst) +
+                                                  pCopyRegion->dstOffset.x);
 
         if (isCudaArray) {
-          UR_CHECK_ERROR(
-              cuMemcpyAtoHAsync(DstWithOffset, as_CUArray(pSrc),
-                                PixelSizeBytes * pCopyRegion->srcOffset.x,
-                                CopyExtentBytes, Stream));
+          UR_CHECK_ERROR(cuMemcpyAtoHAsync(DstWithOffset, as_CUArray(pSrc),
+                                           pCopyRegion->srcOffset.x,
+                                           CopyExtentBytes, Stream));
         } else if (memType == CU_MEMORYTYPE_DEVICE) {
           const char *SrcWithOffset =
-              static_cast<const char *>(pSrc) +
-              (pCopyRegion->srcOffset.x * PixelSizeBytes);
+              static_cast<const char *>(pSrc) + pCopyRegion->srcOffset.x;
           UR_CHECK_ERROR(cuMemcpyDtoHAsync(DstWithOffset,
                                            (CUdeviceptr)SrcWithOffset,
                                            CopyExtentBytes, Stream));
@@ -787,11 +783,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         }
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
@@ -808,10 +804,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         CUDA_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
@@ -820,7 +816,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstHost = pDst;
         cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = pDstImageDesc->height;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
@@ -828,10 +824,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         CUDA_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
@@ -840,7 +836,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstHost = pDst;
         cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = std::max(uint64_t{1}, pDstImageDesc->height);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
@@ -874,11 +870,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                   (CUdeviceptr)pDst) != CUDA_SUCCESS;
 
         CUDA_MEMCPY2D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = 0;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = 0;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = 1;
         if (isSrcCudaArray) {
           cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
@@ -897,11 +893,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         if (pSrcImageDesc->rowPitch == 0) {
           cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
@@ -924,17 +920,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         UR_CHECK_ERROR(cuMemcpy2DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         CUDA_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.srcArray = as_CUArray(pSrc);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
@@ -942,17 +938,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         CUDA_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.srcArray = as_CUArray(pSrc);
         cpy_desc.dstMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_ARRAY;
         cpy_desc.dstArray = (CUarray)pDst;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = std::max(uint64_t{1}, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         UR_CHECK_ERROR(cuMemcpy3DAsync(&cpy_desc, Stream));
