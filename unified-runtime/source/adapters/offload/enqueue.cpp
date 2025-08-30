@@ -141,6 +141,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   return doWait<true>(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+// This function only makes sense for level_zero, the flag in properties is
+// ignored
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -235,6 +245,8 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
 
   if (blocking) {
+    // Ensure all work in the queue is complete
+    OL_RETURN_ON_ERR(olSyncQueue(Queue));
     OL_RETURN_ON_ERR(
         olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
     if (phEvent) {
