@@ -141,9 +141,19 @@ public:
 private:
   Bfloat16StorageT value;
 
+  // Private tag used to avoid constructor ambiguity.
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+
+  constexpr bfloat16(Bfloat16StorageT Value, private_tag) : value{Value} {}
+
   // Explicit conversion functions
   static float to_float(const Bfloat16StorageT &a);
   static Bfloat16StorageT from_float(const float &a);
+
+  // Friend traits.
+  friend std::numeric_limits<bfloat16>;
 
   // Friend classes for vector operations
   friend class sycl::vec<bfloat16, 1>;
@@ -615,3 +625,80 @@ inline bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+// Specialization of some functions in namespace `std`.
+namespace std {
+
+// Specialization of `std::hash<sycl::ext::oneapi::bfloat16>`.
+template <> struct hash<sycl::ext::oneapi::bfloat16> {
+  size_t operator()(sycl::ext::oneapi::bfloat16 const &Key) const noexcept {
+    return hash<uint16_t>{}(sycl::bit_cast<uint16_t>(Key));
+  }
+};
+
+// Specialization of `std::numeric_limits<sycl::ext::oneapi::bfloat16>`.
+template <> struct numeric_limits<sycl::ext::oneapi::bfloat16> {
+  // All following values are calculated based on description of each
+  // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits.
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = true;
+  static constexpr bool is_integer = false;
+  static constexpr bool is_exact = false;
+  static constexpr bool has_infinity = true;
+  static constexpr bool has_quiet_NaN = true;
+  static constexpr bool has_signaling_NaN = true;
+  static constexpr float_denorm_style has_denorm = denorm_present;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr bool tinyness_before = false;
+  static constexpr bool traps = false;
+  static constexpr int max_exponent10 = 35;
+  static constexpr int max_exponent = 127;
+  static constexpr int min_exponent10 = -37;
+  static constexpr int min_exponent = -126;
+  static constexpr int radix = 2;
+  static constexpr int max_digits10 = 4;
+  static constexpr int digits = 8;
+  static constexpr bool is_bounded = true;
+  static constexpr int digits10 = 2;
+  static constexpr bool is_modulo = false;
+  static constexpr bool is_iec559 = true;
+  static constexpr float_round_style round_style = round_to_nearest;
+
+  static constexpr const sycl::ext::oneapi::bfloat16(min)() noexcept {
+    return {uint16_t(0x80), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16(max)() noexcept {
+    return {uint16_t(0x7f7f), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 lowest() noexcept {
+    return {uint16_t(0xff7f), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 epsilon() noexcept {
+    return {uint16_t(0x3c00), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 round_error() noexcept {
+    return {uint16_t(0x3f00), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 infinity() noexcept {
+    return {uint16_t(0x7f80), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 quiet_NaN() noexcept {
+    return {uint16_t(0x7fc0), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 signaling_NaN() noexcept {
+    return {uint16_t(0xff81), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 denorm_min() noexcept {
+    return {uint16_t(0x1), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+};
+
+} // namespace std

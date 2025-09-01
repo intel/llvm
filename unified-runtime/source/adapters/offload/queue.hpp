@@ -14,6 +14,7 @@
 #include <ur_api.h>
 
 #include "common.hpp"
+#include "event.hpp"
 
 constexpr size_t OOO_QUEUE_POOL_SIZE = 32;
 
@@ -38,12 +39,32 @@ struct ur_queue_handle_t_ : RefCounted {
   // Mutex guarding the offset and barrier for out of order queues
   std::mutex OooMutex;
   size_t QueueOffset;
-  ol_event_handle_t Barrier;
+  ur_event_handle_t Barrier;
   ol_device_handle_t OffloadDevice;
   ur_context_handle_t UrContext;
   ur_queue_flags_t Flags;
 
   bool isInOrder() const { return OffloadQueues.size() == 1; }
+
+  // This queue is empty if and only if all queues are empty
+  ol_result_t isEmpty(bool &Empty) const {
+    Empty = true;
+
+    for (auto *Q : OffloadQueues) {
+      if (!Q) {
+        continue;
+      }
+      if (auto Err =
+              olGetQueueInfo(Q, OL_QUEUE_INFO_EMPTY, sizeof(Empty), &Empty)) {
+        return Err;
+      }
+      if (!Empty) {
+        return OL_SUCCESS;
+      }
+    }
+
+    return OL_SUCCESS;
+  }
 
   ol_result_t nextQueueNoLock(ol_queue_handle_t &Handle) {
     auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];
@@ -54,7 +75,7 @@ struct ur_queue_handle_t_ : RefCounted {
       }
 
       if (auto Event = Barrier) {
-        if (auto Res = olWaitEvents(Slot, &Event, 1)) {
+        if (auto Res = olWaitEvents(Slot, &Event->OffloadEvent, 1)) {
           return Res;
         }
       }
