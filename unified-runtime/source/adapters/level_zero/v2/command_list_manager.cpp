@@ -903,9 +903,9 @@ ur_result_t ur_command_list_manager::bindlessImagesImageCopyExp(
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   return bindlessImagesHandleCopyFlags(
-      hContext->getZeHandle(), pSrc, pDst, pSrcImageDesc, pDstImageDesc,
-      pSrcImageFormat, pDstImageFormat, pCopyRegion, imageCopyFlags,
-      imageCopyInputTypes, getZeCommandList(), zeSignalEvent, waitListView.num,
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      getZeCommandList(), zeSignalEvent, waitListView.num,
       waitListView.handles);
 }
 
