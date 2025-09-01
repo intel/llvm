@@ -214,13 +214,13 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 
 template <typename KernelName, typename PropertiesT, typename KernelType,
           int Dims>
-void submit_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
+void submit_kernel_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc);
 
 template <typename KernelName, typename PropertiesT, typename KernelType,
           int Dims>
-event submit_direct_with_event_impl(const queue &Q, PropertiesT Props,
+event submit_kernel_direct_with_event_impl(const queue &Q, PropertiesT Props,
                                     nd_range<Dims> Range,
                                     const KernelType &KernelFunc,
                                     const sycl::detail::code_location &CodeLoc);
@@ -2718,7 +2718,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    return submit_direct_with_event<detail::WrapAs::single_task, KernelName>(
+    return submit_kernel_direct_with_event<detail::WrapAs::single_task, KernelName>(
         ext::oneapi::experimental::empty_properties_t{}, nd_range<1>{1, 1},
         KernelFunc);
 
@@ -3279,7 +3279,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return submit_direct_with_event<detail::WrapAs::parallel_for, KernelName,
+      return submit_kernel_direct_with_event<detail::WrapAs::parallel_for, KernelName,
                                       sycl::nd_item<Dims>>(
           ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
     } else {
@@ -3674,13 +3674,13 @@ private:
 
   template <typename KernelName, typename PropertiesT, typename KernelType,
             int Dims>
-  friend void ext::oneapi::experimental::detail::submit_direct_impl(
+  friend void ext::oneapi::experimental::detail::submit_kernel_direct_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
 
   template <typename KernelName, typename PropertiesT, typename KernelType,
             int Dims>
-  friend event ext::oneapi::experimental::detail::submit_direct_with_event_impl(
+  friend event ext::oneapi::experimental::detail::submit_kernel_direct_with_event_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
 
@@ -3796,33 +3796,33 @@ private:
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
-  event submit_direct_with_event_impl(
-      nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+  event submit_kernel_direct_with_event_impl(
+      nd_range<1> Range,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  event submit_direct_with_event_impl(
-      nd_range<2> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+  event submit_kernel_direct_with_event_impl(
+      nd_range<2> Range,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  event submit_direct_with_event_impl(
-      nd_range<3> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+  event submit_kernel_direct_with_event_impl(
+      nd_range<3> Range,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  void submit_direct_without_event_impl(
-      nd_range<1> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+  void submit_kernel_direct_without_event_impl(
+      nd_range<1> Range,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  void submit_direct_without_event_impl(
-      nd_range<2> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+  void submit_kernel_direct_without_event_impl(
+      nd_range<2> Range,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  void submit_direct_without_event_impl(
-      nd_range<3> Range, const detail::v1::SubmissionInfo &SubmitInfo,
+  void submit_kernel_direct_without_event_impl(
+      nd_range<3> Range,
       const detail::v1::KernelRuntimeInfo &KRInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
@@ -3871,50 +3871,46 @@ private:
   template <detail::WrapAs WrapAsVal, typename KernelName = detail::auto_name,
             typename ElementType = void, typename PropertiesT,
             typename KernelType, int Dims>
-  event submit_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
+  event submit_kernel_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                                  const KernelType &KernelFunc,
                                  const detail::code_location &CodeLoc =
                                      detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
     detail::v1::KernelRuntimeInfo KRInfo{};
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    ProcessSubmitProperties(Props, SI);
     ProcessKernelRuntimeInfo<NameT, KernelType, Dims, WrapAsVal>(KernelFunc,
                                                                  KRInfo);
 
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
 
-    return submit_direct_with_event_impl(Range, SI, KRInfo,
+    return submit_kernel_direct_with_event_impl(Range, KRInfo,
                                          TlsCodeLocCapture.query(),
                                          TlsCodeLocCapture.isToplevel());
   }
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename KernelType, int Dims>
-  void submit_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
+  void submit_kernel_direct_without_event(PropertiesT Props, nd_range<Dims> Range,
                                    const KernelType &KernelFunc,
                                    const detail::code_location &CodeLoc =
                                        detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::SubmissionInfo SI{};
     detail::v1::KernelRuntimeInfo KRInfo{};
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    ProcessSubmitProperties(Props, SI);
     ProcessKernelRuntimeInfo<NameT, KernelType, Dims,
                              detail::WrapAs::parallel_for>(KernelFunc, KRInfo);
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
 
-    submit_direct_without_event_impl(Range, SI, KRInfo,
+    submit_kernel_direct_without_event_impl(Range, KRInfo,
                                      TlsCodeLocCapture.query(),
                                      TlsCodeLocCapture.isToplevel());
   }

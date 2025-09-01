@@ -447,25 +447,53 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
   return Args;
 }
 
-detail::EventImplPtr queue_impl::submit_direct_impl(
-    const NDRDescT &NDRDesc, const v1::SubmissionInfo &SubmitInfo,
+detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
+    const NDRDescT &NDRDesc,
     const v1::KernelRuntimeInfo &KRInfo, bool CallerNeedsEvent,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-  (void)SubmitInfo;
 
-  std::unique_ptr<detail::CG> CommandGroup;
+  // No special captures supported yet for the no-handler path
+  assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
+
+  SubmitCommandFuncType SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
+    std::unique_ptr<detail::CG> CommandGroup;
+    std::vector<detail::ArgDesc> Args;
+    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    Args = extractArgsAndReqsFromLambda(
+      KRInfo.GetKernelFuncPtr(), KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
+      KRInfo.DeviceKernelInfoPtr()->NumParams);
+
+    CommandGroup.reset(new detail::CGExecKernel(
+        std::move(NDRDesc), KRInfo.HostKernel(),
+        nullptr, // MKernel
+        nullptr, // MKernelBundle
+        std::move(CGData), std::move(Args), toKernelNameStrT(KRInfo.KernelName()),
+        *KRInfo.DeviceKernelInfoPtr(), std::move(StreamStorage),
+        std::move(AuxiliaryResources), detail::CGType::Kernel,
+        UR_KERNEL_CACHE_CONFIG_DEFAULT,
+        false, // MKernelIsCooperative
+        false, // MKernelUsesClusterLaunch
+        0,     // MKernelWorkGroupMemorySize
+        CodeLoc));
+    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
+      std::move(CommandGroup), *this, CallerNeedsEvent);
+    return EventImpl;
+  };
+
+  return submit_generic_direct(CallerNeedsEvent, SubmitKernelFunc);
+}
+
+detail::EventImplPtr queue_impl::submit_generic_direct(
+    bool CallerNeedsEvent, SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
-  std::vector<detail::ArgDesc> Args;
-  std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
-  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
-
   std::unique_lock<std::mutex> Lock(MMutex);
 
   // Graphs are not supported yet for the no-handler path
   assert(!hasCommandGraph());
-
-  // No special captures supported yet for the no-handler path
-  assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
 
   // Set the No Last Event Mode to false, since the no-handler path
   // does not support it yet.
@@ -501,27 +529,7 @@ detail::EventImplPtr queue_impl::submit_direct_impl(
     }
   }
 
-  Args = extractArgsAndReqsFromLambda(
-      KRInfo.GetKernelFuncPtr(), KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
-      KRInfo.DeviceKernelInfoPtr()->NumParams);
-
-  CommandGroup.reset(new detail::CGExecKernel(
-      std::move(NDRDesc), KRInfo.HostKernel(),
-      nullptr, // MKernel
-      nullptr, // MKernelBundle
-      std::move(CGData), std::move(Args), toKernelNameStrT(KRInfo.KernelName()),
-      *KRInfo.DeviceKernelInfoPtr(), std::move(StreamStorage),
-      std::move(AuxiliaryResources), detail::CGType::Kernel,
-      UR_KERNEL_CACHE_CONFIG_DEFAULT,
-      false, // MKernelIsCooperative
-      false, // MKernelUsesClusterLaunch
-      0,     // MKernelWorkGroupMemorySize
-      CodeLoc));
-
-  CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
-
-  EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), *this, CallerNeedsEvent);
+  EventImplPtr EventImpl = SubmitCommandFunc(CGData);
 
   // Sync with the last event for in order queue
   if (isInOrder() && !EventImpl->isDiscarded()) {
