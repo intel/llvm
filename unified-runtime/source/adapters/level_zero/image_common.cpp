@@ -747,11 +747,20 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
       UR_RESULT_ERROR_INVALID_VALUE);
 #endif // !NDEBUG
 
-  uint32_t OriginX = ur_cast<uint32_t>(Origin->x);
+  // ur_rect_offset_t and ur_rect_region_t describe first component using bytes
+  // ze_image_region_t however uses pixels for it
+
+  // TODO: this is less efficient than a direct calculation of a pixel size
+  // using ze_image_format_t
+  ur_image_format_t UrImageFormat;
+  UR_CALL(ze2urImageFormat(ZeImageDesc.format, &UrImageFormat));
+  uint32_t PixelSizeBytes = getPixelSizeBytes(&UrImageFormat);
+
+  uint32_t OriginX = ur_cast<uint32_t>(Origin->x) / PixelSizeBytes;
   uint32_t OriginY = ur_cast<uint32_t>(Origin->y);
   uint32_t OriginZ = ur_cast<uint32_t>(Origin->z);
 
-  uint32_t Width = ur_cast<uint32_t>(Region->width);
+  uint32_t Width = ur_cast<uint32_t>(Region->width) / PixelSizeBytes;
   uint32_t Height = (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY)
                         ? ZeImageDesc.arraylevels
                         : ur_cast<uint32_t>(Region->height);
