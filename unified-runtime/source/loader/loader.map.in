@@ -346,7 +346,7 @@
 		urPrintExpExternalSemaphoreType;
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
-		urPrintExpImageCopyInputTypes
+		urPrintExpImageCopyInputTypes;
 		urPrintExpImageCopyRegion;
 		urPrintExpImageMemType;
 		urPrintExpPeerInfo;

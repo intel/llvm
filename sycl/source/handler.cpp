@@ -1795,7 +1795,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
                          UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM, 0,
                          DestRowPitch);
 
@@ -1838,7 +1838,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
                          UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE,
                          SrcRowPitch, 0);
 
@@ -1860,7 +1860,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
                          UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE,
                          SrcRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset,
                          {0, 0, 0}, CopyExtent);
@@ -1881,11 +1881,22 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
 
-  ur_exp_image_copy_flags_t ImageCopyFlags =
-      UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
-  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
-                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM, SrcRowPitch,
-                         DestRowPitch);
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                           UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM,
+                           SrcRowPitch, DestRowPitch);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs device "
+                          "to device or host to host copies!");
+  }
 
   setType(detail::CGType::CopyImage);
 }
@@ -1900,12 +1911,23 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
 
-  ur_exp_image_copy_flags_t ImageCopyFlags =
-      UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
-  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
-                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM, SrcRowPitch,
-                         DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
-                         {0, 0, 0}, CopyExtent);
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src,
+                       createSyclObjFromImpl<context>(impl->get_context())),
+      get_pointer_type(Dest,
+                       createSyclObjFromImpl<context>(impl->get_context())));
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                           UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM,
+                           SrcRowPitch, DestRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, {0, 0, 0}, CopyExtent);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs device "
+                          "to device or host to host copies!");
+  }
 
   setType(detail::CGType::CopyImage);
 }
