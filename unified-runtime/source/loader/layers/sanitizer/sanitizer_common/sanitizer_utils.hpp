@@ -23,7 +23,8 @@
 namespace ur_sanitizer_layer {
 
 struct ManagedQueue {
-  ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device);
+  ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device,
+               bool IsOutOfOrder = false);
   ~ManagedQueue();
 
   // Disable copy semantics
