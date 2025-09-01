@@ -7892,6 +7892,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
     /// [in] size of the event wait list
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     /// events that must be complete before this command can be executed.
@@ -7960,8 +7962,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   ur_result_t result = pfnImageCopyExp(
       hQueue, pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-      phEventWaitList, phEvent);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      numEventsInWaitList, phEventWaitList, phEvent);
 
   return result;
 }

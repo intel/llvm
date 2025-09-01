@@ -54,13 +54,13 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
                                  ze_image_region_t &ZeRegion);
 
 ur_result_t bindlessImagesHandleCopyFlags(
-    ze_context_handle_t hContext,
-    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
-    const ur_image_desc_t *pDstImageDesc,
+    ze_context_handle_t hContext, const void *pSrc, void *pDst,
+    const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     ze_command_list_handle_t ZeCommandList, ze_event_handle_t zeSignalEvent,
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
 

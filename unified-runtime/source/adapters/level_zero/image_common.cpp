@@ -769,7 +769,9 @@ ur_result_t bindlessImagesHandleCopyFlags(
     const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
-    ur_exp_image_copy_region_t *pCopyRegion, ur_exp_image_copy_flags_t,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    /* unused */ ur_exp_image_copy_flags_t,
+    ur_exp_image_copy_input_types_t copyImageInputTypes,
     ze_command_list_handle_t ZeCommandList, ze_event_handle_t zeSignalEvent,
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents) {
 
@@ -781,21 +783,9 @@ ur_result_t bindlessImagesHandleCopyFlags(
   // Image means ze_image_handle_t, memory means regular pointer.
   // The choice of API to call depends on input types, not on the copy
   // direction.
-  ze_memory_allocation_properties_t DstMemAllocProps{
-      /*.stype = */ ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES,
-      /*.pNext = */ nullptr};
-  ZE2UR_CALL(zeMemGetAllocProperties,
-             (hContext, pDst, &DstMemAllocProps, nullptr));
-  ze_memory_allocation_properties_t SrcMemAllocProps{
-      /*.stype = */ ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES,
-      /*.pNext = */ nullptr};
-  ZE2UR_CALL(zeMemGetAllocProperties,
-             (hContext, pDst, &SrcMemAllocProps, nullptr));
 
-  const bool SrcIsMemory = SrcMemAllocProps.type != ZE_MEMORY_TYPE_UNKNOWN;
-  const bool DstIsMemory = DstMemAllocProps.type != ZE_MEMORY_TYPE_UNKNOWN;
-
-  if (SrcIsMemory && DstIsMemory) {
+  switch (copyImageInputTypes) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM: {
     // Copy between (possibly) pitched USM regions
     ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                     (uint32_t)pCopyRegion->dstOffset.y,
@@ -824,11 +814,11 @@ ur_result_t bindlessImagesHandleCopyFlags(
                 pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
                 numWaitEvents, phWaitEvents));
     return UR_RESULT_SUCCESS;
-  } else if (!SrcIsMemory && !DstIsMemory) {
+  }
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE: {
     // Copy between two ze_image_handle_t's
     ze_image_region_t DstRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc,
-                                 &pCopyRegion->dstOffset,
+    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                  &pCopyRegion->copyExtent, DstRegion));
     // UR accepts copy regions as byte-pixel-pixel format, i.e. X-axis offset
     // and width are specified as bytes, whilst Y/Z-axis offsets, height and
@@ -840,8 +830,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     DstRegion.width /= PixelSizeInBytes;
 
     ze_image_region_t SrcRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc,
-                                 &pCopyRegion->srcOffset,
+    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
     // UR accepts copy regions as byte-pixel-pixel format, i.e. X-axis offset
     // and width are specified as bytes, whilst Y/Z-axis offsets, height and
@@ -861,9 +850,8 @@ ur_result_t bindlessImagesHandleCopyFlags(
                 phWaitEvents));
 
     return UR_RESULT_SUCCESS;
-  } else if (SrcIsMemory) {
-    assert(!DstIsMemory &&
-           "Memory to memory copy should have been handled above");
+  }
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE: {
     // Copy from USM to ze_image_handle_t
     ze_image_region_t DstRegion;
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
@@ -891,9 +879,8 @@ ur_result_t bindlessImagesHandleCopyFlags(
                 SrcRowPitch, SrcSlicePitch, zeSignalEvent, numWaitEvents,
                 phWaitEvents));
     return UR_RESULT_SUCCESS;
-  } else {
-    assert(DstIsMemory && !SrcIsMemory &&
-           "Memory to image copy should have been handled above");
+  }
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM: {
     // Copy from ze_image_handle_t to USM
     ze_image_region_t SrcRegion;
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
@@ -920,10 +907,11 @@ ur_result_t bindlessImagesHandleCopyFlags(
                 phWaitEvents));
     return UR_RESULT_SUCCESS;
   }
-
-  UR_LOG(ERR, "ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
-              "unexpected inputs");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  default:
+    UR_LOG(ERR, "ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
+                "unexpected inputs");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 }
 
 bool verifyStandardImageSupport(

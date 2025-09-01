@@ -28,8 +28,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -83,10 +85,10 @@ ur_result_t urBindlessImagesImageCopyExp(
   const auto &WaitList = (*Event)->WaitList;
 
   auto res = bindlessImagesHandleCopyFlags(
-      hQueue->Context->getZeHandle(),
-      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, ZeCommandList, ZeEvent,
-      WaitList.Length, WaitList.ZeEventList);
+      hQueue->Context->getZeHandle(), pSrc, pDst, pSrcImageDesc, pDstImageDesc,
+      pSrcImageFormat, pDstImageFormat, pCopyRegion, imageCopyFlags,
+      imageCopyInputTypes, ZeCommandList, ZeEvent, WaitList.Length,
+      WaitList.ZeEventList);
 
   if (res == UR_RESULT_SUCCESS)
     UR_CALL(hQueue->executeCommandList(CommandList, Blocking, OkToBatch));

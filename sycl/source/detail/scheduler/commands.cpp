@@ -3686,8 +3686,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MemoryManager::copy_image_bindless, *MQueue, Copy->getSrc(),
             Copy->getDst(), Copy->getSrcDesc(), Copy->getDstDesc(),
             Copy->getSrcFormat(), Copy->getDstFormat(), Copy->getCopyFlags(),
-            Copy->getSrcOffset(), Copy->getDstOffset(), Copy->getCopyExtent(),
-            std::move(RawEvents), Event);
+            Copy->getCopyInputTypes(), Copy->getSrcOffset(),
+            Copy->getDstOffset(), Copy->getCopyExtent(), std::move(RawEvents),
+            Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

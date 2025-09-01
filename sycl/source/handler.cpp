@@ -230,16 +230,16 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
   return UrDesc;
 }
 
-static void
-fill_copy_args(detail::handler_impl *impl,
-               const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-               const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-               ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
-               size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
-               sycl::range<3> SrcExtent = {0, 0, 0},
-               sycl::range<3> DestOffset = {0, 0, 0},
-               sycl::range<3> DestExtent = {0, 0, 0},
-               sycl::range<3> CopyExtent = {0, 0, 0}) {
+static void fill_copy_args(
+    detail::handler_impl *impl,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    ur_exp_image_copy_flags_t ImageCopyFlags,
+    ur_exp_image_copy_input_types_t ImageCopyInputTypes, size_t SrcPitch,
+    size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+    sycl::range<3> SrcExtent = {0, 0, 0}, sycl::range<3> DestOffset = {0, 0, 0},
+    sycl::range<3> DestExtent = {0, 0, 0},
+    sycl::range<3> CopyExtent = {0, 0, 0}) {
   SrcImgDesc.verify();
   DestImgDesc.verify();
 
@@ -274,6 +274,7 @@ fill_copy_args(detail::handler_impl *impl,
   impl->MSrcImageFormat = UrSrcFormat;
   impl->MDstImageFormat = UrDestFormat;
   impl->MImageCopyFlags = ImageCopyFlags;
+  impl->MImageCopyInputTypes = ImageCopyInputTypes;
 
   if (CopyExtent.size() != 0) {
     impl->MCopyExtent = {CopyExtent[0] * SrcPixelSize, CopyExtent[1],
@@ -303,6 +304,7 @@ static void
 fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
+               ur_exp_image_copy_input_types_t ImageCopyInputTypes,
                sycl::range<3> SrcOffset = {0, 0, 0},
                sycl::range<3> SrcExtent = {0, 0, 0},
                sycl::range<3> DestOffset = {0, 0, 0},
@@ -312,22 +314,24 @@ fill_copy_args(detail::handler_impl *impl,
   size_t SrcPitch = SrcExtent[0] * Desc.num_channels * get_channel_size(Desc);
   size_t DestPitch = DestExtent[0] * Desc.num_channels * get_channel_size(Desc);
 
-  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
-                 SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, ImageCopyInputTypes,
+                 SrcPitch, DestPitch, SrcOffset, SrcExtent, DestOffset,
+                 DestExtent, CopyExtent);
 }
 
-static void
-fill_copy_args(detail::handler_impl *impl,
-               const ext::oneapi::experimental::image_descriptor &Desc,
-               ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
-               size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
-               sycl::range<3> SrcExtent = {0, 0, 0},
-               sycl::range<3> DestOffset = {0, 0, 0},
-               sycl::range<3> DestExtent = {0, 0, 0},
-               sycl::range<3> CopyExtent = {0, 0, 0}) {
+static void fill_copy_args(
+    detail::handler_impl *impl,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    ur_exp_image_copy_flags_t ImageCopyFlags,
+    ur_exp_image_copy_input_types_t ImageCopyInputTypes, size_t SrcPitch,
+    size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+    sycl::range<3> SrcExtent = {0, 0, 0}, sycl::range<3> DestOffset = {0, 0, 0},
+    sycl::range<3> DestExtent = {0, 0, 0},
+    sycl::range<3> CopyExtent = {0, 0, 0}) {
 
-  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
-                 SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, ImageCopyInputTypes,
+                 SrcPitch, DestPitch, SrcOffset, SrcExtent, DestOffset,
+                 DestExtent, CopyExtent);
 }
 
 static void
@@ -335,6 +339,7 @@ fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
+               ur_exp_image_copy_input_types_t ImageCopyInputTypes,
                sycl::range<3> SrcOffset = {0, 0, 0},
                sycl::range<3> SrcExtent = {0, 0, 0},
                sycl::range<3> DestOffset = {0, 0, 0},
@@ -346,9 +351,9 @@ fill_copy_args(detail::handler_impl *impl,
   size_t DestPitch =
       DestExtent[0] * DestImgDesc.num_channels * get_channel_size(DestImgDesc);
 
-  fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags, SrcPitch,
-                 DestPitch, SrcOffset, SrcExtent, DestOffset, DestExtent,
-                 CopyExtent);
+  fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                 ImageCopyInputTypes, SrcPitch, DestPitch, SrcOffset, SrcExtent,
+                 DestOffset, DestExtent, CopyExtent);
 }
 
 } // namespace detail
@@ -871,8 +876,8 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGCopyImage(
         MSrcPtr, MDstPtr, impl->MSrcImageDesc, impl->MDstImageDesc,
         impl->MSrcImageFormat, impl->MDstImageFormat, impl->MImageCopyFlags,
-        impl->MSrcOffset, impl->MDestOffset, impl->MCopyExtent,
-        std::move(impl->CGData), MCodeLoc));
+        impl->MImageCopyInputTypes, impl->MSrcOffset, impl->MDestOffset,
+        impl->MCopyExtent, std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::SemaphoreWait:
     CommandGroup.reset(
@@ -1588,7 +1593,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE);
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1606,7 +1612,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcOffset,
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE, SrcOffset,
                          SrcExtent, DestOffset, {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
@@ -1623,7 +1630,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(get_impl(), SrcImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST);
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1642,7 +1650,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(get_impl(), SrcImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, SrcOffset,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM, SrcOffset,
                          {0, 0, 0}, DestOffset, DestExtent, CopyExtent);
 
   setType(detail::CGType::CopyImage);
@@ -1671,11 +1680,13 @@ void handler::ext_oneapi_copy(
       Desc.width * Desc.num_channels * detail::get_channel_size(Desc);
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, HostRowPitch,
-                           DeviceRowPitch);
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags,
+                           UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM,
+                           HostRowPitch, DeviceRowPitch);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
-                           HostRowPitch);
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags,
+                           UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM,
+                           DeviceRowPitch, HostRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
@@ -1712,10 +1723,12 @@ void handler::ext_oneapi_copy(
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
     detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM,
                            HostRowPitch, DeviceRowPitch, SrcOffset, HostExtent,
                            DestOffset, {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
     detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM,
                            DeviceRowPitch, HostRowPitch, SrcOffset, {0, 0, 0},
                            DestOffset, HostExtent, CopyExtent);
   } else {
@@ -1740,7 +1753,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE);
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1760,8 +1774,10 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcOffset,
-                         {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE,
+                         SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0},
+                         CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1779,7 +1795,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, 0,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM, 0,
                          DestRowPitch);
 
   setType(detail::CGType::CopyImage);
@@ -1800,7 +1817,8 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, 0,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM, 0,
                          DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
                          {0, 0, 0}, CopyExtent);
 
@@ -1820,8 +1838,9 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcRowPitch,
-                         0);
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE,
+                         SrcRowPitch, 0);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1841,9 +1860,10 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcRowPitch,
-                         0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0},
-                         CopyExtent);
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE,
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE,
+                         SrcRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset,
+                         {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1864,7 +1884,8 @@ void handler::ext_oneapi_copy(
   ur_exp_image_copy_flags_t ImageCopyFlags =
       UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
-                         SrcRowPitch, DestRowPitch);
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM, SrcRowPitch,
+                         DestRowPitch);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1882,8 +1903,9 @@ void handler::ext_oneapi_copy(
   ur_exp_image_copy_flags_t ImageCopyFlags =
       UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
-                         SrcRowPitch, DestRowPitch, SrcOffset, {0, 0, 0},
-                         DestOffset, {0, 0, 0}, CopyExtent);
+                         UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM, SrcRowPitch,
+                         DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
+                         {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
