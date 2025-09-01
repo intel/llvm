@@ -56,6 +56,13 @@ void sum1(T arg) {}
 template <>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
+void sum1<3, sycl::accessor<int, 1>>(sycl::accessor<int, 1> arg) {
+  arg[0] = 42;
+}
+
+template <>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
 void sum1<3, float>(float arg) {
   arg = 3.14f + static_cast<float>(3);
 }
@@ -137,6 +144,9 @@ void test_accessor() {
     h.set_args(acc);
     h.parallel_for(nd_range{{1}, {1}}, Kernel);
   });
+
+  auto acc = buf.get_host_access();
+  assert(acc[0] == 42);
 }
 
 void test_shared() {
