@@ -133,10 +133,8 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *API, const char *ARGS,
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *, const char *,
                            bool) {
-  if (PrintTrace)
-    UR_LOG(QUIET, "ZE2UR {}({}) -> {}", API, ARGS, ZeResult);
   return ZeResult;
 }
 
