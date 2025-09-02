@@ -506,8 +506,8 @@ bool run_copy_test(sycl::device &dev, sycl::queue &q, sycl::range<2> dims) {
   }
 
   // Perform out of bounds copy checks
-  if (!image_mem_handle_to_image_mem_handle_out_of_bounds_copy(
-                       desc, dataIn, dev, q)) {
+  if (!image_mem_handle_to_image_mem_handle_out_of_bounds_copy(desc, dataIn,
+                                                               dev, q)) {
     std::cout
         << "image_mem_handle_to_image_mem_handle_out_of_bounds_copy test failed"
         << std::endl;
