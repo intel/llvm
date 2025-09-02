@@ -75,6 +75,10 @@ inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
                                    const ur_event_handle_t *phEventWaitList,
                                    const T &scheduler) {
   if (numEventsInWaitList && !scheduler.CanWaitInThread()) {
+    // Waiting for dependent events in threads launched by the enqueue may
+    // not work correctly for some backend/schedulers, so we have the safe
+    // option here to wait in the main thread instead (potentially at the
+    // expense of performance).
     urEventWait(numEventsInWaitList, phEventWaitList);
     numEventsInWaitList = 0;
   }
@@ -352,7 +356,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 #endif // NATIVECPU_WITH_ONETBB_PARALLELFOR
 
-  event->set_futures(Tasks.getTaskInfo());
+  event->set_tasksinfo(Tasks.getMovedTaskInfo());
 
   if (phEvent) {
     *phEvent = event;
@@ -395,7 +399,7 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
       InEvents.wait();
       f();
     });
-    event->set_futures(Tasks.getTaskInfo());
+    event->set_tasksinfo(Tasks.getMovedTaskInfo());
     event->set_callback(
         [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;
@@ -571,7 +575,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  urEventWait(numEventsInWaitList, phEventWaitList);
   const void *SrcPtr = hBufferSrc->_mem + srcOffset;
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
@@ -741,13 +744,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
-    ur_queue_handle_t /*hQueue*/, const void * /*pMem*/, size_t /*size*/,
-    ur_usm_migration_flags_t /*flags*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
+    ur_queue_handle_t hQueue, const void * /*pMem*/, size_t /*size*/,
+    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   // TODO: properly implement USM prefetch
-  return UR_RESULT_SUCCESS;
+  return withTimingEvent(UR_COMMAND_USM_PREFETCH, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent,
+                         []() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(

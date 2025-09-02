@@ -1286,7 +1286,7 @@ public:
   ///
   tracepoint_scope_t &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
-    if (xptiCheckTraceEnabled(MStreamId, MTraceType) && MTraceEvent) {
+    if (MTraceEvent) {
       Callback(MTraceEvent);
     }
     return *this;
