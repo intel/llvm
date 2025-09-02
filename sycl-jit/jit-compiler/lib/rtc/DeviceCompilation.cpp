@@ -52,6 +52,8 @@
 #include <array>
 #include <sstream>
 
+#include <iostream>
+
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::driver;
@@ -201,6 +203,10 @@ class SYCLToolchain {
                        FileManager *Files,
                        std::shared_ptr<PCHContainerOperations> PCHContainerOps,
                        DiagnosticConsumer *DiagConsumer) override {
+      for (auto &arg : Invocation->getCC1CommandLine())
+        std::cout << " " << arg;
+      std::cout << std::endl;
+
       // Create a compiler instance to handle the actual work.
       CompilerInstance Compiler(std::move(Invocation),
                                 std::move(PCHContainerOps));
@@ -314,6 +320,11 @@ createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+  // TODO: Is this needed?
+  DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_resource_dir_EQ),
+                   (jit_compiler::ToolchainPrefix + "/lib/clang/" +
+                    Twine(CLANG_VERSION_MAJOR))
+                       .str());
   // User args may contain options not intended for the frontend, but we can't
   // claim them here to tell the driver they're used later. Hence, suppress the
   // unused argument warning.
