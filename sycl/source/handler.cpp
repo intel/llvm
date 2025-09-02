@@ -1817,7 +1817,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
-                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
                          UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM, 0,
                          DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
                          {0, 0, 0}, CopyExtent);
