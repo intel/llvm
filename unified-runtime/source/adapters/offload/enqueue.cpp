@@ -454,3 +454,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size, [[maybe_unused]] ur_usm_advice_flags_t advice,
+    ur_event_handle_t *phEvent) {
+  // Currently not supported - do nothing
+  if (phEvent) {
+    *phEvent =
+        ur_event_handle_t_::createEmptyEvent(UR_COMMAND_USM_ADVISE, hQueue);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size,
+    [[maybe_unused]] ur_usm_migration_flags_t flags,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  // Currently not supported - do nothing
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_PREFETCH, Queue, hQueue, phEvent));
+
+  return UR_RESULT_SUCCESS;
+}

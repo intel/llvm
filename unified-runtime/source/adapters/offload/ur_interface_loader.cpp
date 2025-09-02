@@ -188,10 +188,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
   pDdiTable->pfnUSMFill = urEnqueueUSMFill;
-  pDdiTable->pfnUSMAdvise = nullptr;
+  pDdiTable->pfnUSMAdvise = urEnqueueUSMAdvise;
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
   pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
-  pDdiTable->pfnUSMPrefetch = nullptr;
+  pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
   pDdiTable->pfnReadHostPipe = nullptr;
   pDdiTable->pfnWriteHostPipe = nullptr;
   return UR_RESULT_SUCCESS;
