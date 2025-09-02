@@ -38,8 +38,8 @@ entry:
 ; CHECK: %local.id = call i64 @__mux_get_local_id(i32 0)
 ; CHECK: %local.size = call i64 @__mux_get_local_size(i32 0)
 ; CHECK: %work.remaining = sub nuw nsw i64 %local.size, %local.id
-; CHECK: %[[vli64:.+]] = call i64 @llvm.riscv.vsetvli.opt.i64(i64 %work.remaining, i64 2, i64 1)
-; CHECK: %[[vl:.+]] = trunc i64 %[[vli64]] to i32
+; CHECK: %[[vli64:.+]] = call i64 @llvm.riscv.vsetvli.i64(i64 %work.remaining, i64 2, i64 1)
+; CHECK: %[[vl:.+]] = trunc nuw i64 %[[vli64]] to i32
 ; CHECK: %[[lhs:.+]] = call <vscale x 4 x i32> @llvm.vp.load.nxv4i32.p0({{.*}}, i32 %[[vl]])
 ; CHECK: %[[rhs:.+]] = call <vscale x 4 x i32> @llvm.vp.load.nxv4i32.p0({{.*}}, i32 %[[vl]])
 ; CHECK: %[[sum:.+]] = call <vscale x 4 x i32> @llvm.vp.add.nxv4i32(<vscale x 4 x i32> %[[lhs]], <vscale x 4 x i32> %[[rhs]], {{.*}}, i32 %[[vl]])

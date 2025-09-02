@@ -39,19 +39,19 @@ ret:
   ret void
 }
 
-; CHECK-STORE-4:       define void @__vecz_b_masked_store4_vp_u5nxv4ju3ptrU3AS1u5nxv4bj(<vscale x 4 x i32> [[TMP0:%.*]], ptr addrspace(1) [[TMP1:%.*]], <vscale x 4 x i1> [[TMP2:%.*]], i32 [[TMP3:%.*]]) {
+; CHECK-STORE-4:       define void @__vecz_b_masked_store4_vp_u5nxv4ju3ptrU3AS1u5nxv4bj(<vscale x 4 x i32> [[TMP0:%.*]], ptr addrspace(1) [[TMP1:%.*]], <vscale x 4 x i1> [[TMP2:%.*]], i32 [[TMP3:%.*]])
 ; CHECK-STORE-4-NEXT:  entry:
 ; CHECK-STORE-4-NEXT:    call void @llvm.vp.store.nxv4i32.p1(<vscale x 4 x i32> [[TMP0]], ptr addrspace(1) [[TMP1]], <vscale x 4 x i1> [[TMP2]], i32 [[TMP3]])
 ; CHECK-STORE-4-NEXT:    ret void
 
-; CHECK-STORE-8:       define void @__vecz_b_masked_store4_vp_u5nxv8ju3ptrU3AS1u5nxv8bj(<vscale x 8 x i32> [[TMP0:%.*]], ptr addrspace(1) [[TMP1:%.*]], <vscale x 8 x i1> [[TMP2:%.*]], i32 [[TMP3:%.*]]) {
+; CHECK-STORE-8:       define void @__vecz_b_masked_store4_vp_u5nxv8ju3ptrU3AS1u5nxv8bj(<vscale x 8 x i32> [[TMP0:%.*]], ptr addrspace(1) [[TMP1:%.*]], <vscale x 8 x i1> [[TMP2:%.*]], i32 [[TMP3:%.*]])
 ; CHECK-STORE-8-NEXT:  entry:
 ; CHECK-STORE-8-NEXT:    call void @llvm.vp.store.nxv8i32.p1(<vscale x 8 x i32> [[TMP0]], ptr addrspace(1) [[TMP1]], <vscale x 8 x i1> [[TMP2]], i32 [[TMP3]])
 ; CHECK-STORE-8-NEXT:    ret void
 
-; CHECK-STORE-16:       define void @__vecz_b_masked_store4_vp_u6nxv16ju3ptrU3AS1u6nxv16bj(<vscale x 16 x i32> [[TMP0:%.*]], ptr addrspace(1) [[TMP1:%.*]], <vscale x 16 x i1> [[TMP2:%.*]], i32 [[TMP3:%.*]]) {
+; CHECK-STORE-16:       define void @__vecz_b_masked_store4_vp_u6nxv16ju3ptrU3AS1u6nxv16bj(<vscale x 16 x i32> [[TMP0:%.*]], ptr addrspace(1) [[TMP1:%.*]], <vscale x 16 x i1> [[TMP2:%.*]], i32 [[TMP3:%.*]])
 ; CHECK-STORE-16-NEXT:  entry:
-; CHECK-STORE-16-NEXT:    [[TMP5:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
+; CHECK-STORE-16-NEXT:    [[TMP5:%.*]] = call <vscale x 16 x i32> @llvm.stepvector.nxv16i32()
 ; CHECK-STORE-16-NEXT:    [[SPLATINSERT:%.*]] = insertelement <vscale x 16 x i32> poison, i32 [[TMP3]], {{i32|i64}} 0
 ; CHECK-STORE-16-NEXT:    [[SPLAT:%.*]] = shufflevector <vscale x 16 x i32> [[SPLATINSERT]], <vscale x 16 x i32> poison, <vscale x 16 x i32> zeroinitializer
 ; CHECK-STORE-16-NEXT:    [[TMP6:%.*]] = icmp ult <vscale x 16 x i32> [[TMP5]], [[SPLAT]]
@@ -76,19 +76,19 @@ ret:
   ret void
 }
 
-; CHECK-LOAD-4:      define <vscale x 4 x i32> @__vecz_b_masked_load4_vp_u5nxv4ju3ptrU3AS1u5nxv4bj(ptr addrspace(1) [[TMP0:%.*]], <vscale x 4 x i1> [[TMP1:%.*]], i32 [[TMP2:%.*]]) {
+; CHECK-LOAD-4:      define <vscale x 4 x i32> @__vecz_b_masked_load4_vp_u5nxv4ju3ptrU3AS1u5nxv4bj(ptr addrspace(1) [[TMP0:%.*]], <vscale x 4 x i1> [[TMP1:%.*]], i32 [[TMP2:%.*]])
 ; CHECK-LOAD-4-NEXT: entry:
 ; CHECK-LOAD-4-NEXT:   [[TMP4:%.*]] = call <vscale x 4 x i32> @llvm.vp.load.nxv4i32.p1(ptr addrspace(1) [[TMP0]], <vscale x 4 x i1> [[TMP1]], i32 [[TMP2]])
 ; CHECK-LOAD-4-NEXT:   ret <vscale x 4 x i32> [[TMP4]]
 
-; CHECK-LOAD-8:      define <vscale x 8 x i32> @__vecz_b_masked_load4_vp_u5nxv8ju3ptrU3AS1u5nxv8bj(ptr addrspace(1) [[TMP0:%.*]], <vscale x 8 x i1> [[TMP1:%.*]], i32 [[TMP2:%.*]]) {
+; CHECK-LOAD-8:      define <vscale x 8 x i32> @__vecz_b_masked_load4_vp_u5nxv8ju3ptrU3AS1u5nxv8bj(ptr addrspace(1) [[TMP0:%.*]], <vscale x 8 x i1> [[TMP1:%.*]], i32 [[TMP2:%.*]])
 ; CHECK-LOAD-8-NEXT: entry:
 ; CHECK-LOAD-8-NEXT:   [[TMP4:%.*]] = call <vscale x 8 x i32> @llvm.vp.load.nxv8i32.p1(ptr addrspace(1) [[TMP0]], <vscale x 8 x i1> [[TMP1]], i32 [[TMP2]])
 ; CHECK-LOAD-8-NEXT:   ret <vscale x 8 x i32> [[TMP4]]
 
-; CHECK-LOAD-16:      define <vscale x 16 x i32> @__vecz_b_masked_load4_vp_u6nxv16ju3ptrU3AS1u6nxv16bj(ptr addrspace(1) [[TMP0:%.*]], <vscale x 16 x i1> [[TMP1:%.*]], i32 [[TMP2:%.*]]) {
+; CHECK-LOAD-16:      define <vscale x 16 x i32> @__vecz_b_masked_load4_vp_u6nxv16ju3ptrU3AS1u6nxv16bj(ptr addrspace(1) [[TMP0:%.*]], <vscale x 16 x i1> [[TMP1:%.*]], i32 [[TMP2:%.*]])
 ; CHECK-LOAD-16-NEXT: entry:
-; CHECK-LOAD-16-NEXT: [[TMP4:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
+; CHECK-LOAD-16-NEXT: [[TMP4:%.*]] = call <vscale x 16 x i32> @llvm.stepvector.nxv16i32()
 ; CHECK-LOAD-16-NEXT: [[TMPSPLATINSERT:%.*]] = insertelement <vscale x 16 x i32> poison, i32 [[TMP2]], {{i32|i64}} 0
 ; CHECK-LOAD-16-NEXT: [[TMPSPLAT:%.*]] = shufflevector <vscale x 16 x i32> [[TMPSPLATINSERT]], <vscale x 16 x i32> poison, <vscale x 16 x i32> zeroinitializer
 ; CHECK-LOAD-16-NEXT: [[TMP5:%.*]] = icmp ult <vscale x 16 x i32> [[TMP4]], [[TMPSPLAT]]

@@ -106,15 +106,15 @@ entry:
 
 ; EE-LABEL: @__vecz_nxv4_extract_element(
 ; EE:         [[XLEN:%.*]] = call i64 @llvm.vscale.i64()
-; EE-NEXT:    [[TMP2:%.*]] = shl i64 [[XLEN]], 2
+; EE-NEXT:    [[TMP2:%.*]] = shl {{(nuw )?}}i64 [[XLEN]], 2
 ; EE-NEXT:    [[SPLATINSERT:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[IDX:%.*]], {{(i32|i64)}} 0
 ; EE-NEXT:    [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[SPLATINSERT]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
-; EE-NEXT:    [[IDX0:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
-; EE-NEXT:    [[IDXSCALE:%.*]] = shl <vscale x 4 x i32> [[IDX0]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 2, {{(i32|i64)}} 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
+; EE-NEXT:    [[IDX0:%.*]] = call <vscale x 4 x i32> @llvm.stepvector.nxv4i32()
+; EE-NEXT:    [[IDXSCALE:%.*]] = shl <vscale x 4 x i32> [[IDX0]], splat (i32 2)
 ; EE-NEXT:    [[VS1:%.*]] = add <vscale x 4 x i32> [[IDXSCALE]], [[SPLAT]]
-; EE-NEXT:    [[T3:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental.)?}}vector.insert.nxv16i32.nxv4i32(<vscale x 16 x i32> poison, <vscale x 4 x i32> [[VS1]], i64 0)
+; EE-NEXT:    [[T3:%.*]] = call <vscale x 16 x i32> @llvm.vector.insert.nxv16i32.nxv4i32(<vscale x 16 x i32> poison, <vscale x 4 x i32> [[VS1]], i64 0)
 ; EE-NEXT:    [[T4:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> poison, <vscale x 16 x float> [[T1:%.*]], <vscale x 16 x i32> [[T3]], i64 [[TMP2]])
-; EE-NEXT:    [[T5:%.*]] = call <vscale x 4 x float> @llvm.{{(experimental.)?}}vector.extract.nxv4f32.nxv16f32(<vscale x 16 x float> [[T4]], i64 0)
+; EE-NEXT:    [[T5:%.*]] = call <vscale x 4 x float> @llvm.vector.extract.nxv4f32.nxv16f32(<vscale x 16 x float> [[T4]], i64 0)
 
 ; Both the vector and index are uniform, so check we're not unnecessarily packetizing 
 
@@ -129,40 +129,39 @@ entry:
 
 ; EE-UNI-VEC-LABEL: @__vecz_nxv4_extract_element_uniform_vec(
 ; EE-UNI-VEC:         [[XLEN:%.*]] = call i64 @llvm.vscale.i64()
-; EE-UNI-VEC:         [[T3:%.*]] = shl i64 [[XLEN]], 2
+; EE-UNI-VEC:         [[T3:%.*]] = shl {{(nuw )?}}i64 [[XLEN]], 2
 ; EE-UNI-VEC-NEXT:    [[T:%.*]] = trunc <vscale x 4 x i64> [[T2:%.*]] to <vscale x 4 x i32>
-; EE-UNI-VEC-NEXT:    [[I1:%.*]] = and <vscale x 4 x i32> [[T]], trunc (<vscale x 4 x i64> shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 3, {{(i32|i64)}} 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer) to <vscale x 4 x i32>)
-; EE-UNI-VEC-NEXT:    [[IDX02:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
-; EE-UNI-VEC-NEXT:    [[IDXSCALE:%.*]] = shl <vscale x 4 x i32> [[IDX02]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 2, {{(i32|i64)}} 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
+; EE-UNI-VEC-NEXT:    [[I1:%.*]] = and <vscale x 4 x i32> [[T]], {{splat \(i32 3\)|trunc \(<vscale x 4 x i64> splat \(i64 3\) to <vscale x 4 x i32>\)}}
+; EE-UNI-VEC-NEXT:    [[IDX02:%.*]] = call <vscale x 4 x i32> @llvm.stepvector.nxv4i32()
+; EE-UNI-VEC-NEXT:    [[IDXSCALE:%.*]] = shl <vscale x 4 x i32> [[IDX02]], splat (i32 2)
 
-; LLVM 16 deduces add/or equivalence and uses `or` instead.
-; EE-UNI-VEC-NEXT:    [[VS1:%.*]] = {{add|or}} <vscale x 4 x i32> [[IDXSCALE]], [[I1]]
+; EE-UNI-VEC-NEXT:    [[VS1:%.*]] = or disjoint <vscale x 4 x i32> [[IDXSCALE]], [[I1]]
 
-; EE-UNI-VEC-NEXT:    [[T4:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental.)?}}vector.insert.nxv16i32.nxv4i32(<vscale x 16 x i32> poison, <vscale x 4 x i32> [[VS1]], i64 0)
+; EE-UNI-VEC-NEXT:    [[T4:%.*]] = call <vscale x 16 x i32> @llvm.vector.insert.nxv16i32.nxv4i32(<vscale x 16 x i32> poison, <vscale x 4 x i32> [[VS1]], i64 0)
 ; EE-UNI-VEC-NEXT:    [[T5:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> poison, <vscale x 16 x float> [[T1:%.*]], <vscale x 16 x i32> [[T4]], i64 [[T3]])
-; EE-UNI-VEC-NEXT:    [[T6:%.*]] = call <vscale x 4 x float> @llvm.{{(experimental.)?}}vector.extract.nxv4f32.nxv16f32(<vscale x 16 x float> [[T5]], i64 0)
+; EE-UNI-VEC-NEXT:    [[T6:%.*]] = call <vscale x 4 x float> @llvm.vector.extract.nxv4f32.nxv16f32(<vscale x 16 x float> [[T5]], i64 0)
 
 ; EE-INDICES-LABEL: @__vecz_nxv4_extract_element_varying_indices(
 ; EE-INDICES:         [[XLEN:%.*]] = call i64 @llvm.vscale.i64()
-; EE-INDICES-NEXT:    [[T4:%.*]] = shl i64 [[XLEN]], 2
-; EE-INDICES-NEXT:    [[IDX0:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
-; EE-INDICES-NEXT:    [[IDXSCALE:%.*]] = shl <vscale x 4 x i32> [[IDX0]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 2, {{(i32|i64)}} 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
-; EE-INDICES-NEXT:    [[VS1:%.*]] = {{add|or}} <vscale x 4 x i32> [[IDXSCALE]], [[I1:%.*]]
-; EE-INDICES-NEXT:    [[T5:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental.)?}}vector.insert.nxv16i32.nxv4i32(<vscale x 16 x i32> poison, <vscale x 4 x i32> [[VS1]], i64 0)
+; EE-INDICES-NEXT:    [[T4:%.*]] = shl {{(nuw )?}}i64 [[XLEN]], 2
+; EE-INDICES-NEXT:    [[IDX0:%.*]] = call <vscale x 4 x i32> @llvm.stepvector.nxv4i32()
+; EE-INDICES-NEXT:    [[IDXSCALE:%.*]] = shl <vscale x 4 x i32> [[IDX0]], splat (i32 2)
+; EE-INDICES-NEXT:    [[VS1:%.*]] = or disjoint <vscale x 4 x i32> [[IDXSCALE]], [[I1:%.*]]
+; EE-INDICES-NEXT:    [[T5:%.*]] = call <vscale x 16 x i32> @llvm.vector.insert.nxv16i32.nxv4i32(<vscale x 16 x i32> poison, <vscale x 4 x i32> [[VS1]], i64 0)
 ; EE-INDICES-NEXT:    [[T6:%.*]] = call <vscale x 16 x float> @llvm.riscv.vrgather.vv.nxv16f32.i64(<vscale x 16 x float> poison, <vscale x 16 x float> [[T3:%.*]], <vscale x 16 x i32> [[T5]], i64 [[T4]])
-; EE-INDICES-NEXT:    [[T7:%.*]] = call <vscale x 4 x float> @llvm.{{(experimental.)?}}vector.extract.nxv4f32.nxv16f32(<vscale x 16 x float> [[T6]], i64 0)
+; EE-INDICES-NEXT:    [[T7:%.*]] = call <vscale x 4 x float> @llvm.vector.extract.nxv4f32.nxv16f32(<vscale x 16 x float> [[T6]], i64 0)
 
 ; Check we promote from i1 to i8 before doing our memops and use vrgatherei16.
 ; EE-BOOL-LABEL: @__vecz_nxv4_extract_element_bool(
 ; EE-BOOL:       [[T6:%.*]] = sext <vscale x 16 x i1> [[T5:%.*]] to <vscale x 16 x i8>
 ; EE-BOOL-NEXT:  [[XLEN:%.*]] = call i64 @llvm.vscale.i64()
-; EE-BOOL-NEXT:  [[T7:%.*]] = shl i64 [[XLEN]], 2
+; EE-BOOL-NEXT:  [[T7:%.*]] = shl {{(nuw )?}}i64 [[XLEN]], 2
 ; EE-BOOL-NEXT:  [[T8:%.*]] = trunc <vscale x 4 x i64> [[T0:%.*]] to <vscale x 4 x i16>
-; EE-BOOL-NEXT:  [[T9:%.*]] = and <vscale x 4 x i16> [[T8]], trunc (<vscale x 4 x i64> shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 3, {{(i32|i64)}} 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer) to <vscale x 4 x i16>)
-; EE-BOOL-NEXT:  [[T10:%.*]] = call <vscale x 4 x i16> @llvm.experimental.stepvector.nxv4i16()
-; EE-BOOL-NEXT:  [[T11:%.*]] = shl <vscale x 4 x i16> [[T10]], shufflevector (<vscale x 4 x i16> insertelement (<vscale x 4 x i16> poison, i16 2, {{(i32|i64)}} 0), <vscale x 4 x i16> poison, <vscale x 4 x i32> zeroinitializer)
-; EE-BOOL-NEXT:  [[VS1:%.*]] = {{add|or}} <vscale x 4 x i16> [[T11]], [[T9]]
-; EE-BOOL-NEXT:  [[T12:%.*]] = call <vscale x 16 x i16> @llvm.{{(experimental.)?}}vector.insert.nxv16i16.nxv4i16(<vscale x 16 x i16> poison, <vscale x 4 x i16> [[VS1]], i64 0)
+; EE-BOOL-NEXT:  [[T9:%.*]] = and <vscale x 4 x i16> [[T8]], {{splat \(i16 3\)|trunc \(<vscale x 4 x i64> splat \(i64 3\) to <vscale x 4 x i16>\)}}
+; EE-BOOL-NEXT:  [[T10:%.*]] = call <vscale x 4 x i16> @llvm.stepvector.nxv4i16()
+; EE-BOOL-NEXT:  [[T11:%.*]] = shl <vscale x 4 x i16> [[T10]], splat (i16 2)
+; EE-BOOL-NEXT:  [[VS1:%.*]] = or disjoint <vscale x 4 x i16> [[T11]], [[T9]]
+; EE-BOOL-NEXT:  [[T12:%.*]] = call <vscale x 16 x i16> @llvm.vector.insert.nxv16i16.nxv4i16(<vscale x 16 x i16> poison, <vscale x 4 x i16> [[VS1]], i64 0)
 ; EE-BOOL-NEXT:  [[T13:%.*]] = call <vscale x 16 x i8> @llvm.riscv.vrgatherei16.vv.nxv16i8.i64(<vscale x 16 x i8> poison, <vscale x 16 x i8> [[T6]], <vscale x 16 x i16> [[T12]], i64 [[T7]])
-; EE-BOOL-NEXT:  [[T14:%.*]] = call <vscale x 4 x i8> @llvm.{{(experimental.)?}}vector.extract.nxv4i8.nxv16i8(<vscale x 16 x i8> [[T13]], i64 0)
+; EE-BOOL-NEXT:  [[T14:%.*]] = call <vscale x 4 x i8> @llvm.vector.extract.nxv4i8.nxv16i8(<vscale x 16 x i8> [[T13]], i64 0)
 ; EE-BOOL-NEXT:  [[T15:%.*]] = trunc <vscale x 4 x i8> [[T14]] to <vscale x 4 x i1>

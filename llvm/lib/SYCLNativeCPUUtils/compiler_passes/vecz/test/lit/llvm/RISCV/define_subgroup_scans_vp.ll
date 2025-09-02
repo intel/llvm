@@ -41,7 +41,7 @@ define spir_kernel void @dummy(i32 addrspace(2)* %in, i32 addrspace(1)* %out) {
 declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_add_vp_u5nxv4jj(<vscale x 4 x i32>, i32)
 ; CHECK-LABEL: define <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_add_vp_u5nxv4jj(<vscale x 4 x i32>{{.*}}, i32{{.*}}) {
 ; CHECK: entry:
-; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.stepvector.nxv4i32()
 ; CHECK:   br label %loop
 ; CHECK: loop:
 ; CHECK:   %[[IV:.+]] = phi i32 [ 1, %entry ], [ %[[N2:.+]], %loop ]
@@ -71,7 +71,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_add_vp_u5nxv4jj(<v
 declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_vp_u5nxv4jj(<vscale x 4 x i32>, i32)
 ; CHECK-LABEL: define <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_vp_u5nxv4jj(<vscale x 4 x i32>{{.*}}, i32{{.*}}) {
 ; CHECK: entry:
-; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.stepvector.nxv4i32()
 ; CHECK:   br label %loop
 ; CHECK: loop:
 ; CHECK:   %[[IV:.+]] = phi i32 [ 1, %entry ], [ %[[N2:.+]], %loop ]

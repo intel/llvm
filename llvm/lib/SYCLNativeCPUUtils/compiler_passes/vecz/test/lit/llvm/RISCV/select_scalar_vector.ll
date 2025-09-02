@@ -41,9 +41,9 @@ entry:
 ; CHECK: [[rhs:%.*]] = load <vscale x 8 x i32>, ptr
 ; CHECK: [[cmp1:%.*]] = icmp slt <vscale x 4 x i32>
 ; CHECK: [[sext:%.*]] = sext <vscale x 4 x i1> [[cmp1]] to <vscale x 4 x i8>
-; CHECK: [[idx0:%.*]] = call <vscale x 8 x i16> @llvm.experimental.stepvector.nxv8i16()
-; CHECK: [[idx1:%.*]] = lshr <vscale x 8 x i16> [[idx0]], shufflevector (<vscale x 8 x i16> insertelement (<vscale x 8 x i16> poison, i16 1, {{i32|i64}} 0), <vscale x 8 x i16> poison, <vscale x 8 x i32> zeroinitializer)
+; CHECK: [[idx0:%.*]] = call <vscale x 8 x i16> @llvm.stepvector.nxv8i16()
+; CHECK: [[idx1:%.*]] = lshr <vscale x 8 x i16> [[idx0]], splat (i16 1)
 ; CHECK: [[gather:%.*]] = call <vscale x 8 x i8> @llvm.riscv.vrgatherei16.vv.nxv8i8.i64(<vscale x 8 x i8> poison, <vscale x 8 x i8> [[vs2:%.*]], <vscale x 8 x i16> [[vs1:%.*]], i64 [[xlen:%.*]])
 ; CHECK: [[cmp:%.*]] = trunc <vscale x 8 x i8> [[gather]] to <vscale x 8 x i1>
-; CHECK: [[sel:%.*]] = select <vscale x 8 x i1> [[cmp]], <vscale x 8 x i32> [[rhs]], <vscale x 8 x i32> shufflevector (<vscale x 8 x i32> insertelement (<vscale x 8 x i32> poison, i32 4, {{i32|i64}} 0), <vscale x 8 x i32> poison, <vscale x 8 x i32> zeroinitializer)
+; CHECK: [[sel:%.*]] = select <vscale x 8 x i1> [[cmp]], <vscale x 8 x i32> [[rhs]], <vscale x 8 x i32> splat (i32 4)
 ; CHECK: store <vscale x 8 x i32> [[sel]],
