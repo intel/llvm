@@ -41,7 +41,7 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
     {{"{args.prefix}{os.path.relpath(file_path, toolchain_dir).replace(os.sep, "/")}"}} ,
     []() {{
     static const char data[] = {{
-    #embed "{file_path}"
+    #embed "{file_path}" if_empty(0)
         , 0}};
     return std::string_view(data);
     }}()
@@ -50,6 +50,7 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
 
         process_dir(os.path.join(args.toolchain_dir, "include/"))
         process_dir(os.path.join(args.toolchain_dir, "lib/clang/"))
+        process_dir(os.path.join(args.toolchain_dir, "lib/clc/"))
 
         out.write(
             f"""
