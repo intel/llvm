@@ -366,55 +366,49 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
-  event submit_kernel_direct_with_event(nd_range<1> Range,
-                                 const detail::v1::KernelRuntimeInfo &KRInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc) {
+  event submit_kernel_direct_with_event(
+      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
         NDRDescT{Range}, KRInfo, true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
-  event submit_kernel_direct_with_event(nd_range<2> Range,
-                                 const detail::v1::KernelRuntimeInfo &KRInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc) {
+  event submit_kernel_direct_with_event(
+      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
         NDRDescT{Range}, KRInfo, true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
-  event submit_kernel_direct_with_event(nd_range<3> Range,
-                                 const detail::v1::KernelRuntimeInfo &KRInfo,
-                                 const detail::code_location &CodeLoc,
-                                 bool IsTopCodeLoc) {
+  event submit_kernel_direct_with_event(
+      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
         NDRDescT{Range}, KRInfo, true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
-  void submit_kernel_direct_without_event(nd_range<1> Range,
-                                   const detail::v1::KernelRuntimeInfo &KRInfo,
-                                   const detail::code_location &CodeLoc,
-                                   bool IsTopCodeLoc) {
+  void submit_kernel_direct_without_event(
+      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, KRInfo, false, CodeLoc,
-                       IsTopCodeLoc);
+                              IsTopCodeLoc);
   }
 
-  void submit_kernel_direct_without_event(nd_range<2> Range,
-                                   const detail::v1::KernelRuntimeInfo &KRInfo,
-                                   const detail::code_location &CodeLoc,
-                                   bool IsTopCodeLoc) {
+  void submit_kernel_direct_without_event(
+      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, KRInfo, false, CodeLoc,
-                       IsTopCodeLoc);
+                              IsTopCodeLoc);
   }
 
-  void submit_kernel_direct_without_event(nd_range<3> Range,
-                                   const detail::v1::KernelRuntimeInfo &KRInfo,
-                                   const detail::code_location &CodeLoc,
-                                   bool IsTopCodeLoc) {
+  void submit_kernel_direct_without_event(
+      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, KRInfo, false, CodeLoc,
-                       IsTopCodeLoc);
+                              IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
@@ -959,16 +953,17 @@ protected:
   ///        scope or in the top level scope.
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
-  detail::EventImplPtr submit_kernel_direct_impl(const NDRDescT &NDRDesc,
-                                          const v1::KernelRuntimeInfo &KRInfo,
-                                          bool CallerNeedsEvent,
-                                          const detail::code_location &CodeLoc,
-                                          bool IsTopCodeLoc);
+  detail::EventImplPtr submit_kernel_direct_impl(
+      const NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
+      bool CallerNeedsEvent, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc);
 
-using SubmitCommandFuncType = std::function<EventImplPtr(detail::CG::StorageInitHelper &CGData)>;
+  using SubmitCommandFuncType =
+      std::function<EventImplPtr(detail::CG::StorageInitHelper &CGData)>;
 
-  detail::EventImplPtr submit_generic_direct(bool CallerNeedsEvent,
-    SubmitCommandFuncType &SubmitCommandFunc);
+  detail::EventImplPtr
+  submit_generic_direct(bool CallerNeedsEvent,
+                        SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.

@@ -114,11 +114,12 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
 
 template <typename KernelName, typename PropertiesT, typename KernelType,
           int Dims>
-void submit_kernel_direct_impl(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
-                        const KernelType &KernelFunc,
-                        const sycl::detail::code_location &CodeLoc) {
-  Q.submit_kernel_direct_without_event<KernelName, PropertiesT, KernelType, Dims>(
-      Props, Range, KernelFunc, CodeLoc);
+void submit_kernel_direct_impl(const queue &Q, PropertiesT Props,
+                               nd_range<Dims> Range,
+                               const KernelType &KernelFunc,
+                               const sycl::detail::code_location &CodeLoc) {
+  Q.submit_kernel_direct_without_event<KernelName, PropertiesT, KernelType,
+                                       Dims>(Props, Range, KernelFunc, CodeLoc);
 }
 
 template <typename KernelName, typename PropertiesT, typename KernelType,
@@ -126,8 +127,9 @@ template <typename KernelName, typename PropertiesT, typename KernelType,
 event submit_kernel_direct_with_event_impl(
     const queue &Q, PropertiesT Props, nd_range<Dims> Range,
     const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_kernel_direct_with_event<KernelName, PropertiesT, KernelType, Dims>(
-      Props, Range, KernelFunc, CodeLoc);
+  return Q.submit_kernel_direct_with_event<KernelName, PropertiesT, KernelType,
+                                           Dims>(Props, Range, KernelFunc,
+                                                 CodeLoc);
 }
 } // namespace detail
 
@@ -180,8 +182,9 @@ event submit_with_event(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
                         const KernelType &KernelFunc,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  return sycl::ext::oneapi::experimental::detail::submit_kernel_direct_with_event_impl<
-      KernelName, PropertiesT, KernelType, Dims>(Q, Props, Range, KernelFunc,
+  return sycl::ext::oneapi::experimental::detail::
+      submit_kernel_direct_with_event_impl<KernelName, PropertiesT, KernelType,
+                                           Dims>(Q, Props, Range, KernelFunc,
                                                  CodeLoc);
 }
 

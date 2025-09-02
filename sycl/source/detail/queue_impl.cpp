@@ -448,47 +448,54 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    const NDRDescT &NDRDesc,
-    const v1::KernelRuntimeInfo &KRInfo, bool CallerNeedsEvent,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    const NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
+    bool CallerNeedsEvent, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
 
   // No special captures supported yet for the no-handler path
   assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
 
-  SubmitCommandFuncType SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
+  SubmitCommandFuncType SubmitKernelFunc =
+      [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
     std::unique_ptr<detail::CG> CommandGroup;
     std::vector<detail::ArgDesc> Args;
     std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
     std::vector<std::shared_ptr<const void>> AuxiliaryResources;
 
     Args = extractArgsAndReqsFromLambda(
-      KRInfo.GetKernelFuncPtr(), KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
-      KRInfo.DeviceKernelInfoPtr()->NumParams);
+        KRInfo.GetKernelFuncPtr(),
+        KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
+        KRInfo.DeviceKernelInfoPtr()->NumParams);
 
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(NDRDesc), KRInfo.HostKernel(),
         nullptr, // MKernel
         nullptr, // MKernelBundle
-        std::move(CGData), std::move(Args), toKernelNameStrT(KRInfo.KernelName()),
-        *KRInfo.DeviceKernelInfoPtr(), std::move(StreamStorage),
-        std::move(AuxiliaryResources), detail::CGType::Kernel,
-        UR_KERNEL_CACHE_CONFIG_DEFAULT,
+        std::move(CGData), std::move(Args),
+        toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+        std::move(StreamStorage), std::move(AuxiliaryResources),
+        detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
         false, // MKernelIsCooperative
         false, // MKernelUsesClusterLaunch
         0,     // MKernelWorkGroupMemorySize
         CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
+    // TODO DiscardEvent should include a check for requirements list
+    // once accessors are implemented
+    bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
+
     EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), *this, CallerNeedsEvent);
+        std::move(CommandGroup), *this, !DiscardEvent);
     return EventImpl;
   };
 
   return submit_generic_direct(CallerNeedsEvent, SubmitKernelFunc);
 }
 
-detail::EventImplPtr queue_impl::submit_generic_direct(
-    bool CallerNeedsEvent, SubmitCommandFuncType &SubmitCommandFunc) {
+detail::EventImplPtr
+queue_impl::submit_generic_direct(bool CallerNeedsEvent,
+                                  SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
