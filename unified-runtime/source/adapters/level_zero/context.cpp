@@ -565,7 +565,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 
     ze_result_t Result = ZE_CALL_NOCHECK(
         zeEventPoolCreate,
-        (ZeContext, &ZeEventPoolDesc, ZeDevices.size(), &ZeDevices[0], &Pool));
+        (ZeContext, &ZeEventPoolDesc, ZeDevices.size(), &ZeDevices[0], ZePool));
     if (IsInternal && ze2urResult(Result) == UR_RESULT_ERROR_OUT_OF_RESOURCES &&
         Queue) {
       if (!Queue->isInOrderQueue()) {
@@ -577,7 +577,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
           UR_CALL(resetCommandLists(Queue));
         }
         ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
-                                       ZeDevices.size(), &ZeDevices[0], &Pool));
+                                       ZeDevices.size(), &ZeDevices[0], ZePool));
       }
     } else if (ze2urResult(Result) != UR_RESULT_SUCCESS) {
       return ze2urResult(Result);
