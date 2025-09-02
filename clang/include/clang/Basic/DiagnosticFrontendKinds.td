@@ -330,6 +330,9 @@ def err_sycl_illegal_virtual_call
 def note_sycl_virtual_call_done_from : Note<"performed by function '%1'">,
                                        BackendInfo;
 
+def err_omp_host_ir_file_not_found : Error<
+  "provided host compiler IR file '%0' is required to generate code for OpenMP "
+  "target regions but cannot be found">;
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;

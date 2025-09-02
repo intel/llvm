@@ -1035,7 +1035,8 @@ static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   // DirectX resources
   if (Name.starts_with("dx."))
     return TargetTypeInfo(PointerType::get(C, 0), TargetExtType::CanBeGlobal,
-                          TargetExtType::CanBeLocal);
+                          TargetExtType::CanBeLocal,
+                          TargetExtType::IsTokenLike);
 
   // Opaque types in the AMDGPU name space.
   if (Name == "amdgcn.named.barrier") {
@@ -1051,6 +1052,14 @@ static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   }
 
   return TargetTypeInfo(Type::getVoidTy(C));
+}
+
+bool Type::isTokenLikeTy() const {
+  if (isTokenTy())
+    return true;
+  if (auto *TT = dyn_cast<TargetExtType>(this))
+    return TT->hasProperty(TargetExtType::Property::IsTokenLike);
+  return false;
 }
 
 Type *TargetExtType::getLayoutType() const {

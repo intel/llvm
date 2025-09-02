@@ -467,7 +467,6 @@ static bool initTargetOptions(const CompilerInstance &CI,
                               LangOptions::FPModeKind::FPM_Fast ||
                           LangOpts.getDefaultFPContractMode() ==
                               LangOptions::FPModeKind::FPM_FastHonorPragmas);
-  Options.ApproxFuncFPMath = LangOpts.ApproxFunc;
 
   Options.BBAddrMap = CodeGenOpts.BBAddrMap;
   Options.BBSections =
