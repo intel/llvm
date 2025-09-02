@@ -215,7 +215,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     }
 #endif
   }
-  if (std::string_view(StreamName) == "sycl" &&
+  if ((std::string_view(StreamName) == "sycl" ||
+       std::string_view(StreamName) == "sycl.debug") &&
       std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersInit();
     uint16_t StreamID = xptiRegisterStream(StreamName);
@@ -254,10 +255,12 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
     cudaCollectorLibrary.clear();
   }
 #endif
-  if (std::string_view(StreamName) == "sycl" &&
-      std::getenv("SYCL_TRACE_API_ENABLE"))
+  if ((std::string_view(StreamName) == "sycl" ||
+       std::string_view(StreamName) == "sycl.debug") &&
+      std::getenv("SYCL_TRACE_API_ENABLE")) {
     syclPrintersFinish();
-  if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
-    vPrintersFinish();
+    if (std::getenv("SYCL_TRACE_VERIFICATION_ENABLE")) {
+      vPrintersFinish();
+    }
   }
 }

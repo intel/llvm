@@ -221,8 +221,19 @@ trace point that includes an event, a trace point type and a notification.
   can attached a per-instance user data during this notification call that
   *must* be guaranteed to be valid for the duration of the notification call.
 
+- To support performance and debug streams, subscribing to the stream **"sycl.debug"**
+  allows the default streams to contain additional metadata when keeping overheads
+  to a minimum is not important
+
 This document will outline the protocol for the streams of data being generated
 by the SYCL runtime.
+
+## SYCL Stream `"sycl.debug"` Notification Signatures
+
+The "sycl.debug" stream is a dummy stream, when subscribed to, indicates to the SYCL
+runtime that additional metadata can be propagated for each SYCL event. Many toolchains
+like to keep the overheads low when subscribing to the data and this provides a mechanism
+to get more data when keeping overheads low is not important.
 
 ## SYCL Stream `"ur.call"` Notification Signatures
 
