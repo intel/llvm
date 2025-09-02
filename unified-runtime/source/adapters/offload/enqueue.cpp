@@ -25,11 +25,15 @@ ol_result_t waitOnEvents(ol_queue_handle_t Queue,
   if (NumEvents) {
     std::vector<ol_event_handle_t> OlEvents;
     OlEvents.reserve(NumEvents);
+    size_t RealEventCount = 0;
     for (size_t I = 0; I < NumEvents; I++) {
-      OlEvents.push_back(UrEvents[I]->OffloadEvent);
+      if (UrEvents[I]->OffloadEvent) {
+        RealEventCount++;
+        OlEvents.push_back(UrEvents[I]->OffloadEvent);
+      }
     }
 
-    return olWaitEvents(Queue, OlEvents.data(), NumEvents);
+    return olWaitEvents(Queue, OlEvents.data(), RealEventCount);
   }
   return OL_SUCCESS;
 }
@@ -137,6 +141,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   return doWait<true>(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+// This function only makes sense for level_zero, the flag in properties is
+// ignored
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -192,6 +206,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
+    ur_queue_handle_t hQueue, void *pMem, size_t patternSize,
+    const void *pPattern, size_t size, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+
+  OL_RETURN_ON_ERR(
+      olMemFill(Queue, pMem, patternSize, const_cast<void *>(pPattern), size));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_FILL, Queue, hQueue, phEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ur_queue_handle_t, void *, size_t, size_t, const void *, size_t, size_t,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
@@ -216,6 +245,8 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
   OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
 
   if (blocking) {
+    // Ensure all work in the queue is complete
+    OL_RETURN_ON_ERR(olSyncQueue(Queue));
     OL_RETURN_ON_ERR(
         olMemcpy(nullptr, DestPtr, DestDevice, SrcPtr, SrcDevice, size));
     if (phEvent) {
@@ -277,6 +308,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                   hQueue->OffloadDevice, DevPtrSrc + srcOffset,
                   hQueue->OffloadDevice, size, false, numEventsInWaitList,
                   phEventWaitList, phEvent);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
+    size_t patternSize, size_t offset, size_t size,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+
+  char *DevPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+
+  OL_RETURN_ON_ERR(olMemFill(Queue, DevPtr + offset, patternSize,
+                             const_cast<void *>(pPattern), size));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_FILL, Queue, hQueue, phEvent));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
@@ -401,6 +451,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   return doMemcpy(UR_COMMAND_USM_MEMCPY, hQueue, pDst, GetDevice(pDst), pSrc,
                   GetDevice(pSrc), size, blocking, numEventsInWaitList,
                   phEventWaitList, phEvent);
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size, [[maybe_unused]] ur_usm_advice_flags_t advice,
+    ur_event_handle_t *phEvent) {
+  // Currently not supported - do nothing
+  if (phEvent) {
+    *phEvent =
+        ur_event_handle_t_::createEmptyEvent(UR_COMMAND_USM_ADVISE, hQueue);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size,
+    [[maybe_unused]] ur_usm_migration_flags_t flags,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  // Currently not supported - do nothing
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+  OL_RETURN_ON_ERR(makeEvent(UR_COMMAND_USM_PREFETCH, Queue, hQueue, phEvent));
 
   return UR_RESULT_SUCCESS;
 }

@@ -24,6 +24,11 @@ struct MockKernelInfoBase {
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
   static constexpr int64_t getKernelSize() { return 1; }
+
+  static constexpr const char *getFileName() { return ""; }
+  static constexpr const char *getFunctionName() { return ""; }
+  static constexpr unsigned getLineNumber() { return 0; }
+  static constexpr unsigned getColumnNumber() { return 0; }
 };
 
 } // namespace unittest

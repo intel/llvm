@@ -21,6 +21,9 @@ namespace ur_sanitizer_layer {
 
 enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
+// Try to use a larger ID number to avoid conflict with user ID.
+#define SPEC_CONSTANT_DEVICE_TYPE_ID (INT32_MAX - 1)
+
 inline const char *ToString(DeviceType Type) {
   switch (Type) {
   case DeviceType::UNKNOWN:
