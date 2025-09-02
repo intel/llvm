@@ -10,8 +10,12 @@ on:
     - cron: '0 * * * *' # every hour
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   notify-ready-prs:
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Check
