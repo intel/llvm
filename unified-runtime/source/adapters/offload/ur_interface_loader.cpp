@@ -90,12 +90,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
   pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
-  pDdiTable->pfnGetBuildInfo = nullptr;
+  pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
   pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
   pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
-  pDdiTable->pfnLink = nullptr;
+  pDdiTable->pfnLink = urProgramLink;
   pDdiTable->pfnRelease = urProgramRelease;
   pDdiTable->pfnRetain = urProgramRetain;
   pDdiTable->pfnSetSpecializationConstants =
