@@ -233,8 +233,7 @@ runs:
 
       cd "./llvm-ci-perf-results"
       git add .
-      IFS="$(printf '\n')"
-      for diff in $(git diff HEAD --name-only); do
+      git diff HEAD --name-only | while IFS="$(printf '\n')" read -r diff; do
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
       done
