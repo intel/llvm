@@ -1,4 +1,4 @@
-// REQUIRES: ext_oneapi_clock
+// REQUIRES: aspect-ext_oneapi_clock, aspect-usm_shared_allocations
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/clock.hpp>
@@ -35,6 +35,7 @@ int main() {
   assert(data[0] > 0);
   assert(data[1] > 0);
   assert(data[2] > 0);
+  sycl::free(data, q);
 
   return 0;
 }
