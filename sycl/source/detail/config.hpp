@@ -271,9 +271,6 @@ getSyclDeviceTypeMap() {
           {{"host", info::device_type::host},
            {"cpu", info::device_type::cpu},
            {"gpu", info::device_type::gpu},
-           /* Duplicate entries are fine as this map is one-directional.*/
-           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
-           {"fpga", info::device_type::accelerator},
            {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
@@ -514,7 +511,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
+    auto DeviceTypeMap = getSyclDeviceTypeMap();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;
