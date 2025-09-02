@@ -27,7 +27,10 @@ public:
   DeviceGlobalMap(bool OwnerControlledCleanup)
       : MOwnerControlledCleanup{OwnerControlledCleanup} {}
 
-  ~DeviceGlobalMap() {
+  DeviceGlobalMap(const DeviceGlobalMap &) = default;
+  DeviceGlobalMap &operator=(const DeviceGlobalMap &) = default;
+
+  ~DeviceGlobalMap() noexcept(false) {
     if (!MOwnerControlledCleanup)
       for (auto &DeviceGlobalIt : MDeviceGlobals)
         DeviceGlobalIt.second->cleanup();
