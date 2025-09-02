@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
 ; RUN: veczc -k store_ult -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s
 
 ; Check that we can scalably-vectorize a call to get_global_id by using the

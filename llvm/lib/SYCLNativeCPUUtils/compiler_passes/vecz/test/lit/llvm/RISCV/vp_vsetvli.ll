@@ -14,8 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-14+
-
 ; RUN: veczc -vecz-target-triple="riscv64-unknown-unknown" -vecz-target-features=+v -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s
 
 target triple = "spir64-unknown-unknown"

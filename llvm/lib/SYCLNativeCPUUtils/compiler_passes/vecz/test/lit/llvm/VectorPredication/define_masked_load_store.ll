@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
 ; RUN: veczc -k dont_mask_workitem_builtins -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'

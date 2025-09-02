@@ -14,8 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
-
 ; RUN: veczc -k udiv -vecz-scalable -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | FileCheck %s
 
 target triple = "spir64-unknown-unknown"

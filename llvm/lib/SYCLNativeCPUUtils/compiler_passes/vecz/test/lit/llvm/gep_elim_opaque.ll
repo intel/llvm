@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-15+
 ; RUN: veczc -k test -vecz-simd-width=4 -vecz-passes=gep-elim -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'

@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
 ; Just check that the VectorPredication choice is valid
 ; RUN: veczc -k foo -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s
 

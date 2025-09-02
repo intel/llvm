@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
 ; RUN: veczc -k ctpop -vecz-scalable -vecz-simd-width=2 -S < %s | FileCheck %s --check-prefix CTPOP
 ; RUN: veczc -k ctlz -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix CTLZ
 ; RUN: veczc -k cttz -vecz-scalable -vecz-simd-width=8 -S < %s | FileCheck %s --check-prefix CTTZ

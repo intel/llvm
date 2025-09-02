@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-12+
 ; RUN: veczc -k foo -w 2 -vecz-passes scalarize,mask-memops,packetizer -print-after mask-memops -S < %s 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

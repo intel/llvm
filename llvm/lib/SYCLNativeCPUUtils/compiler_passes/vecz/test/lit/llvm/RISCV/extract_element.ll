@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
 ; RUN: veczc -k extract_element -vecz-target-triple="riscv64-unknown-unknown" -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE
 ; RUN: not veczc -k extract_element_ilegal -vecz-target-triple="riscv64-unknown-unknown" -vecz-scalable -vecz-simd-width=4 -S < %s
 ; RUN: veczc -k extract_element_uniform -vecz-target-triple="riscv64-unknown-unknown" -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=EE-UNI

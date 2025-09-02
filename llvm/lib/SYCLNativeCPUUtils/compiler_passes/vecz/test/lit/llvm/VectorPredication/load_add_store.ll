@@ -14,8 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
-
 ; RUN: veczc -k load_add_store_i32 -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_4F
 ; RUN: veczc -k load_add_store_i32 -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_1S
 ; RUN: veczc -k load_add_store_v4i32 -vecz-simd-width=2 -vecz-choices=VectorPredication -S < %s | FileCheck %s --check-prefix CHECK_V4_2F

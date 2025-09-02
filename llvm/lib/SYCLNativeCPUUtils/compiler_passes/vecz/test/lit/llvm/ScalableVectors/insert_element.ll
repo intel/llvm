@@ -14,7 +14,6 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
 ; RUN: veczc -k insert_element -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=IE
 ; RUN: veczc -k insert_element_uniform -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=IE-UNI
 ; RUN: veczc -k insert_element_varying_indices -vecz-scalable -vecz-simd-width=4 -S < %s | FileCheck %s --check-prefix=IE-INDICES
