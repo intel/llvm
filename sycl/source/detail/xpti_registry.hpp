@@ -40,6 +40,11 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 
 /// We define all the streams used the instrumentation framework here
 inline constexpr const char *SYCL_STREAM_NAME = "sycl";
+// We will use "*.debug" stream names as indicators of needing debugging
+// information; in this case, the tool will have to subscribe to the *.debug
+// stream to get additional debug metadata, but the metadata will still be sent
+// through the regular stream.
+inline constexpr const char *SYCL_DEBUG_STREAM_NAME = "sycl.debug";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";
 // Stream name being used to notify about buffer objects.
@@ -53,6 +58,7 @@ extern uint8_t GBufferStreamID;
 extern uint8_t GImageStreamID;
 extern uint8_t GMemAllocStreamID;
 extern uint8_t GSYCLStreamID;
+extern uint8_t GSYCLDebugStreamID;
 extern uint8_t GUrApiStreamID;
 
 extern xpti::trace_event_data_t *GMemAllocEvent;
@@ -79,6 +85,10 @@ public:
       // SYCL events
       detail::GSYCLStreamID =
           this->initializeStream(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+      // Register the SYCL Debug event stream; tools subscribing to this stream
+      // will receive additional metadata in the regular "sycl" stream.
+      detail::GSYCLDebugStreamID = this->initializeStream(
+          SYCL_DEBUG_STREAM_NAME, GMajVer, GMinVer, GVerStr);
       // SYCL buffer events
       detail::GBufferStreamID = this->initializeStream(
           SYCL_BUFFER_STREAM_NAME, GMajVer, GMinVer, GVerStr);

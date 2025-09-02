@@ -40,6 +40,10 @@ static std::shared_ptr<XptiContextManager> xptiContextManagerGet() {
   static auto contextManager = std::make_shared<XptiContextManager>();
   return contextManager;
 }
+
+// The Unified Runtime API calls are meant to be performant and creating an
+// event for each API Call will add significant overheads
+static xpti_td *GURCallEvent = nullptr;
 static thread_local xpti_td *activeEvent;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,11 +55,18 @@ context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
   streamv << STREAM_VER_MAJOR << "." << STREAM_VER_MINOR;
   xptiInitialize(CALL_STREAM_NAME, STREAM_VER_MAJOR, STREAM_VER_MINOR,
                  streamv.str().data());
+  // Create global event for all UR API calls
+  auto Event =
+      xptiCreateTracepoint("Unified Runtime call", nullptr, 0, 0, (void *)this);
+  // For function_begin/function_end class of notification, the parent and the
+  // event object can be NULL based on the specification
+  GURCallEvent = Event ? Event->event_ref() : nullptr;
 }
 
 void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
                        void *args, ur_result_t *resultp, uint64_t instance) {
   xpti::function_with_args_t payload{id, name, args, resultp, nullptr};
+  // Use global event for all UR API calls
   xptiNotifySubscribers(call_stream_id, trace_type, nullptr, activeEvent,
                         instance, &payload);
 }
@@ -67,16 +78,23 @@ uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
     return UINT64_MAX;
   }
 
-  if (auto loc = codelocData.get_codeloc()) {
-    xpti::payload_t payload =
-        xpti::payload_t(loc->functionName, loc->sourceFile, loc->lineNumber,
-                        loc->columnNumber, nullptr);
-    uint64_t InstanceNumber{};
-    activeEvent =
-        xptiMakeEvent("Unified Runtime call", &payload, xpti::trace_graph_event,
-                      xpti_at::active, &InstanceNumber);
-  }
+  //  Previous implementation created a new event for each UR API call. This
+  //  adds significant overhead to the tracing toolchain. Replacing the
+  //  previous code with a single global event for all UR API calls:
+  //
+  //  PREVIOUS CODE:
+  //  if (auto loc = codelocData.get_codeloc()) {
+  //    xpti::payload_t payload =
+  //        xpti::payload_t(loc->functionName, loc->sourceFile, loc->lineNumber,
+  //                        loc->columnNumber, nullptr);
+  //    uint64_t InstanceNumber{};
+  //    activeEvent =
+  //        xptiMakeEvent("Unified Runtime call", &payload,
+  //        xpti::trace_graph_event,
+  //                      xpti_at::active, &InstanceNumber);
+  //  }
 
+  activeEvent = GURCallEvent;
   uint64_t instance = xptiGetUniqueId();
   notify((uint16_t)xpti::trace_point_type_t::function_with_args_begin, id, name,
          args, nullptr, instance);

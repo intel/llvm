@@ -614,16 +614,16 @@ void Command::emitEdgeEventForCommandDependence(
   std::string TypeString = SH.nameWithAddressString(Prefix, AddressStr);
   // Create an edge with the dependent buffer address for which a command
   // object has been created as one of the properties of the edge
-  xpti::payload_t Payload(TypeString.c_str(), MAddress);
-  uint64_t EdgeInstanceNo;
-  xpti_td *EdgeEvent =
-      xptiMakeEvent(TypeString.c_str(), &Payload, xpti::trace_graph_event,
-                    xpti_at::active, &EdgeInstanceNo);
-  if (EdgeEvent) {
+  uint64_t EdgeInstanceNo = xptiGetUniqueId();
+  auto Event =
+      xptiCreateTracepoint(TypeString.c_str(), nullptr, 0, 0, MAddress);
+  if (Event) {
+    xpti_td *EdgeEvent = Event->event_ref();
     xpti_td *SrcEvent = static_cast<xpti_td *>(Cmd->MTraceEvent);
     xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
     EdgeEvent->source_id = SrcEvent->unique_id;
     EdgeEvent->target_id = TgtEvent->unique_id;
+    // We allow this metadata to be set as it describes the edge
     if (IsCommand) {
       xpti::addMetadata(EdgeEvent, "access_mode",
                         static_cast<int>(AccMode.value()));
@@ -670,29 +670,33 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
     std::string NodeName = SH.nameWithAddressString("virtual_node", AddressStr);
 
     // Node name is "virtual_node[<event_addr>]"
-    xpti::payload_t VNPayload(NodeName.c_str(), MAddress);
-    uint64_t VNodeInstanceNo;
-    xpti_td *NodeEvent =
-        xptiMakeEvent(NodeName.c_str(), &VNPayload, xpti::trace_graph_event,
-                      xpti_at::active, &VNodeInstanceNo);
-    // Emit the virtual node first
-    xpti::addMetadata(NodeEvent, "kernel_name", NodeName);
-    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
-                          detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
-                          nullptr);
+    auto NEvent =
+        xptiCreateTracepoint(NodeName.c_str(), nullptr, 0, 0, MAddress);
+    uint64_t VNodeInstanceNo = xptiGetUniqueId();
+    xpti_td *NodeEvent = NEvent ? NEvent->event_ref() : nullptr;
+    if (NodeEvent) {
+      // We allow this metadata to be set as the node is a virtual node without
+      // an actual name
+      xpti::addMetadata(NodeEvent, "kernel_name", NodeName);
+
+      xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+                            detail::GSYCLGraphEvent, NodeEvent, VNodeInstanceNo,
+                            nullptr);
+    }
     // Create a new event for the edge
     std::string EdgeName = SH.nameWithAddressString("Event", AddressStr);
-    xpti::payload_t EdgePayload(EdgeName.c_str(), MAddress);
-    uint64_t EdgeInstanceNo;
-    xpti_td *EdgeEvent =
-        xptiMakeEvent(EdgeName.c_str(), &EdgePayload, xpti::trace_graph_event,
-                      xpti_at::active, &EdgeInstanceNo);
+    auto EEvent =
+        xptiCreateTracepoint(EdgeName.c_str(), nullptr, 0, 0, MAddress);
+    uint64_t EdgeInstanceNo = xptiGetUniqueId();
+    xpti_td *EdgeEvent = EEvent ? EEvent->event_ref() : nullptr;
     if (EdgeEvent && NodeEvent) {
       // Source node represents the event and this event needs to be completed
       // before target node can execute
       xpti_td *TgtEvent = static_cast<xpti_td *>(MTraceEvent);
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
+      // We allow this metadata to be set as an edge without the event address
+      // will be less useful
       xpti::addMetadata(EdgeEvent, "event",
                         reinterpret_cast<size_t>(UrEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -719,11 +723,10 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
   std::string CommandString =
       SH.nameWithAddressString(MCommandName, MAddressString);
 
-  xpti::payload_t p(CommandString.c_str(), MAddress);
-  xpti_td *CmdTraceEvent =
-      xptiMakeEvent(CommandString.c_str(), &p, xpti::trace_graph_event,
-                    xpti_at::active, &CommandInstanceNo);
-  MInstanceID = CommandInstanceNo;
+  auto Event =
+      xptiCreateTracepoint(CommandString.c_str(), nullptr, 0, 0, MAddress);
+  xpti_td *CmdTraceEvent = Event ? Event->event_ref() : nullptr;
+  MInstanceID = xptiGetUniqueId();
   if (CmdTraceEvent) {
     MTraceEvent = (void *)CmdTraceEvent;
     // If we are seeing this event again, then the instance ID will be greater
@@ -734,7 +737,7 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
     // maintaining data integrity.
   }
 #endif
-  return CommandInstanceNo;
+  return MInstanceID;
 }
 
 void Command::makeTraceEventEpilog() {
@@ -973,14 +976,15 @@ void Command::resolveReleaseDependencies(std::set<Command *> &DepList) {
       // Create an edge with the dependent buffer address being one of the
       // properties of the edge
       xpti::payload_t p(TypeString.c_str(), MAddress);
-      uint64_t EdgeInstanceNo;
-      xpti_td *EdgeEvent =
-          xptiMakeEvent(TypeString.c_str(), &p, xpti::trace_graph_event,
-                        xpti_at::active, &EdgeInstanceNo);
+      uint64_t EdgeInstanceNo = xptiGetUniqueId();
+      auto Event =
+          xptiCreateTracepoint(TypeString.c_str(), nullptr, 0, 0, MAddress);
+      xpti_td *EdgeEvent = Event ? Event->event_ref() : nullptr;
       if (EdgeEvent) {
         xpti_td *SrcTraceEvent = static_cast<xpti_td *>(Item->MTraceEvent);
         EdgeEvent->target_id = TgtTraceEvent->unique_id;
         EdgeEvent->source_id = SrcTraceEvent->unique_id;
+        // We will ensure this is always added
         xpti::addMetadata(EdgeEvent, "memory_object",
                           reinterpret_cast<size_t>(MAddress));
         xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
@@ -1049,6 +1053,7 @@ void AllocaCommandBase::emitInstrumentationData() {
   if (MTraceEvent) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
     addDeviceMetadata(TE, MQueue);
+    // Memory-object is used frequently, so it is always added
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
@@ -2043,32 +2048,20 @@ void instrumentationFillCommonData(const std::string &KernelName,
                                    xpti_td *&OutTraceEvent) {
   //  Get source file, line number information from the CommandGroup object
   //  and create payload using name, address, and source info
-  //
-  //  On Windows, since the support for builtin functions is not available in
-  //  MSVC, the MFileName, MLine will be set to nullptr and "0" respectively.
-  //  Handle this condition explicitly here.
-  bool HasSourceInfo = false;
-  xpti::payload_t Payload;
-  if (!FileName.empty()) {
-    // File name has a valid string
-    Payload =
-        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.data(),
-                        FileName.data(), Line, Column, Address);
-    HasSourceInfo = true;
-  } else if (Address) {
-    // We have a valid function name and an address
-    Payload = xpti::payload_t(KernelName.data(), Address);
+  bool HasSourceInfo = !FileName.empty();
+  xpti_tracepoint_t *Event;
+  void *AddressToUse = const_cast<void *>(Address);
+  if (HasSourceInfo) {
+    Event = xptiCreateTracepoint(FuncName.c_str(), FileName.c_str(), Line,
+                                 Column, AddressToUse);
   } else {
-    // In any case, we will have a valid function name and we'll use that to
-    // create the hash
-    Payload = xpti::payload_t(KernelName.data());
+    Event =
+        xptiCreateTracepoint(KernelName.data(), nullptr, 0, 0, AddressToUse);
   }
 
-  uint64_t CGKernelInstanceNo;
+  uint64_t CGKernelInstanceNo = xptiGetUniqueId();
   // Create event using the payload
-  xpti_td *CmdTraceEvent =
-      xptiMakeEvent("ExecCG", &Payload, xpti::trace_graph_event,
-                    xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
+  xpti_td *CmdTraceEvent = Event ? Event->event_ref() : nullptr;
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
@@ -2077,15 +2070,19 @@ void instrumentationFillCommonData(const std::string &KernelName,
     if (!KernelName.empty()) {
       xpti::addMetadata(CmdTraceEvent, "kernel_name", KernelName);
     }
-    if (FromSource.has_value()) {
-      xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
-    }
-    if (HasSourceInfo) {
-      xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
-      xpti::addMetadata(CmdTraceEvent, "sym_source_file_name", FileName);
-      xpti::addMetadata(CmdTraceEvent, "sym_line_no", static_cast<int>(Line));
-      xpti::addMetadata(CmdTraceEvent, "sym_column_no",
-                        static_cast<int>(Column));
+    // We limit the metadata to only include the kernel name and device
+    // information by default
+    if (xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)) {
+      if (FromSource.has_value()) {
+        xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
+      }
+      if (HasSourceInfo) {
+        xpti::addMetadata(CmdTraceEvent, "sym_function_name", KernelName);
+        xpti::addMetadata(CmdTraceEvent, "sym_source_file_name", FileName);
+        xpti::addMetadata(CmdTraceEvent, "sym_line_no", static_cast<int>(Line));
+        xpti::addMetadata(CmdTraceEvent, "sym_column_no",
+                          static_cast<int>(Column));
+      }
     }
     // We no longer set the 'queue_id' in the metadata structure as it is a
     // mutable value and multiple threads using the same queue created at the
@@ -2137,11 +2134,14 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     if (Queue)
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));
-    instrumentationAddExtraKernelMetadata(
-        CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), DeviceKernelInfo, SyclKernel, Queue,
-        CGArgs);
-
+    // Add the additional metadata only if the debug information is subscribed
+    // to; in this case, it is the kernel and its parameters
+    if (xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)) {
+      instrumentationAddExtraKernelMetadata(
+          CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
+          std::string(SyclKernelName), DeviceKernelInfo, SyclKernel, Queue,
+          CGArgs);
+    }
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
         InstanceID,
