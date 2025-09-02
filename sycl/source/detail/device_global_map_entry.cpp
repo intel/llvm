@@ -75,6 +75,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
+  NewAlloc.MAllocatingContext = CtxImpl.shared_from_this();
 
   // Initialize here and save the event.
   {
@@ -132,6 +133,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
+  NewAlloc.MAllocatingContext = CtxImpl.shared_from_this();
 
   if (MDeviceGlobalPtr) {
     // C++ guarantees members appear in memory in the order they are declared,
