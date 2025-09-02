@@ -22,4 +22,23 @@ struct ur_program_handle_t_ : RefCounted {
   size_t BinarySizeInBytes;
   // A mapping from mangled global names -> names in the binary
   std::unordered_map<std::string, std::string> GlobalIDMD;
+  // The UR offload backend doesn't draw distinctions between these types (we
+  // always have a fully built binary), but we need to track what state we are
+  // pretending to be in
+  ur_program_binary_type_t BinaryType;
+  std::string Error;
+
+  static ur_program_handle_t_ *newErrorProgram(ur_context_handle_t Context,
+                                               const uint8_t *Binary,
+                                               size_t BinarySizeInBytes,
+                                               std::string &&Error) {
+    return new ur_program_handle_t_{{},
+                                    nullptr,
+                                    Context,
+                                    Binary,
+                                    BinarySizeInBytes,
+                                    {},
+                                    UR_PROGRAM_BINARY_TYPE_NONE,
+                                    Error};
+  }
 };
