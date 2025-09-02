@@ -448,7 +448,7 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    const NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
+    NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
     bool CallerNeedsEvent, const detail::code_location &CodeLoc,
     bool IsTopCodeLoc) {
 
@@ -457,37 +457,58 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
 
   SubmitCommandFuncType SubmitKernelFunc =
       [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
-    std::unique_ptr<detail::CG> CommandGroup;
     std::vector<detail::ArgDesc> Args;
-    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
-    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
-
-    Args = extractArgsAndReqsFromLambda(
-        KRInfo.GetKernelFuncPtr(),
-        KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
-        KRInfo.DeviceKernelInfoPtr()->NumParams);
-
-    CommandGroup.reset(new detail::CGExecKernel(
-        std::move(NDRDesc), KRInfo.HostKernel(),
-        nullptr, // MKernel
-        nullptr, // MKernelBundle
-        std::move(CGData), std::move(Args),
-        toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
-        std::move(StreamStorage), std::move(AuxiliaryResources),
-        detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
-        false, // MKernelIsCooperative
-        false, // MKernelUsesClusterLaunch
-        0,     // MKernelWorkGroupMemorySize
-        CodeLoc));
-    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
-
-    // TODO DiscardEvent should include a check for requirements list
-    // once accessors are implemented
     bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
 
-    EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
-        std::move(CommandGroup), *this, !DiscardEvent);
-    return EventImpl;
+    bool SchedulerBypass = detail::Scheduler::areEventsSafeForSchedulerBypass(
+        CGData.MEvents, getContextImpl());
+
+    if (SchedulerBypass) {
+      std::vector<ur_event_handle_t> RawEvents =
+          detail::Command::getUrEvents(CGData.MEvents, this, false);
+
+      std::shared_ptr<detail::event_impl> ResultEvent =
+          DiscardEvent ? nullptr
+                       : detail::event_impl::create_device_event(*this);
+
+      enqueueImpKernel(
+          *this, NDRDesc, Args, nullptr, nullptr,
+          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          RawEvents, ResultEvent.get(), nullptr, UR_KERNEL_CACHE_CONFIG_DEFAULT,
+          false, false, 0, nullptr);
+
+      return ResultEvent;
+    } else {
+      std::unique_ptr<detail::CG> CommandGroup;
+      std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+      std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+      Args = extractArgsAndReqsFromLambda(
+          KRInfo.GetKernelFuncPtr(),
+          KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
+          KRInfo.DeviceKernelInfoPtr()->NumParams);
+
+      CommandGroup.reset(new detail::CGExecKernel(
+          std::move(NDRDesc), KRInfo.HostKernel(),
+          nullptr, // MKernel
+          nullptr, // MKernelBundle
+          std::move(CGData), std::move(Args),
+          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          std::move(StreamStorage), std::move(AuxiliaryResources),
+          detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
+          false, // MKernelIsCooperative
+          false, // MKernelUsesClusterLaunch
+          0,     // MKernelWorkGroupMemorySize
+          CodeLoc));
+      CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+      // TODO DiscardEvent should include a check for requirements list
+      // once accessors are implemented
+
+      EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
+          std::move(CommandGroup), *this, !DiscardEvent);
+      return EventImpl;
+    }
   };
 
   return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
@@ -539,12 +560,12 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   EventImplPtr EventImpl = SubmitCommandFunc(CGData);
 
   // Sync with the last event for in order queue
-  if (isInOrder() && !EventImpl->isDiscarded()) {
+  if (isInOrder() && EventImpl && !EventImpl->isDiscarded()) {
     LastEvent = EventImpl;
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
-  if (!isInOrder() && !EventImpl->isEnqueued()) {
+  if (!isInOrder() && EventImpl && !EventImpl->isEnqueued()) {
     MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
