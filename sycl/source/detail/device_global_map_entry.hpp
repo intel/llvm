@@ -33,7 +33,7 @@ using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
-  ~DeviceGlobalUSMMem() = default;
+  ~DeviceGlobalUSMMem();
 
   void *const &getPtr() const noexcept { return MPtr; }
 
@@ -46,6 +46,7 @@ private:
   std::mutex MInitEventMutex;
   ur_event_handle_t MInitEvent = nullptr;
 
+  std::shared_ptr<context_impl> MAllocatingContext;
   friend struct DeviceGlobalMapEntry;
 };
 
