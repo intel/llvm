@@ -576,8 +576,9 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
         } else {
           UR_CALL(resetCommandLists(Queue));
         }
-        ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
-                                       ZeDevices.size(), &ZeDevices[0], ZePool));
+        ZE2UR_CALL(zeEventPoolCreate,
+                   (ZeContext, &ZeEventPoolDesc, ZeDevices.size(),
+                    &ZeDevices[0], ZePool));
       }
     } else if (ze2urResult(Result) != UR_RESULT_SUCCESS) {
       return ze2urResult(Result);
