@@ -961,9 +961,8 @@ protected:
   using SubmitCommandFuncType =
       std::function<EventImplPtr(detail::CG::StorageInitHelper &CGData)>;
 
-  detail::EventImplPtr
-  submit_generic_direct(bool CallerNeedsEvent,
-                        SubmitCommandFuncType &SubmitCommandFunc);
+  detail::EventImplPtr submit_direct(bool CallerNeedsEvent,
+                                     SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.

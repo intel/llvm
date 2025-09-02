@@ -490,12 +490,12 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
     return EventImpl;
   };
 
-  return submit_generic_direct(CallerNeedsEvent, SubmitKernelFunc);
+  return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
 }
 
 detail::EventImplPtr
-queue_impl::submit_generic_direct(bool CallerNeedsEvent,
-                                  SubmitCommandFuncType &SubmitCommandFunc) {
+queue_impl::submit_direct(bool CallerNeedsEvent,
+                          SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
