@@ -1,5 +1,6 @@
 // REQUIRES:  arch-intel_gpu_pvc, level_zero
 // UNSUPPORTED: gpu-intel-pvc-1T
+// UNSUPPORTED-TRACKER: GSD-9121
 
 // DEFINE: %{setup_env} = env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE ZE_AFFINITY_MASK=0 ZEX_NUMBER_OF_CCS=0:4
 // RUN: %{build} -o %t.out
