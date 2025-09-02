@@ -6901,7 +6901,7 @@ CodeGenModule::getLLVMLinkageForDeclarator(const DeclaratorDecl *D,
   // have this, linkonce_odr suffices. If -fno-sycl-rdc is passed, we know there
   // is only one translation unit and can so mark them internal.
   if (getLangOpts().SYCLIsDevice && !D->hasAttr<DeviceKernelAttr>() &&
-      !(D->hasAttr<SYCLDeviceAttr>() || D->hasAttr<SYCLExternalAttr>()) &&
+      !D->hasAttr<SYCLDeviceAttr>() && !D->hasAttr<SYCLExternalAttr>() &&
       !SemaSYCL::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
           D->getType()))
     return getLangOpts().GPURelocatableDeviceCode
