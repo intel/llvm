@@ -27,17 +27,26 @@ ordered from the newest to the oldest.
 
 Release branches are prefixed with `sycl-rel-`
 
-### **[Upcoming]** `6.2.0` release
+### _[Upcoming]_ `6.3.0` release
 
-This release will be made from
-the [`sycl-rel-6_2`](https://github.com/intel/llvm/tree/sycl-rel-6_2) branch.
+This release will be made from the
+[`sycl-rel-6_3`](https://github.com/intel/llvm/tree/sycl-rel-6_3) branch.
+
+### **[Latest]** `6.2.0` release
+
+This release was made from
+the [`sycl-rel-6_2`](https://github.com/intel/llvm/tree/sycl-rel-6_2) branch and
+we have the following tags published:
+- **[Latest]** [`v6.2.0`](https://github.com/intel/llvm/releases/tag/v6.2.0)
+- [`v6.2.0-rc1`](https://github.com/intel/llvm/releases/tag/v6.2.0-rc1) -
+  release candidate 1 for 6.2.0 release
 
 ### `6.1.0` release
 
 This release was made from
 the [`sycl-rel-6_1_0`](https://github.com/intel/llvm/tree/sycl-rel-6_1_0)
 branch and we have the following tags published:
-- **[Latest]** [`v6.1.0`](https://github.com/intel/llvm/releases/tag/v6.1.0)
+- [`v6.1.0`](https://github.com/intel/llvm/releases/tag/v6.1.0)
 
 ### `6.0.X` releases
 

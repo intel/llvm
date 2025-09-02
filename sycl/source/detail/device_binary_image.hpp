@@ -250,7 +250,7 @@ public:
 protected:
   sycl_device_binary get() const { return Bin; }
 
-  sycl_device_binary Bin;
+  sycl_device_binary Bin = nullptr;
 
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
