@@ -9,6 +9,7 @@
 
 #include "ur_api.h"
 
+#include "ur_util.hpp"
 #include <uur/checks.h>
 #include <uur/environment.h>
 #include <uur/known_failure.h>
@@ -406,6 +407,11 @@ struct urQueueTest : urContextTest {
 
   ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
                                             nullptr, 0};
+  // getenv_tobool("UR_BATCHED")
+  //     ? (ur_queue_flags_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED
+  //     : 0};
+  // 0};
+  // UR_QUEUE_FLAG_SUBMISSION_BATCHED}; //0};
   ur_queue_handle_t queue = nullptr;
 };
 
@@ -477,6 +483,11 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
   }
   ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
                                             nullptr, 0};
+  // getenv_tobool("UR_BATCHED")
+  //     ? (ur_queue_flags_t)UR_QUEUE_FLAG_SUBMISSION_BATCHED
+  //     : 0};
+  // 0};
+  // UR_QUEUE_FLAG_SUBMISSION_BATCHED};
   ur_queue_handle_t queue = nullptr;
 };
 
@@ -1512,8 +1523,15 @@ struct KernelLaunchHelper {
   void ValidateBuffer(ur_mem_handle_t buffer, size_t size,
                       std::function<bool(T &)> validator) {
     std::vector<T> read_buffer(size / sizeof(T));
+    // buffer[0] = 0
     ASSERT_SUCCESS(urEnqueueMemBufferRead(
         queue, buffer, true, 0, size, read_buffer.data(), 0, nullptr, nullptr));
+
+    // TODO REMOVE DOBBLE COMMENT
+    // ASSERT_SUCCESS(urQueueFinish(queue));
+    // buffer[0] = 0
+    // ASSERT_TRUE(false) << read_buffer[0];
+
     ASSERT_TRUE(std::all_of(read_buffer.begin(), read_buffer.end(), validator));
   }
 
