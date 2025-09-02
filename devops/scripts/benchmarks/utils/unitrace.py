@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
 import shutil
+import tarfile
 
 from options import options
 from utils.utils import run, git_clone
@@ -171,6 +172,20 @@ class Unitrace:
         # even if the pid_json_files contains more entries, only the last one is valid
         shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[-1]), json_name)
         log.debug(f"Moved {pid_json_files[-1]} to {json_name}")
+
+        # Create a per-benchmark archive (.tgz) containing both the .out and .json
+        try:
+            archive_path = unitrace_output[: -len(".out")] + ".tgz"
+            with tarfile.open(archive_path, "w:gz") as tar:
+                # add the .out file
+                if os.path.exists(unitrace_output):
+                    tar.add(unitrace_output, arcname=os.path.basename(unitrace_output))
+                # add the moved .json file
+                if os.path.exists(json_name):
+                    tar.add(json_name, arcname=os.path.basename(json_name))
+            log.info(f"Created Unitrace archive: {archive_path}")
+        except Exception as e:
+            log.warning(f"Failed to create Unitrace archive for {unitrace_output}: {e}")
 
         # Prune old unitrace directories
         self._prune_unitrace_dirs(os.path.dirname(unitrace_output))

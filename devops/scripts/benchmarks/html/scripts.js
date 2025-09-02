@@ -557,10 +557,123 @@ function createChartContainer(data, canvasId, type) {
     const downloadButton = document.createElement('button');
     downloadButton.className = 'download-button';
     downloadButton.textContent = 'Download';
-    downloadButton.onclick = (event) => {
+    // Create a select dropdown to pick Unitrace archive per run (if available)
+    const downloadSelect = document.createElement('select');
+    downloadSelect.className = 'download-select';
+    downloadSelect.style.marginRight = '8px';
+    // Hidden by default; shown only after user clicks "Download Unitrace"
+    downloadSelect.style.display = 'none';
+
+    // Helper: format Date to YYYYMMDD_HHMMSS (UTC)
+    function formatTimestampFromDate(d) {
+        if (!d) return null;
+        const date = (d instanceof Date) ? d : new Date(d);
+        if (isNaN(date)) return null;
+        const pad = (n) => n.toString().padStart(2, '0');
+        const Y = date.getUTCFullYear();
+        const M = pad(date.getUTCMonth() + 1);
+        const D = pad(date.getUTCDate());
+        const h = pad(date.getUTCHours());
+        const m = pad(date.getUTCMinutes());
+        const s = pad(date.getUTCSeconds());
+        return `${Y}${M}${D}_${h}${m}${s}`;
+    }
+
+    // Base raw URL for archives (branch-based)
+    const RAW_BASE = 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci';
+
+    // Populate download options from chart data using authoritative run entries
+    function populateDownloadOptions() {
+        downloadSelect.innerHTML = '';
+        let added = 0;
+
+        if (Array.isArray(loadedBenchmarkRuns)) {
+            loadedBenchmarkRuns.forEach(run => {
+                // run.results / run.benchmarks / run.data may hold per-benchmark entries
+                const results = run.results || run.benchmarks || run.data || [];
+                const found = results.find(r => r.label === data.label);
+                if (!found) return;
+
+                const runDate = run.date || run.timestamp || run.time;
+                if (!runDate) return;
+
+                const formattedTs = formatTimestampFromDate(new Date(runDate));
+                const saveName = run.save_name || run.saveName || run.save || run.name;
+                if (!formattedTs || !saveName) return;
+
+                const filename = `${formattedTs}_${saveName}.tgz`;
+                const filePath = `traces/${encodeURIComponent(data.label)}/${encodeURIComponent(filename)}`;
+                const url = `${RAW_BASE}/${filePath}`;
+
+                const opt = document.createElement('option');
+                opt.value = url;
+                opt.textContent = `${run.name || saveName} — ${formattedTs}`;
+                downloadSelect.appendChild(opt);
+                added += 1;
+            });
+        }
+
+        if (added === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'No Unitrace archives available';
+            downloadSelect.appendChild(opt);
+            downloadSelect.disabled = true;
+            downloadButton.disabled = true;
+        } else {
+            downloadSelect.disabled = false;
+            downloadButton.disabled = false;
+        }
+
+        return added;
+    }
+
+    // Create Download Chart button (original download behavior)
+    const chartButton = document.createElement('button');
+    chartButton.className = 'download-button chart-download-button';
+    chartButton.textContent = 'Download Chart';
+    chartButton.style.marginRight = '8px';
+    chartButton.onclick = (event) => {
         event.stopPropagation(); // Prevent details toggle
         downloadChart(canvasId, data.label);
     };
+
+    // Unitrace download button
+    downloadButton.textContent = 'Download Unitrace';
+    downloadButton.onclick = (event) => {
+        event.stopPropagation(); // Prevent details toggle
+
+        // Lazy populate options on demand
+        const count = populateDownloadOptions();
+
+        if (count === 0) {
+            alert('No Unitrace archive available for this chart.');
+            return;
+        }
+
+        // If exactly one archive available, download immediately
+        if (count === 1) {
+            const url = downloadSelect.options[0].value;
+            if (url) window.open(url, '_blank');
+            return;
+        }
+
+        // Otherwise show the dropdown so the user picks an archive
+        downloadSelect.style.display = 'inline-block';
+        // focus the select so keyboard users can choose quickly
+        downloadSelect.focus();
+    };
+
+    // When user selects an option, start download and hide the select
+    downloadSelect.onchange = function() {
+        const url = this.value;
+        if (url) window.open(url, '_blank');
+        this.style.display = 'none';
+    };
+
+    // Append the select and buttons to the summary (chart download first)
+    summary.appendChild(chartButton);
+    summary.appendChild(downloadSelect);
     summary.appendChild(downloadButton);
     details.appendChild(summary);
 

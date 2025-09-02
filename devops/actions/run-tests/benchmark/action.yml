@@ -198,6 +198,7 @@ runs:
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
+        --unitrace inclusive \
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/" \
         --output-dir "./llvm-ci-perf-results/" \
