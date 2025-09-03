@@ -88,12 +88,9 @@ ur_result_t MsanShadowMemoryCPU::Setup() {
       uptr End = kMemoryLayout[i].end;
       uptr Size = End - Start;
       MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool InitOrigins = true;
 
-      bool IsMap = Type == MappingDesc::SHADOW ||
-                   (InitOrigins && Type == MappingDesc::ORIGIN);
-      bool IsProtect = Type == MappingDesc::INVALID ||
-                       (!InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+      bool IsProtect = Type == MappingDesc::INVALID;
 
       if (IsMap) {
         if (MmapFixedNoReserve(Start, Size) == 0) {
@@ -124,9 +121,7 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
       uptr End = kMemoryLayout[i].end;
       uptr Size = End - Start;
       MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool InitOrigins = true;
-      bool IsMap = Type == MappingDesc::SHADOW ||
-                   (InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
       if (IsMap) {
         if (Munmap(Start, Size)) {
           return UR_RESULT_ERROR_UNKNOWN;

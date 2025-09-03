@@ -1908,6 +1908,8 @@ typedef enum ur_device_type_t {
   UR_DEVICE_TYPE_MCA = 6,
   /// Vision Processing Unit
   UR_DEVICE_TYPE_VPU = 7,
+  /// Generic custom device type
+  UR_DEVICE_TYPE_CUSTOM = 8,
   /// @cond
   UR_DEVICE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1940,7 +1942,7 @@ typedef enum ur_device_type_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phDevices != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -1987,7 +1989,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetSelected(
     /// [in] handle of the platform instance

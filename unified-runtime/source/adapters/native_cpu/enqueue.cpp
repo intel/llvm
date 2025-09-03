@@ -431,7 +431,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  urEventWait(numEventsInWaitList, phEventWaitList);
   const void *SrcPtr = hBufferSrc->_mem + srcOffset;
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
@@ -601,13 +600,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
-    ur_queue_handle_t /*hQueue*/, const void * /*pMem*/, size_t /*size*/,
-    ur_usm_migration_flags_t /*flags*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
+    ur_queue_handle_t hQueue, const void * /*pMem*/, size_t /*size*/,
+    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
   // TODO: properly implement USM prefetch
-  return UR_RESULT_SUCCESS;
+  return withTimingEvent(UR_COMMAND_USM_PREFETCH, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent,
+                         []() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(

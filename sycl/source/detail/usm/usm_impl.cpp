@@ -36,19 +36,24 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   sycl::detail::tls_code_loc_t CL(CodeLoc);
-  sycl::detail::XPTIScope PrepareNotify(
-      (void *)alignedAllocHost, (uint16_t)xpti::trace_point_type_t::node_create,
-      sycl::detail::SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
-  PrepareNotify.addMetadata([&](auto TEvent) {
+  const char *UserData = "malloc_host";
+
+  xpti::framework::tracepoint_scope_t TP(
+      CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
+      CodeLoc.columnNumber(), nullptr);
+  TP.stream(sycl::detail::GMemAllocStreamID)
+      .traceType(xpti::trace_point_type_t::node_create)
+      .parentEvent(sycl::detail::GSYCLGraphEvent);
+  TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
     xpti::addMetadata(TEvent, "sycl_device", 0);
     xpti::addMetadata(TEvent, "memory_size", Size);
   });
-  // Notify XPTI about the memset submission
-  PrepareNotify.notify();
+  // Notify XPTI about the allocation submission
+  TP.notify(UserData);
   // Emit a begin/end scope for this call
-  PrepareNotify.scopedNotify(
-      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+  TP.scopedNotify((uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
+                  UserData);
 #endif
   const auto &devices = Ctxt.get_devices();
   if (!std::any_of(devices.begin(), devices.end(), [&](const auto &device) {
@@ -65,34 +70,35 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
   auto [urCtx, Adapter] = get_ur_handles(Ctxt);
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
 
-    ur_usm_desc_t UsmDesc{};
-    UsmDesc.align = Alignment;
+  ur_usm_desc_t UsmDesc{};
+  UsmDesc.align = Alignment;
 
-    ur_usm_alloc_location_desc_t UsmLocationDesc{};
-    UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
+  ur_usm_alloc_location_desc_t UsmLocationDesc{};
+  UsmLocationDesc.stype = UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC;
 
-    if (PropList.has_property<
-            sycl::ext::intel::experimental::property::usm::buffer_location>() &&
-        Ctxt.get_platform().has_extension(
-            "cl_intel_mem_alloc_buffer_location")) {
-      UsmLocationDesc.location = static_cast<uint32_t>(
-          PropList
-              .get_property<sycl::ext::intel::experimental::property::usm::
-                                buffer_location>()
-              .get_buffer_location());
-      UsmDesc.pNext = &UsmLocationDesc;
-    }
+  if (PropList.has_property<
+          sycl::ext::intel::experimental::property::usm::buffer_location>() &&
+      Ctxt.get_platform().has_extension("cl_intel_mem_alloc_buffer_location")) {
+    UsmLocationDesc.location = static_cast<uint32_t>(
+        PropList
+            .get_property<sycl::ext::intel::experimental::property::usm::
+                              buffer_location>()
+            .get_buffer_location());
+    UsmDesc.pNext = &UsmLocationDesc;
+  }
 
-    Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
-        urCtx, &UsmDesc,
-        /* pool= */ nullptr, Size, &RetVal);
+  Error = Adapter->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
+      urCtx, &UsmDesc,
+      /* pool= */ nullptr, Size, &RetVal);
 
-    // Error is for debugging purposes.
-    // The spec wants a nullptr returned, not an exception.
-    if (Error != UR_RESULT_SUCCESS)
-      return nullptr;
+  // Error is for debugging purposes.
+  // The spec wants a nullptr returned, not an exception.
+  if (Error != UR_RESULT_SUCCESS)
+    return nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
+  // Once the allocation is complete, update metadata with the memory pointer
+  // before the mem_alloc_end event is sent
+  xpti::addMetadata(TP.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
 #endif
   return RetVal;
@@ -105,9 +111,6 @@ inline namespace _V1 {
 using alloc = sycl::usm::alloc;
 
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-#endif
 namespace usm {
 
 void *alignedAllocInternal(size_t Alignment, size_t Size,
@@ -219,27 +222,34 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
-  XPTIScope PrepareNotify((void *)alignedAlloc,
-                          (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::alignedAlloc");
-  PrepareNotify.addMetadata([&](auto TEvent) {
+  const char *UserData = "usm::alignedAlloc";
+
+  xpti::framework::tracepoint_scope_t TP(
+      CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
+      CodeLoc.columnNumber(), nullptr);
+  TP.stream(sycl::detail::GMemAllocStreamID)
+      .traceType(xpti::trace_point_type_t::node_create)
+      .parentEvent(sycl::detail::GSYCLGraphEvent);
+  TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name",
                       Dev.get_info<info::device::name>());
     // Need to determine how to get the device handle reference
     // xpti::addMetadata(TEvent, "sycl_device", Dev.getHandleRef()));
     xpti::addMetadata(TEvent, "memory_size", Size);
   });
-  // Notify XPTI about the memset submission
-  PrepareNotify.notify();
+  // Notify XPTI about the allocation submission
+  TP.notify(UserData);
   // Emit a begin/end scope for this call
-  PrepareNotify.scopedNotify(
-      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+  TP.scopedNotify((uint16_t)xpti::trace_point_type_t::mem_alloc_begin,
+                  UserData);
 #endif
   void *RetVal =
       alignedAllocInternal(Alignment, Size, getSyclObjImpl(Ctxt).get(),
                            getSyclObjImpl(Dev).get(), Kind, PropList);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
+  // Once the allocation is complete, update metadata with the memory pointer
+  // before the mem_alloc_end event is sent
+  xpti::addMetadata(TP.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
 #endif
   return RetVal;
@@ -258,17 +268,22 @@ void free(void *Ptr, const context &Ctxt,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
-  XPTIScope PrepareNotify((void *)free,
-                          (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::free");
-  PrepareNotify.addMetadata([&](auto TEvent) {
+  const char *UserData = "usm::free";
+
+  xpti::framework::tracepoint_scope_t TP(
+      CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
+      CodeLoc.columnNumber(), nullptr);
+  TP.stream(sycl::detail::GMemAllocStreamID)
+      .traceType(xpti::trace_point_type_t::node_create)
+      .parentEvent(sycl::detail::GSYCLGraphEvent);
+  TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
   });
   // Notify XPTI about the memset submission
-  PrepareNotify.notify();
+  TP.notify(UserData);
   // Emit a begin/end scope for this call
-  PrepareNotify.scopedNotify(
-      (uint16_t)xpti::trace_point_type_t::mem_release_begin);
+  TP.scopedNotify((uint16_t)xpti::trace_point_type_t::mem_release_begin,
+                  UserData);
 #endif
   freeInternal(Ptr, detail::getSyclObjImpl(Ctxt).get());
 }

@@ -14,7 +14,6 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
     * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
-    * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
@@ -368,36 +367,6 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
 directory.
-
-### Build DPC++ toolchain with a custom Unified Runtime
-
-DPC++ uses the [Unified Runtime](https://github.com/oneapi-src/unified-runtime)
-under the hood to provide implementations of various SYCL backends. By default
-the source code for the Unified Runtime will be acquired using CMake's
-[FetchCotent](https://cmake.org/cmake/help/latest/module/FetchContent.html). The
-specific repository URL and revision tag used can be found in the file
-`sycl/cmake/modules/FetchUnifiedRuntime.cmake` searching for the variables
-`UNIFIED_RUNTIME_REPO` and `UNIFIED_RUNTIME_TAG`.
-
-In order to enable developers, a number of CMake variables are available to
-control which revision of Unified Runtime should be used when building DPC++:
-
-* `SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
-  `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
-  When set to `OFF`, `FetchContent` will not be used, instead:
-  * The path specified by variable `SYCL_UR_SOURCE_DIR` will be used with
-    `add_directory()`. This can be used to point at an adjacent directory
-    containing a clone of the Unified Runtime repository.
-  * The path `sycl/unified-runtime` will be used, if it
-    exists. This can be used as-if an in-tree build.
-* `SYCL_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
-  Runtime repository when `SYCL_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Build DPC++ libclc with a custom toolchain
 

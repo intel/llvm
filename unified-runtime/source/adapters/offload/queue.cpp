@@ -105,3 +105,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     const ur_queue_native_properties_t *, ur_queue_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t) {
+  return UR_RESULT_SUCCESS;
+}

@@ -24,6 +24,12 @@ inline ur_result_t offloadResultToUR(ol_result_t Result) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   case OL_ERRC_UNSUPPORTED:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case OL_ERRC_INVALID_ENUMERATION:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  case OL_ERRC_INVALID_SIZE:
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  case OL_ERRC_INVALID_DEVICE:
+    return UR_RESULT_ERROR_INVALID_DEVICE;
   case OL_ERRC_INVALID_BINARY:
     return UR_RESULT_ERROR_INVALID_BINARY;
   // Returned whenever a kernel can't be found
