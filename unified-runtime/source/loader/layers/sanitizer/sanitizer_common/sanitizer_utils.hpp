@@ -54,6 +54,7 @@ size_t GetDeviceLocalMemorySize(ur_device_handle_t Device);
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);
 bool IsUSM(ur_context_handle_t Context, const void *MemPtr);
 bool IsHostUSM(ur_context_handle_t Context, const void *MemPtr);
+bool IsDeviceUSM(ur_context_handle_t Context, const void *MemPtr);
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr);
 // Get the device of MemPtr. If MemPtr is host USM, then return the device
