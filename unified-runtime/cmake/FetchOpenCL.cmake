@@ -36,7 +36,7 @@ if(OpenCL_FOUND)
   )
   include(CheckCXXSourceCompiles)
   set(CMAKE_REQUIRED_INCLUDES ${OpenCL_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${OPENCL_Library})
+  set(CMAKE_REQUIRED_LIBRARIES ${OpenCL_LIBRARY})
   check_cxx_source_compiles("${OPENCL_TEST_PROGRAM}" OPENCL_HEADERS_VERSION_SUPPORTED)
   if(NOT OPENCL_HEADERS_VERSION_SUPPORTED)
     message(WARNING "Preinstalled OpenCL-Headers are not supported, "
