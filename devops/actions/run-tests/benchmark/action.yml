@@ -231,18 +231,10 @@ runs:
     run: | 
       [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
 
-      echo ""
-      echo ""
-      echo ""
-      find .
-      echo ""
-      echo ""
-      echo ""
-
       cd "./llvm-ci-perf-results"
       git add .
       git diff HEAD --name-only | while IFS="$(printf '\n')" read -r diff; do
-        mkdir -p "../cached_changes/$(dirname $diff)"
+        mkdir -p "../cached_changes/$(dirname "$diff")"
         cp "$diff" "../cached_changes/$diff"
       done
   - name: Push benchmarks results
