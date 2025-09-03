@@ -208,7 +208,7 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        ${{ inputs.enable_unitrace == 'true' && '--unitrace' || '' }}
+        ${{ inputs.enable_unitrace == 'true' && '--unitrace --flamegraph inclusive' || '' }}
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
@@ -230,6 +230,14 @@ runs:
     shell: bash
     run: | 
       [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
+
+      echo ""
+      echo ""
+      echo ""
+      find .
+      echo ""
+      echo ""
+      echo ""
 
       cd "./llvm-ci-perf-results"
       git add .
