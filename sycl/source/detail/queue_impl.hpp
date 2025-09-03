@@ -973,8 +973,8 @@ protected:
       bool CallerNeedsEvent, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc);
 
-  using SubmitCommandFuncType =
-      std::function<EventImplPtr(detail::CG::StorageInitHelper &CGData)>;
+  using SubmitCommandFuncType = std::function<std::pair<EventImplPtr, bool>(
+      detail::CG::StorageInitHelper &CGData)>;
 
   detail::EventImplPtr submit_direct(bool CallerNeedsEvent,
                                      SubmitCommandFuncType &SubmitCommandFunc);

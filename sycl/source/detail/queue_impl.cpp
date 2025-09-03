@@ -456,7 +456,8 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
 
   SubmitCommandFuncType SubmitKernelFunc =
-      [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
+      [&](detail::CG::StorageInitHelper &CGData)
+      -> std::pair<EventImplPtr, bool> {
     std::vector<detail::ArgDesc> Args;
     bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
 
@@ -471,13 +472,32 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
           DiscardEvent ? nullptr
                        : detail::event_impl::create_device_event(*this);
 
+      if (!DiscardEvent) {
+        ResultEvent->setWorkerQueue(weak_from_this());
+        ResultEvent->setStateIncomplete();
+        ResultEvent->setSubmissionTime();
+      }
+
       enqueueImpKernel(
           *this, NDRDesc, Args, nullptr, nullptr,
           toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
           RawEvents, ResultEvent.get(), nullptr, UR_KERNEL_CACHE_CONFIG_DEFAULT,
-          false, false, 0, nullptr);
+          false, false, 0, nullptr, KRInfo.GetKernelFuncPtr(),
+          KRInfo.DeviceKernelInfoPtr()->NumParams,
+          KRInfo.DeviceKernelInfoPtr()->ParamDescGetter, false);
 
-      return ResultEvent;
+      if (!DiscardEvent) {
+        ResultEvent->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          // MEvents is not used anymore, so can move.
+          ResultEvent->getPreparedDepsEvents() = std::move(CGData.MEvents);
+          // ResultEvent is local for current thread, no need to lock.
+          ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
+        }
+      }
+
+      return {ResultEvent, true};
     } else {
       std::unique_ptr<detail::CG> CommandGroup;
       std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
@@ -507,7 +527,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
 
       EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
           std::move(CommandGroup), *this, !DiscardEvent);
-      return EventImpl;
+      return {DiscardEvent ? nullptr : EventImpl, false};
     }
   };
 
@@ -557,11 +577,15 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     }
   }
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData);
+  auto [EventImpl, SchedulerBypass] = SubmitCommandFunc(CGData);
 
   // Sync with the last event for in order queue
-  if (isInOrder() && EventImpl && !EventImpl->isDiscarded()) {
-    LastEvent = EventImpl;
+  if (isInOrder()) {
+    if (SchedulerBypass) {
+      LastEvent = nullptr;
+    } else if (EventImpl) {
+      LastEvent = EventImpl;
+    }
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
