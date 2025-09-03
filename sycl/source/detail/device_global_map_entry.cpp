@@ -21,17 +21,17 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
-  // CP
-  auto ContextImplPtr = MAllocatingContext.get();
-  if (MPtr != nullptr && ContextImplPtr != nullptr) {
-    detail::usm::freeInternal(MPtr, ContextImplPtr);
-    MPtr = nullptr;
+  auto ContextImplPtr = MAllocatingContext.lock();
+  if (ContextImplPtr) {
+    if (MPtr != nullptr) {
+      detail::usm::freeInternal(MPtr, ContextImplPtr.get());
+      MPtr = nullptr;
+    }
+    if (MInitEvent != nullptr) {
+      ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(MInitEvent);
+      MInitEvent = nullptr;
+    }
   }
-  if (MInitEvent != nullptr && ContextImplPtr != nullptr) {
-    ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(MInitEvent);
-    MInitEvent = nullptr;
-  }
-  MAllocatingContext.reset();
 
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
   assert(MInitEvent == nullptr && "MInitEvent has not been cleaned up.");
@@ -175,12 +175,9 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       if (USMMem.MInitEvent != nullptr)
         CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
             USMMem.MInitEvent);
-#ifndef NDEBUG
-      // For debugging we set the event and memory to some recognizable values
-      // to allow us to check that this cleanup happens before erasure.
+      // Set to nullptr to avoid double free.
       USMMem.MPtr = nullptr;
       USMMem.MInitEvent = nullptr;
-#endif
       MDeviceToUSMPtrMap.erase(USMPtrIt);
     }
   }
@@ -199,12 +196,9 @@ void DeviceGlobalMapEntry::cleanup() {
     detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
     if (USMMem.MInitEvent != nullptr)
       CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(USMMem.MInitEvent);
-#ifndef NDEBUG
-    // For debugging we set the event and memory to some recognizable values
-    // to allow us to check that this cleanup happens before erasure.
+    // Set to nullptr to avoid double free.
     USMMem.MPtr = nullptr;
     USMMem.MInitEvent = nullptr;
-#endif
   }
   MDeviceToUSMPtrMap.clear();
 }
