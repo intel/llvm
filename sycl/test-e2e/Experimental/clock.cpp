@@ -1,4 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_clock, aspect-usm_shared_allocations
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/clock.hpp>

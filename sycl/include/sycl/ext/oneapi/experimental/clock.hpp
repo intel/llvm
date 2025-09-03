@@ -25,7 +25,7 @@ enum class clock_scope : int {
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_clock)]]
 #endif // __SYCL_DEVICE_ONLY__
-uint64_t clock(clock_scope scope = clock_scope::sub_group) {
+uint64_t clock([[maybe_unused]] clock_scope scope = clock_scope::sub_group) {
 #ifdef __SYCL_DEVICE_ONLY__
   return __spirv_ReadClockKHR(static_cast<int>(scope));
 #else
