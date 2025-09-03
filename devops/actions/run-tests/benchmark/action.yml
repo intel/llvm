@@ -199,6 +199,7 @@ runs:
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --unitrace inclusive \
+        --flamegraph inclusive \
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/" \
         --output-dir "./llvm-ci-perf-results/" \
@@ -206,6 +207,18 @@ runs:
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime
 
+      echo "-----"
+      # Configure remote URL for GitHub Pages deployment
+      echo "Configuring config.js for remote deployment..."
+      cd "./llvm-ci-perf-results"
+      if [ -f "config.js" ]; then
+        # Uncomment and set the remoteDataUrl for GitHub raw access
+        sed -i 's|//remoteDataUrl = .*|remoteDataUrl = "https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci";|' config.js
+        echo "Remote URL configured in config.js"
+      else
+        echo "Warning: config.js not found"
+      fi
+      cd -
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --avg-type EWMA \
@@ -229,9 +242,12 @@ runs:
 
       cd "./llvm-ci-perf-results"
       git add .
-      for diff in $(git diff HEAD --name-only); do
-        mkdir -p "../cached_changes/$(dirname $diff)"
-        cp "$diff" "../cached_changes/$diff"
+      # Cache all new and modified files, including untracked files in subdirectories
+      for diff in $(git diff HEAD --name-only; git ls-files --others --exclude-standard); do
+        if [ -f "$diff" ]; then
+          mkdir -p "../cached_changes/$(dirname $diff)"
+          cp "$diff" "../cached_changes/$diff"
+        fi
       done
   - name: Push benchmarks results
     if: inputs.upload_results == 'true' && always()
@@ -251,23 +267,44 @@ runs:
         echo "Attempt $attempt to push new results"
         git add .
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
-        results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
+        
+        # Cache all new files before attempting push (in case we need to retry)
+        cached_files=()
+        for new_file in $(git diff HEAD~1 --name-only); do
+          if [ -f "$new_file" ]; then
+            cached_dir="$(mktemp -d)"
+            mkdir -p "$cached_dir/$(dirname $new_file)"
+            cp "$new_file" "$cached_dir/$new_file"
+            cached_files+=("$cached_dir:$new_file")
+          fi
+        done
 
         if git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" "$results_branch"; then
           echo "Push succeeded"
+          # Clean up cached files on success
+          for cached_entry in "${cached_files[@]}"; do
+            cached_dir="${cached_entry%:*}"
+            [ -d "$cached_dir" ] && rm -rf "$cached_dir"
+          done
           break
         fi
 
         echo "Push failed, retrying..."
-        if [ -n "$results_file" ]; then
-          cached_result="$(mktemp -d)/$(basename $results_file)"
-          mv "$results_file" "$cached_result"
-
-          git reset --hard "origin/$results_branch"
-          git pull origin "$results_branch"
-
-          mv "$cached_result" "$results_file"
-        fi
+        
+        # Reset and pull latest changes
+        git reset --hard "origin/$results_branch"
+        git pull origin "$results_branch"
+        
+        # Restore all cached files
+        for cached_entry in "${cached_files[@]}"; do
+          cached_dir="${cached_entry%:*}"
+          file_path="${cached_entry#*:}"
+          if [ -f "$cached_dir/$file_path" ]; then
+            mkdir -p "$(dirname $file_path)"
+            mv "$cached_dir/$file_path" "$file_path"
+          fi
+          [ -d "$cached_dir" ] && rm -rf "$cached_dir"
+        done
 
         echo "Regenerating data.json..."
         cd ../

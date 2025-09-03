@@ -23,6 +23,13 @@ let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 // - defaultCompareNames: default run names for comparison
 // - flamegraphData: available flamegraphs data with runs information (if available)
 
+// Helper function to get base URL for remote or local resources
+function getResourceBaseUrl() {
+    return typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '' 
+        ? 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci'
+        : '.';
+}
+
 // Toggle configuration and abstraction
 //
 // HOW TO ADD A NEW TOGGLE:
@@ -102,6 +109,8 @@ const toggleConfigs = {
             // Toggle between flamegraph-only display and normal charts
             updateCharts();
             updateFlameGraphTooltip();
+            // Refresh download buttons to adapt to new mode
+            refreshDownloadButtons();
             updateURL();
         }
     }
@@ -448,6 +457,19 @@ function updateCharts() {
     drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData);
 }
 
+// Function to refresh download buttons when mode changes
+function refreshDownloadButtons() {
+    // Wait a bit for charts to be redrawn
+    setTimeout(() => {
+        document.querySelectorAll('.chart-download-button').forEach(button => {
+            const container = button.closest('.chart-container');
+            if (container && button.updateChartButton) {
+                button.updateChartButton();
+            }
+        });
+    }, 100);
+}
+
 function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData) {
     // Clear existing charts
     document.querySelectorAll('.charts').forEach(container => container.innerHTML = '');
@@ -578,20 +600,17 @@ function createChartContainer(data, canvasId, type) {
         const flamegraphsToShow = getFlameGraphsForBenchmark(data.label, activeRuns);
         
         if (flamegraphsToShow.length > 0) {
-            // Create multiple iframes for each run that has flamegraph data
+            // Add a class to reduce padding for flamegraph containers
+            container.classList.add('flamegraph-chart');
+            // Create individual containers for each flamegraph to give them proper space
             flamegraphsToShow.forEach((flamegraphInfo, index) => {
+                // Create a dedicated container for this flamegraph
+                const flamegraphContainer = document.createElement('div');
+                flamegraphContainer.className = 'flamegraph-container';
+                
                 const iframe = document.createElement('iframe');
                 iframe.src = flamegraphInfo.path;
                 iframe.className = 'flamegraph-iframe';
-                
-                // Calculate dimensions that fit within the existing container constraints
-                // The container has max-width: 1100px with 24px padding on each side
-                const containerMaxWidth = 1100;
-                const containerPadding = 48; // 24px on each side
-                const availableWidth = containerMaxWidth - containerPadding;
-                
-                // Only set max-width dynamically, other styles handled by CSS
-                iframe.style.maxWidth = `${availableWidth}px`;
                 iframe.title = `${flamegraphInfo.runName} - ${data.label}`;
                 
                 // Add error handling for missing flamegraph files
@@ -599,25 +618,15 @@ function createChartContainer(data, canvasId, type) {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'flamegraph-error';
                     errorDiv.textContent = `No flamegraph available for ${flamegraphInfo.runName} - ${data.label}`;
-                    contentSection.replaceChild(errorDiv, iframe);
+                    flamegraphContainer.replaceChild(errorDiv, iframe);
                 };
                 
-                contentSection.appendChild(iframe);
+                flamegraphContainer.appendChild(iframe);
+                contentSection.appendChild(flamegraphContainer);
             });
             
-            // Add resize handling to maintain proper sizing for all iframes
-            const updateIframeSizes = () => {
-                const containerMaxWidth = 1100;
-                const containerPadding = 48;
-                const availableWidth = containerMaxWidth - containerPadding;
-                
-                contentSection.querySelectorAll('iframe[src*="flamegraphs"]').forEach(iframe => {
-                    iframe.style.maxWidth = `${availableWidth}px`;
-                });
-            };
-            
-            // Update size on window resize
-            window.addEventListener('resize', updateIframeSizes);
+            // No need for resize handling since CSS handles all sizing
+            // The flamegraphs will automatically use the full container width
         } else {
             // Show message when no flamegraph is available
             const noFlameGraphDiv = document.createElement('div');
@@ -649,12 +658,6 @@ function createChartContainer(data, canvasId, type) {
     const downloadButton = document.createElement('button');
     downloadButton.className = 'download-button';
     downloadButton.textContent = 'Download';
-    // Create a select dropdown to pick Unitrace archive per run (if available)
-    const downloadSelect = document.createElement('select');
-    downloadSelect.className = 'download-select';
-    downloadSelect.style.marginRight = '8px';
-    // Hidden by default; shown only after user clicks "Download Unitrace"
-    downloadSelect.style.display = 'none';
 
     // Helper: format Date to YYYYMMDD_HHMMSS (UTC)
     function formatTimestampFromDate(d) {
@@ -672,12 +675,124 @@ function createChartContainer(data, canvasId, type) {
     }
 
     // Base raw URL for archives (branch-based)
-    const RAW_BASE = 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci';
+    const RAW_BASE = getResourceBaseUrl();
 
-    // Populate download options from chart data using authoritative run entries
-    function populateDownloadOptions() {
-        downloadSelect.innerHTML = '';
-        let added = 0;
+    // Helper function to show flamegraph list
+    function showFlameGraphList(flamegraphs, buttonElement) {
+        const existingList = document.querySelector('.download-list');
+        if (existingList) existingList.remove();
+
+        const listContainer = document.createElement('div');
+        listContainer.className = 'download-list';
+        
+        const rect = buttonElement.getBoundingClientRect();
+        listContainer.style.position = 'absolute';
+        listContainer.style.top = `${window.scrollY + rect.bottom + 5}px`;
+        listContainer.style.left = `${window.scrollX + rect.left}px`;
+        listContainer.style.zIndex = '1000';
+        listContainer.style.backgroundColor = 'white';
+        listContainer.style.border = '1px solid #ccc';
+        listContainer.style.borderRadius = '4px';
+        listContainer.style.padding = '4px';
+        listContainer.style.minWidth = '200px';
+        listContainer.style.boxShadow = '0 2px 5px rgba(0,0,0,0.15)';
+
+        flamegraphs.forEach(fg => {
+            const link = document.createElement('a');
+            link.href = fg.path;
+            link.textContent = fg.runName;
+            link.style.display = 'block';
+            link.style.padding = '8px 12px';
+            link.style.textDecoration = 'none';
+            link.style.color = '#333';
+            link.onclick = (e) => {
+                e.preventDefault();
+                window.open(fg.path, '_blank');
+                listContainer.remove();
+            };
+            listContainer.appendChild(link);
+        });
+
+        document.body.appendChild(listContainer);
+        
+        setTimeout(() => {
+            document.addEventListener('click', function closeHandler(event) {
+                if (!listContainer.contains(event.target) && !buttonElement.contains(event.target)) {
+                    listContainer.remove();
+                    document.removeEventListener('click', closeHandler);
+                }
+            });
+        }, 0);
+    }
+
+    // Create Download Chart button (adapts to mode)
+    const chartButton = document.createElement('button');
+    chartButton.className = 'download-button chart-download-button';
+    chartButton.style.marginRight = '8px';
+    
+    // Function to update button based on current mode
+    function updateChartButton() {
+        if (isFlameGraphEnabled()) {
+            const flamegraphs = getFlameGraphsForBenchmark(data.label, activeRuns);
+            if (flamegraphs.length === 0) {
+                chartButton.textContent = 'No Flamegraph Available';
+                chartButton.disabled = true;
+            } else if (flamegraphs.length === 1) {
+                chartButton.textContent = 'Download Flamegraph';
+                chartButton.disabled = false;
+                chartButton.onclick = (event) => {
+                    event.stopPropagation();
+                    window.open(flamegraphs[0].path, '_blank');
+                };
+            } else {
+                chartButton.textContent = 'Download Flamegraphs';
+                chartButton.disabled = false;
+                chartButton.onclick = (event) => {
+                    event.stopPropagation();
+                    showFlameGraphList(flamegraphs, chartButton);
+                };
+            }
+        } else {
+            chartButton.textContent = 'Download Chart';
+            chartButton.disabled = false;
+            chartButton.onclick = (event) => {
+                event.stopPropagation();
+                downloadChart(canvasId, data.label);
+            };
+        }
+    }
+    
+    updateChartButton();
+    
+    // Store the update function on the button so it can be called when mode changes
+    chartButton.updateChartButton = updateChartButton;
+
+    // Unitrace download button
+    downloadButton.textContent = 'Download Unitrace';
+    downloadButton.onclick = (event) => {
+        event.stopPropagation(); // Prevent details toggle
+
+        // Get available Unitrace files
+        const unitraceFiles = getUnitraceFiles(data);
+
+        if (unitraceFiles.length === 0) {
+            alert('No Unitrace archive available for this chart.');
+            return;
+        }
+
+        // If exactly one archive available, download immediately
+        if (unitraceFiles.length === 1) {
+            window.open(unitraceFiles[0].url, '_blank');
+            return;
+        }
+
+        // Otherwise show the list window so the user picks an archive
+        showUnitraceList(unitraceFiles, downloadButton);
+    };
+
+    // Helper function to get Unitrace files (moved from populateDownloadOptions)
+    function getUnitraceFiles(data) {
+        const files = [];
 
         if (Array.isArray(loadedBenchmarkRuns)) {
             loadedBenchmarkRuns.forEach(run => {
@@ -697,79 +812,67 @@ function createChartContainer(data, canvasId, type) {
                 const filePath = `traces/${encodeURIComponent(data.label)}/${encodeURIComponent(filename)}`;
                 const url = `${RAW_BASE}/${filePath}`;
 
-                const opt = document.createElement('option');
-                opt.value = url;
-                opt.textContent = `${run.name || saveName} — ${formattedTs}`;
-                downloadSelect.appendChild(opt);
-                added += 1;
+                files.push({
+                    name: `${run.name || saveName} — ${formattedTs}`,
+                    url: url,
+                    filename: filename
+                });
             });
         }
 
-        if (added === 0) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = 'No Unitrace archives available';
-            downloadSelect.appendChild(opt);
-            downloadSelect.disabled = true;
-            downloadButton.disabled = true;
-        } else {
-            downloadSelect.disabled = false;
-            downloadButton.disabled = false;
-        }
-
-        return added;
+        return files;
     }
 
-    // Create Download Chart button (original download behavior)
-    const chartButton = document.createElement('button');
-    chartButton.className = 'download-button chart-download-button';
-    chartButton.textContent = 'Download Chart';
-    chartButton.style.marginRight = '8px';
-    chartButton.onclick = (event) => {
-        event.stopPropagation(); // Prevent details toggle
-        if (isFlameGraphEnabled()) {
-            downloadFlameGraph(data.label, activeRuns, downloadButton);
-        } else {
-            downloadChart(canvasId, data.label);
-        }
-    };
+    // Helper function to show Unitrace list (similar to showFlameGraphList)
+    function showUnitraceList(unitraceFiles, buttonElement) {
+        const existingList = document.querySelector('.download-list');
+        if (existingList) existingList.remove();
 
-    // Unitrace download button
-    downloadButton.textContent = 'Download Unitrace';
-    downloadButton.onclick = (event) => {
-        event.stopPropagation(); // Prevent details toggle
+        const listContainer = document.createElement('div');
+        listContainer.className = 'download-list';
+        
+        const rect = buttonElement.getBoundingClientRect();
+        listContainer.style.position = 'absolute';
+        listContainer.style.top = `${window.scrollY + rect.bottom + 5}px`;
+        listContainer.style.left = `${window.scrollX + rect.left}px`;
+        listContainer.style.zIndex = '1000';
+        listContainer.style.backgroundColor = 'white';
+        listContainer.style.border = '1px solid #ccc';
+        listContainer.style.borderRadius = '4px';
+        listContainer.style.padding = '4px';
+        listContainer.style.minWidth = '200px';
+        listContainer.style.boxShadow = '0 2px 5px rgba(0,0,0,0.15)';
 
-        // Lazy populate options on demand
-        const count = populateDownloadOptions();
+        unitraceFiles.forEach(file => {
+            const link = document.createElement('a');
+            link.href = file.url;
+            link.textContent = file.name;
+            link.style.display = 'block';
+            link.style.padding = '8px 12px';
+            link.style.textDecoration = 'none';
+            link.style.color = '#333';
+            link.onclick = (e) => {
+                e.preventDefault();
+                window.open(file.url, '_blank');
+                listContainer.remove();
+            };
+            listContainer.appendChild(link);
+        });
 
-        if (count === 0) {
-            alert('No Unitrace archive available for this chart.');
-            return;
-        }
+        document.body.appendChild(listContainer);
+        
+        setTimeout(() => {
+            document.addEventListener('click', function closeHandler(event) {
+                if (!listContainer.contains(event.target) && !buttonElement.contains(event.target)) {
+                    listContainer.remove();
+                    document.removeEventListener('click', closeHandler);
+                }
+            });
+        }, 0);
+    }
 
-        // If exactly one archive available, download immediately
-        if (count === 1) {
-            const url = downloadSelect.options[0].value;
-            if (url) window.open(url, '_blank');
-            return;
-        }
-
-        // Otherwise show the dropdown so the user picks an archive
-        downloadSelect.style.display = 'inline-block';
-        // focus the select so keyboard users can choose quickly
-        downloadSelect.focus();
-    };
-
-    // When user selects an option, start download and hide the select
-    downloadSelect.onchange = function() {
-        const url = this.value;
-        if (url) window.open(url, '_blank');
-        this.style.display = 'none';
-    };
-
-    // Append the select and buttons to the summary (chart download first)
+    // Append the buttons to the summary (chart download first)
     summary.appendChild(chartButton);
-    summary.appendChild(downloadSelect);
     summary.appendChild(downloadButton);
     details.appendChild(summary);
 
@@ -1366,12 +1469,14 @@ function createFlameGraphPath(benchmarkLabel, runName, timestamp) {
         // Fallback to old path for safety, though it's likely to fail.
         const benchmarkDirName = benchmarkLabel;
         const timestampPrefix = timestamp + '_';
-        return `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+        const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+        return `${getResourceBaseUrl()}/${relativePath}`;
     }
 
     const benchmarkDirName = `${suiteName}__${benchmarkLabel}`;
     const timestampPrefix = timestamp + '_';
-    return `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+    const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+    return `${getResourceBaseUrl()}/${relativePath}`;
 }
 
 function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
