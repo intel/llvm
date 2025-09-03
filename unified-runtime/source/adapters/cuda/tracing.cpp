@@ -107,13 +107,13 @@ static void cuptiCallback(void *UserData, CUpti_CallbackDomain,
     uint8_t CallStreamID = xptiRegisterStream(CUDA_CALL_STREAM_NAME);
     uint8_t DebugStreamID = xptiRegisterStream(CUDA_DEBUG_STREAM_NAME);
 
-    // Only notify if there are subscribers
+    // Only notify if there are subscribers.
     if (xptiCheckTraceEnabled(CallStreamID, TraceType)) {
       xptiNotifySubscribers(CallStreamID, TraceType, Ctx->CallEvent, nullptr,
                             CallCorrelationID, FuncName);
     }
 
-    // Prepare the payload and notify subscribers if there are subscribers
+    // Prepare the payload and notify subscribers if there are subscribers.
     if (xptiCheckTraceEnabled(DebugStreamID, TraceTypeArgs)) {
       xpti::function_with_args_t Payload{
           FuncID, FuncName, const_cast<void *>(CBInfo->functionParams),

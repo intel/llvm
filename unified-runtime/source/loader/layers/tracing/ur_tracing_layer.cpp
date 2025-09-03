@@ -42,7 +42,7 @@ static std::shared_ptr<XptiContextManager> xptiContextManagerGet() {
 }
 
 // The Unified Runtime API calls are meant to be performant and creating an
-// event for each API Call will add significant overheads
+// event for each API Call will add significant overheads.
 static xpti_td *GURCallEvent = nullptr;
 static thread_local xpti_td *activeEvent;
 
@@ -55,11 +55,11 @@ context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
   streamv << STREAM_VER_MAJOR << "." << STREAM_VER_MINOR;
   xptiInitialize(CALL_STREAM_NAME, STREAM_VER_MAJOR, STREAM_VER_MINOR,
                  streamv.str().data());
-  // Create global event for all UR API calls
-  auto Event =
+  // Create global event for all UR API calls.
+  xpti_tracepoint_t *Event =
       xptiCreateTracepoint("Unified Runtime call", nullptr, 0, 0, (void *)this);
   // For function_begin/function_end class of notification, the parent and the
-  // event object can be NULL based on the specification
+  // event object can be NULL based on the specification.
   GURCallEvent = Event ? Event->event_ref() : nullptr;
 }
 

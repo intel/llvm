@@ -40,10 +40,10 @@ constexpr const char *GVerStr = SYCL_VERSION_STR;
 
 /// We define all the streams used the instrumentation framework here
 inline constexpr const char *SYCL_STREAM_NAME = "sycl";
-// We will use "*.debug" stream names as indicators of needing debugging
-// information; in this case, the tool will have to subscribe to the *.debug
+// We will use "sycl.debug" stream name as an indicator of needing debugging
+// information; in this case, the tool will have to subscribe to the sycl.debug
 // stream to get additional debug metadata, but the metadata will still be sent
-// through the regular stream.
+// through the regular streams.
 inline constexpr const char *SYCL_DEBUG_STREAM_NAME = "sycl.debug";
 inline constexpr auto SYCL_MEM_ALLOC_STREAM_NAME =
     "sycl.experimental.mem_alloc";

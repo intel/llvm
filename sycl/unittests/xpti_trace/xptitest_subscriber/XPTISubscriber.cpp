@@ -154,7 +154,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   xptiRegisterCallback(StreamID, xpti::trace_task_begin, testCallback);
   xptiRegisterCallback(StreamID, xpti::trace_task_end, testCallback);
   // Register at least one callback to the debug stream to enable additional
-  // metadata that may be used for tests
+  // metadata that may be used for tests.
   uint8_t DebugStreamID = xptiRegisterStream("sycl.debug");
   xptiRegisterCallback(StreamID, xpti::trace_node_create, testCallback);
 }
