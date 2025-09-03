@@ -45,7 +45,17 @@ ur_result_t urBindlessImagesImageCopyExp(
   UR_ASSERT(!(pSrcImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pSrcImageDesc->type),
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
-  bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
+  // When we do a region copy from an image handle to USM with non-zero offest
+  // into a USM region, then copy engine would ignore the offset and always
+  // write data at the beginning of the USM allocation.
+  // On the other hand, when performing memory to memory copies if copy engine
+  // is not used, then only half the lines are copied.
+  // This is wild and the change is only added because we continue to test
+  // both V1 and V2 L0 adapters for all HW, regardless of the default adapter
+  // there.
+  bool UseCopyEngine =
+      hQueue->useCopyEngine(/*PreferCopyEngine*/ imageCopyInputTypes ==
+                            UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
   if (is3ChannelOrder(

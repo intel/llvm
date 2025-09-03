@@ -861,7 +861,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     // depth are specified as pixels (or rows and slices). ze_image_region_t,
     // however, accepts everything as pixels, so we need to do a conversion
     // here.
-    const auto PixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+    const auto PixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
     DstRegion.originX /= PixelSizeInBytes;
     DstRegion.width /= PixelSizeInBytes;
 
