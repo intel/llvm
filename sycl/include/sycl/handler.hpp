@@ -1846,8 +1846,10 @@ public:
     setNDRangeDescriptor(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
     MKernelName = getKernelName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{MKernelName}));
+    extractArgsAndReqs();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
