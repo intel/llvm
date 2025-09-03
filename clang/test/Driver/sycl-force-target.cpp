@@ -18,7 +18,7 @@
 // CHECK_FORCE_TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=host-{{.*}},sycl-spir64-unknown-unknown" "-input={{.*}}" "-output={{.*}}" "-output=[[DEVICEOBJECTOUT:.+]]" "-unbundle" "-allow-missing-bundles"
 // CHECK_FORCE_TARGET: spirv-to-ir-wrapper{{.*}} "[[DEVICEOBJECTOUT]]" "-o" "[[DEVICEOBJECTBC:.+\.bc]]"
 // CHECK_FORCE_TARGET: llvm-link{{.*}} "[[DEVICEOBJECTBC]]"{{.*}} "-o" "[[DEVICEOBJLINKED:.+\.bc]]" "--suppress-warnings"
-// CHECK_FORCE_TARGET: llvm-link{{.*}} "{{.*}}libsycl-complex{{.*}}"
+// CHECK_FORCE_TARGET: llvm-link{{.*}} "{{.*}}libsycl-devicelib{{.*}}"
 // CHECK_FORCE_TARGET_GEN: llvm-foreach{{.*}} {{.*}}ocloc{{.*}}
 // CHECK_FORCE_TARGET_CPU: llvm-foreach{{.*}} {{.*}}opencl-aot{{.*}}
 

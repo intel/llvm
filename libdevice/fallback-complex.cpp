@@ -9,7 +9,6 @@
 #include "device_complex.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
-#include <cmath>
 
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
@@ -65,8 +64,8 @@ float __complex__ __devicelib___mulsc3(float __a, float __b, float __c,
       __recalc = 1.0f;
     }
     if (__recalc) {
-      z = CMPLXF((INFINITY * (__a * __c - __b * __d)),
-                 (INFINITY * (__a * __d + __b * __c)));
+      z = CMPLXF((INFINITYF * (__a * __c - __b * __d)),
+                 (INFINITYF * (__a * __d + __b * __c)));
     }
   }
   return z;
@@ -96,15 +95,15 @@ float __complex__ __devicelib___divsc3(float __a, float __b, float __c,
   z = CMPLXF(z_real, z_imag);
   if (__spirv_IsNan(z_real) && __spirv_IsNan(z_imag)) {
     if ((__denom == 0.0f) && (!__spirv_IsNan(__a) || !__spirv_IsNan(__b))) {
-      z_real = __spirv_ocl_copysign(INFINITY, __c) * __a;
-      z_imag = __spirv_ocl_copysign(INFINITY, __c) * __b;
+      z_real = __spirv_ocl_copysign(INFINITYF, __c) * __a;
+      z_imag = __spirv_ocl_copysign(INFINITYF, __c) * __b;
       z = CMPLXF(z_real, z_imag);
     } else if ((__spirv_IsInf(__a) || __spirv_IsInf(__b)) &&
                __spirv_IsFinite(__c) && __spirv_IsFinite(__d)) {
       __a = __spirv_ocl_copysign(__spirv_IsInf(__a) ? 1.0f : 0.0f, __a);
       __b = __spirv_ocl_copysign(__spirv_IsInf(__b) ? 1.0f : 0.0f, __b);
-      z_real = INFINITY * (__a * __c + __b * __d);
-      z_imag = INFINITY * (__b * __c - __a * __d);
+      z_real = INFINITYF * (__a * __c + __b * __d);
+      z_imag = INFINITYF * (__b * __c - __a * __d);
       z = CMPLXF(z_real, z_imag);
     } else if (__spirv_IsInf(__logbw) && __logbw > 0.0f &&
                __spirv_IsFinite(__a) && __spirv_IsFinite(__b)) {
@@ -133,7 +132,7 @@ float __complex__ __devicelib_cprojf(float __complex__ z) {
   float __complex__ r = z;
   if (__spirv_IsInf(__devicelib_crealf(z)) ||
       __spirv_IsInf(__devicelib_cimagf(z)))
-    r = CMPLXF(INFINITY, __spirv_ocl_copysign(0.0f, __devicelib_cimagf(z)));
+    r = CMPLXF(INFINITYF, __spirv_ocl_copysign(0.0f, __devicelib_cimagf(z)));
   return r;
 }
 
@@ -153,7 +152,7 @@ float __complex__ __devicelib_cexpf(float __complex__ z) {
       return z;
     } else if (z_imag == 0.f || !__spirv_IsFinite(z_imag)) {
       if (__spirv_IsInf(z_imag))
-        return CMPLXF(z_real, NAN);
+        return CMPLXF(z_real, NANF);
     }
   }
 
@@ -178,7 +177,7 @@ float __complex__ __devicelib_cpowf(float __complex__ x, float __complex__ y) {
 DEVICE_EXTERN_C_INLINE
 float __complex__ __devicelib_cpolarf(float rho, float theta) {
   if (__spirv_IsNan(rho) || __spirv_SignBitSet(rho))
-    return CMPLXF(NAN, NAN);
+    return CMPLXF(NANF, NANF);
   if (__spirv_IsNan(theta)) {
     if (__spirv_IsInf(rho))
       return CMPLXF(rho, theta);
@@ -186,8 +185,8 @@ float __complex__ __devicelib_cpolarf(float rho, float theta) {
   }
   if (__spirv_IsInf(theta)) {
     if (__spirv_IsInf(rho))
-      return CMPLXF(rho, NAN);
-    return CMPLXF(NAN, NAN);
+      return CMPLXF(rho, NANF);
+    return CMPLXF(NANF, NANF);
   }
   float x = rho * __spirv_ocl_cos(theta);
   if (__spirv_IsNan(x))
@@ -203,7 +202,7 @@ float __complex__ __devicelib_csqrtf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
   if (__spirv_IsInf(z_imag))
-    return CMPLXF(INFINITY, z_imag);
+    return CMPLXF(INFINITYF, z_imag);
   if (__spirv_IsInf(z_real)) {
     if (z_real > 0.0f)
       return CMPLXF(z_real, __spirv_IsNan(z_imag)
@@ -221,9 +220,9 @@ float __complex__ __devicelib_csinhf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
   if (__spirv_IsInf(z_real) && !__spirv_IsFinite(z_imag))
-    return CMPLXF(z_real, NAN);
+    return CMPLXF(z_real, NANF);
   if (z_real == 0 && !__spirv_IsFinite(z_imag))
-    return CMPLXF(z_real, NAN);
+    return CMPLXF(z_real, NANF);
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
     return z;
   return CMPLXF(__spirv_ocl_sinh(z_real) * __spirv_ocl_cos(z_imag),
@@ -235,9 +234,9 @@ float __complex__ __devicelib_ccoshf(float __complex__ z) {
   float z_real = __devicelib_crealf(z);
   float z_imag = __devicelib_cimagf(z);
   if (__spirv_IsInf(z_real) && !__spirv_IsFinite(z_imag))
-    return CMPLXF(__spirv_ocl_fabs(z_real), NAN);
+    return CMPLXF(__spirv_ocl_fabs(z_real), NANF);
   if (z_real == 0 && !__spirv_IsFinite(z_imag))
-    return CMPLXF(NAN, z_real);
+    return CMPLXF(NANF, z_real);
   if (z_real == 0 && z_imag == 0)
     return CMPLXF(1.0f, z_imag);
   if (z_imag == 0 && !__spirv_IsFinite(z_real))
@@ -416,7 +415,7 @@ float __complex__ __devicelib_catanhf(float __complex__ z) {
     return CMPLXF(__spirv_ocl_copysign(0.0f, z_real),
                   __spirv_ocl_copysign(__pi / 2.0f, z_imag));
   if (__spirv_ocl_fabs(z_real) == 1.0f && z_imag == 0.0f)
-    return CMPLXF(__spirv_ocl_copysign(INFINITY, z_real),
+    return CMPLXF(__spirv_ocl_copysign(INFINITYF, z_real),
                   __spirv_ocl_copysign(0.0f, z_imag));
   float __complex__ t1 = 1.0f + z;
   float __complex__ t2 = 1.0f - z;
