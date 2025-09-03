@@ -2139,6 +2139,9 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
   // Acquire lock to read and modify maps for kernel bundles
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
+  // Acquire lock to erase DeviceKernelInfoMap
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
+
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
 
