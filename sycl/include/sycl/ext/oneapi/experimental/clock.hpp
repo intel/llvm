@@ -25,9 +25,16 @@ enum class clock_scope : int {
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_clock)]]
 #endif // __SYCL_DEVICE_ONLY__
-uint64_t clock([[maybe_unused]] clock_scope scope = clock_scope::sub_group) {
+inline uint64_t
+clock([[maybe_unused]] clock_scope scope = clock_scope::sub_group) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ReadClockKHR(static_cast<int>(scope));
+#else
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "sycl::ext::oneapi::experimental::clock() is currently "
+                        "supported only on backends with SPIR-V support.");
+#endif // defined(__SPIR__) || defined(__SPIRV__)
 #else
   throw sycl::exception(
       make_error_code(errc::runtime),
