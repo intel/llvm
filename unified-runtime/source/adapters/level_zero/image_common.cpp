@@ -799,6 +799,13 @@ ur_result_t bindlessImagesHandleCopyFlags(
                                     (uint32_t)pCopyRegion->copyExtent.width,
                                     (uint32_t)pCopyRegion->copyExtent.height,
                                     (uint32_t)pCopyRegion->copyExtent.depth};
+    // This function could have been called to perform a copy of a 1D image and
+    // copy region height could be set to 0 in this case. L0 doesn't like that,
+    // so we adjust it so that copy region is a valid 2D region
+    if (ZeSrcRegion.height == 0)
+      ZeSrcRegion.height = 1;
+    if (ZeDstRegion.height == 0)
+      ZeDstRegion.height = 1;
     // Strictly speaking, zeCommandListAppendMemoryCopyRegion is only for 2D and
     // 3D copies and as such, row pitch arguments are non-optional.
     // Since urBindlessImagesImageCopy can also be called for 1D images for
