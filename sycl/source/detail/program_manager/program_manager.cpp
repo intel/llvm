@@ -1822,6 +1822,7 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
 
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto Result =
       m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name.data()}, Info);
   Result.first->second.setCompileTimeInfoIfNeeded(Info);
@@ -1830,6 +1831,7 @@ DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
 
 DeviceKernelInfo &
 ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto Result = m_DeviceKernelInfoMap.try_emplace(
       KernelName, CompileTimeKernelInfoTy{std::string_view(KernelName)});
   return Result.first->second;
