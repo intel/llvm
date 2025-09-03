@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/aspects.hpp>
 #include <sycl/exception.hpp>
 
 namespace sycl {
