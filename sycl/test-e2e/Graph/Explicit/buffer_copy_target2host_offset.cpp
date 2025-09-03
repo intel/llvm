@@ -5,6 +5,7 @@
 //
 // Intended - Device to host copy command not supported for OpenCL
 // UNSUPPORTED: opencl
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
 
 #define GRAPH_E2E_EXPLICIT
 
