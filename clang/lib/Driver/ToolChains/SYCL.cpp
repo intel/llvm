@@ -69,8 +69,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     SmallString<128> LibraryPath(Path);
     llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
-    if (Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH) ||
-        D.getVFS().exists(LibraryPath))
+    if (D.getVFS().exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;
