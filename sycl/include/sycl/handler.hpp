@@ -1240,7 +1240,7 @@ private:
 
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnKernelParameterMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse(Info);
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
@@ -1400,11 +1400,11 @@ private:
     detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
                                                                 KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
-      throwOnKernelParameterMisuse<KernelName, KernelType>();
+      throwOnKernelParameterMisuse(Info);
     }
     throwIfActionIsCreated();
-    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     verifyUsedKernelBundleInternal(Info.Name);
     setType(detail::CGType::Kernel);
 
@@ -1443,14 +1443,14 @@ private:
     detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
                                                                 KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
-      throwOnKernelParameterMisuse<KernelName, KernelType>();
+      throwOnKernelParameterMisuse(Info);
     }
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the
     // kernel.
     setHandlerKernelBundle(Kernel);
-    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     verifyUsedKernelBundleInternal(Info.Name);
     setType(detail::CGType::Kernel);
 
@@ -3523,10 +3523,10 @@ private:
   //
   // Exception handling generates lots of code, outline it out of template
   // method to improve compilation times.
-  void throwOnKernelParameterMisuseHelper(
-      int N, detail::kernel_param_desc_t (*f)(int)) const {
-    for (int I = 0; I < N; ++I) {
-      detail::kernel_param_desc_t ParamDesc = (*f)(I);
+  void throwOnKernelParameterMisuse(
+      const detail::CompileTimeKernelInfoTy &Info) const {
+    for (size_t I = 0; I < Info.NumParams; ++I) {
+      detail::kernel_param_desc_t ParamDesc = (*Info.ParamDescGetter)(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
@@ -3546,13 +3546,18 @@ private:
             "of parallel_for that takes a range parameter.");
     }
   }
-  template <typename KernelName, typename KernelType>
-  void throwOnKernelParameterMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
-    throwOnKernelParameterMisuseHelper(Info.NumParams, Info.ParamDescGetter);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Exported on Windows for some reason, have to keep for backward ABI
+  // compatibility, at least formally.
+  void throwOnKernelParameterMisuseHelper(
+      int N, detail::kernel_param_desc_t (*f)(int)) const {
+    detail::CompileTimeKernelInfoTy Info{};
+    Info.NumParams = N;
+    Info.ParamDescGetter = f;
+    throwOnKernelParameterMisuse(Info);
   }
+#endif
 
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
