@@ -1795,12 +1795,19 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    bool isIntelMTLDevice = this->isIntelMTL();
+    bool isIntelARLDevice = this->isIntelARL();
     // Disable immediate command lists for DG2 devices on Windows due to driver
     // limitations.
     bool isLinux = true;
 #ifdef _WIN32
     isLinux = false;
 #endif
+    // Disable immediate command lists for Intel MTL/ARL devices on Linux by
+    // default due to driver limitations.
+    if ((isIntelMTLDevice || isIntelARLDevice) && isLinux) {
+      return NotUsed;
+    }
     if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
         isNewerThanIntelDG2()) {
       return PerQueue;
