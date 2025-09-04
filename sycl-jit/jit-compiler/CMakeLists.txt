@@ -37,7 +37,7 @@ if (WIN32)
   endif()
 else()
   get_host_tool_path( clang CLANG clang_exe clang_target )
-  set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden -v)
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
 
   if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     # Hack based on the information at
