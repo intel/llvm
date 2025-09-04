@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -309,14 +310,6 @@ protected:
 // actually used to build a program.
 // Also, frees the decompressed data in destructor.
 class CompressedRTDeviceBinaryImage : public RTDeviceBinaryImage {
-
-  // CompressedRTDeviceBinaryImage is in one of the following state.
-  enum ImageState {
-    Compressed = 0,
-    DecompressionInProgress = 1,
-    Decompressed = 2
-  };
-
 public:
   CompressedRTDeviceBinaryImage(sycl_device_binary Bin);
   ~CompressedRTDeviceBinaryImage() override;
@@ -339,8 +332,8 @@ private:
   std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize = 0;
 
-  // Atomic variable used to prevent race during image decompression.
-  std::atomic<ImageState> DecompState{ImageState::Compressed};
+  // Flag to ensure decompression happens only once.
+  std::once_flag InitFlag;
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 
