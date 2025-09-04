@@ -29,13 +29,12 @@ enum class clock_scope : int {
 inline uint64_t
 clock([[maybe_unused]] clock_scope scope = clock_scope::sub_group) {
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__) || defined(__SPIRV__)
-  return __spirv_ReadClockKHR(static_cast<int>(scope));
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+  // Currently clock() is not supported on NVPTX and AMDGCN.
+  return 0;
 #else
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "sycl::ext::oneapi::experimental::clock() is currently "
-                        "supported only on backends with SPIR-V support.");
-#endif // defined(__SPIR__) || defined(__SPIRV__)
+  return __spirv_ReadClockKHR(static_cast<int>(scope));
+#endif // defined(__NVPTX__) || defined(__AMDGCN__)
 #else
   throw sycl::exception(
       make_error_code(errc::runtime),
