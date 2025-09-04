@@ -13,7 +13,7 @@
 
 #define SYCL_KHR_GROUP_INTERFACE 1
 
-#if __has_include(<mdspan>)
+#if __cplusplus >= 202302 && __has_include(<mdspan>)
 #include <mdspan>
 #endif
 
