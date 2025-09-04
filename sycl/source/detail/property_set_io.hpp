@@ -30,7 +30,7 @@ static IntT stringViewToInt(const std::string_view &SV) {
   if (SV.empty())
     return Result;
 
-  bool Negate = std::is_signed_v<IntT> && SV[0] == '-';
+  const bool Negate = std::is_signed_v<IntT> && SV[0] == '-';
 
   for (size_t I = static_cast<size_t>(Negate); I < SV.size(); ++I) {
     const char CurrentC = SV[I];
