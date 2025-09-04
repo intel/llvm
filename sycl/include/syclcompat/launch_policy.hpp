@@ -34,7 +34,7 @@
 #include <syclcompat/dims.hpp>
 #include <syclcompat/traits.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 namespace experimental {
 
 namespace sycl_exp = sycl::ext::oneapi::experimental;

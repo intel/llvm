@@ -26,7 +26,7 @@
 
 #include <sycl/range.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 class dim3 {
 public:
