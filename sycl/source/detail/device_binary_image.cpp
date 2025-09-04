@@ -710,22 +710,40 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
       static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
 }
 
+// Decompress the device binary image if it is compressed. This function is
+// thread-safe and will only decompress once even if called from multiple
+// threads.
 void CompressedRTDeviceBinaryImage::Decompress() {
+  ImageState expected = ImageState::Compressed;
+  ImageState desired = ImageState::DecompressionInProgress;
 
-  size_t CompressedDataSize =
-      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
+  // Decompress if not already done by another thread.
+  if (DecompState.compare_exchange_strong(expected, desired)) {
+    size_t CompressedDataSize =
+        static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
 
-  size_t DecompressedSize = 0;
-  m_DecompressedData = ZSTDCompressor::DecompressBlob(
-      reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
-      DecompressedSize);
+    size_t DecompressedSize = 0;
+    m_DecompressedData = ZSTDCompressor::DecompressBlob(
+        reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
+        DecompressedSize);
 
-  Bin->BinaryStart =
-      reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
-  Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
+    Bin->BinaryStart =
+        reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
+    Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
-  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
-  Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
+    Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
+
+    DecompState.store(ImageState::Decompressed);
+  } else {
+    // Wait until the decompression is done by another thread.
+    while (DecompState.load() == ImageState::DecompressionInProgress) {
+      // Just spin.
+    }
+  }
+
+  assert(DecompState.load() == ImageState::Decompressed &&
+         "Image should be decompressed by now");
 }
 
 CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {

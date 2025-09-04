@@ -309,6 +309,14 @@ protected:
 // actually used to build a program.
 // Also, frees the decompressed data in destructor.
 class CompressedRTDeviceBinaryImage : public RTDeviceBinaryImage {
+
+  // CompressedRTDeviceBinaryImage is in one of the following state.
+  enum ImageState {
+    Compressed = 0,
+    DecompressionInProgress = 1,
+    Decompressed = 2
+  };
+
 public:
   CompressedRTDeviceBinaryImage(sycl_device_binary Bin);
   ~CompressedRTDeviceBinaryImage() override;
@@ -330,6 +338,9 @@ public:
 private:
   std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize = 0;
+
+  // Atomic variable used to prevent race during image decompression.
+  std::atomic<ImageState> DecompState{ImageState::Compressed};
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 
