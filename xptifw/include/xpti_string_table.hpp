@@ -7,7 +7,7 @@
 
 #include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_data_types.h"
-#include <emhash/hash_table7.hpp>
+#include <hash_table7.hpp>
 
 #include <atomic>
 #include <shared_mutex>

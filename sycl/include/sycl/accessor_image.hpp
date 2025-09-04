@@ -1357,62 +1357,29 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode,
           sycl::image_target AccessTarget>
-struct hash<sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
-                                           AccessTarget>> {
-  using AccType = sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
-                                                 AccessTarget>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<
+    sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
+                                         AccessTarget>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
-struct hash<
-    sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
-  using AccType =
-      sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>;
-
-  size_t operator()(const AccType &A) const {
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-  }
+struct std::hash<
+    sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
 };
 
 template <typename DataT, int Dimensions, sycl::image_target AccessTarget>
-struct hash<sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>> {
-  using AccType = sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions>
-struct hash<sycl::host_sampled_image_accessor<DataT, Dimensions>> {
-  using AccType = sycl::host_sampled_image_accessor<DataT, Dimensions>;
-
-  size_t operator()(const AccType &A) const {
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-  }
-};
-
-} // namespace std
+struct std::hash<sycl::host_sampled_image_accessor<DataT, Dimensions>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::host_sampled_image_accessor<DataT, Dimensions>> {};

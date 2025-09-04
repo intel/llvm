@@ -246,11 +246,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::platform> {
-  size_t operator()(const sycl::platform &p) const {
-    return hash<std::shared_ptr<sycl::detail::platform_impl>>()(
-        sycl::detail::getSyclObjImpl(p));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::platform>
+    : public sycl::detail::sycl_obj_hash<sycl::platform> {};

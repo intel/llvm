@@ -254,7 +254,7 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   KernelNameStrT MKernelName;
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
+  DeviceKernelInfo &MDeviceKernelInfo;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -269,8 +269,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               KernelNameStrT KernelName,
-               KernelNameBasedCacheT *KernelNameBasedCachePtr,
+               KernelNameStrT KernelName, DeviceKernelInfo &DeviceKernelInfo,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -279,8 +278,7 @@ public:
       : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
         MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)),
-        MKernelNameBasedCachePtr(KernelNameBasedCachePtr),
+        MKernelName(std::move(KernelName)), MDeviceKernelInfo(DeviceKernelInfo),
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
@@ -397,14 +395,19 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
-  void *getDst() { return MDst; }
-  size_t getLength() { return MLength; }
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() const { return MDst; }
+  size_t getLength() const { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() const {
+    return MPrefetchType;
+  }
 };
 
 /// "Advise USM" command group class.

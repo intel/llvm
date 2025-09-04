@@ -232,7 +232,14 @@ public:
   compare_exchange_strong(T &expected, T desired,
                           memory_order order = default_read_modify_write_order,
                           memory_scope scope = default_scope) const noexcept {
-    return compare_exchange_strong(expected, desired, order, order, scope);
+    memory_order success = order;
+    memory_order failure = order;
+    if (order == memory_order::acq_rel) {
+      failure = memory_order::acquire;
+    } else if (order == memory_order::release) {
+      failure = memory_order::relaxed;
+    }
+    return compare_exchange_strong(expected, desired, success, failure, scope);
   }
 
   bool
@@ -256,7 +263,14 @@ public:
   compare_exchange_weak(T &expected, T desired,
                         memory_order order = default_read_modify_write_order,
                         memory_scope scope = default_scope) const noexcept {
-    return compare_exchange_weak(expected, desired, order, order, scope);
+    memory_order success = order;
+    memory_order failure = order;
+    if (order == memory_order::acq_rel) {
+      failure = memory_order::acquire;
+    } else if (order == memory_order::release) {
+      failure = memory_order::relaxed;
+    }
+    return compare_exchange_weak(expected, desired, success, failure, scope);
   }
 
 protected:
@@ -455,9 +469,7 @@ public:
 
   T fetch_add(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicFAdd(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -478,9 +490,7 @@ public:
 
   T fetch_sub(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicFAdd(ptr, scope, order, -operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -499,9 +509,7 @@ public:
 
   T fetch_min(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicMin(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);
@@ -515,9 +523,7 @@ public:
 
   T fetch_max(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
-// TODO: Remove the "native atomics" macro check once implemented for all
-// backends
-#if defined(__SYCL_DEVICE_ONLY__) && defined(SYCL_USE_NATIVE_FP_ATOMICS)
+#if defined(__SYCL_DEVICE_ONLY__)
     return detail::spirv::AtomicMax(ptr, scope, order, operand);
 #else
     auto load_order = detail::getLoadOrder(order);

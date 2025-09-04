@@ -223,3 +223,7 @@ llvm/test/Instrumentation/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/MemorySanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
+
+# ABI compatibility
+devops/compat_ci_exclude.sycl-rel-** @gmlueck @xtian-github
+sycl/test/abi/*sycl-rel*.dump @AlexeySachkov @KornevNikita

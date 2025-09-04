@@ -7,7 +7,7 @@
 // The first two RUN commands verify that the init call is generated with the correct arguments in LLVM IR
 // and the second two RUN commands verify the contents of the integration header produced by the frontend.
 //
-// CHECK-IR: define dso_local spir_kernel void @
+// CHECK-IR: define {{.*}}spir_kernel void @
 // CHECK-IR-SAME: ptr addrspace(3) noundef align 4 [[PTR:%[a-zA-Z0-9_]+]]
 //
 // CHECK-IR: [[PTR]].addr = alloca ptr addrspace(3), align 8

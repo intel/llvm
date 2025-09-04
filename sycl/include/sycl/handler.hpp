@@ -14,11 +14,11 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
-#include <sycl/detail/kernel_name_based_cache.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
@@ -149,6 +149,8 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
 template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
+
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
                                  size_t size);
@@ -861,6 +863,7 @@ private:
       constexpr std::string_view KernelNameStr =
           detail::getKernelName<KernelName>();
       MKernelName = KernelNameStr;
+      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -868,7 +871,6 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
-    setKernelNameBasedCachePtr(detail::getKernelNameBasedCache<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -1586,8 +1588,11 @@ public:
   ///
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
-  void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+            access::target AccTarget, access::placeholder isPlaceholder,
+            typename propertyListT>
+  void require(
+      accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder, propertyListT>
+          Acc) {
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -2626,6 +2631,16 @@ public:
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param Type is type of prefetch, i.e. fetch to device or fetch to host.
+  void prefetch(const void *Ptr, size_t Count,
+                ext::oneapi::experimental::prefetch_type Type);
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -3670,8 +3685,11 @@ private:
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelNameBasedCachePtr(
       detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
+#endif
+  void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
 
   queue getQueue();
 

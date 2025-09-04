@@ -40,6 +40,7 @@ const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
          UR_DEVICE_TYPE_FPGA,
          UR_DEVICE_TYPE_MCA,
          UR_DEVICE_TYPE_VPU,
+         UR_DEVICE_TYPE_CUSTOM,
      }},
     {"cuda",
      MAKE_LIBRARY_NAME("ur_adapter_cuda", "0"),

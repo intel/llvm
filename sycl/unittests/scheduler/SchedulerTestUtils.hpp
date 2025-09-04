@@ -222,7 +222,7 @@ class MockHandler : public sycl::handler {
 public:
   MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
       : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
-            Queue, nullptr, CallerNeedsEvent)) {}
+            Queue, CallerNeedsEvent)) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
@@ -303,7 +303,7 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
+          getKernelName(), *impl->MDeviceKernelInfoPtr, getStreamStorage(),
           impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
           getCodeLoc()));

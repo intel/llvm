@@ -155,8 +155,13 @@ ur_result_t urDeviceGet(
       bool isComposite =
           isCombinedMode && (D->ZeDeviceProperties->flags &
                              ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (!isComposite)
+      if (!isComposite) {
         MatchedDevices.push_back(D.get());
+        // For UR_DEVICE_TYPE_DEFAULT only a single device should be returned,
+        // so exit the loop after first proper match.
+        if (DeviceType == UR_DEVICE_TYPE_DEFAULT)
+          break;
+      }
     }
   }
 
@@ -1790,12 +1795,19 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    bool isIntelMTLDevice = this->isIntelMTL();
+    bool isIntelARLDevice = this->isIntelARL();
     // Disable immediate command lists for DG2 devices on Windows due to driver
     // limitations.
     bool isLinux = true;
 #ifdef _WIN32
     isLinux = false;
 #endif
+    // Disable immediate command lists for Intel MTL/ARL devices on Linux by
+    // default due to driver limitations.
+    if ((isIntelMTLDevice || isIntelARLDevice) && isLinux) {
+      return NotUsed;
+    }
     if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
         isNewerThanIntelDG2()) {
       return PerQueue;

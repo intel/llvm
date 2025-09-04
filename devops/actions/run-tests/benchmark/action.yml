@@ -25,6 +25,10 @@ inputs:
   preset:
     type: string
     required: True
+  build_ref:
+    type: string
+    required: False
+    default: ""
   dry_run:
     type: string
     required: False
@@ -90,6 +94,45 @@ runs:
 
       ZE_AFFINITY_MASK=0
       echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+
+  # Compute-benchmarks relies on UR static libraries, cmake config files, etc.
+  # DPC++ doesn't ship with these files. The easiest way of obtaining these
+  # files is to build from scratch.
+  #
+  # TODO This is not the best place for this. We should come up with
+  # alternatives. A suggestion: Output UR builds as artifacts in ur_build_hw.yml
+  # and unpack it here instead.
+  #
+  # If we insist on not building the UR again, sycl_linux_build.yml can be
+  # modified output the entire sycl build dir as an artifact, in which the
+  # intermediate files required can be stitched together from the build files.
+  # However, this is not exactly "clean" or "fun to maintain"...
+  - name: Build Unified Runtime
+    shell: bash
+    run: |
+      # Sparse-checkout UR at build ref:
+      git clone --depth 1 --no-checkout https://github.com/intel/llvm ur
+      cd ur
+      git sparse-checkout init
+      git sparse-checkout set unified-runtime
+      git fetch origin ${{ inputs.build_ref }}
+      git checkout FETCH_HEAD
+
+      # Configure UR
+      mkdir build install
+      cmake -DCMAKE_BUILD_TYPE=Release \
+        -Sunified-runtime \
+        -Bbuild \
+        -DCMAKE_INSTALL_PREFIX=install \
+        -DUR_BUILD_TESTS=OFF \
+        -DUR_BUILD_ADAPTER_L0=ON \
+        -DUR_BUILD_ADAPTER_L0_V2=ON
+
+      # Build and install UR
+      cmake --build build -j "$(nproc)" 
+      cmake --install build
+
+      cd -
   - name: Checkout results repo
     shell: bash
     run: |
@@ -152,6 +195,7 @@ runs:
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
         --sycl "$(realpath ./toolchain)" \
+        --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
         --save "$SAVE_NAME" \
         --output-html remote \
@@ -169,15 +213,19 @@ runs:
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
         --regression-filter '^[a-z_]+_sycl ' \
+        --regression-filter-type 'SYCL' \
         --verbose \
+        --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
 
       echo "-----"
 
-  - name: Cache changes to benchmark folder for archival purposes
+  - name: Cache changes and upload github summary
     if: always()
     shell: bash
     run: | 
+      [ -f "github_summary.md" ] && cat github_summary.md >> $GITHUB_STEP_SUMMARY
+
       cd "./llvm-ci-perf-results"
       git add .
       for diff in $(git diff HEAD --name-only); do

@@ -1,4 +1,4 @@
-//===--- ROCm.h - ROCm installation detector --------------------*- C++ -*-===//
+//===-- RocmInstallationDetector.h - ROCm Instalation Detector --*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,19 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_ROCM_H
-#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_ROCM_H
+#ifndef LLVM_CLANG_DRIVER_ROCMINSTALLATIONDETECTOR_H
+#define LLVM_CLANG_DRIVER_ROCMINSTALLATIONDETECTOR_H
 
-#include "clang/Basic/Cuda.h"
-#include "clang/Basic/LLVM.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/Options.h"
-#include "clang/Driver/SanitizerArgs.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/Option/ArgList.h"
-#include "llvm/Support/VersionTuple.h"
-#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 namespace driver {
@@ -75,6 +66,24 @@ private:
               StringRef SPACKReleaseStr = {})
         : Path(Path), StrictChecking(StrictChecking),
           SPACKReleaseStr(SPACKReleaseStr.str()) {}
+  };
+
+  struct CommonBitcodeLibsPreferences {
+    CommonBitcodeLibsPreferences(const Driver &D,
+                                 const llvm::opt::ArgList &DriverArgs,
+                                 StringRef GPUArch,
+                                 const Action::OffloadKind DeviceOffloadingKind,
+                                 const bool NeedsASanRT);
+
+    DeviceLibABIVersion ABIVer;
+    bool IsOpenMP;
+    bool Wave64;
+    bool DAZ;
+    bool FiniteOnly;
+    bool UnsafeMathOpt;
+    bool FastRelaxedMath;
+    bool CorrectSqrt;
+    bool GPUSan;
   };
 
   const Driver &D;
@@ -175,11 +184,11 @@ public:
 
   /// Get file paths of default bitcode libraries common to AMDGPU based
   /// toolchains.
-  llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12> getCommonBitcodeLibs(
-      const llvm::opt::ArgList &DriverArgs, StringRef LibDeviceFile,
-      bool Wave64, bool DAZ, bool FiniteOnly, bool UnsafeMathOpt,
-      bool FastRelaxedMath, bool CorrectSqrt, DeviceLibABIVersion ABIVer,
-      bool GPUSan, bool isOpenMP) const;
+  llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
+  getCommonBitcodeLibs(const llvm::opt::ArgList &DriverArgs,
+                       StringRef LibDeviceFile, StringRef GPUArch,
+                       const Action::OffloadKind DeviceOffloadingKind,
+                       const bool NeedsASanRT) const;
   /// Check file paths of default bitcode libraries common to AMDGPU based
   /// toolchains. \returns false if there are invalid or missing files.
   bool checkCommonBitcodeLibs(StringRef GPUArch, StringRef LibDeviceFile,
@@ -288,7 +297,7 @@ public:
   StringRef getHIPVersion() const { return DetectedVersion; }
 };
 
-} // end namespace driver
-} // end namespace clang
+} // namespace driver
+} // namespace clang
 
-#endif // LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_ROCM_H
+#endif // LLVM_CLANG_DRIVER_ROCMINSTALLATIONDETECTOR_H

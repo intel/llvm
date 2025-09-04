@@ -54,7 +54,7 @@
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 typedef void (*kernel_functor)(sycl::queue &, const sycl::nd_range<3> &,
                                unsigned int, void **, void **);

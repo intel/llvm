@@ -45,7 +45,6 @@
 #endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
 #include <detail/xpti_registry.hpp>
 #endif
 
@@ -78,8 +77,6 @@ ur_result_t callMemOpHelperRet(MemOpRet &MemOpResult, MemOpFuncT &MemOpFunc,
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-// Global graph for the application
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
 
 static bool CurrentCodeLocationValid() {
   detail::tls_code_loc_t Tls;
@@ -576,8 +573,9 @@ Command::Command(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiTraceEnabled())
     return;
-  // Obtain the stream ID so all commands can emit traces to that stream
-  MStreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  // Obtain the stream ID so all commands can emit traces to that stream;
+  // copying it to the member variable to avoid ABI breakage
+  MStreamID = detail::GSYCLStreamID;
 #endif
 }
 
@@ -1813,8 +1811,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -1988,8 +1985,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    KernelNameStrRefT KernelName, DeviceKernelInfo &DeviceKernelInfo,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel, queue_impl *Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
@@ -2016,7 +2012,7 @@ void instrumentationAddExtraKernelMetadata(
     FastKernelCacheValPtr FastKernelCacheVal =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImpl(), Queue->getDeviceImpl(), KernelName,
-            KernelNameBasedCachePtr);
+            DeviceKernelInfo);
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
   }
 
@@ -2103,9 +2099,9 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     xpti::stream_id_t StreamID,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string_view SyclKernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr, queue_impl *Queue,
-    const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
+    const std::string_view SyclKernelName, DeviceKernelInfo &DeviceKernelInfo,
+    queue_impl *Queue, const NDRDescT &NDRDesc,
+    detail::kernel_bundle_impl *KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
@@ -2143,7 +2139,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), KernelNameBasedCachePtr, SyclKernel, Queue,
+        std::string(SyclKernelName), DeviceKernelInfo, SyclKernel, Queue,
         CGArgs);
 
     xptiNotifySubscribers(
@@ -2199,7 +2195,7 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MKernelName, KernelCG->MKernelNameBasedCachePtr,
+          KernelCG->MKernelName, KernelCG->MDeviceKernelInfo,
           KernelCG->MSyclKernel, MQueue.get(), KernelCG->MArgs);
     }
 
@@ -2401,8 +2397,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    KernelNameStrRefT KernelName, DeviceKernelInfo &DeviceKernelInfo,
     void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
     bool KernelHasSpecialCaptures = true) {
@@ -2448,9 +2443,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
   }
 
-  std::optional<int> ImplicitLocalArg =
-      ProgramManager::getInstance().kernelImplicitLocalArgPos(
-          KernelName, KernelNameBasedCachePtr);
+  const std::optional<int> &ImplicitLocalArg =
+      DeviceKernelInfo.getImplicitLocalArgPos();
   // Set the implicit local memory buffer to support
   // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
@@ -2554,7 +2548,7 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, context_impl &ContextImpl,
     FastKernelCacheValPtr FastKernelCacheVal =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName,
-            CommandGroup.MKernelNameBasedCachePtr);
+            CommandGroup.MDeviceKernelInfo);
     UrKernel = FastKernelCacheVal->MKernelHandle;
     EliminatedArgMask = FastKernelCacheVal->MKernelArgMask;
     // To keep UrKernel valid, we return FastKernelCacheValPtr.
@@ -2669,7 +2663,7 @@ void enqueueImpKernel(
     queue_impl &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
     const detail::kernel_impl *MSyclKernel, KernelNameStrRefT KernelName,
-    KernelNameBasedCacheT *KernelNameBasedCachePtr,
+    DeviceKernelInfo &DeviceKernelInfo,
     std::vector<ur_event_handle_t> &RawEvents, detail::event_impl *OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -2716,7 +2710,7 @@ void enqueueImpKernel(
     KernelMutex = SyclKernelImpl->getCacheMutex();
   } else {
     KernelCacheVal = detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, KernelName, KernelNameBasedCachePtr, NDRDesc);
+        ContextImpl, DeviceImpl, KernelName, DeviceKernelInfo, NDRDesc);
     Kernel = KernelCacheVal->MKernelHandle;
     KernelMutex = KernelCacheVal->MMutex;
     Program = KernelCacheVal->MProgramHandle;
@@ -2763,8 +2757,8 @@ void enqueueImpKernel(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
         KernelIsCooperative, KernelUsesClusterLaunch, WorkGroupMemorySize,
-        BinImage, KernelName, KernelNameBasedCachePtr, KernelFuncPtr,
-        KernelNumArgs, KernelParamDescGetter, KernelHasSpecialCaptures);
+        BinImage, KernelName, DeviceKernelInfo, KernelFuncPtr, KernelNumArgs,
+        KernelParamDescGetter, KernelHasSpecialCaptures);
   }
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
@@ -2980,7 +2974,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             &MQueue->getContextImpl(), MCommandBuffer, Prefetch->getDst(),
-            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3241,10 +3236,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert =
-          (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              KernelName, ExecKernel->MKernelNameBasedCachePtr);
+      bool KernelUsesAssert = (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
+                              ExecKernel->MDeviceKernelInfo.usesAssert();
       if (KernelUsesAssert) {
         EventImpl = MEvent.get();
       }
@@ -3257,10 +3250,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(
         *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
-        SyclKernel.get(), KernelName, ExecKernel->MKernelNameBasedCachePtr,
-        RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
-        ExecKernel->MKernelUsesClusterLaunch,
+        SyclKernel.get(), KernelName, ExecKernel->MDeviceKernelInfo, RawEvents,
+        EventImpl, getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
         ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
@@ -3291,7 +3283,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), *MQueue,
-            Prefetch->getLength(), std::move(RawEvents), Event);
+            Prefetch->getLength(), std::move(RawEvents), Event,
+            Prefetch->getPrefetchType());
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3857,8 +3850,7 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "CommandBuffer Command Update"
-         << "\\n";
+  Stream << "CommandBuffer Command Update" << "\\n";
 
   Stream << "\"];" << std::endl;
 
