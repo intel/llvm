@@ -158,6 +158,10 @@ static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
 
+static std::string SYCLCompileOptionsFromImage;
+
+static std::string SYCLLinkOptionsFromImage;
+
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
 namespace llvm {
@@ -940,11 +944,14 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// options are generated for AOT compilation targeting Intel GPUs.
 static void addBackendOptions(const ArgList &Args,
                               SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
-  StringRef OptC =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
+  StringRef OptC = SYCLCompileOptionsFromImage;
   OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptL =
-      Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
+  OptC = Args.getLastArgValue(
+      OPT_sycl_backend_compile_options_EQ); // TODO: test this.
+  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  StringRef OptL = SYCLLinkOptionsFromImage;
+  OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  OptL = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
   OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
                               : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
@@ -1052,6 +1059,33 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
+  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
+  if (Target.empty())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "can't wrap SYCL image. -triple argument is missed.");
+
+  // SYCL runtime currently works for spir64 target triple and not for
+  // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
+  // TODO: Fix SYCL runtime to accept other triples
+  llvm::Triple T(Target);
+  bool isJIT = !(T.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                 T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
+  SmallString<0> CompileOptions;
+  SmallString<0> LinkOptions;
+  if (isJIT) {
+    CompileOptions =
+        StringRef(formatv("{0} {1}", SYCLCompileOptionsFromImage,
+                          Args.getLastArgValue(
+                              OPT_sycl_backend_compile_options_EQ, "")))
+            .trim();
+    LinkOptions =
+        StringRef(
+            formatv("{0} {1}", SYCLLinkOptionsFromImage,
+                    Args.getLastArgValue(OPT_sycl_target_link_options_EQ, "")))
+            .trim();
+  }
+
   StringRef OutputFilePath = *OutputFileOrErr;
   if (Verbose || DryRun) {
     std::string InputFiles;
@@ -1061,23 +1095,14 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
         InputFiles += ',';
     }
 
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFiles,
-                      OutputFilePath);
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}, "
+                      "compile-opts: {2}, link-opts: {3}\n",
+                      InputFiles, OutputFilePath, CompileOptions, LinkOptions);
     if (DryRun)
       return OutputFilePath;
   }
 
-  StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
-  if (Target.empty())
-    return createStringError(
-        inconvertibleErrorCode(),
-        "can't wrap SYCL image. -triple argument is missed.");
-
   SmallVector<llvm::offloading::SYCLImage> Images;
-  // SYCL runtime currently works for spir64 target triple and not for
-  // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
-  // TODO: Fix SYCL runtime to accept other triples
-  llvm::Triple T(Target);
   std::string EmbeddedIRTarget("llvm_");
   EmbeddedIRTarget.append(T.getArchName());
   StringRef RegularTarget(T.getArchName());
@@ -1112,22 +1137,9 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   M.setTargetTriple(Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
 
-  auto CompileOptionsFromSYCLBackendCompileOptions =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
-  auto LinkOptionsFromSYCLTargetLinkOptions =
-      Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
-
-  StringRef CompileOptions(
-      Args.MakeArgString(CompileOptionsFromSYCLBackendCompileOptions.str()));
-  StringRef LinkOptions(
-      Args.MakeArgString(LinkOptionsFromSYCLTargetLinkOptions.str()));
   offloading::SYCLWrappingOptions WrappingOptions;
-  WrappingOptions.CompileOptions = CompileOptions;
-  WrappingOptions.LinkOptions = LinkOptions;
-  if (Verbose) {
-    errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
-                      CompileOptions, LinkOptions);
-  }
+  WrappingOptions.CompileOptions = std::string(CompileOptions);
+  WrappingOptions.LinkOptions = std::string(LinkOptions);
   if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
@@ -1979,14 +1991,6 @@ DerivedArgList getLinkerArgs(ArrayRef<OffloadFile> Input,
   DAL.AddJoinedArg(nullptr, Tbl.getOption(OPT_triple_EQ),
                    Args.MakeArgString(Input.front().getBinary()->getTriple()));
 
-  const auto *Bin = Input.front().getBinary();
-  DAL.AddJoinedArg(
-      nullptr, Tbl.getOption(OPT_sycl_backend_compile_options_from_image_EQ),
-      Args.MakeArgString(Bin->getString(COMPILE_OPTS)));
-  DAL.AddJoinedArg(nullptr,
-                   Tbl.getOption(OPT_sycl_backend_link_options_from_image_EQ),
-                   Args.MakeArgString(Bin->getString(LINK_OPTS)));
-
   // If every input file is bitcode we have whole program visibility as we
   // do only support static linking with bitcode.
   auto ContainsBitcode = [](const OffloadFile &F) {
@@ -2063,6 +2067,23 @@ Error handleOverrideImages(
   return Error::success();
 }
 
+/// Function looks for compile/link options encoded in SYCL images.
+/// If they are found then they are stored in global variables.
+void findAndSaveSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
+  for (const OffloadFile &File : OffloadFiles) {
+    const OffloadBinary &OB = *File.getBinary();
+    if (OB.getOffloadKind() != OFK_SYCL)
+      continue;
+
+    StringRef CompileOptions = OB.getString("compile-opts");
+    StringRef LinkOptions = OB.getString("link-opts");
+    if (!CompileOptions.empty())
+      SYCLCompileOptionsFromImage = CompileOptions.str();
+    if (!LinkOptions.empty())
+      SYCLLinkOptionsFromImage = LinkOptions.str();
+  }
+}
+
 /// Transforms all the extracted offloading input files into an image that can
 /// be registered by the runtime.
 Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
@@ -2110,14 +2131,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         HasNonSYCLOffloadKinds = true;
     }
 
-    // Write any remaining device inputs to an output file.
-    SmallVector<StringRef> InputFiles;
-    for (const OffloadFile &File : Input) {
-      auto FileNameOrErr = writeOffloadFile(File);
-      if (!FileNameOrErr)
-        return FileNameOrErr.takeError();
-      InputFiles.emplace_back(*FileNameOrErr);
-    }
+    if (HasSYCLOffloadKind)
+      findAndSaveSYCLCompileLinkOptions(Input);
 
     if (HasSYCLOffloadKind) {
       SmallVector<StringRef> InputFiles;
