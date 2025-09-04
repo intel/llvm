@@ -1349,9 +1349,11 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     processLaunchProperties<PropertiesT>(Props);
-    setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
     MKernelName = getKernelName();
+    setType(detail::CGType::Kernel);
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{MKernelName}));
+    extractArgsAndReqs();
 #endif
   }
 
@@ -1374,9 +1376,11 @@ private:
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     processLaunchProperties(Props);
-    setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
     MKernelName = getKernelName();
+    setType(detail::CGType::Kernel);
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{MKernelName}));
+    extractArgsAndReqs();
 #endif
   }
 
