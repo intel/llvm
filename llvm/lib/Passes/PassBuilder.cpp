@@ -203,6 +203,7 @@
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -1509,6 +1510,29 @@ parseBoundsCheckingOptions(StringRef Params) {
     }
   }
   return Options;
+}
+
+Expected<CodeGenOptLevel> parseExpandFpOptions(StringRef Params) {
+  if (Params.empty())
+    return CodeGenOptLevel::None;
+
+  StringRef Param;
+  std::tie(Param, Params) = Params.split(';');
+  if (!Params.empty())
+    return createStringError("too many expand-fp pass parameters");
+
+  auto [Name, Val] = Param.split('=');
+  if (Name != "opt-level")
+    return createStringError("invalid expand-fp pass parameter '%s'",
+                             Param.str().c_str());
+  int8_t N;
+  Val.getAsInteger(10, N);
+  std::optional<CodeGenOptLevel> Level = CodeGenOpt::getLevel(N);
+  if (!Level.has_value())
+    return createStringError("invalid expand-fp opt-level value: %s",
+                             Val.str().c_str());
+
+  return *Level;
 }
 
 Expected<RAGreedyPass::Options>
