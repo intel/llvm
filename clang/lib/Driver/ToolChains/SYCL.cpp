@@ -248,7 +248,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -290,7 +291,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl");
+             Device.starts_with("lnl") || Device.starts_with("ptl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {

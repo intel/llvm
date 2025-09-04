@@ -188,6 +188,18 @@ struct ur_device_handle_t_ : ur_object {
   // Checks if this GPU is an Intel Flex GPU or Intel Arc Alchemist
   bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
 
+  bool isIntelMTL() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x03118000 &&
+            ZeDeviceIpVersionExt->ipVersion <= 0x0311c004);
+  }
+
+  bool isIntelARL() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x03128000 &&
+            ZeDeviceIpVersionExt->ipVersion <= 0x03128004);
+  }
+
   bool isIntelDG2OrNewer() {
     return (ZeDeviceProperties->vendorId == 0x8086 &&
             ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
