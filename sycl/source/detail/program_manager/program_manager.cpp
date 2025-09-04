@@ -1530,16 +1530,16 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
   // Decompress the image if it is compressed.
   CheckAndDecompressImage(Img);
 
-  if (Img) {
-    if constexpr (DbgProgMgr > 0) {
-      std::cerr << "selected device image: " << &Img->getRawData() << "\n";
-      Img->print();
-    }
-    return *Img;
-  }
+  if (!Img)
+    throw exception(make_error_code(errc::runtime),
+                    "No kernel named " + std::string(KernelName) +
+                        " was found");
 
-  throw exception(make_error_code(errc::runtime),
-                  "No kernel named " + std::string(KernelName) + " was found");
+  if constexpr (DbgProgMgr > 0) {
+    std::cerr << "selected device image: " << &Img->getRawData() << "\n";
+    Img->print();
+  }
+  return *Img;
 }
 
 const RTDeviceBinaryImage &ProgramManager::getDeviceImage(
