@@ -5063,14 +5063,17 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
                       PrevDecl->getPointOfInstantiation(), Ignored))
     return nullptr;
 
-  return VisitVarTemplateSpecializationDecl(InstVarTemplate, D,
-                                            VarTemplateArgsInfo,
-                                            CTAI.CanonicalConverted, PrevDecl);
+  if (VarTemplateSpecializationDecl *VTSD = VisitVarTemplateSpecializationDecl(
+          InstVarTemplate, D, CTAI.CanonicalConverted, PrevDecl)) {
+    VTSD->setTemplateArgsAsWritten(VarTemplateArgsInfo);
+    return VTSD;
+  }
+  return nullptr;
 }
 
-Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
+VarTemplateSpecializationDecl *
+TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
     VarTemplateDecl *VarTemplate, VarDecl *D,
-    const TemplateArgumentListInfo &TemplateArgsInfo,
     ArrayRef<TemplateArgument> Converted,
     VarTemplateSpecializationDecl *PrevDecl) {
 
@@ -5091,7 +5094,6 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
   VarTemplateSpecializationDecl *Var = VarTemplateSpecializationDecl::Create(
       SemaRef.Context, Owner, D->getInnerLocStart(), D->getLocation(),
       VarTemplate, DI->getType(), DI, D->getStorageClass(), Converted);
-  Var->setTemplateArgsAsWritten(TemplateArgsInfo);
   if (!PrevDecl) {
     void *InsertPos = nullptr;
     VarTemplate->findSpecialization(Converted, InsertPos);
@@ -6401,7 +6403,6 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
 VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
     VarTemplateDecl *VarTemplate, VarDecl *FromVar,
     const TemplateArgumentList *PartialSpecArgs,
-    const TemplateArgumentListInfo &TemplateArgsInfo,
     SmallVectorImpl<TemplateArgument> &Converted,
     SourceLocation PointOfInstantiation, LateInstantiatedAttrVec *LateAttrs,
     LocalInstantiationScope *StartingScope) {
@@ -6443,6 +6444,7 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
 
   // TODO: Set LateAttrs and StartingScope ...
 
+<<<<<<< HEAD
   auto *VD = cast_or_null<VarTemplateSpecializationDecl>(
       Instantiator.VisitVarTemplateSpecializationDecl(
           VarTemplate, FromVar, TemplateArgsInfo, Converted));
@@ -6450,6 +6452,10 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   SYCL().addSyclVarDecl(VD);
 
   return VD;
+=======
+  return Instantiator.VisitVarTemplateSpecializationDecl(VarTemplate, FromVar,
+                                                         Converted);
+>>>>>>> 1cb47c19f8eca4badd8fb5e1a1b1cf4aaab607b8
 }
 
 VarTemplateSpecializationDecl *Sema::CompleteVarTemplateSpecializationDecl(
@@ -6873,10 +6879,15 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
         TemplateArgInfo.addArgument(Arg);
     }
 
-    Var = cast_or_null<VarDecl>(Instantiator.VisitVarTemplateSpecializationDecl(
-        VarSpec->getSpecializedTemplate(), Def, TemplateArgInfo,
-        VarSpec->getTemplateArgs().asArray(), VarSpec));
+    VarTemplateSpecializationDecl *VTSD =
+        Instantiator.VisitVarTemplateSpecializationDecl(
+            VarSpec->getSpecializedTemplate(), Def,
+            VarSpec->getTemplateArgs().asArray(), VarSpec);
+    Var = VTSD;
+
     if (Var) {
+      VTSD->setTemplateArgsAsWritten(TemplateArgInfo);
+
       llvm::PointerUnion<VarTemplateDecl *,
                          VarTemplatePartialSpecializationDecl *> PatternPtr =
           VarSpec->getSpecializedTemplateOrPartial();
