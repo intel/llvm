@@ -9,15 +9,19 @@ else()
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
+# TODO: libdevice
+set(SYCL_JIT_RESOURCE_DEPS sycl-headers clang ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
+
+if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+  # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins)
+endif()
+
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
   DEPENDS
-  sycl-headers # include/sycl
-  libclc       # lib/clc
-  clang        # lib/clang
-  # TODO: libdevice
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
+  ${SYCL_JIT_RESOURCE_DEPS}
 )
 
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
@@ -34,6 +38,13 @@ if (WIN32)
 else()
   get_host_tool_path( clang CLANG clang_exe clang_target )
   set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
+
+  if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    # Hack based on the information at
+    # https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_SYSROOT.html
+    execute_process(COMMAND xcrun --sdk macosx --show-sdk-path OUTPUT_VARIABLE SYCL_JIT_OSX_SYSROOT)
+    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -isysroot ${SYCL_JIT_OSX_SYSROOT})
+  endif()
 endif()
 
 add_custom_command(
