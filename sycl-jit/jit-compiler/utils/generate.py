@@ -43,7 +43,7 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
     static const char data[] = {{
     #embed "{file_path}" if_empty(0)
         , 0}};
-    return std::string_view(data);
+    return std::string_view(data, std::size(data) - 1);
     }}()
 }},"""
                     )
