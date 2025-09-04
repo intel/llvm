@@ -667,6 +667,7 @@ public:
     getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
                                                       nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
+    ResEvent->setEnqueued();
     return ResEvent;
   }
 
