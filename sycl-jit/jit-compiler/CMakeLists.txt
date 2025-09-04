@@ -1,4 +1,50 @@
 
+
+set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
+set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
+
+if (WIN32)
+set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "c:/sycl-jit-toolchain/")
+else()
+set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
+endif()
+
+add_custom_command(
+  OUTPUT ${SYCL_JIT_RESOURCE_CPP}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  DEPENDS
+  sycl-headers # include/sycl
+  libclc       # lib/clc
+  clang        # lib/clang
+  # TODO: libdevice
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
+)
+
+# We use C23/C++26's `#embed` to implement this resource creation, and "current"
+# CMAKE_CXX_COMPILER might not have support for it. As such, use freshly built
+# `clang++` instead.
+if (WIN32)
+  set(clang_exe ${CMAKE_BINARY_DIR}/bin/clang-cl.exe)
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS /O2 /std:c++17 /W0)
+  if (CMAKE_BUILD_TYPE MATCHES "Debug")
+    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MDd)
+  else()
+    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MD)
+  endif()
+else()
+  get_host_tool_path( clang CLANG clang_exe clang_target )
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
+endif()
+
+add_custom_command(
+  OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
+  COMMAND
+  ${clang_exe} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+  DEPENDS
+  ${SYCL_JIT_RESOURCE_CPP}
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
+)
+
 add_llvm_library(sycl-jit
    lib/translation/JITContext.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
@@ -10,6 +56,8 @@ add_llvm_library(sycl-jit
    lib/rtc/RTC.cpp
    lib/helper/ConfigHelper.cpp
    lib/helper/ErrorHelper.cpp
+
+   ${SYCL_JIT_RESOURCE_OBJ}
 
    SHARED
 
