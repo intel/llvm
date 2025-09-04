@@ -3537,7 +3537,6 @@ private:
   // method to improve compilation times.
   void throwOnKernelParameterMisuse(
       const detail::CompileTimeKernelInfoTy &Info) const {
-
     for (size_t I = 0; I < Info.NumParams; ++I) {
       detail::kernel_param_desc_t ParamDesc = (*Info.ParamDescGetter)(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
@@ -3559,6 +3558,19 @@ private:
             "of parallel_for that takes a range parameter.");
     }
   }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Exported on Windows for some reason, have to keep for backward ABI
+  // compatibility, at least formally.
+  void throwOnKernelParameterMisuseHelper(
+      int N, detail::kernel_param_desc_t (*f)(int)) const {
+    detail::CompileTimeKernelInfoTy Info{};
+    Info.NumParams = N;
+    Info.ParamDescGetter = f;
+    throwOnKernelParameterMisuse(Info);
+  }
+#endif
+
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t,

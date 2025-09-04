@@ -1830,6 +1830,7 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
 
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   assert(Info.Name != std::string_view{} && "Empty name is unexpected here!");
   auto [Iter, Inserted] =
       m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name}, Info);
@@ -2139,6 +2140,9 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     return;
   // Acquire lock to read and modify maps for kernel bundles
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+  // Acquire lock to erase DeviceKernelInfoMap
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);

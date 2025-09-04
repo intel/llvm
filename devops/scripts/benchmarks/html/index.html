@@ -22,7 +22,7 @@
 <body>
     <div class="container">
         <h1>Benchmark Results</h1>
-        <div id="loading-indicator" class="loading-indicator" style="display: none;">
+        <div id="loading-indicator" class="loading-indicator hidden">
             Loading data, please wait...
         </div>
         <div class="filter-container">
@@ -56,6 +56,10 @@
                         <label title="Load older benchmark results that have been archived.">
                             <input type="checkbox" id="show-archived-data">
                             Include archived runs
+                        </label>
+                        <label title="Show flamegraph SVG files instead of benchmark charts.">
+                            <input type="checkbox" id="show-flamegraph">
+                            Show flamegraph
                         </label>
                     </div>
                 </div>

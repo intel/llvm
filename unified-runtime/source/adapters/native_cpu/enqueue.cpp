@@ -70,8 +70,18 @@ public:
   }
 };
 
+template <class T>
 inline static WaitInfo getWaitInfo(uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList) {
+                                   const ur_event_handle_t *phEventWaitList,
+                                   const T &scheduler) {
+  if (numEventsInWaitList && !scheduler.CanWaitInThread()) {
+    // Waiting for dependent events in threads launched by the enqueue may
+    // not work correctly for some backend/schedulers, so we have the safe
+    // option here to wait in the main thread instead (potentially at the
+    // expense of performance).
+    urEventWait(numEventsInWaitList, phEventWaitList);
+    numEventsInWaitList = 0;
+  }
   return native_cpu::WaitInfo(numEventsInWaitList, phEventWaitList);
 }
 
@@ -151,7 +161,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
-  std::vector<std::future<void>> futures;
+  auto Tasks = native_cpu::getScheduler(tp);
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
@@ -162,7 +172,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto kernel = std::make_unique<ur_kernel_handle_t_>(*hKernel);
   kernel->updateMemPool(numParallelThreads);
 
-  auto InEvents = native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
+  auto InEvents =
+      native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
 
   const size_t numWG = numWG0 * numWG1 * numWG2;
   const size_t numWGPerThread = numWG / numParallelThreads;
@@ -177,42 +188,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     rangeEnd[0] = rangeEnd[3] % numWG0;
     rangeEnd[1] = (rangeEnd[3] / numWG0) % numWG1;
     rangeEnd[2] = rangeEnd[3] / (numWG0 * numWG1);
-    futures.emplace_back(tp.schedule_task(
-        [ndr, InEvents, &kernel = *kernel, rangeStart, rangeEnd = rangeEnd[3],
-         numWG0, numWG1, numParallelThreads](size_t threadId) {
-          auto state = getState(ndr);
-          InEvents.wait();
-          for (size_t g0 = rangeStart[0], g1 = rangeStart[1],
-                      g2 = rangeStart[2], g3 = rangeStart[3];
-               g3 < rangeEnd; ++g3) {
+    Tasks.schedule([ndr, InEvents, &kernel = *kernel, rangeStart,
+                    rangeEnd = rangeEnd[3], numWG0, numWG1,
+                    numParallelThreads](size_t threadId) {
+      auto state = getState(ndr);
+      InEvents.wait();
+      for (size_t g0 = rangeStart[0], g1 = rangeStart[1], g2 = rangeStart[2],
+                  g3 = rangeStart[3];
+           g3 < rangeEnd; ++g3) {
 #ifdef NATIVECPU_USE_OCK
-            state.update(g0, g1, g2);
-            kernel._subhandler(
-                kernel.getArgs(numParallelThreads, threadId).data(), &state);
+        state.update(g0, g1, g2);
+        kernel._subhandler(kernel.getArgs(numParallelThreads, threadId).data(),
+                           &state);
 #else
-            for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
-              for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
-                for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
-                  state.update(g0, g1, g2, local0, local1, local2);
-                  kernel._subhandler(
-                      kernel.getArgs(numParallelThreads, threadId).data(),
-                      &state);
-                }
-              }
-            }
-#endif
-            if (++g0 == numWG0) {
-              g0 = 0;
-              if (++g1 == numWG1) {
-                g1 = 0;
-                ++g2;
-              }
+        for (size_t local2 = 0; local2 < ndr.LocalSize[2]; ++local2) {
+          for (size_t local1 = 0; local1 < ndr.LocalSize[1]; ++local1) {
+            for (size_t local0 = 0; local0 < ndr.LocalSize[0]; ++local0) {
+              state.update(g0, g1, g2, local0, local1, local2);
+              kernel._subhandler(
+                  kernel.getArgs(numParallelThreads, threadId).data(), &state);
             }
           }
-        }));
+        }
+#endif
+        if (++g0 == numWG0) {
+          g0 = 0;
+          if (++g1 == numWG1) {
+            g1 = 0;
+            ++g2;
+          }
+        }
+      }
+    });
     rangeStart = rangeEnd;
   }
-  event->set_futures(futures);
+  event->set_tasksinfo(Tasks.getMovedTaskInfo());
 
   if (phEvent) {
     *phEvent = event;
@@ -248,14 +258,14 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
       return result;
     }
     auto &tp = hQueue->getDevice()->tp;
-    std::vector<std::future<void>> futures;
+    auto Tasks = native_cpu::getScheduler(tp);
     auto InEvents =
-        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList);
-    futures.emplace_back(tp.schedule_task([f, InEvents](size_t) {
+        native_cpu::getWaitInfo(numEventsInWaitList, phEventWaitList, Tasks);
+    Tasks.schedule([f, InEvents](size_t) {
       InEvents.wait();
       f();
-    }));
-    event->set_futures(futures);
+    });
+    event->set_tasksinfo(Tasks.getMovedTaskInfo());
     event->set_callback(
         [event, InEvents = InEvents.getUniquePtr()]() { event->tick_end(); });
     return UR_RESULT_SUCCESS;
@@ -465,7 +475,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         // TODO: error checking
         // TODO: handle async
         void *startingPtr = hBuffer->_mem + offset;
-        unsigned steps = size / patternSize;
+        size_t steps = size / patternSize;
         for (unsigned i = 0; i < steps; i++) {
           memcpy(static_cast<int8_t *>(startingPtr) + i * patternSize, pPattern,
                  patternSize);
@@ -575,7 +585,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
           break;
         }
         default: {
-          for (unsigned int step{0}; step < size; step += patternSize) {
+          for (size_t step{0}; step < size; step += patternSize) {
             auto *dest = reinterpret_cast<void *>(
                 reinterpret_cast<uint8_t *>(ptr) + step);
             memcpy(dest, pPattern, patternSize);

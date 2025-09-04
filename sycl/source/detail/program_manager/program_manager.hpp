@@ -538,6 +538,9 @@ protected:
   // by caching the pointers when possible.
   std::unordered_map<KernelNameStrT, DeviceKernelInfo> m_DeviceKernelInfoMap;
 
+  // Protects m_DeviceKernelInfoMap.
+  std::mutex m_DeviceKernelInfoMapMutex;
+
   // Sanitizer type used in device image
   SanitizerType m_SanitizerFoundInImage;
 

@@ -1545,10 +1545,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     // with TI set to the device TargetInfo.
     const llvm::Triple &Triple = TI.getTriple();
     const llvm::Triple::SubArchType SubArch = Triple.getSubArch();
-    if (Triple.isNVPTX() || Triple.isAMDGPU() ||
-        (Triple.isSPIR() && SubArch != llvm::Triple::SPIRSubArch_fpga) ||
-        Triple.isNativeCPU())
-      Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+
     // Enable generation of USM address spaces for FPGA.
     if (SubArch == llvm::Triple::SPIRSubArch_fpga) {
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");

@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: cuda
+// XFAIL: hip
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

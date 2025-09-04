@@ -27,10 +27,17 @@ public:
   DeviceGlobalMap(bool OwnerControlledCleanup)
       : MOwnerControlledCleanup{OwnerControlledCleanup} {}
 
+  DeviceGlobalMap(const DeviceGlobalMap &) = delete;
+  DeviceGlobalMap &operator=(const DeviceGlobalMap &) = delete;
+
   ~DeviceGlobalMap() {
-    if (!MOwnerControlledCleanup)
-      for (auto &DeviceGlobalIt : MDeviceGlobals)
-        DeviceGlobalIt.second->cleanup();
+    try {
+      if (!MOwnerControlledCleanup)
+        for (auto &DeviceGlobalIt : MDeviceGlobals)
+          DeviceGlobalIt.second->cleanup();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~DeviceGlobalMap", e);
+    }
   }
 
   void initializeEntries(const RTDeviceBinaryImage *Img) {

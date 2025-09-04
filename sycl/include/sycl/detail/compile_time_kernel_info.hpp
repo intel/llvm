@@ -58,15 +58,14 @@ struct CompileTimeKernelInfoTy {
     if (NumParams == 0)
       return true;
 
-    bool FoundSpecialCapture = false;
     for (unsigned I = 0; I < NumParams; ++I) {
       auto ParamDesc = ParamDescGetter(I);
-      bool IsSpecialCapture =
-          (ParamDesc.kind != kernel_param_kind_t::kind_std_layout &&
-           ParamDesc.kind != kernel_param_kind_t::kind_pointer);
-      FoundSpecialCapture |= IsSpecialCapture;
+      if (ParamDesc.kind != kernel_param_kind_t::kind_std_layout &&
+          ParamDesc.kind != kernel_param_kind_t::kind_pointer)
+        return true;
     }
-    return FoundSpecialCapture;
+
+    return false;
   }();
 
   void refine(const CompileTimeKernelInfoTy &Other) {
