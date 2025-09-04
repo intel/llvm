@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Intended - OpenCL support depends on extensions
 // UNSUPPORTED: opencl
+// UNSUPPORTED-INTENDED: OpenCL support depends on extensions
 
 // Tests the using device query for graphs support, and that the return value
 // matches expectations.
