@@ -42,6 +42,10 @@ using namespace sycl::ext::oneapi::experimental;
 void *loadOsLibrary(const std::string &LibraryPath) {
   HMODULE h =
       LoadLibraryExA(LibraryPath.c_str(), NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+  if (!h) {
+    std::cout << "LoadLibraryExA(" << LibraryPath
+              << ") failed with error code " << GetLastError() << std::endl;
+  }
   return (void *)h;
 }
 int unloadOsLibrary(void *Library) {
@@ -113,6 +117,10 @@ int main() {
 
   void *lib_a = loadOsLibrary(path_to_lib_a);
   void *f = getOsLibraryFuncAddress(lib_a, "performIncrementation");
+  if(!f){ 
+    std::cout << "Cannot get performIncremenation function from .so/.dll" << std::endl;
+    return 1;
+  }
   auto performIncrementationFuncA = reinterpret_cast<IncFuncT *>(f);
   performIncrementationFuncA(q, buf); // call the function from lib_a
   q.wait();
