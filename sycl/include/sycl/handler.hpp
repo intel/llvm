@@ -529,8 +529,10 @@ private:
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
+    constexpr std::string_view LambdaName =
+        detail::CompileTimeKernelInfo<LambdaNameT>.Name;
     detail::ABINeutralKernelNameStrT KernelName = getKernelName();
-    return KernelName == detail::CompileTimeKernelInfo<LambdaNameT>.Name;
+    return KernelName == LambdaName;
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
