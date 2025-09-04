@@ -13,6 +13,7 @@ from utils.utils import (
     prune_old_files,
     remove_by_prefix,
     remove_by_extension,
+    sanitize_filename,
 )
 from utils.logger import log
 
@@ -66,7 +67,7 @@ class Unitrace:
         if options.results_directory_override == None:
             self.traces_dir = os.path.join(options.workdir, "results", "traces")
         else:
-            self.traces_dir = os.path.join(options.results_directory_override, "traces")
+            self.traces_dir = os.path.join(options.results_directory_override, "results", "traces")
 
     def _prune_unitrace_dirs(self, res_dir: str, FILECNT: int = 10):
         """Keep only the last FILECNT files in the traces directory."""
@@ -92,7 +93,8 @@ class Unitrace:
         if not os.path.exists(unitrace_bin):
             raise FileNotFoundError(f"Unitrace binary not found: {unitrace_bin}. ")
         os.makedirs(self.traces_dir, exist_ok=True)
-        bench_dir = os.path.join(f"{self.traces_dir}", f"{bench_name}")
+        sanitized_bench_name = sanitize_filename(bench_name)
+        bench_dir = os.path.join(f"{self.traces_dir}", f"{sanitized_bench_name}")
 
         os.makedirs(bench_dir, exist_ok=True)
 
@@ -163,19 +165,7 @@ class Unitrace:
         shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[-1]), json_name)
         log.debug(f"Moved {pid_json_files[-1]} to {json_name}")
 
-        # Create a per-benchmark archive (.tgz) containing both the .out and .json
-        try:
-            archive_path = unitrace_output[: -len(".out")] + ".tgz"
-            with tarfile.open(archive_path, "w:gz") as tar:
-                # add the .out file
-                if os.path.exists(unitrace_output):
-                    tar.add(unitrace_output, arcname=os.path.basename(unitrace_output))
-                # add the moved .json file
-                if os.path.exists(json_name):
-                    tar.add(json_name, arcname=os.path.basename(json_name))
-            log.info(f"Created Unitrace archive: {archive_path}")
-        except Exception as e:
-            log.warning(f"Failed to create Unitrace archive for {unitrace_output}: {e}")
+        log.info(f"Unitrace output files: {unitrace_output}, {json_name}")
 
         # Prune old unitrace directories
         self._prune_unitrace_dirs(os.path.dirname(unitrace_output))

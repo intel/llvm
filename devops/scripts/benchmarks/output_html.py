@@ -108,13 +108,19 @@ def _write_output_to_file(
         # For remote format, we write a single JSON file
         data_path = os.path.join(html_path, f"{filename}.json")
         output_data = json.loads(output.to_json())  # type: ignore
+
+        # Add defaultCompareNames to match the expected structure
+        output_data["defaultCompareNames"] = output.default_compare_names
+
         if options.flamegraph:
             flamegraph_data = _get_flamegraph_data(html_path)
             if flamegraph_data and flamegraph_data.get("runs"):
-                output_data["flamegraphs"] = flamegraph_data
+                # Use "flamegraphData" to match the expected variable name
+                output_data["flamegraphData"] = flamegraph_data
                 log.debug(
                     f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to {filename}.json"
                 )
+
         with open(data_path, "w") as f:
             json.dump(output_data, f, indent=2)
         log.info(

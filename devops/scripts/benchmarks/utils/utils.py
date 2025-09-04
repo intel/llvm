@@ -19,6 +19,19 @@ from options import options
 from utils.logger import log
 
 
+def sanitize_filename(name: str) -> str:
+    """
+    Sanitize a string to be safe for use as a filename or directory name.
+    Replace invalid characters with underscores.
+    
+    Invalid characters: " : < > | * ? \r \n
+    """
+    # Replace invalid characters with underscores
+    invalid_chars = r'[":;<>|*?\r\n]'
+    sanitized = re.sub(invalid_chars, '_', name)
+    return sanitized
+
+
 def run(
     command,
     env_vars={},

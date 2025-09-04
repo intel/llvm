@@ -654,11 +654,6 @@ function createChartContainer(data, canvasId, type) {
     summary.className = 'download-summary';
     summary.textContent = "Details";
 
-    // Add subtle download button to the summary
-    const downloadButton = document.createElement('button');
-    downloadButton.className = 'download-button';
-    downloadButton.textContent = 'Download';
-
     // Helper: format Date to YYYYMMDD_HHMMSS (UTC)
     function formatTimestampFromDate(d) {
         if (!d) return null;
@@ -767,113 +762,8 @@ function createChartContainer(data, canvasId, type) {
     // Store the update function on the button so it can be called when mode changes
     chartButton.updateChartButton = updateChartButton;
 
-    // Unitrace download button
-    downloadButton.textContent = 'Download Unitrace';
-    downloadButton.onclick = (event) => {
-        event.stopPropagation(); // Prevent details toggle
-
-        // Get available Unitrace files
-        const unitraceFiles = getUnitraceFiles(data);
-
-        if (unitraceFiles.length === 0) {
-            alert('No Unitrace archive available for this chart.');
-            return;
-        }
-
-        // If exactly one archive available, download immediately
-        if (unitraceFiles.length === 1) {
-            window.open(unitraceFiles[0].url, '_blank');
-            return;
-        }
-
-        // Otherwise show the list window so the user picks an archive
-        showUnitraceList(unitraceFiles, downloadButton);
-    };
-
-    // Helper function to get Unitrace files (moved from populateDownloadOptions)
-    function getUnitraceFiles(data) {
-        const files = [];
-
-        if (Array.isArray(loadedBenchmarkRuns)) {
-            loadedBenchmarkRuns.forEach(run => {
-                // run.results / run.benchmarks / run.data may hold per-benchmark entries
-                const results = run.results || run.benchmarks || run.data || [];
-                const found = results.find(r => r.label === data.label);
-                if (!found) return;
-
-                const runDate = run.date || run.timestamp || run.time;
-                if (!runDate) return;
-
-                const formattedTs = formatTimestampFromDate(new Date(runDate));
-                const saveName = run.save_name || run.saveName || run.save || run.name;
-                if (!formattedTs || !saveName) return;
-
-                const filename = `${formattedTs}_${saveName}.tgz`;
-                const filePath = `traces/${encodeURIComponent(data.label)}/${encodeURIComponent(filename)}`;
-                const url = `${RAW_BASE}/${filePath}`;
-
-                files.push({
-                    name: `${run.name || saveName} — ${formattedTs}`,
-                    url: url,
-                    filename: filename
-                });
-            });
-        }
-
-        return files;
-    }
-
-    // Helper function to show Unitrace list (similar to showFlameGraphList)
-    function showUnitraceList(unitraceFiles, buttonElement) {
-        const existingList = document.querySelector('.download-list');
-        if (existingList) existingList.remove();
-
-        const listContainer = document.createElement('div');
-        listContainer.className = 'download-list';
-        
-        const rect = buttonElement.getBoundingClientRect();
-        listContainer.style.position = 'absolute';
-        listContainer.style.top = `${window.scrollY + rect.bottom + 5}px`;
-        listContainer.style.left = `${window.scrollX + rect.left}px`;
-        listContainer.style.zIndex = '1000';
-        listContainer.style.backgroundColor = 'white';
-        listContainer.style.border = '1px solid #ccc';
-        listContainer.style.borderRadius = '4px';
-        listContainer.style.padding = '4px';
-        listContainer.style.minWidth = '200px';
-        listContainer.style.boxShadow = '0 2px 5px rgba(0,0,0,0.15)';
-
-        unitraceFiles.forEach(file => {
-            const link = document.createElement('a');
-            link.href = file.url;
-            link.textContent = file.name;
-            link.style.display = 'block';
-            link.style.padding = '8px 12px';
-            link.style.textDecoration = 'none';
-            link.style.color = '#333';
-            link.onclick = (e) => {
-                e.preventDefault();
-                window.open(file.url, '_blank');
-                listContainer.remove();
-            };
-            listContainer.appendChild(link);
-        });
-
-        document.body.appendChild(listContainer);
-        
-        setTimeout(() => {
-            document.addEventListener('click', function closeHandler(event) {
-                if (!listContainer.contains(event.target) && !buttonElement.contains(event.target)) {
-                    listContainer.remove();
-                    document.removeEventListener('click', closeHandler);
-                }
-            });
-        }, 0);
-    }
-
-    // Append the buttons to the summary (chart download first)
+    // Append the chart download button to the summary
     summary.appendChild(chartButton);
-    summary.appendChild(downloadButton);
     details.appendChild(summary);
 
     // Create and append extra info
@@ -1461,22 +1351,43 @@ function validateFlameGraphData() {
     return window.flamegraphData?.runs !== undefined;
 }
 
+function sanitizeFilename(name) {
+    /**
+     * Sanitize a string to be safe for use as a filename or directory name.
+     * Replace invalid characters with underscores.
+     *
+     * Invalid characters: " : < > | * ? \r \n
+     */
+    const invalidChars = /[":;<>|*?\r\n]/g;
+    return name.replace(invalidChars, '_');
+}
+
 function createFlameGraphPath(benchmarkLabel, runName, timestamp) {
     const suiteName = window.flamegraphData?.runs?.[runName]?.suites?.[benchmarkLabel];
 
     if (!suiteName) {
         console.error(`Could not find suite for benchmark '${benchmarkLabel}' in run '${runName}'`);
-        // Fallback to old path for safety, though it's likely to fail.
-        const benchmarkDirName = benchmarkLabel;
+        // Fallback: sanitize benchmark name for directory structure
+        const sanitizedBenchmarkName = sanitizeFilename(benchmarkLabel);
+        const benchmarkDirName = sanitizedBenchmarkName;
         const timestampPrefix = timestamp + '_';
         const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
-        return `${getResourceBaseUrl()}/${relativePath}`;
+
+        // For local mode, use relative path; for remote mode, use full URL
+        const baseUrl = getResourceBaseUrl();
+        return baseUrl === '.' ? relativePath : `${baseUrl}/${relativePath}`;
     }
 
-    const benchmarkDirName = `${suiteName}__${benchmarkLabel}`;
+    // Apply sanitization to both suite and benchmark names to match Python implementation
+    const sanitizedSuiteName = sanitizeFilename(suiteName);
+    const sanitizedBenchmarkName = sanitizeFilename(benchmarkLabel);
+    const benchmarkDirName = `${sanitizedSuiteName}__${sanitizedBenchmarkName}`;
     const timestampPrefix = timestamp + '_';
     const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
-    return `${getResourceBaseUrl()}/${relativePath}`;
+
+    // For local mode, use relative path; for remote mode, use full URL
+    const baseUrl = getResourceBaseUrl();
+    return baseUrl === '.' ? relativePath : `${baseUrl}/${relativePath}`;
 }
 
 function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
@@ -1837,33 +1748,42 @@ function fetchAndProcessData(url, isArchived = false) {
 
 // Load data based on configuration
 function loadData() {
+    console.log('=== loadData() called ===');
     const loadingIndicator = document.getElementById('loading-indicator');
     loadingIndicator.classList.remove('hidden'); // Show loading indicator
 
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
+        console.log('Using remote data URL:', remoteDataUrl);
         // Fetch data from remote URL
         const url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data.json' : remoteDataUrl + '/data.json';
         fetchAndProcessData(url);
     } else {
+        console.log('Using local data');
         // Use local data
+        console.log('benchmarkRuns available:', typeof benchmarkRuns, Array.isArray(benchmarkRuns) ? benchmarkRuns.length : 'not array');
         loadedBenchmarkRuns = benchmarkRuns;
         // Assign global metadata from data.js if window.benchmarkMetadata is not set
         if (!window.benchmarkMetadata) {
             window.benchmarkMetadata = (typeof benchmarkMetadata !== 'undefined') ? benchmarkMetadata : {};
         }
+        console.log('benchmarkMetadata loaded:', Object.keys(window.benchmarkMetadata).length, 'items');
         // Assign global tags from data.js if window.benchmarkTags is not set
         if (!window.benchmarkTags) {
             window.benchmarkTags = (typeof benchmarkTags !== 'undefined') ? benchmarkTags : {};
         }
+        console.log('benchmarkTags loaded:', Object.keys(window.benchmarkTags).length, 'items');
         // Assign flamegraph data from data.js if available
         if (typeof flamegraphData !== 'undefined') {
             window.flamegraphData = flamegraphData;
             console.log('Loaded flamegraph data from data.js with', Object.keys(flamegraphData.runs || {}).length, 'runs');
         } else {
             window.flamegraphData = { runs: {} };
+            console.log('No flamegraph data available');
         }
+        console.log('defaultCompareNames available:', typeof defaultCompareNames, Array.isArray(defaultCompareNames) ? defaultCompareNames : 'not defined');
         initializeCharts();
         loadingIndicator.classList.add('hidden'); // Hide loading indicator
+        console.log('=== loadData() completed ===');
     }
 }
 
