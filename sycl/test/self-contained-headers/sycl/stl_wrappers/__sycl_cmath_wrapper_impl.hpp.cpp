@@ -1,0 +1,9 @@
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
+//
+// UNSUPPORTED: system-windows
+// Different versions of STL implementations by Microsoft either implicitly
+// include cmath or not. It means the test result depends on the system
+// environment.
+
+#include <sycl/stl_wrappers/__sycl_cmath_wrapper_impl.hpp>
