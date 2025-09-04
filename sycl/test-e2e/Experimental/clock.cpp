@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_clock, aspect-usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -6,38 +6,36 @@
 #include <sycl/ext/oneapi/experimental/clock.hpp>
 #include <sycl/usm.hpp>
 
-int main() {
+namespace syclex = sycl::ext::oneapi::experimental;
+
+template <syclex::clock_scope scope, sycl::aspect aspect> void test() {
   sycl::queue q;
-  uint64_t *data = sycl::malloc_shared<uint64_t>(3, q);
+  if (!q.get_device().has(aspect))
+    return;
 
-  q.single_task([=]() {
-    uint64_t sg_clock_start = sycl::ext::oneapi::experimental::clock(
-        sycl::ext::oneapi::experimental::clock_scope::sub_group);
-    uint64_t wg_clock_start = sycl::ext::oneapi::experimental::clock(
-        sycl::ext::oneapi::experimental::clock_scope::work_group);
-    uint64_t dev_clock_start = sycl::ext::oneapi::experimental::clock(
-        sycl::ext::oneapi::experimental::clock_scope::device);
+  uint64_t *data = sycl::malloc_shared<uint64_t>(2, q);
 
-    int count = 0;
-    for (int i = 0; i < 1e6; ++i)
-      count++;
-
-    uint64_t sg_clock_end = sycl::ext::oneapi::experimental::clock(
-        sycl::ext::oneapi::experimental::clock_scope::sub_group);
-    uint64_t wg_clock_end = sycl::ext::oneapi::experimental::clock(
-        sycl::ext::oneapi::experimental::clock_scope::work_group);
-    uint64_t dev_clock_end = sycl::ext::oneapi::experimental::clock(
-        sycl::ext::oneapi::experimental::clock_scope::device);
-    data[0] = sg_clock_end - sg_clock_start;
-    data[1] = wg_clock_end - wg_clock_start;
-    data[2] = dev_clock_end - dev_clock_start;
+  q.parallel_for(2, [=](sycl::id<1> idx) {
+    if (idx == 0) {
+      data[0] = syclex::clock<scope>();
+      int count = 0;
+      for (int i = 0; i < 1e6; ++i)
+        count++;
+      data[1] = syclex::clock<scope>();
+    }
   });
   q.wait();
 
-  assert(data[0] > 0);
-  assert(data[1] > 0);
-  assert(data[2] > 0);
+  assert(data[1] > data[0]);
   sycl::free(data, q);
+}
+
+int main() {
+  test<syclex::clock_scope::sub_group,
+       sycl::aspect::ext_oneapi_clock_sub_group>();
+  test<syclex::clock_scope::work_group,
+       sycl::aspect::ext_oneapi_clock_work_group>();
+  test<syclex::clock_scope::device, sycl::aspect::ext_oneapi_clock_device>();
 
   return 0;
 }
