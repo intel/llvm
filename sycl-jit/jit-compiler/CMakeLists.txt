@@ -13,7 +13,9 @@ add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
   DEPENDS
-  sycl-headers
+  sycl-headers # include/sycl
+  libclc       # lib/clc
+  clang        # lib/clang
   # TODO: libdevice
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
 )
@@ -21,8 +23,6 @@ add_custom_command(
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
 # CMAKE_CXX_COMPILER might not have support for it. As such, use freshly built
 # `clang++` instead.
-set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17)
-
 if (WIN32)
   set(clang_exe ${CMAKE_BINARY_DIR}/bin/clang-cl.exe)
   set(SYCL_JIT_RESOURCE_CXX_FLAGS /O2 /std:c++17 /W0)
@@ -43,8 +43,6 @@ add_custom_command(
   DEPENDS
   ${SYCL_JIT_RESOURCE_CPP}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
-  clang
-  libclc
 )
 
 add_llvm_library(sycl-jit

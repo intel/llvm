@@ -19,6 +19,7 @@ if (NOT WIN32 AND NOT CYGWIN)
   endif(SYCL_JIT_ENABLE_WERROR)
 endif()
 
+
 add_subdirectory(jit-compiler)
 add_subdirectory(passes)
 
