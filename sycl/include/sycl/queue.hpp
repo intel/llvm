@@ -3872,6 +3872,7 @@ private:
                                   const KernelType &KernelFunc,
                                   const detail::code_location &CodeLoc =
                                       detail::code_location::current()) const {
+    (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::v1::KernelRuntimeInfo KRInfo{};
 
@@ -3895,6 +3896,7 @@ private:
       PropertiesT Props, nd_range<Dims> Range, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc =
           detail::code_location::current()) const {
+    (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::v1::KernelRuntimeInfo KRInfo{};
 
