@@ -24,6 +24,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DeviceInfo.cpp
   RootGroup.cpp
   USMPrefetch.cpp
+  IPC.cpp
 )
 
 add_subdirectory(CommandGraph)

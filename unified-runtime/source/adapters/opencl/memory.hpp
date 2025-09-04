@@ -38,3 +38,6 @@ struct ur_mem_handle_t_ : ur::opencl::handle_base {
                                     ur_context_handle_t Ctx,
                                     ur_mem_handle_t &Mem);
 };
+
+// IPC is currently not supported in the OpenCL adaptor.
+struct ur_exp_ipc_mem_handle_t_ {};

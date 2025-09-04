@@ -162,6 +162,7 @@ MAP(UR_DEVICE_INFO_NODE_MASK, uint32_t)
 // These aren't present in the specification, extracted from ur_api.h
 // instead.
 MAP(UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP, ur_exp_device_2d_block_array_capability_flags_t)
+MAP(UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP, ur_bool_t)
 MAP(UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP, ur_bool_t)
 MAP(UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP, ur_bool_t)
 MAP(UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP, ur_bool_t)

@@ -117,3 +117,6 @@ struct ur_mem_handle_t_ : RefCounted {
     return nullptr;
   }
 };
+
+// IPC is currently not supported in the offload adaptor.
+struct ur_exp_ipc_mem_handle_t_ {};

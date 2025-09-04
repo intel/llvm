@@ -1,0 +1,189 @@
+= sycl_ext_oneapi_inter_process_communication
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_ipc_memory`.  The application must check that the device has
+this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
+
+== Overview
+
+This extension adds the ability for SYCL programs to share device USM memory
+allocations between processes. This is done by the allocating process creating
+a new `ipc_memory` object and transferring the "handle data" to the other
+processes. The other processes can use the handle data to recreate the
+`ipc_memory` object and get a pointer to the corresponding device USM memory.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_IPC` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+_And follow the text with a table like this *unless the extension is
+"experimental"*.  Note that your table may have more than one row if it
+has multiple versions._
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Inter-process communicable memory
+
+
+This extension adds the new `ipc_memory` class. This new class adheres to the
+common reference semantics described in
+https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics[Section 4.5.2.]
+in the SYCL 2020 specification.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+class ipc_memory {
+public:
+  ipc_memory(void *ptr, sycl::context &ctx);
+  ipc_memory(span<const char, sycl::dynamic_extent> ipc_memory_handle_data,
+             const sycl::context &ctx, const sycl::device &dev);
+
+  span<const char, sycl::dynamic_extent> get_handle_data() const;
+
+  void *get_ptr() const;
+};
+
+}
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+ipc_memory(void *ptr, const sycl::context &ctx)
+----
+!====
+
+_Effects:_ Constructs an IPC memory object in `ctx` from a pointer `ptr` to
+device USM memory.
+If `ptr` is not pointing to device USM memory, the behaviors of this constructor
+and any resulting objects are undefined.
+
+!====
+a!
+[source]
+----
+ipc_memory(span<const char, sycl::dynamic_extent> ipc_memory_handle_data,
+           const sycl::context &ctx, const sycl::device &dev)
+----
+!====
+
+_Effects:_ Constructs an IPC memory object in `ctx` from the handle data
+`ipc_memory_handle_data` of returned by the `get_handle_data()` member function
+of another `ipc_memory` object.
+The `ipc_memory` object that the handle data originated from is allowed to be
+from another process on the host system.
+If the `ipc_memory` object that the handle data originated from has been
+destroyed, the behaviors of this constructor and any resulting objects are
+undefined.
+If the device USM memory the original `ipc_memory` object was created with was
+not originally allocated on `dev`, the behaviors of this constructor and any
+resulting objects are undefined.
+
+!====
+a!
+[source]
+----
+span<const char, sycl::dynamic_extent> get_handle_data() const
+----
+!====
+
+_Returns:_ The handle data of the `ipc_memory` object.
+Accessing the handle data returned by this API after the `ipc_memory` object has
+been destroyed results in undefined behavior.
+
+!====
+a!
+[source]
+----
+void *get_ptr() const
+----
+!====
+
+_Returns:_ A pointer to device USM memory corresponding to the pointer used to
+construct the original `ipc_memory` object.
+Accessing the pointer returned by this API after the `ipc_memory` object has
+been destroyed results in undefined behavior.
+
+|====
+
+

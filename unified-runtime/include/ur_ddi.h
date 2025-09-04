@@ -1788,6 +1788,74 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
     ur_api_version_t, ur_command_buffer_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCGetMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(
+    ur_context_handle_t, void *, ur_exp_ipc_mem_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCPutMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCPutMemHandleExp_t)(
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCOpenMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCOpenMemHandleExp_t)(
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t, void **);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCCloseMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCCloseMemHandleExp_t)(
+    ur_context_handle_t, void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCGetMemHandleDataExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleDataExp_t)(
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t, const void **, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCCreateMemHandleFromDataExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCCreateMemHandleFromDataExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const void *, size_t,
+    ur_exp_ipc_mem_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urIPCDestroyMemHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnIPCDestroyMemHandleExp_t)(
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of IPCExp functions pointers
+typedef struct ur_ipc_exp_dditable_t {
+  ur_pfnIPCGetMemHandleExp_t pfnGetMemHandleExp;
+  ur_pfnIPCPutMemHandleExp_t pfnPutMemHandleExp;
+  ur_pfnIPCOpenMemHandleExp_t pfnOpenMemHandleExp;
+  ur_pfnIPCCloseMemHandleExp_t pfnCloseMemHandleExp;
+  ur_pfnIPCGetMemHandleDataExp_t pfnGetMemHandleDataExp;
+  ur_pfnIPCCreateMemHandleFromDataExp_t pfnCreateMemHandleFromDataExp;
+  ur_pfnIPCDestroyMemHandleExp_t pfnDestroyMemHandleExp;
+} ur_ipc_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetIPCExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetIPCExpProcAddrTable_t)(
+    ur_api_version_t, ur_ipc_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urMemoryExportAllocExportableMemoryExp
 typedef ur_result_t(UR_APICALL *ur_pfnMemoryExportAllocExportableMemoryExp_t)(
     ur_context_handle_t, ur_device_handle_t, size_t, size_t,
@@ -2049,6 +2117,7 @@ typedef struct ur_dditable_t {
   ur_usm_exp_dditable_t USMExp;
   ur_bindless_images_exp_dditable_t BindlessImagesExp;
   ur_command_buffer_exp_dditable_t CommandBufferExp;
+  ur_ipc_exp_dditable_t IPCExp;
   ur_memory_export_exp_dditable_t MemoryExportExp;
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;
