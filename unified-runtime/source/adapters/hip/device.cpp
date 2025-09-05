@@ -999,6 +999,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+  case UR_DEVICE_INFO_SUB_GROUP_PRIMARY_SIZE_EXP: {
+    int WarpSize = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                                         hDevice->get()));
+    return ReturnValue(static_cast<uint32_t>(WarpSize));
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
