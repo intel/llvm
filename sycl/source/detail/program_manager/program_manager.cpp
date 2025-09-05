@@ -1084,25 +1084,32 @@ ProgramManager::getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
 
 FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     context_impl &ContextImpl, device_impl &DeviceImpl,
-    KernelNameStrRefT KernelName, DeviceKernelInfo &DeviceKernelInfo,
-    const NDRDescT &NDRDesc) {
+    DeviceKernelInfo &DeviceKernelInfo, const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << &ContextImpl
-              << ", " << &DeviceImpl << ", " << KernelName << ")\n";
+              << ", " << &DeviceImpl << ", "
+              << static_cast<std::string_view>(DeviceKernelInfo.Name) << ")\n";
   }
 
   KernelProgramCache &Cache = ContextImpl.getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl.getHandleRef();
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    if (auto KernelCacheValPtr = Cache.tryToGetKernelFast(
-            KernelName, UrDevice, DeviceKernelInfo.getKernelSubcache())) {
+    if (auto KernelCacheValPtr =
+            Cache.tryToGetKernelFast(DeviceKernelInfo.Name, UrDevice,
+                                     DeviceKernelInfo.getKernelSubcache())) {
       return KernelCacheValPtr;
     }
   }
 
-  Managed<ur_program_handle_t> Program =
-      getBuiltURProgram(ContextImpl, DeviceImpl, KernelName, NDRDesc);
+  Managed<ur_program_handle_t> Program = getBuiltURProgram(
+      ContextImpl, DeviceImpl, DeviceKernelInfo.Name, NDRDesc);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+// Simplify this once `DeviceKernelInfo.Name`'s type is known.
+// Using `decltype(auto)` insteado of just `auto` to get reference when
+// possible.
+#endif
+  decltype(auto) KernelName = KernelNameStrRefT{DeviceKernelInfo.Name};
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     adapter_impl &Adapter = ContextImpl.getAdapter();
     Managed<ur_kernel_handle_t> Kernel{Adapter};
@@ -1125,7 +1132,8 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
     return std::make_pair(std::move(Kernel), ArgMask);
   };
 
-  auto GetCachedBuildF = [&Cache, &KernelName, &Program]() {
+  auto GetCachedBuildF = [&Cache, &KernelName = DeviceKernelInfo.Name,
+                          &Program]() {
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
@@ -1147,7 +1155,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
   auto ret_val = std::make_shared<FastKernelCacheVal>(
       KernelArgMaskPair.first.retain(), &(BuildResult->MBuildResultMutex),
       KernelArgMaskPair.second, std::move(Program), ContextImpl.getAdapter());
-  Cache.saveKernel(KernelName, UrDevice, ret_val,
+  Cache.saveKernel(DeviceKernelInfo.Name, UrDevice, ret_val,
                    DeviceKernelInfo.getKernelSubcache());
   return ret_val;
 }
