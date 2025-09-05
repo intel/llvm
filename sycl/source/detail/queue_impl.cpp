@@ -459,7 +459,6 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
       [&](detail::CG::StorageInitHelper &CGData)
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::ArgDesc> Args;
-    bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
 
     bool SchedulerBypass = std::all_of(CGData.MEvents.begin(), CGData.MEvents.end(),
       [&](EventImplPtr &Event) {
@@ -484,6 +483,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     if (SchedulerBypass) {
       std::vector<ur_event_handle_t> RawEvents;
+      bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
 
       for (EventImplPtr &Event : CGData.MEvents) {
         auto Handle = Event->getHandle();
@@ -534,6 +534,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
       std::unique_ptr<detail::CG> CommandGroup;
       std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
       std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+      bool DiscardEvent = false;
 
       Args = extractArgsAndReqsFromLambda(
           KRInfo.GetKernelFuncPtr(),
@@ -615,7 +616,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   if (isInOrder()) {
     if (SchedulerBypass) {
       LastEvent = nullptr;
-    } else if (EventImpl) {
+    } else {
       LastEvent = EventImpl;
     }
   }
