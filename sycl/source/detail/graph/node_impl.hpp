@@ -341,7 +341,8 @@ public:
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+      return std::string_view{ExecKernelA->MDeviceKernelInfo.Name} ==
+             std::string_view{ExecKernelB->MDeviceKernelInfo.Name};
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
@@ -543,7 +544,9 @@ private:
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      Stream << "NAME = "
+             << static_cast<std::string_view>(Kernel->MDeviceKernelInfo.Name)
+             << "\\n";
       if (Verbose) {
         Stream << "ARGS = \\n";
         for (size_t i = 0; i < Kernel->MArgs.size(); i++) {

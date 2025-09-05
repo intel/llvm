@@ -20,6 +20,8 @@
 #include <sycl/kernel.hpp>        // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
 
+#include <detail/device_kernel_info.hpp>
+
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
 #include <stddef.h> // for size_t
@@ -253,7 +255,6 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  KernelNameStrT MKernelName;
   DeviceKernelInfo &MDeviceKernelInfo;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
@@ -269,7 +270,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               KernelNameStrT KernelName, DeviceKernelInfo &DeviceKernelInfo,
+               DeviceKernelInfo &DeviceKernelInfo,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -278,8 +279,7 @@ public:
       : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
         MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MDeviceKernelInfo(DeviceKernelInfo),
-        MStreams(std::move(Streams)),
+        MDeviceKernelInfo(DeviceKernelInfo), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
@@ -291,7 +291,9 @@ public:
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
   const std::vector<ArgDesc> &getArguments() const { return MArgs; }
-  KernelNameStrRefT getKernelName() const { return MKernelName; }
+  std::string_view getKernelName() const {
+    return static_cast<std::string_view>(MDeviceKernelInfo.Name);
+  }
   const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
