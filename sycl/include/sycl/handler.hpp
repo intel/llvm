@@ -504,6 +504,7 @@ private:
 #endif
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
+  // FIXME: Accept DeviceKernelInfo or KernelData instead:
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams, bool IsESIMD);
@@ -851,13 +852,8 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      // Force hasSpecialCaptures to be evaluated at compile-time.
-      setKernelInfo((void *)MHostKernel->getPtr(), Info.NumParams,
-                    Info.ParamDescGetter, Info.IsESIMD,
-                    Info.HasSpecialCaptures);
-
-      MKernelName = Info.Name;
       setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
+      setKernelInfo((void *)MHostKernel->getPtr());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -1356,7 +1352,9 @@ private:
     processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{getKernelName()}));
+
 #endif
   }
 
@@ -1381,7 +1379,8 @@ private:
     processLaunchProperties(Props);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{getKernelName()}));
 #endif
   }
 
@@ -1467,7 +1466,8 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-      MKernelName = getKernelName();
+      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+          detail::CompileTimeKernelInfoTy{getKernelName()}));
     } else {
       StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     }
@@ -1852,7 +1852,8 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{getKernelName()}));
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -1890,7 +1891,8 @@ public:
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{getKernelName()}));
 #endif
   }
 
@@ -1932,7 +1934,8 @@ public:
     setType(detail::CGType::Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-      MKernelName = getKernelName();
+      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+          detail::CompileTimeKernelInfoTy{getKernelName()}));
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
@@ -3194,7 +3197,14 @@ private:
 #endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  detail::ABINeutralKernelNameStrT MKernelName;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // We must set it for the code that's been inlined into the user applications
+  // built with previous version, but new code should get the name from the
+  // `handler_impl::MDeviceKernelInfoPtr`. We're setting it in
+  // `DeviceKernelInfoPtr`.
+  detail::ABINeutralKernelNameStrT MKernelNameDoNotUse;
+#endif
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Pointer to the source host memory or accessor(depending on command type).
@@ -3656,9 +3666,12 @@ private:
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                             sycl::range<1> LocalSize, sycl::id<1> Offset);
 
+  void setKernelInfo(void *KernelFuncPtr);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+#endif
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
@@ -3720,7 +3733,9 @@ public:
 #endif
     std::swap(LHS.MLocalAccStorage, RHS.MLocalAccStorage);
     std::swap(LHS.MStreamStorage, RHS.MStreamStorage);
-    std::swap(LHS.MKernelName, RHS.MKernelName);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.MKernelNameDoNotUse, RHS.MKernelNameDoNotUse);
+#endif
     std::swap(LHS.MKernel, RHS.MKernel);
     std::swap(LHS.MSrcPtr, RHS.MSrcPtr);
     std::swap(LHS.MDstPtr, RHS.MDstPtr);

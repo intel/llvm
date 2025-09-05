@@ -13,6 +13,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 // This test checks that we pass the correct buffer size value when setting
 // local_accessor as an argument through handler::set_arg to a kernel created
 // using OpenCL interoperability methods.
@@ -28,11 +30,28 @@ ur_result_t redefined_urKernelSetArgLocal(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t redefined_urKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  constexpr char MockKernel[] = "MockKernel";
+  if (*params.ppropName == UR_KERNEL_INFO_FUNCTION_NAME) {
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(MockKernel));
+      std::memcpy(*params.ppPropValue, MockKernel, sizeof(MockKernel));
+    }
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(MockKernel);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+
 TEST(HandlerSetArg, LocalAccessor) {
   sycl::unittest::UrMock<> Mock;
   redefineMockForKernelInterop(Mock);
   mock::getCallbacks().set_replace_callback("urKernelSetArgLocal",
                                             &redefined_urKernelSetArgLocal);
+  mock::getCallbacks().set_replace_callback("urKernelGetInfo",
+                                            &redefined_urKernelGetInfo);
 
   constexpr size_t Size = 128;
   sycl::queue Q;

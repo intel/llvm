@@ -10,6 +10,8 @@
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/string_view.hpp>
 
+#include <cassert>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -65,6 +67,32 @@ struct CompileTimeKernelInfoTy {
 
     return false;
   }();
+
+  void refine(const CompileTimeKernelInfoTy &Other) {
+    auto RefineField = [](auto &Self, const auto &Other, const auto &Default) {
+      if (Self == Default) {
+        Self = Other;
+      } else if (Other != Default) {
+        assert(Self == Other);
+      }
+    };
+
+    constexpr CompileTimeKernelInfoTy Empty;
+    RefineField(Name, static_cast<std::string_view>(Other.Name),
+                static_cast<std::string_view>(Empty.Name));
+    RefineField(NumParams, Other.NumParams, Empty.NumParams);
+    RefineField(IsESIMD, Other.IsESIMD, Empty.IsESIMD);
+    RefineField(FileName, static_cast<std::string_view>(Other.FileName),
+                static_cast<std::string_view>(Empty.FileName));
+    RefineField(FunctionName, static_cast<std::string_view>(Other.FunctionName),
+                static_cast<std::string_view>(Empty.FunctionName));
+    RefineField(LineNumber, Other.LineNumber, Empty.LineNumber);
+    RefineField(ColumnNumber, Other.ColumnNumber, Empty.ColumnNumber);
+    RefineField(KernelSize, Other.KernelSize, Empty.KernelSize);
+    RefineField(ParamDescGetter, Other.ParamDescGetter, Empty.ParamDescGetter);
+    RefineField(HasSpecialCaptures, Other.HasSpecialCaptures,
+                Empty.HasSpecialCaptures);
+  }
 };
 
 template <class Kernel>

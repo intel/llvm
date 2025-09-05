@@ -36,11 +36,27 @@ ur_result_t redefined_urKernelSetArgValue(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t redefined_urKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  constexpr char MockKernel[] = "MockKernel";
+  if (*params.ppropName == UR_KERNEL_INFO_FUNCTION_NAME) {
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(MockKernel));
+      std::memcpy(*params.ppPropValue, MockKernel, sizeof(MockKernel));
+    }
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(MockKernel);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 TEST(KernelEnqueue, InteropKernel) {
   unittest::UrMock<> Mock;
   redefineMockForKernelInterop(Mock);
   mock::getCallbacks().set_replace_callback("urKernelSetArgValue",
                                             &redefined_urKernelSetArgValue);
+  mock::getCallbacks().set_replace_callback("urKernelGetInfo",
+                                            &redefined_urKernelGetInfo);
 
   platform Plt = sycl::platform();
   queue Q;
