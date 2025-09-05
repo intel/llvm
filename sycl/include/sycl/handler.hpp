@@ -32,6 +32,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
@@ -680,6 +681,10 @@ private:
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
+    } else if (ext::oneapi::experimental::detail::is_struct_with_special_type<
+                   remove_cv_ref_t<T>>::value) {
+      addArg(detail::kernel_param_kind_t::kind_struct_with_special_type,
+             StoredArg, sizeof(T), ArgIndex);
     } else {
       addArg(detail::kernel_param_kind_t::kind_std_layout, StoredArg, sizeof(T),
              ArgIndex);
@@ -1636,7 +1641,9 @@ public:
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
-        || is_same_type<stream, T>::value;         // Stream
+        || is_same_type<stream, T>::value          // Stream
+        || ext::oneapi::experimental::detail::is_struct_with_special_type<
+               remove_cv_ref_t<T>>::value; // Structs that contain special types
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1649,6 +1656,13 @@ public:
   typename std::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+    if constexpr (ext::oneapi::experimental::detail::
+                      is_struct_with_special_type<remove_cv_ref_t<T>>::value) {
+      int NumArgs;
+      ext::oneapi::experimental::detail::struct_with_special_type_info<
+          remove_cv_ref_t<T>>::set_arg(ArgIndex + 1, Arg, *this, NumArgs);
+      updateArgShift(NumArgs);
+    }
   }
 
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -3609,6 +3623,9 @@ private:
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
   void clearArgs();
+
+  void updateArgShift(int);
+
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
