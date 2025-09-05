@@ -560,6 +560,20 @@ event handler::finalize() {
           &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
               toKernelNameStrT(MKernelName));
     }
+
+    detail::DeviceKernelInfo &Info = *impl->MDeviceKernelInfoPtr;
+    (void)Info;
+
+    // Make sure that information set by old binaries gets properly copied to
+    // the `DeviceKernelInfo` so that the rest of the code base could use it as
+    // the single source of all the data:
+    assert(MKernelName == static_cast<std::string_view>(Info.Name));
+    assert(static_cast<unsigned>(impl->MKernelNumArgs) == Info.NumParams);
+    assert(impl->MKernelParamDescGetter == Info.ParamDescGetter ||
+           impl->MKernelParamDescGetter == nullptr);
+    assert(impl->MKernelIsESIMD == Info.IsESIMD);
+    assert(impl->MKernelHasSpecialCaptures == Info.HasSpecialCaptures);
+
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
         getOrInsertHandlerKernelBundlePtr(/*Insert=*/false);
