@@ -5,45 +5,48 @@
 #include <sycl/detail/core.hpp>
 #include <vector>
 
-namespace S = sycl;
-
 #define WIDTH 5
 #define HEIGHT 5
 
 void test() {
-  auto EH = [](S::exception_list EL) {
+  auto EH = [](sycl::exception_list EL) {
     for (const std::exception_ptr &E : EL) {
       throw E;
     }
   };
 
-  S::queue Q1(EH);
-  S::queue Q2(EH);
+  sycl::queue Q1(EH);
+  sycl::queue Q2(EH);
 
   std::vector<int> DataA(WIDTH * HEIGHT, 2);
   std::vector<int> DataB(WIDTH * HEIGHT, 3);
   std::vector<int> DataC(WIDTH * HEIGHT, 1);
 
-  S::buffer<int, 2> BufA{DataA.data(), S::range<2>{WIDTH, HEIGHT}};
-  S::buffer<int, 2> BufB{DataB.data(), S::range<2>{WIDTH, HEIGHT}};
-  S::buffer<int, 2> BufC{DataC.data(), S::range<2>{WIDTH, HEIGHT}};
+  sycl::buffer<int, 2> BufA{DataA.data(), sycl::range<2>{WIDTH, HEIGHT}};
+  sycl::buffer<int, 2> BufB{DataB.data(), sycl::range<2>{WIDTH, HEIGHT}};
+  sycl::buffer<int, 2> BufC{DataC.data(), sycl::range<2>{WIDTH, HEIGHT}};
 
-  auto CG1 = [&](S::handler &CGH) {
-    auto AccA = BufA.get_access<S::access::mode::read>(CGH);
-    auto AccB = BufB.get_access<S::access::mode::read>(CGH);
-    auto AccC = BufC.get_access<S::access::mode::read_write>(CGH);
-    auto Kernel = [=](S::nd_item<2> Item) {
+  auto CG1 = [&](sycl::handler &CGH) {
+    auto AccA = BufA.get_access<sycl::access_mode::read>(CGH);
+    auto AccB = BufB.get_access<sycl::access_mode::read>(CGH);
+    auto AccC = BufC.get_access<sycl::access_mode::read_write>(CGH);
+    auto Kernel = [=](sycl::nd_item<2> Item) {
       size_t W = Item.get_global_id(0);
       size_t H = Item.get_global_id(1);
       AccC[W][H] += AccA[W][H] * AccB[W][H];
     };
-    CGH.parallel_for<class K1>(S::nd_range<2>({WIDTH, HEIGHT}, {1, 1}), Kernel);
+    CGH.parallel_for<class K1>(sycl::nd_range<2>({WIDTH, HEIGHT}, {1, 1}),
+                               Kernel);
   };
 
-  auto CG2 = [&](S::handler &CGH) {
-    auto AccA = BufA.get_access<sycl::access::mode::read>(CGH);
-    auto AccB = BufB.get_access<sycl::access::mode::read>(CGH);
-    auto AccC = BufC.get_access<sycl::access::mode::read_write>(CGH);
+  auto CG2 = [&](sycl::handler &CGH) {
+    auto AccA =
+        BufA.get_access<sycl::access_mode::read, sycl::target::host_task>(CGH);
+    auto AccB =
+        BufB.get_access<sycl::access_mode::read, sycl::target::host_task>(CGH);
+    auto AccC =
+        BufC.get_access<sycl::access_mode::read_write, sycl::target::host_task>(
+            CGH);
 
     CGH.host_task([=] {
       for (size_t I = 0; I < WIDTH; ++I)
