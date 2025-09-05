@@ -187,3 +187,6 @@ execution. Consequently, the sampled value may wrap around zero.
 == Issues
 
 . How to convert the result of the function to seconds?
++
+*RESOLVED*: There is no portable way to convert the values returned by these
+clocks.
