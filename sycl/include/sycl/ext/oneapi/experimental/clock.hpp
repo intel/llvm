@@ -34,14 +34,13 @@ inline uint64_t clock_impl(clock_scope scope) {
 #endif // defined(__NVPTX__) || defined(__AMDGCN__)
 #else
   throw sycl::exception(
-    make_error_code(errc::runtime),
-    "sycl::ext::oneapi::experimental::clock() is not supported on host.");
+      make_error_code(errc::runtime),
+      "sycl::ext::oneapi::experimental::clock() is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
 }
 } // namespace detail
 
-template <clock_scope Scope>
-inline uint64_t clock();
+template <clock_scope Scope> inline uint64_t clock();
 
 // Specialization for device.
 template <>
