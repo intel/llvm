@@ -544,7 +544,14 @@ event handler::finalize() {
   if (type == detail::CGType::Kernel) {
     if (impl->MDeviceKernelInfoPtr) {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      impl->MDeviceKernelInfoPtr->initIfNeeded(toKernelNameStrT(MKernelName));
+      detail::CompileTimeKernelInfoTy HandlerInfo;
+      HandlerInfo.Name = MKernelName;
+      HandlerInfo.NumParams = impl->MKernelNumArgs;
+      HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
+      HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
+      HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
+
+      impl->MDeviceKernelInfoPtr->initIfEmpty(HandlerInfo);
 #endif
     } else {
       // Fetch the device kernel info pointer if it hasn't been set (e.g.
