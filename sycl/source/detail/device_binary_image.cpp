@@ -728,9 +728,11 @@ void CompressedRTDeviceBinaryImage::Decompress() {
 
     Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
     Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
+
+    m_IsCompressed = false;
   };
 
-  std::call_once(InitFlag, DecompressFunc);
+  std::call_once(m_InitFlag, DecompressFunc);
 }
 
 CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {

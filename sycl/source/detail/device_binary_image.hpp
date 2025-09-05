@@ -322,7 +322,8 @@ public:
     return m_ImageSize;
   }
 
-  bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
+  bool IsCompressed() const { return m_IsCompressed; }
+
   void print() const override {
     RTDeviceBinaryImage::print();
     std::cerr << "    COMPRESSED\n";
@@ -333,7 +334,8 @@ private:
   size_t m_ImageSize = 0;
 
   // Flag to ensure decompression happens only once.
-  std::once_flag InitFlag;
+  std::once_flag m_InitFlag;
+  bool m_IsCompressed = true;
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 
