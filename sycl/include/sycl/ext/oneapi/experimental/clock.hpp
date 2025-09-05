@@ -24,7 +24,7 @@ enum class clock_scope : int {
 };
 
 namespace detail {
-inline uint64_t clock_impl(clock_scope scope) {
+inline uint64_t clock_impl([[maybe_unused]] clock_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__) || defined(__AMDGCN__)
   // Currently clock() is not supported on NVPTX and AMDGCN.
