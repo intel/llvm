@@ -5,11 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: target-spir
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// REQUIRES: aspect-ext_intel_matrix
+
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#define SG_SZ 16
-
+#include "common.hpp"
 #include "element_wise_abc_impl.hpp"

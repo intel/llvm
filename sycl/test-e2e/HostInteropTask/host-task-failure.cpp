@@ -1,10 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -22,7 +19,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
     auto DstA = Dst.template get_access<mode::write>(CGH);
 
     CGH.host_task([=]() {
-      for (size_t Idx = 0; Idx < SrcA.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < SrcA.size(); ++Idx)
         DstA[Idx] = SrcA[Idx];
     });
   });

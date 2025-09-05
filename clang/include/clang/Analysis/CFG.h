@@ -14,10 +14,11 @@
 #ifndef LLVM_CLANG_ANALYSIS_CFG_H
 #define LLVM_CLANG_ANALYSIS_CFG_H
 
-#include "clang/Analysis/Support/BumpVector.h"
-#include "clang/Analysis/ConstructionContext.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
+#include "clang/Analysis/ConstructionContext.h"
+#include "clang/Analysis/Support/BumpVector.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
@@ -74,7 +75,8 @@ public:
     MemberDtor,
     TemporaryDtor,
     DTOR_BEGIN = AutomaticObjectDtor,
-    DTOR_END = TemporaryDtor
+    DTOR_END = TemporaryDtor,
+    CleanupFunction,
   };
 
 protected:
@@ -120,7 +122,8 @@ public:
     return (Kind) x;
   }
 
-  void dumpToStream(llvm::raw_ostream &OS) const;
+  void dumpToStream(llvm::raw_ostream &OS,
+                    bool TerminateWithNewLine = true) const;
 
   void dump() const {
     dumpToStream(llvm::errs());
@@ -380,6 +383,32 @@ private:
   static bool isKind(const CFGElement &E) {
     Kind kind = E.getKind();
     return kind >= DTOR_BEGIN && kind <= DTOR_END;
+  }
+};
+
+class CFGCleanupFunction final : public CFGElement {
+public:
+  CFGCleanupFunction() = default;
+  CFGCleanupFunction(const VarDecl *VD)
+      : CFGElement(Kind::CleanupFunction, VD) {
+    assert(VD->hasAttr<CleanupAttr>());
+  }
+
+  const VarDecl *getVarDecl() const {
+    return static_cast<VarDecl *>(Data1.getPointer());
+  }
+
+  /// Returns the function to be called when cleaning up the var decl.
+  const FunctionDecl *getFunctionDecl() const {
+    const CleanupAttr *A = getVarDecl()->getAttr<CleanupAttr>();
+    return A->getFunctionDecl();
+  }
+
+private:
+  friend class CFGElement;
+
+  static bool isKind(const CFGElement E) {
+    return E.getKind() == Kind::CleanupFunction;
   }
 };
 
@@ -667,6 +696,11 @@ class CFGBlock {
     void dump() const {
       dumpToStream(llvm::errs());
     }
+
+    void Profile(llvm::FoldingSetNodeID &ID) const {
+      ID.AddPointer(Parent);
+      ID.AddInteger(Index);
+    }
   };
 
   template <bool IsReverse, bool IsConst> class ElementRefIterator {
@@ -851,6 +885,7 @@ private:
   ///
   /// Optimization Note: This bit could be profitably folded with Terminator's
   /// storage if the memory usage of CFGBlock becomes an issue.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned HasNoReturnElement : 1;
 
   /// The parent CFG that owns this CFGBlock.
@@ -979,7 +1014,9 @@ public:
 
   class FilterOptions {
   public:
+    LLVM_PREFERRED_TYPE(bool)
     unsigned IgnoreNullPredecessors : 1;
+    LLVM_PREFERRED_TYPE(bool)
     unsigned IgnoreDefaultsWithCoveredEnums : 1;
 
     FilterOptions()
@@ -1122,17 +1159,8 @@ public:
     Elements.push_back(CFGScopeBegin(VD, S), C);
   }
 
-  void prependScopeBegin(const VarDecl *VD, const Stmt *S,
-                         BumpVectorContext &C) {
-    Elements.insert(Elements.rbegin(), 1, CFGScopeBegin(VD, S), C);
-  }
-
   void appendScopeEnd(const VarDecl *VD, const Stmt *S, BumpVectorContext &C) {
     Elements.push_back(CFGScopeEnd(VD, S), C);
-  }
-
-  void prependScopeEnd(const VarDecl *VD, const Stmt *S, BumpVectorContext &C) {
-    Elements.insert(Elements.rbegin(), 1, CFGScopeEnd(VD, S), C);
   }
 
   void appendBaseDtor(const CXXBaseSpecifier *BS, BumpVectorContext &C) {
@@ -1151,6 +1179,10 @@ public:
     Elements.push_back(CFGAutomaticObjDtor(VD, S), C);
   }
 
+  void appendCleanupFunction(const VarDecl *VD, BumpVectorContext &C) {
+    Elements.push_back(CFGCleanupFunction(VD), C);
+  }
+
   void appendLifetimeEnds(VarDecl *VD, Stmt *S, BumpVectorContext &C) {
     Elements.push_back(CFGLifetimeEnds(VD, S), C);
   }
@@ -1162,45 +1194,9 @@ public:
   void appendDeleteDtor(CXXRecordDecl *RD, CXXDeleteExpr *DE, BumpVectorContext &C) {
     Elements.push_back(CFGDeleteDtor(RD, DE), C);
   }
-
-  // Destructors must be inserted in reversed order. So insertion is in two
-  // steps. First we prepare space for some number of elements, then we insert
-  // the elements beginning at the last position in prepared space.
-  iterator beginAutomaticObjDtorsInsert(iterator I, size_t Cnt,
-      BumpVectorContext &C) {
-    return iterator(Elements.insert(I.base(), Cnt,
-                                    CFGAutomaticObjDtor(nullptr, nullptr), C));
-  }
-  iterator insertAutomaticObjDtor(iterator I, VarDecl *VD, Stmt *S) {
-    *I = CFGAutomaticObjDtor(VD, S);
-    return ++I;
-  }
-
-  // Scope leaving must be performed in reversed order. So insertion is in two
-  // steps. First we prepare space for some number of elements, then we insert
-  // the elements beginning at the last position in prepared space.
-  iterator beginLifetimeEndsInsert(iterator I, size_t Cnt,
-                                   BumpVectorContext &C) {
-    return iterator(
-        Elements.insert(I.base(), Cnt, CFGLifetimeEnds(nullptr, nullptr), C));
-  }
-  iterator insertLifetimeEnds(iterator I, VarDecl *VD, Stmt *S) {
-    *I = CFGLifetimeEnds(VD, S);
-    return ++I;
-  }
-
-  // Scope leaving must be performed in reversed order. So insertion is in two
-  // steps. First we prepare space for some number of elements, then we insert
-  // the elements beginning at the last position in prepared space.
-  iterator beginScopeEndInsert(iterator I, size_t Cnt, BumpVectorContext &C) {
-    return iterator(
-        Elements.insert(I.base(), Cnt, CFGScopeEnd(nullptr, nullptr), C));
-  }
-  iterator insertScopeEnd(iterator I, VarDecl *VD, Stmt *S) {
-    *I = CFGScopeEnd(VD, S);
-    return ++I;
-  }
 };
+
+using ConstCFGElementRef = CFGBlock::ConstCFGElementRef;
 
 /// CFGCallback defines methods that should be called when a logical
 /// operator error is found when building the CFG.
@@ -1209,6 +1205,7 @@ public:
   CFGCallback() = default;
   virtual ~CFGCallback() = default;
 
+  virtual void logicAlwaysTrue(const BinaryOperator *B, bool isAlwaysTrue) {}
   virtual void compareAlwaysTrue(const BinaryOperator *B, bool isAlwaysTrue) {}
   virtual void compareBitwiseEquality(const BinaryOperator *B,
                                       bool isAlwaysTrue) {}
@@ -1229,7 +1226,9 @@ public:
   //===--------------------------------------------------------------------===//
 
   class BuildOptions {
-    std::bitset<Stmt::lastStmtConstant> alwaysAddMask;
+    // Stmt::lastStmtConstant has the same value as the last Stmt kind,
+    // so make sure we add one to account for this!
+    std::bitset<Stmt::lastStmtConstant + 1> alwaysAddMask;
 
   public:
     using ForcedBlkExprs = llvm::DenseMap<const Stmt *, const CFGBlock *>;
@@ -1395,10 +1394,9 @@ public:
   //===--------------------------------------------------------------------===//
 
   template <typename Callback> void VisitBlockStmts(Callback &O) const {
-    for (const_iterator I = begin(), E = end(); I != E; ++I)
-      for (CFGBlock::const_iterator BI = (*I)->begin(), BE = (*I)->end();
-           BI != BE; ++BI) {
-        if (std::optional<CFGStmt> stmt = BI->getAs<CFGStmt>())
+    for (CFGBlock *BB : *this)
+      for (const CFGElement &Elem : *BB) {
+        if (std::optional<CFGStmt> stmt = Elem.getAs<CFGStmt>())
           O(const_cast<Stmt *>(stmt->getStmt()));
       }
   }

@@ -17,6 +17,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/CommonBugCategories.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include <string>
+#include <variant>
 
 namespace clang {
 
@@ -26,36 +27,41 @@ class BugReporter;
 
 class BugType {
 private:
-  const CheckerNameRef CheckerName;
+  using CheckerNameInfo = std::variant<CheckerNameRef, const CheckerFrontend *>;
+
+  const CheckerNameInfo CheckerName;
   const std::string Description;
   const std::string Category;
-  const CheckerBase *Checker;
   bool SuppressOnSink;
 
   virtual void anchor();
 
 public:
-  BugType(CheckerNameRef CheckerName, StringRef Name, StringRef Cat,
-          bool SuppressOnSink = false)
-      : CheckerName(CheckerName), Description(Name), Category(Cat),
-        Checker(nullptr), SuppressOnSink(SuppressOnSink) {}
-  BugType(const CheckerBase *Checker, StringRef Name, StringRef Cat,
-          bool SuppressOnSink = false)
-      : CheckerName(Checker->getCheckerName()), Description(Name),
-        Category(Cat), Checker(Checker), SuppressOnSink(SuppressOnSink) {}
+  // Straightforward constructor where the checker name is specified directly.
+  // TODO: As far as I know all applications of this constructor involve ugly
+  // hacks that could be avoided by switching to the other constructor.
+  // When those are all eliminated, this constructor should be removed to
+  // eliminate the `variant` and simplify this class.
+  BugType(CheckerNameRef CheckerName, StringRef Desc,
+          StringRef Cat = categories::LogicError, bool SuppressOnSink = false)
+      : CheckerName(CheckerName), Description(Desc), Category(Cat),
+        SuppressOnSink(SuppressOnSink) {}
+  // Constructor that can be called from the constructor of a checker object.
+  // At that point the checker name is not yet available, but we can save a
+  // pointer to the checker and use that to query the name.
+  BugType(const CheckerFrontend *Checker, StringRef Desc,
+          StringRef Cat = categories::LogicError, bool SuppressOnSink = false)
+      : CheckerName(Checker), Description(Desc), Category(Cat),
+        SuppressOnSink(SuppressOnSink) {}
   virtual ~BugType() = default;
 
   StringRef getDescription() const { return Description; }
   StringRef getCategory() const { return Category; }
   StringRef getCheckerName() const {
-    // FIXME: This is a workaround to ensure that the correct checerk name is
-    // used. The checker names are set after the constructors are run.
-    // In case the BugType object is initialized in the checker's ctor
-    // the CheckerName field will be empty. To circumvent this problem we use
-    // CheckerBase whenever it is possible.
-    StringRef Ret = Checker ? Checker->getCheckerName() : CheckerName;
-    assert(!Ret.empty() && "Checker name is not set properly.");
-    return Ret;
+    if (const auto *CNR = std::get_if<CheckerNameRef>(&CheckerName))
+      return *CNR;
+
+    return std::get<const CheckerFrontend *>(CheckerName)->getName();
   }
 
   /// isSuppressOnSink - Returns true if bug reports associated with this bug
@@ -64,25 +70,19 @@ public:
   bool isSuppressOnSink() const { return SuppressOnSink; }
 };
 
-class BuiltinBug : public BugType {
-  const std::string desc;
-  void anchor() override;
+/// Trivial convenience class for the common case when a certain checker
+/// frontend always uses the same bug type. This way instead of writing
+/// ```
+///   CheckerFrontend LongCheckerFrontendName;
+///   BugType LongCheckerFrontendNameBug{LongCheckerFrontendName, "..."};
+/// ```
+/// we can use `CheckerFrontendWithBugType LongCheckerFrontendName{"..."}`.
+class CheckerFrontendWithBugType : public CheckerFrontend, public BugType {
 public:
-  BuiltinBug(class CheckerNameRef checker, const char *name,
-             const char *description)
-      : BugType(checker, name, categories::LogicError), desc(description) {}
-
-  BuiltinBug(const CheckerBase *checker, const char *name,
-             const char *description)
-      : BugType(checker, name, categories::LogicError), desc(description) {}
-
-  BuiltinBug(class CheckerNameRef checker, const char *name)
-      : BugType(checker, name, categories::LogicError), desc(name) {}
-
-  BuiltinBug(const CheckerBase *checker, const char *name)
-      : BugType(checker, name, categories::LogicError), desc(name) {}
-
-  StringRef getDescription() const { return desc; }
+  CheckerFrontendWithBugType(StringRef Desc,
+                             StringRef Cat = categories::LogicError,
+                             bool SuppressOnSink = false)
+      : BugType(this, Desc, Cat, SuppressOnSink) {}
 };
 
 } // namespace ento

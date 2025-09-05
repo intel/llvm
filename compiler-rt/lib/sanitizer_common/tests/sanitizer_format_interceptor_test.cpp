@@ -9,14 +9,16 @@
 // Tests for *scanf interceptors implementation in sanitizer_common.
 //
 //===----------------------------------------------------------------------===//
+#include <wchar.h>
+
 #include <algorithm>
 #include <vector>
 
-#include "interception/interception.h"
-#include "sanitizer_test_utils.h"
-#include "sanitizer_common/sanitizer_libc.h"
-#include "sanitizer_common/sanitizer_common.h"
 #include "gtest/gtest.h"
+#include "interception/interception.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_libc.h"
+#include "sanitizer_test_utils.h"
 
 using namespace __sanitizer;
 
@@ -36,6 +38,7 @@ using namespace __sanitizer;
 #include "sanitizer_common/sanitizer_common_interceptors_format.inc"
 
 static const unsigned I = sizeof(int);
+static const unsigned Z = sizeof(size_t);
 static const unsigned L = sizeof(long);
 static const unsigned LL = sizeof(long long);
 static const unsigned S = sizeof(short);
@@ -111,6 +114,8 @@ static void testScanfNoGnuMalloc(const char *format, unsigned n, ...) {
 
 TEST(SanitizerCommonInterceptors, Scanf) {
   testScanf("%d", 1, I);
+  testScanf("%zx", 1, Z);
+  testScanf("%zd", 1, Z);
   testScanf("%d%d%d", 3, I, I, I);
   testScanf("ab%u%dc", 2, I, I);
   testScanf("%ld", 1, L);
@@ -126,7 +131,6 @@ TEST(SanitizerCommonInterceptors, Scanf) {
   testScanf("a%%%%b", 0);
   testScanf("a%%b%%", 0);
   testScanf("a%%%%%%b", 0);
-  testScanf("a%%%%%b", 0);
   testScanf("a%%%%%f", 1, F);
   testScanf("a%%%lxb", 1, L);
   testScanf("a%lf%%%lxb", 2, D, L);
@@ -202,25 +206,47 @@ TEST(SanitizerCommonInterceptors, Scanf) {
   testScanfPartial("%d%n%n%d %s %s", 3, 5, I, I, I, I, test_buf_size);
   testScanfPartial("%d%n%n%d %s %s", 4, 6, I, I, I, I, test_buf_size,
                    test_buf_size);
+
+#if defined(__GLIBC__)
+  testScanf("%b", 1, I);
+  testScanf("%zb", 1, Z);
+  testScanf("a%%%%%b", 1, I);
+#else
+  testScanf("a%%%%%b", 0);
+#endif
 }
 
 TEST(SanitizerCommonInterceptors, ScanfAllocate) {
   const char *buf = "123456";
+  const wchar_t *wbuf = L"123";
 
   // Can not use testScanf() because this case needs a valid pointer to a string
   // in the scanf argument.
   {
     std::vector<unsigned> scanf_sizes;
-    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%ms", &buf);
-    verifyFormatResults("%ms", 2, scanf_sizes,
-                        {P, (unsigned)(strlen(buf) + 1)});
+    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%mc", &buf);
+    verifyFormatResults("%mc", 2, scanf_sizes, {P, 1u});
   }
-
   {
     std::vector<unsigned> scanf_sizes;
-    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%mc", &buf);
-    verifyFormatResults("%mc", 2, scanf_sizes,
-                        {P, (unsigned)(strlen(buf) + 1)});
+    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%mC", &wbuf);
+    verifyFormatResults("%mC", 2, scanf_sizes, {P, (unsigned)sizeof(wchar_t)});
+  }
+  {
+    std::vector<unsigned> scanf_sizes;
+    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%ms", &buf);
+    verifyFormatResults("%ms", 2, scanf_sizes, {P, unsigned(strlen(buf) + 1)});
+    scanf_sizes.clear();
+    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%m[0-9]",
+               &buf);
+    verifyFormatResults("%m[0-9]", 2, scanf_sizes,
+                        {P, unsigned(strlen(buf) + 1)});
+  }
+  {
+    std::vector<unsigned> scanf_sizes;
+    testScanf3((void *)&scanf_sizes, 2, /*allowGnuMalloc=*/false, "%mS", &wbuf);
+    verifyFormatResults("%mS", 2, scanf_sizes,
+                        {P, unsigned((wcslen(wbuf) + 1) * sizeof(wchar_t))});
   }
 }
 

@@ -9,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -89,11 +90,9 @@ int main() {
   }
   try {
     D = get_pointer_device(array, ctxt);
-  } catch (runtime_error) {
+  } catch (exception) {
+    free(array);
     return 0;
   }
   return 13;
-  free(array);
-
-  return 0;
 }

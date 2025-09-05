@@ -9,23 +9,21 @@
 
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERA...
-#include <sycl/detail/type_traits.hpp>        // for is_group
-#include <sycl/exception.hpp>                 // for feature_not_supported
-#include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
+#include <sycl/detail/sycl_local_mem_builtins.hpp> // for __sycl_allocateLocalMemory
+#include <sycl/detail/type_traits.hpp>             // for is_group
+#include <sycl/exception.hpp>                      // for exception
+#include <sycl/ext/intel/usm_pointers.hpp>         // for multi_ptr
+#include <sycl/group.hpp>                          // for workGroupBarrier
 
 #include <type_traits> // for enable_if_t
-
-#ifdef __SYCL_DEVICE_ONLY__
-// Request a fixed-size allocation in local address space at kernel scope.
-extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
-__sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
-#endif
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
 template <typename T, typename Group>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
+#endif
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
@@ -42,13 +40,16 @@ std::enable_if_t<
   }
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
-  throw feature_not_supported(
-      "sycl_ext_oneapi_local_memory extension is not supported on host device",
-      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(
+      sycl::errc::feature_not_supported,
+      "sycl_ext_oneapi_local_memory extension is not supported on host");
 #endif
 }
 
 template <typename T, typename Group, typename... Args>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::add_ir_attributes_function("sycl-forceinline", true)]]
+#endif
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && sycl::detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
@@ -64,9 +65,9 @@ std::enable_if_t<
   // Silence unused variable warning
   (void)g;
   [&args...] {}();
-  throw feature_not_supported(
-      "sycl_ext_oneapi_local_memory extension is not supported on host device",
-      PI_ERROR_INVALID_OPERATION);
+  throw sycl::exception(
+      sycl::errc::feature_not_supported,
+      "sycl_ext_oneapi_local_memory extension is not supported on host");
 #endif
 }
 } // namespace ext::oneapi

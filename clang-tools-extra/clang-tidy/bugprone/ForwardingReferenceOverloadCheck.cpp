@@ -9,7 +9,6 @@
 #include "ForwardingReferenceOverloadCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include <algorithm>
 
 using namespace clang::ast_matchers;
 
@@ -19,14 +18,14 @@ namespace {
 // Check if the given type is related to std::enable_if.
 AST_MATCHER(QualType, isEnableIf) {
   auto CheckTemplate = [](const TemplateSpecializationType *Spec) {
-    if (!Spec || !Spec->getTemplateName().getAsTemplateDecl()) {
+    if (!Spec)
       return false;
-    }
-    const NamedDecl *TypeDecl =
-        Spec->getTemplateName().getAsTemplateDecl()->getTemplatedDecl();
-    return TypeDecl->isInStdNamespace() &&
-           (TypeDecl->getName().equals("enable_if") ||
-            TypeDecl->getName().equals("enable_if_t"));
+
+    const TemplateDecl *TDecl = Spec->getTemplateName().getAsTemplateDecl();
+
+    return TDecl && TDecl->isInStdNamespace() &&
+           (TDecl->getName() == "enable_if" ||
+            TDecl->getName() == "enable_if_t");
   };
   const Type *BaseType = Node.getTypePtr();
   // Case: pointer or reference to enable_if.
@@ -54,7 +53,12 @@ AST_MATCHER(QualType, isEnableIf) {
 AST_MATCHER_P(TemplateTypeParmDecl, hasDefaultArgument,
               clang::ast_matchers::internal::Matcher<QualType>, TypeMatcher) {
   return Node.hasDefaultArgument() &&
-         TypeMatcher.matches(Node.getDefaultArgument(), Finder, Builder);
+         TypeMatcher.matches(
+             Node.getDefaultArgument().getArgument().getAsType(), Finder,
+             Builder);
+}
+AST_MATCHER(TemplateDecl, hasAssociatedConstraints) {
+  return Node.hasAssociatedConstraints();
 }
 } // namespace
 
@@ -69,11 +73,14 @@ void ForwardingReferenceOverloadCheck::registerMatchers(MatchFinder *Finder) {
 
   DeclarationMatcher FindOverload =
       cxxConstructorDecl(
-          hasParameter(0, ForwardingRefParm),
+          hasParameter(0, ForwardingRefParm), unless(isDeleted()),
           unless(hasAnyParameter(
               // No warning: enable_if as constructor parameter.
               parmVarDecl(hasType(isEnableIf())))),
           unless(hasParent(functionTemplateDecl(anyOf(
+              // No warning: has associated constraints (like requires
+              // expression).
+              hasAssociatedConstraints(),
               // No warning: enable_if as type parameter.
               has(templateTypeParmDecl(hasDefaultArgument(isEnableIf()))),
               // No warning: enable_if as non-type template parameter.

@@ -1,31 +1,21 @@
-// REQUIRES: cpu,windows
+// REQUIRES: windows
+// XFAIL: opencl && gpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
-// FIXME: OpenCL CPU backend compiler crashes on a call to _wassert.
-// Disable the test until the fix reaches SYCL test infrastructure.
-// XFAIL: *
+// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 //
-// RUN: %{build} -o %t.out
-//
-// MSVC implementation of assert does not call an unreachable built-in, so the
-// program doesn't terminate when fallback is used.
-//
-// FIXME: SPIR-V Unreachable should be called from the fallback
-// explicitly. Since the test is going to crash, we'll have to follow a similar
-// approach as on Linux - call the test in a subprocess.
-//
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
-// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-MESSAGE
+// RUN: not env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False \
+// RUN: %{run} %t.out 2>&1 >/dev/null | FileCheck %s --check-prefix=CHECK-MESSAGE
 //
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
-//
-// CHECK-FALLBACK: ---> piProgramLink
 
+#include "../helpers.hpp"
 #include <array>
 #include <assert.h>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -47,7 +37,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
     }
   });
 
-  int shouldCrash = getenv("SHOULD_CRASH") ? 1 : 0;
+  bool shouldCrash = env::isDefined("SHOULD_CRASH");
 
   sycl::range<1> numOfItems{N};
   sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);

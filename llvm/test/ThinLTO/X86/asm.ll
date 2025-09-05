@@ -3,7 +3,7 @@
 ; RUN: opt -module-summary %t/b.s -o %t/b.bc
 ; RUN: llvm-nm %t/a.bc | FileCheck %s --check-prefix=NM
 
-; RUN: llvm-lto2 run -opaque-pointers %t/a.bc %t/b.bc -o %t/out -save-temps -r=%t/a.bc,ref,plx -r=%t/b.bc,ff_h264_cabac_tables,pl
+; RUN: llvm-lto2 run %t/a.bc %t/b.bc -o %t/out -save-temps -r=%t/a.bc,ref,plx -r=%t/b.bc,ff_h264_cabac_tables,pl
 ; RUN: llvm-dis < %t/out.2.2.internalize.bc | FileCheck %s
 
 ;--- a.s

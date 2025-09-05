@@ -1,8 +1,5 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -DSYCL_DISABLE_IMAGE_ASPECT_WARNING
 // RUN: %{run-unfiltered-devices} %t.out
-//
-// Hip is missing some of the parameters tested here so it fails with NVIDIA
-// XFAIL: hip_nvidia
 
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //
@@ -15,7 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 
@@ -51,9 +49,6 @@ int main() {
     if (plt.has(aspect::fp64)) {
       std::cout << "  fp64" << std::endl;
     }
-    if (plt.has(aspect::ext_oneapi_bfloat16_math_functions)) {
-      std::cout << " ext_oneapi_bfloat16_math_functions" << std::endl;
-    }
     if (plt.has(aspect::atomic64)) {
       std::cout << "  atomic64" << std::endl;
     }
@@ -86,6 +81,18 @@ int main() {
     }
     if (plt.has(aspect::usm_system_allocations)) {
       std::cout << "  USM system allocations" << std::endl;
+    }
+    if (plt.has(aspect::ext_oneapi_cuda_cluster_group)) {
+      std::cout << " ext_oneapi_cuda_cluster_group" << std::endl;
+    }
+    if (plt.has(aspect::ext_oneapi_atomic16)) {
+      std::cout << "  ext_oneapi_atomic16" << std::endl;
+    }
+    if (plt.has(aspect::ext_oneapi_virtual_functions)) {
+      std::cout << "  ext_oneapi_virtual_functions" << std::endl;
+    }
+    if (plt.has(aspect::ext_intel_spill_memory_size)) {
+      std::cout << "  ext_intel_spill_memory_size" << std::endl;
     }
   }
   std::cout << "Passed." << std::endl;

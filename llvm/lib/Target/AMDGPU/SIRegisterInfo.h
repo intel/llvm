@@ -14,6 +14,8 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_SIREGISTERINFO_H
 #define LLVM_LIB_TARGET_AMDGPU_SIREGISTERINFO_H
 
+#include "llvm/ADT/BitVector.h"
+
 #define GET_REGINFO_HEADER
 #include "AMDGPUGenRegisterInfo.inc"
 
@@ -23,9 +25,17 @@ namespace llvm {
 
 class GCNSubtarget;
 class LiveIntervals;
-class LivePhysRegs;
+class LiveRegUnits;
+class MachineInstrBuilder;
 class RegisterBank;
 struct SGPRSpillBuilder;
+
+/// Register allocation hint types. Helps eliminate unneeded COPY with True16
+namespace AMDGPURI {
+
+enum { Size16 = 1, Size32 = 2 };
+
+} // end namespace AMDGPURI
 
 class SIRegisterInfo final : public AMDGPUGenRegisterInfo {
 private:
@@ -35,11 +45,11 @@ private:
   BitVector RegPressureIgnoredUnits;
 
   /// Sub reg indexes for getRegSplitParts.
-  /// First index represents subreg size from 1 to 16 DWORDs.
+  /// First index represents subreg size from 1 to 32 Half DWORDS.
   /// The inner vector is sorted by bit offset.
   /// Provided a register can be fully split with given subregs,
   /// all elements of the inner vector combined give a full lane mask.
-  static std::array<std::vector<int16_t>, 16> RegSplitParts;
+  static std::array<std::vector<int16_t>, 32> RegSplitParts;
 
   // Table representing sub reg of given width and offset.
   // First index is subreg size: 32, 64, 96, 128, 160, 192, 224, 256, 512.
@@ -70,9 +80,20 @@ public:
     return SpillSGPRToVGPR;
   }
 
+  /// Return the largest available SGPR aligned to \p Align for the register
+  /// class \p RC.
+  MCRegister getAlignedHighSGPRForRC(const MachineFunction &MF,
+                                     const unsigned Align,
+                                     const TargetRegisterClass *RC) const;
+
   /// Return the end register initially reserved for the scratch buffer in case
   /// spilling is needed.
   MCRegister reservedPrivateSegmentBufferReg(const MachineFunction &MF) const;
+
+  /// Return a pair of maximum numbers of VGPRs and AGPRs that meet the number
+  /// of waves per execution unit required for the function \p MF.
+  std::pair<unsigned, unsigned>
+  getMaxNumVectorRegs(const MachineFunction &MF) const;
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
   bool isAsmClobberable(const MachineFunction &MF,
@@ -84,11 +105,26 @@ public:
                                        CallingConv::ID) const override;
   const uint32_t *getNoPreservedMask() const override;
 
+  // Functions with the amdgpu_cs_chain or amdgpu_cs_chain_preserve calling
+  // conventions are free to use certain VGPRs without saving and restoring any
+  // lanes (not even inactive ones).
+  static bool isChainScratchRegister(Register VGPR);
+
   // Stack access is very expensive. CSRs are also the high registers, and we
   // want to minimize the number of used registers.
   unsigned getCSRFirstUseCost() const override {
     return 100;
   }
+
+  // When building a block VGPR load, we only really transfer a subset of the
+  // registers in the block, based on a mask. Liveness analysis is not aware of
+  // the mask, so it might consider that any register in the block is available
+  // before the load and may therefore be scavenged. This is not ok for CSRs
+  // that are not clobbered, since the caller will expect them to be preserved.
+  // This method will add artificial implicit uses for those registers on the
+  // load instruction, so liveness analysis knows they're unavailable.
+  void addImplicitUsesForBlockCSRLoad(MachineInstrBuilder &MIB,
+                                      Register BlockReg) const;
 
   const TargetRegisterClass *
   getLargestLegalSuperClass(const TargetRegisterClass *RC,
@@ -133,34 +169,38 @@ public:
   const TargetRegisterClass *
   getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
+  const TargetRegisterClass *
+  getRegClassForBlockOp(const MachineFunction &MF) const {
+    return &AMDGPU::VReg_1024RegClass;
+  }
+
   void buildVGPRSpillLoadStore(SGPRSpillBuilder &SB, int Index, int Offset,
                                bool IsLoad, bool IsKill = true) const;
 
-  /// If \p OnlyToVGPR is true, this will only succeed if this
+  /// If \p OnlyToVGPR is true, this will only succeed if this manages to find a
+  /// free VGPR lane to spill.
   bool spillSGPR(MachineBasicBlock::iterator MI, int FI, RegScavenger *RS,
                  SlotIndexes *Indexes = nullptr, LiveIntervals *LIS = nullptr,
-                 bool OnlyToVGPR = false) const;
+                 bool OnlyToVGPR = false,
+                 bool SpillToPhysVGPRLane = false) const;
 
   bool restoreSGPR(MachineBasicBlock::iterator MI, int FI, RegScavenger *RS,
                    SlotIndexes *Indexes = nullptr, LiveIntervals *LIS = nullptr,
-                   bool OnlyToVGPR = false) const;
+                   bool OnlyToVGPR = false,
+                   bool SpillToPhysVGPRLane = false) const;
 
   bool spillEmergencySGPR(MachineBasicBlock::iterator MI,
                           MachineBasicBlock &RestoreMBB, Register SGPR,
                           RegScavenger *RS) const;
 
-  bool supportsBackwardScavenger() const override {
-    return true;
-  }
-
   bool eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS) const override;
 
-  bool eliminateSGPRToVGPRSpillFrameIndex(MachineBasicBlock::iterator MI,
-                                          int FI, RegScavenger *RS,
-                                          SlotIndexes *Indexes = nullptr,
-                                          LiveIntervals *LIS = nullptr) const;
+  bool eliminateSGPRToVGPRSpillFrameIndex(
+      MachineBasicBlock::iterator MI, int FI, RegScavenger *RS,
+      SlotIndexes *Indexes = nullptr, LiveIntervals *LIS = nullptr,
+      bool SpillToPhysVGPRLane = false) const;
 
   StringRef getRegAsmName(MCRegister Reg) const override;
 
@@ -193,6 +233,13 @@ public:
   }
 
   bool isSGPRReg(const MachineRegisterInfo &MRI, Register Reg) const;
+  bool isSGPRPhysReg(Register Reg) const {
+    return isSGPRClass(getPhysRegBaseClass(Reg));
+  }
+
+  bool isVGPRPhysReg(Register Reg) const {
+    return isVGPRClass(getPhysRegBaseClass(Reg));
+  }
 
   /// \returns true if this class contains only VGPR registers
   static bool isVGPRClass(const TargetRegisterClass *RC) {
@@ -255,11 +302,6 @@ public:
                            const TargetRegisterClass *SubRC,
                            unsigned SubIdx) const;
 
-  bool shouldRewriteCopySrc(const TargetRegisterClass *DefRC,
-                            unsigned DefSubReg,
-                            const TargetRegisterClass *SrcRC,
-                            unsigned SrcSubReg) const override;
-
   /// \returns True if operands defined with this operand type can accept
   /// a literal constant (i.e. any 32-bit immediate).
   bool opCanUseLiteralConstant(unsigned OpType) const;
@@ -313,6 +355,11 @@ public:
 
   unsigned getRegPressureSetLimit(const MachineFunction &MF,
                                   unsigned Idx) const override;
+
+  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,
+                             SmallVectorImpl<MCPhysReg> &Hints,
+                             const MachineFunction &MF, const VirtRegMap *VRM,
+                             const LiveRegMatrix *Matrix) const override;
 
   const int *getRegUnitPressureSets(unsigned RegUnit) const override;
 
@@ -410,14 +457,14 @@ public:
   // Insert spill or restore instructions.
   // When lowering spill pseudos, the RegScavenger should be set.
   // For creating spill instructions during frame lowering, where no scavenger
-  // is available, LiveRegs can be used.
+  // is available, LiveUnits can be used.
   void buildSpillLoadStore(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MI, const DebugLoc &DL,
                            unsigned LoadStoreOp, int Index, Register ValueReg,
                            bool ValueIsKill, MCRegister ScratchOffsetReg,
                            int64_t InstrOffset, MachineMemOperand *MMO,
                            RegScavenger *RS,
-                           LivePhysRegs *LiveRegs = nullptr) const;
+                           LiveRegUnits *LiveUnits = nullptr) const;
 
   // Return alignment in register file of first register in a register tuple.
   unsigned getRegClassAlignmentNumBits(const TargetRegisterClass *RC) const {
@@ -437,7 +484,25 @@ public:
   // No check if the subreg is supported by the current RC is made.
   unsigned getSubRegAlignmentNumBits(const TargetRegisterClass *RC,
                                      unsigned SubReg) const;
+
+  // \returns a number of registers of a given \p RC used in a function.
+  // Does not go inside function calls.
+  unsigned getNumUsedPhysRegs(const MachineRegisterInfo &MRI,
+                              const TargetRegisterClass &RC) const;
+
+  std::optional<uint8_t> getVRegFlagValue(StringRef Name) const override {
+    return Name == "WWM_REG" ? AMDGPU::VirtRegFlag::WWM_REG
+                             : std::optional<uint8_t>{};
+  }
+
+  SmallVector<StringLiteral>
+  getVRegFlagsOfReg(Register Reg, const MachineFunction &MF) const override;
 };
+
+namespace AMDGPU {
+/// Get the size in bits of a register from the register class \p RC.
+unsigned getRegBitWidth(const TargetRegisterClass &RC);
+} // namespace AMDGPU
 
 } // End namespace llvm
 

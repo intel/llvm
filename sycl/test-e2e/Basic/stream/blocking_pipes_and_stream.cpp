@@ -1,4 +1,4 @@
-// REQUIRES: accelerator
+// REQUIRES: target-spir, accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
@@ -27,8 +27,10 @@
 // CHECK-NEXT: 8
 // CHECK-NEXT: 9
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/pipes.hpp>
+#include <sycl/stream.hpp>
 
 using namespace sycl;
 

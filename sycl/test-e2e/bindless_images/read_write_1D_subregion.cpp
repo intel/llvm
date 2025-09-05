@@ -1,11 +1,19 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
+
+// Test flakily failing on Windows+ BMG
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17439
+
+// RUN: %{build} -o %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -16,7 +24,6 @@ int main() {
 
   sycl::device dev;
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // declare image data
   constexpr size_t width = 512;
@@ -33,7 +40,7 @@ int main() {
   try {
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width}, sycl::image_channel_order::r, sycl::image_channel_type::fp32);
+        {width}, 1, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
     sycl::ext::oneapi::experimental::image_mem imgMem00(desc, q);
@@ -71,18 +78,20 @@ int main() {
     q.wait_and_throw();
 
     q.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
-        float sum = 0;
-        // Extension: read image data from handle
-        float px1 = sycl::ext::oneapi::experimental::read_image<float>(
-            imgHandle1, int(id[0]));
-        float px2 = sycl::ext::oneapi::experimental::read_image<float>(
-            imgHandle2, int(id[0]));
+      cgh.parallel_for<image_addition>(
+          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
+            size_t dim0 = it.get_local_id(0);
+            float sum = 0;
+            // Extension: fetch image data from handle
+            float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle1, int(dim0));
+            float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle2, int(dim0));
 
-        sum = px1 + px2;
-        sycl::ext::oneapi::experimental::write_image<float>(imgHandle3,
-                                                            int(id[0]), sum);
-      });
+            sum = px1 + px2;
+            sycl::ext::oneapi::experimental::write_image<float>(imgHandle3,
+                                                                int(dim0), sum);
+          });
     });
 
     q.wait_and_throw();
@@ -99,6 +108,7 @@ int main() {
     // Extension: cleanup
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle1, q);
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle2, q);
+    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle3, q);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return 1;
@@ -119,7 +129,7 @@ int main() {
     if (mismatch) {
 #ifdef VERBOSE_PRINT
       std::cout << "Result mismatch! Expected: " << expected[i]
-                << ", Actual: " << out[i][0] << std::endl;
+                << ", Actual: " << out[i] << std::endl;
 #else
       break;
 #endif

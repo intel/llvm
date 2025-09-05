@@ -92,6 +92,9 @@ class MockGDBServerResponder:
     class RESPONSE_DISCONNECT:
         pass
 
+    class RESPONSE_NONE:
+        pass
+
     def __init__(self):
         self.packetLog = []
 
@@ -126,6 +129,9 @@ class MockGDBServerResponder:
         if packet[0] == "m":
             addr, length = [int(x, 16) for x in packet[1:].split(",")]
             return self.readMemory(addr, length)
+        if packet[0] == "x":
+            addr, length = [int(x, 16) for x in packet[1:].split(",")]
+            return self.x(addr, length)
         if packet[0] == "M":
             location, encoded_data = packet[1:].split(":")
             addr, length = [int(x, 16) for x in location.split(",")]
@@ -178,6 +184,8 @@ class MockGDBServerResponder:
             return self.qQueryGDBServer()
         if packet == "qHostInfo":
             return self.qHostInfo()
+        if packet.startswith("qEcho"):
+            return self.qEcho(int(packet.split(":")[1]))
         if packet == "qGetWorkingDir":
             return self.qGetWorkingDir()
         if packet == "qOffsets":
@@ -196,6 +204,9 @@ class MockGDBServerResponder:
             return self.vFile(packet)
         if packet.startswith("vRun;"):
             return self.vRun(packet)
+        if packet.startswith("qLaunchGDBServer;"):
+            _, host = packet.partition(";")[2].split(":")
+            return self.qLaunchGDBServer(host)
         if packet.startswith("qLaunchSuccess"):
             return self.qLaunchSuccess()
         if packet.startswith("QEnvironment:"):
@@ -231,6 +242,9 @@ class MockGDBServerResponder:
     def qHostInfo(self):
         return "ptrsize:8;endian:little;"
 
+    def qEcho(self):
+        return "E04"
+
     def qQueryGDBServer(self):
         return "E04"
 
@@ -263,6 +277,9 @@ class MockGDBServerResponder:
 
     def readMemory(self, addr, length):
         return "00" * length
+
+    def x(self, addr, length):
+        return ""
 
     def writeMemory(self, addr, data_hex):
         return "OK"
@@ -328,6 +345,9 @@ class MockGDBServerResponder:
 
     def vRun(self, packet):
         return ""
+
+    def qLaunchGDBServer(self, host):
+        raise self.UnexpectedPacketException()
 
     def qLaunchSuccess(self):
         return ""
@@ -504,8 +524,9 @@ class MockGDBServer:
         self._thread.start()
 
     def stop(self):
-        self._thread.join()
-        self._thread = None
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
 
     def get_connect_address(self):
         return self._socket.get_connect_address()
@@ -642,6 +663,8 @@ class MockGDBServer:
         if not isinstance(response, list):
             response = [response]
         for part in response:
+            if part is MockGDBServerResponder.RESPONSE_NONE:
+                continue
             if part is MockGDBServerResponder.RESPONSE_DISCONNECT:
                 raise self.TerminateConnectionException()
             self._sendPacket(part)

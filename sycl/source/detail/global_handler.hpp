@@ -11,6 +11,9 @@
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <deque>
+#endif
 #include <memory>
 #include <unordered_map>
 
@@ -22,15 +25,14 @@ class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class plugin;
-class device_filter_list;
+class adapter_impl;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
-
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
-using ContextImplPtr = std::shared_ptr<context_impl>;
-using PluginPtr = std::shared_ptr<plugin>;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+struct KernelNameBasedCacheT;
+class DeviceKernelInfo;
+#endif
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -52,46 +54,52 @@ public:
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance();
 
+  /// \return true if the instance has not been deallocated yet.
+  static bool isInstanceAlive();
+
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
+  GlobalHandler &operator=(const GlobalHandler &) = delete;
 
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
+  bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
-  std::vector<PlatformImplPtr> &getPlatformCache();
+  std::vector<std::shared_ptr<platform_impl>> &getPlatformCache();
 
-  std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>> &
   getPlatformToDefaultContextCache();
 
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<PluginPtr> &getPlugins();
-  device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  std::vector<adapter_impl *> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  KernelNameBasedCacheT *createKernelNameBasedCache();
+#endif
+  static void registerStaticVarShutdownHandler();
 
-  static void registerDefaultContextReleaseHandler();
-
-  void unloadPlugins();
+  bool isOkToDefer() const;
+  void endDeferredRelease();
+  void unloadAdapters();
   void releaseDefaultContexts();
   void drainThreadPool();
-  void prepareSchedulerToRelease();
+  void prepareSchedulerToRelease(bool Blocking);
 
-  void InitXPTI();
   void TraceEventXPTI(const char *Message);
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
 private:
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  void *GSYCLCallEvent = nullptr;
-#endif
+  bool OkToDefer = true;
 
-  friend void shutdown();
+  friend void shutdown_early(bool);
+  friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
@@ -107,23 +115,26 @@ private:
   };
 
   template <typename T, typename... Types>
-  T &getOrCreate(InstWithLock<T> &IWL, Types... Args);
+  T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
-  InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
-  InstWithLock<std::unordered_map<PlatformImplPtr, ContextImplPtr>>
+  InstWithLock<std::vector<std::shared_ptr<platform_impl>>> MPlatformCache;
+  InstWithLock<
+      std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>>
       MPlatformToDefaultContextCache;
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<PluginPtr>> MPlugins;
-  InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<std::vector<adapter_impl *>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  InstWithLock<std::deque<DeviceKernelInfo>> MDeviceKernelInfoStorage;
+#endif
 };
 } // namespace detail
 } // namespace _V1

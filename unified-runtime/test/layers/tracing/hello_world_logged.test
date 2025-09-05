@@ -1,0 +1,27 @@
+RUN: %use-mock UR_LOG_TRACING="level:info;output:stdout" %xptienable hello_world 2>&1 | FileCheck %s
+
+REQUIRES: tracing
+
+CHECK: Platform initialized.
+CHECK:    ---> urAdapterGet
+CHECK:    <--- urAdapterGet(.NumEntries = 0, .phAdapters = {{.*}}, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urAdapterGet
+CHECK:    <--- urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urPlatformGet
+CHECK:    <--- urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 0, .phPlatforms = {{.*}}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urPlatformGet
+CHECK:    <--- urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}}, .pNumPlatforms = {{.*}}) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urPlatformGetApiVersion
+CHECK:    <--- urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{0\.[0-9]+}})) -> UR_RESULT_SUCCESS;
+CHECK: API version: {{0\.[0-9]+}}
+CHECK:    ---> urDeviceGet
+CHECK:    <--- urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urDeviceGet
+CHECK:    <--- urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urDeviceGetInfo
+CHECK:    <--- urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 4, .pPropValue = {{.*}} (UR_DEVICE_TYPE_GPU), .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
+CHECK:    ---> urDeviceGetInfo
+CHECK:    <--- urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = {{.*}}, .pPropValue = {{.*}} (Mock Device), .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
+CHECK: Found a Mock Device gpu.
+CHECK:    ---> urAdapterRelease
+CHECK:    <--- urAdapterRelease(.hAdapter = {{.*}}) -> UR_RESULT_SUCCESS;

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "AvoidReferenceCoroutineParametersCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
@@ -16,17 +15,19 @@ namespace clang::tidy::cppcoreguidelines {
 
 void AvoidReferenceCoroutineParametersCheck::registerMatchers(
     MatchFinder *Finder) {
-  auto IsCoroMatcher =
-      hasDescendant(expr(anyOf(coyieldExpr(), coreturnStmt(), coawaitExpr())));
-  Finder->addMatcher(parmVarDecl(hasType(type(referenceType())),
-                                 hasAncestor(functionDecl(IsCoroMatcher)))
-                         .bind("param"),
-                     this);
+  Finder->addMatcher(
+      functionDecl(unless(parameterCountIs(0)), hasBody(coroutineBodyStmt()))
+          .bind("fnt"),
+      this);
 }
 
 void AvoidReferenceCoroutineParametersCheck::check(
     const MatchFinder::MatchResult &Result) {
-  if (const auto *Param = Result.Nodes.getNodeAs<ParmVarDecl>("param")) {
+  const auto *Function = Result.Nodes.getNodeAs<FunctionDecl>("fnt");
+  for (const ParmVarDecl *Param : Function->parameters()) {
+    if (!Param->getType().getCanonicalType()->isReferenceType())
+      continue;
+
     diag(Param->getBeginLoc(), "coroutine parameters should not be references");
   }
 }

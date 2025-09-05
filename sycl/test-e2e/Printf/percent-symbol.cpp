@@ -4,9 +4,9 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: target-amd
 // XFAIL: cuda && windows
-//
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14733
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
@@ -14,13 +14,11 @@
 // RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
 // RUN: %{run} %t.constant.out | FileCheck %s
 //
-// FIXME: Enable on GPU once %% conversion is supported there
-// UNSUPPORTED: gpu
-//
 // CHECK: %c %s %d %i %o %x %X %u
 // CHECK-NEXT: %f %F %e %E %a %A %g %G %n %p
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cstring>
 

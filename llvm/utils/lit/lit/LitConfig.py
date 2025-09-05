@@ -35,8 +35,10 @@ class LitConfig(object):
         params,
         config_prefix=None,
         maxIndividualTestTime=0,
+        maxRetriesPerTest=None,
         parallelism_groups={},
-        echo_all_commands=False,
+        per_test_coverage=False,
+        gtest_sharding=True,
     ):
         # The name of the test runner.
         self.progname = progname
@@ -85,8 +87,10 @@ class LitConfig(object):
             self.valgrindArgs.extend(self.valgrindUserArgs)
 
         self.maxIndividualTestTime = maxIndividualTestTime
+        self.maxRetriesPerTest = maxRetriesPerTest
         self.parallelism_groups = parallelism_groups
-        self.echo_all_commands = echo_all_commands
+        self.per_test_coverage = per_test_coverage
+        self.gtest_sharding = bool(gtest_sharding)
 
     @property
     def maxIndividualTestTime(self):
@@ -127,6 +131,22 @@ class LitConfig(object):
                 self.fatal("Setting a timeout per test not supported. " + errormsg)
         elif self.maxIndividualTestTime < 0:
             self.fatal("The timeout per test must be >= 0 seconds")
+
+    @property
+    def per_test_coverage(self):
+        """
+        Interface for getting the per_test_coverage value
+        """
+        return self._per_test_coverage
+
+    @per_test_coverage.setter
+    def per_test_coverage(self, value):
+        """
+        Interface for setting the per_test_coverage value
+        """
+        if not isinstance(value, bool):
+            self.fatal("per_test_coverage must set to a value of type bool.")
+        self._per_test_coverage = value
 
     def load_config(self, config, path):
         """load_config(config, path) - Load a config object from an alternate

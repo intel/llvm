@@ -33,12 +33,15 @@
 #define LLVM_CODEGEN_GCMETADATA_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/GCStrategy.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Compiler.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -101,6 +104,10 @@ public:
   GCFunctionInfo(const Function &F, GCStrategy &S);
   ~GCFunctionInfo();
 
+  /// Handle invalidation explicitly.
+  bool invalidate(Function &F, const PreservedAnalyses &PA,
+                  FunctionAnalysisManager::Invalidator &Inv);
+
   /// getFunction - Return the function to which this metadata applies.
   const Function &getFunction() const { return F; }
 
@@ -144,6 +151,84 @@ public:
   live_iterator live_begin(const iterator &p) { return roots_begin(); }
   live_iterator live_end(const iterator &p) { return roots_end(); }
   size_t live_size(const iterator &p) const { return roots_size(); }
+};
+
+class GCStrategyMap {
+  using MapT =
+      MapVector<StringRef, std::unique_ptr<GCStrategy>, StringMap<unsigned>>;
+  MapT Strategies;
+
+public:
+  GCStrategyMap() = default;
+  GCStrategyMap(GCStrategyMap &&) = default;
+
+  /// Handle invalidation explicitly.
+  bool invalidate(Module &M, const PreservedAnalyses &PA,
+                  ModuleAnalysisManager::Invalidator &Inv);
+
+  using iterator = MapT::iterator;
+  using const_iterator = MapT::const_iterator;
+  using reverse_iterator = MapT::reverse_iterator;
+  using const_reverse_iterator = MapT::const_reverse_iterator;
+
+  iterator begin() { return Strategies.begin(); }
+  const_iterator begin() const { return Strategies.begin(); }
+  iterator end() { return Strategies.end(); }
+  const_iterator end() const { return Strategies.end(); }
+
+  reverse_iterator rbegin() { return Strategies.rbegin(); }
+  const_reverse_iterator rbegin() const { return Strategies.rbegin(); }
+  reverse_iterator rend() { return Strategies.rend(); }
+  const_reverse_iterator rend() const { return Strategies.rend(); }
+
+  bool empty() const { return Strategies.empty(); }
+
+  const GCStrategy &operator[](StringRef GCName) const {
+    auto I = Strategies.find(GCName);
+    assert(I != Strategies.end() && "Required strategy doesn't exist!");
+    return *I->second;
+  }
+
+  std::pair<iterator, bool> try_emplace(StringRef GCName) {
+    return Strategies.try_emplace(GCName);
+  }
+
+  bool contains(StringRef GCName) const { return Strategies.contains(GCName); }
+};
+
+/// An analysis pass which caches information about the entire Module.
+/// Records a cache of the 'active' gc strategy objects for the current Module.
+class CollectorMetadataAnalysis
+    : public AnalysisInfoMixin<CollectorMetadataAnalysis> {
+  friend struct AnalysisInfoMixin<CollectorMetadataAnalysis>;
+  LLVM_ABI static AnalysisKey Key;
+
+public:
+  using Result = GCStrategyMap;
+  Result run(Module &M, ModuleAnalysisManager &MAM);
+};
+
+/// An analysis pass which caches information about the Function.
+/// Records the function level information used by GCRoots.
+/// This pass depends on `CollectorMetadataAnalysis`.
+class GCFunctionAnalysis : public AnalysisInfoMixin<GCFunctionAnalysis> {
+  friend struct AnalysisInfoMixin<GCFunctionAnalysis>;
+  LLVM_ABI static AnalysisKey Key;
+
+public:
+  using Result = GCFunctionInfo;
+  Result run(Function &F, FunctionAnalysisManager &FAM);
+};
+
+/// LowerIntrinsics - This pass rewrites calls to the llvm.gcread or
+/// llvm.gcwrite intrinsics, replacing them with simple loads and stores as
+/// directed by the GCStrategy. It also performs automatic root initialization
+/// and custom intrinsic lowering.
+///
+/// This pass requires `CollectorMetadataAnalysis`.
+class GCLoweringPass : public PassInfoMixin<GCLoweringPass> {
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 
 /// An analysis pass which caches information about the entire Module.

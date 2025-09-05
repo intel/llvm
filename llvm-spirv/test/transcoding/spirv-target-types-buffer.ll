@@ -8,7 +8,7 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK-SPIRV: Capability VectorComputeINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_vector_compute"
-; CHECK-SPIRV: EntryPoint {{[0-9]+}} [[#FuncName:]] "foo"
+; CHECK-SPIRV: EntryPoint [[#]] [[#FuncName:]] "foo"
 ; CHECK-SPIRV: Name [[#ParamName:]] "a"
 ; CHECK-SPIRV: TypeVoid  [[#VoidT:]]
 ; CHECK-SPIRV: TypeBufferSurfaceINTEL [[#BufferID:]]

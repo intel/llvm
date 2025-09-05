@@ -2,6 +2,7 @@
 #define SYCL_HPP
 
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
+#define __SYCL_BUILTIN_ALIAS(X) [[clang::builtin_alias(X)]]
 
 // Shared code for SYCL tests
 
@@ -37,6 +38,12 @@ enum class address_space : int {
   constant_space,
   local_space,
   generic_space
+};
+
+enum class decorated : int {
+  no = 0,
+  yes,
+  legacy,
 };
 } // namespace access
 
@@ -135,6 +142,9 @@ template <typename dataT, int dimensions, access::mode accessmode,
           typename propertyListT = ext::oneapi::accessor_property_list<>>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+accessor() = default;
+#endif
   void use(void) const {}
   void use(void *) const {}
   _ImplT<dimensions> impl;
@@ -216,6 +226,9 @@ local_accessor: public accessor<dataT,
         dimensions, access::mode::read_write,
         access::target::local> {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  local_accessor() = default;
+#endif
   void use(void) const {}
   template <typename... T>
   void use(T... args) {}
@@ -243,6 +256,9 @@ class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
 #endif
 
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  sampler() = default;
+#endif
   void use(void) const {}
 };
 
@@ -270,6 +286,25 @@ public:
 
 class __SYCL_TYPE(kernel_handler) kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
+};
+
+template <typename T> class __SYCL_TYPE(specialization_id) specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+  T getDefaultValue() const { return MDefaultValue; }
+
+private:
+  T MDefaultValue;
 };
 
 // Used when parallel_for range is rounded-up.
@@ -383,13 +418,71 @@ struct DecoratedType<ElementType, access::address_space::global_space> {
   using type = __attribute__((opencl_global)) ElementType;
 };
 
-template <typename T, access::address_space AS> class multi_ptr {
-  using pointer_t = typename DecoratedType<T, AS>::type *;
-  pointer_t m_Pointer;
+template <typename T, access::address_space AS,
+          access::decorated DecorateAddress = access::decorated::legacy>
+class __SYCL_TYPE(multi_ptr) multi_ptr {
+  using decorated_type = typename DecoratedType<T, AS>::type;
+
+  static_assert(DecorateAddress != access::decorated::legacy);
+  static_assert(AS != access::address_space::constant_space);
 
 public:
+  using pointer = decorated_type *;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer)(Ptr)) {}
+  pointer get() { return m_Pointer; }
+
+ private:
+  pointer m_Pointer;
+};
+
+template <typename ElementType, access::address_space Space>
+struct LegacyPointerType {
+  using pointer_t = typename multi_ptr<ElementType, Space, access::decorated::yes>::pointer;
+};
+
+// Legacy specialization
+template <typename T, access::address_space AS>
+class __SYCL_TYPE(multi_ptr) multi_ptr<T, AS, access::decorated::legacy> {
+public:
+  using pointer_t = typename LegacyPointerType<T, AS>::pointer_t;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer_t)(Ptr)) {}
   multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #MultiPtrConstructor
   pointer_t get() { return m_Pointer; }
+
+private:
+  pointer_t m_Pointer;
+};
+
+// Dummy implementation of work_group_memory for use in SemaSYCL tests.
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(work_group_memory) work_group_memory {
+public:
+  // Default constructor for objects later initialized with __init member.
+  work_group_memory() = default;
+  work_group_memory(handler &CGH) {}
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
+  void use() const {}
+private:
+  __attribute((opencl_local)) DataT *Ptr;
+};
+
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory {
+public:
+  dynamic_work_group_memory() = default;
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->LocalMem.__init(Ptr); }
+  work_group_memory<DataT> get() const { return LocalMem; }
+
+private:
+  work_group_memory<DataT> LocalMem;
 };
 
 namespace ext {
@@ -398,17 +491,21 @@ namespace experimental {
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(T _obj) {}
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(T _obj) {}
+public:
+  annotated_arg() = default;
+#endif
 };
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
   T* obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(T* _obj) {}
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(T* _obj) {}
+public:
+  annotated_ptr() = default;   
+#endif
 };
 
 } // namespace experimental

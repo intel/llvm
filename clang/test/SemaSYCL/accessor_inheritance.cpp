@@ -30,7 +30,7 @@ int main() {
 }
 
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (int, int, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int)'
+// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (int, int, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl{{.*}} used _arg_A 'int'
 // CHECK: ParmVarDecl{{.*}} used _arg_B 'int'
 // CHECK: ParmVarDecl{{.*}} used _arg_AccField '__global char *'
@@ -52,8 +52,8 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_A' 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_B' 'int'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>':'sycl::accessor<char, 1, sycl::access::mode::read>' 'void () noexcept'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>':'sycl::accessor<char, 1, sycl::access::mode::read>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::accessor<char, 1, sycl::access::mode::read>' 'void () noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_C' 'int'
 

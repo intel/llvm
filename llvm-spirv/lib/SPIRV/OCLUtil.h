@@ -98,11 +98,19 @@ enum OCLScopeKind {
 // To avoid any inconsistence here, constants are explicitly initialized with
 // the corresponding constants from 'std::memory_order' enum.
 enum OCLMemOrderKind {
+#if __cplusplus >= 202002L
+  OCLMO_relaxed = static_cast<int>(std::memory_order::relaxed),
+  OCLMO_acquire = static_cast<int>(std::memory_order::acquire),
+  OCLMO_release = static_cast<int>(std::memory_order::release),
+  OCLMO_acq_rel = static_cast<int>(std::memory_order::acq_rel),
+  OCLMO_seq_cst = static_cast<int>(std::memory_order::seq_cst)
+#else
   OCLMO_relaxed = std::memory_order::memory_order_relaxed,
   OCLMO_acquire = std::memory_order::memory_order_acquire,
   OCLMO_release = std::memory_order::memory_order_release,
   OCLMO_acq_rel = std::memory_order::memory_order_acq_rel,
   OCLMO_seq_cst = std::memory_order::memory_order_seq_cst
+#endif
 };
 
 enum IntelFPGAMemoryAccessesVal {
@@ -126,6 +134,8 @@ typedef SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>
 typedef SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask> OCLMemOrderMap;
 
 typedef SPIRVMap<OCLScopeKind, Scope> OCLMemScopeMap;
+
+typedef SPIRVMap<std::string, Scope> OCLStrMemScopeMap;
 
 typedef SPIRVMap<std::string, SPIRVGroupOperationKind>
     SPIRSPIRVGroupOperationMap;
@@ -159,10 +169,8 @@ struct OCLBuiltinTransInfo {
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
-  Type *RetTy;      // Return type of the translated function
-  bool IsRetSigned; // When RetTy is int, determines if extensions
-                    // on it should be a sext or zet.
-  OCLBuiltinTransInfo() : RetTy(nullptr), IsRetSigned(false) {
+  Type *RetTy; // Return type of the translated function
+  OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }
 };
@@ -235,6 +243,7 @@ const static char AtomicInit[] = "atomic_init";
 const static char AtomicWorkItemFence[] = "atomic_work_item_fence";
 const static char Barrier[] = "barrier";
 const static char Clamp[] = "clamp";
+const static char ClockReadPrefix[] = "clock_read_";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
 const static char DotAccSat[] = "dot_acc_sat";
@@ -350,8 +359,9 @@ const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
-const unsigned CL21 = 201000;
 const unsigned CL30 = 300000;
+const unsigned CLCXX10 = 100000;
+const unsigned CLCXX2021 = 202100000;
 } // namespace kOCLVer
 
 namespace OclExt {
@@ -451,11 +461,12 @@ SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 template <typename T> std::string getFullPath(const T *Scope) {
   if (!Scope)
     return std::string();
-  std::string Filename = Scope->getFilename().str();
-  if (sys::path::is_absolute(Filename))
-    return Filename;
+  StringRef Filename = Scope->getFilename();
+  auto Style = sys::path::Style::native;
+  if (sys::path::is_absolute(Filename, Style))
+    return Filename.str();
   SmallString<16> DirName = Scope->getDirectory();
-  sys::path::append(DirName, sys::path::Style::posix, Filename);
+  sys::path::append(DirName, Style, Filename.str());
   return DirName.str().str();
 }
 
@@ -488,11 +499,6 @@ mapSPIRVMemSemanticToOCL(unsigned Sema) {
 inline OCLMemOrderKind mapSPIRVMemOrderToOCL(unsigned Sema) {
   return OCLMemOrderMap::rmap(extractSPIRVMemOrderSemantic(Sema));
 }
-
-/// If the value is a special type initializer (something that bitcasts from
-/// spirv.ConstantSampler to spirv.Sampler or likewise for PipeStorage), get the
-/// original type initializer, unwrap the bitcast. Otherwise, return nullptr.
-Value *unwrapSpecialTypeInitializer(Value *V);
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);
@@ -538,17 +544,18 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   F->setLinkage(GlobalValue::PrivateLinkage);
 
   LLVMContext &Ctx = M->getContext();
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  IRBuilder<> IRB(BB);
+  BasicBlock *EntryBB = BasicBlock::Create(Ctx, "entry", F);
+  IRBuilder<> EntryIRB(EntryBB);
+  AllocaInst *Result = EntryIRB.CreateAlloca(Ty, nullptr, "result");
   SwitchInst *SI;
   F->arg_begin()->setName("key");
   if (KeyMask) {
     Value *MaskV = ConstantInt::get(Type::getInt32Ty(Ctx), KeyMask);
-    Value *NewKey = IRB.CreateAnd(MaskV, F->arg_begin());
+    Value *NewKey = EntryIRB.CreateAnd(MaskV, F->arg_begin());
     NewKey->setName("key.masked");
-    SI = IRB.CreateSwitch(NewKey, BB);
+    SI = EntryIRB.CreateSwitch(NewKey, EntryBB);
   } else {
-    SI = IRB.CreateSwitch(F->arg_begin(), BB);
+    SI = EntryIRB.CreateSwitch(F->arg_begin(), EntryBB);
   }
 
   if (!DefaultCase) {
@@ -558,18 +565,52 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
     SI->setDefaultDest(DefaultBB);
   }
 
+  BasicBlock *ExitBB = BasicBlock::Create(Ctx, "exit", F);
+  BasicBlock *CaseBB = nullptr;
   Map.foreach ([&](int Key, int Val) {
     if (IsReverse)
       std::swap(Key, Val);
-    BasicBlock *CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
+    CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
     IRBuilder<> CaseIRB(CaseBB);
-    CaseIRB.CreateRet(CaseIRB.getInt32(Val));
-    SI->addCase(IRB.getInt32(Key), CaseBB);
+    CaseIRB.CreateStore(CaseIRB.getInt32(Val), Result);
+    CaseIRB.CreateBr(ExitBB);
+    SI->addCase(EntryIRB.getInt32(Key), CaseBB);
     if (Key == DefaultCase)
       SI->setDefaultDest(CaseBB);
   });
-  assert(SI->getDefaultDest() != BB && "Invalid default destination in switch");
+
+  ExitBB->moveAfter(CaseBB);
+  IRBuilder<> ExitIRB(ExitBB);
+  LoadInst *RetVal = ExitIRB.CreateLoad(Ty, Result, "retVal");
+  ExitIRB.CreateRet(RetVal);
+
+  assert(SI->getDefaultDest() != EntryBB &&
+         "Invalid default destination in switch");
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+}
+
+/// Maps LLVM SyncScope into SPIR-V Scope.
+///
+/// \param [in] Ctx Context for the LLVM SyncScope
+/// \param [in] Id SyncScope::ID value which needs to be mapped to SPIR-V Scope
+inline spv::Scope toSPIRVScope(const LLVMContext &Ctx, SyncScope::ID Id) {
+  // We follow Clang/LLVM convention by which the default is System scope, which
+  // in SPIR-V maps to CrossDevice scope. This is in order to ensure that the
+  // resulting SPIR-V is conservatively correct (i.e. always works), under the
+  // assumption that it is the responsibility of the higher level language to
+  // choose a narrower scope, if desired.
+  switch (Id) {
+  case SyncScope::SingleThread:
+    return spv::ScopeInvocation;
+  case SyncScope::System:
+    return spv::ScopeCrossDevice;
+  default:
+    SmallVector<StringRef> SSIDs;
+    Ctx.getSyncScopeNames(SSIDs);
+    spv::Scope S = ScopeCrossDevice; // Default to CrossDevice scope.
+    OCLStrMemScopeMap::find(SSIDs[Id].str(), &S);
+    return S;
+  }
 }
 
 /// Performs conversion from OpenCL memory_scope into SPIR-V Scope.

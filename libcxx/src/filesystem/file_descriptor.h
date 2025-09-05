@@ -18,35 +18,29 @@
 
 #include "error.h"
 #include "posix_compat.h"
+#include "time_utils.h"
 
 #if defined(_LIBCPP_WIN32API)
-# define WIN32_LEAN_AND_MEAN
-# define NOMINMAX
-# include <windows.h>
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
 #else
-# include <dirent.h>   // for DIR & friends
-# include <fcntl.h>    // values for fchmodat
-# include <sys/stat.h>
-# include <sys/statvfs.h>
-# include <unistd.h>
+#  include <dirent.h> // for DIR & friends
+#  include <fcntl.h>  // values for fchmodat
+#  include <sys/stat.h>
+#  include <sys/statvfs.h>
+#  include <unistd.h>
 #endif // defined(_LIBCPP_WIN32API)
-
-// TODO: Check whether these functions actually need internal linkage, or if they can be made normal header functions
-_LIBCPP_DIAGNOSTIC_PUSH
-_LIBCPP_GCC_DIAGNOSTIC_IGNORED("-Wunused-function")
-_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-function")
-_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-template")
 
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
 namespace detail {
-namespace {
 
 #if !defined(_LIBCPP_WIN32API)
 
-#if defined(DT_BLK)
+#  if defined(DT_BLK)
 template <class DirEntT, class = decltype(DirEntT::d_type)>
-static file_type get_file_type(DirEntT* ent, int) {
+file_type get_file_type(DirEntT* ent, int) {
   switch (ent->d_type) {
   case DT_BLK:
     return file_type::block;
@@ -70,17 +64,16 @@ static file_type get_file_type(DirEntT* ent, int) {
   }
   return file_type::none;
 }
-#endif // defined(DT_BLK)
+#  endif // defined(DT_BLK)
 
 template <class DirEntT>
-static file_type get_file_type(DirEntT*, long) {
+file_type get_file_type(DirEntT*, long) {
   return file_type::none;
 }
 
-static pair<string_view, file_type> posix_readdir(DIR* dir_stream,
-                                                  error_code& ec) {
+inline pair<string_view, file_type> posix_readdir(DIR* dir_stream, error_code& ec) {
   struct dirent* dir_entry_ptr = nullptr;
-  errno = 0; // zero errno in order to detect errors
+  errno                        = 0; // zero errno in order to detect errors
   ec.clear();
   if ((dir_entry_ptr = ::readdir(dir_stream)) == nullptr) {
     if (errno)
@@ -93,30 +86,36 @@ static pair<string_view, file_type> posix_readdir(DIR* dir_stream,
 
 #else // _LIBCPP_WIN32API
 
-static file_type get_file_type(const WIN32_FIND_DATAW& data) {
-  if (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT &&
-      data.dwReserved0 == IO_REPARSE_TAG_SYMLINK)
+inline file_type get_file_type(const WIN32_FIND_DATAW& data) {
+  if (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT && data.dwReserved0 == IO_REPARSE_TAG_SYMLINK)
     return file_type::symlink;
   if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     return file_type::directory;
   return file_type::regular;
 }
-static uintmax_t get_file_size(const WIN32_FIND_DATAW& data) {
+inline uintmax_t get_file_size(const WIN32_FIND_DATAW& data) {
   return (static_cast<uint64_t>(data.nFileSizeHigh) << 32) + data.nFileSizeLow;
 }
-static file_time_type get_write_time(const WIN32_FIND_DATAW& data) {
-  ULARGE_INTEGER tmp;
+inline file_time_type get_write_time(const WIN32_FIND_DATAW& data) {
+  using detail::fs_time;
   const FILETIME& time = data.ftLastWriteTime;
-  tmp.u.LowPart = time.dwLowDateTime;
-  tmp.u.HighPart = time.dwHighDateTime;
-  return file_time_type(file_time_type::duration(tmp.QuadPart));
+  auto ts              = filetime_to_timespec(time);
+  if (!fs_time::is_representable(ts))
+    return file_time_type::min();
+  return fs_time::convert_from_timespec(ts);
+}
+inline perms get_file_perm(const WIN32_FIND_DATAW& data) {
+  unsigned st_mode = 0555; // Read-only
+  if (!(data.dwFileAttributes & FILE_ATTRIBUTE_READONLY))
+    st_mode |= 0222; // Write
+  return static_cast<perms>(st_mode) & perms::mask;
 }
 
 #endif // !_LIBCPP_WIN32API
 
 //                       POSIX HELPERS
 
-using value_type = path::value_type;
+using value_type  = path::value_type;
 using string_type = path::string_type;
 
 struct FileDescriptor {
@@ -129,7 +128,25 @@ struct FileDescriptor {
   static FileDescriptor create(const path* p, error_code& ec, Args... args) {
     ec.clear();
     int fd;
-    if ((fd = detail::open(p->c_str(), args...)) == -1) {
+#ifdef _LIBCPP_WIN32API
+    // TODO: most of the filesystem implementation uses native Win32 calls
+    // (mostly via posix_compat.h). However, here we use the C-runtime APIs to
+    // open a file, because we subsequently pass the C-runtime fd to
+    // `std::[io]fstream::__open(int fd)` in order to implement copy_file.
+    //
+    // Because we're calling the windows C-runtime, win32 error codes are
+    // translated into C error numbers by the C runtime, and returned in errno,
+    // rather than being accessible directly via GetLastError.
+    //
+    // Ideally copy_file should be calling the Win32 CopyFile2 function, which
+    // works on paths, not open files -- at which point this FileDescriptor type
+    // will no longer be needed on windows at all.
+    fd = ::_wopen(p->c_str(), args...);
+#else
+    fd = open(p->c_str(), args...);
+#endif
+
+    if (fd == -1) {
       ec = capture_errno();
       return FileDescriptor{p};
     }
@@ -137,8 +154,7 @@ struct FileDescriptor {
   }
 
   template <class... Args>
-  static FileDescriptor create_with_status(const path* p, error_code& ec,
-                                           Args... args) {
+  static FileDescriptor create_with_status(const path* p, error_code& ec, Args... args) {
     FileDescriptor fd = create(p, ec, args...);
     if (!ec)
       fd.refresh_status(ec);
@@ -149,41 +165,43 @@ struct FileDescriptor {
   file_status get_status() const { return m_status; }
   StatT const& get_stat() const { return m_stat; }
 
-  bool status_known() const { return _VSTD_FS::status_known(m_status); }
+  bool status_known() const { return filesystem::status_known(m_status); }
 
   file_status refresh_status(error_code& ec);
 
   void close() noexcept {
-    if (fd != -1)
-      detail::close(fd);
+    if (fd != -1) {
+#ifdef _LIBCPP_WIN32API
+      ::_close(fd);
+#else
+      ::close(fd);
+#endif
+      // FIXME: shouldn't this return an error_code?
+    }
     fd = -1;
   }
 
   FileDescriptor(FileDescriptor&& other)
-      : name(other.name), fd(other.fd), m_stat(other.m_stat),
-        m_status(other.m_status) {
-    other.fd = -1;
+      : name(other.name), fd(other.fd), m_stat(other.m_stat), m_status(other.m_status) {
+    other.fd       = -1;
     other.m_status = file_status{};
   }
 
   ~FileDescriptor() { close(); }
 
-  FileDescriptor(FileDescriptor const&) = delete;
+  FileDescriptor(FileDescriptor const&)            = delete;
   FileDescriptor& operator=(FileDescriptor const&) = delete;
 
 private:
   explicit FileDescriptor(const path* p, int descriptor = -1) : name(*p), fd(descriptor) {}
 };
 
-perms posix_get_perms(const StatT& st) noexcept {
-  return static_cast<perms>(st.st_mode) & perms::mask;
-}
+inline perms posix_get_perms(const StatT& st) noexcept { return static_cast<perms>(st.st_mode) & perms::mask; }
 
-file_status create_file_status(error_code& m_ec, path const& p,
-                               const StatT& path_stat, error_code* ec) {
+inline file_status create_file_status(error_code& m_ec, path const& p, const StatT& path_stat, error_code* ec) {
   if (ec)
     *ec = m_ec;
-  if (m_ec && (m_ec.value() == ENOENT || m_ec.value() == ENOTDIR)) {
+  if (m_ec && (m_ec == errc::no_such_file_or_directory || m_ec == errc::not_a_directory)) {
     return file_status(file_type::not_found);
   } else if (m_ec) {
     ErrorHandler<void> err("posix_stat", ec, &p);
@@ -215,69 +233,66 @@ file_status create_file_status(error_code& m_ec, path const& p,
   return fs_tmp;
 }
 
-file_status posix_stat(path const& p, StatT& path_stat, error_code* ec) {
+inline file_status posix_stat(path const& p, StatT& path_stat, error_code* ec) {
   error_code m_ec;
   if (detail::stat(p.c_str(), &path_stat) == -1)
-    m_ec = detail::capture_errno();
+    m_ec = detail::get_last_error();
   return create_file_status(m_ec, p, path_stat, ec);
 }
 
-file_status posix_stat(path const& p, error_code* ec) {
+inline file_status posix_stat(path const& p, error_code* ec) {
   StatT path_stat;
   return posix_stat(p, path_stat, ec);
 }
 
-file_status posix_lstat(path const& p, StatT& path_stat, error_code* ec) {
+inline file_status posix_lstat(path const& p, StatT& path_stat, error_code* ec) {
   error_code m_ec;
   if (detail::lstat(p.c_str(), &path_stat) == -1)
-    m_ec = detail::capture_errno();
+    m_ec = detail::get_last_error();
   return create_file_status(m_ec, p, path_stat, ec);
 }
 
-file_status posix_lstat(path const& p, error_code* ec) {
+inline file_status posix_lstat(path const& p, error_code* ec) {
   StatT path_stat;
   return posix_lstat(p, path_stat, ec);
 }
 
 // http://pubs.opengroup.org/onlinepubs/9699919799/functions/ftruncate.html
-bool posix_ftruncate(const FileDescriptor& fd, off_t to_size, error_code& ec) {
+inline bool posix_ftruncate(const FileDescriptor& fd, off_t to_size, error_code& ec) {
   if (detail::ftruncate(fd.fd, to_size) == -1) {
-    ec = capture_errno();
+    ec = get_last_error();
     return true;
   }
   ec.clear();
   return false;
 }
 
-bool posix_fchmod(const FileDescriptor& fd, const StatT& st, error_code& ec) {
+inline bool posix_fchmod(const FileDescriptor& fd, const StatT& st, error_code& ec) {
   if (detail::fchmod(fd.fd, st.st_mode) == -1) {
-    ec = capture_errno();
+    ec = get_last_error();
     return true;
   }
   ec.clear();
   return false;
 }
 
-bool stat_equivalent(const StatT& st1, const StatT& st2) {
+inline bool stat_equivalent(const StatT& st1, const StatT& st2) {
   return (st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino);
 }
 
-file_status FileDescriptor::refresh_status(error_code& ec) {
+inline file_status FileDescriptor::refresh_status(error_code& ec) {
   // FD must be open and good.
   m_status = file_status{};
-  m_stat = {};
+  m_stat   = {};
   error_code m_ec;
   if (detail::fstat(fd, &m_stat) == -1)
-    m_ec = capture_errno();
+    m_ec = get_last_error();
   m_status = create_file_status(m_ec, name, m_stat, &ec);
   return m_status;
 }
 
-} // namespace
-} // end namespace detail
+} // namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
-
-_LIBCPP_DIAGNOSTIC_POP
 
 #endif // FILESYSTEM_FILE_DESCRIPTOR_H

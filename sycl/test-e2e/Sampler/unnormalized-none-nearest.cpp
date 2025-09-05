@@ -1,5 +1,4 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -12,7 +11,6 @@
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -86,7 +84,7 @@ void test_unnormalized_none_nearest_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read four pixels,  sample:   NonNormalized +  None  + Nearest"
               << std::endl;
     check_pixels(test_acc, ref, offset);

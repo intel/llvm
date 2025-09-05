@@ -34,7 +34,7 @@ class AsmState;
 /// Derived type classes are expected to implement several required
 /// implementation hooks:
 ///  * Optional:
-///    - static LogicalResult verify(
+///    - static LogicalResult verifyInvariants(
 ///                                function_ref<InFlightDiagnostic()> emitError,
 ///                                Args... args)
 ///      * This method is invoked when calling the 'TypeBase::get/getChecked'
@@ -96,17 +96,6 @@ public:
 
   bool operator!() const { return impl == nullptr; }
 
-  template <typename... Tys>
-  bool isa() const;
-  template <typename... Tys>
-  bool isa_and_nonnull() const;
-  template <typename U>
-  U dyn_cast() const;
-  template <typename U>
-  U dyn_cast_or_null() const;
-  template <typename U>
-  U cast() const;
-
   /// Return a unique identifier for the concrete type. This is used to support
   /// dynamic type casting.
   TypeID getTypeID() { return impl->getAbstractType().getTypeID(); }
@@ -120,19 +109,19 @@ public:
   // Convenience predicates.  This is only for floating point types,
   // derived types should use isa/dyn_cast.
   bool isIndex() const;
-  bool isFloat8E5M2() const;
-  bool isFloat8E4M3FN() const;
-  bool isFloat8E5M2FNUZ() const;
-  bool isFloat8E4M3FNUZ() const;
-  bool isFloat8E4M3B11FNUZ() const;
   bool isBF16() const;
   bool isF16() const;
+  bool isTF32() const;
   bool isF32() const;
   bool isF64() const;
   bool isF80() const;
   bool isF128() const;
+  /// Return true if this is an float type (with the specified width).
+  bool isFloat() const;
+  bool isFloat(unsigned width) const;
 
-  /// Return true if this is an integer type with the specified width.
+  /// Return true if this is an integer type (with the specified width).
+  bool isInteger() const;
   bool isInteger(unsigned width) const;
   /// Return true if this is a signless integer type (with the specified width).
   bool isSignlessInteger() const;
@@ -177,6 +166,15 @@ public:
   }
   static Type getFromOpaquePointer(const void *pointer) {
     return Type(reinterpret_cast<ImplType *>(const_cast<void *>(pointer)));
+  }
+
+  /// Returns true if `InterfaceT` has been promised by the dialect or
+  /// implemented.
+  template <typename InterfaceT>
+  bool hasPromiseOrImplementsInterface() {
+    return dialect_extension_detail::hasPromisedInterface(
+               getDialect(), getTypeID(), InterfaceT::getInterfaceID()) ||
+           mlir::isa<InterfaceT>(*this);
   }
 
   /// Returns true if the type was registered with a particular trait.
@@ -266,14 +264,14 @@ public:
       detail::Interface<ConcreteType, Type, Traits, Type, TypeTrait::TraitBase>;
   using InterfaceBase::InterfaceBase;
 
-private:
+protected:
   /// Returns the impl interface instance for the given type.
   static typename InterfaceBase::Concept *getInterfaceFor(Type type) {
 #ifndef NDEBUG
     // Check that the current interface isn't an unresolved promise for the
     // given type.
     dialect_extension_detail::handleUseOfUndefinedPromisedInterface(
-        type.getDialect(), ConcreteType::getInterfaceID(),
+        type.getDialect(), type.getTypeID(), ConcreteType::getInterfaceID(),
         llvm::getTypeName<ConcreteType>());
 #endif
 
@@ -303,31 +301,6 @@ using IsMutable = detail::StorageUserTrait::IsMutable<ConcreteType>;
 // Make Type hashable.
 inline ::llvm::hash_code hash_value(Type arg) {
   return DenseMapInfo<const Type::ImplType *>::getHashValue(arg.impl);
-}
-
-template <typename... Tys>
-bool Type::isa() const {
-  return llvm::isa<Tys...>(*this);
-}
-
-template <typename... Tys>
-bool Type::isa_and_nonnull() const {
-  return llvm::isa_and_present<Tys...>(*this);
-}
-
-template <typename U>
-U Type::dyn_cast() const {
-  return llvm::dyn_cast<U>(*this);
-}
-
-template <typename U>
-U Type::dyn_cast_or_null() const {
-  return llvm::dyn_cast_or_null<U>(*this);
-}
-
-template <typename U>
-U Type::cast() const {
-  return llvm::cast<U>(*this);
 }
 
 } // namespace mlir
@@ -396,7 +369,6 @@ struct CastInfo<
     /// Return a constant true instead of a dynamic true when casting to self or
     /// up the hierarchy.
     if constexpr (std::is_base_of_v<To, From>) {
-      (void)ty;
       return true;
     } else {
       return To::classof(ty);

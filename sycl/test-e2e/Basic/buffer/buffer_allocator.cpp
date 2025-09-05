@@ -14,7 +14,7 @@
 // device.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr size_t NumElems = 67;
 

@@ -12,10 +12,10 @@
 // RUN: %{build} -DB_CPP=1 -c -o %t-same-kernel-b.o
 //
 // >> ---- link the full hetero app
-// RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl -fsycl-targets=%{sycl_triple}
+// RUN: %clangxx -fsycl %{sycl_target_opts} %t-same-kernel-a.o %t-same-kernel-b.o -Wno-unused-command-line-argument -o %t-same-kernel.exe
 // RUN: %{run} %t-same-kernel.exe
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

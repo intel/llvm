@@ -1,7 +1,7 @@
 # CUDA crosslane vs OpenCL sub-groups
 
 ## Sub-group function mapping
-This document describes the mapping of the SYCL subgroup operations (based on the proposal [SYCL subgroup proposal](../extensions/sub_group_ndrange/sub_group_ndrange.md)) to CUDA (queries responses and PTX instruction mapping)
+This document describes the mapping of the SYCL subgroup operations (based on the proposal SYCL subgroup proposal) to CUDA (queries responses and PTX instruction mapping)
 
 ### Sub-group device Queries
 

@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
@@ -96,9 +97,11 @@ struct DenormalMode {
   DenormalModeKind Input = DenormalModeKind::Invalid;
 
   constexpr DenormalMode() = default;
+  constexpr DenormalMode(const DenormalMode &) = default;
   constexpr DenormalMode(DenormalModeKind Out, DenormalModeKind In) :
     Output(Out), Input(In) {}
 
+  DenormalMode &operator=(const DenormalMode &) = default;
 
   static constexpr DenormalMode getInvalid() {
     return DenormalMode(DenormalModeKind::Invalid, DenormalModeKind::Invalid);
@@ -174,7 +177,7 @@ struct DenormalMode {
     std::string storage;
     raw_string_ostream OS(storage);
     print(OS);
-    return OS.str();
+    return storage;
   }
 };
 
@@ -195,7 +198,7 @@ parseDenormalFPAttributeComponent(StringRef Str) {
       .Default(DenormalMode::Invalid);
 }
 
-/// Return the name used for the denormal handling mode used by the the
+/// Return the name used for the denormal handling mode used by the
 /// expected names from the denormal-fp-math attribute.
 inline StringRef denormalModeKindName(DenormalMode::DenormalModeKind Mode) {
   switch (Mode) {
@@ -220,7 +223,7 @@ inline DenormalMode parseDenormalFPAttribute(StringRef Str) {
   DenormalMode Mode;
   Mode.Output = parseDenormalFPAttributeComponent(OutputStr);
 
-  // Maintain compatability with old form of the attribute which only specified
+  // Maintain compatibility with old form of the attribute which only specified
   // one component.
   Mode.Input = InputStr.empty() ? Mode.Output  :
                parseDenormalFPAttributeComponent(InputStr);
@@ -265,13 +268,17 @@ enum FPClassTest : unsigned {
 LLVM_DECLARE_ENUM_AS_BITMASK(FPClassTest, /* LargestValue */ fcPosInf);
 
 /// Return the test mask which returns true if the value's sign bit is flipped.
-FPClassTest fneg(FPClassTest Mask);
+LLVM_ABI FPClassTest fneg(FPClassTest Mask);
 
-/// Return the test mask which returns true if the value's sign bit is cleared.
-FPClassTest fabs(FPClassTest Mask);
+/// Return the test mask which returns true after fabs is applied to the value.
+LLVM_ABI FPClassTest inverse_fabs(FPClassTest Mask);
+
+/// Return the test mask which returns true if the value could have the same set
+/// of classes, but with a different sign.
+LLVM_ABI FPClassTest unknown_sign(FPClassTest Mask);
 
 /// Write a human readable form of \p Mask to \p OS
-raw_ostream &operator<<(raw_ostream &OS, FPClassTest Mask);
+LLVM_ABI raw_ostream &operator<<(raw_ostream &OS, FPClassTest Mask);
 
 } // namespace llvm
 

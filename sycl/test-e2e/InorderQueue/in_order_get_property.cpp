@@ -9,7 +9,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -22,10 +24,11 @@ int main() {
     Queue1.get_property<property::queue::in_order>();
     assert(false && "Queue1 was created without any properties therefore get "
                     "property should fail.");
-  } catch (const invalid_object_error &e) {
+  } catch (const exception &e) {
     std::string ErrorMessage = e.what();
     assert(
-        (ErrorMessage.find("The property is not found") != std::string::npos) &&
+        (e.code() == errc::invalid &&
+         ErrorMessage.find("The property is not found") != std::string::npos) &&
         "Caught unexpected error!");
   }
 

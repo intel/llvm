@@ -10,6 +10,8 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_HIPAMD_H
 
 #include "AMDGPU.h"
+#include "SYCL.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 
@@ -40,6 +42,10 @@ private:
                                 const InputInfoList &Inputs,
                                 const InputInfo &Output,
                                 const llvm::opt::ArgList &Args) const;
+  void constructLinkAndEmitSpirvCommand(Compilation &C, const JobAction &JA,
+                                        const InputInfoList &Inputs,
+                                        const InputInfo &Output,
+                                        const llvm::opt::ArgList &Args) const;
 };
 
 class LLVM_LIBRARY_VISIBILITY SYCLLinker : public Linker {
@@ -90,9 +96,9 @@ public:
                            llvm::opt::ArgStringList &CC1Args) const override;
   void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args) const override;
-  llvm::SmallVector<BitCodeLibraryInfo, 12> getDeviceLibs(
-      const llvm::opt::ArgList &Args,
-      const Action::OffloadKind DeviceOffloadingKind) const override;
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                Action::OffloadKind DeviceOffloadKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 
@@ -106,11 +112,22 @@ public:
   void checkTargetID(const llvm::opt::ArgList &DriverArgs) const override;
   Tool *SelectTool(const JobAction &JA) const override;
 
+  SYCLInstallationDetector SYCLInstallation;
+
 protected:
   Tool *buildLinker() const override;
 
 private:
   const Action::OffloadKind OK;
+};
+
+class LLVM_LIBRARY_VISIBILITY SPIRVAMDToolChain final : public ROCMToolChain {
+public:
+  SPIRVAMDToolChain(const Driver &D, const llvm::Triple &Triple,
+                    const llvm::opt::ArgList &Args);
+
+protected:
+  Tool *buildLinker() const override;
 };
 
 } // end namespace toolchains

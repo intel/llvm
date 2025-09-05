@@ -9,6 +9,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -374,7 +375,6 @@ TEST_P(DumpValueFixture, Test) {
   Opts.ShowAddresses = true;
 
   Form.dump(OS, Opts);
-  OS.flush();
 
   EXPECT_EQ(Output, ExpectedResult);
 }

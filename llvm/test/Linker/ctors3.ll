@@ -1,4 +1,4 @@
-; RUN: llvm-link -opaque-pointers -S %s %p/Inputs/ctors3.ll -o - | FileCheck %s
+; RUN: llvm-link -S %s %p/Inputs/ctors3.ll -o - | FileCheck %s
 
 $foo = comdat any
 %t = type { i8 }

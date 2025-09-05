@@ -9,16 +9,16 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
 using namespace sycl;
 
-TEST(HasExtensionID, HasExtensionCallsCorrectPluginMethods) {
-  sycl::unittest::PiMock Mock;
+TEST(HasExtensionID, HasExtensionCallsCorrectAdapterMethods) {
+  sycl::unittest::UrMock<> Mock;
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::device Dev = Plt.get_devices()[0];
 
   bool PlatformHasSubgroups = opencl::has_extension(Plt, "cl_khr_subgroups");

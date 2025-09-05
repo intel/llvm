@@ -27,7 +27,7 @@ FunctionPass *createR600ClauseMergePass();
 FunctionPass *createR600Packetizer();
 FunctionPass *createR600ControlFlowFinalizer();
 FunctionPass *createR600MachineCFGStructurizerPass();
-FunctionPass *createR600ISelDag(TargetMachine &TM, CodeGenOpt::Level OptLevel);
+FunctionPass *createR600ISelDag(TargetMachine &TM, CodeGenOptLevel OptLevel);
 ModulePass *createR600OpenCLImageTypeLoweringPass();
 
 void initializeR600ClauseMergePassPass(PassRegistry &);
@@ -44,6 +44,9 @@ extern char &R600VectorRegMergerID;
 
 void initializeR600PacketizerPass(PassRegistry &);
 extern char &R600PacketizerID;
+
+void initializeR600EmitClauseMarkersPass(PassRegistry &);
+void initializeR600MachineCFGStructurizerPass(PassRegistry &);
 
 } // End namespace llvm
 

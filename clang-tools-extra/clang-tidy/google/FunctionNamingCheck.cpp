@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "FunctionNamingCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "llvm/Support/Regex.h"
 
@@ -49,7 +48,7 @@ FixItHint generateFixItHint(const FunctionDecl *Decl) {
   // otherwise the check cannot determine the appropriate function name prefix
   // to use.
   if (Decl->getStorageClass() != SC_Static)
-    return FixItHint();
+    return {};
 
   StringRef Name = Decl->getName();
   std::string NewName = Decl->getName().str();
@@ -80,7 +79,7 @@ FixItHint generateFixItHint(const FunctionDecl *Decl) {
         CharSourceRange::getTokenRange(SourceRange(Decl->getLocation())),
         llvm::StringRef(NewName));
 
-  return FixItHint();
+  return {};
 }
 
 } // namespace

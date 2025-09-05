@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/ELFAttributeParser.h"
+#include "llvm/Support/ELFAttrParserCompact.h"
 #include "llvm/Support/ELFAttributes.h"
 #include "gtest/gtest.h"
 #include <string>
@@ -16,7 +16,7 @@ using namespace llvm;
 static const TagNameMap emptyTagNameMap;
 
 // This class is used to test the common part of the ELF attribute section.
-class AttributeHeaderParser : public ELFAttributeParser {
+class AttributeHeaderParser : public ELFCompactAttrParser {
   Error handler(uint64_t tag, bool &handled) override {
     // Treat all attributes as handled.
     handled = true;
@@ -25,13 +25,13 @@ class AttributeHeaderParser : public ELFAttributeParser {
 
 public:
   AttributeHeaderParser(ScopedPrinter *printer)
-      : ELFAttributeParser(printer, emptyTagNameMap, "test") {}
-  AttributeHeaderParser() : ELFAttributeParser(emptyTagNameMap, "test") {}
+      : ELFCompactAttrParser(printer, emptyTagNameMap, "test") {}
+  AttributeHeaderParser() : ELFCompactAttrParser(emptyTagNameMap, "test") {}
 };
 
 static void testParseError(ArrayRef<uint8_t> bytes, const char *msg) {
   AttributeHeaderParser parser;
-  Error e = parser.parse(bytes, support::little);
+  Error e = parser.parse(bytes, llvm::endianness::little);
   EXPECT_STREQ(toString(std::move(e)).c_str(), msg);
 }
 
@@ -43,11 +43,6 @@ TEST(AttributeHeaderParser, UnrecognizedFormatVersion) {
 TEST(AttributeHeaderParser, InvalidSectionLength) {
   static const uint8_t bytes[] = {'A', 3, 0, 0, 0};
   testParseError(bytes, "invalid section length 3 at offset 0x1");
-}
-
-TEST(AttributeHeaderParser, UnrecognizedVendorName) {
-  static const uint8_t bytes[] = {'A', 7, 0, 0, 0, 'x', 'y', 0};
-  testParseError(bytes, "unrecognized vendor-name: xy");
 }
 
 TEST(AttributeHeaderParser, UnrecognizedTag) {

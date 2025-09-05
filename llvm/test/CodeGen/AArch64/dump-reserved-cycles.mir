@@ -1,8 +1,14 @@
 # RUN: llc -mtriple=aarch64-none-linux-gnu -mcpu=cortex-a55 -misched-dump-reserved-cycles=true \
 # RUN: -run-pass=machine-scheduler -debug-only=machine-scheduler -o - %s 2>&1 | FileCheck %s
 
+# RUN: llc -mtriple=aarch64-none-linux-gnu -mcpu=cortex-a55 -misched-dump-reserved-cycles=true \
+# RUN: -passes=machine-scheduler -debug-only=machine-scheduler -o - %s 2>&1 | FileCheck %s
+
 # RUN: llc -mtriple=aarch64-none-linux-gnu -mcpu=cortex-a55 -misched-dump-reserved-cycles=false\
 # RUN: -run-pass=machine-scheduler -debug-only=machine-scheduler -o - %s 2>&1 | FileCheck %s --check-prefix=NODUMP
+
+# RUN: llc -mtriple=aarch64-none-linux-gnu -mcpu=cortex-a55 -misched-dump-reserved-cycles=false\
+# RUN: -passes=machine-scheduler -debug-only=machine-scheduler -o - %s 2>&1 | FileCheck %s --check-prefix=NODUMP
 
 # REQUIRES: asserts
 ---
@@ -27,7 +33,7 @@ body:             |
 # CHECK-NEXT:   ExpectedLatency: 0c
 # CHECK-NEXT:   - Latency limited.
 # CHECK-NEXT: CortexA55UnitALU(0) = 1
-# CHECK-NEXT: CortexA55UnitALU(1) = 4294967295
+# CHECK-NEXT: CortexA55UnitALU(1) = 0
 # CHECK-NEXT: CortexA55UnitB(0) = 4294967295
 # CHECK-NEXT: CortexA55UnitDiv(0) = 4294967295
 # CHECK-NEXT: CortexA55UnitFPALU(0) = 4294967295

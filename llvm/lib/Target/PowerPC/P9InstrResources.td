@@ -189,7 +189,8 @@ def : InstRW<[P9_ALU_2C, IP_EXEC_1C, DISP_3SLOTS_1C],
     (instregex "F(N)?ABS(D|S)$"),
     (instregex "FNEG(D|S)$"),
     (instregex "FCPSGN(D|S)$"),
-    (instregex "SRAW(I)?$"),
+    (instregex "SRAW(8)?$"),
+    (instregex "SRAWI(8)?$"),
     (instregex "ISEL(8)?$"),
     RLDIMI,
     XSIEXPDP,
@@ -765,6 +766,7 @@ def : InstRW<[P9_LS_4C, IP_AGEN_1C, DISP_3SLOTS_1C],
       (instrs
     LFIWZX,
     LFDX,
+    (instregex "LFDXTLS?(_)?$"),
     LFD
 )>;
 
@@ -815,9 +817,9 @@ def : InstRW<[P9_StoreAndALUOp_3C, IP_EXEC_1C, IP_EXEC_1C, IP_AGEN_1C,
 def : InstRW<[P9_LoadAndALUOp_6C, IP_EXEC_1C, IP_AGEN_1C,
               DISP_1C, DISP_1C],
       (instrs
-    (instregex "LHA(X)?(8)?$"),
+    (instregex "LHA(X)?(TLS)?(8)?(_32)?(_)?$"),
     (instregex "CP_PASTE(8)?_rec$"),
-    (instregex "LWA(X)?(_32)?$"),
+    (instregex "LWA(X)?(TLS)?(_32)?(_)?$"),
     TCHECK
 )>;
 
@@ -850,6 +852,7 @@ def : InstRW<[P9_LoadAndALU2Op_7C, IP_AGEN_1C, IP_EXEC_1C,
               DISP_3SLOTS_1C, DISP_3SLOTS_1C],
       (instrs
     LFSX,
+    (instregex "LFSXTLS?(_)?$"),
     LFS
 )>;
 
@@ -891,7 +894,7 @@ def : InstRW<[P9_LoadAndPMOp_8C, IP_AGEN_1C, IP_EXECE_1C, IP_EXECO_1C,
 // all three dispatches for the superslice.
 def : InstRW<[P9_LS_1C, IP_EXEC_1C, IP_AGEN_1C, DISP_3SLOTS_1C],
       (instrs
-    (instregex "STF(S|D|IWX|SX|DX)$"),
+    (instregex "STF(S|D|IWX|SX|DX|SXTLS|DXTLS|SXTLS_|DXTLS_)$"),
     (instregex "STXS(D|DX|SPX|IWX|IBX|IHX|SP)(v)?$"),
     (instregex "STW(8)?$"),
     (instregex "(D|X)FSTORE(f32|f64)$"),
@@ -1089,7 +1092,8 @@ def : InstRW<[P9_ALUOpAndALUOp_4C, IP_EXEC_1C, IP_EXEC_1C,
     (instregex "RLD(I)?C(R|L)_rec$"),
     (instregex "RLW(IMI|INM|NM)(8)?_rec$"),
     (instregex "SLW(8)?_rec$"),
-    (instregex "SRAW(I)?_rec$"),
+    (instregex "SRAW(8)?_rec$"),
+    (instregex "SRAWI(8)?_rec$"),
     (instregex "SRW(8)?_rec$"),
     RLDICL_32_rec,
     RLDIMI_rec

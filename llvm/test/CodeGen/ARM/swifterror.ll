@@ -79,18 +79,17 @@ define float @caller(ptr %error_ref) {
 ;
 ; CHECK-O0-LABEL: caller:
 ; CHECK-O0:       @ %bb.0: @ %entry
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r8}
-; CHECK-O0-NEXT:    sub sp, sp, #12
+; CHECK-O0-NEXT:    push	{r7, r8, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #12
 ; CHECK-O0-NEXT:    @ implicit-def: $r1
-; CHECK-O0-NEXT:    str r0, [sp] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r8, #0
-; CHECK-O0-NEXT:    bl _foo
-; CHECK-O0-NEXT:    str r8, [sp, #4] @ 4-byte Spill
-; CHECK-O0-NEXT:    movw r0, #0
-; CHECK-O0-NEXT:    cmp r8, r0
-; CHECK-O0-NEXT:    bne LBB1_2
+; CHECK-O0-NEXT:    str	r0, [sp]                        @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r8, #0
+; CHECK-O0-NEXT:    bl	_foo
+; CHECK-O0-NEXT:    str	r8, [sp, #4]                    @ 4-byte Spill
+; CHECK-O0-NEXT:    movw	r0, #0
+; CHECK-O0-NEXT:    cmp	r8, r0
+; CHECK-O0-NEXT:    bne	LBB1_2
 ; CHECK-O0-NEXT:  @ %bb.1: @ %cont
 ; CHECK-O0-NEXT:    ldr r1, [sp] @ 4-byte Reload
 ; CHECK-O0-NEXT:    ldr r0, [sp, #4] @ 4-byte Reload
@@ -101,8 +100,7 @@ define float @caller(ptr %error_ref) {
 ; CHECK-O0-NEXT:    bl _free
 ; CHECK-O0-NEXT:    mov r0, #1065353216
 ; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r8}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    pop	{r7, r8, pc}
 ;
 ; CHECK-ANDROID-LABEL: caller:
 ; CHECK-ANDROID:       @ %bb.0: @ %entry
@@ -176,12 +174,11 @@ define float @caller2(ptr %error_ref) {
 ;
 ; CHECK-O0-LABEL: caller2:
 ; CHECK-O0:       @ %bb.0: @ %entry
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r8}
-; CHECK-O0-NEXT:    sub sp, sp, #16
+; CHECK-O0-NEXT:    push	{r7, r8, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #16
 ; CHECK-O0-NEXT:    @ implicit-def: $r1
-; CHECK-O0-NEXT:    str r0, [sp, #8] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r0, [sp, #8] @ 4-byte Spill
 ; CHECK-O0-NEXT:  LBB2_1: @ %bb_loop
 ; CHECK-O0-NEXT:    @ =>This Inner Loop Header: Depth=1
 ; CHECK-O0-NEXT:    mov r8, #0
@@ -209,8 +206,7 @@ define float @caller2(ptr %error_ref) {
 ; CHECK-O0-NEXT:    bl _free
 ; CHECK-O0-NEXT:    mov r0, #1065353216
 ; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r8}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    pop	{r7, r8, pc}
 ;
 ; CHECK-ANDROID-LABEL: caller2:
 ; CHECK-ANDROID:       @ %bb.0: @ %entry
@@ -275,10 +271,12 @@ handler:
 define float @foo_if(ptr swifterror %error_ptr_ref, i32 %cc) {
 ; CHECK-APPLE-LABEL: foo_if:
 ; CHECK-APPLE:       @ %bb.0: @ %entry
-; CHECK-APPLE-NEXT:    push {lr}
 ; CHECK-APPLE-NEXT:    cmp r0, #0
-; CHECK-APPLE-NEXT:    beq LBB3_2
-; CHECK-APPLE-NEXT:  @ %bb.1: @ %gen_error
+; CHECK-APPLE-NEXT:    vldreq s0, LCPI3_0
+; CHECK-APPLE-NEXT:    vmoveq r0, s0
+; CHECK-APPLE-NEXT:    bxeq lr
+; CHECK-APPLE-NEXT:  LBB3_1: @ %gen_error
+; CHECK-APPLE-NEXT:    push {lr}
 ; CHECK-APPLE-NEXT:    mov r0, #16
 ; CHECK-APPLE-NEXT:    mov r1, #0
 ; CHECK-APPLE-NEXT:    bl _malloc
@@ -286,15 +284,11 @@ define float @foo_if(ptr swifterror %error_ptr_ref, i32 %cc) {
 ; CHECK-APPLE-NEXT:    mov r0, #1
 ; CHECK-APPLE-NEXT:    vmov.f32 s0, #1.000000e+00
 ; CHECK-APPLE-NEXT:    strb r0, [r8, #8]
-; CHECK-APPLE-NEXT:    b LBB3_3
-; CHECK-APPLE-NEXT:  LBB3_2:
-; CHECK-APPLE-NEXT:    vldr s0, LCPI3_0
-; CHECK-APPLE-NEXT:  LBB3_3: @ %common.ret
-; CHECK-APPLE-NEXT:    vmov r0, s0
 ; CHECK-APPLE-NEXT:    pop {lr}
+; CHECK-APPLE-NEXT:    vmov r0, s0
 ; CHECK-APPLE-NEXT:    bx lr
 ; CHECK-APPLE-NEXT:    .p2align 2
-; CHECK-APPLE-NEXT:  @ %bb.4:
+; CHECK-APPLE-NEXT:  @ %bb.2:
 ; CHECK-APPLE-NEXT:    .data_region
 ; CHECK-APPLE-NEXT:  LCPI3_0:
 ; CHECK-APPLE-NEXT:    .long 0x00000000 @ float 0
@@ -327,26 +321,25 @@ define float @foo_if(ptr swifterror %error_ptr_ref, i32 %cc) {
 ;
 ; CHECK-ANDROID-LABEL: foo_if:
 ; CHECK-ANDROID:       @ %bb.0: @ %entry
+; CHECK-ANDROID-NEXT:    cmp r0, #0
+; CHECK-ANDROID-NEXT:    vldreq s0, .LCPI3_0
+; CHECK-ANDROID-NEXT:    vmoveq r0, s0
+; CHECK-ANDROID-NEXT:    bxeq lr
+; CHECK-ANDROID-NEXT:  .LBB3_1: @ %gen_error
 ; CHECK-ANDROID-NEXT:    .save {r11, lr}
 ; CHECK-ANDROID-NEXT:    push {r11, lr}
-; CHECK-ANDROID-NEXT:    cmp r0, #0
-; CHECK-ANDROID-NEXT:    beq .LBB3_2
-; CHECK-ANDROID-NEXT:  @ %bb.1: @ %gen_error
 ; CHECK-ANDROID-NEXT:    mov r0, #16
 ; CHECK-ANDROID-NEXT:    mov r1, #0
 ; CHECK-ANDROID-NEXT:    bl malloc
-; CHECK-ANDROID-NEXT:    vmov.f32 s0, #1.000000e+00
 ; CHECK-ANDROID-NEXT:    mov r8, r0
 ; CHECK-ANDROID-NEXT:    mov r0, #1
+; CHECK-ANDROID-NEXT:    vmov.f32 s0, #1.000000e+00
 ; CHECK-ANDROID-NEXT:    strb r0, [r8, #8]
+; CHECK-ANDROID-NEXT:    pop {r11, lr}
 ; CHECK-ANDROID-NEXT:    vmov r0, s0
-; CHECK-ANDROID-NEXT:    pop {r11, pc}
-; CHECK-ANDROID-NEXT:  .LBB3_2:
-; CHECK-ANDROID-NEXT:    vldr s0, .LCPI3_0
-; CHECK-ANDROID-NEXT:    vmov r0, s0
-; CHECK-ANDROID-NEXT:    pop {r11, pc}
+; CHECK-ANDROID-NEXT:    bx lr
 ; CHECK-ANDROID-NEXT:    .p2align 2
-; CHECK-ANDROID-NEXT:  @ %bb.3:
+; CHECK-ANDROID-NEXT:  @ %bb.2:
 ; CHECK-ANDROID-NEXT:  .LCPI3_0:
 ; CHECK-ANDROID-NEXT:    .long 0x00000000 @ float 0
 
@@ -588,21 +581,20 @@ define float @caller3(ptr %error_ref) {
 ;
 ; CHECK-O0-LABEL: caller3:
 ; CHECK-O0:       @ %bb.0: @ %entry
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r8}
-; CHECK-O0-NEXT:    sub sp, sp, #44
-; CHECK-O0-NEXT:    bfc sp, #0, #3
+; CHECK-O0-NEXT:    push	{r7, r8, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #44
+; CHECK-O0-NEXT:    bfc	sp, #0, #3
 ; CHECK-O0-NEXT:    @ implicit-def: $r1
-; CHECK-O0-NEXT:    str r0, [sp, #4] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r8, #0
-; CHECK-O0-NEXT:    add r0, sp, #16
-; CHECK-O0-NEXT:    mov r1, #1
-; CHECK-O0-NEXT:    bl _foo_sret
-; CHECK-O0-NEXT:    str r8, [sp, #8] @ 4-byte Spill
-; CHECK-O0-NEXT:    movw r0, #0
-; CHECK-O0-NEXT:    cmp r8, r0
-; CHECK-O0-NEXT:    bne LBB6_2
+; CHECK-O0-NEXT:    str	r0, [sp, #4] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r8, #0
+; CHECK-O0-NEXT:    add	r0, sp, #16
+; CHECK-O0-NEXT:    mov	r1, #1
+; CHECK-O0-NEXT:    bl	_foo_sret
+; CHECK-O0-NEXT:    str	r8, [sp, #8] @ 4-byte Spill
+; CHECK-O0-NEXT:    movw	r0, #0
+; CHECK-O0-NEXT:    cmp	r8, r0
+; CHECK-O0-NEXT:    bne	LBB6_2
 ; CHECK-O0-NEXT:  @ %bb.1: @ %cont
 ; CHECK-O0-NEXT:    ldr r1, [sp, #4] @ 4-byte Reload
 ; CHECK-O0-NEXT:    ldr r0, [sp, #8] @ 4-byte Reload
@@ -613,8 +605,7 @@ define float @caller3(ptr %error_ref) {
 ; CHECK-O0-NEXT:    bl _free
 ; CHECK-O0-NEXT:    mov r0, #1065353216
 ; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r8}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    pop	{r7, r8, pc}
 ;
 ; CHECK-ANDROID-LABEL: caller3:
 ; CHECK-ANDROID:       @ %bb.0: @ %entry
@@ -812,27 +803,26 @@ define float @caller4(ptr %error_ref) {
 ;
 ; CHECK-O0-LABEL: caller4:
 ; CHECK-O0:       @ %bb.0: @ %entry
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r8}
-; CHECK-O0-NEXT:    sub sp, sp, #24
+; CHECK-O0-NEXT:    push	{r7, r8, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #24
 ; CHECK-O0-NEXT:    @ implicit-def: $r1
-; CHECK-O0-NEXT:    str r0, [sp] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r8, #0
-; CHECK-O0-NEXT:    mov r0, #10
-; CHECK-O0-NEXT:    str r0, [r7, #-12]
-; CHECK-O0-NEXT:    mov r0, #11
-; CHECK-O0-NEXT:    str r0, [sp, #12]
-; CHECK-O0-NEXT:    mov r0, #12
-; CHECK-O0-NEXT:    str r0, [sp, #8]
-; CHECK-O0-NEXT:    ldr r0, [r7, #-12]
-; CHECK-O0-NEXT:    ldr r1, [sp, #12]
-; CHECK-O0-NEXT:    ldr r2, [sp, #8]
-; CHECK-O0-NEXT:    bl _foo_vararg
-; CHECK-O0-NEXT:    str r8, [sp, #4] @ 4-byte Spill
-; CHECK-O0-NEXT:    movw r0, #0
-; CHECK-O0-NEXT:    cmp r8, r0
-; CHECK-O0-NEXT:    bne LBB8_2
+; CHECK-O0-NEXT:    str	r0, [sp] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r8, #0
+; CHECK-O0-NEXT:    mov	r0, #10
+; CHECK-O0-NEXT:    str	r0, [r7, #-12]
+; CHECK-O0-NEXT:    mov	r0, #11
+; CHECK-O0-NEXT:    str	r0, [sp, #12]
+; CHECK-O0-NEXT:    mov	r0, #12
+; CHECK-O0-NEXT:    str	r0, [sp, #8]
+; CHECK-O0-NEXT:    ldr	r0, [r7, #-12]
+; CHECK-O0-NEXT:    ldr	r1, [sp, #12]
+; CHECK-O0-NEXT:    ldr	r2, [sp, #8]
+; CHECK-O0-NEXT:    bl	_foo_vararg
+; CHECK-O0-NEXT:    str	r8, [sp, #4] @ 4-byte Spill
+; CHECK-O0-NEXT:    movw	r0, #0
+; CHECK-O0-NEXT:    cmp	r8, r0
+; CHECK-O0-NEXT:    bne	LBB8_2
 ; CHECK-O0-NEXT:  @ %bb.1: @ %cont
 ; CHECK-O0-NEXT:    ldr r1, [sp] @ 4-byte Reload
 ; CHECK-O0-NEXT:    ldr r0, [sp, #4] @ 4-byte Reload
@@ -843,8 +833,7 @@ define float @caller4(ptr %error_ref) {
 ; CHECK-O0-NEXT:    bl _free
 ; CHECK-O0-NEXT:    mov r0, #1065353216
 ; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r8}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    pop	{r7, r8, pc}
 ;
 ; CHECK-ANDROID-LABEL: caller4:
 ; CHECK-ANDROID:       @ %bb.0: @ %entry
@@ -998,14 +987,12 @@ define swiftcc void @swifterror_reg_clobber(ptr nocapture %err) {
 ;
 ; CHECK-O0-LABEL: swifterror_reg_clobber:
 ; CHECK-O0:       @ %bb.0:
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r8}
+; CHECK-O0-NEXT:    push	{r7, r8, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
 ; CHECK-O0-NEXT:    @ InlineAsm Start
 ; CHECK-O0-NEXT:    nop
 ; CHECK-O0-NEXT:    @ InlineAsm End
-; CHECK-O0-NEXT:    pop {r8}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    pop	{r7, r8, pc}
 ;
 ; CHECK-ANDROID-LABEL: swifterror_reg_clobber:
 ; CHECK-ANDROID:       @ %bb.0:
@@ -1051,36 +1038,34 @@ define swiftcc void @params_in_reg(i32, i32, i32, i32, ptr swiftself, ptr nocapt
 ;
 ; CHECK-O0-LABEL: params_in_reg:
 ; CHECK-O0:       @ %bb.0:
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r10}
-; CHECK-O0-NEXT:    sub sp, sp, #28
-; CHECK-O0-NEXT:    bfc sp, #0, #3
-; CHECK-O0-NEXT:    str r8, [sp, #20] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r10, [sp] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r3, [sp, #16] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r2, [sp, #12] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r1, [sp, #8] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r0, [sp, #4] @ 4-byte Spill
+; CHECK-O0-NEXT:    push	{r7, r10, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #28
+; CHECK-O0-NEXT:    bfc	sp, #0, #3
+; CHECK-O0-NEXT:    str	r8, [sp, #20] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r10, [sp] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r3, [sp, #16] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r2, [sp, #12] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r1, [sp, #8] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r0, [sp, #4] @ 4-byte Spill
 ; CHECK-O0-NEXT:    @ implicit-def: $r0
-; CHECK-O0-NEXT:    mov r8, #0
-; CHECK-O0-NEXT:    mov r0, #1
-; CHECK-O0-NEXT:    mov r1, #2
-; CHECK-O0-NEXT:    mov r2, #3
-; CHECK-O0-NEXT:    mov r3, #4
-; CHECK-O0-NEXT:    mov r10, r8
-; CHECK-O0-NEXT:    bl _params_in_reg2
-; CHECK-O0-NEXT:    ldr r10, [sp] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r0, [sp, #4] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r1, [sp, #8] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r2, [sp, #12] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r3, [sp, #16] @ 4-byte Reload
-; CHECK-O0-NEXT:    mov r9, r8
-; CHECK-O0-NEXT:    ldr r8, [sp, #20] @ 4-byte Reload
-; CHECK-O0-NEXT:    bl _params_in_reg2
-; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r10}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    mov	r8, #0
+; CHECK-O0-NEXT:    mov	r0, #1
+; CHECK-O0-NEXT:    mov	r1, #2
+; CHECK-O0-NEXT:    mov	r2, #3
+; CHECK-O0-NEXT:    mov	r3, #4
+; CHECK-O0-NEXT:    mov	r10, r8
+; CHECK-O0-NEXT:    bl	_params_in_reg2
+; CHECK-O0-NEXT:    ldr	r10, [sp] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r0, [sp, #4] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r1, [sp, #8] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r2, [sp, #12] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r3, [sp, #16] @ 4-byte Reload
+; CHECK-O0-NEXT:    mov	r9, r8
+; CHECK-O0-NEXT:    ldr	r8, [sp, #20] @ 4-byte Reload
+; CHECK-O0-NEXT:    bl	_params_in_reg2
+; CHECK-O0-NEXT:    sub	sp, r7, #4
+; CHECK-O0-NEXT:    pop	{r7, r10, pc}
 ;
 ; CHECK-ANDROID-LABEL: params_in_reg:
 ; CHECK-ANDROID:       @ %bb.0:
@@ -1168,65 +1153,63 @@ define swiftcc { i32, i32, i32, i32} @params_and_return_in_reg(i32, i32, i32, i3
 ;
 ; CHECK-O0-LABEL: params_and_return_in_reg:
 ; CHECK-O0:       @ %bb.0:
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r10}
-; CHECK-O0-NEXT:    sub sp, sp, #76
-; CHECK-O0-NEXT:    bfc sp, #0, #3
-; CHECK-O0-NEXT:    str r8, [sp, #24] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r10, [sp, #4] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r3, [sp, #20] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r2, [sp, #16] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r1, [sp, #12] @ 4-byte Spill
-; CHECK-O0-NEXT:    str r0, [sp, #8] @ 4-byte Spill
+; CHECK-O0-NEXT:    push	{r7, r10, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #76
+; CHECK-O0-NEXT:    bfc	sp, #0, #3
+; CHECK-O0-NEXT:    str	r8, [sp, #24] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r10, [sp, #4] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r3, [sp, #20] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r2, [sp, #16] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r1, [sp, #12] @ 4-byte Spill
+; CHECK-O0-NEXT:    str	r0, [sp, #8] @ 4-byte Spill
 ; CHECK-O0-NEXT:    @ implicit-def: $r0
-; CHECK-O0-NEXT:    mov r8, #0
-; CHECK-O0-NEXT:    str r8, [sp, #28] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r0, #1
-; CHECK-O0-NEXT:    str r0, [sp, #32] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r1, #2
-; CHECK-O0-NEXT:    str r1, [sp, #36] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r2, #3
-; CHECK-O0-NEXT:    str r2, [sp, #40] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r3, #4
-; CHECK-O0-NEXT:    str r3, [sp, #44] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r10, r8
-; CHECK-O0-NEXT:    bl _params_in_reg2
-; CHECK-O0-NEXT:    ldr r10, [sp, #4] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r0, [sp, #8] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r1, [sp, #12] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r2, [sp, #16] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r3, [sp, #20] @ 4-byte Reload
-; CHECK-O0-NEXT:    mov r9, r8
-; CHECK-O0-NEXT:    ldr r8, [sp, #24] @ 4-byte Reload
-; CHECK-O0-NEXT:    str r9, [sp, #48] @ 4-byte Spill
-; CHECK-O0-NEXT:    bl _params_and_return_in_reg2
-; CHECK-O0-NEXT:    ldr r10, [sp, #28] @ 4-byte Reload
-; CHECK-O0-NEXT:    mov r9, r0
-; CHECK-O0-NEXT:    ldr r0, [sp, #32] @ 4-byte Reload
-; CHECK-O0-NEXT:    str r9, [sp, #52] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r9, r1
-; CHECK-O0-NEXT:    ldr r1, [sp, #36] @ 4-byte Reload
-; CHECK-O0-NEXT:    str r9, [sp, #56] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r9, r2
-; CHECK-O0-NEXT:    ldr r2, [sp, #40] @ 4-byte Reload
-; CHECK-O0-NEXT:    str r9, [sp, #60] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r9, r3
-; CHECK-O0-NEXT:    ldr r3, [sp, #44] @ 4-byte Reload
-; CHECK-O0-NEXT:    str r9, [sp, #64] @ 4-byte Spill
-; CHECK-O0-NEXT:    mov r9, r8
-; CHECK-O0-NEXT:    ldr r8, [sp, #48] @ 4-byte Reload
-; CHECK-O0-NEXT:    str r9, [sp, #68] @ 4-byte Spill
-; CHECK-O0-NEXT:    bl _params_in_reg2
-; CHECK-O0-NEXT:    ldr r0, [sp, #52] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r1, [sp, #56] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r2, [sp, #60] @ 4-byte Reload
-; CHECK-O0-NEXT:    ldr r3, [sp, #64] @ 4-byte Reload
-; CHECK-O0-NEXT:    mov r9, r8
-; CHECK-O0-NEXT:    ldr r8, [sp, #68] @ 4-byte Reload
-; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r10}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    mov	r8, #0
+; CHECK-O0-NEXT:    str	r8, [sp, #28] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r0, #1
+; CHECK-O0-NEXT:    str	r0, [sp, #32] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r1, #2
+; CHECK-O0-NEXT:    str	r1, [sp, #36] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r2, #3
+; CHECK-O0-NEXT:    str	r2, [sp, #40] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r3, #4
+; CHECK-O0-NEXT:    str	r3, [sp, #44] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r10, r8
+; CHECK-O0-NEXT:    bl	_params_in_reg2
+; CHECK-O0-NEXT:    ldr	r10, [sp, #4] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r0, [sp, #8] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r1, [sp, #12] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r2, [sp, #16] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r3, [sp, #20] @ 4-byte Reload
+; CHECK-O0-NEXT:    mov	r9, r8
+; CHECK-O0-NEXT:    ldr	r8, [sp, #24] @ 4-byte Reload
+; CHECK-O0-NEXT:    str	r9, [sp, #48] @ 4-byte Spill
+; CHECK-O0-NEXT:    bl	_params_and_return_in_reg2
+; CHECK-O0-NEXT:    ldr	r10, [sp, #28] @ 4-byte Reload
+; CHECK-O0-NEXT:    mov	r9, r0
+; CHECK-O0-NEXT:    ldr	r0, [sp, #32] @ 4-byte Reload
+; CHECK-O0-NEXT:    str	r9, [sp, #52] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r9, r1
+; CHECK-O0-NEXT:    ldr	r1, [sp, #36] @ 4-byte Reload
+; CHECK-O0-NEXT:    str	r9, [sp, #56] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r9, r2
+; CHECK-O0-NEXT:    ldr	r2, [sp, #40] @ 4-byte Reload
+; CHECK-O0-NEXT:    str	r9, [sp, #60] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r9, r3
+; CHECK-O0-NEXT:    ldr	r3, [sp, #44] @ 4-byte Reload
+; CHECK-O0-NEXT:    str	r9, [sp, #64] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r9, r8
+; CHECK-O0-NEXT:    ldr	r8, [sp, #48] @ 4-byte Reload
+; CHECK-O0-NEXT:    str	r9, [sp, #68] @ 4-byte Spill
+; CHECK-O0-NEXT:    bl	_params_in_reg2
+; CHECK-O0-NEXT:    ldr	r0, [sp, #52] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r1, [sp, #56] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r2, [sp, #60] @ 4-byte Reload
+; CHECK-O0-NEXT:    ldr	r3, [sp, #64] @ 4-byte Reload
+; CHECK-O0-NEXT:    mov	r9, r8
+; CHECK-O0-NEXT:    ldr	r8, [sp, #68] @ 4-byte Reload
+; CHECK-O0-NEXT:    sub	sp, r7, #4
+; CHECK-O0-NEXT:    pop	{r7, r10, pc}
 ;
 ; CHECK-ANDROID-LABEL: params_and_return_in_reg:
 ; CHECK-ANDROID:       @ %bb.0:
@@ -1342,19 +1325,17 @@ define swiftcc ptr @testAssign(ptr %error_ref) {
 ;
 ; CHECK-O0-LABEL: testAssign:
 ; CHECK-O0:       @ %bb.0: @ %entry
-; CHECK-O0-NEXT:    push {r7, lr}
-; CHECK-O0-NEXT:    mov r7, sp
-; CHECK-O0-NEXT:    push {r8}
-; CHECK-O0-NEXT:    sub sp, sp, #8
+; CHECK-O0-NEXT:    push	{r7, r8, lr}
+; CHECK-O0-NEXT:    add	r7, sp, #4
+; CHECK-O0-NEXT:    sub	sp, sp, #8
 ; CHECK-O0-NEXT:    @ implicit-def: $r1
-; CHECK-O0-NEXT:    mov r8, #0
-; CHECK-O0-NEXT:    bl _foo2
-; CHECK-O0-NEXT:    str r8, [sp] @ 4-byte Spill
+; CHECK-O0-NEXT:    mov	r8, #0
+; CHECK-O0-NEXT:    bl	_foo2
+; CHECK-O0-NEXT:    str	r8, [sp] @ 4-byte Spill
 ; CHECK-O0-NEXT:  @ %bb.1: @ %a
 ; CHECK-O0-NEXT:    ldr r0, [sp] @ 4-byte Reload
 ; CHECK-O0-NEXT:    sub sp, r7, #4
-; CHECK-O0-NEXT:    pop {r8}
-; CHECK-O0-NEXT:    pop {r7, pc}
+; CHECK-O0-NEXT:    pop	{r7, r8, pc}
 ;
 ; CHECK-ANDROID-LABEL: testAssign:
 ; CHECK-ANDROID:       @ %bb.0: @ %entry

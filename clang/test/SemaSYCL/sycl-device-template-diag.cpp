@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-2017-compat -fsyntax-only %s -internal-isystem %S/Inputs
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only %s -internal-isystem %S/Inputs
 
 // This test verifies that we generate deferred diagnostics when
 // such diagnostics are in a function template.

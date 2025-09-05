@@ -17,15 +17,6 @@ const pipe_storage Storage1 __attribute__((io_pipe_id(5)));
 // CHECK-NEXT: CXXConstructExpr {{.*}}'pipe_storage' 'void () noexcept'
 // CHECK-NEXT: SYCLIntelPipeIOAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
-// CHECK: VarTemplateSpecializationDecl {{.*}} used Storage2 {{.*}}'pipe_storage' callinit
-// CHECK-NEXT: TemplateArgument integral 2
-// CHECK-NEXT: CXXConstructExpr {{.*}}'pipe_storage' 'void () noexcept'
-// CHECK-NEXT: SYCLIntelPipeIOAttr
-// CHECK-NEXT: ConstantExpr{{.*}}'int'
-// CHECK-NEXT: value: Int 2
-// CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'int'
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'int' depth 0 index 0 N
-// CHECK-NEXT: IntegerLiteral {{.*}} 'int' 2
 template <int N>
 pipe_storage Storage2 __attribute__((io_pipe_id(N)));
 

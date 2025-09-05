@@ -58,6 +58,11 @@ class PPCRegisterInfo : public PPCGenRegisterInfo {
   DenseMap<unsigned, unsigned> ImmToIdxMap;
   const PPCTargetMachine &TM;
 
+  void spillRegPair(MachineBasicBlock &MBB, MachineBasicBlock::iterator II,
+                    DebugLoc DL, const TargetInstrInfo &TII,
+                    unsigned FrameIndex, bool IsLittleEndian, bool IsKilled,
+                    Register Reg, int Offset) const;
+
 public:
   PPCRegisterInfo(const PPCTargetMachine &TM);
 
@@ -65,15 +70,19 @@ public:
   /// for a given imm form load/store opcode \p ImmFormOpcode.
   /// FIXME: move this to PPCInstrInfo class.
   unsigned getMappedIdxOpcForImmOpc(unsigned ImmOpcode) const {
-    if (!ImmToIdxMap.count(ImmOpcode))
+    auto It = ImmToIdxMap.find(ImmOpcode);
+    if (It == ImmToIdxMap.end())
       return PPC::INSTRUCTION_LIST_END;
-    return ImmToIdxMap.find(ImmOpcode)->second;
+    return It->second;
   }
 
   /// getPointerRegClass - Return the register class to use to hold pointers.
   /// This is used for addressing modes.
   const TargetRegisterClass *
   getPointerRegClass(const MachineFunction &MF, unsigned Kind=0) const override;
+
+  const TargetRegisterClass *
+  getCrossCopyRegClass(const TargetRegisterClass *RC) const override;
 
   unsigned getRegPressureLimit(const TargetRegisterClass *RC,
                                MachineFunction &MF) const override;
@@ -147,6 +156,11 @@ public:
   void lowerQuadwordRestore(MachineBasicBlock::iterator II,
                             unsigned FrameIndex) const;
 
+  void lowerDMRSpilling(MachineBasicBlock::iterator II,
+                        unsigned FrameIndex) const;
+  void lowerDMRRestore(MachineBasicBlock::iterator II,
+                       unsigned FrameIndex) const;
+
   static void emitAccCopyInfo(MachineBasicBlock &MBB, MCRegister DestReg,
                               MCRegister SrcReg);
 
@@ -172,60 +186,12 @@ public:
   Register getBaseRegister(const MachineFunction &MF) const;
   bool hasBasePointer(const MachineFunction &MF) const;
 
-  /// stripRegisterPrefix - This method strips the character prefix from a
-  /// register name so that only the number is left.  Used by for linux asm.
-  static const char *stripRegisterPrefix(const char *RegName) {
-    switch (RegName[0]) {
-      case 'a':
-        if (RegName[1] == 'c' && RegName[2] == 'c')
-          return RegName + 3;
-        break;
-      case 'f':
-        if (RegName[1] == 'p')
-          return RegName + 2;
-        [[fallthrough]];
-      case 'r':
-      case 'v':
-        if (RegName[1] == 's') {
-          if (RegName[2] == 'p')
-            return RegName + 3;
-          return RegName + 2;
-        }
-        return RegName + 1;
-      case 'c':
-        if (RegName[1] == 'r')
-          return RegName + 2;
-        break;
-      case 'w':
-        // For wacc and wacc_hi
-        if (RegName[1] == 'a' && RegName[2] == 'c' && RegName[3] == 'c') {
-          if (RegName[4] == '_')
-            return RegName + 7;
-          else
-            return RegName + 4;
-        }
-        break;
-      case 'd':
-        // For dmr, dmrp, dmrrow, dmrrowp
-        if (RegName[1] == 'm' && RegName[2] == 'r') {
-          if (RegName[3] == 'r' && RegName[4] == 'o' && RegName[5] == 'w' &&
-              RegName[6] == 'p')
-            return RegName + 7;
-          else if (RegName[3] == 'r' && RegName[4] == 'o' && RegName[5] == 'w')
-            return RegName + 6;
-          else if (RegName[3] == 'p')
-            return RegName + 4;
-          else
-            return RegName + 3;
-        }
-        break;
-    }
-
-    return RegName;
-  }
-
   bool isNonallocatableRegisterCalleeSave(MCRegister Reg) const override {
     return Reg == PPC::LR || Reg == PPC::LR8;
+  }
+
+  bool isVirtualFrameRegister(MCRegister Reg) const override {
+    return Reg == PPC::FP || Reg == PPC::FP8;
   }
 };
 

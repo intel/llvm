@@ -8,7 +8,6 @@
 
 #include "MisleadingIdentifier.h"
 
-#include "clang/Frontend/CompilerInstance.h"
 #include "llvm/Support/ConvertUTF.h"
 
 namespace clang::tidy::misc {
@@ -124,7 +123,7 @@ static bool hasRTLCharacters(StringRef Buffer) {
   const char *CurPtr = Buffer.begin();
   const char *EndPtr = Buffer.end();
   while (CurPtr < EndPtr) {
-    llvm::UTF32 CodePoint;
+    llvm::UTF32 CodePoint = 0;
     llvm::ConversionResult Result = llvm::convertUTF8Sequence(
         (const llvm::UTF8 **)&CurPtr, (const llvm::UTF8 *)EndPtr, &CodePoint,
         llvm::strictConversion);

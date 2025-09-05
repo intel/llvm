@@ -13,10 +13,11 @@
 // TODO: enable execution of test generated with -O0 once crash issue is
 // resolved
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -48,23 +49,6 @@ template <class SimdElemT>
     simd<SimdElemT, VL> val) SYCL_ESIMD_FUNCTION {
   return calc(val);
 }
-
-class ESIMDSelector : public device_selector {
-  // Require GPU device
-  virtual int operator()(const device &device) const {
-    if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
-      std::string filter_string(dev_filter);
-      if (filter_string.find("gpu") != std::string::npos)
-        return device.is_gpu() ? 1000 : -1;
-      std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
-                   "'*:gpu' and  '"
-                << filter_string << "' does not contain such substrings.\n";
-      return -1;
-    }
-    // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
-    return device.is_gpu() ? 1000 : -1;
-  }
-};
 
 inline auto createExceptionHandler() {
   return [](exception_list l) {
@@ -104,7 +88,7 @@ template <class SpmdT, class SimdElemT, bool IsUniform> bool test(queue q) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<TestID<SpmdT, SimdElemT, IsUniform>>(
-          Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(VL)]] {
+          Range, [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(VL)]] {
             sub_group sg = ndi.get_sub_group();
             SpmdT val = (SpmdT)sg.get_group_linear_id(); // 0 .. GroupSize-1
             SimdElemT res = 0;
@@ -149,7 +133,7 @@ template <class SpmdT, class SimdElemT, bool IsUniform> bool test(queue q) {
 }
 
 int main(void) {
-  queue q(ESIMDSelector{}, createExceptionHandler());
+  queue q(default_selector_v, createExceptionHandler());
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()

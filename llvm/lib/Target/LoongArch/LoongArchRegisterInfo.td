@@ -17,6 +17,13 @@ class LoongArchReg<bits<16> Enc, string n, list<string> alt = []>
   let AltNames = alt;
 }
 
+class LoongArchRegWithSubRegs<bits<16> Enc, string n, list<Register> subregs,
+                              list<string> alt = []>
+    : RegisterWithSubRegs<n, subregs> {
+  let HWEncoding = Enc;
+  let AltNames = alt;
+}
+
 class LoongArchReg32<bits<16> Enc, string n, list<string> alt = []>
     : Register<n> {
   let HWEncoding = Enc;
@@ -25,12 +32,21 @@ class LoongArchReg32<bits<16> Enc, string n, list<string> alt = []>
 
 def sub_32 : SubRegIndex<32>;
 class LoongArchReg64<LoongArchReg32 subreg>
-    : Register<""> {
-  let HWEncoding = subreg.HWEncoding;
-  let SubRegs = [subreg];
+    : LoongArchRegWithSubRegs<subreg.HWEncoding, subreg.AsmName, [subreg],
+                              subreg.AltNames> {
   let SubRegIndices = [sub_32];
-  let AsmName = subreg.AsmName;
-  let AltNames = subreg.AltNames;
+}
+
+def sub_64 : SubRegIndex<64>;
+class LoongArchReg128<LoongArchReg64 subreg, string n>
+    : LoongArchRegWithSubRegs<subreg.HWEncoding, n, [subreg]> {
+  let SubRegIndices = [sub_64];
+}
+
+def sub_128 : SubRegIndex<128>;
+class LoongArchReg256<LoongArchReg128 subreg, string n>
+    : LoongArchRegWithSubRegs<subreg.HWEncoding, n, [subreg]> {
+  let SubRegIndices = [sub_128];
 }
 
 let FallbackRegAltNameIndex = NoRegAltName in
@@ -81,32 +97,40 @@ def GRLenRI : RegInfoByHwMode<
       [LA32,              LA64],
       [RegInfo<32,32,32>, RegInfo<64,64,64>]>;
 
-// The order of registers represents the preferred allocation sequence.
-// Registers are listed in the order caller-save, callee-save, specials.
-def GPR : RegisterClass<"LoongArch", [GRLenVT], 32, (add
-    // Argument registers (a0...a7)
-    (sequence "R%u", 4, 11),
-    // Temporary registers (t0...t8)
-    (sequence "R%u", 12, 20),
-    // Static register (s9/fp, s0...s8)
-    (sequence "R%u", 22, 31),
-    // Specials (r0, ra, tp, sp)
-    (sequence "R%u", 0, 3),
-    // Reserved (Non-allocatable)
-    R21
-  )> {
+class GPRRegisterClass<dag regList>
+    : RegisterClass<"LoongArch", [GRLenVT], 32, regList> {
   let RegInfos = GRLenRI;
 }
+
+// The order of registers represents the preferred allocation sequence.
+// Registers are listed in the order caller-save, callee-save, specials.
+def GPR : GPRRegisterClass<(add // Argument registers (a0...a7)
+                                (sequence "R%u", 4, 11),
+                                // Temporary registers (t0...t8)
+                                (sequence "R%u", 12, 20),
+                                // Static register (s9/fp, s0...s8)
+                                (sequence "R%u", 22, 31),
+                                // Specials (r0, ra, tp, sp)
+                                (sequence "R%u", 0, 3),
+                                // Reserved (Non-allocatable)
+                                R21)>;
 
 // GPR for indirect tail calls. We can't use callee-saved registers, as they are
 // restored to the saved value before the tail call, which would clobber a call
 // address.
-def GPRT : RegisterClass<"LoongArch", [GRLenVT], 32, (add
-    // a0...a7, t0...t8
-    (sequence "R%u", 4, 20)
-  )> {
-  let RegInfos = GRLenRI;
-}
+def GPRT : GPRRegisterClass<(add // a0...a7, t0...t8
+                                 (sequence "R%u", 4, 20))>;
+
+// Don't use R1 for JR since that micro-architecture unconditionally treats a
+// "jr $ra" as "return from subroutine", hence doing "jr $ra" would interfere
+// with both subroutine return prediction and the more general indirect branch
+// prediction.
+def GPRJR : GPRRegisterClass<(sub GPR, R1)>;
+
+// Don't use R0 or R1 for the rj operand of [G]CSRXCHG, because when rj is
+// encoded as 0 or 1, the instruction is interpreted as [G]CSRRD or [G]CSRWR,
+// respectively, rather than [G]CSRXCHG.
+def GPRNoR0R1 : GPRRegisterClass<(sub GPR, R0, R1)>;
 
 // Floating point registers
 
@@ -170,3 +194,31 @@ def FCSR#I : LoongArchReg<I, "fcsr"#I>;
 
 let isAllocatable = false in
 def FCSR : RegisterClass<"LoongArch", [i32], 32, (sequence "FCSR%u", 0, 3)>;
+
+// LSX registers
+
+foreach I = 0-31 in
+def VR#I : LoongArchReg128<!cast<LoongArchReg64>("F"#I#"_64"), "vr"#I>,
+           DwarfRegAlias<!cast<LoongArchReg64>("F"#I#"_64")>;
+
+def LSX128 : RegisterClass<"LoongArch",
+                           [v4f32, v2f64, v16i8, v8i16, v4i32, v2i64],
+                           128, (sequence "VR%u", 0, 31)>;
+
+// LASX registers
+
+foreach I = 0-31 in
+def XR#I : LoongArchReg256<!cast<LoongArchReg128>("VR"#I), "xr"#I>,
+           DwarfRegAlias<!cast<LoongArchReg128>("VR"#I)>;
+
+def LASX256 : RegisterClass<"LoongArch",
+                            [v8f32, v4f64, v32i8, v16i16, v8i32, v4i64],
+                            256, (sequence "XR%u", 0, 31)>;
+
+// Scratchpad registers
+
+foreach I = 0-3 in
+def SCR#I : LoongArchReg<I, "scr"#I>;
+
+let isAllocatable = false, RegInfos = GRLenRI in
+def SCR : RegisterClass<"LoongArch", [GRLenVT], 32, (sequence "SCR%u", 0, 3)>;

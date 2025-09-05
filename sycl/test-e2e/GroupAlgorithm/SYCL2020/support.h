@@ -1,4 +1,6 @@
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/platform.hpp>
 using namespace sycl;
 
 bool isSupportedDevice(device D) {

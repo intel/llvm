@@ -12,6 +12,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 
 namespace clang::tidy::utils {
@@ -28,6 +29,10 @@ public:
                  ///< definition.
   };
 
+  /// We use a MapVector to preserve the order of the functions in the call
+  /// stack as well as have fast lookup.
+  using CallStack = llvm::MapVector<const FunctionDecl *, SourceLocation>;
+
   /// Bundle the gathered information about an entity like a function regarding
   /// it's exception behaviour. The 'NonThrowing'-state can be considered as the
   /// neutral element in terms of information propagation.
@@ -37,13 +42,17 @@ public:
   /// exception at runtime.
   class ExceptionInfo {
   public:
-    using Throwables = llvm::SmallSet<const Type *, 2>;
-    static ExceptionInfo createUnknown() {
-      return ExceptionInfo(State::Unknown);
-    }
-    static ExceptionInfo createNonThrowing() {
-      return ExceptionInfo(State::Throwing);
-    }
+    /// Holds information about where an exception is thrown.
+    /// First element in the call stack is analyzed function.
+    struct ThrowInfo {
+      SourceLocation Loc;
+      CallStack Stack;
+    };
+
+    using Throwables = llvm::SmallDenseMap<const Type *, ThrowInfo, 2>;
+
+    static ExceptionInfo createUnknown() { return {State::Unknown}; }
+    static ExceptionInfo createNonThrowing() { return {State::Throwing}; }
 
     /// By default the exception situation is unknown and must be
     /// clarified step-wise.
@@ -60,7 +69,8 @@ public:
 
     /// Register a single exception type as recognized potential exception to be
     /// thrown.
-    void registerException(const Type *ExceptionType);
+    void registerException(const Type *ExceptionType,
+                           const ThrowInfo &ThrowInfo);
 
     /// Registers a `SmallVector` of exception types as recognized potential
     /// exceptions to be thrown.
@@ -77,8 +87,8 @@ public:
     /// This method is useful in case 'catch' clauses are analyzed as it is
     /// possible to catch multiple exception types by one 'catch' if they
     /// are a subclass of the 'catch'ed exception type.
-    /// Returns 'true' if some exceptions were filtered, otherwise 'false'.
-    bool filterByCatch(const Type *BaseClass, const ASTContext &Context);
+    /// Returns filtered exceptions.
+    Throwables filterByCatch(const Type *HandlerTy, const ASTContext &Context);
 
     /// Filter the set of thrown exception type against a set of ignored
     /// types that shall not be considered in the exception analysis.
@@ -91,9 +101,9 @@ public:
     /// neutral.
     void clear();
 
-    /// References the set of known exception types that can escape from the
+    /// References the set of known exceptions that can escape from the
     /// corresponding entity.
-    const Throwables &getExceptionTypes() const { return ThrownExceptions; }
+    const Throwables &getExceptions() const { return ThrownExceptions; }
 
     /// Signal if the there is any 'Unknown' element within the scope of
     /// the related entity. This might be relevant if the entity is 'Throwing'
@@ -105,8 +115,8 @@ public:
     /// Recalculate the 'Behaviour' for example after filtering.
     void reevaluateBehaviour();
 
-    /// Keep track if the entity related to this 'ExceptionInfo' can in princple
-    /// throw, if it's unknown or if it won't throw.
+    /// Keep track if the entity related to this 'ExceptionInfo' can in
+    /// principle throw, if it's unknown or if it won't throw.
     State Behaviour;
 
     /// Keep track if the entity contains any unknown elements to keep track
@@ -130,14 +140,12 @@ public:
   ExceptionInfo analyze(const Stmt *Stmt);
 
 private:
-  ExceptionInfo
-  throwsException(const FunctionDecl *Func,
-                  const ExceptionInfo::Throwables &Caught,
-                  llvm::SmallSet<const FunctionDecl *, 32> &CallStack);
-  ExceptionInfo
-  throwsException(const Stmt *St, const ExceptionInfo::Throwables &Caught,
-                  llvm::SmallSet<const FunctionDecl *, 32> &CallStack);
-
+  ExceptionInfo throwsException(const FunctionDecl *Func,
+                                const ExceptionInfo::Throwables &Caught,
+                                CallStack &CallStack, SourceLocation CallLoc);
+  ExceptionInfo throwsException(const Stmt *St,
+                                const ExceptionInfo::Throwables &Caught,
+                                CallStack &CallStack);
   ExceptionInfo analyzeImpl(const FunctionDecl *Func);
   ExceptionInfo analyzeImpl(const Stmt *Stmt);
 
@@ -145,7 +153,7 @@ private:
 
   bool IgnoreBadAlloc = true;
   llvm::StringSet<> IgnoredExceptions;
-  llvm::DenseMap<const FunctionDecl *, ExceptionInfo> FunctionCache{32u};
+  llvm::DenseMap<const FunctionDecl *, ExceptionInfo> FunctionCache{32U};
 };
 
 } // namespace clang::tidy::utils

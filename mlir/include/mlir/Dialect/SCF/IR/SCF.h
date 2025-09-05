@@ -19,6 +19,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/ParallelCombiningOpInterface.h"
@@ -39,12 +40,6 @@ void buildTerminatedBody(OpBuilder &builder, Location loc);
 namespace mlir {
 namespace scf {
 
-// Insert `loop.yield` at the end of the only region's only block if it
-// does not have a terminator already.  If a new `loop.yield` is inserted,
-// the location is specified by `loc`. If the region is empty, insert a new
-// block first.
-void ensureLoopTerminator(Region &region, Builder &builder, Location loc);
-
 /// Returns the loop parent of an induction variable. If the provided value is
 /// not an induction variable, then return nullptr.
 ForOp getForInductionVarOwner(Value val);
@@ -62,13 +57,8 @@ ForallOp getForallOpThreadIndexOwner(Value val);
 // TODO: Consider moving this functionality to RegionBranchOpInterface.
 bool insideMutuallyExclusiveBranches(Operation *a, Operation *b);
 
-/// Promotes the loop body of a scf::ForallOp to its containing block if the
-/// loop was known to have a single iteration.
-LogicalResult promoteIfSingleIteration(PatternRewriter &rewriter,
-                                       scf::ForallOp forallOp);
-
 /// Promotes the loop body of a scf::ForallOp to its containing block.
-void promote(PatternRewriter &rewriter, scf::ForallOp forallOp);
+void promote(RewriterBase &rewriter, scf::ForallOp forallOp);
 
 /// An owning vector of values, handy to return from functions.
 using ValueVector = SmallVector<Value>;
@@ -110,6 +100,17 @@ LoopNest buildLoopNest(OpBuilder &builder, Location loc, ValueRange lbs,
                        ValueRange ubs, ValueRange steps,
                        function_ref<void(OpBuilder &, Location, ValueRange)>
                            bodyBuilder = nullptr);
+
+/// Perform a replacement of one iter OpOperand of an scf.for to the
+/// `replacement` value with a different type. A callback is used to insert
+/// cast ops inside the block to account for type differences.
+using ValueTypeCastFnTy =
+    llvm::function_ref<Value(OpBuilder &, Location loc, Type, Value)>;
+SmallVector<Value> replaceAndCastForOpIterArg(RewriterBase &rewriter,
+                                              scf::ForOp forOp,
+                                              OpOperand &operand,
+                                              Value replacement,
+                                              const ValueTypeCastFnTy &castFn);
 
 } // namespace scf
 } // namespace mlir

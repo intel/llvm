@@ -31,6 +31,12 @@ class Location;
 class Operation;
 class RankedTensorType;
 
+namespace detail {
+struct DenseIntOrFPElementsAttrStorage;
+struct DenseStringElementsAttrStorage;
+struct StringAttrStorage;
+} // namespace detail
+
 //===----------------------------------------------------------------------===//
 // Elements Attributes
 //===----------------------------------------------------------------------===//
@@ -711,6 +717,7 @@ using DenseResourceElementsHandle = DialectResourceBlobHandle<BuiltinDialect>;
 namespace mlir {
 //===----------------------------------------------------------------------===//
 // DenseArrayAttr
+//===----------------------------------------------------------------------===//
 
 namespace detail {
 /// Base class for DenseArrayAttr that is instantiated and specialized for each
@@ -766,6 +773,7 @@ using DenseF64ArrayAttr = detail::DenseArrayAttrImpl<double>;
 
 //===----------------------------------------------------------------------===//
 // DenseResourceElementsAttr
+//===----------------------------------------------------------------------===//
 
 namespace detail {
 /// Base class for DenseResourceElementsAttr that is instantiated and
@@ -986,7 +994,7 @@ auto SparseElementsAttr::try_value_begin_impl(OverloadToken<T>) const
   auto valueIt = getValues().try_value_begin<T>();
   if (failed(valueIt))
     return failure();
-  const std::vector<ptrdiff_t> flatSparseIndices(getFlattenedSparseIndices());
+  const SmallVector<ptrdiff_t> flatSparseIndices(getFlattenedSparseIndices());
   std::function<T(ptrdiff_t)> mapFn =
       [flatSparseIndices{flatSparseIndices}, valueIt{std::move(*valueIt)},
        zeroValue{std::move(zeroValue)}](ptrdiff_t index) {
@@ -999,6 +1007,48 @@ auto SparseElementsAttr::try_value_begin_impl(OverloadToken<T>) const
       };
   return iterator<T>(llvm::seq<ptrdiff_t>(0, getNumElements()).begin(), mapFn);
 }
+
+//===----------------------------------------------------------------------===//
+// DistinctAttr
+//===----------------------------------------------------------------------===//
+
+namespace detail {
+struct DistinctAttrStorage;
+class DistinctAttributeUniquer;
+} // namespace detail
+
+/// An attribute that associates a referenced attribute with a unique
+/// identifier. Every call to the create function allocates a new distinct
+/// attribute instance. The address of the attribute instance serves as a
+/// temporary identifier. Similar to the names of SSA values, the final
+/// identifiers are generated during pretty printing. This delayed numbering
+/// ensures the printed identifiers are deterministic even if multiple distinct
+/// attribute instances are created in-parallel.
+///
+/// Examples:
+///
+/// #distinct = distinct[0]<42.0 : f32>
+/// #distinct1 = distinct[1]<42.0 : f32>
+/// #distinct2 = distinct[2]<array<i32: 10, 42>>
+///
+/// NOTE: The distinct attribute cannot be defined using ODS since it uses a
+/// custom distinct attribute uniquer that cannot be set from ODS.
+class DistinctAttr
+    : public detail::StorageUserBase<DistinctAttr, Attribute,
+                                     detail::DistinctAttrStorage,
+                                     detail::DistinctAttributeUniquer> {
+public:
+  using Base::Base;
+
+  /// Returns the referenced attribute.
+  Attribute getReferencedAttr() const;
+
+  /// Creates a distinct attribute that associates a referenced attribute with a
+  /// unique identifier.
+  static DistinctAttr create(Attribute referencedAttr);
+
+  static constexpr StringLiteral name = "builtin.distinct";
+};
 
 //===----------------------------------------------------------------------===//
 // StringAttr

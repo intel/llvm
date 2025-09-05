@@ -1,3 +1,5 @@
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17415
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

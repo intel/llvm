@@ -36,6 +36,19 @@ template <typename T>
 using remove_cvref_t // NOLINT(readability-identifier-naming)
     = typename llvm::remove_cvref<T>::type;
 
+// TODO: Remove this in favor of std::type_identity<T> once we switch to C++23.
+template <typename T>
+struct type_identity // NOLINT(readability-identifier-naming)
+{
+  using type = T;
+};
+
+// TODO: Remove this in favor of std::type_identity_t<T> once we switch to
+// C++23.
+template <typename T>
+using type_identity_t // NOLINT(readability-identifier-naming)
+    = typename llvm::type_identity<T>::type;
+
 //===----------------------------------------------------------------------===//
 //     Features from C++23
 //===----------------------------------------------------------------------===//
@@ -60,6 +73,18 @@ auto transformOptional(std::optional<T> &&O, const Function &F)
   return std::nullopt;
 }
 
+/// Returns underlying integer value of an enum. Backport of C++23
+/// std::to_underlying.
+template <typename Enum>
+[[nodiscard]] constexpr std::underlying_type_t<Enum> to_underlying(Enum E) {
+  return static_cast<std::underlying_type_t<Enum>>(E);
+}
+
+// A tag for constructors accepting ranges.
+struct from_range_t {
+  explicit from_range_t() = default;
+};
+inline constexpr from_range_t from_range{};
 } // namespace llvm
 
 #endif // LLVM_ADT_STLFORWARDCOMPAT_H

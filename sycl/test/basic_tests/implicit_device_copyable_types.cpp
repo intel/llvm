@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only %s  %}
 
 #include <sycl/sycl.hpp>
 #include <variant>
@@ -95,6 +96,17 @@ int main() {
   static_assert(sycl::is_device_copyable_v<const volatile std::span<int>>);
 #endif
   static_assert(sycl::is_device_copyable_v<const volatile sycl::span<int>>);
+
+  // Extra checks
+  static_assert(sycl::is_device_copyable_v<sycl::vec<int, 4>>);
+  static_assert(sycl::is_device_copyable_v<sycl::vec<sycl::half, 4>>);
+  static_assert(
+      sycl::is_device_copyable_v<sycl::vec<sycl::ext::oneapi::bfloat16, 4>>);
+
+  struct S {
+    sycl::vec<int, 4> v;
+  };
+  static_assert(sycl::is_device_copyable_v<S>);
 
   return 0;
 }

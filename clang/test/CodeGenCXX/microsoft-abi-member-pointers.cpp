@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -std=c++11 -Wno-uninitialized -fno-rtti -emit-llvm %s -o - -triple=i386-pc-win32 -fms-extensions | FileCheck -allow-deprecated-dag-overlap %s
 // RUN: %clang_cc1 -std=c++11 -Wno-uninitialized -fno-rtti -emit-llvm %s -o - -triple=x86_64-pc-win32 -fms-extensions | FileCheck %s -check-prefix=X64
+// RUN: %clang_cc1 -std=c++17 -Wno-uninitialized -fno-rtti -emit-llvm %s -o - -triple=x86_64-pc-win32 -fms-extensions | FileCheck %s -check-prefix=X64
 // RUN: %clang_cc1 -std=c++11 -Wno-uninitialized -fno-rtti -emit-llvm %s -o - -triple=i386-pc-win32 -DINCOMPLETE_VIRTUAL -fms-extensions -verify
 // RUN: %clang_cc1 -std=c++11 -Wno-uninitialized -fno-rtti -emit-llvm %s -o - -triple=i386-pc-win32 -DINCOMPLETE_VIRTUAL -DMEMFUN -fms-extensions -verify
 
@@ -646,7 +647,7 @@ void (Multiple::*convertB2FuncToMultiple(void (B2::*mp)()))() {
 // CHECK:   br i1 %{{.*}} label %{{.*}}, label %{{.*}}
 //
 //        memptr.convert:                                   ; preds = %entry
-// CHECK:   insertvalue { ptr, i32 } undef, ptr %[[mp]], 0
+// CHECK:   insertvalue { ptr, i32 } poison, ptr %[[mp]], 0
 // CHECK:   insertvalue { ptr, i32 } %{{.*}}, i32 4, 1
 // CHECK:   br label
 //
@@ -704,7 +705,7 @@ void (D::*convertCToD(void (C::*mp)()))() {
 // CHECK:   %[[nv_adj:.*]] = select i1 %[[is_nvbase]], i32 %[[nv_disp]], i32 0
 // CHECK:   %[[dst_adj:.*]] = select i1 %[[is_nvbase]], i32 4, i32 0
 // CHECK:   %[[adj:.*]] = sub nsw i32 %[[nv_adj]], %[[dst_adj]]
-// CHECK:   insertvalue { ptr, i32, i32 } undef, ptr {{.*}}, 0
+// CHECK:   insertvalue { ptr, i32, i32 } poison, ptr {{.*}}, 0
 // CHECK:   insertvalue { ptr, i32, i32 } {{.*}}, i32 %[[adj]], 1
 // CHECK:   insertvalue { ptr, i32, i32 } {{.*}}, i32 {{.*}}, 2
 // CHECK:   br label
@@ -934,3 +935,60 @@ class A {
 void A::printd() { JSMethod<A, &A::printd>(); }
 // CHECK-LABEL: @"??$JSMethod@VA@PMFInTemplateArgument@@$1?printd@12@AAEHH@Z@PMFInTemplateArgument@@YAXXZ"(
 }
+
+namespace MissingMSInheritanceAttr {
+// This is a regression test for an assertion failure that occurred when
+// compiling for C++17. The issue concerned a failure to propagate a
+// MSInheritanceAttr attribute for the explicit template instantiation
+// definition prior to it being required to complete the specialization
+// definition in order to determine its alignment so as to resolve a
+// lookup for a deallocation function for the virtual destructor.
+template <typename>
+class a;
+struct b {
+  typedef void (a<int>::*f)();
+  f d;
+};
+template <typename>
+class a {
+  virtual ~a();
+  b e;
+};
+extern template class a<int>;
+template class a<int>;
+#ifdef _WIN64
+static_assert(sizeof(b::d) == 24, "");
+static_assert(sizeof(void (a<int>::*)()) == 24, "");
+#else
+static_assert(sizeof(b::d) == 16, "");
+static_assert(sizeof(void (a<int>::*)()) == 16, "");
+#endif
+}
+
+namespace ContainerOf {
+  using size_t = unsigned long long;
+
+  struct List {
+    int data;
+  };
+
+  struct Node {
+    int data;
+    struct List list1;
+    struct List list2;
+  };
+
+  // CHECK-LABEL: define{{.*}} ptr @"?getOwner@ContainerOf@@
+  // CHECK: %memptr.offset = getelementptr i8, ptr null, {{.*}}
+  Node* getOwner(List *list, List Node::*member) {
+    size_t offset = reinterpret_cast<size_t>(&((Node*)nullptr->*member));
+    return reinterpret_cast<Node*>(reinterpret_cast<char*>(list) - offset);
+  }
+}
+
+namespace GH144081 {
+  struct A;
+  template<int A::*> void f() {}
+  template void f<nullptr>();
+  // CHECK-LABEL: define{{.*}} void @"??$f@$0A@@GH144081@@YAXXZ"
+} // namespace GH144081

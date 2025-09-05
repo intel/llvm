@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: esimd_emulator
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
 
@@ -18,8 +17,6 @@
 #include "../esimd_test_utils.hpp"
 
 #include <numeric>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -33,10 +30,10 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
 
   std::iota(vec_0.begin(), vec_0.end(), 0);
   std::iota(vec_2.begin(), vec_2.end(), 0);
-  auto buf_0 = buffer{vec_0};
-  auto buf_2 = buffer{vec_2};
 
   try {
+    auto buf_0 = buffer{vec_0};
+    auto buf_2 = buffer{vec_2};
     q.submit([&](handler &h) {
       auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
       auto access_2 = buf_2.template get_access<access::mode::read_write>(h);
@@ -61,8 +58,6 @@ template <unsigned SIMDSize> int testAccessor(queue q) {
           });
     });
     q.wait();
-    buf_0.template get_access<access::mode::read_write>();
-    buf_2.template get_access<access::mode::read_write>();
   } catch (sycl::exception e) {
     std::cout << "SYCL exception caught: " << e.what();
     return 1;
@@ -94,7 +89,7 @@ int main() {
   auto q =
       queue{esimd_test::ESIMDSelector, esimd_test::createExceptionHandler()};
   auto device = q.get_device();
-  std::cout << "Device name: " << device.get_info<info::device::name>()
+  std::cout << "Device name: " << device.get_info<sycl::info::device::name>()
             << std::endl;
 
   int error = testAccessor<8>(q);

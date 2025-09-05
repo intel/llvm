@@ -241,7 +241,7 @@ MemoryEffects GlobalsAAResult::getMemoryEffects(const Function *F) {
   if (FunctionInfo *FI = getFunctionInfo(F))
     return MemoryEffects(FI->getModRefInfo());
 
-  return AAResultBase::getMemoryEffects(F);
+  return MemoryEffects::unknown();
 }
 
 /// Returns the function info for the function, or null if we don't have
@@ -344,6 +344,14 @@ bool GlobalsAAResult::AnalyzeUsesOfPointer(Value *V,
       if (AnalyzeUsesOfPointer(I, Readers, Writers, OkayStoreDest))
         return true;
     } else if (auto *Call = dyn_cast<CallBase>(I)) {
+      if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+        if (II->getIntrinsicID() == Intrinsic::threadlocal_address &&
+            V == II->getArgOperand(0)) {
+          if (AnalyzeUsesOfPointer(II, Readers, Writers))
+            return true;
+          continue;
+        }
+      }
       // Make sure that this is just the function being called, not that it is
       // passing into the function.
       if (Call->isDataOperand(&U)) {
@@ -716,13 +724,20 @@ static bool isNonEscapingGlobalNoAliasWithLoad(const GlobalValue *GV,
 // active, or to be forced to operate as a module pass that cannot co-exist
 // with an alias analysis such as GMR.
 bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
-                                                 const Value *V) {
+                                                 const Value *V,
+                                                 const Instruction *CtxI) {
   // In order to know that the underlying object cannot alias the
   // non-addr-taken global, we must know that it would have to be an escape.
   // Thus if the underlying object is a function argument, a load from
   // a global, or the return of a function, it cannot alias. We can also
   // recurse through PHI nodes and select nodes provided all of their inputs
   // resolve to one of these known-escaping roots.
+
+  // A non-addr-taken global cannot alias with any non-pointer value.
+  // Check this early and exit.
+  if (!V->getType()->isPointerTy())
+    return true;
+
   SmallPtrSet<const Value *, 8> Visited;
   SmallVector<const Value *, 8> Inputs;
   Visited.insert(V);
@@ -765,6 +780,14 @@ bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
       continue;
     }
 
+    if (CtxI)
+      if (auto *CPN = dyn_cast<ConstantPointerNull>(Input)) {
+        // Null pointer cannot alias with a non-addr-taken global.
+        const Function *F = CtxI->getFunction();
+        if (!NullPointerIsDefined(F, CPN->getType()->getAddressSpace()))
+          continue;
+      }
+
     // Recurse through a limited number of selects, loads and PHIs. This is an
     // arbitrary depth of 4, lower numbers could be used to fix compile time
     // issues if needed, but this is generally expected to be only be important
@@ -802,10 +825,7 @@ bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
 
     // FIXME: It would be good to handle other obvious no-alias cases here, but
     // it isn't clear how to do so reasonably without building a small version
-    // of BasicAA into this code. We could recurse into AAResultBase::alias
-    // here but that seems likely to go poorly as we're inside the
-    // implementation of such a query. Until then, just conservatively return
-    // false.
+    // of BasicAA into this code.
     return false;
   } while (!Inputs.empty());
 
@@ -826,7 +846,7 @@ bool GlobalsAAResult::invalidate(Module &, const PreservedAnalyses &PA,
 /// address of the global isn't taken.
 AliasResult GlobalsAAResult::alias(const MemoryLocation &LocA,
                                    const MemoryLocation &LocB,
-                                   AAQueryInfo &AAQI, const Instruction *) {
+                                   AAQueryInfo &AAQI, const Instruction *CtxI) {
   // Get the base object these pointers point to.
   const Value *UV1 =
       getUnderlyingObject(LocA.Ptr->stripPointerCastsForAliasAnalysis());
@@ -862,7 +882,7 @@ AliasResult GlobalsAAResult::alias(const MemoryLocation &LocA,
     if ((GV1 || GV2) && GV1 != GV2) {
       const GlobalValue *GV = GV1 ? GV1 : GV2;
       const Value *UV = GV1 ? UV2 : UV1;
-      if (isNonEscapingGlobalNoAlias(GV, UV))
+      if (isNonEscapingGlobalNoAlias(GV, UV, CtxI))
         return AliasResult::NoAlias;
     }
 
@@ -903,7 +923,7 @@ AliasResult GlobalsAAResult::alias(const MemoryLocation &LocA,
     if ((GV1 || GV2) && GV1 != GV2)
       return AliasResult::NoAlias;
 
-  return AAResultBase::alias(LocA, LocB, AAQI, nullptr);
+  return AliasResult::MayAlias;
 }
 
 ModRefInfo GlobalsAAResult::getModRefInfoForArgument(const CallBase *Call,
@@ -926,7 +946,7 @@ ModRefInfo GlobalsAAResult::getModRefInfoForArgument(const CallBase *Call,
         !all_of(Objects, [&](const Value *V) {
           return this->alias(MemoryLocation::getBeforeOrAfter(V),
                              MemoryLocation::getBeforeOrAfter(GV), AAQI,
-                             nullptr) == AliasResult::NoAlias;
+                             Call) == AliasResult::NoAlias;
         }))
       return ConservativeResult;
 
@@ -1039,9 +1059,7 @@ ModulePass *llvm::createGlobalsAAWrapperPass() {
   return new GlobalsAAWrapperPass();
 }
 
-GlobalsAAWrapperPass::GlobalsAAWrapperPass() : ModulePass(ID) {
-  initializeGlobalsAAWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+GlobalsAAWrapperPass::GlobalsAAWrapperPass() : ModulePass(ID) {}
 
 bool GlobalsAAWrapperPass::runOnModule(Module &M) {
   auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {

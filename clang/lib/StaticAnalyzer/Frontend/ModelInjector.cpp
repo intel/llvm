@@ -8,17 +8,15 @@
 
 #include "ModelInjector.h"
 #include "clang/AST/Decl.h"
-#include "clang/Basic/IdentifierTable.h"
+#include "clang/AST/DeclObjC.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/Stack.h"
-#include "clang/AST/DeclObjC.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/StaticAnalyzer/Frontend/FrontendActions.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/FileSystem.h"
 #include <utility>
@@ -48,8 +46,7 @@ void ModelInjector::onBodySynthesis(const NamedDecl *D) {
   SourceManager &SM = CI.getSourceManager();
   FileID mainFileID = SM.getMainFileID();
 
-  AnalyzerOptionsRef analyzerOpts = CI.getAnalyzerOpts();
-  llvm::StringRef modelPath = analyzerOpts->ModelPath;
+  llvm::StringRef modelPath = CI.getAnalyzerOpts().ModelPath;
 
   llvm::SmallString<128> fileName;
 
@@ -76,9 +73,10 @@ void ModelInjector::onBodySynthesis(const NamedDecl *D) {
 
   // Modules are parsed by a separate CompilerInstance, so this code mimics that
   // behavior for models
-  CompilerInstance Instance(CI.getPCHContainerOperations());
-  Instance.setInvocation(std::move(Invocation));
+  CompilerInstance Instance(std::move(Invocation),
+                            CI.getPCHContainerOperations());
   Instance.createDiagnostics(
+      CI.getVirtualFileSystem(),
       new ForwardingDiagnosticConsumer(CI.getDiagnosticClient()),
       /*ShouldOwnClient=*/true);
 

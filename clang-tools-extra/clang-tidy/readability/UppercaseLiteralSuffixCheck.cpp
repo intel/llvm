@@ -11,7 +11,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/SmallString.h"
 #include <cctype>
 #include <optional>
 
@@ -128,7 +127,7 @@ shouldReplaceLiteralSuffix(const Expr &Literal,
   // Else keep the naive literal location!
 
   // Get the whole literal from the source buffer.
-  bool Invalid;
+  bool Invalid = false;
   const StringRef LiteralSourceText = Lexer::getSourceText(
       CharSourceRange::getTokenRange(*Range), SM, LO, &Invalid);
   assert(!Invalid && "Failed to retrieve the source text.");

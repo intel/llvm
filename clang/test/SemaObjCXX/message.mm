@@ -67,7 +67,7 @@ struct identity {
     if (true)
       return [typename identity<I3>::type method];
 #if __cplusplus <= 199711L
-      // expected-warning@-2 {{'typename' occurs outside of a template}}
+      // expected-warning@-2 {{'typename' outside of a template is a C++11 extension}}
 #endif
 
     return [::I3 method];
@@ -77,12 +77,12 @@ struct identity {
   int* ip2 = {[::I3 method]};
   int* ip3 = {[typename identity<I3>::type method]};
 #if __cplusplus <= 199711L
-  // expected-warning@-2 {{'typename' occurs outside of a template}}
+  // expected-warning@-2 {{'typename' outside of a template is a C++11 extension}}
 #endif
 
   int* ip4 = {[typename identity<I2_holder>::type().get() method]};
 #if __cplusplus <= 199711L
-  // expected-warning@-2 {{'typename' occurs outside of a template}}
+  // expected-warning@-2 {{'typename' outside of a template is a C++11 extension}}
 #endif
   int array[5] = {[3] = 2}; // expected-warning {{C99 extension}}
   return [super method];
@@ -106,7 +106,6 @@ void test_I5(I5 *i5, String s) {
   [i5 method:s other:"world"]; // expected-error{{non-const lvalue reference to type 'String' cannot bind to a value of unrelated type 'const char[6]'}}
 }
 
-// <rdar://problem/8483253>
 @interface A
 
 struct X { };
@@ -126,7 +125,6 @@ void foo(void)
              callbackData:ptr];
 }
 
-// <rdar://problem/8807070>
 template<typename T> struct X1; // expected-note{{template is declared here}}
 
 @interface B

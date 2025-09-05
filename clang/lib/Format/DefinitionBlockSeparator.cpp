@@ -14,7 +14,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "DefinitionBlockSeparator.h"
-#include "llvm/Support/Debug.h"
 #define DEBUG_TYPE "definition-block-separator"
 
 namespace clang {
@@ -52,10 +51,10 @@ void DefinitionBlockSeparator::separateBlocks(
     for (const FormatToken *CurrentToken = Line->First; CurrentToken;
          CurrentToken = CurrentToken->Next) {
       if (BracketLevel == 0) {
-        if ((CurrentToken->isOneOf(tok::kw_class, tok::kw_struct,
-                                   tok::kw_union) ||
-             (Style.isJavaScript() &&
-              CurrentToken->is(ExtraKeywords.kw_function)))) {
+        if (CurrentToken->isOneOf(tok::kw_class, tok::kw_struct,
+                                  tok::kw_union) ||
+            (Style.isJavaScript() &&
+             CurrentToken->is(ExtraKeywords.kw_function))) {
           return true;
         }
         if (!ExcludeEnum && CurrentToken->is(tok::kw_enum))
@@ -137,14 +136,20 @@ void DefinitionBlockSeparator::separateBlocks(
     const auto MayPrecedeDefinition = [&](const int Direction = -1) {
       assert(Direction >= -1);
       assert(Direction <= 1);
+
+      if (Lines[OpeningLineIndex]->First->is(TT_CSharpGenericTypeConstraint))
+        return true;
+
       const size_t OperateIndex = OpeningLineIndex + Direction;
       assert(OperateIndex < Lines.size());
       const auto &OperateLine = Lines[OperateIndex];
       if (LikelyDefinition(OperateLine))
         return false;
 
-      if (OperateLine->First->is(tok::comment))
+      if (const auto *Tok = OperateLine->First;
+          Tok->is(tok::comment) && !isClangFormatOn(Tok->TokenText)) {
         return true;
+      }
 
       // A single line identifier that is not in the last line.
       if (OperateLine->First->is(tok::identifier) &&
@@ -164,7 +169,7 @@ void DefinitionBlockSeparator::separateBlocks(
         }
       }
 
-      if ((Style.isCSharp() && OperateLine->First->is(TT_AttributeSquare)))
+      if (Style.isCSharp() && OperateLine->First->is(TT_AttributeSquare))
         return true;
       return false;
     };
@@ -185,10 +190,10 @@ void DefinitionBlockSeparator::separateBlocks(
         InsertReplacement(OpeningLineIndex != 0);
       TargetLine = CurrentLine;
       TargetToken = TargetLine->First;
-      while (TargetToken && !TargetToken->is(tok::r_brace))
+      while (TargetToken && TargetToken->isNot(tok::r_brace))
         TargetToken = TargetToken->Next;
       if (!TargetToken)
-        while (I < Lines.size() && !Lines[I]->First->is(tok::r_brace))
+        while (I < Lines.size() && Lines[I]->First->isNot(tok::r_brace))
           ++I;
     } else if (CurrentLine->First->closesScope()) {
       if (OpeningLineIndex > Lines.size())

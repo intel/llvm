@@ -6,22 +6,29 @@ This document describes an **experimental** API that applications can use to try
 out a new feature. Future versions of this API may change in ways that are
 incompatible with this experimental version.
 
-
 ## Introduction
 
-This extension adds a new device information descriptor that provides the ability to query a device for the maximum number of registers available per work-group.
+This extension adds a new device information descriptor that provides the
+ability to query a device for the maximum number of registers available per
+work-group.
 
-OpenCL never offered such query due to the nature of being a very platform specific one - which is why it is also absent from SYCL. Now that SYCL supports back-ends where the register usage is a limiting resource factor of the possible maximum work-group size for a kernel, having the ability to query that limit is important for writing safe and portable code.
+OpenCL never offered such query due to the nature of being a very platform
+specific one - which is why it is also absent from SYCL. Now that SYCL supports
+back-ends where the register usage is a limiting resource factor of the possible
+maximum work-group size for a kernel, having the ability to query that limit is
+important for writing safe and portable code.
 
 ## Feature test macro
 
-As encouraged by the SYCL specification, a feature-test macro, `SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY`, is provided to determine whether this extension is implemented.
+As encouraged by the SYCL specification, a feature-test macro,
+`SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY`, is provided to determine
+whether this extension is implemented.
 
 ## New device descriptor
 
-| Device descriptor                                     | Return type | Description                                                                                                                                                                                                             |
-| ------------------------------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ext::codeplay::experimental::info::device::max_registers_per_work_group     |  unsigned int      | Returns the maximum number of registers available for use per work-group based on the capability of the device.       |
+| Device descriptor | Return type | Description |
+| ----------------- | ----------- | ----------- |
+| ext::codeplay::experimental::info::device::max_registers_per_work_group | unsigned int | Returns the maximum number of registers available for use per work-group based on the capability of the device. |
 
 ### Note
 

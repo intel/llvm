@@ -11,9 +11,10 @@
 
 #include <stdlib.h>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
+#include <vector>
 
 using namespace ::sycl;
 using namespace ::sycl::ext;
@@ -29,7 +30,8 @@ using int_type_t = std::conditional_t<
                            std::conditional_t<N == 8, int64_t, void>>>>;
 
 template <class Ty> bool test(queue q, int inc) {
-  Ty *data = new Ty[1];
+  auto data_vector = std::vector<Ty>(1);
+  Ty *data = data_vector.data();
 
   data[0] = (Ty)0;
   Ty VAL = (Ty)inc;
@@ -50,7 +52,6 @@ template <class Ty> bool test(queue q, int inc) {
     });
   } catch (::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    delete[] data;
     return false;
   }
 

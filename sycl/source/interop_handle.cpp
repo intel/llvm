@@ -23,34 +23,66 @@ backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
 }
 
-pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
+bool interop_handle::ext_codeplay_has_graph() const noexcept {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+  // next ABI breaking window.
+  return MGraph != nullptr;
+#else
+  return MQueue->getInteropGraph() != nullptr;
+#endif
+}
+
+ur_native_handle_t
+interop_handle::getNativeMem(detail::Requirement *Req) const {
   auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
                            [=](ReqToMem Elem) { return (Elem.first == Req); });
 
   if (Iter == std::end(MMemObjs)) {
-    throw invalid_object_error("Invalid memory object used inside interop",
-                               PI_ERROR_INVALID_MEM_OBJECT);
+    throw exception(make_error_code(errc::invalid),
+                    "Invalid memory object used inside interop");
   }
 
-  auto Plugin = MQueue->getPlugin();
-  pi_native_handle Handle;
-  Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(Iter->second,
-                                                           &Handle);
+  detail::adapter_impl &Adapter = MQueue->getAdapter();
+  ur_native_handle_t Handle;
+  Adapter.call<detail::UrApiKind::urMemGetNativeHandle>(
+      Iter->second, MDevice->getHandleRef(), &Handle);
   return Handle;
 }
 
-pi_native_handle interop_handle::getNativeDevice() const {
+ur_native_handle_t interop_handle::getNativeDevice() const {
   return MDevice->getNative();
 }
 
-pi_native_handle interop_handle::getNativeContext() const {
+ur_native_handle_t interop_handle::getNativeContext() const {
   return MContext->getNative();
 }
 
-pi_native_handle
+ur_native_handle_t
 interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }
 
+ur_native_handle_t interop_handle::getNativeGraph() const {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+  // next ABI breaking window.
+  auto Graph = MGraph;
+#else
+  auto Graph = MQueue->getInteropGraph();
+#endif
+
+  if (!Graph) {
+    throw exception(
+        make_error_code(errc::invalid),
+        "No backend graph object is available for the command-group");
+  }
+
+  detail::adapter_impl &Adapter = MQueue->getAdapter();
+  ur_native_handle_t Handle = 0;
+  Adapter.call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
+                                                                     &Handle);
+  return Handle;
+}
 } // namespace _V1
 } // namespace sycl

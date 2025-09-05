@@ -12,9 +12,9 @@
 #include "call.h"
 #include "characteristics.h"
 #include "type.h"
-#include "flang/Common/default-kinds.h"
 #include "flang/Parser/char-block.h"
 #include "flang/Parser/message.h"
+#include "flang/Support/default-kinds.h"
 #include <memory>
 #include <optional>
 #include <string>
@@ -99,6 +99,9 @@ public:
   // On success, the actual arguments are transferred to the result
   // in dummy argument order; on failure, the actual arguments remain
   // untouched.
+  // For MIN and MAX, only a1 and a2 actual arguments are transferred in dummy
+  // order on success and the other arguments are transferred afterwards
+  // without being sorted.
   std::optional<SpecificCall> Probe(
       const CallCharacteristics &, ActualArguments &, FoldingContext &) const;
 

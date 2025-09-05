@@ -1,6 +1,6 @@
 ; This test checks handling of RegisterAllocMode in SYCL post link
 
-; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 
 ; CHECK: [Code|Properties|Symbols]

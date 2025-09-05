@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -9,7 +9,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/Generic/typedef-arr-size.ll"
 
-@x = dso_local global <16 x i32> zeroinitializer, align 16, !dbg !0
+@x = dso_local addrspace(1) global <16 x i32> zeroinitializer, align 16, !dbg !0
 
 !llvm.dbg.cu = !{!8}
 !llvm.module.flags = !{!11, !12}

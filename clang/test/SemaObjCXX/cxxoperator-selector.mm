@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -fsyntax-only -verify -Wno-objc-root-class %s
-// rdar:// 8328250
 
 @class NSDate;
 
@@ -19,6 +18,11 @@
 - (id) and{return 0; };
 - (id) xor{return 0; };
 - (id) or{return 0; };
+
+- (void)decltype {}
+- (void)constexpr {}
+- (void)noexcept {}
+- (void)nullptr {}
 
 - (void)dataSetForValuesBetween:(NSDate *)startDate and:(NSDate *)endDate { return; }
 @end

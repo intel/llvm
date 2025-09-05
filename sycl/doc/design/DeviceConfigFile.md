@@ -176,11 +176,11 @@ def AspectExt_oneapi_native_assert : Aspect<"ext_oneapi_native_assert">;
 def AspectHost_debuggable : Aspect<"host_debuggable">;
 def AspectExt_intel_gpu_hw_threads_per_eu : Aspect<"ext_intel_gpu_hw_threads_per_eu">;
 def AspectExt_oneapi_cuda_async_barrier : Aspect<"ext_oneapi_cuda_async_barrier">;
-def AspectExt_oneapi_bfloat16_math_functions : Aspect<"ext_oneapi_bfloat16_math_functions">;
 def AspectExt_intel_free_memory : Aspect<"ext_intel_free_memory">;
 def AspectExt_intel_device_id : Aspect<"ext_intel_device_id">;
 def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
 def AspectExt_intel_memory_bus_width : Aspect<"ext_intel_memory_bus_width">;
+def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group">;
 def AspectEmulated : Aspect<"emulated">;
     
 def TargetTable : DynamicTable { 
@@ -274,7 +274,7 @@ in more detail.
 
 ### Changes to Build Infrastructure
 We need the information about the targets in multiple tools and compiler
-modules listed in [Requirements](#Requirements).  Thus, we need to make sure
+modules listed in [Requirements](#requirements).  Thus, we need to make sure
 that the generation of the `.inc` file out of the `.td` file is done in time
 for all the consumers. The command we need to run for TableGen is `llvm-tblgen
 -gen-dynamic-tables -I /llvm-root/llvm/include/ input.td -o output.inc`.
@@ -302,7 +302,7 @@ the Device Configuration File (e.g. `sycl-post-link`) so that each of the
 tools can modify the map according to the user extensions described in the 
 `.yaml` file. 
 
-As mentioned in [Requirements](#Requirements), there is an auto-detection
+As mentioned in [Requirements](#requirements), there is an auto-detection
 mechanism for `aot-toolchain` and `aot-toolchain-options` that is able to
 infer these from the target name. In the `.yaml` example shown above the target
 name is `intel_gpu_skl`. From that name, we can infer that `aot-toolchain` is

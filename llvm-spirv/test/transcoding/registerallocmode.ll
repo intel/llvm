@@ -2,25 +2,28 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC0:]] "main_l3"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC1:]] "main_l6"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC2:]] "main_l9"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC3:]] "main_l13"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC4:]] "main_l19"
+; CHECK-SPIRV: Name [[#FUNC0:]] "main_l3"
+; CHECK-SPIRV: Name [[#FUNC1:]] "main_l6"
+; CHECK-SPIRV: Name [[#FUNC2:]] "main_l9"
+; CHECK-SPIRV: Name [[#FUNC3:]] "main_l13"
+; CHECK-SPIRV: Name [[#FUNC4:]] "main_l19"
 
 ; CHECK-SPIRV: Decorate [[#FUNC0]] UserSemantic "num-thread-per-eu 4"
 ; CHECK-SPIRV: Decorate [[#FUNC1]] UserSemantic "num-thread-per-eu 8"
-; CHECK-SPIRV:  Decorate [[#FUNC2]] UserSemantic "num-thread-per-eu 0"
+; CHECK-SPIRV: Decorate [[#FUNC2]] UserSemantic "num-thread-per-eu 0"
 ; CHECK-SPIRV-NOT: Decorate [[#FUNC3]] UserSemantic
 ; CHECK-SPIRV-NOT: Decorate [[#FUNC4]] UserSemantic
 
 ; CHECK-LLVM: @[[FLAG0:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 4\00", section "llvm.metadata"
 ; CHECK-LLVM: @[[FLAG1:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 8\00", section "llvm.metadata"
 ; CHECK-LLVM: @[[FLAG2:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 0\00", section "llvm.metadata"
+; CHECK-LLVM: @[[FLAG3:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 4\00", section "llvm.metadata"
+; CHECK-LLVM: @[[FLAG4:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 8\00", section "llvm.metadata"
+; CHECK-LLVM: @[[FLAG5:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 0\00", section "llvm.metadata"
 
-; CHECK-LLVM: @llvm.global.annotations = appending global [3 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG0]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG1]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l9, ptr @[[FLAG2]], ptr undef, i32 undef, ptr undef }], section "llvm.metadata"
+; CHECK-LLVM: @llvm.global.annotations = appending global [6 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG0]], ptr poison, i32 poison, ptr poison }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG1]], ptr poison, i32 poison, ptr poison }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l9, ptr @[[FLAG2]], ptr poison, i32 poison, ptr poison }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG3]], ptr poison, i32 poison, ptr poison }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG4]], ptr poison, i32 poison, ptr poison }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l9, ptr @[[FLAG5]], ptr poison, i32 poison, ptr poison }], section "llvm.metadata"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"

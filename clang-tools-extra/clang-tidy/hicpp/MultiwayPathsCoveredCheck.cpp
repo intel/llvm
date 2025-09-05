@@ -95,8 +95,8 @@ void MultiwayPathsCoveredCheck::check(const MatchFinder::MatchResult &Result) {
     return;
   }
   const auto *Switch = Result.Nodes.getNodeAs<SwitchStmt>("switch");
-  std::size_t SwitchCaseCount;
-  bool SwitchHasDefault;
+  std::size_t SwitchCaseCount = 0;
+  bool SwitchHasDefault = false;
   std::tie(SwitchCaseCount, SwitchHasDefault) = countCaseLabels(Switch);
 
   // Checks the sanity of 'switch' statements that actually do define
@@ -113,7 +113,7 @@ void MultiwayPathsCoveredCheck::check(const MatchFinder::MatchResult &Result) {
   }
   // Warns for degenerated 'switch' statements that neither define a case nor
   // a default label.
-  // FIXME: Evaluate, if emitting a fix-it to simplify that statement is 
+  // FIXME: Evaluate, if emitting a fix-it to simplify that statement is
   // reasonable.
   if (!SwitchHasDefault && SwitchCaseCount == 0) {
     diag(Switch->getBeginLoc(),
@@ -160,7 +160,7 @@ void MultiwayPathsCoveredCheck::handleSwitchWithoutDefault(
     }
     if (const auto *BitfieldDecl =
             Result.Nodes.getNodeAs<FieldDecl>("bitfield")) {
-      return twoPow(BitfieldDecl->getBitWidthValue(*Result.Context));
+      return twoPow(BitfieldDecl->getBitWidthValue());
     }
 
     return static_cast<std::size_t>(0);

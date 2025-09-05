@@ -1,6 +1,5 @@
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 //==----------- spec_const_redefine.cpp ------------------------------==//
 //
@@ -18,10 +17,9 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
-#include <iostream>
 #include <vector>
 
 using namespace sycl;
@@ -89,12 +87,11 @@ int main(int argc, char **argv) {
       passed = false;
     }
   }
-  std::cout << (passed ? "passed\n" : "FAILED\n");
+  if (!passed)
+    std::cout << "FAILED\n";
   return passed ? 0 : 1;
 }
 
 // --- Check that only two JIT compilation happened:
-// CHECK-COUNT-2: ---> piProgramBuild
-// CHECK-NOT: ---> piProgramBuild
-// --- Check that the test completed with expected results:
-// CHECK: passed
+// CHECK-COUNT-2: <--- urProgramBuildExp
+// CHECK-NOT: <--- urProgramBuildExp

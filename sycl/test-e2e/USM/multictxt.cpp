@@ -1,7 +1,7 @@
-// RUN: %{build} -o %t1.out
-// RUN: %t1.out
+// RUN: %{build} -o %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
-// REQUIRES: cpu, gpu
+// REQUIRES: cpu, any-device-is-gpu
 
 //==----------------- multictxt.cpp - Multi Context USM test ---------------==//
 //
@@ -11,7 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/Property.h"
-#include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/Operator.h"
+#include "mlir/TableGen/Predicate.h"
 #include "llvm/TableGen/Record.h"
 
 using namespace mlir;
@@ -32,65 +32,90 @@ static StringRef getValueAsString(const Init *init) {
   return {};
 }
 
-Property::Property(const Record *record) : def(record) {
-  assert((record->isSubClassOf("Property") || record->isSubClassOf("Attr")) &&
+StringRef PropConstraint::getInterfaceType() const {
+  return getValueAsString(def->getValueInit("interfaceType"));
+}
+
+Property::Property(const Record *def)
+    : Property(
+          def, getValueAsString(def->getValueInit("summary")),
+          getValueAsString(def->getValueInit("description")),
+          getValueAsString(def->getValueInit("storageType")),
+          getValueAsString(def->getValueInit("interfaceType")),
+          getValueAsString(def->getValueInit("convertFromStorage")),
+          getValueAsString(def->getValueInit("assignToStorage")),
+          getValueAsString(def->getValueInit("convertToAttribute")),
+          getValueAsString(def->getValueInit("convertFromAttribute")),
+          getValueAsString(def->getValueInit("parser")),
+          getValueAsString(def->getValueInit("optionalParser")),
+          getValueAsString(def->getValueInit("printer")),
+          getValueAsString(def->getValueInit("readFromMlirBytecode")),
+          getValueAsString(def->getValueInit("writeToMlirBytecode")),
+          getValueAsString(def->getValueInit("hashProperty")),
+          getValueAsString(def->getValueInit("defaultValue")),
+          getValueAsString(def->getValueInit("storageTypeValueOverride"))) {
+  assert((def->isSubClassOf("Property") || def->isSubClassOf("Attr")) &&
          "must be subclass of TableGen 'Property' class");
 }
 
 Property::Property(const DefInit *init) : Property(init->getDef()) {}
 
-StringRef Property::getStorageType() const {
-  const auto *init = def->getValueInit("storageType");
-  auto type = getValueAsString(init);
-  if (type.empty())
-    return "Property";
-  return type;
+Property::Property(const llvm::Record *maybeDef, StringRef summary,
+                   StringRef description, StringRef storageType,
+                   StringRef interfaceType, StringRef convertFromStorageCall,
+                   StringRef assignToStorageCall,
+                   StringRef convertToAttributeCall,
+                   StringRef convertFromAttributeCall, StringRef parserCall,
+                   StringRef optionalParserCall, StringRef printerCall,
+                   StringRef readFromMlirBytecodeCall,
+                   StringRef writeToMlirBytecodeCall,
+                   StringRef hashPropertyCall, StringRef defaultValue,
+                   StringRef storageTypeValueOverride)
+    : PropConstraint(maybeDef, Constraint::CK_Prop), summary(summary),
+      description(description), storageType(storageType),
+      interfaceType(interfaceType),
+      convertFromStorageCall(convertFromStorageCall),
+      assignToStorageCall(assignToStorageCall),
+      convertToAttributeCall(convertToAttributeCall),
+      convertFromAttributeCall(convertFromAttributeCall),
+      parserCall(parserCall), optionalParserCall(optionalParserCall),
+      printerCall(printerCall),
+      readFromMlirBytecodeCall(readFromMlirBytecodeCall),
+      writeToMlirBytecodeCall(writeToMlirBytecodeCall),
+      hashPropertyCall(hashPropertyCall), defaultValue(defaultValue),
+      storageTypeValueOverride(storageTypeValueOverride) {
+  if (storageType.empty())
+    storageType = "Property";
 }
 
-StringRef Property::getInterfaceType() const {
-  const auto *init = def->getValueInit("interfaceType");
-  return getValueAsString(init);
+StringRef Property::getPropertyDefName() const {
+  if (def->isAnonymous()) {
+    return getBaseProperty().def->getName();
+  }
+  return def->getName();
 }
 
-StringRef Property::getConvertFromStorageCall() const {
-  const auto *init = def->getValueInit("convertFromStorage");
-  return getValueAsString(init);
+Pred Property::getPredicate() const {
+  if (!def)
+    return Pred();
+  const llvm::RecordVal *maybePred = def->getValue("predicate");
+  if (!maybePred || !maybePred->getValue())
+    return Pred();
+  return Pred(maybePred->getValue());
 }
 
-StringRef Property::getAssignToStorageCall() const {
-  const auto *init = def->getValueInit("assignToStorage");
-  return getValueAsString(init);
+Property Property::getBaseProperty() const {
+  if (const auto *defInit =
+          llvm::dyn_cast<llvm::DefInit>(def->getValueInit("baseProperty"))) {
+    return Property(defInit).getBaseProperty();
+  }
+  return *this;
 }
 
-StringRef Property::getConvertToAttributeCall() const {
-  const auto *init = def->getValueInit("convertToAttribute");
-  return getValueAsString(init);
+bool Property::isSubClassOf(StringRef className) const {
+  return def && def->isSubClassOf(className);
 }
 
-StringRef Property::getConvertFromAttributeCall() const {
-  const auto *init = def->getValueInit("convertFromAttribute");
-  return getValueAsString(init);
+StringRef ConstantProp::getValue() const {
+  return def->getValueAsString("value");
 }
-
-StringRef Property::getReadFromMlirBytecodeCall() const {
-  const auto *init = def->getValueInit("readFromMlirBytecode");
-  return getValueAsString(init);
-}
-
-StringRef Property::getWriteToMlirBytecodeCall() const {
-  const auto *init = def->getValueInit("writeToMlirBytecode");
-  return getValueAsString(init);
-}
-
-StringRef Property::getHashPropertyCall() const {
-  return getValueAsString(def->getValueInit("hashProperty"));
-}
-
-bool Property::hasDefaultValue() const { return !getDefaultValue().empty(); }
-
-StringRef Property::getDefaultValue() const {
-  const auto *init = def->getValueInit("defaultValue");
-  return getValueAsString(init);
-}
-
-const llvm::Record &Property::getDef() const { return *def; }

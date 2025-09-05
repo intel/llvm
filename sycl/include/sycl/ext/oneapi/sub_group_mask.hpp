@@ -7,11 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/helpers.hpp>     // for Builder
-#include <sycl/detail/type_traits.hpp> // for is_sub_group
-#include <sycl/exception.hpp>          // for errc, exception
-#include <sycl/id.hpp>                 // for id
-#include <sycl/marray.hpp>             // for marray
+#include <sycl/detail/helpers.hpp> // for Builder
+#include <sycl/detail/memcpy.hpp>  // detail::memcpy
+#include <sycl/exception.hpp>      // for errc, exception
+#include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
+#include <sycl/id.hpp>             // for id
+#include <sycl/marray.hpp>         // for marray
+#include <sycl/sub_group.hpp>
+#include <sycl/vector.hpp> // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -35,23 +38,21 @@ template <typename Group> struct group_scope;
 
 namespace ext::oneapi {
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__AMDGCN__) &&                    \
-    (__AMDGCN_WAVEFRONT_SIZE == 64)
-#define BITS_TYPE uint64_t
-#else
-#define BITS_TYPE uint32_t
-#endif
+// forward decalre sycl::ext::oneapi::sub_group
+struct sub_group;
 
 // defining `group_ballot` here to make predicate default `true`
 // need to forward declare sub_group_mask first
 struct sub_group_mask;
 template <typename Group>
-std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
+                     std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+                 sub_group_mask>
 group_ballot(Group g, bool predicate = true);
 
 struct sub_group_mask {
   friend class sycl::detail::Builder;
-  using BitsType = BITS_TYPE;
+  using BitsType = uint64_t;
 
   static constexpr size_t max_bits =
       sizeof(BitsType) * CHAR_BIT /* implementation-defined */;
@@ -79,7 +80,8 @@ struct sub_group_mask {
     }
 
     reference(sub_group_mask &gmask, size_t pos) : Ref(gmask.Bits) {
-      RefBit = (pos < gmask.bits_num) ? (1UL << pos) : 0;
+      BitsType one = 1;
+      RefBit = (pos < gmask.bits_num) ? (one << pos) : 0;
     }
 
   private:
@@ -89,8 +91,36 @@ struct sub_group_mask {
     BitsType RefBit;
   };
 
+#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK >= 2
+  sub_group_mask() : sub_group_mask(0, GetMaxLocalRangeSize()) {};
+
+  sub_group_mask(unsigned long long val)
+      : sub_group_mask(0, GetMaxLocalRangeSize()) {
+    Bits = val;
+  };
+
+  template <typename T, std::size_t K,
+            typename = std::enable_if_t<std::is_integral_v<T>>>
+  sub_group_mask(const sycl::marray<T, K> &val)
+      : sub_group_mask(0, GetMaxLocalRangeSize()) {
+    for (size_t I = 0, BytesCopied = 0; I < K && BytesCopied < sizeof(Bits);
+         ++I) {
+      size_t RemainingBytes = sizeof(Bits) - BytesCopied;
+      size_t BytesToCopy =
+          RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
+      sycl::detail::memcpy_no_adl(reinterpret_cast<char *>(&Bits) + BytesCopied,
+                                  &val[I], BytesToCopy);
+      BytesCopied += BytesToCopy;
+    }
+  }
+
+  sub_group_mask(const sub_group_mask &other) = default;
+  sub_group_mask &operator=(const sub_group_mask &other) = default;
+#endif // SYCL_EXT_ONEAPI_SUB_GROUP_MASK
+
   bool operator[](id<1> id) const {
-    return (Bits & ((id.get(0) < bits_num) ? (1UL << id.get(0)) : 0));
+    BitsType one = 1;
+    return (Bits & ((id.get(0) < bits_num) ? (one << id.get(0)) : 0));
   }
 
   reference operator[](id<1> id) { return {*this, id.get(0)}; }
@@ -106,10 +136,9 @@ struct sub_group_mask {
     for (int i = 0; i < 4; ++i) {
       MemberMask[i] = TmpMArray[i];
     }
-    auto OCLMask =
-        sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
     return __spirv_GroupNonUniformBallotBitCount(
-        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce, OCLMask);
+        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce,
+        sycl::detail::convertToOpenCLType(MemberMask));
 #else
     unsigned int count = 0;
     auto word = (Bits & valuable_bits(bits_num));
@@ -252,16 +281,6 @@ struct sub_group_mask {
     return Tmp;
   }
 
-  sub_group_mask(const sub_group_mask &rhs)
-      : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
-
-  sub_group_mask &operator=(const sub_group_mask &rhs) = delete;
-
-  template <typename Group>
-  friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,
-                          sub_group_mask>
-  group_ballot(Group g, bool predicate);
-
   friend sub_group_mask operator&(const sub_group_mask &lhs,
                                   const sub_group_mask &rhs) {
     auto Res = lhs;
@@ -284,12 +303,24 @@ struct sub_group_mask {
   }
 
 private:
+  static size_t GetMaxLocalRangeSize() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_BuiltInSubgroupMaxSize();
+#else
+    return max_bits;
+#endif
+  }
+
   sub_group_mask(BitsType rhs, size_t bn)
       : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bits_num <= max_bits);
+#endif
   }
   inline BitsType valuable_bits(size_t bn) const {
+#ifndef __SYCL_DEVICE_ONLY__
     assert(bn <= max_bits);
+#endif
     BitsType one = 1;
     if (bn == max_bits)
       return -one;
@@ -300,27 +331,66 @@ private:
   size_t bits_num;
 };
 
-template <typename Group>
-std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
-group_ballot(Group g, bool predicate) {
-  (void)g;
+} // namespace ext::oneapi
+
+namespace detail {
+template <typename NonUniformGroup>
+ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
+  return Group.getMask();
+}
+
+template <>
+inline ext::oneapi::sub_group_mask
+GetMask<sycl::sub_group>(sycl::sub_group Group) {
+  return (~ext::oneapi::sub_group_mask::BitsType{0}) >>
+         (ext::oneapi::sub_group_mask::max_bits -
+          Group.get_local_linear_range());
+}
+
 #ifdef __SYCL_DEVICE_ONLY__
-  auto res = __spirv_GroupNonUniformBallot(
-      sycl::detail::spirv::group_scope<Group>::value, predicate);
-  BITS_TYPE val = res[0];
-  if constexpr (sizeof(BITS_TYPE) == 8)
-    val |= ((BITS_TYPE)res[1]) << 32;
-  return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
-      val, g.get_max_local_range()[0]);
+template <typename Group>
+ext::oneapi::sub_group_mask commonGroupBallotImpl(Group G, bool Predicate) {
+  auto Res = __spirv_GroupNonUniformBallot(
+      sycl::detail::spirv::group_scope<Group>::value, Predicate);
+  ext::oneapi::sub_group_mask::BitsType Val = Res[0];
+  if constexpr (sizeof(ext::oneapi::sub_group_mask::BitsType) == 8)
+    Val |= ((ext::oneapi::sub_group_mask::BitsType)Res[1]) << 32;
+  auto Mask =
+      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+          Val, __spirv_BuiltInSubgroupMaxSize());
+  // For sub-groups we do not need to apply the mask, but for others it will
+  // split converging groups accordingly.
+  if constexpr (!std::is_same_v<std::decay_t<Group>, ext::oneapi::sub_group> &&
+                !std::is_same_v<std::decay_t<Group>, sycl::sub_group>)
+    Mask &= sycl::detail::GetMask(G);
+  return Mask;
+}
+#endif // __SYCL_DEVICE_ONLY__
+} // namespace detail
+
+namespace ext::oneapi {
+
+template <typename Group>
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
+                     std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+                 sub_group_mask>
+group_ballot([[maybe_unused]] Group g, [[maybe_unused]] bool predicate) {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::commonGroupBallotImpl(g, predicate);
 #else
-  (void)predicate;
   throw exception{errc::feature_not_supported,
                   "Sub-group mask is not supported on host device"};
 #endif
 }
 
-#undef BITS_TYPE
-
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+// We have a cyclic dependency with
+//   sub_group_mask.hpp
+//   detail/spirv.hpp
+//   non_uniform_groups.hpp
+// "Break" it by including this at the end (instead of beginning). Ideally, we
+// should refactor this somehow...
+#include <sycl/detail/spirv.hpp>

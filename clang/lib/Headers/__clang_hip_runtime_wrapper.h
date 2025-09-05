@@ -47,28 +47,9 @@ extern "C" {
 #endif //__cplusplus
 
 #if !defined(__HIPCC_RTC__)
-#include <cmath>
-#include <cstdlib>
-#include <stdlib.h>
 #if __has_include("hip/hip_version.h")
 #include "hip/hip_version.h"
 #endif // __has_include("hip/hip_version.h")
-#else
-typedef __SIZE_TYPE__ size_t;
-// Define macros which are needed to declare HIP device API's without standard
-// C/C++ headers. This is for readability so that these API's can be written
-// the same way as non-hipRTC use case. These macros need to be popped so that
-// they do not pollute users' name space.
-#pragma push_macro("NULL")
-#pragma push_macro("uint32_t")
-#pragma push_macro("uint64_t")
-#pragma push_macro("CHAR_BIT")
-#pragma push_macro("INT_MAX")
-#define NULL (void *)0
-#define uint32_t __UINT32_TYPE__
-#define uint64_t __UINT64_TYPE__
-#define CHAR_BIT __CHAR_BIT__
-#define INT_MAX __INTMAX_MAX__
 #endif // __HIPCC_RTC__
 
 typedef __SIZE_TYPE__ __hip_size_t;
@@ -78,11 +59,13 @@ extern "C" {
 #endif //__cplusplus
 
 #if HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR >= 405
-extern "C" __device__ unsigned long long __ockl_dm_alloc(unsigned long long __size);
-extern "C" __device__ void __ockl_dm_dealloc(unsigned long long __addr);
+__device__ unsigned long long __ockl_dm_alloc(unsigned long long __size);
+__device__ void __ockl_dm_dealloc(unsigned long long __addr);
 #if __has_feature(address_sanitizer)
-extern "C" __device__ unsigned long long __asan_malloc_impl(unsigned long long __size, unsigned long long __pc);
-extern "C" __device__ void __asan_free_impl(unsigned long long __addr, unsigned long long __pc);
+__device__ unsigned long long __asan_malloc_impl(unsigned long long __size,
+                                                 unsigned long long __pc);
+__device__ void __asan_free_impl(unsigned long long __addr,
+                                 unsigned long long __pc);
 __attribute__((noinline, weak)) __device__ void *malloc(__hip_size_t __size) {
   unsigned long long __pc = (unsigned long long)__builtin_return_address(0);
   return (void *)__asan_malloc_impl(__size, __pc);
@@ -91,7 +74,7 @@ __attribute__((noinline, weak)) __device__ void free(void *__ptr) {
   unsigned long long __pc = (unsigned long long)__builtin_return_address(0);
   __asan_free_impl((unsigned long long)__ptr, __pc);
 }
-#else
+#else // __has_feature(address_sanitizer)
 __attribute__((weak)) inline __device__ void *malloc(__hip_size_t __size) {
   return (void *) __ockl_dm_alloc(__size);
 }
@@ -109,7 +92,7 @@ __attribute__((weak)) inline __device__ void *malloc(__hip_size_t __size) {
 __attribute__((weak)) inline __device__ void free(void *__ptr) {
   __hip_free(__ptr);
 }
-#else
+#else  // __HIP_ENABLE_DEVICE_MALLOC__
 __attribute__((weak)) inline __device__ void *malloc(__hip_size_t __size) {
   __builtin_trap();
   return (void *)0;
@@ -117,12 +100,39 @@ __attribute__((weak)) inline __device__ void *malloc(__hip_size_t __size) {
 __attribute__((weak)) inline __device__ void free(void *__ptr) {
   __builtin_trap();
 }
-#endif
+#endif // __HIP_ENABLE_DEVICE_MALLOC__
 #endif // HIP version check
 
 #ifdef __cplusplus
 } // extern "C"
 #endif //__cplusplus
+
+#if !defined(__HIPCC_RTC__)
+#include <cmath>
+#include <cstdlib>
+#include <stdlib.h>
+#if __has_include("hip/hip_version.h")
+#include "hip/hip_version.h"
+#endif // __has_include("hip/hip_version.h")
+#else
+typedef __SIZE_TYPE__ size_t;
+// Define macros which are needed to declare HIP device API's without standard
+// C/C++ headers. This is for readability so that these API's can be written
+// the same way as non-hipRTC use case. These macros need to be popped so that
+// they do not pollute users' name space.
+#pragma push_macro("NULL")
+#pragma push_macro("uint32_t")
+#pragma push_macro("uint64_t")
+#pragma push_macro("CHAR_BIT")
+#pragma push_macro("INT_MAX")
+#pragma push_macro("INT_MIN")
+#define NULL (void *)0
+#define uint32_t __UINT32_TYPE__
+#define uint64_t __UINT64_TYPE__
+#define CHAR_BIT __CHAR_BIT__
+#define INT_MAX __INTMAX_MAX__
+#define INT_MIN (-__INT_MAX__ - 1)
+#endif // __HIPCC_RTC__
 
 #include <__clang_hip_libdevice_declares.h>
 #include <__clang_hip_math.h>
@@ -146,6 +156,7 @@ __attribute__((weak)) inline __device__ void free(void *__ptr) {
 #pragma pop_macro("uint64_t")
 #pragma pop_macro("CHAR_BIT")
 #pragma pop_macro("INT_MAX")
+#pragma pop_macro("INT_MIN")
 #endif // __HIPCC_RTC__
 #endif // __HIP__
 #endif // __CLANG_HIP_RUNTIME_WRAPPER_H__

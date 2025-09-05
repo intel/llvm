@@ -5,20 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: esimd_emulator
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -92,7 +85,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
        auto OutAcc = OutBuf.template get_access<access::mode::read_write>(cgh);
        auto LocalAcc = local_accessor<T, 1>(VL * NUM_RGBA_CHANNELS, cgh);
 
-       cgh.parallel_for(Range, [=](id<1> i) SYCL_ESIMD_KERNEL {
+       cgh.parallel_for(Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          using namespace sycl::ext::intel::esimd;
          constexpr int numChannels = get_num_channels_enabled(CH_MASK);
 
@@ -138,7 +131,7 @@ template <typename T, unsigned VL, auto CH_MASK> bool test(queue q) {
                -1;
          }
 
-         uint32_t global_offset = i * VL * NUM_RGBA_CHANNELS;
+         uint32_t global_offset = ndi.get_global_id(0) * VL * NUM_RGBA_CHANNELS;
          valsOut.copy_to(OutAcc, global_offset);
        });
      }).wait();

@@ -12,7 +12,8 @@
 #include "clang/Lex/Lexer.h"
 
 using namespace clang::ast_matchers;
-using namespace clang;
+
+namespace clang::tidy::bugprone {
 
 namespace {
 
@@ -28,7 +29,7 @@ bool isExprValueStored(const Expr *E, ASTContext &C) {
   DynTypedNodeList P = PMap.getParents(*E);
   if (P.size() != 1)
     return false;
-  const Expr *ParentE;
+  const Expr *ParentE = nullptr;
   while ((ParentE = P[0].get<Expr>()) && ParentE->IgnoreParenCasts() == E) {
     P = PMap.getParents(P[0]);
     if (P.size() != 1)
@@ -47,12 +48,6 @@ bool isExprValueStored(const Expr *E, ASTContext &C) {
 
   return isa<CallExpr, CXXConstructExpr>(ParentE);
 }
-
-} // namespace
-
-namespace clang {
-namespace tidy {
-namespace bugprone {
 
 AST_MATCHER_P(CXXTryStmt, hasHandlerFor,
               ast_matchers::internal::Matcher<QualType>, InnerMatcher) {
@@ -77,6 +72,8 @@ AST_MATCHER(CXXNewExpr, mayThrow) {
   return !OperatorNew->getType()->castAs<FunctionProtoType>()->isNothrow();
 }
 
+} // namespace
+
 void MultipleNewInOneExpressionCheck::registerMatchers(MatchFinder *Finder) {
   auto BadAllocType =
       recordType(hasDeclaration(cxxRecordDecl(hasName("::std::bad_alloc"))));
@@ -98,16 +95,14 @@ void MultipleNewInOneExpressionCheck::registerMatchers(MatchFinder *Finder) {
 
   Finder->addMatcher(
       callExpr(
-          hasAnyArgument(
-              expr(HasNewExpr1).bind("arg1")),
+          hasAnyArgument(expr(HasNewExpr1).bind("arg1")),
           hasAnyArgument(
               expr(HasNewExpr2, unless(equalsBoundNode("arg1"))).bind("arg2")),
           hasAncestor(BadAllocCatchingTryBlock)),
       this);
   Finder->addMatcher(
       cxxConstructExpr(
-          hasAnyArgument(
-              expr(HasNewExpr1).bind("arg1")),
+          hasAnyArgument(expr(HasNewExpr1).bind("arg1")),
           hasAnyArgument(
               expr(HasNewExpr2, unless(equalsBoundNode("arg1"))).bind("arg2")),
           unless(isListInitialization()),
@@ -157,6 +152,4 @@ void MultipleNewInOneExpressionCheck::check(
         << NewExpr1->getSourceRange() << NewExpr2->getSourceRange();
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

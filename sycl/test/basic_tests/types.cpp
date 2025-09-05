@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%sycl_triple %s -fsyntax-only %}
 
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
@@ -101,6 +102,104 @@ template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
   static_assert(sizeof(s::half) == sizeof(int16_t), "");
 }
 
+template <typename vecType, int numOfElems>
+std::string vec2string(const sycl::vec<vecType, numOfElems> &vec) {
+  std::string str = "";
+  for (size_t i = 0; i < numOfElems - 1; ++i) {
+    str += std::to_string(vec[i]) + ",";
+  }
+  str = "{" + str + std::to_string(vec[numOfElems - 1]) + "}";
+  return str;
+}
+
+// vec::operator! might return a different type as described in Table 143 of the
+// SYCL 2020 specification. This function checks that the result type matches
+// the expected type.
+template <typename T, typename Expected> inline void checkVecNotReturnType() {
+  constexpr int N = 4;
+  using Vector = sycl::vec<T, N>;
+  using ExpectedVector = sycl::vec<Expected, N>;
+  using OpNotResult = decltype(operator!(std::declval<Vector>()));
+  static_assert(std::is_same_v<OpNotResult, ExpectedVector>,
+                "Incorrect operator! return type");
+}
+
+// the math built-in testing ensures that the vec binary ops get tested,
+// but the unary ops are only tested by the CTS tests. Here we do some
+// basic testing of the unary ops, ensuring they compile correctly.
+template <typename T> void checkVecUnaryOps(T &v) {
+
+  std::cout << vec2string(v) << std::endl;
+
+  T d = +v;
+  std::cout << vec2string(d) << std::endl;
+
+  T e = -v;
+  std::cout << vec2string(e) << std::endl;
+
+  // ~ only supported by integral types.
+  if constexpr (std::is_integral_v<T>) {
+    T g = ~v;
+    std::cout << vec2string(g) << std::endl;
+  }
+
+  auto f = !v;
+  std::cout << vec2string(f) << std::endl;
+
+  // Check operator! return type
+  checkVecNotReturnType<int8_t, int8_t>();
+  checkVecNotReturnType<uint8_t, int8_t>();
+  checkVecNotReturnType<int16_t, int16_t>();
+  checkVecNotReturnType<uint16_t, int16_t>();
+  checkVecNotReturnType<sycl::half, int16_t>();
+  checkVecNotReturnType<int32_t, int32_t>();
+  checkVecNotReturnType<uint32_t, int32_t>();
+  checkVecNotReturnType<float, int32_t>();
+  checkVecNotReturnType<int64_t, int64_t>();
+  checkVecNotReturnType<uint64_t, int64_t>();
+  checkVecNotReturnType<double, int64_t>();
+}
+
+void checkVariousVecUnaryOps() {
+  sycl::vec<int, 1> vi1{1};
+  checkVecUnaryOps(vi1);
+  sycl::vec<int, 16> vi{1, 2, 0, -4, 1, 2, 0, -4, 1, 2, 0, -4, 1, 2, 0, -4};
+  checkVecUnaryOps(vi);
+
+  sycl::vec<long, 1> vl1{1};
+  checkVecUnaryOps(vl1);
+  sycl::vec<long, 16> vl{2, 3, 0, -5, 2, 3, 0, -5, 2, 3, 0, -5, 2, 3, 0, -5};
+  checkVecUnaryOps(vl);
+
+  sycl::vec<long long, 1> vll1{1};
+  checkVecUnaryOps(vll1);
+  sycl::vec<long long, 16> vll{0, 3, 4, -6, 0, 3, 4, -6,
+                               0, 3, 4, -6, 0, 3, 4, -6};
+  checkVecUnaryOps(vll);
+
+  sycl::vec<float, 1> vf1{1};
+  checkVecUnaryOps(vf1);
+  sycl::vec<float, 16> vf{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vf);
+
+  sycl::vec<double, 1> vd1{1};
+  checkVecUnaryOps(vd1);
+  sycl::vec<double, 16> vd{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vd);
+
+  sycl::vec<sycl::half, 1> vh1{1};
+  checkVecUnaryOps(vh1);
+  sycl::vec<sycl::half, 16> vh{0, 4, 5, -9, 0, 4, 5, -9,
+                               0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vh);
+
+  sycl::vec<sycl::ext::oneapi::bfloat16, 1> vbf1{1};
+  checkVecUnaryOps(vbf1);
+  sycl::vec<sycl::ext::oneapi::bfloat16, 16> vbf{0, 4, 5, -9, 0, 4, 5, -9,
+                                                 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vbf);
+}
+
 int main() {
   // Test for creating constexpr expressions
   constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(1.0);
@@ -125,6 +224,8 @@ int main() {
   checkSizeForFloatingPoint<s::opencl::cl_half, sizeof(int16_t)>();
   checkSizeForFloatingPoint<s::opencl::cl_float, sizeof(int32_t)>();
   checkSizeForFloatingPoint<s::opencl::cl_double, sizeof(int64_t)>();
+
+  checkVariousVecUnaryOps();
 
   return 0;
 }

@@ -354,7 +354,11 @@ define <2 x i64> @rotr_v2i64(<2 x i64> %x, <2 x i64> %y) {
 ; ==============================================================================
 
 ; CHECK-LABEL: copysign_v4f32:
-; CHECK: f32.copysign
+; CHECK: v128.const
+; CHECK-NEXT: v128.and
+; CHECK-NEXT: v128.const
+; CHECK-NEXT: v128.and
+; CHECK-NEXT: v128.or
 declare <4 x float> @llvm.copysign.v4f32(<4 x float>, <4 x float>)
 define <4 x float> @copysign_v4f32(<4 x float> %x, <4 x float> %y) {
   %v = call <4 x float> @llvm.copysign.v4f32(<4 x float> %x, <4 x float> %y)
@@ -374,6 +378,14 @@ define <4 x float> @sin_v4f32(<4 x float> %x) {
 declare <4 x float> @llvm.cos.v4f32(<4 x float>)
 define <4 x float> @cos_v4f32(<4 x float> %x) {
   %v = call <4 x float> @llvm.cos.v4f32(<4 x float> %x)
+  ret <4 x float> %v
+}
+
+; CHECK-LABEL: tan_v4f32:
+; CHECK: call $push[[L:[0-9]+]]=, tanf
+declare <4 x float> @llvm.tan.v4f32(<4 x float>)
+define <4 x float> @tan_v4f32(<4 x float> %x) {
+  %v = call <4 x float> @llvm.tan.v4f32(<4 x float> %x)
   ret <4 x float> %v
 }
 
@@ -433,14 +445,6 @@ define <4 x float> @exp2_v4f32(<4 x float> %x) {
   ret <4 x float> %v
 }
 
-; CHECK-LABEL: rint_v4f32:
-; CHECK: f32.nearest
-declare <4 x float> @llvm.rint.v4f32(<4 x float>)
-define <4 x float> @rint_v4f32(<4 x float> %x) {
-  %v = call <4 x float> @llvm.rint.v4f32(<4 x float> %x)
-  ret <4 x float> %v
-}
-
 ; CHECK-LABEL: round_v4f32:
 ; CHECK: call $push[[L:[0-9]+]]=, roundf
 declare <4 x float> @llvm.round.v4f32(<4 x float>)
@@ -454,7 +458,11 @@ define <4 x float> @round_v4f32(<4 x float> %x) {
 ; ==============================================================================
 
 ; CHECK-LABEL: copysign_v2f64:
-; CHECK: f64.copysign
+; CHECK: v128.const
+; CHECK-NEXT: v128.and
+; CHECK-NEXT: v128.const
+; CHECK-NEXT: v128.and
+; CHECK-NEXT: v128.or
 declare <2 x double> @llvm.copysign.v2f64(<2 x double>, <2 x double>)
 define <2 x double> @copysign_v2f64(<2 x double> %x, <2 x double> %y) {
   %v = call <2 x double> @llvm.copysign.v2f64(<2 x double> %x, <2 x double> %y)
@@ -474,6 +482,14 @@ define <2 x double> @sin_v2f64(<2 x double> %x) {
 declare <2 x double> @llvm.cos.v2f64(<2 x double>)
 define <2 x double> @cos_v2f64(<2 x double> %x) {
   %v = call <2 x double> @llvm.cos.v2f64(<2 x double> %x)
+  ret <2 x double> %v
+}
+
+; CHECK-LABEL: tan_v2f64:
+; CHECK: call $push[[L:[0-9]+]]=, tan
+declare <2 x double> @llvm.tan.v2f64(<2 x double>)
+define <2 x double> @tan_v2f64(<2 x double> %x) {
+  %v = call <2 x double> @llvm.tan.v2f64(<2 x double> %x)
   ret <2 x double> %v
 }
 
@@ -530,14 +546,6 @@ define <2 x double> @exp_v2f64(<2 x double> %x) {
 declare <2 x double> @llvm.exp2.v2f64(<2 x double>)
 define <2 x double> @exp2_v2f64(<2 x double> %x) {
   %v = call <2 x double> @llvm.exp2.v2f64(<2 x double> %x)
-  ret <2 x double> %v
-}
-
-; CHECK-LABEL: rint_v2f64:
-; CHECK: f64.nearest
-declare <2 x double> @llvm.rint.v2f64(<2 x double>)
-define <2 x double> @rint_v2f64(<2 x double> %x) {
-  %v = call <2 x double> @llvm.rint.v2f64(<2 x double> %x)
   ret <2 x double> %v
 }
 

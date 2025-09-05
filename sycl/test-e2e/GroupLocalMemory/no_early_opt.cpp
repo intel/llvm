@@ -1,14 +1,14 @@
-// RUN: %{build} -fno-sycl-early-optimizations -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fno-sycl-early-optimizations -o %t.out
 // RUN: %{run} %t.out
-//
-// XFAIL: hip_nvidia
 
 // The test checks that multiple calls to the same template instantiation of a
 // group local memory function result in separate allocations, even with device
 // code optimizations disabled (the implementation relies on inlining these
 // functions regardless of device code optimization settings).
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 
 #include <cassert>
 #include <vector>

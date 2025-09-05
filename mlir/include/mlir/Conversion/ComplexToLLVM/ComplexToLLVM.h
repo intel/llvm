@@ -9,8 +9,11 @@
 #define MLIR_CONVERSION_COMPLEXTOLLVM_COMPLEXTOLLVM_H_
 
 #include "mlir/Conversion/LLVMCommon/StructBuilder.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
+#include "mlir/Pass/Pass.h"
 
 namespace mlir {
+class DialectRegistry;
 class LLVMTypeConverter;
 class Pass;
 class RewritePatternSet;
@@ -23,8 +26,8 @@ public:
   /// Construct a helper for the given complex number value.
   using StructBuilder::StructBuilder;
   /// Build IR creating an `undef` value of the complex number type.
-  static ComplexStructBuilder undef(OpBuilder &builder, Location loc,
-                                    Type type);
+  static ComplexStructBuilder poison(OpBuilder &builder, Location loc,
+                                     Type type);
 
   // Build IR extracting the real value from the complex number struct.
   Value real(OpBuilder &builder, Location loc);
@@ -38,8 +41,13 @@ public:
 };
 
 /// Populate the given list with patterns that convert from Complex to LLVM.
-void populateComplexToLLVMConversionPatterns(LLVMTypeConverter &converter,
-                                             RewritePatternSet &patterns);
+void populateComplexToLLVMConversionPatterns(
+    const LLVMTypeConverter &converter, RewritePatternSet &patterns,
+    mlir::complex::ComplexRangeFlags complexRange =
+        mlir::complex::ComplexRangeFlags::basic);
+
+void registerConvertComplexToLLVMInterface(DialectRegistry &registry);
+
 } // namespace mlir
 
 #endif // MLIR_CONVERSION_COMPLEXTOLLVM_COMPLEXTOLLVM_H_

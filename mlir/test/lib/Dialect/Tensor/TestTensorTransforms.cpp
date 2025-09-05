@@ -16,8 +16,8 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/TransformUtils.h"
 #include "mlir/Dialect/Tensor/Transforms/Transforms.h"
-#include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformOps.h"
+#include "mlir/Dialect/Transform/Interfaces/TransformInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -32,8 +32,8 @@ struct TestTensorTransforms
   TestTensorTransforms(const TestTensorTransforms &pass) : PassWrapper(pass) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<arith::ArithDialect, scf::SCFDialect, linalg::LinalgDialect>();
+    registry.insert<arith::ArithDialect, scf::SCFDialect, linalg::LinalgDialect,
+                    transform::TransformDialect>();
   }
 
   StringRef getArgument() const final {
@@ -72,9 +72,14 @@ struct TestTensorTransforms
       llvm::cl::desc("Test folding of expand_shape/collapse_shape"),
       llvm::cl::init(false)};
 
-  Option<bool> testFoldIntoPackAndUnpack{
-      *this, "test-fold-into-pack-and-unpack",
-      llvm::cl::desc("Test folding ops into tensor.pack and tensor.unpack"),
+  Option<bool> testBubbleUpExpandShapePatterns{
+      *this, "test-expand-shape-bubbling",
+      llvm::cl::desc("Test folding of expand_shape/collapse_shape"),
+      llvm::cl::init(false)};
+
+  Option<bool> testFoldExtractFromCollapseShape{
+      *this, "test-fold-extract-from-collapse-shape",
+      llvm::cl::desc("Test folding of extract from collapse_shape"),
       llvm::cl::init(false)};
 
   Option<bool> useForeach{
@@ -82,11 +87,6 @@ struct TestTensorTransforms
       llvm::cl::desc(
           "Use the scf.forall operation when generating loop nests for "
           "the extract_slice of collapse_shape pattern"),
-      llvm::cl::init(false)};
-
-  Option<bool> testSimplifyPackPatterns{
-      *this, "test-simplify-pack-patterns",
-      llvm::cl::desc("Test patterns to simplify tensor.pack"),
       llvm::cl::init(false)};
 
   Option<bool> testTrackingListener{
@@ -99,13 +99,13 @@ struct TestTensorTransforms
 static void applyReassociativeReshapeFoldingPatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
   tensor::populateReassociativeReshapeFoldingPatterns(patterns);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  (void)applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
-static void applyFoldIntoPackAndUnpackPatterns(Operation *rootOp) {
+static void applyBubbleUpExpandShapePatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
-  tensor::populateFoldIntoPackAndUnpackPatterns(patterns);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  tensor::populateBubbleUpExpandShapePatterns(patterns);
+  (void)applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
 static void applyFoldConstantExtractSlicePatterns(Operation *rootOp) {
@@ -121,26 +121,26 @@ static void applyFoldConstantExtractSlicePatterns(Operation *rootOp) {
       };
 
   tensor::populateFoldConstantExtractSlicePatterns(patterns, controlFn);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  (void)applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
 static void applyFoldConsecutiveInsertExtractSlicePatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
   tensor::populateMergeConsecutiveInsertExtractSlicePatterns(patterns);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  (void)applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
 static void
 applyDropRedundantInsertSliceRankExpansionPatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
   tensor::populateDropRedundantInsertSliceRankExpansionPatterns(patterns);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  (void)applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
-static void applySimplifyPackPatterns(Operation *rootOp) {
+static void applyFoldExtractFromCollapseShapePatterns(Operation *rootOp) {
   RewritePatternSet patterns(rootOp->getContext());
-  tensor::populateSimplifyTensorPack(patterns);
-  (void)applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  tensor::populateFoldCollapseExtractPatterns(patterns);
+  (void)applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
 namespace {
@@ -282,7 +282,7 @@ applyRewriteExtractFromCollapseShapePatterns(Operation *rootOp,
   else
     patterns.add<RewriteExtractSliceFromCollapseShapeUsingScfFor>(
         rootOp->getContext());
-  return applyPatternsAndFoldGreedily(rootOp, std::move(patterns));
+  return applyPatternsGreedily(rootOp, std::move(patterns));
 }
 
 namespace {
@@ -292,10 +292,10 @@ public:
 
   // Expose `findReplacementOp` as a public function, so that it can be tested.
   Operation *getReplacementOp(Operation *op, ValueRange newValues) const {
-    FailureOr<Operation *> replacementOp = findReplacementOp(op, newValues);
-    if (failed(replacementOp))
+    Operation *replacementOp;
+    if (!findReplacementOp(replacementOp, op, newValues).succeeded())
       return nullptr;
-    return *replacementOp;
+    return replacementOp;
   }
 };
 } // namespace
@@ -317,7 +317,7 @@ static LogicalResult testTrackingListenerReplacements(Operation *rootOp) {
   if (status.wasInterrupted())
     return failure();
   if (!replaced) {
-    replaced->emitError("could not find 'replaced' op");
+    rootOp->emitError("could not find 'replaced' op");
     return failure();
   }
 
@@ -352,8 +352,18 @@ static LogicalResult testTrackingListenerReplacements(Operation *rootOp) {
   transform::TransformState transformState =
       transform::detail::makeTransformStateForTesting(/*region=*/nullptr,
                                                       /*payloadRoot=*/nullptr);
-  DummyTrackingListener listener(transformState,
-                                 transform::TransformOpInterface());
+  MLIRContext *context = rootOp->getContext();
+  OpBuilder builder(context);
+  OwningOpRef<transform::NamedSequenceOp> transformOp =
+      builder.create<transform::NamedSequenceOp>(
+          rootOp->getLoc(),
+          /*sym_name=*/"test_sequence",
+          /*function_type=*/
+          TypeAttr::get(FunctionType::get(context, TypeRange{}, TypeRange{})),
+          /*sym_visibility*/ StringAttr::get(context, "public"),
+          /*arg_attrs=*/ArrayAttr::get(context, ArrayRef<Attribute>()),
+          /*res_attrs=*/ArrayAttr::get(context, ArrayRef<Attribute>()));
+  DummyTrackingListener listener(transformState, transformOp.get());
   Operation *replacement = listener.getReplacementOp(replaced, replacements);
   if (!replacement) {
     replaced->emitError("listener could not find replacement op");
@@ -366,8 +376,6 @@ static LogicalResult testTrackingListenerReplacements(Operation *rootOp) {
 
 void TestTensorTransforms::runOnOperation() {
   Operation *rootOp = getOperation();
-  if (testSimplifyPackPatterns)
-    applySimplifyPackPatterns(rootOp);
   if (testFoldConstantExtractSlice)
     applyFoldConstantExtractSlicePatterns(rootOp);
   if (testFoldConsecutiveInsertExtractSlice)
@@ -376,13 +384,15 @@ void TestTensorTransforms::runOnOperation() {
     applyDropRedundantInsertSliceRankExpansionPatterns(rootOp);
   if (testReassociativeReshapeFolding)
     applyReassociativeReshapeFoldingPatterns(rootOp);
-  if (testFoldIntoPackAndUnpack)
-    applyFoldIntoPackAndUnpackPatterns(rootOp);
+  if (testBubbleUpExpandShapePatterns)
+    applyBubbleUpExpandShapePatterns(rootOp);
   if (testRewriteExtractSliceWithTiledCollapseShape) {
     if (failed(
             applyRewriteExtractFromCollapseShapePatterns(rootOp, useForeach)))
       return signalPassFailure();
   }
+  if (testFoldExtractFromCollapseShape)
+    applyFoldExtractFromCollapseShapePatterns(rootOp);
   if (testTrackingListener)
     if (failed(testTrackingListenerReplacements(rootOp)))
       return signalPassFailure();

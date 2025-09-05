@@ -9,7 +9,6 @@
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "llvm/Support/FormatVariadic.h"
 #include <optional>
 
 using namespace mlir;
@@ -70,9 +69,9 @@ bool OpTrait::util::getBroadcastedShape(ArrayRef<int64_t> shape1,
 
   resultShape.clear();
   if (shape1.size() > shape2.size()) {
-    std::copy(shape1.begin(), shape1.end(), std::back_inserter(resultShape));
+    llvm::append_range(resultShape, shape1);
   } else {
-    std::copy(shape2.begin(), shape2.end(), std::back_inserter(resultShape));
+    llvm::append_range(resultShape, shape2);
   }
 
   auto i1 = shape1.rbegin(), e1 = shape1.rend();
@@ -84,7 +83,7 @@ bool OpTrait::util::getBroadcastedShape(ArrayRef<int64_t> shape1,
     if (ShapedType::isDynamic(*i1) || ShapedType::isDynamic(*i2)) {
       // One or both dimensions is unknown. Follow TensorFlow behavior:
       // - If either dimension is greater than 1, we assume that the program is
-      //   correct, and the other dimension will be broadcast to match it.
+      //   correct, and the other dimension will be broadcasted to match it.
       // - If either dimension is 1, the other dimension is the output.
       if (*i1 > 1) {
         *iR = *i1;
@@ -188,25 +187,21 @@ Type OpTrait::util::getBroadcastedType(Type type1, Type type2,
 /// Returns a tuple corresponding to whether range has tensor or vector type.
 template <typename iterator_range>
 static std::tuple<bool, bool> hasTensorOrVectorType(iterator_range types) {
-  return std::make_tuple(
-      llvm::any_of(types, [](Type t) { return isa<TensorType>(t); }),
-      llvm::any_of(types, [](Type t) { return isa<VectorType>(t); }));
+  return {llvm::any_of(types, llvm::IsaPred<TensorType>),
+          llvm::any_of(types, llvm::IsaPred<VectorType>)};
 }
 
 static bool isCompatibleInferredReturnShape(ArrayRef<int64_t> inferred,
                                             ArrayRef<int64_t> existing) {
-  auto isCompatible = [](int64_t dim1, int64_t dim2) {
-    // If the inferred and existing dim is the same, or one of them is unknown
-    // then it is compatible, else if the inferred dim is 1 then it is also
-    // compatible. But if the existing dim is 1 and the inferred is greater than
-    // 1 then flag.
-    return dim1 == dim2 || ShapedType::isDynamic(dim1) ||
-           ShapedType::isDynamic(dim2) || dim1 == 1;
+  // If both interred and existing dimensions are static, they must be equal.
+  auto isCompatible = [](int64_t inferredDim, int64_t existingDim) {
+    return ShapedType::isDynamic(existingDim) ||
+           ShapedType::isDynamic(inferredDim) || inferredDim == existingDim;
   };
   if (inferred.size() != existing.size())
     return false;
-  for (auto p : llvm::zip(inferred, existing))
-    if (!isCompatible(std::get<0>(p), std::get<1>(p)))
+  for (auto [inferredDim, existingDim] : llvm::zip_equal(inferred, existing))
+    if (!isCompatible(inferredDim, existingDim))
       return false;
   return true;
 }
@@ -227,7 +222,7 @@ static std::string getShapeString(ArrayRef<int64_t> shape) {
       },
       "x");
   ss << '\'';
-  return ss.str();
+  return ret;
 }
 
 LogicalResult OpTrait::impl::verifyCompatibleOperandBroadcast(Operation *op) {
@@ -241,8 +236,8 @@ LogicalResult OpTrait::impl::verifyCompatibleOperandBroadcast(Operation *op) {
        std::get<1>(resultsHasTensorVectorType)))
     return op->emitError("cannot broadcast vector with tensor");
 
-  auto rankedOperands = make_filter_range(
-      op->getOperandTypes(), [](Type t) { return isa<RankedTensorType>(t); });
+  auto rankedOperands =
+      make_filter_range(op->getOperandTypes(), llvm::IsaPred<RankedTensorType>);
 
   // If all operands are unranked, then all result shapes are possible.
   if (rankedOperands.empty())
@@ -260,8 +255,8 @@ LogicalResult OpTrait::impl::verifyCompatibleOperandBroadcast(Operation *op) {
       return op->emitOpError("operands don't have broadcast-compatible shapes");
   }
 
-  auto rankedResults = make_filter_range(
-      op->getResultTypes(), [](Type t) { return isa<RankedTensorType>(t); });
+  auto rankedResults =
+      make_filter_range(op->getResultTypes(), llvm::IsaPred<RankedTensorType>);
 
   // If all of the results are unranked then no further verification.
   if (rankedResults.empty())

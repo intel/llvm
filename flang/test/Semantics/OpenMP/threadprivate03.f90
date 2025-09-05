@@ -1,4 +1,4 @@
-! RUN: %python %S/../test_errors.py %s %flang_fc1 -fopenmp
+! RUN: %python %S/../test_errors.py %s %flang_fc1 -fopenmp -pedantic
 ! OpenMP Version 5.1
 ! Check OpenMP construct validity for the following directives:
 ! 2.21.2 Threadprivate Directive
@@ -13,7 +13,7 @@ program main
   !ERROR: The module name or main program name cannot be in a THREADPRIVATE directive
   !$omp threadprivate(mod1)
 
-  !PORTABILITY: Name 'main' declared in a main program should not have the same name as the main program
+  !PORTABILITY: Name 'main' declared in a main program should not have the same name as the main program [-Wbenign-name-clash]
   !ERROR: The module name or main program name cannot be in a THREADPRIVATE directive
   !$omp threadprivate(main)
 

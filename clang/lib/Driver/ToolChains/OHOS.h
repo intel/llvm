@@ -36,7 +36,6 @@ public:
   bool isPICDefault() const override { return false; }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override { return true; }
   bool isPICDefaultForced() const override { return false; }
-  bool useRelaxRelocations() const override { return false; }
   UnwindLibType GetUnwindLibType(const llvm::opt::ArgList &Args) const override;
   UnwindLibType GetDefaultUnwindLibType() const override { return UNW_CompilerRT; }
 
@@ -57,9 +56,9 @@ public:
   std::string computeSysRoot() const override;
   std::string getDynamicLinker(const llvm::opt::ArgList &Args) const override;
 
-  std::string
-  getCompilerRT(const llvm::opt::ArgList &Args, StringRef Component,
-                FileType Type = ToolChain::FT_Static) const override;
+  std::string getCompilerRT(const llvm::opt::ArgList &Args, StringRef Component,
+                            FileType Type = ToolChain::FT_Static,
+                            bool IsFortran = false) const override;
 
   const char *getDefaultLinker() const override {
     return "ld.lld";

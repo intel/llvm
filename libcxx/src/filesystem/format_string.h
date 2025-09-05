@@ -25,19 +25,11 @@
 #  define PATH_CSTR_FMT "\"%s\""
 #endif
 
-// TODO: Check whether these functions actually need internal linkage, or if they can be made normal header functions
-_LIBCPP_DIAGNOSTIC_PUSH
-_LIBCPP_GCC_DIAGNOSTIC_IGNORED("-Wunused-function")
-_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-function")
-_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-template")
-
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
 namespace detail {
-namespace {
 
-_LIBCPP_ATTRIBUTE_FORMAT(__printf__, 1, 0)
-string vformat_string(const char* msg, va_list ap) {
+inline _LIBCPP_ATTRIBUTE_FORMAT(__printf__, 1, 0) string vformat_string(const char* msg, va_list ap) {
   array<char, 256> buf;
 
   va_list apcopy;
@@ -55,35 +47,31 @@ string vformat_string(const char* msg, va_list ap) {
     size_t size_with_null = static_cast<size_t>(ret) + 1;
     result.__resize_default_init(size_with_null - 1);
     ret = ::vsnprintf(&result[0], size_with_null, msg, ap);
-    _LIBCPP_ASSERT(static_cast<size_t>(ret) == (size_with_null - 1), "TODO");
+    _LIBCPP_ASSERT_INTERNAL(static_cast<size_t>(ret) == (size_with_null - 1), "TODO");
   }
   return result;
 }
 
-_LIBCPP_ATTRIBUTE_FORMAT(__printf__, 1, 2)
-string format_string(const char* msg, ...) {
+inline _LIBCPP_ATTRIBUTE_FORMAT(__printf__, 1, 2) string format_string(const char* msg, ...) {
   string ret;
   va_list ap;
   va_start(ap, msg);
-#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
+#if _LIBCPP_HAS_EXCEPTIONS
   try {
-#endif // _LIBCPP_HAS_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_EXCEPTIONS
     ret = detail::vformat_string(msg, ap);
-#ifndef _LIBCPP_HAS_NO_EXCEPTIONS
+#if _LIBCPP_HAS_EXCEPTIONS
   } catch (...) {
     va_end(ap);
     throw;
   }
-#endif // _LIBCPP_HAS_NO_EXCEPTIONS
+#endif // _LIBCPP_HAS_EXCEPTIONS
   va_end(ap);
   return ret;
 }
 
-} // end anonymous namespace
-} // end namespace detail
+} // namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
-
-_LIBCPP_DIAGNOSTIC_POP
 
 #endif // FILESYSTEM_FORMAT_STRING_H

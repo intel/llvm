@@ -47,7 +47,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -184,9 +183,6 @@ namespace {
     /// base address.
     DenseMap<int, int> JumpTableUserIndices;
 
-    // Maps a MachineBasicBlock to the number of jump tables entries.
-    DenseMap<const MachineBasicBlock *, int> BlockJumpTableRefCount;
-
     /// ImmBranch - One per immediate branch, keeping the machine instruction
     /// pointer, conditional or unconditional, the max displacement,
     /// and (if isCond is true) the corresponding unconditional branch
@@ -194,7 +190,8 @@ namespace {
     struct ImmBranch {
       MachineInstr *MI;
       unsigned MaxDisp : 31;
-      bool isCond : 1;
+      LLVM_PREFERRED_TYPE(bool)
+      unsigned isCond : 1;
       unsigned UncondBr;
 
       ImmBranch(MachineInstr *mi, unsigned maxdisp, bool cond, unsigned ubr)
@@ -229,13 +226,12 @@ namespace {
     bool runOnMachineFunction(MachineFunction &MF) override;
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<MachineDominatorTree>();
+      AU.addRequired<MachineDominatorTreeWrapperPass>();
       MachineFunctionPass::getAnalysisUsage(AU);
     }
 
     MachineFunctionProperties getRequiredProperties() const override {
-      return MachineFunctionProperties().set(
-          MachineFunctionProperties::Property::NoVRegs);
+      return MachineFunctionProperties().setNoVRegs();
     }
 
     StringRef getPassName() const override {
@@ -343,9 +339,9 @@ LLVM_DUMP_METHOD void ARMConstantIslands::dumpBBs() {
 
 // Align blocks where the previous block does not fall through. This may add
 // extra NOP's but they will not be executed. It uses the PrefLoopAlignment as a
-// measure of how much to align, and only runs at CodeGenOpt::Aggressive.
+// measure of how much to align, and only runs at CodeGenOptLevel::Aggressive.
 static bool AlignBlocks(MachineFunction *MF, const ARMSubtarget *STI) {
-  if (MF->getTarget().getOptLevel() != CodeGenOpt::Aggressive ||
+  if (MF->getTarget().getOptLevel() != CodeGenOptLevel::Aggressive ||
       MF->getFunction().hasOptSize())
     return false;
 
@@ -388,7 +384,7 @@ static bool AlignBlocks(MachineFunction *MF, const ARMSubtarget *STI) {
 bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   MF = &mf;
   MCP = mf.getConstantPool();
-  BBUtils = std::unique_ptr<ARMBasicBlockUtils>(new ARMBasicBlockUtils(mf));
+  BBUtils = std::make_unique<ARMBasicBlockUtils>(mf);
 
   LLVM_DEBUG(dbgs() << "***** ARMConstantIslands: "
                     << MCP->getConstants().size() << " CP entries, aligned to "
@@ -399,7 +395,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   isPositionIndependentOrROPI =
       STI->getTargetLowering()->isPositionIndependent() || STI->isROPI();
   AFI = MF->getInfo<ARMFunctionInfo>();
-  DT = &getAnalysis<MachineDominatorTree>();
+  DT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
 
   isThumb = AFI->isThumbFunction();
   isThumb1 = AFI->isThumb1OnlyFunction();
@@ -414,6 +410,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   // Renumber all of the machine basic blocks in the function, guaranteeing that
   // the numbers agree with the position of the block in the function.
   MF->RenumberBlocks();
+  DT->updateBlockNumbers();
 
   // Try to reorder and otherwise adjust the block layout to make good use
   // of the TB[BH] instructions.
@@ -425,6 +422,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
     T2JumpTables.clear();
     // Blocks may have shifted around. Keep the numbering up to date.
     MF->RenumberBlocks();
+    DT->updateBlockNumbers();
   }
 
   // Align any non-fallthrough blocks
@@ -478,8 +476,10 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
 
     LLVM_DEBUG(dbgs() << "Beginning BR iteration #" << NoBRIters << '\n');
     bool BRChange = false;
-    for (unsigned i = 0, e = ImmBranches.size(); i != e; ++i)
+    for (unsigned i = 0, e = ImmBranches.size(); i != e; ++i) {
+      // Note: fixupImmediateBr can append to ImmBranches.
       BRChange |= fixupImmediateBr(ImmBranches[i]);
+    }
     if (BRChange && ++NoBRIters > 30)
       report_fatal_error("Branch Fix Up pass failed to converge!");
     LLVM_DEBUG(dumpBBs());
@@ -521,7 +521,6 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   CPEntries.clear();
   JumpTableEntryIndices.clear();
   JumpTableUserIndices.clear();
-  BlockJumpTableRefCount.clear();
   ImmBranches.clear();
   PushPopMIs.clear();
   T2JumpTables.clear();
@@ -605,6 +604,10 @@ void ARMConstantIslands::doInitialJumpTablePlacement(
   auto MJTI = MF->getJumpTableInfo();
   const std::vector<MachineJumpTableEntry> &JT = MJTI->getJumpTables();
 
+  // Only inline jump tables are placed in the function.
+  if (MJTI->getEntryKind() != MachineJumpTableInfo::EK_Inline)
+    return;
+
   MachineBasicBlock *LastCorrectlyNumberedBB = nullptr;
   for (MachineBasicBlock &MBB : *MF) {
     auto MI = MBB.getLastNonDebugInstr();
@@ -666,8 +669,10 @@ void ARMConstantIslands::doInitialJumpTablePlacement(
   }
 
   // If we did anything then we need to renumber the subsequent blocks.
-  if (LastCorrectlyNumberedBB)
+  if (LastCorrectlyNumberedBB) {
     MF->RenumberBlocks(LastCorrectlyNumberedBB);
+    DT->updateBlockNumbers();
+  }
 }
 
 /// BBHasFallthrough - Return true if the specified basic block can fallthrough
@@ -728,14 +733,6 @@ Align ARMConstantIslands::getCPEAlign(const MachineInstr *CPEMI) {
   return MCP->getConstants()[CPI].getAlign();
 }
 
-// Exception landing pads, blocks that has their adress taken, and function
-// entry blocks will always be (potential) indirect jump targets, regardless of
-// whether they are referenced by or not by jump tables.
-static bool isAlwaysIndirectTarget(const MachineBasicBlock &MBB) {
-  return MBB.isEHPad() || MBB.hasAddressTaken() ||
-         &MBB == &MBB.getParent()->front();
-}
-
 /// scanFunctionJumpTables - Do a scan of the function, building up
 /// information about the sizes of each block and the locations of all
 /// the jump tables.
@@ -746,20 +743,6 @@ void ARMConstantIslands::scanFunctionJumpTables() {
           (I.getOpcode() == ARM::t2BR_JT || I.getOpcode() == ARM::tBR_JTr))
         T2JumpTables.push_back(&I);
   }
-
-  if (!MF->getInfo<ARMFunctionInfo>()->branchTargetEnforcement())
-    return;
-
-  if (const MachineJumpTableInfo *JTI = MF->getJumpTableInfo())
-    for (const MachineJumpTableEntry &JTE : JTI->getJumpTables())
-      for (const MachineBasicBlock *MBB : JTE.MBBs) {
-        if (isAlwaysIndirectTarget(*MBB))
-          // Set the reference count essentially to infinity, it will never
-          // reach zero and the BTI Instruction will never be removed.
-          BlockJumpTableRefCount[MBB] = std::numeric_limits<int>::max();
-        else
-          ++BlockJumpTableRefCount[MBB];
-      }
 }
 
 /// initializeFunctionInfo - Do the initial scan of the function, building up
@@ -776,6 +759,11 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
 
   // Compute block offsets and known bits.
   BBUtils->adjustBBOffsetsAfter(&MF->front());
+
+  // We only care about jump table instructions when jump tables are inline.
+  MachineJumpTableInfo *MJTI = MF->getJumpTableInfo();
+  bool InlineJumpTables =
+      MJTI && MJTI->getEntryKind() == MachineJumpTableInfo::EK_Inline;
 
   // Now go back through the instructions and build up our data structures.
   for (MachineBasicBlock &MBB : *MF) {
@@ -799,7 +787,8 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
           continue;  // Ignore other JT branches
         case ARM::t2BR_JT:
         case ARM::tBR_JTr:
-          T2JumpTables.push_back(&I);
+          if (InlineJumpTables)
+            T2JumpTables.push_back(&I);
           continue;   // Does not get an entry in ImmBranches
         case ARM::Bcc:
           isCond = true;
@@ -846,7 +835,8 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
 
       // Scan the instructions for constant pool operands.
       for (unsigned op = 0, e = I.getNumOperands(); op != e; ++op)
-        if (I.getOperand(op).isCPI() || I.getOperand(op).isJTI()) {
+        if (I.getOperand(op).isCPI() ||
+            (I.getOperand(op).isJTI() && InlineJumpTables)) {
           // We found one.  The addressing mode tells us the max displacement
           // from the PC that this instruction permits.
 
@@ -961,6 +951,7 @@ static bool CompareMBBNumbers(const MachineBasicBlock *LHS,
 void ARMConstantIslands::updateForInsertedWaterBlock(MachineBasicBlock *NewBB) {
   // Renumber the MBB's to keep them consecutive.
   NewBB->getParent()->RenumberBlocks(NewBB);
+  DT->updateBlockNumbers();
 
   // Insert an entry into BBInfo to align it properly with the (newly
   // renumbered) block numbers.
@@ -1023,6 +1014,7 @@ MachineBasicBlock *ARMConstantIslands::splitBlockBeforeInstr(MachineInstr *MI) {
   // This is almost the same as updateForInsertedWaterBlock, except that
   // the Water goes after OrigBB, not NewBB.
   MF->RenumberBlocks(NewBB);
+  DT->updateBlockNumbers();
 
   // Insert an entry into BBInfo to align it properly with the (newly
   // renumbered) block numbers.
@@ -1926,7 +1918,7 @@ bool ARMConstantIslands::optimizeThumb2Branches() {
 
     // If the conditional branch doesn't kill CPSR, then CPSR can be liveout
     // so this transformation is not safe.
-    if (!Br.MI->killsRegister(ARM::CPSR))
+    if (!Br.MI->killsRegister(ARM::CPSR, /*TRI=*/nullptr))
       return false;
 
     Register PredReg;
@@ -2222,8 +2214,7 @@ bool ARMConstantIslands::optimizeThumb2JumpTables() {
   if (!MJTI) return false;
 
   const std::vector<MachineJumpTableEntry> &JT = MJTI->getJumpTables();
-  for (unsigned i = 0, e = T2JumpTables.size(); i != e; ++i) {
-    MachineInstr *MI = T2JumpTables[i];
+  for (MachineInstr *MI : T2JumpTables) {
     const MCInstrDesc &MCID = MI->getDesc();
     unsigned NumOps = MCID.getNumOperands();
     unsigned JTOpIdx = NumOps - (MI->isPredicable() ? 2 : 1);
@@ -2418,8 +2409,7 @@ bool ARMConstantIslands::reorderThumb2JumpTables() {
   if (!MJTI) return false;
 
   const std::vector<MachineJumpTableEntry> &JT = MJTI->getJumpTables();
-  for (unsigned i = 0, e = T2JumpTables.size(); i != e; ++i) {
-    MachineInstr *MI = T2JumpTables[i];
+  for (MachineInstr *MI : T2JumpTables) {
     const MCInstrDesc &MCID = MI->getDesc();
     unsigned NumOps = MCID.getNumOperands();
     unsigned JTOpIdx = NumOps - (MI->isPredicable() ? 2 : 1);
@@ -2476,6 +2466,7 @@ MachineBasicBlock *ARMConstantIslands::adjustJTTargetBlockForward(
     BB->updateTerminator(OldNext != MF->end() ? &*OldNext : nullptr);
     // Update numbering to account for the block being moved.
     MF->RenumberBlocks();
+    DT->updateBlockNumbers();
     ++NumJTMoved;
     return nullptr;
   }
@@ -2504,6 +2495,7 @@ MachineBasicBlock *ARMConstantIslands::adjustJTTargetBlockForward(
 
   // Update internal data structures to account for the newly inserted MBB.
   MF->RenumberBlocks(NewBB);
+  DT->updateBlockNumbers();
 
   // Update the CFG.
   NewBB->addSuccessor(BB);

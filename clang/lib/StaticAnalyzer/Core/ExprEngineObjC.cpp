@@ -45,7 +45,7 @@ void ExprEngine::VisitObjCAtSynchronizedStmt(const ObjCAtSynchronizedStmt *S,
 /// for-loop iterator.
 static void populateObjCForDestinationSet(
     ExplodedNodeSet &dstLocation, SValBuilder &svalBuilder,
-    const ObjCForCollectionStmt *S, const Stmt *elem, SVal elementV,
+    const ObjCForCollectionStmt *S, ConstCFGElementRef elem, SVal elementV,
     SymbolManager &SymMgr, const NodeBuilderContext *currBldrCtx,
     StmtNodeBuilder &Bldr, bool hasElements) {
 
@@ -66,8 +66,8 @@ static void populateObjCForDestinationSet(
 
         SVal V;
         if (hasElements) {
-          SymbolRef Sym = SymMgr.conjureSymbol(elem, LCtx, T,
-                                               currBldrCtx->blockCount());
+          SymbolRef Sym =
+              SymMgr.conjureSymbol(elem, LCtx, T, currBldrCtx->blockCount());
           V = svalBuilder.makeLoc(Sym);
         } else {
           V = svalBuilder.makeIntVal(0, T);
@@ -110,6 +110,7 @@ void ExprEngine::VisitObjCForCollectionStmt(const ObjCForCollectionStmt *S,
 
   const Stmt *elem = S->getElement();
   const Stmt *collection = S->getCollection();
+  const ConstCFGElementRef &elemRef = getCFGElementRef();
   ProgramStateRef state = Pred->getState();
   SVal collectionV = state->getSVal(collection, Pred->getLocationContext());
 
@@ -124,24 +125,27 @@ void ExprEngine::VisitObjCForCollectionStmt(const ObjCForCollectionStmt *S,
 
   bool isContainerNull = state->isNull(collectionV).isConstrainedTrue();
 
-  ExplodedNodeSet dstLocation;
-  evalLocation(dstLocation, S, elem, Pred, state, elementV, false);
+  ExplodedNodeSet DstLocation; // states in `DstLocation` may differ from `Pred`
+  evalLocation(DstLocation, S, elem, Pred, state, elementV, false);
 
-  ExplodedNodeSet Tmp;
-  StmtNodeBuilder Bldr(Pred, Tmp, *currBldrCtx);
+  for (ExplodedNode *dstLocation : DstLocation) {
+    ExplodedNodeSet DstLocationSingleton{dstLocation}, Tmp;
+    StmtNodeBuilder Bldr(dstLocation, Tmp, *currBldrCtx);
 
-  if (!isContainerNull)
-    populateObjCForDestinationSet(dstLocation, svalBuilder, S, elem, elementV,
-                                  SymMgr, currBldrCtx, Bldr,
-                                  /*hasElements=*/true);
+    if (!isContainerNull)
+      populateObjCForDestinationSet(DstLocationSingleton, svalBuilder, S,
+                                    elemRef, elementV, SymMgr, currBldrCtx,
+                                    Bldr,
+                                    /*hasElements=*/true);
 
-  populateObjCForDestinationSet(dstLocation, svalBuilder, S, elem, elementV,
-                                SymMgr, currBldrCtx, Bldr,
-                                /*hasElements=*/false);
+    populateObjCForDestinationSet(DstLocationSingleton, svalBuilder, S, elemRef,
+                                  elementV, SymMgr, currBldrCtx, Bldr,
+                                  /*hasElements=*/false);
 
-  // Finally, run any custom checkers.
-  // FIXME: Eventually all pre- and post-checks should live in VisitStmt.
-  getCheckerManager().runCheckersForPostStmt(Dst, Tmp, S, *this);
+    // Finally, run any custom checkers.
+    // FIXME: Eventually all pre- and post-checks should live in VisitStmt.
+    getCheckerManager().runCheckersForPostStmt(Dst, Tmp, S, *this);
+  }
 }
 
 void ExprEngine::VisitObjCMessage(const ObjCMessageExpr *ME,
@@ -167,19 +171,32 @@ void ExprEngine::VisitObjCMessage(const ObjCMessageExpr *ME,
   // intentionally drops coverage in order to prevent false alarms
   // in the following scenario:
   //
-  // id result = [o someMethod]
-  // if (result) {
-  //   if (!o) {
-  //     // <-- This program point should be unreachable because if o is nil
-  //     // it must the case that result is nil as well.
+  //   id result = [o someMethod]
+  //   if (result) {
+  //     if (!o) {
+  //       // <-- This program point should be unreachable because if o is nil
+  //       // it must the case that result is nil as well.
+  //     }
   //   }
-  // }
   //
-  // We could avoid dropping coverage by performing an explicit case split
-  // on each method call -- but this would get very expensive. An alternative
-  // would be to introduce lazy constraints.
-  // FIXME: This ignores many potential bugs (<rdar://problem/11733396>).
-  // Revisit once we have lazier constraints.
+  // However, it also loses coverage of the nil path prematurely,
+  // leading to missed reports.
+  //
+  // It's possible to handle this by performing a state split on every call:
+  // explore the state where the receiver is non-nil, and independently
+  // explore the state where it's nil. But this is not only slow, but
+  // completely unwarranted. The mere presence of the message syntax in the code
+  // isn't sufficient evidence that nil is a realistic possibility.
+  //
+  // An ideal solution would be to add the following constraint that captures
+  // both possibilities without splitting the state:
+  //
+  //   ($x == 0) => ($y == 0)                                                (1)
+  //
+  // where in our case '$x' is the receiver symbol, '$y' is the returned symbol,
+  // and '=>' is logical implication. But RangeConstraintManager can't handle
+  // such constraints yet, so for now we go with a simpler, more restrictive
+  // constraint: $x != 0, from which (1) follows as a vacuous truth.
   if (Msg->isInstanceMessage()) {
     SVal recVal = Msg->getReceiverSVal();
     if (!recVal.isUndef()) {

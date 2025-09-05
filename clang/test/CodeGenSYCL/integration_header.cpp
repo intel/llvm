@@ -12,7 +12,7 @@
 // CHECK-NEXT: template <int DimX> struct namespaced_arg;
 // CHECK-NEXT: }
 // CHECK-NEXT: template <typename ...Ts> class fourth_kernel;
-// CHECK: class FinalClass;
+// CHECK: class FinalClass final;
 //
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
@@ -22,7 +22,10 @@
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
 // CHECK-NEXT:   "_ZTSZ4mainE15annotated_types"
 // CHECK-NEXT:   "_ZTS10FinalClass"
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
+//
+// CHECK: static constexpr unsigned kernel_args_sizes[] = {
 //
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {

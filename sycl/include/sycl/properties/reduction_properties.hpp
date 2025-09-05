@@ -12,10 +12,12 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace property::reduction {
-class initialize_to_identity
-    : public detail::DataLessProperty<detail::InitializeToIdentity> {};
-} // namespace property::reduction
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  namespace NS_QUALIFIER {                                                     \
+  class PROP_NAME                                                              \
+      : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
+  }
+#include <sycl/properties/reduction_properties.def>
 
 // Reduction property trait specializations
 } // namespace _V1

@@ -6,6 +6,7 @@ import math
 import numbers
 import os
 import platform
+import re
 import signal
 import subprocess
 import sys
@@ -127,6 +128,23 @@ def usable_core_count():
 
     return n
 
+def abs_path_preserve_drive(path):
+    """Return the absolute path without resolving drive mappings on Windows.
+
+    """
+    if platform.system() == "Windows":
+        # Windows has limitations on path length (MAX_PATH) that
+        # can be worked around using substitute drives, which map
+        # a drive letter to a longer path on another drive.
+        # Since Python 3.8, os.path.realpath resolves sustitute drives,
+        # so we should not use it. In Python 3.7, os.path.realpath
+        # was implemented as os.path.abspath.
+        return os.path.abspath(path)
+    else:
+        # On UNIX, the current directory always has symbolic links resolved,
+        # so any program accepting relative paths cannot preserve symbolic
+        # links in paths and we should always use os.path.realpath.
+        return os.path.realpath(path)
 
 def mkdir(path):
     try:
@@ -164,7 +182,7 @@ def mkdir_p(path):
     mkdir(path)
 
 
-def listdir_files(dirname, suffixes=None, exclude_filenames=None):
+def listdir_files(dirname, suffixes=None, exclude_filenames=None, prefixes=None):
     """Yields files in a directory.
 
     Filenames that are not excluded by rules below are yielded one at a time, as
@@ -196,12 +214,15 @@ def listdir_files(dirname, suffixes=None, exclude_filenames=None):
         exclude_filenames = set()
     if suffixes is None:
         suffixes = {""}
+    if prefixes is None:
+        prefixes = {""}
     for filename in os.listdir(dirname):
         if (
             os.path.isdir(os.path.join(dirname, filename))
             or filename.startswith(".")
             or filename in exclude_filenames
             or not any(filename.endswith(sfx) for sfx in suffixes)
+            or not any(filename.startswith(pfx) for pfx in prefixes)
         ):
             continue
         yield filename
@@ -390,7 +411,7 @@ def executeCommand(
         out, err = p.communicate(input=input)
         exitCode = p.wait()
     finally:
-        if timerObject != None:
+        if timerObject is not None:
             timerObject.cancel()
 
     # Ensure the resulting output is always of string type.
@@ -410,6 +431,22 @@ def executeCommand(
         raise KeyboardInterrupt
 
     return out, err, exitCode
+
+
+def isAIXTriple(target_triple):
+    """Whether the given target triple is for AIX,
+    e.g. powerpc64-ibm-aix
+    """
+    return "aix" in target_triple
+
+
+def addAIXVersion(target_triple):
+    """Add the AIX version to the given target triple,
+    e.g. powerpc64-ibm-aix7.2.5.6
+    """
+    os_cmd = "oslevel -s | awk -F\'-\' \'{printf \"%.1f.%d.%d\", $1/1000, $2, $3}\'"
+    os_version = subprocess.run(os_cmd, capture_output=True, shell=True).stdout.decode()
+    return re.sub("aix", "aix" + os_version, target_triple)
 
 
 def isMacOSTriple(target_triple):
@@ -468,7 +505,7 @@ def killProcessAndChildrenIsSupported():
         otherwise is contains a string describing why the function is
         not supported.
     """
-    if platform.system() == "AIX":
+    if platform.system() == "AIX" or platform.system() == "OS/390":
         return (True, "")
     try:
         import psutil  # noqa: F401
@@ -494,6 +531,9 @@ def killProcessAndChildren(pid):
     """
     if platform.system() == "AIX":
         subprocess.call("kill -kill $(ps -o pid= -L{})".format(pid), shell=True)
+    elif platform.system() == "OS/390":
+        # FIXME: Only the process is killed.
+        subprocess.call("kill -KILL $(ps -s {} -o pid=)".format(pid), shell=True)
     else:
         import psutil
 

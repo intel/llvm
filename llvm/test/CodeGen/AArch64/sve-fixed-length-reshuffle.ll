@@ -10,8 +10,8 @@ define <4 x i1> @reshuffle_v4i1_nxv4i1(<vscale x 4 x i1> %a) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    mov z1.s, p0/z, #1 // =0x1
 ; CHECK-NEXT:    mov w8, v1.s[1]
-; CHECK-NEXT:    mov w9, v1.s[2]
 ; CHECK-NEXT:    mov v0.16b, v1.16b
+; CHECK-NEXT:    mov w9, v1.s[2]
 ; CHECK-NEXT:    mov v0.h[1], w8
 ; CHECK-NEXT:    mov w8, v1.s[3]
 ; CHECK-NEXT:    mov v0.h[2], w9
@@ -22,7 +22,7 @@ define <4 x i1> @reshuffle_v4i1_nxv4i1(<vscale x 4 x i1> %a) #0 {
   %el1 = extractelement <vscale x 4 x i1> %a, i32 1
   %el2 = extractelement <vscale x 4 x i1> %a, i32 2
   %el3 = extractelement <vscale x 4 x i1> %a, i32 3
-  %v0 = insertelement <4 x i1> undef, i1 %el0, i32 0
+  %v0 = insertelement <4 x i1> poison, i1 %el0, i32 0
   %v1 = insertelement <4 x i1> %v0, i1 %el1, i32 1
   %v2 = insertelement <4 x i1> %v1, i1 %el2, i32 2
   %v3 = insertelement <4 x i1> %v2, i1 %el3, i32 3

@@ -84,11 +84,17 @@ void disableUnsupportedOptions(CompilerInvocation &CI) {
   // These options mostly affect codegen, and aren't relevant to clangd. And
   // clang will die immediately when these files are not existed.
   // Disable these uninteresting options to make clangd more robust.
-  CI.getLangOpts()->NoSanitizeFiles.clear();
-  CI.getLangOpts()->XRayAttrListFiles.clear();
-  CI.getLangOpts()->ProfileListFiles.clear();
-  CI.getLangOpts()->XRayAlwaysInstrumentFiles.clear();
-  CI.getLangOpts()->XRayNeverInstrumentFiles.clear();
+  CI.getLangOpts().NoSanitizeFiles.clear();
+  CI.getLangOpts().XRayAttrListFiles.clear();
+  CI.getLangOpts().ProfileListFiles.clear();
+  CI.getLangOpts().XRayAlwaysInstrumentFiles.clear();
+  CI.getLangOpts().XRayNeverInstrumentFiles.clear();
+  if (CI.getLangOpts().SYCLIsDevice) {
+    CI.getLangOpts().SYCLIsDevice = false;
+    CI.getLangOpts().SYCLUnnamedLambda = false;
+    CI.getLangOpts().DeclareSPIRVBuiltins = false;
+    CI.getTargetOpts().Triple = CI.getTargetOpts().HostTriple;
+  }
 }
 
 std::unique_ptr<CompilerInvocation>
@@ -110,16 +116,17 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   CIOpts.VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   CIOpts.CC1Args = CC1Args;
   CIOpts.RecoverOnError = true;
+  DiagnosticOptions DiagOpts;
   CIOpts.Diags =
-      CompilerInstance::createDiagnostics(new DiagnosticOptions, &D, false);
+      CompilerInstance::createDiagnostics(*CIOpts.VFS, DiagOpts, &D, false);
   CIOpts.ProbePrecompiled = false;
   std::unique_ptr<CompilerInvocation> CI = createInvocation(ArgStrs, CIOpts);
   if (!CI)
     return nullptr;
   // createInvocationFromCommandLine sets DisableFree.
   CI->getFrontendOpts().DisableFree = false;
-  CI->getLangOpts()->CommentOpts.ParseAllComments = true;
-  CI->getLangOpts()->RetainCommentsFromSystemHeaders = true;
+  CI->getLangOpts().CommentOpts.ParseAllComments = true;
+  CI->getLangOpts().RetainCommentsFromSystemHeaders = true;
 
   disableUnsupportedOptions(*CI);
   return CI;
@@ -145,10 +152,8 @@ prepareCompilerInstance(std::unique_ptr<clang::CompilerInvocation> CI,
         CI->getFrontendOpts().Inputs[0].getFile(), Buffer.get());
   }
 
-  auto Clang = std::make_unique<CompilerInstance>(
-      std::make_shared<PCHContainerOperations>());
-  Clang->setInvocation(std::move(CI));
-  Clang->createDiagnostics(&DiagsClient, false);
+  auto Clang = std::make_unique<CompilerInstance>(std::move(CI));
+  Clang->createDiagnostics(*VFS, &DiagsClient, false);
 
   if (auto VFSWithRemapping = createVFSFromCompilerInvocation(
           Clang->getInvocation(), Clang->getDiagnostics(), VFS))

@@ -65,19 +65,6 @@
 // (1) - materialization of a PFWI object
 // (2) - "fixup" of the private variable address.
 //
-// TODO: add support for the case when there are other functions between
-// parallel_for_work_group and parallel_for_work_item in the call stack.
-// For example:
-//
-// void foo(sycl::group<1> group, ...) {
-//   group.parallel_for_work_item(range<1>(), [&](h_item<1> i) { ... });
-// }
-// ...
-//   cgh.parallel_for_work_group<class kernel>(
-//     range<1>(...), range<1>(...), [=](group<1> g) {
-//       foo(g, ...);
-//     });
-//
 // TODO The approach employed by this pass generates lots of barriers and data
 // copying between private and local memory, which might not be efficient. There
 // are optimization opportunities listed below. Also other approaches can be
@@ -97,6 +84,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 
 #ifndef NDEBUG
@@ -156,7 +144,9 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(Ctx));
+  const DataLayout &DL = M.getDataLayout();
+  auto PtrSize = DL.getPointerTypeSize(
+      PointerType::get(Ctx, DL.getDefaultGlobalsAddressSpace()));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
@@ -174,7 +164,7 @@ enum class AddrSpace : unsigned {
   Output = 6
 };
 
-enum class Scope : unsigned {
+enum class Scope : int {
   CrossDevice = 0,
   Device = 1,
   Workgroup = 2,
@@ -182,7 +172,7 @@ enum class Scope : unsigned {
   Invocation = 4,
 };
 
-enum class MemorySemantics : unsigned {
+enum class MemorySemantics : int {
   None = 0x0,
   Acquire = 0x2,
   Release = 0x4,
@@ -208,9 +198,34 @@ static bool isCallToAFuncMarkedWithMD(const Instruction *I, const char *MD) {
   return F && F->getMetadata(MD);
 }
 
-// Checks is this is a call to parallel_for_work_item.
+// Recursively searches for a call to a function with work_group
+// metadata inside F.
+static bool hasCallToAFuncWithWGMetadata(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB) {
+      if (isCallToAFuncMarkedWithMD(&I, WG_SCOPE_MD))
+        return true;
+      const CallInst *Call = dyn_cast<CallInst>(&I);
+      Function *F = dyn_cast_or_null<Function>(Call ? Call->getCalledFunction()
+                                                    : nullptr);
+      if (F && hasCallToAFuncWithWGMetadata(*F))
+        return true;
+    }
+  return false;
+}
+
+// Checks if this is a call to parallel_for_work_item.
 static bool isPFWICall(const Instruction *I) {
   return isCallToAFuncMarkedWithMD(I, PFWI_MD);
+}
+
+// Checks if F has any calls to function marked with PFWI_MD metadata.
+static bool hasPFWICall(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB)
+      if (isPFWICall(&I))
+        return true;
+  return false;
 }
 
 // Checks if given instruction must be executed by all work items.
@@ -405,9 +420,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
   assert(T && "Unexpected type");
 
   if (T->isAggregateType()) {
-    // TODO: we should use methods which directly return MaybeAlign once such
-    // are added to LLVM for AllocaInst and GlobalVariable
-    auto ShdAlign = MaybeAlign(Shadow->getAlignment());
+    auto ShdAlign = Shadow->getAlign();
     Module &M = *Shadow->getParent();
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);
@@ -424,6 +437,17 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
     Value *LocalVal = Builder.CreateLoad(T, Src, "mat_ld");
     Builder.CreateStore(LocalVal, Dst);
   }
+}
+
+// Skip allocas, addrspacecasts associated with allocas and debug insts.
+static Instruction *getFirstInstToProcess(BasicBlock *BB) {
+  Instruction *I = &BB->front();
+  for (;
+       I->getOpcode() == Instruction::Alloca ||
+       I->getOpcode() == Instruction::AddrSpaceCast || I->isDebugOrPseudoInst();
+       I = I->getNextNode()) {
+  }
+  return I;
 }
 
 // Performs the following transformation for each basic block in the input map:
@@ -463,7 +487,11 @@ static void materializeLocalsInWIScopeBlocksImpl(
   for (auto &P : BB2MatLocals) {
     // generate LeaderBB and private<->shadow copies in proper BBs
     BasicBlock *LeaderBB = P.first;
-    BasicBlock *BB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "LeaderMat");
+    // Skip allocas, addrspacecasts associated with allocas and debug insts.
+    // Alloca instructions and it's associated instructions must be in the
+    // beginning of the function.
+    Instruction *LeaderBBFront = getFirstInstToProcess(LeaderBB);
+    BasicBlock *BB = LeaderBB->splitBasicBlock(LeaderBBFront, "LeaderMat");
     // Add a barrier to the original block:
     Instruction *At =
         spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
@@ -477,7 +505,8 @@ static void materializeLocalsInWIScopeBlocksImpl(
       // fill the leader BB:
       // fetch data from leader's private copy (which is always up to date) into
       // the corresponding shadow variable
-      Builder.SetInsertPoint(&LeaderBB->front());
+      LeaderBBFront = getFirstInstToProcess(LeaderBB);
+      Builder.SetInsertPoint(LeaderBBFront);
       copyBetweenPrivateAndShadow(L, Shadow, Builder, true /*private->shadow*/);
       // store data to the local variable - effectively "refresh" the value of
       // the local in each work item in the work group
@@ -486,8 +515,8 @@ static void materializeLocalsInWIScopeBlocksImpl(
                                   false /*shadow->private*/);
     }
     // now generate the TestBB and the leader WI guard
-    BasicBlock *TestBB =
-        LeaderBB->splitBasicBlock(&LeaderBB->front(), "TestMat");
+    LeaderBBFront = getFirstInstToProcess(LeaderBB);
+    BasicBlock *TestBB = LeaderBB->splitBasicBlock(LeaderBBFront, "TestMat");
     std::swap(TestBB, LeaderBB);
     guardBlockWithIsLeaderCheck(TestBB, LeaderBB, BB, At->getDebugLoc(), TT);
   }
@@ -753,6 +782,10 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
     return PreservedAnalyses::all();
+  // If a function does not have any PFWI calls and it has calls to a function
+  // that has work_group metadata, then we do not need to lower such functions.
+  if (!hasPFWICall(F) && hasCallToAFuncWithWGMetadata(F))
+    return PreservedAnalyses::all();
   LLVM_DEBUG(llvm::dbgs() << "Function name: " << F.getName() << "\n");
   const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
   // Ranges of "side effect" instructions
@@ -900,31 +933,32 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN()) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || TT.isNativeCPU()) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 
     IRBuilder<> Bld(Ctx);
     Bld.SetInsertPoint(&Before);
 
-#define CREATE_CALLEE(NAME, FN_NAME)                                           \
-  FunctionCallee FnCallee##NAME = M.getOrInsertFunction(FN_NAME, RetTy);       \
-  assert(FnCallee##NAME && "spirv intrinsic creation failed");                 \
-  auto NAME = Bld.CreateCall(FnCallee##NAME, {});
+    auto CreateCallee = [&](StringRef Name, int Dim) {
+      auto *ArgTy = Type::getInt32Ty(Ctx);
+      FunctionCallee Callee = M.getOrInsertFunction(Name, RetTy, ArgTy);
+      assert(Callee.getCallee() && "spirv intrinsic creation failed");
+      return Bld.CreateCall(Callee, {ConstantInt::get(ArgTy, Dim)});
+    };
 
-    CREATE_CALLEE(LocalInvocationId_X, "_Z27__spirv_LocalInvocationId_xv");
-    CREATE_CALLEE(LocalInvocationId_Y, "_Z27__spirv_LocalInvocationId_yv");
-    CREATE_CALLEE(LocalInvocationId_Z, "_Z27__spirv_LocalInvocationId_zv");
-
-#undef CREATE_CALLEE
+    StringRef LocalInvocationIdName = "_Z32__spirv_BuiltInLocalInvocationIdi";
+    Value *LocalInvocationIdX = CreateCallee(LocalInvocationIdName, 0);
+    Value *LocalInvocationIdY = CreateCallee(LocalInvocationIdName, 1);
+    Value *LocalInvocationIdZ = CreateCallee(LocalInvocationIdName, 2);
 
     // 1: returns
-    //   __spirv_LocalInvocationId_x() |
-    //   __spirv_LocalInvocationId_y() |
-    //   __spirv_LocalInvocationId_z()
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId() |
+    //   __spirv_BuiltInLocalInvocationId()
     //
-    return Bld.CreateOr(LocalInvocationId_X,
-                        Bld.CreateOr(LocalInvocationId_Y, LocalInvocationId_Z));
+    return Bld.CreateOr(LocalInvocationIdX,
+                        Bld.CreateOr(LocalInvocationIdY, LocalInvocationIdZ));
   } else {
     // extern "C" const __constant size_t __spirv_BuiltInLocalInvocationIndex;
     // Must correspond to the code in
@@ -950,7 +984,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
       Align Alignment = M.getDataLayout().getPreferredAlign(G);
       G->setAlignment(MaybeAlign(Alignment));
     }
-    Value *Res = new LoadInst(G->getValueType(), G, "", &Before);
+    Value *Res = new LoadInst(G->getValueType(), G, "", Before.getIterator());
     return Res;
   }
 }
@@ -959,7 +993,7 @@ Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
 //  uint32_t Semantics) noexcept;
 Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  StringRef Name = "_Z22__spirv_ControlBarrierjjj";
+  StringRef Name = "_Z22__spirv_ControlBarrieriii";
   LLVMContext &Ctx = Before.getContext();
   Type *ScopeTy = Type::getInt32Ty(Ctx);
   Type *SemanticsTy = Type::getInt32Ty(Ctx);
@@ -970,15 +1004,22 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   FunctionCallee FC =
       M.getOrInsertFunction(Name, Attr, RetTy, ScopeTy, ScopeTy, SemanticsTy);
   assert(FC.getCallee() && "spirv intrinsic creation failed");
+  if (TT.isSPIROrSPIRV())
+    cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
 
   IRBuilder<> Bld(Ctx);
   Bld.SetInsertPoint(&Before);
-  auto ArgExec = ConstantInt::get(ScopeTy, asUInt(spirv::Scope::Workgroup));
-  auto ArgMem = ConstantInt::get(ScopeTy, asUInt(spirv::Scope::Workgroup));
-  auto ArgSema = ConstantInt::get(
-      ScopeTy, asUInt(spirv::MemorySemantics::SequentiallyConsistent) |
-                   asUInt(spirv::MemorySemantics::WorkgroupMemory));
+  auto ArgExec = ConstantInt::getSigned(
+      ScopeTy, static_cast<int>(spirv::Scope::Workgroup));
+  auto ArgMem = ConstantInt::getSigned(
+      ScopeTy, static_cast<int>(spirv::Scope::Workgroup));
+  auto ArgSema = ConstantInt::getSigned(
+      ScopeTy,
+      static_cast<int>(spirv::MemorySemantics::SequentiallyConsistent) |
+          static_cast<int>(spirv::MemorySemantics::WorkgroupMemory));
   auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
   BarrierCall->addFnAttr(llvm::Attribute::Convergent);
+  if (TT.isSPIROrSPIRV())
+    BarrierCall->setCallingConv(CallingConv::SPIR_FUNC);
   return BarrierCall;
 }

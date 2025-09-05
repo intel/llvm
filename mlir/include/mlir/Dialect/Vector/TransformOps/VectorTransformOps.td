@@ -10,10 +10,33 @@
 #define VECTOR_TRANSFORM_OPS
 
 include "mlir/Dialect/Transform/IR/TransformDialect.td"
-include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
+include "mlir/Dialect/Transform/Interfaces/TransformInterfaces.td"
 include "mlir/Dialect/Vector/Transforms/VectorTransformsBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
+
+def ApplyVectorToLLVMConversionPatternsOp : Op<Transform_Dialect,
+    "apply_conversion_patterns.vector.vector_to_llvm",
+    [DeclareOpInterfaceMethods<ConversionPatternDescriptorOpInterface,
+                               ["verifyTypeConverter"]>]> {
+  let description = [{
+    Collects patterns that convert vector dialect ops to LLVM dialect ops. These
+    patterns require an "LLVMTypeConverter".
+
+    The patterns can be customized as follows:
+    - `reassociate_fp_reductions`: Allows LLVM to reassociate floating-point
+      reductions for speed.
+    - `force_32bit_vector_indices`: Allows the compiler to assume that vector
+      indices fit in 32-bit if that yields faster code.
+  }];
+
+  let arguments = (ins
+      DefaultValuedAttr<BoolAttr, "false">:$reassociate_fp_reductions,
+      DefaultValuedAttr<BoolAttr, "true">:$force_32bit_vector_indices,
+      DefaultValuedAttr<BoolAttr, "false">:$use_vector_alignment);
+  let assemblyFormat = "attr-dict";
+}
+
 
 def ApplyCastAwayVectorLeadingOneDimPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.cast_away_vector_leading_one_dim",
@@ -46,6 +69,22 @@ def ApplyRankReducingSubviewPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
+def ApplyDropUnitDimWithShapeCastPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.drop_unit_dims_with_shape_cast",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+     Apply vector patterns to fold unit dims with vector.shape_cast Ops:
+      - DropUnitDimFromElementwiseOps
+      - DropUnitDimsFromScfForOp
+      - DropUnitDimsFromTransposeOp
+
+    Excludes patterns for vector.transfer Ops. This is complemented by
+    shape_cast folding patterns.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
 def ApplyTransferPermutationPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.transfer_permutation_patterns",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -67,6 +106,20 @@ def ApplyTransferPermutationPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
+def ApplyLowerBitCastPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.lower_bitcast",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Indicates that vector bitcast operations should be lowered to
+    finer-grained vector primitives.
+
+    This is usally a late step that is run after bufferization as part of the
+    process of lowering to e.g. LLVM or NVVM.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
 def ApplyLowerBroadcastPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_broadcast",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -81,7 +134,6 @@ def ApplyLowerBroadcastPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
-// TODO: evolve lowering_strategy to proper enums.
 def ApplyLowerContractionPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_contraction",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -99,6 +151,17 @@ def ApplyLowerContractionPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = [{
     (`lowering_strategy` `=` $lowering_strategy^)? attr-dict
   }];
+}
+
+def ApplyLowerCreateMaskPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.lower_create_mask",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Indicates that vector create_mask-like operations should be lowered to
+    finer-grained vector primitives.
+  }];
+
+  let assemblyFormat = "attr-dict";
 }
 
 def ApplyLowerMasksPatternsOp : Op<Transform_Dialect,
@@ -119,8 +182,11 @@ def ApplyLowerMaskedTransfersPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_masked_transfers",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
   let description = [{
-    Indicates that masked vector.transfer and vector.gather operations should
-    be lowered to finer-grained vector primitives.
+    Apply opt-in patterns that lower vector.mask operations surrounding
+    side-effecting ops:
+      - MaskedTransferReadOpPattern
+      - MaskedTransferWriteOpPattern
+      - MaskedGatherOpPattern
 
     This is usually a late step that is run after bufferization as part of the
     process of lowering to e.g. LLVM or NVVM.
@@ -143,7 +209,6 @@ def ApplyMaterializeMasksPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
-// TODO: evolve lowering_strategy to proper enums.
 def ApplyLowerMultiReductionPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_multi_reduction",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -232,7 +297,6 @@ def ApplyLowerTransferPatternsOp : Op<Transform_Dialect,
   }];
 }
 
-// TODO: evolve lowering_strategy to proper enums.
 def ApplyLowerTransposePatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_transpose",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -259,7 +323,49 @@ def ApplyLowerTransposePatternsOp : Op<Transform_Dialect,
   }];
 }
 
-// TODO: evolve split_transfer_strategy to proper enums.
+def ApplyLowerInterleavePatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.lower_interleave",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Indicates that vector interleave operations should be lowered to
+    finer-grained vector primitives.
+
+    This is usally a late step that is run after bufferization as part of the
+    process of lowering to e.g. LLVM or NVVM.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyInterleaveToShufflePatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.interleave_to_shuffle",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Indicates that 1D vector interleave operations should be rewritten as
+    vector shuffle operations.
+
+    This is motivated by some current codegen backends not handling vector
+    interleave operations.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyRewriteNarrowTypePatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.rewrite_narrow_types",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Indicates that vector narrow rewrite operations should be applied.
+
+    This is usually a late step that is run after bufferization as part of the
+    process of lowering to e.g. LLVM or NVVM.
+
+    Warning: these patterns currently only work for little endian targets.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
 def ApplySplitTransferFullPartialPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.split_transfer_full_partial",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -306,13 +412,92 @@ def ApplyTransferToScfPatternsOp : Op<Transform_Dialect,
   }];
 }
 
-def ApplyFoldTensorSliceIntoTransferPatternsOp : Op<Transform_Dialect,
-    "apply_patterns.vector.fold_tensor_slice_into_transfer",
+def ApplyFoldArithExtensionPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.fold_arith_extension",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
   let description = [{
-    Indicates that tensor.extract_slice -> vector.transfer_read and
-    vector.transfer_write -> tensor.insert_slice op chains should be folded into
-    vector tranfer read and write ops
+    Collect a set of patterns that fold arithmetic extension on floating point
+    into vector contract for the backends with native support.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyFoldElementwiseToVectorPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.elementwise_to_vector",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collect a set of patterns that fold elementwise op on vectors to the vector
+    dialect.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyVectorReductionToContractPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.reduction_to_contract",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Apply opt-in patterns that convert reductions to contract:
+      - MultiReduceToContract
+      - CombineContractBroadcast
+      - CombineContractABTranspose
+      - CombineContractResultTranspose
+      - ReorderElementwiseOpsOnTranspose
+      - ReorderElementwiseOpsOnBroadcast
+      - ReorderCastOpsOnBroadcast
+
+    These patterns have the effect of rewriting a vector.multi_reduce into a
+    vector.contract.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplySinkVectorPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.sink_ops",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Patterns that remove redundant Vector Ops by re-ordering them with
+    e.g. elementwise Ops.
+
+    Example:
+    ```
+    %at = vector.transpose %a, [1, 0]: vector<4x2xf32> to vector<2x4xf32>
+    %bt = vector.transpose %b, [1, 0]: vector<4x2xf32> to vector<2x4xf32>
+    %r = arith.addf %at, %bt : vector<2x4xf32>
+    ```
+    gets converted to:
+    ```
+    %0 = arith.addf %a, %b : vector<4x2xf32>
+    %r = vector.transpose %0, [1, 0] : vector<2x4xf32>
+    ```
+    At the moment, these patterns are limited to vector.broadcast,
+    vector.transpose and vector.extract.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplySinkVectorMemPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.sink_mem_ops",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Patterns that replace redundant Vector Ops (followed by
+    `vector.load`/`vector.store`) with either vector.load/vector.store or
+    `memref.load`/`memref.store`. Currently limited to 1-element vectors.
+
+    Example:
+    ```
+    vector.load %arg0[%arg1] : memref<?xf32>, vector<4xf32>
+    vector.extract %0[1] : f32 from vector<4xf32>
+    ```
+    Gets converted to:
+    ```
+    %c1 = arith.constant 1 : index
+    %0 = arith.addi %arg1, %c1 overflow<nsw> : index
+    %1 = memref.load %arg0[%0] : memref<?xf32>
+    ```
   }];
 
   let assemblyFormat = "attr-dict";

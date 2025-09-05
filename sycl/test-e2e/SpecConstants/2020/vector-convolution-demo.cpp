@@ -1,15 +1,16 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: accelerator
-
 // This test checks the spenario of using specialization constants with an
 // 'array of array' as well as a 'stuct with an array of array' types for
 // vector convolution as it is described in chapter 4.9.5. Specialization
 // constants of the SYCL 2020 specification:
 // https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_example_usage
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 #include <array>
 #include <cmath>

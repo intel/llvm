@@ -18,6 +18,8 @@ using namespace clang::ast_matchers;
 
 namespace clang::tidy::readability {
 
+namespace {
+
 AST_MATCHER(CXXMethodDecl, isStatic) { return Node.isStatic(); }
 
 AST_MATCHER(CXXMethodDecl, hasTrivialBody) { return Node.hasTrivialBody(); }
@@ -61,13 +63,20 @@ AST_MATCHER(CXXMethodDecl, usesThis) {
       Used = true;
       return false; // Stop traversal.
     }
+
+    // If we enter a class declaration, don't traverse into it as any usages of
+    // `this` will correspond to the nested class.
+    bool TraverseCXXRecordDecl(CXXRecordDecl *RD) { return true; }
+
   } UsageOfThis;
 
   // TraverseStmt does not modify its argument.
-  UsageOfThis.TraverseStmt(const_cast<Stmt *>(Node.getBody()));
+  UsageOfThis.TraverseStmt(Node.getBody());
 
   return UsageOfThis.Used;
 }
+
+} // namespace
 
 void ConvertMemberFunctionsToStatic::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
@@ -76,7 +85,8 @@ void ConvertMemberFunctionsToStatic::registerMatchers(MatchFinder *Finder) {
           unless(anyOf(
               isExpansionInSystemHeader(), isVirtual(), isStatic(),
               hasTrivialBody(), isOverloadedOperator(), cxxConstructorDecl(),
-              cxxDestructorDecl(), cxxConversionDecl(), isTemplate(),
+              cxxDestructorDecl(), cxxConversionDecl(),
+              isExplicitObjectMemberFunction(), isTemplate(),
               isDependentContext(),
               ofClass(anyOf(
                   isLambda(),

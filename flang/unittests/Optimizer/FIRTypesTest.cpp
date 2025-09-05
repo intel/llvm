@@ -227,12 +227,12 @@ TEST_F(FIRTypesTest, updateTypeForUnlimitedPolymorphic) {
   mlir::Type ptrArrNone = fir::PointerType::get(arrNone);
 
   mlir::Type i32Ty = mlir::IntegerType::get(&context, 32);
-  mlir::Type f32Ty = mlir::FloatType::getF32(&context);
+  mlir::Type f32Ty = mlir::Float32Type::get(&context);
   mlir::Type l1Ty = fir::LogicalType::get(&context, 1);
-  mlir::Type cplx4Ty = fir::ComplexType::get(&context, 4);
+  mlir::Type cplx32Ty = mlir::ComplexType::get(f32Ty);
   mlir::Type char1Ty = fir::CharacterType::get(&context, 1, 10);
   llvm::SmallVector<mlir::Type> intrinsicTypes = {
-      i32Ty, f32Ty, l1Ty, cplx4Ty, char1Ty};
+      i32Ty, f32Ty, l1Ty, cplx32Ty, char1Ty};
 
   for (mlir::Type ty : intrinsicTypes) {
     // `ty` -> none
@@ -268,12 +268,12 @@ TEST_F(FIRTypesTest, getTypeAsString) {
           fir::ReferenceType::get(mlir::IntegerType::get(&context, 32)),
           *kindMap));
   EXPECT_EQ(
-      "f64", fir::getTypeAsString(mlir::FloatType::getF64(&context), *kindMap));
+      "f64", fir::getTypeAsString(mlir::Float64Type::get(&context), *kindMap));
   EXPECT_EQ(
       "l8", fir::getTypeAsString(fir::LogicalType::get(&context, 1), *kindMap));
   EXPECT_EQ("z32",
       fir::getTypeAsString(
-          mlir::ComplexType::get(mlir::FloatType::getF32(&context)), *kindMap));
+          mlir::ComplexType::get(mlir::Float32Type::get(&context)), *kindMap));
   EXPECT_EQ("c8",
       fir::getTypeAsString(fir::CharacterType::get(&context, 1, 1), *kindMap));
   EXPECT_EQ("c8x10",
@@ -283,4 +283,72 @@ TEST_F(FIRTypesTest, getTypeAsString) {
   EXPECT_EQ("10x20xi64", fir::getTypeAsString(arrTy, *kindMap));
   EXPECT_EQ(
       "idx", fir::getTypeAsString(mlir::IndexType::get(&context), *kindMap));
+  EXPECT_EQ("ptr_i32",
+      fir::getTypeAsString(
+          fir::PointerType::get(mlir::IntegerType::get(&context, 32)),
+          *kindMap));
+  EXPECT_EQ("heap_i32",
+      fir::getTypeAsString(
+          fir::HeapType::get(mlir::IntegerType::get(&context, 32)), *kindMap));
+  EXPECT_EQ("box_i32",
+      fir::getTypeAsString(
+          fir::BoxType::get(mlir::IntegerType::get(&context, 32)), *kindMap));
+  EXPECT_EQ("class_i32",
+      fir::getTypeAsString(
+          fir::ClassType::get(mlir::IntegerType::get(&context, 32)), *kindMap));
+  EXPECT_EQ("class_none",
+      fir::getTypeAsString(
+          fir::ClassType::get(mlir::NoneType::get(&context)), *kindMap));
+  auto derivedTy = fir::RecordType::get(&context, "derived");
+  llvm::SmallVector<std::pair<std::string, mlir::Type>> components;
+  components.emplace_back("p1", mlir::IntegerType::get(&context, 64));
+  derivedTy.finalize({}, components);
+  EXPECT_EQ("rec_derived", fir::getTypeAsString(derivedTy, *kindMap));
+  mlir::Type dynArrTy =
+      fir::SequenceType::get({fir::SequenceType::getUnknownExtent(),
+                                 fir::SequenceType::getUnknownExtent()},
+          ty);
+  EXPECT_EQ("UxUxi64", fir::getTypeAsString(dynArrTy, *kindMap));
+  EXPECT_EQ("llvmptr_i32",
+      fir::getTypeAsString(
+          fir::LLVMPointerType::get(mlir::IntegerType::get(&context, 32)),
+          *kindMap));
+  EXPECT_EQ("boxchar_c8xU",
+      fir::getTypeAsString(fir::BoxCharType::get(&context, 1), *kindMap));
+}
+
+TEST_F(FIRTypesTest, isVolatileType) {
+  mlir::Type i32 = mlir::IntegerType::get(&context, 32);
+
+  mlir::Type i32NonVolatileRef = fir::ReferenceType::get(i32);
+  mlir::Type i32NonVolatileBox = fir::BoxType::get(i32);
+  mlir::Type i32NonVolatileClass = fir::ClassType::get(i32);
+
+  // Ensure the default value is false
+  EXPECT_EQ(i32NonVolatileRef, fir::ReferenceType::get(i32, false));
+  EXPECT_EQ(i32NonVolatileBox, fir::BoxType::get(i32, false));
+  EXPECT_EQ(i32NonVolatileClass, fir::ClassType::get(i32, false));
+
+  EXPECT_FALSE(fir::isa_volatile_type(i32));
+  EXPECT_FALSE(fir::isa_volatile_type(i32NonVolatileRef));
+  EXPECT_FALSE(fir::isa_volatile_type(i32NonVolatileBox));
+  EXPECT_FALSE(fir::isa_volatile_type(i32NonVolatileClass));
+
+  // Should return the same type if it's not capable of representing volatility.
+  EXPECT_EQ(i32, fir::updateTypeWithVolatility(i32, true));
+
+  mlir::Type i32VolatileRef =
+      fir::updateTypeWithVolatility(i32NonVolatileRef, true);
+  mlir::Type i32VolatileBox =
+      fir::updateTypeWithVolatility(i32NonVolatileBox, true);
+  mlir::Type i32VolatileClass =
+      fir::updateTypeWithVolatility(i32NonVolatileClass, true);
+
+  EXPECT_TRUE(fir::isa_volatile_type(i32VolatileRef));
+  EXPECT_TRUE(fir::isa_volatile_type(i32VolatileBox));
+  EXPECT_TRUE(fir::isa_volatile_type(i32VolatileClass));
+
+  EXPECT_EQ(i32VolatileRef, fir::ReferenceType::get(i32, true));
+  EXPECT_EQ(i32VolatileBox, fir::BoxType::get(i32, true));
+  EXPECT_EQ(i32VolatileClass, fir::ClassType::get(i32, true));
 }

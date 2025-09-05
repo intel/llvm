@@ -1,10 +1,13 @@
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda || hip
 //
+// XFAIL: (opencl && gpu)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
+//
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
-// deferred release feature in the Level Zero plugin to avoid releasing memory
+// deferred release feature in the Level Zero adapter to avoid releasing memory
 // too early. This is necessary because currently SYCL RT sets indirect access
 // flag for all kernels and the Level Zero runtime doesn't support deferred
 // release yet.
@@ -14,7 +17,7 @@
 // DEFINE: %{gpu_env} = env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 SYCL_PI_SUPPRESS_ERROR_MESSAGE=1
 
 // Shouldn't fail on ACC as fallback assert isn't enqueued there
-// RUN: %if gpu %{ %{gpu_env} %} %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if acc %{ --check-prefix=CHECK-ACC %}
+// RUN: %if gpu %{ %{gpu_env} %} %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if fpga %{ --check-prefix=CHECK-ACC %}
 //
 // CHECK:      {{this message from file1|this message from file2}}
 // CHECK-NOT:  The test ended.
@@ -25,7 +28,7 @@
 #include "Inputs/kernels_in_file2.hpp"
 #include <cstdio>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <thread>
 
 #ifdef DEFINE_NDEBUG_INFILE1

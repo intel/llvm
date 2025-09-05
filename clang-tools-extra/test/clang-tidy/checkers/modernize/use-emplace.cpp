@@ -1,17 +1,17 @@
 // RUN: %check_clang_tidy %s modernize-use-emplace %t -- \
 // RUN:   -config="{CheckOptions: \
-// RUN:             [{key: modernize-use-emplace.ContainersWithPushBack, \
-// RUN:               value: '::std::vector; ::std::list; ::std::deque; llvm::LikeASmallVector'}, \
-// RUN:              {key: modernize-use-emplace.TupleTypes, \
-// RUN:               value: '::std::pair; std::tuple; ::test::Single'}, \
-// RUN:              {key: modernize-use-emplace.TupleMakeFunctions, \
-// RUN:               value: '::std::make_pair; ::std::make_tuple; ::test::MakeSingle'}] \
-// RUN:             }"
+// RUN:             {modernize-use-emplace.ContainersWithPushBack: \
+// RUN:                '::std::vector; ::std::list; ::std::deque; llvm::LikeASmallVector', \
+// RUN:              modernize-use-emplace.TupleTypes: \
+// RUN:                '::std::pair; std::tuple; ::test::Single', \
+// RUN:              modernize-use-emplace.TupleMakeFunctions: \
+// RUN:                '::std::make_pair; ::std::make_tuple; ::test::MakeSingle'}}"
 
 namespace std {
-template <typename>
+template <typename E>
 class initializer_list {
 public:
+  const E *a, *b;
   initializer_list() noexcept {}
 };
 
@@ -49,7 +49,7 @@ public:
   template <typename... Args>
   void emplace_back(Args &&... args){};
   template <typename... Args>
-  iterator emplace(const_iterator pos, Args &&...args){};
+  iterator emplace(const_iterator pos, Args &&...args);
   ~vector();
 };
 
@@ -69,7 +69,7 @@ public:
   void push_back(T &&) {}
 
   template <typename... Args>
-  iterator emplace(const_iterator pos, Args &&...args){};
+  iterator emplace(const_iterator pos, Args &&...args);
   template <typename... Args>
   void emplace_back(Args &&... args){};
   template <typename... Args>
@@ -93,7 +93,7 @@ public:
   void push_front(T &&) {}
 
   template <typename... Args>
-  iterator emplace(const_iterator pos, Args &&...args){};
+  iterator emplace(const_iterator pos, Args &&...args);
   template <typename... Args>
   void emplace_back(Args &&... args){};
   template <typename... Args>
@@ -116,7 +116,7 @@ public:
   template <typename... Args>
   void emplace_front(Args &&...args){};
   template <typename... Args>
-  iterator emplace_after(const_iterator pos, Args &&...args){};
+  iterator emplace_after(const_iterator pos, Args &&...args);
 };
 
 template <typename T>
@@ -131,7 +131,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename Key, typename T>
@@ -146,7 +146,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename T>
@@ -161,7 +161,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename Key, typename T>
@@ -176,7 +176,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename T>
@@ -191,7 +191,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename Key, typename T>
@@ -206,7 +206,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename T>
@@ -221,7 +221,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename Key, typename T>
@@ -236,7 +236,7 @@ public:
   template <typename... Args>
   void emplace(Args &&...args){};
   template <typename... Args>
-  iterator emplace_hint(const_iterator pos, Args &&...args){};
+  iterator emplace_hint(const_iterator pos, Args &&...args);
 };
 
 template <typename T>
@@ -1184,6 +1184,11 @@ struct NonTrivialWithVector {
   std::vector<int> it;
 };
 
+struct NonTrivialWithIntAndVector {
+  int x;
+  std::vector<int> it;
+};
+
 struct NonTrivialWithCtor {
   NonTrivialWithCtor();
   NonTrivialWithCtor(std::vector<int> const&);
@@ -1333,6 +1338,14 @@ void testBracedInitTemporaries() {
   v3.push_back(NonTrivialWithCtor{{}});
   v3.push_back({{0}});
   v3.push_back({{}});
+
+  std::vector<NonTrivialWithIntAndVector> v4;
+
+  // These should not be noticed or fixed; after the correction, the code won't
+  // compile.
+  v4.push_back(NonTrivialWithIntAndVector{1, {}});
+  v4.push_back(NonTrivialWithIntAndVector{});
+  v4.push_back({});
 }
 
 void testWithPointerTypes() {

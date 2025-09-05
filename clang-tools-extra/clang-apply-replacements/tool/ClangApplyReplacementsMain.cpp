@@ -96,9 +96,9 @@ int main(int argc, char **argv) {
   cl::SetVersionPrinter(printVersion);
   cl::ParseCommandLineOptions(argc, argv);
 
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts(new DiagnosticOptions());
+  DiagnosticOptions DiagOpts;
   DiagnosticsEngine Diagnostics(
-      IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs()), DiagOpts.get());
+      IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs()), DiagOpts);
 
   // Determine a formatting style from options.
   auto FormatStyleOrError = format::getStyle(FormatStyleOpt, FormatStyleConfig,
@@ -141,13 +141,13 @@ int main(int argc, char **argv) {
 
   tooling::ApplyChangesSpec Spec;
   Spec.Cleanup = true;
-  Spec.Style = FormatStyle;
   Spec.Format = DoFormat ? tooling::ApplyChangesSpec::kAll
                          : tooling::ApplyChangesSpec::kNone;
+  Spec.Style = DoFormat ? FormatStyle : format::getNoStyle();
 
   for (const auto &FileChange : Changes) {
-    const FileEntry *Entry = FileChange.first;
-    StringRef FileName = Entry->getName();
+    FileEntryRef Entry = FileChange.first;
+    StringRef FileName = Entry.getName();
     llvm::Expected<std::string> NewFileData =
         applyChanges(FileName, FileChange.second, Spec, Diagnostics);
     if (!NewFileData) {

@@ -1,16 +1,20 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 
-// UNSUPPORTED: cuda || hip
-// CUDA does not support SYCL 1.2.1 images.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images. Bindless
+// images should be used instead.
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/accessor.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
+#include <sycl/usm.hpp>
+
 using namespace sycl;
 #define N 4   // dimensin
 #define M 128 // dimension

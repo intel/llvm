@@ -20,11 +20,13 @@
 
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 namespace orc {
 
-class EPCGenericJITLinkMemoryManager : public jitlink::JITLinkMemoryManager {
+class LLVM_ABI EPCGenericJITLinkMemoryManager
+    : public jitlink::JITLinkMemoryManager {
 public:
   /// Function addresses for memory access.
   struct SymbolAddrs {
@@ -64,7 +66,7 @@ private:
 namespace shared {
 
 /// FIXME: This specialization should be moved into TargetProcessControlTypes.h
-///        (or whereever those types get merged to) once ORC depends on JITLink.
+///        (or wherever those types get merged to) once ORC depends on JITLink.
 template <>
 class SPSSerializationTraits<SPSExecutorAddr,
                              jitlink::JITLinkMemoryManager::FinalizedAlloc> {

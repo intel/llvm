@@ -1,4 +1,4 @@
-//==-- LoongArch64TargetParser - Parser for LoongArch64 features --*- C++ -*-=//
+//===-- LoongArchTargetParser - Parser for LoongArch features --*- C++ -*-====//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/TargetParser/LoongArchTargetParser.h"
+#include "llvm/ADT/SmallVector.h"
 
 using namespace llvm;
 using namespace llvm::LoongArch;
@@ -27,12 +28,23 @@ const ArchInfo AllArchs[] = {
 #include "llvm/TargetParser/LoongArchTargetParser.def"
 };
 
-LoongArch::ArchKind LoongArch::parseArch(StringRef Arch) {
+bool LoongArch::isValidArchName(StringRef Arch) {
   for (const auto A : AllArchs)
     if (A.Name == Arch)
-      return A.Kind;
+      return true;
+  return false;
+}
 
-  return LoongArch::ArchKind::AK_INVALID;
+bool LoongArch::isValidFeatureName(StringRef Feature) {
+  if (Feature.starts_with("+") || Feature.starts_with("-"))
+    return false;
+  for (const auto &F : AllFeatures) {
+    StringRef CanonicalName =
+        F.Name.starts_with("+") ? F.Name.drop_front() : F.Name;
+    if (CanonicalName == Feature)
+      return true;
+  }
+  return false;
 }
 
 bool LoongArch::getArchFeatures(StringRef Arch,
@@ -40,10 +52,39 @@ bool LoongArch::getArchFeatures(StringRef Arch,
   for (const auto A : AllArchs) {
     if (A.Name == Arch) {
       for (const auto F : AllFeatures)
-        if ((A.Features & F.Kind) == F.Kind && F.Kind != FK_INVALID)
+        if ((A.Features & F.Kind) == F.Kind)
           Features.push_back(F.Name);
       return true;
     }
   }
+
+  if (Arch == "la64v1.0" || Arch == "la64v1.1") {
+    Features.push_back("+64bit");
+    Features.push_back("+d");
+    Features.push_back("+lsx");
+    Features.push_back("+ual");
+    if (Arch == "la64v1.1") {
+      Features.push_back("+frecipe");
+      Features.push_back("+lam-bh");
+      Features.push_back("+lamcas");
+      Features.push_back("+ld-seq-sa");
+      Features.push_back("+div32");
+      Features.push_back("+scq");
+    }
+    return true;
+  }
+
   return false;
+}
+
+bool LoongArch::isValidCPUName(StringRef Name) { return isValidArchName(Name); }
+
+void LoongArch::fillValidCPUList(SmallVectorImpl<StringRef> &Values) {
+  for (const auto A : AllArchs)
+    Values.emplace_back(A.Name);
+}
+
+StringRef LoongArch::getDefaultArch(bool Is64Bit) {
+  // TODO: use a real 32-bit arch name.
+  return Is64Bit ? "loongarch64" : "";
 }

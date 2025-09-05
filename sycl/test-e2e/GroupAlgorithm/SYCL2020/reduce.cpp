@@ -1,17 +1,14 @@
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
-// disabling hip because some of the binary_ops tested are not supported
-// getting undefined symbols for a handful of __spirv__ * functions.
-// XFAIL: hip
-
 #include "support.h"
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 using namespace sycl;
 
 template <typename SpecializationKernelName, typename InputContainer,

@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_impl.hpp>
-#include <detail/device_info.hpp>
+#include <detail/jit_compiler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/ur_info_code.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
 #include <algorithm>
@@ -17,79 +19,30 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-device_impl::device_impl()
-    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()),
-      // assert is natively supported by host
-      MIsAssertFailSupported(true) {}
-
-device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         const PluginPtr &Plugin)
-    : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
-
-device_impl::device_impl(sycl::detail::pi::PiDevice Device,
-                         PlatformImplPtr Platform)
-    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
-                  Platform->getPlugin()) {}
-
-device_impl::device_impl(sycl::detail::pi::PiDevice Device,
-                         const PluginPtr &Plugin)
-    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
-                  Plugin) {}
-
-device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         sycl::detail::pi::PiDevice Device,
-                         PlatformImplPtr Platform, const PluginPtr &Plugin)
-    : MDevice(Device), MIsHostDevice(false),
-      MDeviceHostBaseTime(std::make_pair(0, 0)) {
-
-  bool InteroperabilityConstructor = false;
-  if (Device == nullptr) {
-    assert(InteropDeviceHandle);
-    // Get PI device from the raw device handle.
-    // NOTE: this is for OpenCL interop only (and should go away).
-    // With SYCL-2020 BE generalization "make" functions are used instead.
-    Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
-        InteropDeviceHandle, nullptr, &MDevice);
-    InteroperabilityConstructor = true;
-  }
-
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
-      &MType, nullptr);
-
-  // No need to set MRootDevice when MAlwaysRootDevice is true
-  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
-        sizeof(sycl::detail::pi::PiDevice), &MRootDevice, nullptr);
-  }
-
-  if (!InteroperabilityConstructor) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    // Interoperability Constructor already calls DeviceRetain in
-    // piextDeviceFromNative.
-    Plugin->call<PiApiKind::piDeviceRetain>(MDevice);
-  }
-
-  // set MPlatform
-  if (!Platform) {
-    Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
-  }
-  MPlatform = Platform;
-
-  MIsAssertFailSupported =
-      has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
+/// Constructs a SYCL device instance using the provided
+/// UR device instance.
+device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
+                         device_impl::private_tag)
+    : MDevice(Device), MPlatform(Platform),
+      // No need to set MRootDevice when MAlwaysRootDevice is true
+      MRootDevice(Platform.MAlwaysRootDevice
+                      ? nullptr
+                      : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
+      // TODO catch an exception and put it to list of asynchronous exceptions:
+      MCache{*this} {
+  // Interoperability Constructor already calls DeviceRetain in
+  // urDeviceCreateWithNativeHandle.
+  getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
-  if (!MIsHostDevice) {
+  try {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+    adapter_impl &Adapter = getAdapter();
+    ur_result_t Err = Adapter.call_nocheck<UrApiKind::urDeviceRelease>(MDevice);
+    __SYCL_CHECK_UR_CODE_NO_EXC(Err, Adapter.getBackend());
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
 }
 
@@ -101,55 +54,86 @@ bool device_impl::is_affinity_supported(
 }
 
 cl_device_id device_impl::get() const {
-  if (MIsHostDevice) {
-    throw invalid_object_error(
-        "This instance of device doesn't support OpenCL interoperability.",
-        PI_ERROR_INVALID_DEVICE);
-  }
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getPlugin()->call<PiApiKind::piDeviceRetain>(MDevice);
-  return pi::cast<cl_device_id>(getNative());
+  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
+  return ur::cast<cl_device_id>(getNative());
 }
 
 platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 
-template <typename Param>
-typename Param::return_type device_impl::get_info() const {
-  if (is_host()) {
-    return get_device_info_host<Param>();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+template <>
+typename info::platform::version::return_type
+device_impl::get_backend_info<info::platform::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
   }
-  return get_device_info<Param>(
-      MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+  return get_platform().get_info<info::platform::version>();
 }
-// Explicitly instantiate all device info traits
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnT device_impl::get_info<info::device::Desc>() const;
+#endif
 
-#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
-  template ReturnT device_impl::get_info<info::device::Desc>() const;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+template <>
+typename info::device::version::return_type
+device_impl::get_backend_info<info::device::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  return get_info<info::device::version>();
+}
+#endif
 
-#include <sycl/info/device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
-  device_impl::get_info<Namespace::info::DescType::Desc>() const;
-
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+template <>
+typename info::device::backend_version::return_type
+device_impl::get_backend_info<info::device::backend_version>() const {
+  if (getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+#endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
-  if (MIsHostDevice)
-    // TODO: implement extension management for host device;
+  if (ExtensionName.empty())
     return false;
-  std::string AllExtensionNames =
-      get_device_info_string(PiInfoCode<info::device::extensions>::value);
-  return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+
+  const std::string AllExtensionNames{
+      get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
+
+  size_t FoundExtPos = AllExtensionNames.find(ExtensionName);
+  while (FoundExtPos != std::string::npos) {
+    // If the extension name was found, we need to ensure it is not a partial
+    // match. That is, the following must hold:
+    //  * The match must be at the start of the list of names or have a
+    //    whitespace before it and
+    //  * the match must end at the end of the list of names or have a
+    //    whitespace after it.
+    bool IsStartOrTerminated =
+        FoundExtPos == 0 || AllExtensionNames[FoundExtPos - 1] == ' ';
+    bool IsEndOrTerminated =
+        FoundExtPos + ExtensionName.size() == AllExtensionNames.size() ||
+        AllExtensionNames[FoundExtPos + ExtensionName.size()] == ' ';
+    if (IsStartOrTerminated && IsEndOrTerminated)
+      return true;
+
+    // If the match was partial, the extension name could still be later in the
+    // list. As such, search for the next match and recheck.
+    FoundExtPos = AllExtensionNames.find(ExtensionName,
+                                         FoundExtPos + ExtensionName.size());
+  }
+  return false;
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
@@ -158,14 +142,13 @@ bool device_impl::is_partition_supported(info::partition_property Prop) const {
                    Prop) != SupportedProperties.end();
 }
 
-std::vector<device>
-device_impl::create_sub_devices(const cl_device_partition_property *Properties,
-                                size_t SubDevicesCount) const {
-
-  std::vector<sycl::detail::pi::PiDevice> SubDevices(SubDevicesCount);
-  pi_uint32 ReturnedSubDevices = 0;
-  const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
+std::vector<device> device_impl::create_sub_devices(
+    const ur_device_partition_properties_t *Properties,
+    size_t SubDevicesCount) const {
+  std::vector<ur_device_handle_t> SubDevices(SubDevicesCount);
+  uint32_t ReturnedSubDevices = 0;
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
       MDevice, Properties, SubDevicesCount, SubDevices.data(),
       &ReturnedSubDevices);
   if (ReturnedSubDevices != SubDevicesCount) {
@@ -179,22 +162,19 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   //
   std::vector<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res, this](const sycl::detail::pi::PiDevice &a_pi_device) {
+                [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
+                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
 }
 
 std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw sycl::feature_not_supported(
-        "Device does not support "
-        "sycl::info::partition_property::partition_equally.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Device does not support "
+                          "sycl::info::partition_property::partition_equally.");
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -204,35 +184,44 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
                           "Total counts exceed max compute units");
 
   size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
-  const pi_device_partition_property Properties[3] = {
-      PI_DEVICE_PARTITION_EQUALLY, (pi_device_partition_property)ComputeUnits,
-      0};
-  return create_sub_devices(Properties, SubDevicesCount);
+
+  ur_device_partition_property_t Prop{};
+  Prop.type = UR_DEVICE_PARTITION_EQUALLY;
+  Prop.value.count = static_cast<uint32_t>(ComputeUnits);
+
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.PropCount = 1;
+  Properties.pProperties = &Prop;
+
+  return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 std::vector<device>
 device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::partition_by_counts.",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::partition_by_counts.");
   }
-  static const pi_device_partition_property P[] = {
-      PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  std::vector<pi_device_partition_property> Properties(P, P + 3);
+
+  std::vector<ur_device_partition_property_t> Props{};
 
   // Fill the properties vector with counts and validate it
-  auto It = Properties.begin() + 1;
   size_t TotalCounts = 0;
   size_t NonZeroCounts = 0;
   for (auto Count : Counts) {
     TotalCounts += Count;
     NonZeroCounts += (Count != 0) ? 1 : 0;
-    It = Properties.insert(It, Count);
+    Props.push_back(ur_device_partition_property_t{
+        UR_DEVICE_PARTITION_BY_COUNTS, {static_cast<uint32_t>(Count)}});
   }
+
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.pProperties = Props.data();
+  Properties.PropCount = Props.size();
 
   // If the number of non-zero values in counts exceeds the device’s maximum
   // number of sub devices (as returned by info::device::
@@ -250,336 +239,104 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
     throw sycl::exception(errc::invalid,
                           "Total counts exceed max compute units");
 
-  return create_sub_devices(Properties.data(), Counts.size());
+  return create_sub_devices(&Properties, Counts.size());
+}
+
+static inline std::string
+affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
+  switch (AffinityDomain) {
+#define __SYCL_AFFINITY_DOMAIN_STRING_CASE(DOMAIN)                             \
+  case DOMAIN:                                                                 \
+    return #DOMAIN;
+
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::numa)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L4_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L3_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L2_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::L1_cache)
+    __SYCL_AFFINITY_DOMAIN_STRING_CASE(
+        sycl::info::partition_affinity_domain::next_partitionable)
+#undef __SYCL_AFFINITY_DOMAIN_STRING_CASE
+  default:
+    assert(false && "Missing case for affinity domain.");
+    return "unknown";
+  }
 }
 
 std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::partition_by_affinity_domain.",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::partition_by_affinity_domain.");
   }
   if (!is_affinity_supported(AffinityDomain)) {
-    throw sycl::feature_not_supported(
-        "Device does not support " + affinityDomainToString(AffinityDomain) +
-            ".",
-        PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Device does not support " +
+                              affinityDomainToString(AffinityDomain) + ".");
   }
-  const pi_device_partition_property Properties[3] = {
-      PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-      (pi_device_partition_property)AffinityDomain, 0};
 
-  pi_uint32 SubDevicesCount = 0;
-  const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
-      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+  ur_device_partition_property_t Prop{};
+  Prop.type = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
+  Prop.value.affinity_domain =
+      static_cast<ur_device_affinity_domain_flags_t>(AffinityDomain);
 
-  return create_sub_devices(Properties, SubDevicesCount);
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.PropCount = 1;
+  Properties.pProperties = &Prop;
+
+  uint32_t SubDevicesCount = 0;
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<sycl::errc::invalid, UrApiKind::urDevicePartition>(
+      MDevice, &Properties, 0u, nullptr, &SubDevicesCount);
+
+  return create_sub_devices(&Properties, SubDevicesCount);
 }
 
 std::vector<device> device_impl::create_sub_devices() const {
-  assert(!MIsHostDevice && "Partitioning is not supported on host.");
-
   if (!is_partition_supported(
           info::partition_property::ext_intel_partition_by_cslice)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::ext_intel_partition_by_cslice.",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::ext_intel_partition_by_cslice.");
   }
 
-  const pi_device_partition_property Properties[2] = {
-      PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0};
+  ur_device_partition_property_t Prop{};
+  Prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
+  ur_device_partition_properties_t Properties{};
+  Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
+  Properties.pProperties = &Prop;
+  Properties.PropCount = 1;
 
-  pi_uint32 SubDevicesCount = 0;
-  const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
-      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+  uint32_t SubDevicesCount = 0;
+  adapter_impl &Adapter = getAdapter();
+  Adapter.call<UrApiKind::urDevicePartition>(MDevice, &Properties, 0u, nullptr,
+                                             &SubDevicesCount);
 
-  return create_sub_devices(Properties, SubDevicesCount);
+  return create_sub_devices(&Properties, SubDevicesCount);
 }
 
-pi_native_handle device_impl::getNative() const {
-  auto Plugin = getPlugin();
-  if (getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piDeviceRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
+ur_native_handle_t device_impl::getNative() const {
+  adapter_impl &Adapter = getAdapter();
+  ur_native_handle_t Handle;
+  Adapter.call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  if (getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
+  }
   return Handle;
 }
 
-bool device_impl::has(aspect Aspect) const {
-  size_t return_size = 0;
-
-  switch (Aspect) {
-  case aspect::host:
-    return is_host();
-  case aspect::cpu:
-    return is_cpu();
-  case aspect::gpu:
-    return is_gpu();
-  case aspect::accelerator:
-    return is_accelerator();
-  case aspect::custom:
-    return false;
-  // TODO: Implement this for FPGA and ESIMD emulators.
-  case aspect::emulated:
-    return false;
-  case aspect::host_debuggable:
-    return false;
-  case aspect::fp16:
-    return has_extension("cl_khr_fp16");
-  case aspect::fp64:
-    return has_extension("cl_khr_fp64");
-  case aspect::ext_oneapi_bfloat16_math_functions:
-    return get_info<info::device::ext_oneapi_bfloat16_math_functions>();
-  case aspect::int64_base_atomics:
-    return has_extension("cl_khr_int64_base_atomics");
-  case aspect::int64_extended_atomics:
-    return has_extension("cl_khr_int64_extended_atomics");
-  case aspect::atomic64:
-    return get_info<info::device::atomic64>();
-  case aspect::image:
-    return get_info<info::device::image_support>();
-  case aspect::online_compiler:
-    return get_info<info::device::is_compiler_available>();
-  case aspect::online_linker:
-    return get_info<info::device::is_linker_available>();
-  case aspect::queue_profiling:
-    return get_info<info::device::queue_profiling>();
-  case aspect::usm_device_allocations:
-    return get_info<info::device::usm_device_allocations>();
-  case aspect::usm_host_allocations:
-    return get_info<info::device::usm_host_allocations>();
-  case aspect::ext_intel_mem_channel:
-    return get_info<info::device::ext_intel_mem_channel>();
-  case aspect::usm_atomic_host_allocations:
-    return is_host() ||
-           (get_device_info_impl<pi_usm_capabilities,
-                                 info::device::usm_host_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
-  case aspect::usm_shared_allocations:
-    return get_info<info::device::usm_shared_allocations>();
-  case aspect::usm_atomic_shared_allocations:
-    return is_host() ||
-           (get_device_info_impl<pi_usm_capabilities,
-                                 info::device::usm_shared_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
-  case aspect::usm_restricted_shared_allocations:
-    return get_info<info::device::usm_restricted_shared_allocations>();
-  case aspect::usm_system_allocations:
-    return get_info<info::device::usm_system_allocations>();
-  case aspect::ext_intel_device_id:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_DEVICE_ID, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
-  case aspect::ext_intel_pci_address:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
-  case aspect::ext_intel_gpu_eu_count:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_eu_simd_width:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_slices:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SLICES, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
-  case aspect::ext_intel_gpu_subslices_per_slice:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_eu_count_per_subslice:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_hw_threads_per_eu:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_free_memory:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_memory_clock_rate:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_memory_bus_width:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_device_info_uuid: {
-    auto Result = getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
-    if (Result != PI_SUCCESS) {
-      return false;
-    }
-
-    assert(return_size <= 16);
-    unsigned char UUID[16];
-
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
-               nullptr) == PI_SUCCESS;
-  }
-  case aspect::ext_intel_max_mem_bandwidth:
-    // currently not supported
-    return false;
-  case aspect::ext_oneapi_srgb:
-    return get_info<info::device::ext_oneapi_srgb>();
-  case aspect::ext_oneapi_native_assert:
-    return isAssertFailSupported();
-  case aspect::ext_oneapi_cuda_async_barrier: {
-    int async_barrier_supported;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER, sizeof(int),
-            &async_barrier_supported, nullptr) == PI_SUCCESS;
-    return call_successful && async_barrier_supported;
-  }
-  case aspect::ext_intel_legacy_image: {
-    pi_bool legacy_image_support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
-            &legacy_image_support, nullptr) == PI_SUCCESS;
-    return call_successful && legacy_image_support;
-  }
-  case aspect::ext_oneapi_bindless_images: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_bindless_images_shared_usm: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice,
-            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_bindless_images_1d_usm: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_bindless_images_2d_usm: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_memory_import: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_memory_export: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_semaphore_import: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_semaphore_export: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_mipmap: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT, sizeof(pi_bool),
-            &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_mipmap_anisotropy: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_mipmap_level_reference: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  }
-  throw runtime_error("This device aspect has not been implemented yet.",
-                      PI_ERROR_INVALID_DEVICE);
-}
-
-std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
-  static std::shared_ptr<device_impl> HostImpl =
-      std::make_shared<device_impl>();
-
-  return HostImpl;
-}
-
-bool device_impl::isAssertFailSupported() const {
-  return MIsAssertFailSupported;
-}
-
-std::string device_impl::getDeviceName() const {
-  std::call_once(MDeviceNameFlag,
-                 [this]() { MDeviceName = get_info<info::device::name>(); });
-
-  return MDeviceName;
-}
-
-ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
-  std::call_once(MDeviceArchFlag, [this]() {
-    MDeviceArch =
-        get_info<ext::oneapi::experimental::info::device::architecture>();
-  });
-
-  return MDeviceArch;
-}
-
-// On first call this function queries for device timestamp
-// along with host synchronized timestamp and stores it in memeber varaible
+// On the first call this function queries for device timestamp
+// along with host synchronized timestamp and stores it in member variable
 // MDeviceHostBaseTime. Subsequent calls to this function would just retrieve
 // the host timestamp, compute difference against the host timestamp in
 // MDeviceHostBaseTime and calculate the device timestamp based on the
@@ -590,43 +347,217 @@ ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
 // clock drift between host and device.
 //
 uint64_t device_impl::getCurrentDeviceTime() {
-  using namespace std::chrono;
-  uint64_t HostTime =
-      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-          .count();
-  if (MIsHostDevice) {
-    return HostTime;
-  }
+  auto GetGlobalTimestamps = [this](ur_device_handle_t Device,
+                                    uint64_t *DeviceTime, uint64_t *HostTime) {
+    auto Result =
+        getAdapter().call_nocheck<UrApiKind::urDeviceGetGlobalTimestamps>(
+            Device, DeviceTime, HostTime);
+    if (Result == UR_RESULT_ERROR_INVALID_OPERATION) {
+      // NOTE(UR port): Removed the call to GetLastError because  we shouldn't
+      // be calling it after ERROR_INVALID_OPERATION: there is no
+      // adapter-specific error.
+      throw detail::set_ur_error(
+          sycl::exception(
+              make_error_code(errc::feature_not_supported),
+              "Device and/or backend does not support querying timestamp."),
+          UR_RESULT_ERROR_INVALID_OPERATION);
+    } else {
+      getAdapter().checkUrResult<errc::feature_not_supported>(Result);
+    }
+  };
 
+  uint64_t HostTime = 0;
+  uint64_t Diff = 0;
   // To account for potential clock drift between host clock and device clock.
   // The value set is arbitrary: 200 seconds
   constexpr uint64_t TimeTillRefresh = 200e9;
-  uint64_t Diff = HostTime - MDeviceHostBaseTime.second;
-
-  if (Diff > TimeTillRefresh || Diff <= 0) {
-    const auto &Plugin = getPlugin();
-    auto Result =
-        Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-            MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-
-    if (Result == PI_ERROR_INVALID_OPERATION) {
-      char *p = nullptr;
-      Plugin->call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
-      std::string errorMsg(p ? p : "");
-      throw sycl::feature_not_supported(
-          "Device and/or backend does not support querying timestamp: " +
-              errorMsg,
-          Result);
-    } else {
-      Plugin->checkPiResult(Result);
+  // If getCurrentDeviceTime is called for the first time or we have to refresh.
+  std::shared_lock<std::shared_mutex> ReadLock(MDeviceHostBaseTimeMutex);
+  if (!MDeviceHostBaseTime.second || Diff > TimeTillRefresh) {
+    ReadLock.unlock();
+    std::unique_lock<std::shared_mutex> WriteLock(MDeviceHostBaseTimeMutex);
+    // Recheck the condition after acquiring the write lock.
+    if (MDeviceHostBaseTime.second && Diff <= TimeTillRefresh) {
+      // If we are here, it means that another thread has already updated
+      // MDeviceHostBaseTime, so we can just return the current device time.
+      return MDeviceHostBaseTime.first + Diff;
     }
-    // Until next sync we will compute device time based on the host time
-    // returned in HostTime, so make this our base host time.
-    MDeviceHostBaseTime.second = HostTime;
-    Diff = 0;
+    GetGlobalTimestamps(MDevice, &MDeviceHostBaseTime.first,
+                        &MDeviceHostBaseTime.second);
+  } else {
+    GetGlobalTimestamps(MDevice, nullptr, &HostTime);
+    assert(HostTime >= MDeviceHostBaseTime.second);
+    Diff = HostTime - MDeviceHostBaseTime.second;
   }
   return MDeviceHostBaseTime.first + Diff;
 }
+
+bool device_impl::extOneapiCanBuild(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    return sycl::ext::oneapi::experimental::detail::
+        is_source_kernel_bundle_supported(Language,
+                                          std::vector<device_impl *>{this});
+
+  } catch (sycl::exception &) {
+    return false;
+  }
+}
+
+bool device_impl::extOneapiCanCompile(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    // Currently only SYCL language is supported for compiling.
+    return Language == ext::oneapi::experimental::source_language::sycl &&
+           sycl::ext::oneapi::experimental::detail::
+               is_source_kernel_bundle_supported(
+                   Language, std::vector<device_impl *>{this});
+  } catch (sycl::exception &) {
+    return false;
+  }
+}
+
+// Returns the strongest guarantee that can be provided by the host device for
+// threads created at threadScope from a coordination scope given by
+// coordinationScope
+sycl::ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getHostProgressGuarantee(
+    ext::oneapi::experimental::execution_scope,
+    ext::oneapi::experimental::execution_scope) {
+  return sycl::ext::oneapi::experimental::forward_progress_guarantee::
+      weakly_parallel;
+}
+
+// Returns the strongest progress guarantee that can be provided by this device
+// for threads created at threadScope from the coordination scope given by
+// coordinationScope.
+sycl::ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getProgressGuarantee(
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) const {
+  using forward_progress_guarantee =
+      ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  const int executionScopeSize = 4;
+  (void)coordinationScope;
+  int threadScopeNum = static_cast<int>(threadScope);
+  // we get the immediate progress guarantee that is provided by each scope
+  // between root_group and threadScope and then return the weakest of these.
+  // Counterintuitively, this corresponds to taking the max of the enum values
+  // because of how the forward_progress_guarantee enum values are declared.
+  int guaranteeNum = static_cast<int>(
+      getImmediateProgressGuarantee(execution_scope::root_group));
+  for (int currentScope = executionScopeSize - 2; currentScope > threadScopeNum;
+       --currentScope) {
+    guaranteeNum = std::max(guaranteeNum,
+                            static_cast<int>(getImmediateProgressGuarantee(
+                                static_cast<execution_scope>(currentScope))));
+  }
+  return static_cast<forward_progress_guarantee>(guaranteeNum);
+}
+
+bool device_impl::supportsForwardProgress(
+    ext::oneapi::experimental::forward_progress_guarantee guarantee,
+    ext::oneapi::experimental::execution_scope threadScope,
+    ext::oneapi::experimental::execution_scope coordinationScope) const {
+  auto guarantees = getProgressGuaranteesUpTo(
+      getProgressGuarantee(threadScope, coordinationScope));
+  return std::find(guarantees.begin(), guarantees.end(), guarantee) !=
+         guarantees.end();
+}
+
+// Returns the progress guarantee provided for a coordination scope
+// given by coordination_scope for threads created at a scope
+// immediately below coordination_scope. For example, for root_group
+// coordination scope it returns the progress guarantee provided
+// at root_group for threads created at work_group.
+ext::oneapi::experimental::forward_progress_guarantee
+device_impl::getImmediateProgressGuarantee(
+    ext::oneapi::experimental::execution_scope coordination_scope) const {
+  using forward_progress_guarantee =
+      ext::oneapi::experimental::forward_progress_guarantee;
+  using execution_scope = ext::oneapi::experimental::execution_scope;
+  if (is_cpu() && getBackend() == backend::opencl) {
+    switch (coordination_scope) {
+    case execution_scope::root_group:
+      return forward_progress_guarantee::parallel;
+    case execution_scope::work_group:
+    case execution_scope::sub_group:
+      return forward_progress_guarantee::weakly_parallel;
+    default:
+      throw sycl::exception(sycl::errc::invalid,
+                            "Work item is not a valid coordination scope!");
+    }
+  } else if (is_gpu() && getBackend() == backend::ext_oneapi_level_zero) {
+    switch (coordination_scope) {
+    case execution_scope::root_group:
+    case execution_scope::work_group:
+      return forward_progress_guarantee::concurrent;
+    case execution_scope::sub_group:
+      return forward_progress_guarantee::weakly_parallel;
+    default:
+      throw sycl::exception(sycl::errc::invalid,
+                            "Work item is not a valid coordination scope!");
+    }
+  }
+  return forward_progress_guarantee::weakly_parallel;
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#define EXPORT_GET_INFO(PARAM)                                                 \
+  template <>                                                                  \
+  __SYCL_EXPORT PARAM::return_type device_impl::get_info<PARAM>() const {      \
+    return get_info_abi_workaround<PARAM>();                                   \
+  }
+
+// clang-format off
+EXPORT_GET_INFO(ext::intel::info::device::device_id)
+EXPORT_GET_INFO(ext::intel::info::device::pci_address)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_simd_width)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_slices)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_subslices_per_slice)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_eu_count_per_subslice)
+EXPORT_GET_INFO(ext::intel::info::device::gpu_hw_threads_per_eu)
+EXPORT_GET_INFO(ext::intel::info::device::max_mem_bandwidth)
+EXPORT_GET_INFO(ext::intel::info::device::uuid)
+EXPORT_GET_INFO(ext::intel::info::device::free_memory)
+EXPORT_GET_INFO(ext::intel::info::device::memory_clock_rate)
+EXPORT_GET_INFO(ext::intel::info::device::memory_bus_width)
+EXPORT_GET_INFO(ext::intel::info::device::max_compute_queue_indices)
+EXPORT_GET_INFO(ext::intel::esimd::info::device::has_2d_block_io_support)
+EXPORT_GET_INFO(ext::intel::info::device::current_clock_throttle_reasons)
+EXPORT_GET_INFO(ext::intel::info::device::fan_speed)
+EXPORT_GET_INFO(ext::intel::info::device::min_power_limit)
+EXPORT_GET_INFO(ext::intel::info::device::max_power_limit)
+
+EXPORT_GET_INFO(ext::codeplay::experimental::info::device::supports_fusion)
+EXPORT_GET_INFO(ext::codeplay::experimental::info::device::max_registers_per_work_group)
+
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_global_work_groups)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<1>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<2>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_work_groups<3>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::sub_group_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::root_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::work_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::work_item_progress_capabilities<ext::oneapi::experimental::execution_scope::sub_group>)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::architecture)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::matrix_combinations)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::image_row_pitch_align)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_row_pitch)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_width)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::max_image_linear_height)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::mipmap_max_anisotropy)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::component_devices)
+EXPORT_GET_INFO(ext::oneapi::experimental::info::device::composite_device)
+EXPORT_GET_INFO(ext::oneapi::info::device::num_compute_units)
+// clang-format on
+
+#undef EXPORT_GET_INFO
+#endif
 
 } // namespace detail
 } // namespace _V1

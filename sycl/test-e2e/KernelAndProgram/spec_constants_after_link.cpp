@@ -1,9 +1,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// FIXME: ACC devices use emulation path, which is not yet supported
-// UNSUPPORTED: accelerator
-
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
 
@@ -13,7 +10,10 @@
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 #include <optional>
 #include <vector>

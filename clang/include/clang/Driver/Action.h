@@ -63,7 +63,6 @@ public:
     PrecompileJobClass,
     ExtractAPIJobClass,
     AnalyzeJobClass,
-    MigrateJobClass,
     CompileJobClass,
     BackendJobClass,
     AssembleJobClass,
@@ -77,6 +76,7 @@ public:
     OffloadUnbundlingJobClass,
     OffloadWrapperJobClass,
     OffloadPackagerJobClass,
+    OffloadPackagerExtractJobClass,
     OffloadDepsJobClass,
     SPIRVTranslatorJobClass,
     SYCLPostLinkJobClass,
@@ -87,9 +87,10 @@ public:
     LinkerWrapperJobClass,
     StaticLibJobClass,
     BinaryAnalyzeJobClass,
+    BinaryTranslatorJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = BinaryAnalyzeJobClass
+    JobClassLast = BinaryTranslatorJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -105,7 +106,7 @@ public:
     OFK_Cuda = 0x02,
     OFK_OpenMP = 0x04,
     OFK_HIP = 0x08,
-    OFK_SYCL = 0x10
+    OFK_SYCL = 0x10,
   };
 
   static const char *getClassName(ActionClass AC);
@@ -278,7 +279,7 @@ public:
 /// programming model implementation needs and propagates the offloading kind to
 /// its dependences.
 class OffloadAction final : public Action {
-  virtual void anchor();
+  LLVM_DECLARE_VIRTUAL_ANCHOR_FUNCTION();
 
 public:
   /// Type used to communicate device actions. It associates bound architecture,
@@ -471,17 +472,6 @@ public:
   }
 };
 
-class MigrateJobAction : public JobAction {
-  void anchor() override;
-
-public:
-  MigrateJobAction(Action *Input, types::ID OutputType);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == MigrateJobClass;
-  }
-};
-
 class CompileJobAction : public JobAction {
   void anchor() override;
 
@@ -629,10 +619,22 @@ public:
           DependentOffloadKind(DependentOffloadKind) {}
   };
 
+  /// Allow for a complete override of the target to unbundle.
+  /// This is used for specific unbundles used for SYCL AOT when generating full
+  /// device files that are bundled with the host object.
+  void setTargetString(std::string Target) { TargetString = Target; }
+
+  std::string getTargetString() const { return TargetString; }
+
 private:
   /// Container that keeps information about each dependence of this unbundling
   /// action.
   SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
+
+  /// Provides a specific type to be used that overrides the input type.
+  types::ID DependentType = types::TY_Nothing;
+
+  std::string TargetString;
 
 public:
   // Offloading unbundling doesn't change the type of output.
@@ -654,6 +656,12 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == OffloadUnbundlingJobClass;
   }
+
+  /// Set the dependent type.
+  void setDependentType(types::ID Type) { DependentType = Type; }
+
+  /// Get the dependent type.
+  types::ID getDependentType() const { return DependentType; }
 };
 
 class OffloadWrapperJobAction : public JobAction {
@@ -671,6 +679,34 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;
   }
+
+  // Set the compilation step setting.  This is used to tell the wrapper job
+  // action that the compilation step to create the object should be performed
+  // after the wrapping step is complete.
+  void setCompileStep(bool SetValue) { CompileStep = SetValue; }
+
+  // Get the compilation step setting.
+  bool getCompileStep() const { return CompileStep; }
+
+  // Set the individual wrapping setting.  This is used to tell the wrapper job
+  // action that the wrapping (and subsequent compile step) should be done
+  // with for-each instead of using -batch.
+  void setWrapIndividualFiles() { WrapIndividualFiles = true; }
+
+  // Get the individual wrapping setting.
+  bool getWrapIndividualFiles() const { return WrapIndividualFiles; }
+
+  // Set the offload kind for the current wrapping job action.  Default usage
+  // is to use the kind of the current toolchain.
+  void setOffloadKind(OffloadKind SetKind) { Kind = SetKind; }
+
+  // Get the offload kind.
+  OffloadKind getOffloadKind() const { return Kind; }
+
+private:
+  bool CompileStep = true;
+  bool WrapIndividualFiles = false;
+  OffloadKind Kind = OFK_None;
 };
 
 class OffloadPackagerJobAction : public JobAction {
@@ -681,6 +717,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadPackagerJobClass;
+  }
+};
+
+class OffloadPackagerExtractJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  OffloadPackagerExtractJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == OffloadPackagerExtractJobClass;
   }
 };
 
@@ -800,6 +847,7 @@ class FileTableTformJobAction : public JobAction {
 public:
   static constexpr const char *COL_CODE = "Code";
   static constexpr const char *COL_ZERO = "0";
+  static constexpr const char *COL_SYM_AND_PROPS = "SymAndProps";
 
   struct Tform {
     enum Kind {
@@ -951,6 +999,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == BinaryAnalyzeJobClass;
+  }
+};
+
+class BinaryTranslatorJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  BinaryTranslatorJobAction(Action *Input, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == BinaryTranslatorJobClass;
   }
 };
 

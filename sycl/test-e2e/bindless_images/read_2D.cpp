@@ -1,11 +1,13 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include "helpers/common.hpp"
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -36,13 +38,39 @@ int main() {
 
   // Image descriptor - can use the same for both images
   sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width, height}, sycl::image_channel_order::rgba,
-      sycl::image_channel_type::fp32);
+      {width, height}, 4, sycl::image_channel_type::fp32);
 
   try {
+
+    // Verify ability to allocate the above image descriptor
+    if (!bindless_helpers::memoryAllocationSupported(
+            desc,
+            sycl::ext::oneapi::experimental::image_memory_handle_type::
+                opaque_handle,
+            q)) {
+      // We cannot allocate the opaque `image_mem` below
+      std::cout << "Memory allocation unsupported. Skipping test.\n";
+      return 0;
+    }
+
     // Extension: allocate memory on device and create the handle
     sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
     sycl::ext::oneapi::experimental::image_mem imgMem1(desc, dev, ctxt);
+
+    // Extension: verify ability to create the unsampled image handles below
+    bool supportedUnsampledHandle =
+        sycl::ext::oneapi::experimental::is_image_handle_supported<
+            sycl::ext::oneapi::experimental::unsampled_image_handle>(
+            desc,
+            sycl::ext::oneapi::experimental::image_memory_handle_type::
+                opaque_handle,
+            q);
+    if (!supportedUnsampledHandle) {
+      // We cannot create the unsampled handles below
+      std::cout << "Unsampled image handle creation unsupported. Skipping "
+                   "test.\n";
+      return 0;
+    }
 
     // Extension: create the image and return the handle
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =
@@ -73,12 +101,12 @@ int main() {
             size_t dim0 = it.get_local_id(0);
             size_t dim1 = it.get_local_id(1);
             float sum = 0;
-            // Extension: read image data from handle
+            // Extension: fetch image data from handle
             sycl::float4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+                sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
                     imgHandle1, sycl::int2(dim0, dim1));
             sycl::float4 px2 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+                sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
                     imgHandle2, sycl::int2(dim0, dim1));
 
             sum = px1[0] + px2[0];

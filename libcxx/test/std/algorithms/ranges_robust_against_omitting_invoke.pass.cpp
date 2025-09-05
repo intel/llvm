@@ -19,6 +19,9 @@
 #include <initializer_list>
 #include <iterator>
 #include <ranges>
+#include <type_traits>
+
+#include "test_macros.h"
 
 struct Foo {
   int val;
@@ -32,7 +35,7 @@ struct Bar {
   Bar create() const { return Bar(); }
 };
 
-// Invokes both the (iterator, sentinel, ...) and the (range, ...) overloads of the given niebloid.
+// Invokes both the (iterator, sentinel, ...) and the (range, ...) overloads of the given algorithm function object.
 
 // (in, ...)
 template <class Func, std::ranges::range Input, class... Args>
@@ -73,6 +76,10 @@ constexpr bool test_all() {
 
   test(std::ranges::any_of, in, &Foo::unary_pred, &Bar::val);
   test(std::ranges::all_of, in, &Foo::unary_pred, &Bar::val);
+#if TEST_STD_VER >= 23
+  test(std::ranges::contains, in, x, &Bar::val);
+  test(std::ranges::ends_with, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
+#endif
   test(std::ranges::none_of, in, &Foo::unary_pred, &Bar::val);
   test(std::ranges::find, in, x, &Bar::val);
   test(std::ranges::find_if, in, &Foo::unary_pred, &Bar::val);
@@ -143,6 +150,9 @@ constexpr bool test_all() {
   test(std::ranges::partition_copy, in, out, out2, &Foo::unary_pred, &Bar::val);
   test(std::ranges::partial_sort_copy, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::merge, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
+#if TEST_STD_VER > 20
+  test(std::ranges::starts_with, in, in2, &Foo::binary_pred, &Bar::val, &Bar::val);
+#endif
   test(std::ranges::set_difference, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::set_intersection, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
   test(std::ranges::set_symmetric_difference, in, in2, out, &Foo::binary_pred, &Bar::val, &Bar::val);
@@ -154,15 +164,18 @@ constexpr bool test_all() {
   // For `shuffle`, whether the given generator is invoked via `std::invoke` is not observable.
   test(std::ranges::unique, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::partition, in, &Foo::unary_pred, &Bar::val);
-  if (!std::is_constant_evaluated())
+  if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
     test(std::ranges::stable_partition, in, &Foo::unary_pred, &Bar::val);
+  }
   test(std::ranges::sort, in, &Foo::binary_pred, &Bar::val);
-  if (!std::is_constant_evaluated())
+  if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
     test(std::ranges::stable_sort, in, &Foo::binary_pred, &Bar::val);
+  }
   test_mid(std::ranges::partial_sort, in, mid, &Foo::binary_pred, &Bar::val);
   test_mid(std::ranges::nth_element, in, mid, &Foo::binary_pred, &Bar::val);
-  if (!std::is_constant_evaluated())
+  if (TEST_STD_AT_LEAST_26_OR_RUNTIME_EVALUATED) {
     test_mid(std::ranges::inplace_merge, in, mid, &Foo::binary_pred, &Bar::val);
+  }
   test(std::ranges::make_heap, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::push_heap, in, &Foo::binary_pred, &Bar::val);
   test(std::ranges::pop_heap, in, &Foo::binary_pred, &Bar::val);

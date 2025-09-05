@@ -32,6 +32,16 @@ spirv.module Logical GLSL450 attributes {
   }
 }
 
+// CHECK: requires #spirv.vce<v1.4, [Shader], []>
+spirv.module Logical GLSL450 attributes {
+  spirv.target_env = #spirv.target_env<#spirv.vce<v1.6, [Shader], []>, #spirv.resource_limits<>>
+} {
+  spirv.func @select_with_scalar_condition(%predicate : i1, %a: vector<2xf32>, %b: vector<2xf32>) -> vector<2xf32> "None" {
+    %0 = spirv.Select %predicate, %a, %b : i1, vector<2xf32>
+    spirv.ReturnValue %0: vector<2xf32>
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // Capability
 //===----------------------------------------------------------------------===//
@@ -56,7 +66,7 @@ spirv.module PhysicalStorageBuffer64 GLSL450 attributes {
   spirv.target_env = #spirv.target_env<
     #spirv.vce<v1.0, [Shader, PhysicalStorageBufferAddresses], [SPV_EXT_physical_storage_buffer]>, #spirv.resource_limits<>>
 } {
-  spirv.func @physical_ptr(%val : !spirv.ptr<f32, PhysicalStorageBuffer>) "None" {
+  spirv.func @physical_ptr(%val : !spirv.ptr<f32, PhysicalStorageBuffer> { spirv.decoration = #spirv.decoration<Aliased> }) "None" {
     spirv.Return
   }
 }
@@ -91,7 +101,7 @@ spirv.module Logical GLSL450 attributes {
     #spirv.vce<v1.3, [Shader, GroupNonUniformArithmetic], []>, #spirv.resource_limits<>>
 } {
   spirv.func @group_non_uniform_iadd(%val : i32) -> i32 "None" {
-    %0 = spirv.GroupNonUniformIAdd "Subgroup" "Reduce" %val : i32
+    %0 = spirv.GroupNonUniformIAdd <Subgroup> <Reduce> %val : i32 -> i32
     spirv.ReturnValue %0: i32
   }
 }
@@ -102,7 +112,7 @@ spirv.module Logical GLSL450 attributes {
     #spirv.vce<v1.3, [Shader, GroupNonUniformClustered, GroupNonUniformBallot], []>, #spirv.resource_limits<>>
 } {
   spirv.func @group_non_uniform_iadd(%val : i32) -> i32 "None" {
-    %0 = spirv.GroupNonUniformIAdd "Subgroup" "Reduce" %val : i32
+    %0 = spirv.GroupNonUniformIAdd <Subgroup> <Reduce> %val : i32 -> i32
     spirv.ReturnValue %0: i32
   }
 }
@@ -206,4 +216,18 @@ spirv.module Logical GLSL450 attributes {
 } {
   spirv.GlobalVariable @data : !spirv.ptr<!spirv.struct<(i8 [0], f16 [2], i64 [4])>, Uniform>
   spirv.GlobalVariable @img  : !spirv.ptr<!spirv.image<f32, Buffer, NoDepth, NonArrayed, SingleSampled, SamplerUnknown, Rg32f>, UniformConstant>
+}
+
+// Using bfloat16 requires BFloat16TypeKHR capability and SPV_KHR_bfloat16 extension.
+// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, BFloat16TypeKHR], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
+spirv.module Logical GLSL450 attributes {
+  spirv.target_env = #spirv.target_env<
+    #spirv.vce<v1.0, [Shader, StorageBuffer16BitAccess, BFloat16TypeKHR], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>,
+    #spirv.resource_limits<>
+  >
+} {
+  spirv.func @load_bf16(%ptr : !spirv.ptr<bf16, StorageBuffer>) -> bf16 "None" {
+    %val = spirv.Load "StorageBuffer" %ptr : bf16
+    spirv.ReturnValue %val : bf16
+  }
 }

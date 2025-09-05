@@ -1,11 +1,11 @@
 // RUN: %{build} -DSOURCE1 -c -o %t1.o
 // RUN: %{build} -DSOURCE2 -c -o %t2.o
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t1.o %t2.o -o %t.exe
+// RUN: %clangxx -fsycl %{sycl_target_opts} %t1.o %t2.o -Wno-unused-command-line-argument -o %t.exe
 // RUN: %{run} %t.exe
 
 #ifdef SOURCE1
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using accT = sycl::accessor<int, 1>;
 constexpr int value = 42;
@@ -34,7 +34,7 @@ int main() {
 #endif // SOURCE1
 
 #ifdef SOURCE2
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr int value = 42;
 

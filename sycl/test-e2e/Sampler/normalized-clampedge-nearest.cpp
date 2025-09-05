@@ -1,10 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Missing __spirv_ImageWrite, __spirv_SampledImage,
-// __spirv_ImageSampleExplicitLod on AMD
-// XFAIL: hip_amd
 
 /*
     This file sets up an image, initializes it with data,
@@ -15,7 +11,6 @@
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -111,7 +106,7 @@ void test_normalized_clampedge_nearest_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read four pixels at low-boundary locations,  sample:   "
                  "Normalized +  Clamp To Edge  + Nearest"
               << std::endl;

@@ -10,7 +10,7 @@ target triple = "spir64-unknown-unknown"
 $_ZTS4MyIP = comdat any
 
 ; Function Attrs: convergent mustprogress norecurse
-define weak_odr dso_local spir_kernel void @_ZTS4MyIP(i32 addrspace(4)* noundef %_arg_p) #0 comdat !kernel_arg_buffer_location !1587 !spirv.ParameterDecorations !1588
+define weak_odr dso_local spir_kernel void @_ZTS4MyIP(ptr addrspace(4) noundef %_arg_p) #0 comdat !kernel_arg_buffer_location !1587 !spirv.ParameterDecorations !1588
 ; CHECK-LLVM-DAG:  !spirv.ParameterDecorations ![[PARMDECOR:[0-9]+]]
 {
 entry:
@@ -53,6 +53,7 @@ entry:
 ; CHECK-SPIRV: Capability FPGAArgumentInterfacesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_argument_interfaces"
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_buffer_location"
+; CHECK-SPIRV-DAG:  Name [[IDS:[0-9]+]] "_arg_p"
 ; CHECK-SPIRV-DAG:  Name [[ID:[0-9]+]] "_arg_p"
 ; CHECK-SPIRV:  Decorate [[ID]] Alignment 4
 ; CHECK-SPIRV:  Decorate [[ID]] MMHostInterfaceAddressWidthINTEL 32

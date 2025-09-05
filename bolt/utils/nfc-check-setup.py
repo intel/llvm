@@ -7,6 +7,29 @@ import subprocess
 import sys
 import textwrap
 
+def get_relevant_bolt_changes(dir: str) -> str:
+    # Return a list of bolt source changes that are relevant to testing.
+    all_changes = subprocess.run(
+        shlex.split("git show HEAD --name-only --pretty=''"),
+        cwd=dir,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    keep_bolt = subprocess.run(
+        shlex.split("grep '^bolt'"),
+        input=all_changes.stdout,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    keep_relevant = subprocess.run(
+        shlex.split(
+            "grep -v -e '^bolt/docs' -e '^bolt/utils/docker' -e '^bolt/utils/dot2html'"
+        ),
+        input=keep_bolt.stdout,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    return keep_relevant.stdout
 
 def get_git_ref_or_rev(dir: str) -> str:
     # Run 'git symbolic-ref -q --short HEAD || git rev-parse --short HEAD'
@@ -37,10 +60,21 @@ def main():
         help="Path to BOLT build directory, default is current " "directory",
     )
     parser.add_argument(
+        "--check-bolt-sources",
+        default=False,
+        action="store_true",
+        help="Create a marker file (.llvm-bolt.changes) if any relevant BOLT sources are modified",
+    )
+    parser.add_argument(
         "--switch-back",
         default=False,
         action="store_true",
         help="Checkout back to the starting revision",
+    )
+    parser.add_argument(
+        "--cmp-rev",
+        default="HEAD^",
+        help="Revision to checkout to compare vs HEAD",
     )
     args, wrapper_args = parser.parse_known_args()
     bolt_path = f"{args.build_dir}/bin/llvm-bolt"
@@ -66,6 +100,16 @@ def main():
     # memorize the old hash for logging
     old_ref = get_git_ref_or_rev(source_dir)
 
+    if args.check_bolt_sources:
+        marker = f"{args.build_dir}/.llvm-bolt.changes"
+        if os.path.exists(marker):
+            os.remove(marker)
+        file_changes = get_relevant_bolt_changes(source_dir)
+        # Create a marker file if any relevant BOLT source files changed.
+        if len(file_changes) > 0:
+            print(f"BOLT source changes were found:\n{file_changes}")
+            open(marker, "a").close()
+
     # determine whether a stash is needed
     stash = subprocess.run(
         shlex.split("git status --porcelain"),
@@ -77,8 +121,8 @@ def main():
     if stash:
         # save local changes before checkout
         subprocess.run(shlex.split("git stash push -u"), cwd=source_dir)
-    # check out the previous commit
-    subprocess.run(shlex.split("git checkout -f HEAD^"), cwd=source_dir)
+    # check out the previous/cmp commit
+    subprocess.run(shlex.split(f"git checkout -f {args.cmp_rev}"), cwd=source_dir)
     # get the parent commit hash for logging
     new_ref = get_git_ref_or_rev(source_dir)
     # build the previous commit

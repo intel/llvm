@@ -1,4 +1,4 @@
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 // Temporarily disabled because the test is out of time
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -11,14 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 const size_t ITERS = 100000;
 
 // The test checks that that event destruction does not lead to stack overflow
 
 int main() {
-  sycl::queue Q(sycl::default_selector_v);
+  sycl::queue Q;
   sycl::buffer<int, 1> Buf(3000);
   for (size_t Idx = 0; Idx < ITERS; ++Idx) {
     auto Event = Q.submit([&](sycl::handler &cgh) {

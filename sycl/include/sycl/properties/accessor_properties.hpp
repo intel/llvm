@@ -8,32 +8,29 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>                     // for mode, target
-#include <sycl/detail/common.hpp>                     // for __SYCL_EBO
-#include <sycl/detail/defines.hpp>                    // for __SYCL_TYPE
-#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
-#include <sycl/detail/property_helper.hpp>            // for DataLessPropKind
-#include <sycl/ext/oneapi/accessor_property_list.hpp> // for IsCompileTimeP...
-#include <sycl/image.hpp>                             // for image_accessor
-#include <sycl/properties/property_traits.hpp>        // for is_property_of
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/property_helper.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/properties/property_traits.hpp>
 
-#include <type_traits> // for true_type, fal...
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
-namespace property {
 
-class no_init : public detail::DataLessProperty<detail::NoInit> {};
-
-class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
-    : public detail::DataLessProperty<detail::NoInit> {};
-
-} // namespace property
-
-inline constexpr property::no_init no_init;
-
-__SYCL2020_DEPRECATED("spelling is now: no_init")
-inline constexpr property::noinit noinit;
+#define __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME,        \
+                                               ENUM_VAL, WARNING)              \
+  namespace NS_QUALIFIER {                                                     \
+  class WARNING PROP_NAME                                                      \
+      : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
+  }                                                                            \
+  WARNING inline constexpr NS_QUALIFIER::PROP_NAME PROP_NAME;
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_DATA_LESS_PROP_DEPRECATED_ALIAS(NS_QUALIFIER, PROP_NAME, ENUM_VAL, )
+#include <sycl/properties/runtime_accessor_properties.def>
 
 namespace ext::intel {
 namespace property {
@@ -191,8 +188,8 @@ struct is_property<ext::intel::property::buffer_location> : std::true_type {};
 
 template <typename T>
 struct is_property_of<property::noinit, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
-                         detail::acc_properties::is_host_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T> ||
+                         detail::acc_properties::is_host_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<property::no_init, T>
@@ -204,15 +201,15 @@ struct is_property_of<property::no_init, T>
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_offset, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_alias, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::intel::property::buffer_location, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 namespace detail {
 template <int I>

@@ -8,6 +8,7 @@
 // CHECK: Forward declarations of templated kernel function types:
 // CHECK-NEXT: template <typename T, T nttp> struct SelfReferentialNTTP;
 // CHECK-NEXT: template <typename U, int nttp> struct NonSelfRef;
+// CHECK-NEXT: template <int N> struct alignas(N)  OpaqueType;
 
 template<typename T, T nttp>
 struct SelfReferentialNTTP {};
@@ -17,7 +18,15 @@ using Foo = int;
 template<typename U, Foo nttp>
 struct NonSelfRef {};
 
+template <int N> struct alignas(N) OpaqueType {
+  char data[N];
+};
+template <typename T> class Kernel;
+
 void foo() {
-  sycl::kernel_single_task<SelfReferentialNTTP<int, 1>>([](){});
-  sycl::kernel_single_task<NonSelfRef<int, 1>>([](){});
+  auto Lambda = [](){};
+  sycl::kernel_single_task<SelfReferentialNTTP<int, 1>>(Lambda);
+  sycl::kernel_single_task<NonSelfRef<int, 1>>(Lambda);
+  using scalar_t = OpaqueType<sizeof(int)>;
+  sycl::kernel_single_task<class Kernel<scalar_t>>(Lambda);
 }

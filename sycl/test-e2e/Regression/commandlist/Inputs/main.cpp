@@ -1,5 +1,7 @@
 #include "FindPrimesSYCL.h"
 
+#include <sycl/properties/all_properties.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -39,10 +41,9 @@ int main(int argc, char *argv[]) {
   bool lock{true};
   bool sharedQueue{true};
   // int nthreadsGPU = 1;
-  int nthreadsGPU = 8;
+  constexpr int nthreadsGPU = 8;
   int arr_size = 20;
   int iter_gpu = 200;
-  unsigned int gpu_dev = 999;
   unsigned int nitems = 0;
   bool passed = true;
 
@@ -71,21 +72,7 @@ int main(int argc, char *argv[]) {
   cout << "   iter GPU:   " << iter_gpu << "\n";
 #endif
 
-  std::vector<sycl::device> dlist;
-  if (gpu_dev == 999) {
-    try {
-      auto sel = sycl::gpu_selector();
-      sel_dev = sel.select_device();
-    } catch (...) {
-      cout << "no gpu device found\n";
-    }
-  } else {
-    if (gpu_dev > dlist.size() - 1) {
-      cout << "ERROR: selected device index [" << gpu_dev << "] is too large\n";
-      exit(1);
-    }
-    sel_dev = dlist[gpu_dev];
-  }
+  sel_dev = sycl::device(sycl::default_selector_v);
   std::cout << "selected dev: " << sel_dev.get_info<sycl::info::device::name>()
             << "\n";
 
@@ -199,6 +186,8 @@ int main(int argc, char *argv[]) {
   std::cout << "GPU average time: " << avgtime / vwork.size() << std::endl;
   std::cout << "total time: " << diff.count() << std::endl;
 #endif
+
+  delete queueLock;
 
   if (passed) {
     std::cout << "Passed" << std::endl;

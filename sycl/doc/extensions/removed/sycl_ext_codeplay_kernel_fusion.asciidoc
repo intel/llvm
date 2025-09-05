@@ -1,0 +1,713 @@
+= sycl_ext_codeplay_kernel_fusion
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Codeplay Software Limited.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This experimental extension is no longer supported.
+
+[NOTE]
+====
+There is a link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[follow-up
+proposal] for fusion based on the 
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc[SYCL graph API].
+That proposal continues some of the ideas presented in this proposal, but uses
+the more versatile SYCL graphs API to define the sequence of kernels to
+execute.
+
+Once accepted and implemented, the new proposal will supersede this proposal.
+====
+
+[NOTE]
+==== 
+This is an experimental extension for the SYCL specification.
+Exceptions while in fusion mode can leave a `queue` in an unknown fusion state,
+as no RAII-based management of fusion is done. Passing a `queue` in fusion mode
+to third-party libraries can make assumptions about the kernels enqueued by the
+library that might change over time. 
+
+This experimental proposal is intended to collect experience and early feedback
+on an API for kernel fusion in SYCL to inform a future extension proposal
+addressing the mentioned problems. 
+====
+
+== Overview
+
+Every kernel launch in SYCL carries an overhead due to memory traffic and device
+launch and synchronization. To avoid this repeated overhead, it can be desirable
+to **fuse** two or more kernels executing on the same device into a single
+kernel launch.
+
+However, constructing a reliable, completely automatic kernel fusion in the
+compiler is hard for the general case. Therefore, we instead propose an
+interface for **user-driven kernel fusion**, so that the user can leverage
+application/domain knowledge to explicitly instruct the SYCL runtime to fuse two
+or more kernels.
+
+This work is motivated by scenarios in which the information to decide whether
+to fuse is only available at runtime, e.g., taking into account input data size;
+and/or the kernels being submitted for execution are not known at compile time,
+e.g., using different kernels for different input data sizes and/or
+platform. Thus, the fusion of kernels should be possible at **runtime** of the
+application (in contrast to compile time).
+
+The aim of this document is to propose a mechanism for users to request the
+fusion of two or more kernels into a single kernel **at runtime**. This requires
+the extension of the runtime with some sort of JIT compiler to allow for the
+fusion of kernel functions at runtime.
+
+=== Internalizing Dataflow [[internalization]]
+
+While avoiding repeated kernel launch overheads will most likely already improve
+application performance, kernel fusion can deliver even higher performance gains
+when internalizing dataflows.
+
+In a situation where data produced by one kernel is consumed by another kernel
+and the two kernels are fused, the dataflow from the first kernel to the second
+kernel can be made internal to the fused kernel. Instead of using time-consuming
+reads and writes to/from global memory, the fused kernel can use much faster
+mechanisms, e.g., registers or private memory to "communicate" the result, as we
+will see in the following example.
+
+To achieve this result during fusion, a fusion compiler must be aware of some
+additional information and context:
+
+* The compiler must know that two arguments refer to the same
+  accessor/underlying memory.
+* As internalized buffers are not initialized, elements of the internalized
+  buffer being read by a kernel must have been written before (either in the
+  same kernel or in a previous one).
+* Values stored to an internalized buffer must not be used by any other kernel
+  not part of the fusion process, as the data would become unavailable to
+  consumers. This is knowledge that the compiler cannot deduce. Instead, the
+  fact that the values stored to an internalized buffer are not used outside the
+  fused kernel must be provided by the user.
+* If these conditions hold, depending on the memory access pattern of the fused
+  kernel, we can say that a buffer is:
+** _Privately internalizable_: If not a single element of the buffer is to be
+   accessed by more than one work-item;
+** _Locally internalizable_: If not a single element of the buffer is to be
+   accessed by work items of different work groups.
+
+As the compiler can reason about the access behavior of the different kernels
+only in a very limited fashion, **it's the user's responsibility to make sure no
+data races occur in the fused kernel**. Data races could in particular be
+introduced because the implicit inter-work-group synchronization between the
+execution of two separate kernels is eliminated by fusion. The user must ensure
+that the kernels combined during fusion do not rely on this synchronization.
+
+=== Example
+
+```c++
+class KernelOne {
+public:
+  KernelOne(accessor<int> a, accessor<int> b, accessor<int> c)
+      : A{a}, B{b}, C{c} {}
+
+  void operator()(item<1> i){
+      C[i] = A[i] * B[i];
+  }
+
+private:
+  accessor<int> A;
+  accessor<int> B;
+  accessor<int> C;
+};
+
+class KernelTwo {
+public:
+  KernelTwo(accessor<int> x, accessor<int> y, accessor<int> z)
+      : X{x}, Y{y}, Z{z} {}
+
+  void operator()(item<1> i){
+      Z[i] = X[i] + Y[i];
+  }
+
+private:
+  accessor<int> X;
+  accessor<int> Y;
+  accessor<int> Z;
+
+};
+
+int main(){
+  constexpr size_t dataSize = 512;
+  int in1[dataSize], in2[dataSize], in3[dataSize], tmp[dataSize], out[dataSize];
+
+  queue q{gpu_selector{}, 
+      {ext::codeplay::experimental::property::queue::enable_fusion()}};
+
+  {
+    ext::codeplay::experimental::fusion_wrapper w{q};
+
+    buffer<int> bIn1{in1, range{dataSize}};
+    buffer<int> bIn2{in2, range{dataSize}};
+    buffer<int> bIn3{in3, range{dataSize}};
+    buffer<int> bOut{out, range{dataSize}};
+    // Buffer bTmp will be internalized, as the promote_private property is used
+    // in its construction.
+    buffer<int> bTmp{tmp, range{dataSize},
+        {ext::codeplay::experimental::property::promote_private()}};
+
+    // Set the queue into "fusion mode"
+    w.start_fusion();
+
+    // "Submit" the first kernel. The kernel will be added to the the list of
+    // kernels to be fused and will not be executed before fusion is completed
+    // or cancelled.
+    q.submit([&](handler& cgh){
+      auto accIn1 = bIn1.get_access(cgh);
+      auto accIn2 = bIn2.get_access(cgh);
+      auto accTmp = bTmp.get_access(cgh);
+      cgh.parallel_for<KernelOne>(dataSize, KernelOne{accIn1, accIn2, accTmp});
+    });
+
+    // "Submit" the second kernel. The kernel will be added to the the list of
+    // kernels to be fused and will not be executed before fusion is completed
+    // or canceled.
+    q.submit([&](handler& cgh){
+      auto accTmp = bTmp.get_access(cgh);
+      auto accIn3 = bIn3.get_access(cgh);
+      auto accOut = bOut.get_access(cgh);
+      cgh.parallel_for<KernelTwo>(dataSize, KernelTwo{accTmp, accIn3, accOut});
+    });
+
+    // Complete the fusion: JIT-compile a fused kernel containing KernelOne and
+    // KernelTwo and submit the fused kernel for execution. This call may return
+    // before JIT-compilation or execution of the fused kernel is completed.
+    w.complete_fusion({ext::codeplay::experimental::property::no_barriers()});
+
+    // End of the scope - buffers go out-of-scope and are destructed. Buffer
+    // destruction causes a synchronization with all outstanding commands
+    // operating on the buffer, in this case the fused kernel.
+  }
+}
+```
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_CODEPLAY_KERNEL_FUSION` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== API Extension
+
+The design tightly integrates with the `queue` class and leverages the
+asynchronous nature of SYCL kernel submissions. It introduces a new class
+`fusion_wrapper` that wraps a SYCL queue to give access to the relevant API for
+fusion. The wrapper class is introduced to achieve a separation of concerns by
+keeping the fusion control API separate from the existing queue API. The wrapper
+directly manipulates and controls the fusion state of the wrapped queue. 
+
+Next to the `fusion_wrapper`, this extension also introduces additional
+properties and a new member function for class `queue`.
+
+==== Fusion Wrapper class
+
+The `fusion_wrapper` is a thin wrapper around a SYCL queue object and provides
+access to the necessary API functions to control the fusion state of the wrapped
+queue object. The `fusion_wrapper` member functions directly modify the fusion
+state of the underlying `queue`, effectively making the queue stateful.
+
+As the fusion state is attached to the wrapped `queue` object, it is permissible
+to create two or more `fusion_wrapper` objects for the same `queue` object. The
+`fusion_wrapper` objects will manage the fusion state for the same queue. It is
+the applications responsibility to synchronize if one or multiple
+`fusion_wrapper` objects are used in a multithreaded context.
+
+The `fusion_wrapper` class is **not** an allowable type for kernel parameters
+(https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.parameter.passing[§4.12.4]
+of the SYCL 2020 specification).
+
+A synopsis of the SYCL `fusion_wrapper` class is provided below. The constructors,
+destructors and member functions of the SYCL `fusion_wrapper` class are listed in
+Table 1 and 2.
+
+```c++
+namespace sycl {
+namespace ext {
+namespace codeplay {
+namespace experimental {
+
+class fusion_wrapper {
+
+  explicit fusion_wrapper(queue &q);
+
+  /* -- common interface members -- */
+
+  queue get_queue() const;
+
+  bool is_in_fusion_mode() const;
+
+  void start_fusion();
+
+  void cancel_fusion();
+
+  event complete_fusion(const property_list &propList = {});
+};
+} // namespace experimental
+} // namespace codeplay
+} // namespace ext
+} // namespace sycl
+```
+
+
+Table 1. Constructors and destructors of the `fusion_wrapper` class
+|===
+|Constructor|Description
+
+|`explicit fusion_wrapper(queue& syclQueue)`
+
+|Wraps the queue `syclQueue` with a `fusion_wrapper` to get access to the
+fusion API and manage kernel fusion on `syclQueue`. 
+
+The underlying `queue` must have property 
+`sycl::ext::codeplay::experimental::property::queue::enable_fusion`
+
+|===
+
+Table 2. Member functions of the `fusion_wrapper` class
+
+|===
+|Member Function|Description
+
+|`void start_fusion()`
+
+|Set the wrapped `queue` into "fusion mode". Subsequent command group
+submissions to the `queue` will not be submitted for execution right away, but rather added to
+a list of kernels that should be fused (i.e., to the _fusion list_), until
+`complete_fusion` or `cancel_fusion` are called.
+
+If the wrapped `queue` is already in fusion mode, the function throws an
+`exception` with `errc::invalid` error code.
+
+|`event complete_fusion(const property_list &)` 
+
+|Complete the fusion: If the runtime decides to perform fusion, it will
+JIT-compile a fused kernel from all kernels submitted to the wrapped `queue`
+since the last call to `start_fusion` and submit the fused kernel for execution.
+Inside the fused kernel, the per-work-item effects are executed in the same
+order as the kernels were initially submitted, adding group barriers between
+each of them by default. If the runtime decides not to fuse the kernels, they
+are passed to the scheduler in the same order that they were originally
+submitted to the queue. Constraints on when fusion is possible and criteria for
+the implementation to perform fusion are implementation-defined. Calling
+`fusion_wrapper::complete_fusion` does therefore not guarantee that the kernels
+will be fused.
+
+The call is asynchronous, i.e., it may return after fusion (JIT-compilation) is
+done, but before execution of the fused kernel is completed. The returned event
+allows to synchronize with the execution of the fused kernel.
+
+At call completion the wrapped `queue` is no longer in fusion mode, until the
+next `start_fusion`.
+
+|`void cancel_fusion()` 
+
+|Cancel the fusion and submit all kernels submitted to the wrapped `queue` since
+the last `start_fusion()` for immediate execution **without** fusion. The
+kernels are submitted in the same order as they were initially submitted to the
+queue.
+
+This operation is asynchronous, i.e., it may return after the kernels have been
+added to the scheduler, but before any of the previously submitted kernel starts
+or completes execution.
+
+At call completion the wrapped `queue` is no longer in fusion mode, until the next
+`start_fusion`.
+
+|`bool is_in_fusion_mode() const`
+|Returns true if the wrapped SYCL `queue` is currently in fusion mode.
+
+|===
+
+==== Properties
+
+Next to the new API functions and classes described above, this extension also
+adds new properties that are described in Table 3.
+
+Table 3. New properties for kernel fusion.
+
+|===
+|Property|Description
+
+|`sycl::ext::codeplay::experimental::property::queue::enable_fusion`
+|This property enables kernel fusion for the queue. If a `fusion_wrapper` object
+is constructed on a queue without this property, an `exception` with `errc::invalid`
+error code is thrown.
+
+If a `queue` is constructed with this property, but the underlying `device` of
+the queue returns `false` for the device information descriptor
+`sycl::ext::codeplay::experimental::info::device::supports_fusion`, an
+`exception` with `errc::invalid` error code is thrown.
+
+|`sycl::ext::codeplay::experimental::property::no_barriers`
+
+|If the property list passed to `fusion_wrapper::complete_fusion()` contains this
+property, no barriers are introduced between kernels in the fused kernel.
+
+|`sycl::ext::codeplay::experimental::property::promote_local`
+|This property can be passed to the `accessor` constructor, giving a more
+granular control, or to the `buffer` constructor, in which case all the
+`accessors` will inherit this property (unless overridden).
+
+This property is an assertion by the application that each element in the buffer
+is accessed by no more than one work-group in the kernel submitted by this
+command-group (in case the property is specified on an accessor) or in any
+kernel in the fusion set (in case the property is specified on a buffer).
+Implementations may treat this as a hint to promote the buffer elements to
+local memory (see local and private internalization in <<internalization>>).
+
+The application also asserts that the updates made to the buffer by the kernel
+submitted by this command-group (in case the property is specified on an
+accessor) or in any kernel in the fusion set (in case the property is specified
+on a buffer) may not be available for use after the fused kernel completes
+execution. Implementations may treat this as a hint to not write back the final
+result to global memory.
+
+|`sycl::ext::codeplay::experimental::property::promote_private`
+|This property can be passed to the `accessor` constructor, giving a more
+granular control, or to the `buffer` constructor, in which case all the
+`accessors` will inherit this property (unless overridden).
+
+This property is an assertion by the application that each element in the buffer
+is accessed by no more than one work-item in the kernel submitted by this
+command-group (in case the property is specified on an accessor) or in any
+kernel in the fusion set (in case the property is specified on a buffer).
+Implementations may treat this as a hint to promote the buffer elements to
+private memory (see local and private internalization in <<internalization>>).
+
+The application also asserts that the updates made to the buffer by the kernel
+submitted by this command-group (in case the property is specified on an
+accessor) or in any kernel in the fusion set (in case the property is specified
+on a buffer) may not be available for use after the fused kernel completes
+execution. Implementations may treat this as a hint to not write back the final
+result to global memory.
+
+|`sycl::ext::codeplay::experimental::property::force_fusion`
+
+|This property forces the SYCL runtime implementation to perform fusion if it is
+possible to do so. Implementations must not defer kernel fusion, even if they
+deemed the fusion to be non-profitable, e.g., based on some profitability
+analysis.
+
+This property can be passed to `fusion_wrapper::complete_fusion()`.
+
+|===
+
+==== New Queue Member Functions
+
+To support querying if a `queue` can be used for fusion, i.e., can be wrapped by
+a `fusion_wrapper` object, this extension adds a new member function to the
+`queue` class. 
+
+Table 4. Added member functions of the `queue` class
+
+|===
+|Member Function|Description
+
+|`bool queue::ext_codeplay_supports_fusion() const`
+
+|Returns true if the SYCL `queue` was created with the `enable_fusion` property.
+Equivalent to
+`has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
+
+|===
+
+==== Additional Device Information Descriptors
+
+To support querying whether a SYCL device and the underlying platform support
+kernel fusion before constructing a queue with property
+`ext::codeplay::experimental::property::queue::enable_fusion`, the following
+device information descriptor is added as part of this extension proposal. 
+
+Table 5. Added device information descriptors
+
+|===
+|Device descriptor |Return type |Description
+
+|`sycl::ext::codeplay::experimental::info::device::supports_fusion` | `bool`
+
+|Returns true if the SYCL `device` and the underlying `platform` support kernel fusion.
+
+|===
+
+=== Synchronization while in Fusion Mode
+
+[NOTE]
+====
+This section follows the same structure as
+https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:synchronization[its
+homonym in the SYCL standard].
+====
+
+By design, the execution of a SYCL application using our proposed extension
+should produce the same visible results as if the kernels were executed
+regularly. Throughout this section, synchronization rules while in fusion mode
+are described. A `queue` is said to be in fusion mode between being set into
+fusion mode through a call to `fusion_wrapper::start_fusion` on a
+`fusion_wrapper` object wrapping this queue and a call to either
+`fusion_wrapper::cancel_fusion` or `fusion_wrapper::complete_fusion` on a
+`fusion_wrapper` object wrapping this queue (note that the the two
+`fusion_wrapper` objects need not be the same object).
+
+Also note that some scenarios will lead to the sequential submission of the
+kernels in the fusion list, as adherence to the SYCL standard takes a higher
+priority than the optimization benefits brought by the kernel fusion.
+
+==== Synchronization in the SYCL Application
+
+* _Buffer destruction_: In order to adhere to the SYCL standard, destruction of
+  a buffer which is to be accessed by kernels in the fusion list implies an
+  implicit fusion cancellation. This way, the kernels would be executed in
+  submission order, ensuring correct semantics, pending work would be completed
+  and the data would be copied back on completion.
+* _Host accessors_: Similarly, to obtain correct semantics, when a host accessor
+  accessing a buffer to be accessed by a kernel submitted to the fusion list is
+  created, kernel fusion is implicitly canceled to be able to obtain the
+  expected contents of the buffer.
+* _Command group enqueue_: Submission of command groups to (at least)
+  two different queues, of which at least one is in fusion mode, can
+  lead to _circular dependencies_ between the fused kernel and the
+  execution of other command-groups, if the command-groups synchronize
+  via requirements or explicit synchronization. In this context, a
+  circular dependencies arise if any kernel in a fusion list depends
+  on a kernel submitted for execution in a different queue and, at the
+  same time, this depends on another kernel in the fusion list. This
+  causes a circular dependency as the fused kernel would depend on the
+  kernel not in the fusion list and, at the same time, this would
+  depend on the fused kernel.
++
+Circular dependencies can be caused by device kernels, host tasks or
+explicit memory operations. Implementations must cancel fusion in time
+to avoid such circular dependencies and deadlock of the
+application. The concrete event/submission causing cancellation is
+implementation defined. Implementations could opt to cancel only when
+the submission would create a circular dependency, but are free to do
+so earlier, e.g., on submission of a command-group to another queue
+which synchronizes with a kernel in the fusion list of another queue.
+* _Queue operations_: Calls to queue operations blocking execution of the
+calling thread, such as `sycl::queue::wait()`, must also imply an implicit
+kernel fusion cancellation.
+* _SYCL event objects_: Host synchronization on events returned by a call to
+`queue::submit` while the queue is still in fusion mode would also result on an
+implicit kernel fusion cancellation.  Explicit dependencies (specified by the
+user with `handler::depends_on`) between kernels to be fused must be dropped, as
+the requirement will trivially hold (per work-item) thanks to fusion semantics.
+* _Queue destruction_: As in this extension the queue becomes stateful, the
+destruction of a queue in fusion mode would lead to an implicit kernel fusion
+cancellation.
+
+==== Synchronization in SYCL kernels
+
+Group barriers semantics do not change in the fused kernel and barriers already
+in the unfused kernels are preserved in the fused kernel. Despite this, it is
+worth noting that, in order to introduce synchronization between work items in a
+same work-group executing a fused kernel, a barrier is added between each of the
+kernels being fused. This way, fusing a submission sequence as the one above
+would result in the following one unless the `property::no_barriers` property is
+used:
+
+```c++
+queue.submit([&](handler& cgh){
+  auto accIn1 = bIn1.get_access(cgh);
+  auto accIn2 = bIn2.get_access(cgh);
+  auto accIn3 = bIn3.get_access(cgh);
+  auto accTmp = bTmp.get_access(cgh);
+  auto accOut = bOut.get_access(cgh);
+  cgh.parallel_for<KernelOne>(dataSize,
+  [=](item<1> i) {
+    KernelOne{accIn1, accIn2, accTmp}(i);
+    group_barrier(i.get_group());
+    KernelTwo{accTmp, accIn3, accOut}(i);
+  });
+}
+```
+
+=== Kernel Fusion Limitations
+
+In addition to the cases discussed above, kernel fusion might be canceled by the
+runtime if some undesired scenarios arise. Note that some implementations might
+be more capable/permissive and might not abort fusion in all of these
+cases. Also, whether to abort when a kernel is submitted or when
+`fusion_wrapper::complete_fusion` is called will be implementation and
+scenario-dependent.
+
+==== Hierarchical Parallelism
+
+The extension does not support kernels using hierarchical parallelism. Although
+some implementations might want to add support for this kind of kernels.
+
+==== Incompatible ND-ranges of the kernels to fuse
+
+Incompatibility of ND-ranges will be determined by the kernel fusion
+implementation. All implementations should support fusing kernels with the exact
+same ND-ranges, but implementations might cancel fusion as soon as a kernel with
+a different ND-range is submitted.
+
+==== Kernels with different dimensions
+
+Similar to the previous one, it is implementation-defined whether or not to
+support fusing kernels with different dimensionality.
+
+==== Explicit memory operations
+
+Calls to member function of the `handler` class (or their homologous `queue`
+class shortcuts) should abort fusion in any of the following scenarios:
+
+* The command-group calling the explicit memory function explicitly synchronizes
+  (through an event) with one or multiple kernels in the fusion list;
+* One or multiple requirements created by the command-group calling the explicit
+  memory function requires the execution of one or multiple kernels in the
+  fusion list to be satisfied.
+
+==== No intermediate representation
+
+In case any of the kernels to be fused does not count with an accessible
+suitable intermediate representation, kernel fusion is canceled.
+
+=== Combining Internalization Properties
+
+In some cases, the user will specify different internalization targets for a
+buffer and accessors to such buffer. When incompatible combinations are used, an
+`exception` with `errc::invalid` error code is thrown. Otherwise, these
+properties must be combined as follows:
+
+[options="header"]
+|===
+|Accessor Internalization Target|Buffer Internalization Target|Resulting Internalization Target
+
+.3+.^|None
+|None
+|None
+
+|Local
+|Local
+
+|Private
+|Private
+
+.3+.^|Local
+|None
+|Local
+
+|Local
+|Local
+
+|Private
+|*Error*
+
+.3+.^|Private
+|None
+|Private
+
+|Local
+|*Error*
+
+|Private
+|Private
+|===
+
+In case different internalization targets are used for accessors to the same
+buffer, the following (commutative and associative) rules are followed:
+
+[options="header"]
+|===
+|Accessor~1~ Internalization Target|Accessor~2~ Internalization Target|Resulting Internalization Target
+
+|None
+|_Any_
+|None
+
+.2+.^|Local
+|Local
+|Local
+
+|Private
+|None
+
+|Private
+|Private
+|Private
+|===
+
+If no work-group size is specified or two accessors specify different
+work-group sizes when using local internalization for any of the
+kernels involved in the fusion, no internalization will be
+performed. If there is a mismatch between the two accessors (access
+range, access offset, number of dimensions, data type), no
+internalization is performed.
+
+== Design Constraints
+
+The biggest constraint for the design stems from the the fact that the
+combination of kernels to be fused is unknown at compile time. This means that,
+for the design of the extension, templates cannot be leveraged to full
+extent. Templates can only be used in cases where the information is available
+at compile time (e.g., for a single kernel), but never for any interface working
+with combinations of kernels that should be fused.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Authors|Changes
+|1|2022-10-14|Victor Lomüller, Lukas Sommer and Victor Perez|*Initial draft*
+|2|2022-11-09|Victor Lomüller, Lukas Sommer and Victor Perez|*Separate fusion API into new `fusion_wrapper`*
+|3|2024-08-26|Lukas Sommer|*Mark extension as removed*
+|========================================

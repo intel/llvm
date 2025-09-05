@@ -22,11 +22,8 @@ int handleError(LLVMErrorRef Err) {
 }
 
 LLVMOrcThreadSafeModuleRef createDemoModule(void) {
-  // Create a new ThreadSafeContext and underlying LLVMContext.
-  LLVMOrcThreadSafeContextRef TSCtx = LLVMOrcCreateNewThreadSafeContext();
-
-  // Get a reference to the underlying LLVMContext.
-  LLVMContextRef Ctx = LLVMOrcThreadSafeContextGetContext(TSCtx);
+  // Create an LLVMContext.
+  LLVMContextRef Ctx = LLVMContextCreate();
 
   // Create a new LLVM module.
   LLVMModuleRef M = LLVMModuleCreateWithNameInContext("demo", Ctx);
@@ -57,6 +54,9 @@ LLVMOrcThreadSafeModuleRef createDemoModule(void) {
   //  - Free the builder.
   LLVMDisposeBuilder(Builder);
 
+  // Create a new ThreadSafeContext to hold the context.
+  LLVMOrcThreadSafeContextRef TSCtx = LLVMOrcCreateNewThreadSafeContext();
+
   // Our demo module is now complete. Wrap it and our ThreadSafeContext in a
   // ThreadSafeModule.
   LLVMOrcThreadSafeModuleRef TSM = LLVMOrcCreateNewThreadSafeModule(M, TSCtx);
@@ -69,12 +69,12 @@ LLVMOrcThreadSafeModuleRef createDemoModule(void) {
   return TSM;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
 
   int MainResult = 0;
 
   // Parse command line arguments and initialize LLVM Core.
-  LLVMParseCommandLineOptions(argc, (const char **)argv, "");
+  LLVMParseCommandLineOptions(argc, argv, "");
 
   // Initialize native target codegen and asm printer.
   LLVMInitializeNativeTarget();

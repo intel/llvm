@@ -6,12 +6,12 @@
 ; RUN: opt -module-summary -module-hash %s -o %t.bc
 ; RUN: opt -module-summary -module-hash %p/Inputs/local_name_conflict_var1.ll -o %t2.bc
 ; RUN: opt -module-summary -module-hash %p/Inputs/local_name_conflict_var2.ll -o %t3.bc
-; RUN: llvm-lto -thinlto-action=thinlink -opaque-pointers -o %t4.bc %t.bc %t2.bc %t3.bc
+; RUN: llvm-lto -thinlto-action=thinlink -o %t4.bc %t.bc %t2.bc %t3.bc
 
 ; This module will import a() and b() which should cause the read only copy
 ; of baz from each of those modules to be imported. Check that the both are
 ; imported as local copies.
-; RUN: llvm-lto -thinlto-action=import -exported-symbol=main -opaque-pointers %t.bc -thinlto-index=%t4.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=IMPORT
+; RUN: llvm-lto -thinlto-action=import -exported-symbol=main %t.bc -thinlto-index=%t4.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=IMPORT
 ; IMPORT: @baz.llvm.{{.*}} = internal global i32 10
 ; IMPORT: @baz.llvm.{{.*}} = internal global i32 10
 

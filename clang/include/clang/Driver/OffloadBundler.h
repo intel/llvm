@@ -17,8 +17,10 @@
 #ifndef LLVM_CLANG_DRIVER_OFFLOADBUNDLER_H
 #define LLVM_CLANG_DRIVER_OFFLOADBUNDLER_H
 
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/Error.h"
 #include "llvm/TargetParser/Triple.h"
+#include <llvm/Support/MemoryBuffer.h>
 #include <string>
 #include <vector>
 
@@ -26,12 +28,19 @@ namespace clang {
 
 class OffloadBundlerConfig {
 public:
+  OffloadBundlerConfig();
+
   bool AllowNoHost = false;
   bool AllowMissingBundles = false;
   bool CheckInputArchive = false;
   bool PrintExternalCommands = false;
   bool AddTargetSymbols = true;
   bool HipOpenmpCompatible = false;
+  bool Compress = false;
+  bool Verbose = false;
+  llvm::compression::Format CompressionFormat;
+  int CompressionLevel;
+  uint16_t CompressedBundleVersion;
 
   unsigned BundleAlignment = 1;
   unsigned HostInputIndex = ~0u;
@@ -65,7 +74,7 @@ public:
   llvm::Error UnbundleArchive();
 };
 
-/// Obtain the offload kind, real machine triple, and an optional GPUArch
+/// Obtain the offload kind, real machine triple, and an optional TargetID
 /// out of the target information specified by the user.
 /// Bundle Entry ID (or, Offload Target String) has following components:
 ///  * Offload Kind - Host, OpenMP, or HIP
@@ -90,7 +99,46 @@ struct OffloadTargetInfo {
 };
 
 llvm::Expected<bool> CheckBundledSection(const OffloadBundlerConfig&);
+// CompressedOffloadBundle represents the format for the compressed offload
+// bundles.
+//
+// The format is as follows:
+// - Magic Number (4 bytes) - A constant "CCOB".
+// - Version (2 bytes)
+// - Compression Method (2 bytes) - Uses the values from
+// llvm::compression::Format.
+// - Total file size (4 bytes in V2, 8 bytes in V3).
+// - Uncompressed Size (4 bytes in V1/V2, 8 bytes in V3).
+// - Truncated MD5 Hash (8 bytes).
+// - Compressed Data (variable length).
+class CompressedOffloadBundle {
+private:
+  static inline const llvm::StringRef MagicNumber = "CCOB";
 
+public:
+  struct CompressedBundleHeader {
+    unsigned Version;
+    llvm::compression::Format CompressionFormat;
+    std::optional<size_t> FileSize;
+    size_t UncompressedFileSize;
+    uint64_t Hash;
+
+    static llvm::Expected<CompressedBundleHeader> tryParse(llvm::StringRef);
+  };
+
+  static inline const uint16_t DefaultVersion = 2;
+
+  static llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  compress(llvm::compression::Params P, const llvm::MemoryBuffer &Input,
+           uint16_t Version, bool Verbose = false);
+  static llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  decompress(const llvm::MemoryBuffer &Input, bool Verbose = false);
+};
+
+/// Check whether the bundle id is in the following format:
+/// <kind>-<triple>[-<target id>[:target features]]
+/// <triple> := <arch>-<vendor>-<os>-<env>
+bool checkOffloadBundleID(const llvm::StringRef Str);
 } // namespace clang
 
 #endif // LLVM_CLANG_DRIVER_OFFLOADBUNDLER_H

@@ -12,11 +12,13 @@
 #include "mlir/AsmParser/AsmParserState.h"
 #include "mlir/AsmParser/CodeComplete.h"
 #include "mlir/Bytecode/BytecodeWriter.h"
-#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Support/ToolUtilities.h"
 #include "mlir/Tools/lsp-server-support/Logging.h"
 #include "mlir/Tools/lsp-server-support/SourceMgrUtils.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Base64.h"
 #include "llvm/Support/SourceMgr.h"
 #include <optional>
@@ -180,7 +182,7 @@ static unsigned getBlockNumber(Block *block) {
 static void printDefBlockName(raw_ostream &os, Block *block, SMRange loc = {}) {
   // Try to extract a name from the source location.
   std::optional<StringRef> text = getTextFromRange(loc);
-  if (text && text->startswith("^")) {
+  if (text && text->starts_with("^")) {
     os << *text;
     return;
   }
@@ -285,6 +287,12 @@ struct MLIRDocument {
   lsp::Hover
   buildHoverForBlockArgument(SMRange hoverRange, BlockArgument arg,
                              const AsmParserState::BlockDefinition &block);
+
+  lsp::Hover buildHoverForAttributeAlias(
+      SMRange hoverRange, const AsmParserState::AttributeAliasDefinition &attr);
+  lsp::Hover
+  buildHoverForTypeAlias(SMRange hoverRange,
+                         const AsmParserState::TypeAliasDefinition &type);
 
   //===--------------------------------------------------------------------===//
   // Document Symbols
@@ -403,6 +411,18 @@ void MLIRDocument::getLocationsOf(const lsp::URIForFile &uri,
       if (containsPosition(arg))
         return;
   }
+
+  // Check all alias definitions.
+  for (const AsmParserState::AttributeAliasDefinition &attr :
+       asmState.getAttributeAliasDefs()) {
+    if (containsPosition(attr.definition))
+      return;
+  }
+  for (const AsmParserState::TypeAliasDefinition &type :
+       asmState.getTypeAliasDefs()) {
+    if (containsPosition(type.definition))
+      return;
+  }
 }
 
 void MLIRDocument::findReferencesOf(const lsp::URIForFile &uri,
@@ -448,6 +468,18 @@ void MLIRDocument::findReferencesOf(const lsp::URIForFile &uri,
     for (const AsmParserState::SMDefinition &arg : block.arguments)
       if (isDefOrUse(arg, posLoc))
         return appendSMDef(arg);
+  }
+
+  // Check all alias definitions.
+  for (const AsmParserState::AttributeAliasDefinition &attr :
+       asmState.getAttributeAliasDefs()) {
+    if (isDefOrUse(attr.definition, posLoc))
+      return appendSMDef(attr.definition);
+  }
+  for (const AsmParserState::TypeAliasDefinition &type :
+       asmState.getTypeAliasDefs()) {
+    if (isDefOrUse(type.definition, posLoc))
+      return appendSMDef(type.definition);
   }
 }
 
@@ -500,6 +532,19 @@ MLIRDocument::findHover(const lsp::URIForFile &uri,
           hoverRange, block.block->getArgument(arg.index()), block);
     }
   }
+
+  // Check to see if the hover is over an alias.
+  for (const AsmParserState::AttributeAliasDefinition &attr :
+       asmState.getAttributeAliasDefs()) {
+    if (isDefOrUse(attr.definition, posLoc, &hoverRange))
+      return buildHoverForAttributeAlias(hoverRange, attr);
+  }
+  for (const AsmParserState::TypeAliasDefinition &type :
+       asmState.getTypeAliasDefs()) {
+    if (isDefOrUse(type.definition, posLoc, &hoverRange))
+      return buildHoverForTypeAlias(hoverRange, type);
+  }
+
   return std::nullopt;
 }
 
@@ -604,6 +649,28 @@ lsp::Hover MLIRDocument::buildHoverForBlockArgument(
   printDefBlockName(os, block);
   os << "\n\nArgument #" << arg.getArgNumber() << "\n\n"
      << "Type: `" << arg.getType() << "`\n\n";
+
+  return hover;
+}
+
+lsp::Hover MLIRDocument::buildHoverForAttributeAlias(
+    SMRange hoverRange, const AsmParserState::AttributeAliasDefinition &attr) {
+  lsp::Hover hover(lsp::Range(sourceMgr, hoverRange));
+  llvm::raw_string_ostream os(hover.contents.value);
+
+  os << "Attribute Alias: \"" << attr.name << "\n\n";
+  os << "Value: ```mlir\n" << attr.value << "\n```\n\n";
+
+  return hover;
+}
+
+lsp::Hover MLIRDocument::buildHoverForTypeAlias(
+    SMRange hoverRange, const AsmParserState::TypeAliasDefinition &type) {
+  lsp::Hover hover(lsp::Range(sourceMgr, hoverRange));
+  llvm::raw_string_ostream os(hover.contents.value);
+
+  os << "Type Alias: \"" << type.name << "\n\n";
+  os << "Value: ```mlir\n" << type.value << "\n```\n\n";
 
   return hover;
 }
@@ -834,7 +901,7 @@ void MLIRDocument::getCodeActionForDiagnostic(
   // Ignore diagnostics that print the current operation. These are always
   // enabled for the language server, but not generally during normal
   // parsing/verification.
-  if (message.startswith("see current operation: "))
+  if (message.starts_with("see current operation: "))
     return;
 
   // Get the start of the line containing the diagnostic.
@@ -850,7 +917,7 @@ void MLIRDocument::getCodeActionForDiagnostic(
   edit.range = lsp::Range(lsp::Position(pos.line, 0));
 
   // Use the indent of the current line for the expected-* diagnostic.
-  size_t indent = line.find_first_not_of(" ");
+  size_t indent = line.find_first_not_of(' ');
   if (indent == StringRef::npos)
     indent = line.size();
 
@@ -930,7 +997,7 @@ namespace {
 class MLIRTextFile {
 public:
   MLIRTextFile(const lsp::URIForFile &uri, StringRef fileContents,
-               int64_t version, DialectRegistry &registry,
+               int64_t version, lsp::DialectRegistryFn registry_fn,
                std::vector<lsp::Diagnostic> &diagnostics);
 
   /// Return the current version of this text file.
@@ -979,18 +1046,15 @@ private:
 } // namespace
 
 MLIRTextFile::MLIRTextFile(const lsp::URIForFile &uri, StringRef fileContents,
-                           int64_t version, DialectRegistry &registry,
+                           int64_t version, lsp::DialectRegistryFn registry_fn,
                            std::vector<lsp::Diagnostic> &diagnostics)
-    : context(registry, MLIRContext::Threading::DISABLED),
+    : context(registry_fn(uri), MLIRContext::Threading::DISABLED),
       contents(fileContents.str()), version(version) {
   context.allowUnregisteredDialects();
 
   // Split the file into separate MLIR documents.
-  // TODO: Find a way to share the split file marker with other tools. We don't
-  // want to use `splitAndProcessBuffer` here, but we do want to make sure this
-  // marker doesn't go out of sync.
   SmallVector<StringRef, 8> subContents;
-  StringRef(contents).split(subContents, "// -----");
+  StringRef(contents).split(subContents, kDefaultSplitMarker);
   chunks.emplace_back(std::make_unique<MLIRTextFileChunk>(
       context, /*lineOffset=*/0, uri, subContents.front(), diagnostics));
 
@@ -1199,11 +1263,11 @@ MLIRTextFileChunk &MLIRTextFile::getChunkFor(lsp::Position &pos) {
 //===----------------------------------------------------------------------===//
 
 struct lsp::MLIRServer::Impl {
-  Impl(DialectRegistry &registry) : registry(registry) {}
+  Impl(lsp::DialectRegistryFn registry_fn) : registry_fn(registry_fn) {}
 
-  /// The registry containing dialects that can be recognized in parsed .mlir
-  /// files.
-  DialectRegistry &registry;
+  /// The registry factory for containing dialects that can be recognized in
+  /// parsed .mlir files.
+  lsp::DialectRegistryFn registry_fn;
 
   /// The files held by the server, mapped by their URI file name.
   llvm::StringMap<std::unique_ptr<MLIRTextFile>> files;
@@ -1213,15 +1277,15 @@ struct lsp::MLIRServer::Impl {
 // MLIRServer
 //===----------------------------------------------------------------------===//
 
-lsp::MLIRServer::MLIRServer(DialectRegistry &registry)
-    : impl(std::make_unique<Impl>(registry)) {}
+lsp::MLIRServer::MLIRServer(lsp::DialectRegistryFn registry_fn)
+    : impl(std::make_unique<Impl>(registry_fn)) {}
 lsp::MLIRServer::~MLIRServer() = default;
 
 void lsp::MLIRServer::addOrUpdateDocument(
     const URIForFile &uri, StringRef contents, int64_t version,
     std::vector<Diagnostic> &diagnostics) {
   impl->files[uri.file()] = std::make_unique<MLIRTextFile>(
-      uri, contents, version, impl->registry, diagnostics);
+      uri, contents, version, impl->registry_fn, diagnostics);
 }
 
 std::optional<int64_t> lsp::MLIRServer::removeDocument(const URIForFile &uri) {
@@ -1284,7 +1348,7 @@ void lsp::MLIRServer::getCodeActions(const URIForFile &uri, const Range &pos,
 
 llvm::Expected<lsp::MLIRConvertBytecodeResult>
 lsp::MLIRServer::convertFromBytecode(const URIForFile &uri) {
-  MLIRContext tempContext(impl->registry);
+  MLIRContext tempContext(impl->registry_fn(uri));
   tempContext.allowUnregisteredDialects();
 
   // Collect any errors during parsing.

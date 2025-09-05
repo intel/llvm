@@ -60,8 +60,8 @@ static std::string getDescription(const Module &M) {
   return "module (" + M.getName().str() + ")";
 }
 
-bool ModulePass::skipModule(Module &M) const {
-  OptPassGate &Gate = M.getContext().getOptPassGate();
+bool ModulePass::skipModule(const Module &M) const {
+  const OptPassGate &Gate = M.getContext().getOptPassGate();
   return Gate.isEnabled() &&
          !Gate.shouldRunPass(this->getPassName(), getDescription(M));
 }
@@ -107,10 +107,6 @@ void Pass::verifyAnalysis() const {
   // By default, don't do anything.
 }
 
-void *Pass::getAdjustedAnalysisPointer(AnalysisID AID) {
-  return this;
-}
-
 ImmutablePass *Pass::getAsImmutablePass() {
   return nullptr;
 }
@@ -139,9 +135,13 @@ LLVM_DUMP_METHOD void Pass::dump() const {
 #endif
 
 #ifdef EXPENSIVE_CHECKS
-uint64_t Pass::structuralHash(Module &M) const { return StructuralHash(M); }
+uint64_t Pass::structuralHash(Module &M) const {
+  return StructuralHash(M, true);
+}
 
-uint64_t Pass::structuralHash(Function &F) const { return StructuralHash(F); }
+uint64_t Pass::structuralHash(Function &F) const {
+  return StructuralHash(F, true);
+}
 #endif
 
 //===----------------------------------------------------------------------===//
@@ -198,19 +198,6 @@ Pass *Pass::createPass(AnalysisID ID) {
   if (!PI)
     return nullptr;
   return PI->createPass();
-}
-
-//===----------------------------------------------------------------------===//
-//                  Analysis Group Implementation Code
-//===----------------------------------------------------------------------===//
-
-// RegisterAGBase implementation
-
-RegisterAGBase::RegisterAGBase(StringRef Name, const void *InterfaceID,
-                               const void *PassID, bool isDefault)
-    : PassInfo(Name, InterfaceID) {
-  PassRegistry::getPassRegistry()->registerAnalysisGroup(InterfaceID, PassID,
-                                                         *this, isDefault);
 }
 
 //===----------------------------------------------------------------------===//
@@ -291,3 +278,21 @@ AnalysisUsage &AnalysisUsage::addRequiredTransitiveID(char &ID) {
   pushUnique(RequiredTransitive, &ID);
   return *this;
 }
+
+#ifndef NDEBUG
+const char *llvm::to_string(ThinOrFullLTOPhase Phase) {
+  switch (Phase) {
+  case ThinOrFullLTOPhase::None:
+    return "None";
+  case ThinOrFullLTOPhase::ThinLTOPreLink:
+    return "ThinLTOPreLink";
+  case ThinOrFullLTOPhase::ThinLTOPostLink:
+    return "ThinLTOPostLink";
+  case ThinOrFullLTOPhase::FullLTOPreLink:
+    return "FullLTOPreLink";
+  case ThinOrFullLTOPhase::FullLTOPostLink:
+    return "FullLTOPostLink";
+  }
+  llvm_unreachable("invalid phase");
+}
+#endif

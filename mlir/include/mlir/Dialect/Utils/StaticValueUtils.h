@@ -15,15 +15,20 @@
 #ifndef MLIR_DIALECT_UTILS_STATICVALUEUTILS_H
 #define MLIR_DIALECT_UTILS_STATICVALUEUTILS_H
 
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 
 namespace mlir {
 
-/// Return true if `v` is an IntegerAttr with value `0` of a ConstantIndexOp
-/// with attribute with value `0`.
-bool isZeroIndex(OpFoldResult v);
+/// Return true if `v` is an IntegerAttr with value `0`.
+bool isZeroInteger(OpFoldResult v);
+
+/// Return true if `v` is an IntegerAttr with value `1`.
+bool isOneInteger(OpFoldResult v);
 
 /// Represents a range (offset, size, and stride) where each element of the
 /// triple may be dynamic or static.
@@ -57,8 +62,33 @@ void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
                                 SmallVectorImpl<Value> &dynamicVec,
                                 SmallVectorImpl<int64_t> &staticVec);
 
-/// Extract int64_t values from the assumed ArrayAttr of IntegerAttr.
-SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr);
+/// Given OpFoldResult representing dim size value (*), generates a pair of
+/// sizes:
+///   * 1st result, static value, contains an int64_t dim size that can be used
+///   to build ShapedType (ShapedType::kDynamic is used for truly dynamic dims),
+///   * 2nd result, dynamic value, contains OpFoldResult encapsulating the
+///   actual dim size (either original or updated input value).
+/// For input sizes for which it is possible to extract a constant Attribute,
+/// replaces the original size value with an integer attribute (unless it's
+/// already a constant Attribute). The 1st return value also becomes the actual
+/// integer size (as opposed ShapedType::kDynamic).
+///
+/// (*) This hook is usually used when, given input sizes as OpFoldResult,
+/// it's required to generate two vectors:
+///   * sizes as int64_t to generate a shape,
+///   * sizes as OpFoldResult for sizes-like attribute.
+/// Please update this comment if you identify other use cases.
+std::pair<int64_t, OpFoldResult>
+getSimplifiedOfrAndStaticSizePair(OpFoldResult ofr, Builder &b);
+
+/// Extract integer values from the assumed ArrayAttr of IntegerAttr.
+template <typename IntTy>
+SmallVector<IntTy> extractFromIntegerArrayAttr(Attribute attr) {
+  return llvm::to_vector(
+      llvm::map_range(cast<ArrayAttr>(attr), [](Attribute a) -> IntTy {
+        return cast<IntegerAttr>(a).getInt();
+      }));
+}
 
 /// Given a value, try to extract a constant Attribute. If this fails, return
 /// the original value.
@@ -77,9 +107,18 @@ SmallVector<OpFoldResult> getAsIndexOpFoldResult(MLIRContext *ctx,
 
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
 std::optional<int64_t> getConstantIntValue(OpFoldResult ofr);
+/// If all ofrs are constant integers or IntegerAttrs, return the integers.
+std::optional<SmallVector<int64_t>>
+getConstantIntValues(ArrayRef<OpFoldResult> ofrs);
 
 /// Return true if `ofr` is constant integer equal to `value`.
 bool isConstantIntValue(OpFoldResult ofr, int64_t value);
+/// Return true if all of `ofrs` are constant integers equal to `value`.
+bool areAllConstantIntValue(ArrayRef<OpFoldResult> ofrs, int64_t value);
+/// Return true if all of `ofrs` are constant integers equal to the
+/// corresponding value in `values`.
+bool areConstantIntValues(ArrayRef<OpFoldResult> ofrs,
+                          ArrayRef<int64_t> values);
 
 /// Return true if ofr1 and ofr2 are the same integer constant attribute
 /// values or the same SSA value. Ignore integer bitwitdh and type mismatch
@@ -108,14 +147,16 @@ bool isEqualConstantIntOrValueArray(ArrayRef<OpFoldResult> ofrs1,
 /// all elements for which ShapedType::isDynamic is true, will be replaced by
 /// dynamicValues.
 SmallVector<OpFoldResult> getMixedValues(ArrayRef<int64_t> staticValues,
+                                         ValueRange dynamicValues,
+                                         MLIRContext *context);
+SmallVector<OpFoldResult> getMixedValues(ArrayRef<int64_t> staticValues,
                                          ValueRange dynamicValues, Builder &b);
 
 /// Decompose a vector of mixed static or dynamic values into the
 /// corresponding pair of arrays. This is the inverse function of
 /// `getMixedValues`.
-std::pair<ArrayAttr, SmallVector<Value>>
-decomposeMixedValues(Builder &b,
-                     const SmallVectorImpl<OpFoldResult> &mixedValues);
+std::pair<SmallVector<int64_t>, SmallVector<Value>>
+decomposeMixedValues(ArrayRef<OpFoldResult> mixedValues);
 
 /// Helper to sort `values` according to matching `keys`.
 SmallVector<Value>
@@ -128,10 +169,80 @@ SmallVector<int64_t>
 getValuesSortedByKey(ArrayRef<Attribute> keys, ArrayRef<int64_t> values,
                      llvm::function_ref<bool(Attribute, Attribute)> compare);
 
+/// Helper function to check whether the passed in `sizes` or `offsets` are
+/// valid. This can be used to re-check whether dimensions are still valid
+/// after constant folding the dynamic dimensions.
+bool hasValidSizesOffsets(SmallVector<int64_t> sizesOrOffsets);
+
+/// Helper function to check whether the passed in `strides` are valid. This
+/// can be used to re-check whether dimensions are still valid after constant
+/// folding the dynamic dimensions.
+bool hasValidStrides(SmallVector<int64_t> strides);
+
+/// Returns "success" when any of the elements in `ofrs` is a constant value. In
+/// that case the value is replaced by an attribute. Returns "failure" when no
+/// folding happened. If `onlyNonNegative` and `onlyNonZero` are set, only
+/// non-negative and non-zero constant values are folded respectively.
+LogicalResult foldDynamicIndexList(SmallVectorImpl<OpFoldResult> &ofrs,
+                                   bool onlyNonNegative = false,
+                                   bool onlyNonZero = false);
+
+/// Returns "success" when any of the elements in `offsetsOrSizes` is a
+/// constant value. In that case the value is replaced by an attribute. Returns
+/// "failure" when no folding happened. Invalid values are not folded to avoid
+/// canonicalization crashes.
+LogicalResult
+foldDynamicOffsetSizeList(SmallVectorImpl<OpFoldResult> &offsetsOrSizes);
+
+/// Returns "success" when any of the elements in `strides` is a constant
+/// value. In that case the value is replaced by an attribute. Returns
+/// "failure" when no folding happened. Invalid values are not folded to avoid
+/// canonicalization crashes.
+LogicalResult foldDynamicStrideList(SmallVectorImpl<OpFoldResult> &strides);
+
 /// Return the number of iterations for a loop with a lower bound `lb`, upper
 /// bound `ub` and step `step`.
 std::optional<int64_t> constantTripCount(OpFoldResult lb, OpFoldResult ub,
                                          OpFoldResult step);
+
+/// Idiomatic saturated operations on values like offsets, sizes, and strides.
+struct SaturatedInteger {
+  static SaturatedInteger wrap(int64_t v) {
+    return (ShapedType::isDynamic(v)) ? SaturatedInteger{true, 0}
+                                      : SaturatedInteger{false, v};
+  }
+  int64_t asInteger() { return saturated ? ShapedType::kDynamic : v; }
+  FailureOr<SaturatedInteger> desaturate(SaturatedInteger other) {
+    if (saturated && !other.saturated)
+      return other;
+    if (!saturated && !other.saturated && v != other.v)
+      return failure();
+    return *this;
+  }
+  bool operator==(SaturatedInteger other) {
+    return (saturated && other.saturated) ||
+           (!saturated && !other.saturated && v == other.v);
+  }
+  bool operator!=(SaturatedInteger other) { return !(*this == other); }
+  SaturatedInteger operator+(SaturatedInteger other) {
+    if (saturated || other.saturated)
+      return SaturatedInteger{true, 0};
+    return SaturatedInteger{false, other.v + v};
+  }
+  SaturatedInteger operator*(SaturatedInteger other) {
+    // Multiplication with 0 is always 0.
+    if (!other.saturated && other.v == 0)
+      return SaturatedInteger{false, 0};
+    if (!saturated && v == 0)
+      return SaturatedInteger{false, 0};
+    // Otherwise, if this or the other integer is dynamic, so is the result.
+    if (saturated || other.saturated)
+      return SaturatedInteger{true, 0};
+    return SaturatedInteger{false, other.v * v};
+  }
+  bool saturated = true;
+  int64_t v = 0;
+};
 
 } // namespace mlir
 

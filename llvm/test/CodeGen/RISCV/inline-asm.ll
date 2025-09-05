@@ -29,6 +29,56 @@ define i32 @constraint_r(i32 %a) nounwind {
   ret i32 %2
 }
 
+; Don't allow 'x0' for 'r'. Some instructions have a different behavior when
+; x0 is encoded.
+define i32 @constraint_r_zero(i32 %a) nounwind {
+; RV32I-LABEL: constraint_r_zero:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a0, %hi(gi)
+; RV32I-NEXT:    lw a0, %lo(gi)(a0)
+; RV32I-NEXT:    li a1, 0
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    add a0, a1, a0
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: constraint_r_zero:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a0, %hi(gi)
+; RV64I-NEXT:    lw a0, %lo(gi)(a0)
+; RV64I-NEXT:    li a1, 0
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    add a0, a1, a0
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  %1 = load i32, ptr @gi
+  %2 = tail call i32 asm "add $0, $1, $2", "=r,r,r"(i32 0, i32 %1)
+  ret i32 %2
+}
+
+define i32 @constraint_cr(i32 %a) nounwind {
+; RV32I-LABEL: constraint_cr:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, %hi(gi)
+; RV32I-NEXT:    lw a1, %lo(gi)(a1)
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    c.add a0, a0, a1
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: constraint_cr:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    lui a1, %hi(gi)
+; RV64I-NEXT:    lw a1, %lo(gi)(a1)
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    c.add a0, a0, a1
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  %1 = load i32, ptr @gi
+  %2 = tail call i32 asm "c.add $0, $1, $2", "=^cr,0,^cr"(i32 %a, i32 %1)
+  ret i32 %2
+}
+
 define i32 @constraint_i(i32 %a) nounwind {
 ; RV32I-LABEL: constraint_i:
 ; RV32I:       # %bb.0:
@@ -45,112 +95,6 @@ define i32 @constraint_i(i32 %a) nounwind {
 ; RV64I-NEXT:    ret
   %1 = load i32, ptr @gi
   %2 = tail call i32 asm "addi $0, $1, $2", "=r,r,i"(i32 %a, i32 113)
-  ret i32 %2
-}
-
-define void @constraint_m(ptr %a) nounwind {
-; RV32I-LABEL: constraint_m:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_m:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  call void asm sideeffect "", "=*m"(ptr elementtype(i32) %a)
-  ret void
-}
-
-define i32 @constraint_m2(ptr %a) nounwind {
-; RV32I-LABEL: constraint_m2:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    lw a0, 0(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_m2:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    lw a0, 0(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  %1 = tail call i32 asm "lw $0, $1", "=r,*m"(ptr elementtype(i32) %a)
-  ret i32 %1
-}
-
-define i32 @constraint_m_with_offset(ptr %a) nounwind {
-; RV32I-LABEL: constraint_m_with_offset:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    lw a0, 4(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_m_with_offset:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    lw a0, 4(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  %1 = getelementptr i32, ptr %a, i32 1
-  %2 = tail call i32 asm "lw $0, $1", "=r,*m"(ptr elementtype(i32) %1)
-  ret i32 %2
-}
-
-define void @constraint_o(ptr %a) nounwind {
-; RV32I-LABEL: constraint_o:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_o:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  call void asm sideeffect "", "=*o"(ptr elementtype(i32) %a)
-  ret void
-}
-
-define i32 @constraint_o2(ptr %a) nounwind {
-; RV32I-LABEL: constraint_o2:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    lw a0, 0(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_o2:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    lw a0, 0(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  %1 = tail call i32 asm "lw $0, $1", "=r,*o"(ptr elementtype(i32) %a)
-  ret i32 %1
-}
-
-define i32 @constraint_o_with_offset(ptr %a) nounwind {
-; RV32I-LABEL: constraint_o_with_offset:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    lw a0, 4(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_o_with_offset:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    lw a0, 4(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  %1 = getelementptr i32, ptr %a, i32 1
-  %2 = tail call i32 asm "lw $0, $1", "=r,*o"(ptr elementtype(i32) %1)
   ret i32 %2
 }
 
@@ -222,52 +166,6 @@ define void @constraint_K() nounwind {
   ret void
 }
 
-define void @constraint_A(ptr %a) nounwind {
-; RV32I-LABEL: constraint_A:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    sb s0, 0(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    lb s1, 0(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_A:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    sb s0, 0(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    lb s1, 0(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  tail call void asm sideeffect "sb s0, $0", "*A"(ptr elementtype(i8) %a)
-  tail call void asm sideeffect "lb s1, $0", "*A"(ptr elementtype(i8) %a)
-  ret void
-}
-
-define i32 @constraint_A_with_offset(ptr %a) nounwind {
-; RV32I-LABEL: constraint_A_with_offset:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    addi a0, a0, 4
-; RV32I-NEXT:    #APP
-; RV32I-NEXT:    lw a0, 0(a0)
-; RV32I-NEXT:    #NO_APP
-; RV32I-NEXT:    ret
-;
-; RV64I-LABEL: constraint_A_with_offset:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    addi a0, a0, 4
-; RV64I-NEXT:    #APP
-; RV64I-NEXT:    lw a0, 0(a0)
-; RV64I-NEXT:    #NO_APP
-; RV64I-NEXT:    ret
-  %1 = getelementptr i32, ptr %a, i32 1
-  %2 = tail call i32 asm "lw $0, $1", "=r,*A"(ptr elementtype(i32) %1)
-  ret i32 %2
-}
-
 define i32 @modifier_z_zero(i32 %a) nounwind {
 ; RV32I-LABEL: modifier_z_zero:
 ; RV32I:       # %bb.0:
@@ -337,6 +235,49 @@ define i32 @modifier_i_reg(i32 %a, i32 %b) nounwind {
 ; RV64I-NEXT:    #NO_APP
 ; RV64I-NEXT:    ret
   %1 = tail call i32 asm "add${2:i} $0, $1, $2", "=r,r,ri"(i32 %a, i32 %b)
+  ret i32 %1
+}
+
+;; `.insn 0x4, 0x33 | (${0:N} << 7) | (${1:N} << 15) | (${2:N} << 20)` is the
+;; raw encoding of `add`
+
+define i32 @modifier_N_reg(i32 %a, i32 %b) nounwind {
+; RV32I-LABEL: modifier_N_reg:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    .insn 0x4, 0x33 | (10 << 7) | (10 << 15) | (11 << 20)
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: modifier_N_reg:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    .insn 0x4, 0x33 | (10 << 7) | (10 << 15) | (11 << 20)
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  %1 = tail call i32 asm ".insn 0x4, 0x33 | (${0:N} << 7) | (${1:N} << 15) | (${2:N} << 20)", "=r,r,r"(i32 %a, i32 %b)
+  ret i32 %1
+}
+
+;; `.insn 0x2, 0x9422 | (${0:N} << 7) | (${2:N} << 2)` is the raw encoding of
+;; `c.add` (note the constraint that the first input should be the same as the
+;; output).
+
+define i32 @modifier_N_with_cr_reg(i32 %a, i32 %b) nounwind {
+; RV32I-LABEL: modifier_N_with_cr_reg:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    .insn 0x2, 0x9422 | (10 << 7) | (11 << 2)
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: modifier_N_with_cr_reg:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    .insn 0x2, 0x9422 | (10 << 7) | (11 << 2)
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  %1 = tail call i32 asm ".insn 0x2, 0x9422 | (${0:N} << 7) | (${2:N} << 2)", "=^cr,0,^cr"(i32 %a, i32 %b)
   ret i32 %1
 }
 

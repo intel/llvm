@@ -67,7 +67,7 @@ EmulateInstructionMIPS64::EmulateInstructionMIPS64(
   std::string Status;
   llvm::Triple triple = arch.GetTriple();
   const llvm::Target *target =
-      llvm::TargetRegistry::lookupTarget(triple.getTriple(), Status);
+      llvm::TargetRegistry::lookupTarget(triple, Status);
 
 /*
  * If we fail to get the target then we haven't registered it. The
@@ -84,7 +84,7 @@ EmulateInstructionMIPS64::EmulateInstructionMIPS64(
     LLVMInitializeMipsAsmPrinter();
     LLVMInitializeMipsTargetMC();
     LLVMInitializeMipsDisassembler();
-    target = llvm::TargetRegistry::lookupTarget(triple.getTriple(), Status);
+    target = llvm::TargetRegistry::lookupTarget(triple, Status);
   }
 #endif
 
@@ -1017,17 +1017,17 @@ bool EmulateInstructionMIPS64::CreateFunctionEntryUnwind(
   unwind_plan.Clear();
   unwind_plan.SetRegisterKind(eRegisterKindDWARF);
 
-  UnwindPlan::RowSP row(new UnwindPlan::Row);
+  UnwindPlan::Row row;
   const bool can_replace = false;
 
   // Our previous Call Frame Address is the stack pointer
-  row->GetCFAValue().SetIsRegisterPlusOffset(dwarf_sp_mips64, 0);
+  row.GetCFAValue().SetIsRegisterPlusOffset(dwarf_sp_mips64, 0);
 
   // Our previous PC is in the RA
-  row->SetRegisterLocationToRegister(dwarf_pc_mips64, dwarf_ra_mips64,
-                                     can_replace);
+  row.SetRegisterLocationToRegister(dwarf_pc_mips64, dwarf_ra_mips64,
+                                    can_replace);
 
-  unwind_plan.AppendRow(row);
+  unwind_plan.AppendRow(std::move(row));
 
   // All other registers are the same.
   unwind_plan.SetSourceName("EmulateInstructionMIPS64");
@@ -1157,19 +1157,18 @@ bool EmulateInstructionMIPS64::Emulate_SD(llvm::MCInst &insn) {
     context.type = eContextPushRegisterOnStack;
     context.SetRegisterToRegisterPlusOffset(*reg_info_src, *reg_info_base, 0);
 
-    uint8_t buffer[RegisterValue::kMaxRegisterByteSize];
-    Status error;
-
     std::optional<RegisterValue> data_src = ReadRegister(*reg_info_base);
     if (!data_src)
       return false;
 
-    if (data_src->GetAsMemoryData(*reg_info_src, buffer,
+    Status error;
+    RegisterValue::BytesContainer buffer(reg_info_src->byte_size);
+    if (data_src->GetAsMemoryData(*reg_info_src, buffer.data(),
                                   reg_info_src->byte_size, eByteOrderLittle,
                                   error) == 0)
       return false;
 
-    if (!WriteMemory(context, address, buffer, reg_info_src->byte_size))
+    if (!WriteMemory(context, address, buffer.data(), reg_info_src->byte_size))
       return false;
   }
 

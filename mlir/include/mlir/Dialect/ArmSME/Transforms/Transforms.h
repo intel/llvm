@@ -9,20 +9,24 @@
 #ifndef MLIR_DIALECT_ARMSME_TRANSFORMS_H
 #define MLIR_DIALECT_ARMSME_TRANSFORMS_H
 
+#include "mlir/Interfaces/FunctionInterfaces.h"
+
 namespace mlir {
 
 class LLVMConversionTarget;
 class LLVMTypeConverter;
 class RewritePatternSet;
 
-/// Collect a set of patterns to lower ArmSME ops to ops that map to LLVM
-/// intrinsics.
-void populateArmSMELegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
-                                                 RewritePatternSet &patterns);
+namespace arm_sme {
 
-/// Configure the target to support lowering ArmSME ops to ops that map to LLVM
-/// intrinsics.
-void configureArmSMELegalizeForExportTarget(LLVMConversionTarget &target);
+void populateOuterProductFusionPatterns(RewritePatternSet &patterns);
+
+/// Allocate tile IDs to all ArmSME operations in a function. Requires the
+/// function to be lowered to control flow (cf dialect).
+LogicalResult allocateSMETiles(FunctionOpInterface function,
+                               bool dumpRanges = false);
+
+} // namespace arm_sme
 
 } // namespace mlir
 

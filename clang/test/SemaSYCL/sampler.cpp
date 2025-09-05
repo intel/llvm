@@ -20,7 +20,7 @@ int main() {
 }
 
 // Check declaration of the test kernel
-// CHECK: FunctionDecl {{.*}}SamplerLambda{{.*}} 'void (sampler_t)'
+// CHECK: FunctionDecl {{.*}}SamplerLambda{{.*}} 'void (sampler_t) __attribute__((device_kernel))'
 //
 // Check parameters of the test kernel
 // CHECK: ParmVarDecl {{.*}} used [[_arg_sampler:[0-9a-zA-Z_]+]] 'sampler_t'
@@ -28,7 +28,7 @@ int main() {
 // Check that sampler field of the test kernel object is initialized using __init method
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void (__ocl_sampler_t)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::sampler':'sycl::sampler' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'sycl::sampler' lvalue
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}sampler.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}sampler.cpp{{.*}})'
 //
 // Check the parameters of __init method

@@ -8,6 +8,7 @@
 
 #include "NVPTXMCExpr.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/Support/Format.h"
@@ -34,6 +35,11 @@ void NVPTXFloatMCExpr::printImpl(raw_ostream &OS, const MCAsmInfo *MAI) const {
     NumHex = 4;
     APF.convert(APFloat::IEEEhalf(), APFloat::rmNearestTiesToEven, &Ignored);
     break;
+  case VK_NVPTX_BFLOAT_PREC_FLOAT:
+    OS << "0x";
+    NumHex = 4;
+    APF.convert(APFloat::BFloat(), APFloat::rmNearestTiesToEven, &Ignored);
+    break;
   case VK_NVPTX_SINGLE_PREC_FLOAT:
     OS << "0f";
     NumHex = 8;
@@ -59,6 +65,6 @@ NVPTXGenericMCSymbolRefExpr::create(const MCSymbolRefExpr *SymExpr,
 void NVPTXGenericMCSymbolRefExpr::printImpl(raw_ostream &OS,
                                             const MCAsmInfo *MAI) const {
   OS << "generic(";
-  SymExpr->print(OS, MAI);
+  MAI->printExpr(OS, *SymExpr);
   OS << ")";
 }

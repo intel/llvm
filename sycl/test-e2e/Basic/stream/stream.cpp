@@ -1,3 +1,5 @@
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
 
@@ -9,7 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
 
 #include <cassert>
 
@@ -30,15 +35,9 @@ int main() {
 
       // Check constructor and getters
       Queue.submit([&](handler &CGH) {
-        stream Out(1024, 80, CGH,
-                   property_list{property::buffer::context_bound{Context}});
+        stream Out(1024, 80, CGH);
         assert(Out.size() == 1024);
         assert(Out.get_work_item_buffer_size() == 80);
-        assert(Out.has_property<property::buffer::context_bound>());
-        assert(!Out.has_property<property::queue::in_order>());
-        assert(
-            Out.get_property<property::buffer::context_bound>().get_context() ==
-            Context);
 
         sycl::accessor accSize(bufSize, CGH, sycl::write_only);
         sycl::accessor accWorkItemBufferSize(bufWorkItemBufferSize, CGH,

@@ -22,7 +22,7 @@ tablegen("AArch64GenO0PreLegalizeGICombiner") {
   visibility = [ ":LLVMAArch64CodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AArch64O0PreLegalizerCombinerHelper",
+    "-combiners=AArch64O0PreLegalizerCombiner",
   ]
   td_file = "AArch64.td"
 }
@@ -43,7 +43,7 @@ tablegen("AArch64GenPostLegalizeGICombiner") {
   visibility = [ ":LLVMAArch64CodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AArch64PostLegalizerCombinerHelper",
+    "-combiners=AArch64PostLegalizerCombiner",
   ]
   td_file = "AArch64.td"
 }
@@ -52,7 +52,7 @@ tablegen("AArch64GenPreLegalizeGICombiner") {
   visibility = [ ":LLVMAArch64CodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AArch64PreLegalizerCombinerHelper",
+    "-combiners=AArch64PreLegalizerCombiner",
   ]
   td_file = "AArch64.td"
 }
@@ -61,7 +61,7 @@ tablegen("AArch64GenPostLegalizeGILowering") {
   visibility = [ ":LLVMAArch64CodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AArch64PostLegalizerLoweringHelper",
+    "-combiners=AArch64PostLegalizerLowering",
   ]
   td_file = "AArch64.td"
 }
@@ -69,6 +69,16 @@ tablegen("AArch64GenPostLegalizeGILowering") {
 tablegen("AArch64GenRegisterBank") {
   visibility = [ ":LLVMAArch64CodeGen" ]
   args = [ "-gen-register-bank" ]
+  td_file = "AArch64.td"
+}
+
+tablegen("AArch64GenSDNodeInfo") {
+  visibility = [
+    ":LLVMAArch64CodeGen",
+    "//bolt/unittests/Core:CoreTests",
+    "//llvm/unittests/Target/AArch64:AArch64Tests",
+  ]
+  args = [ "-gen-sd-node-info" ]
   td_file = "AArch64.td"
 }
 
@@ -84,6 +94,7 @@ static_library("LLVMAArch64CodeGen") {
     ":AArch64GenPostLegalizeGILowering",
     ":AArch64GenPreLegalizeGICombiner",
     ":AArch64GenRegisterBank",
+    ":AArch64GenSDNodeInfo",
 
     # See https://reviews.llvm.org/D69130
     "AsmParser:AArch64GenAsmMatcher",
@@ -103,12 +114,14 @@ static_library("LLVMAArch64CodeGen") {
     "//llvm/lib/Transforms/CFGuard",
     "//llvm/lib/Transforms/Scalar",
     "//llvm/lib/Transforms/Utils",
+    "//llvm/lib/Transforms/Vectorize",
   ]
   include_dirs = [ "." ]
   sources = [
     "AArch64A53Fix835769.cpp",
     "AArch64A57FPLoadBalancing.cpp",
     "AArch64AdvSIMDScalarPass.cpp",
+    "AArch64Arm64ECCallLowering.cpp",
     "AArch64AsmPrinter.cpp",
     "AArch64BranchTargets.cpp",
     "AArch64CallingConvention.cpp",
@@ -124,7 +137,6 @@ static_library("LLVMAArch64CodeGen") {
     "AArch64FalkorHWPFFix.cpp",
     "AArch64FastISel.cpp",
     "AArch64FrameLowering.cpp",
-    "AArch64GlobalsTagging.cpp",
     "AArch64ISelDAGToDAG.cpp",
     "AArch64ISelLowering.cpp",
     "AArch64InstrInfo.cpp",
@@ -136,6 +148,8 @@ static_library("LLVMAArch64CodeGen") {
     "AArch64MachineScheduler.cpp",
     "AArch64MacroFusion.cpp",
     "AArch64PBQPRegAlloc.cpp",
+    "AArch64PointerAuth.cpp",
+    "AArch64PostCoalescerPass.cpp",
     "AArch64PromoteConstant.cpp",
     "AArch64RedundantCopyElimination.cpp",
     "AArch64RegisterInfo.cpp",
@@ -161,6 +175,7 @@ static_library("LLVMAArch64CodeGen") {
     "GISel/AArch64PreLegalizerCombiner.cpp",
     "GISel/AArch64RegisterBankInfo.cpp",
     "SMEABIPass.cpp",
+    "SMEPeepholeOpt.cpp",
     "SVEIntrinsicOpts.cpp",
   ]
 }

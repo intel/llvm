@@ -3,9 +3,9 @@
 
 // Error should be emitted when using -fsycl-host-compiler without -fsycl
 
-// RUN:   %clang -### -fsycl-host-compiler=g++  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-host-compiler=g++  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
-// RUN:   %clang_cl -### -fsycl-host-compiler=g++  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-host-compiler=g++  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: '-fsycl-host-compiler' must be used in conjunction with '-fsycl' to enable offloading
 
@@ -32,8 +32,7 @@
 // RUN:   %clang -### -fsycl-default-sub-group-size=10  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 // RUN:   %clang_cl -### -fsycl-default-sub-group-size=10  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DSS-CL %s
-// WARNING-DSS-CL: unknown argument ignored in clang-cl: '-fsycl-default-sub-group-size=10' [-Wunknown-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 
 // Warning should be emitted when using -fsycl-device-code-split-esimd without -fsycl
 // RUN:   %clang -### -fsycl-device-code-split-esimd  %s 2>&1 \
@@ -82,12 +81,17 @@
 // RUN:   %clang_cl -### -fsycl-force-inline-kernel-lambda  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-force-inline-kernel-lambda %s
 
-// Warning should be emitted when using -fsycl-fp32-prec-sqrt without -fsycl
-// RUN:   %clang -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
-// RUN:   %clang_cl -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-FP32-CL -DOPT=-fsycl-fp32-prec-sqrt %s
-// WARNING-FP32-CL: warning: unknown argument ignored in clang-cl: '[[OPT]]' [-Wunknown-argument]
+// Warning should be emitted when using -foffload-fp32-prec-sqrt without -fsycl
+// RUN:   %clang -### -foffload-fp32-prec-sqrt %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-sqrt %s
+// RUN:   %clang_cl -### -foffload-fp32-prec-sqrt %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-sqrt %s
+
+// Warning should be emitted when using -foffload-fp32-prec-div without -fsycl
+// RUN:   %clang -### -foffload-fp32-prec-div %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-div %s
+// RUN:   %clang_cl -### -foffload-fp32-prec-div %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-div %s
 
 // Warning should be emitted when using -fsycl-id-queries-fit-in-int without -fsycl
 // RUN:   %clang -### -fsycl-id-queries-fit-in-int  %s 2>&1 \

@@ -9,7 +9,8 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <typeinfo>
 
 using namespace sycl;

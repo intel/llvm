@@ -1,7 +1,6 @@
-// REQUIRES: hip_be
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s
-// expected-no-diagnostics
+// REQUIRES: hip
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -D__SYCL_INTERNAL_API %s
 
 // Test for HIP interop API
 
@@ -52,9 +51,14 @@ int main() {
   // backend-defined and specified in the backend specification.
 
   hip_device = get_native<backend::ext_oneapi_hip>(Device);
+  // expected-no-diagnostics
   hip_context = get_native<backend::ext_oneapi_hip>(Context);
   hip_event = get_native<backend::ext_oneapi_hip>(Event);
   hip_queue = get_native<backend::ext_oneapi_hip>(Queue);
+
+  device InteropDevice = make_device<backend::ext_oneapi_hip>(hip_device);
+  event InteropEvent = make_event<backend::ext_oneapi_hip>(hip_event, Context);
+  queue InteropQueue = make_queue<backend::ext_oneapi_hip>(hip_queue, Context);
 
   return 0;
 }

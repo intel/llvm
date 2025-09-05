@@ -13,12 +13,18 @@
 
 #ifndef LLVM_CLANG_BASIC_ATTRIBUTECOMMONINFO_H
 #define LLVM_CLANG_BASIC_ATTRIBUTECOMMONINFO_H
+
+#include "clang/Basic/AttributeScopeInfo.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TokenKinds.h"
 
 namespace clang {
-class IdentifierInfo;
+
 class ASTRecordWriter;
+class IdentifierInfo;
+class LangOptions;
+class TargetInfo;
 
 class AttributeCommonInfo {
 public:
@@ -31,7 +37,7 @@ public:
     AS_CXX11,
 
     /// [[...]]
-    AS_C2x,
+    AS_C23,
 
     /// __declspec(...)
     AS_Declspec,
@@ -50,33 +56,59 @@ public:
     /// Context-sensitive version of a keyword attribute.
     AS_ContextSensitiveKeyword,
 
-    /// <vardecl> : <semantic>
-    AS_HLSLSemantic,
+    /// <vardecl> : <annotation>
+    AS_HLSLAnnotation,
 
     /// The attibute has no source code manifestation and is only created
     /// implicitly.
     AS_Implicit
   };
+
   enum Kind {
 #define PARSED_ATTR(NAME) AT_##NAME,
-#include "clang/Sema/AttrParsedAttrList.inc"
+#include "clang/Basic/AttrParsedAttrList.inc"
 #undef PARSED_ATTR
     NoSemaHandlerAttribute,
     IgnoredAttribute,
     UnknownAttribute,
   };
+  enum class Scope {
+    NONE,
+    CLANG,
+    GNU,
+    MSVC,
+    OMP,
+    HLSL,
+    VK,
+    GSL,
+    RISCV,
+    INTEL,
+    SYCL,
+    CL,
+    SYCL_DETAIL
+  };
+  enum class AttrArgsInfo {
+    None,
+    Optional,
+    Required,
+  };
 
 private:
   const IdentifierInfo *AttrName = nullptr;
-  const IdentifierInfo *ScopeName = nullptr;
+  AttributeScopeInfo AttrScope;
   SourceRange AttrRange;
-  const SourceLocation ScopeLoc;
+
   // Corresponds to the Kind enum.
+  LLVM_PREFERRED_TYPE(Kind)
   unsigned AttrKind : 16;
   /// Corresponds to the Syntax enum.
+  LLVM_PREFERRED_TYPE(Syntax)
   unsigned SyntaxUsed : 4;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned SpellingIndex : 4;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsAlignas : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsRegularKeywordAttribute : 1;
 
 protected:
@@ -104,7 +136,7 @@ public:
 
     static Form GNU() { return AS_GNU; }
     static Form CXX11() { return AS_CXX11; }
-    static Form C2x() { return AS_C2x; }
+    static Form C23() { return AS_C23; }
     static Form Declspec() { return AS_Declspec; }
     static Form Microsoft() { return AS_Microsoft; }
     static Form Keyword(bool IsAlignas, bool IsRegularKeywordAttribute) {
@@ -113,7 +145,7 @@ public:
     }
     static Form Pragma() { return AS_Pragma; }
     static Form ContextSensitiveKeyword() { return AS_ContextSensitiveKeyword; }
-    static Form HLSLSemantic() { return AS_HLSLSemantic; }
+    static Form HLSLAnnotation() { return AS_HLSLAnnotation; }
     static Form Implicit() { return AS_Implicit; }
 
   private:
@@ -121,18 +153,20 @@ public:
         : SyntaxUsed(SyntaxUsed), SpellingIndex(SpellingNotCalculated),
           IsAlignas(0), IsRegularKeywordAttribute(0) {}
 
+    LLVM_PREFERRED_TYPE(Syntax)
     unsigned SyntaxUsed : 4;
     unsigned SpellingIndex : 4;
+    LLVM_PREFERRED_TYPE(bool)
     unsigned IsAlignas : 1;
+    LLVM_PREFERRED_TYPE(bool)
     unsigned IsRegularKeywordAttribute : 1;
   };
 
   AttributeCommonInfo(const IdentifierInfo *AttrName,
-                      const IdentifierInfo *ScopeName, SourceRange AttrRange,
-                      SourceLocation ScopeLoc, Kind AttrKind, Form FormUsed)
-      : AttrName(AttrName), ScopeName(ScopeName), AttrRange(AttrRange),
-        ScopeLoc(ScopeLoc), AttrKind(AttrKind),
-        SyntaxUsed(FormUsed.getSyntax()),
+                      AttributeScopeInfo AttrScope, SourceRange AttrRange,
+                      Kind AttrKind, Form FormUsed)
+      : AttrName(AttrName), AttrScope(AttrScope), AttrRange(AttrRange),
+        AttrKind(AttrKind), SyntaxUsed(FormUsed.getSyntax()),
         SpellingIndex(FormUsed.getSpellingIndex()),
         IsAlignas(FormUsed.isAlignas()),
         IsRegularKeywordAttribute(FormUsed.isRegularKeywordAttribute()) {
@@ -140,22 +174,25 @@ public:
            "Invalid syntax!");
   }
 
-  AttributeCommonInfo(const IdentifierInfo *AttrName,
-                      const IdentifierInfo *ScopeName, SourceRange AttrRange,
-                      SourceLocation ScopeLoc, Form FormUsed)
+  AttributeCommonInfo(const IdentifierInfo *AttrName, AttributeScopeInfo Scope,
+                      SourceRange AttrRange, Form FormUsed)
       : AttributeCommonInfo(
-            AttrName, ScopeName, AttrRange, ScopeLoc,
-            getParsedKind(AttrName, ScopeName, FormUsed.getSyntax()),
+            AttrName, Scope, AttrRange,
+            getParsedKind(AttrName, Scope.getName(), FormUsed.getSyntax()),
             FormUsed) {}
 
   AttributeCommonInfo(const IdentifierInfo *AttrName, SourceRange AttrRange,
                       Form FormUsed)
-      : AttributeCommonInfo(AttrName, nullptr, AttrRange, SourceLocation(),
+      : AttributeCommonInfo(AttrName, AttributeScopeInfo(), AttrRange,
                             FormUsed) {}
 
   AttributeCommonInfo(SourceRange AttrRange, Kind K, Form FormUsed)
-      : AttributeCommonInfo(nullptr, nullptr, AttrRange, SourceLocation(), K,
+      : AttributeCommonInfo(nullptr, AttributeScopeInfo(), AttrRange, K,
                             FormUsed) {}
+
+  AttributeCommonInfo(SourceRange AttrRange, AttributeScopeInfo AttrScope,
+                      Kind K, Form FormUsed)
+      : AttributeCommonInfo(nullptr, AttrScope, AttrRange, K, FormUsed) {}
 
   AttributeCommonInfo(AttributeCommonInfo &&) = default;
   AttributeCommonInfo(const AttributeCommonInfo &) = default;
@@ -167,18 +204,33 @@ public:
                 IsRegularKeywordAttribute);
   }
   const IdentifierInfo *getAttrName() const { return AttrName; }
+  void setAttrName(const IdentifierInfo *AttrNameII) { AttrName = AttrNameII; }
   SourceLocation getLoc() const { return AttrRange.getBegin(); }
   SourceRange getRange() const { return AttrRange; }
   void setRange(SourceRange R) { AttrRange = R; }
 
-  bool hasScope() const { return ScopeName; }
-  const IdentifierInfo *getScopeName() const { return ScopeName; }
-  SourceLocation getScopeLoc() const { return ScopeLoc; }
+  bool hasScope() const { return AttrScope.isValid(); }
+  bool isExplicitScope() const { return AttrScope.isExplicit(); }
+
+  const IdentifierInfo *getScopeName() const { return AttrScope.getName(); }
+  SourceLocation getScopeLoc() const { return AttrScope.getNameLoc(); }
 
   /// Gets the normalized full name, which consists of both scope and name and
   /// with surrounding underscores removed as appropriate (e.g.
   /// __gnu__::__attr__ will be normalized to gnu::attr).
   std::string getNormalizedFullName() const;
+  std::string getNormalizedFullName(StringRef ScopeName,
+                                    StringRef AttrName) const;
+  StringRef getNormalizedScopeName() const;
+  StringRef getNormalizedAttrName(StringRef ScopeName) const;
+
+  std::optional<StringRef> tryGetCorrectedScopeName(StringRef ScopeName) const;
+  std::optional<StringRef>
+  tryGetCorrectedAttrName(StringRef ScopeName, StringRef AttrName,
+                          const TargetInfo &Target,
+                          const LangOptions &LangOpts) const;
+
+  SourceRange getNormalizedRange() const;
 
   bool isDeclspecAttribute() const { return SyntaxUsed == AS_Declspec; }
   bool isMicrosoftAttribute() const { return SyntaxUsed == AS_Microsoft; }
@@ -188,12 +240,21 @@ public:
 
   bool isCXX11Attribute() const { return SyntaxUsed == AS_CXX11 || IsAlignas; }
 
-  bool isC2xAttribute() const { return SyntaxUsed == AS_C2x; }
+  bool isC23Attribute() const { return SyntaxUsed == AS_C23; }
+
+  bool isAlignas() const {
+    // FIXME: In the current state, the IsAlignas member variable is only true
+    // with the C++  `alignas` keyword but not `_Alignas`. The following
+    // expression works around the otherwise lost information so it will return
+    // true for `alignas` or `_Alignas` while still returning false for things
+    // like  `__attribute__((aligned))`.
+    return (getParsedKind() == AT_Aligned && isKeywordAttribute());
+  }
 
   /// The attribute is spelled [[]] in either C or C++ mode, including standard
   /// attributes spelled with a keyword, like alignas.
   bool isStandardAttributeSyntax() const {
-    return isCXX11Attribute() || isC2xAttribute();
+    return isCXX11Attribute() || isC23Attribute();
   }
 
   bool isGNUAttribute() const { return SyntaxUsed == AS_GNU; }
@@ -220,6 +281,8 @@ public:
   static Kind getParsedKind(const IdentifierInfo *Name,
                             const IdentifierInfo *Scope, Syntax SyntaxUsed);
 
+  static AttrArgsInfo getCXX11AttrArgsInfo(const IdentifierInfo *Name);
+
 private:
   /// Get an index into the attribute spelling list
   /// defined in Attr.td. This index is used by an attribute
@@ -235,6 +298,31 @@ protected:
     return SpellingIndex != SpellingNotCalculated;
   }
 };
+
+inline bool doesKeywordAttributeTakeArgs(tok::TokenKind Kind) {
+  switch (Kind) {
+  default:
+    return false;
+#define KEYWORD_ATTRIBUTE(NAME, HASARG, ...)                                   \
+  case tok::kw_##NAME:                                                         \
+    return HASARG;
+#include "clang/Basic/RegularKeywordAttrInfo.inc"
+#undef KEYWORD_ATTRIBUTE
+  }
+}
+
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             const AttributeCommonInfo *CI) {
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(CI),
+                  DiagnosticsEngine::ak_attr_info);
+  return DB;
+}
+
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             const AttributeCommonInfo &CI) {
+  return DB << &CI;
+}
+
 } // namespace clang
 
 #endif // LLVM_CLANG_BASIC_ATTRIBUTECOMMONINFO_H

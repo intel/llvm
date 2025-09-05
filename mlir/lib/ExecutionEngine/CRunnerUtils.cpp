@@ -14,10 +14,10 @@
 
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "mlir/ExecutionEngine/Msan.h"
-#include "llvm/ADT/StringMap.h"
 
 #ifndef _WIN32
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
+    defined(__DragonFly__)
 #include <cstdlib>
 #else
 #include <alloca.h>
@@ -31,6 +31,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
+#include <numeric>
 #include <random>
 #include <string.h>
 
@@ -50,8 +51,21 @@ void stdSort(uint64_t n, V *p) {
 // details of our vectors. Also useful for direct LLVM IR output.
 extern "C" void printI64(int64_t i) { fprintf(stdout, "%" PRId64, i); }
 extern "C" void printU64(uint64_t u) { fprintf(stdout, "%" PRIu64, u); }
-extern "C" void printF32(float f) { fprintf(stdout, "%g", f); }
-extern "C" void printF64(double d) { fprintf(stdout, "%lg", d); }
+extern "C" void printF32(float f) {
+  if (std::isnan(f) && std::signbit(f)) {
+    fprintf(stdout, "-nan");
+  } else {
+    fprintf(stdout, "%g", f);
+  }
+}
+extern "C" void printF64(double d) {
+  if (std::isnan(d) && std::signbit(d)) {
+    fprintf(stdout, "-nan");
+  } else {
+    fprintf(stdout, "%lg", d);
+  }
+}
+extern "C" void printString(char const *s) { fputs(s, stdout); }
 extern "C" void printOpen() { fputs("( ", stdout); }
 extern "C" void printClose() { fputs(" )", stdout); }
 extern "C" void printComma() { fputs(", ", stdout); }
@@ -175,6 +189,17 @@ extern "C" void rtdrand(void *g) {
   delete generator;
 }
 
+extern "C" void _mlir_ciface_shuffle(StridedMemRefType<uint64_t, 1> *mref,
+                                     void *g) {
+  assert(mref);
+  assert(mref->strides[0] == 1); // consecutive
+  std::mt19937 *generator = static_cast<std::mt19937 *>(g);
+  uint64_t s = mref->sizes[0];
+  uint64_t *data = mref->data + mref->offset;
+  std::iota(data, data + s, 0);
+  std::shuffle(data, data + s, *generator);
+}
+
 #define IMPL_STDSORT(VNAME, V)                                                 \
   extern "C" void _mlir_ciface_stdSort##VNAME(uint64_t n,                      \
                                               StridedMemRefType<V, 1> *vref) { \
@@ -187,46 +212,5 @@ IMPL_STDSORT(I64, int64_t)
 IMPL_STDSORT(F64, double)
 IMPL_STDSORT(F32, float)
 #undef IMPL_STDSORT
-
-//===----------------------------------------------------------------------===//
-// MLIR ExecutionEngine dynamic library integration.
-//===----------------------------------------------------------------------===//
-
-// Visual Studio had a bug that fails to compile nested generic lambdas
-// inside an `extern "C"` function.
-//   https://developercommunity.visualstudio.com/content/problem/475494/clexe-error-with-lambda-inside-function-templates.html
-// The bug is fixed in VS2019 16.1. Separating the declaration and definition is
-// a work around for older versions of Visual Studio.
-extern "C" MLIR_CRUNNERUTILS_EXPORT void
-__mlir_execution_engine_init(llvm::StringMap<void *> &exportSymbols);
-
-void __mlir_execution_engine_init(llvm::StringMap<void *> &exportSymbols) {
-  auto exportSymbol = [&](llvm::StringRef name, auto ptr) {
-    assert(exportSymbols.count(name) == 0 && "symbol already exists");
-    exportSymbols[name] = reinterpret_cast<void *>(ptr);
-  };
-
-  exportSymbol("memrefCopy", &memrefCopy);
-  exportSymbol("printI64", &printI64);
-  exportSymbol("printU64", &printU64);
-  exportSymbol("printF32", &printF32);
-  exportSymbol("printF64", &printF64);
-  exportSymbol("printOpen", &printOpen);
-  exportSymbol("printClose", &printClose);
-  exportSymbol("printComma", &printComma);
-  exportSymbol("printNewline", &printNewline);
-  exportSymbol("printF16", &printF16);
-  exportSymbol("printBF16", &printBF16);
-  exportSymbol("printFlops", &printFlops);
-  exportSymbol("rtclock", &rtclock);
-  exportSymbol("*rtsrand", &*rtsrand);
-  exportSymbol("rtrand", &rtrand);
-  exportSymbol("rtdrand", &rtdrand);
-  exportSymbol("_mlir_ciface_stdSortI64", &_mlir_ciface_stdSortI64);
-  exportSymbol("_mlir_ciface_stdSortF64", &_mlir_ciface_stdSortF64);
-  exportSymbol("_mlir_ciface_stdSortF32", &_mlir_ciface_stdSortF32);
-}
-
-extern "C" MLIR_CRUNNERUTILS_EXPORT void __mlir_execution_engine_destroy() {}
 
 #endif // MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS

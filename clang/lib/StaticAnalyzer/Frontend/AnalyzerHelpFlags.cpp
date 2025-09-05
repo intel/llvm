@@ -11,15 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/StaticAnalyzer/Frontend/AnalyzerHelpFlags.h"
-#include "clang/Basic/Diagnostic.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Frontend/CheckerRegistry.h"
-#include "clang/StaticAnalyzer/Frontend/FrontendActions.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/raw_ostream.h"
 #include <memory>
 
 using namespace clang;
@@ -30,18 +25,18 @@ void ento::printCheckerHelp(raw_ostream &out, CompilerInstance &CI) {
   out << "USAGE: -analyzer-checker <CHECKER or PACKAGE,...>\n\n";
 
   auto CheckerMgr = std::make_unique<CheckerManager>(
-      *CI.getAnalyzerOpts(), CI.getLangOpts(), CI.getDiagnostics(),
+      CI.getAnalyzerOpts(), CI.getLangOpts(), CI.getDiagnostics(),
       CI.getFrontendOpts().Plugins);
 
   CheckerMgr->getCheckerRegistryData().printCheckerWithDescList(
-      *CI.getAnalyzerOpts(), out);
+      CI.getAnalyzerOpts(), out);
 }
 
 void ento::printEnabledCheckerList(raw_ostream &out, CompilerInstance &CI) {
   out << "OVERVIEW: Clang Static Analyzer Enabled Checkers List\n\n";
 
   auto CheckerMgr = std::make_unique<CheckerManager>(
-      *CI.getAnalyzerOpts(), CI.getLangOpts(), CI.getDiagnostics(),
+      CI.getAnalyzerOpts(), CI.getLangOpts(), CI.getDiagnostics(),
       CI.getFrontendOpts().Plugins);
 
   CheckerMgr->getCheckerRegistryData().printEnabledCheckerList(out);
@@ -50,11 +45,11 @@ void ento::printEnabledCheckerList(raw_ostream &out, CompilerInstance &CI) {
 void ento::printCheckerConfigList(raw_ostream &out, CompilerInstance &CI) {
 
   auto CheckerMgr = std::make_unique<CheckerManager>(
-      *CI.getAnalyzerOpts(), CI.getLangOpts(), CI.getDiagnostics(),
+      CI.getAnalyzerOpts(), CI.getLangOpts(), CI.getDiagnostics(),
       CI.getFrontendOpts().Plugins);
 
   CheckerMgr->getCheckerRegistryData().printCheckerOptionList(
-      *CI.getAnalyzerOpts(), out);
+      CI.getAnalyzerOpts(), out);
 }
 
 void ento::printAnalyzerConfigList(raw_ostream &out) {

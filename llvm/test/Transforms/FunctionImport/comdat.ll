@@ -3,9 +3,9 @@
 
 ; REQUIRES: x86-registered-target
 
-; RUN: opt -opaque-pointers -thinlto-bc -o %t1.bc %s
-; RUN: opt -opaque-pointers -thinlto-bc -o %t2.bc %S/Inputs/comdat.ll
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t3 %t1.bc %t2.bc \
+; RUN: opt -thinlto-bc -o %t1.bc %s
+; RUN: opt -thinlto-bc -o %t2.bc %S/Inputs/comdat.ll
+; RUN: llvm-lto2 run -save-temps -o %t3 %t1.bc %t2.bc \
 ; RUN:          -r %t1.bc,lwt_fun,plx \
 ; RUN:          -r %t2.bc,main,plx \
 ; RUN:          -r %t2.bc,lwt_fun,

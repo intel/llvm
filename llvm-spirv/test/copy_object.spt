@@ -27,7 +27,7 @@
 3 FunctionParameter 9 2
 
 2 Label 13
-6 Load 5 14 3 2 0
+4 Load 5 14 3
 5 CompositeExtract 4 15 14 0
 5 ShiftLeftLogical 4 16 15 11
 5 ShiftRightArithmetic 4 17 16 11
@@ -40,7 +40,7 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
+; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM-NOT: CopyObject

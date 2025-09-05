@@ -1,5 +1,5 @@
-; RUN: llvm-as -opaque-pointers < %s | llvm-dis -opaque-pointers | llvm-as -opaque-pointers | llvm-dis -opaque-pointers | FileCheck %s
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: llvm-as < %s | llvm-dis | llvm-as | llvm-dis | FileCheck %s
+; RUN: verify-uselistorder %s
 
 ; CHECK: @global = external global ptr
 @global = external global ptr
@@ -92,7 +92,7 @@ define <2 x ptr> @gep_constexpr_vec1(ptr %a) {
 }
 
 ; CHECK: define <2 x ptr> @gep_constexpr_vec2(<2 x ptr> %a)
-; CHECK:     ret <2 x ptr> getelementptr (i16, <2 x ptr> zeroinitializer, <2 x i32> <i32 3, i32 3>)
+; CHECK:     ret <2 x ptr> getelementptr (i16, <2 x ptr> zeroinitializer, <2 x i32> splat (i32 3))
 define <2 x ptr> @gep_constexpr_vec2(<2 x ptr> %a) {
   ret <2 x ptr> getelementptr (i16, <2 x ptr> zeroinitializer, i32 3)
 }

@@ -8,6 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/sycl.hpp>
+
+#include <sstream>
+
 using namespace std;
 
 template <typename T1, typename T_rtn> void math_operator_helper() {
@@ -103,6 +106,8 @@ int main() {
   check_half_math_operator_types<int, sycl::half>(Queue);
   check_half_math_operator_types<long, sycl::half>(Queue);
   check_half_math_operator_types<long long, sycl::half>(Queue);
+  check_half_math_operator_types<sycl::ext::oneapi::bfloat16,
+                                 sycl::ext::oneapi::bfloat16>(Queue);
 
   check_half_logical_operator_types<sycl::half>(Queue);
   check_half_logical_operator_types<double>(Queue);
@@ -110,4 +115,5 @@ int main() {
   check_half_logical_operator_types<int>(Queue);
   check_half_logical_operator_types<long>(Queue);
   check_half_logical_operator_types<long long>(Queue);
+  check_half_logical_operator_types<sycl::ext::oneapi::bfloat16>(Queue);
 }

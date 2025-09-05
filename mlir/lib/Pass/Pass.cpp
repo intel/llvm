@@ -18,6 +18,8 @@
 #include "mlir/IR/Threading.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/IndentedOstream.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/CommandLine.h"
@@ -35,10 +37,22 @@ using namespace mlir::detail;
 // PassExecutionAction
 //===----------------------------------------------------------------------===//
 
+PassExecutionAction::PassExecutionAction(ArrayRef<IRUnit> irUnits,
+                                         const Pass &pass)
+    : Base(irUnits), pass(pass) {}
+
 void PassExecutionAction::print(raw_ostream &os) const {
   os << llvm::formatv("`{0}` running `{1}` on Operation `{2}`", tag,
                       pass.getName(), getOp()->getName());
 }
+
+Operation *PassExecutionAction::getOp() const {
+  ArrayRef<IRUnit> irUnits = getContextIRUnits();
+  return irUnits.empty() ? nullptr
+                         : llvm::dyn_cast_if_present<Operation *>(irUnits[0]);
+}
+
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::PassExecutionAction)
 
 //===----------------------------------------------------------------------===//
 // Pass
@@ -49,8 +63,15 @@ void PassExecutionAction::print(raw_ostream &os) const {
 void Pass::anchor() {}
 
 /// Attempt to initialize the options of this pass from the given string.
-LogicalResult Pass::initializeOptions(StringRef options) {
-  return passOptions.parseFromString(options);
+LogicalResult Pass::initializeOptions(
+    StringRef options,
+    function_ref<LogicalResult(const Twine &)> errorHandler) {
+  std::string errStr;
+  llvm::raw_string_ostream os(errStr);
+  if (failed(passOptions.parseFromString(options, os))) {
+    return errorHandler(errStr);
+  }
+  return success();
 }
 
 /// Copy the option values from 'other', which is another instance of this
@@ -60,14 +81,19 @@ void Pass::copyOptionValuesFrom(const Pass *other) {
 }
 
 /// Prints out the pass in the textual representation of pipelines. If this is
-/// an adaptor pass, print its pass managers.
-void Pass::printAsTextualPipeline(raw_ostream &os) {
+/// an adaptor pass, print its pass managers. When `pretty` is true, the
+/// printed pipeline is formatted for readability.
+void Pass::printAsTextualPipeline(raw_ostream &os, bool pretty) {
   // Special case for adaptors to print its pass managers.
   if (auto *adaptor = dyn_cast<OpToOpPassAdaptor>(this)) {
     llvm::interleave(
         adaptor->getPassManagers(),
-        [&](OpPassManager &pm) { pm.printAsTextualPipeline(os); },
-        [&] { os << ","; });
+        [&](OpPassManager &pm) { pm.printAsTextualPipeline(os, pretty); },
+        [&] {
+          os << ",";
+          if (pretty)
+            os << "\n";
+        });
     return;
   }
   // Otherwise, print the pass argument followed by its options. If the pass
@@ -370,21 +396,51 @@ StringRef OpPassManager::getOpAnchorName() const {
 }
 
 /// Prints out the passes of the pass manager as the textual representation
-/// of pipelines.
-void OpPassManager::printAsTextualPipeline(raw_ostream &os) const {
-  os << getOpAnchorName() << "(";
+/// of pipelines. When `pretty` is true, the printed pipeline is formatted for
+/// readability.
+void printAsTextualPipeline(
+    raw_indented_ostream &os, StringRef anchorName,
+    const llvm::iterator_range<OpPassManager::pass_iterator> &passes,
+    bool pretty = false) {
+  os << anchorName << "(";
+  if (pretty) {
+    os << "\n";
+    os.indent();
+  }
   llvm::interleave(
-      impl->passes,
-      [&](const std::unique_ptr<Pass> &pass) {
-        pass->printAsTextualPipeline(os);
-      },
-      [&]() { os << ","; });
+      passes,
+      [&](mlir::Pass &pass) { pass.printAsTextualPipeline(os, pretty); },
+      [&]() {
+        os << ",";
+        if (pretty)
+          os << "\n";
+      });
+  if (pretty) {
+    os << "\n";
+    os.unindent();
+  }
   os << ")";
+}
+void printAsTextualPipeline(
+    raw_ostream &os, StringRef anchorName,
+    const llvm::iterator_range<OpPassManager::pass_iterator> &passes,
+    bool pretty) {
+  raw_indented_ostream indentedOS(os);
+  printAsTextualPipeline(indentedOS, anchorName, passes, pretty);
+}
+void OpPassManager::printAsTextualPipeline(raw_ostream &os, bool pretty) const {
+  StringRef anchorName = getOpAnchorName();
+  raw_indented_ostream indentedOS(os);
+  ::printAsTextualPipeline(
+      indentedOS, anchorName,
+      {MutableArrayRef<std::unique_ptr<Pass>>{impl->passes}.begin(),
+       MutableArrayRef<std::unique_ptr<Pass>>{impl->passes}.end()},
+      pretty);
 }
 
 void OpPassManager::dump() {
   llvm::errs() << "Pass Manager with " << impl->passes.size() << " passes:\n";
-  printAsTextualPipeline(llvm::errs());
+  printAsTextualPipeline(llvm::errs(), /*pretty=*/true);
   llvm::errs() << "\n";
 }
 
@@ -422,6 +478,22 @@ LogicalResult OpPassManager::initialize(MLIRContext *context,
         return failure();
   }
   return success();
+}
+
+llvm::hash_code OpPassManager::hash() {
+  llvm::hash_code hashCode{};
+  for (Pass &pass : getPasses()) {
+    // If this pass isn't an adaptor, directly hash it.
+    auto *adaptor = dyn_cast<OpToOpPassAdaptor>(&pass);
+    if (!adaptor) {
+      hashCode = llvm::hash_combine(hashCode, &pass);
+      continue;
+    }
+    // Otherwise, hash recursively each of the adaptors pass managers.
+    for (OpPassManager &adaptorPM : adaptor->getPassManagers())
+      llvm::hash_combine(hashCode, adaptorPM.hash());
+  }
+  return hashCode;
 }
 
 //===----------------------------------------------------------------------===//
@@ -637,16 +709,16 @@ LogicalResult OpToOpPassAdaptor::tryMergeInto(MLIRContext *ctx,
   mgrs.clear();
 
   // After coalescing, sort the pass managers within rhs by name.
-  auto compareFn = [](const OpPassManager *lhs, const OpPassManager *rhs) {
+  auto compareFn = [](const OpPassManager &lhs, const OpPassManager &rhs) {
     // Order op-specific pass managers first and op-agnostic pass managers last.
-    if (std::optional<StringRef> lhsName = lhs->getOpName()) {
-      if (std::optional<StringRef> rhsName = rhs->getOpName())
-        return lhsName->compare(*rhsName);
-      return -1; // lhs(op-specific) < rhs(op-agnostic)
+    if (std::optional<StringRef> lhsName = lhs.getOpName()) {
+      if (std::optional<StringRef> rhsName = rhs.getOpName())
+        return *lhsName < *rhsName;
+      return true; // lhs(op-specific) < rhs(op-agnostic)
     }
-    return 1; // lhs(op-agnostic) > rhs(op-specific)
+    return false; // lhs(op-agnostic) > rhs(op-specific)
   };
-  llvm::array_pod_sort(rhs.mgrs.begin(), rhs.mgrs.end(), compareFn);
+  llvm::sort(rhs.mgrs, compareFn);
   return success();
 }
 
@@ -658,7 +730,7 @@ std::string OpToOpPassAdaptor::getAdaptorName() {
     os << '\'' << pm.getOpAnchorName() << '\'';
   });
   os << ']';
-  return os.str();
+  return name;
 }
 
 void OpToOpPassAdaptor::runOnOperation() {
@@ -691,7 +763,7 @@ void OpToOpPassAdaptor::runOnOperationImpl(bool verifyPasses) {
         unsigned initGeneration = mgr->impl->initializationGeneration;
         if (failed(runPipeline(*mgr, &op, am.nest(&op), verifyPasses,
                                initGeneration, instrumentor, &parentInfo)))
-          return signalPassFailure();
+          signalPassFailure();
       }
     }
   }
@@ -714,7 +786,7 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
   // Create the async executors if they haven't been created, or if the main
   // pipeline has changed.
   if (asyncExecutors.empty() || hasSizeMismatch(asyncExecutors.front(), mgrs))
-    asyncExecutors.assign(context->getThreadPool().getThreadCount(), mgrs);
+    asyncExecutors.assign(context->getThreadPool().getMaxConcurrency(), mgrs);
 
   // This struct represents the information for a single operation to be
   // scheduled on a pass manager.
@@ -757,8 +829,9 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
 
   // An atomic failure variable for the async executors.
   std::vector<std::atomic<bool>> activePMs(asyncExecutors.size());
-  std::fill(activePMs.begin(), activePMs.end(), false);
-  auto processFn = [&](OpPMInfo &opInfo) {
+  llvm::fill(activePMs, false);
+  std::atomic<bool> hasFailure = false;
+  parallelForEach(context, opInfos, [&](OpPMInfo &opInfo) {
     // Find an executor for this operation.
     auto it = llvm::find_if(activePMs, [](std::atomic<bool> &isActive) {
       bool expectedInactive = false;
@@ -771,14 +844,15 @@ void OpToOpPassAdaptor::runOnOperationAsyncImpl(bool verifyPasses) {
     LogicalResult pipelineResult = runPipeline(
         pm, opInfo.op, opInfo.am, verifyPasses,
         pm.impl->initializationGeneration, instrumentor, &parentInfo);
+    if (failed(pipelineResult))
+      hasFailure.store(true);
 
     // Reset the active bit for this pass manager.
     activePMs[pmIndex].store(false);
-    return pipelineResult;
-  };
+  });
 
   // Signal a failure if any of the executors failed.
-  if (failed(failableParallelForEach(context, opInfos, processFn)))
+  if (hasFailure)
     signalPassFailure();
 }
 
@@ -820,19 +894,22 @@ LogicalResult PassManager::run(Operation *op) {
   if (failed(getImpl().finalizePassList(context)))
     return failure();
 
+  // Notify the context that we start running a pipeline for bookkeeping.
+  context->enterMultiThreadedExecution();
+
   // Initialize all of the passes within the pass manager with a new generation.
   llvm::hash_code newInitKey = context->getRegistryHash();
-  if (newInitKey != initializationKey) {
+  llvm::hash_code pipelineKey = hash();
+  if (newInitKey != initializationKey ||
+      pipelineKey != pipelineInitializationKey) {
     if (failed(initialize(context, impl->initializationGeneration + 1)))
       return failure();
     initializationKey = newInitKey;
+    pipelineKey = pipelineInitializationKey;
   }
 
   // Construct a top level analysis manager for the pipeline.
   ModuleAnalysisManager am(op, instrumentor.get());
-
-  // Notify the context that we start running a pipeline for book keeping.
-  context->enterMultiThreadedExecution();
 
   // If reproducer generation is enabled, run the pass manager with crash
   // handling enabled.
@@ -894,11 +971,9 @@ AnalysisManager AnalysisManager::nestImmediate(Operation *op) {
   assert(impl->getOperation() == op->getParentOp() &&
          "expected immediate child operation");
 
-  auto it = impl->childAnalyses.find(op);
-  if (it == impl->childAnalyses.end())
-    it = impl->childAnalyses
-             .try_emplace(op, std::make_unique<NestedAnalysisMap>(op, impl))
-             .first;
+  auto [it, inserted] = impl->childAnalyses.try_emplace(op);
+  if (inserted)
+    it->second = std::make_unique<NestedAnalysisMap>(op, impl);
   return {it->second.get()};
 }
 

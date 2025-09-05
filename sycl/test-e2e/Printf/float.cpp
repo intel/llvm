@@ -4,14 +4,12 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
-// UNSUPPORTED: hip_amd
-// XFAIL: cuda && windows
+// UNSUPPORTED: target-amd
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
-// FIXME: Remove dedicated non-variadic printf testing once the headers
-//        enforce it by default.
-// RUN: %{build} -o %t.nonvar.out -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+// FIXME: Remove dedicated variadic printf testing once the option is removed.
+// RUN: %{build} -o %t.nonvar.out -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -Wno-#warnings
 // RUN: %{run} %t.nonvar.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
 //        support is considered stable.
@@ -24,7 +22,8 @@
 
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include "helper.hpp"
 
@@ -48,7 +47,7 @@ class FloatTest;
 int main() {
   queue q;
 
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   if (!q.get_device().has(aspect::fp64)) {
     std::cout << "Skipping the actual test due to variadic argument promotion. "
                  "Printing hard-coded output from the host side:\n"
@@ -58,7 +57,7 @@ int main() {
               << std::endl;
     return 0;
   }
-#endif // !__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   q.submit([](handler &cgh) {
     cgh.single_task<FloatTest>([]() { do_float_test(); });
   });

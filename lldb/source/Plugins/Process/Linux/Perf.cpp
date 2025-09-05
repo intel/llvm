@@ -9,7 +9,6 @@
 #include "Perf.h"
 
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
-#include "lldb/Host/linux/Support.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -228,7 +227,7 @@ Expected<std::vector<uint8_t>> PerfEvent::GetReadOnlyDataBuffer() {
     uint64_t actual_data_head = data_head % data_size;
     // The buffer has wrapped, so we first the oldest chunk of data
     output.insert(output.end(), data.begin() + actual_data_head, data.end());
-    // And we we read the most recent chunk of data
+    // And we read the most recent chunk of data
     output.insert(output.end(), data.begin(), data.begin() + actual_data_head);
   } else {
     // There's been no wrapping, so we just read linearly

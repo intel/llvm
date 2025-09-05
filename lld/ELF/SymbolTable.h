@@ -15,9 +15,14 @@
 #include "llvm/Support/Compiler.h"
 
 namespace lld::elf {
-
+struct Ctx;
 class InputFile;
 class SharedFile;
+
+struct ArmCmseEntryFunction {
+  Symbol *acleSeSym;
+  Symbol *sym;
+};
 
 // SymbolTable is a bucket of all known symbols, including defined,
 // undefined, or lazy symbols (the last one is symbols in archive
@@ -33,6 +38,7 @@ class SharedFile;
 // is one add* function per symbol type.
 class SymbolTable {
 public:
+  SymbolTable(Ctx &ctx) : ctx(ctx) {}
   ArrayRef<Symbol *> getSymbols() const { return symVector; }
 
   void wrap(Symbol *sym, Symbol *real, Symbol *wrap);
@@ -41,16 +47,19 @@ public:
 
   template <typename T> Symbol *addSymbol(const T &newSym) {
     Symbol *sym = insert(newSym.getName());
-    sym->resolve(newSym);
+    sym->resolve(ctx, newSym);
     return sym;
   }
-  Symbol *addAndCheckDuplicate(const Defined &newSym);
+  Symbol *addAndCheckDuplicate(Ctx &, const Defined &newSym);
 
   void scanVersionScript();
 
   Symbol *find(StringRef name);
 
   void handleDynamicList();
+
+  Symbol *addUnusedUndefined(StringRef name,
+                             uint8_t binding = llvm::ELF::STB_GLOBAL);
 
   // Set of .so files to not link the same shared object file more than once.
   llvm::DenseMap<llvm::CachedHashStringRef, SharedFile *> soNames;
@@ -59,6 +68,18 @@ public:
   // same name, only one of them is linked, and the other is ignored. This map
   // is used to uniquify them.
   llvm::DenseMap<llvm::CachedHashStringRef, const InputFile *> comdatGroups;
+
+  // The Map of __acle_se_<sym>, <sym> pairs found in the input objects.
+  // Key is the <sym> name.
+  llvm::SmallMapVector<StringRef, ArmCmseEntryFunction, 1> cmseSymMap;
+
+  // Map of symbols defined in the Arm CMSE import library. The linker must
+  // preserve the addresses in the output objects.
+  llvm::StringMap<Defined *> cmseImportLib;
+
+  // True if <sym> from the input Arm CMSE import library is written to the
+  // output Arm CMSE import library.
+  llvm::StringMap<bool> inCMSEOutImpLib;
 
 private:
   SmallVector<Symbol *, 0> findByVersion(SymbolVersion ver);
@@ -70,6 +91,8 @@ private:
                           StringRef versionName, bool includeNonDefault);
   void assignWildcardVersion(SymbolVersion ver, uint16_t versionId,
                              bool includeNonDefault);
+
+  Ctx &ctx;
 
   // Global symbols and a map from symbol name to the index. The order is not
   // defined. We can use an arbitrary order, but it has to be deterministic even
@@ -83,8 +106,6 @@ private:
   // directive in version scripts.
   std::optional<llvm::StringMap<SmallVector<Symbol *, 0>>> demangledSyms;
 };
-
-LLVM_LIBRARY_VISIBILITY extern SymbolTable symtab;
 
 } // namespace lld::elf
 

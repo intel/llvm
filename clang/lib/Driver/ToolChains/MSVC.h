@@ -9,9 +9,11 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_MSVC_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_MSVC_H
 
-#include "AMDGPU.h"
-#include "Cuda.h"
 #include "clang/Driver/Compilation.h"
+#include "clang/Driver/CudaInstallationDetector.h"
+#include "clang/Driver/LazyDetector.h"
+#include "clang/Driver/RocmInstallationDetector.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "llvm/Frontend/Debug/Options.h"
@@ -23,7 +25,7 @@ namespace tools {
 
 /// Visual studio tools.
 namespace visualstudio {
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("visualstudio::Linker", "linker", TC) {}
 
@@ -34,12 +36,6 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
-
-private:
-  void constructMSVCLibCommand(Compilation &C, const JobAction &JA,
-                               const InputInfo &Output,
-                               const InputInfoList &InputFiles,
-                               const llvm::opt::ArgList &Args) const;
 };
 } // end namespace visualstudio
 
@@ -56,7 +52,6 @@ public:
   TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
                 Action::OffloadKind DeviceOffloadKind) const override;
 
-  bool IsIntegratedAssemblerDefault() const override;
   UnwindTableLevel
   getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override;
   bool isPICDefault() const override;
@@ -67,9 +62,8 @@ public:
   /// formats, and to DWARF otherwise. Users can use -gcodeview and -gdwarf to
   /// override the default.
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    return getTriple().isOSBinFormatMachO()
-               ? llvm::codegenoptions::DIF_DWARF
-               : llvm::codegenoptions::DIF_CodeView;
+    return getTriple().isOSBinFormatCOFF() ? llvm::codegenoptions::DIF_CodeView
+                                           : llvm::codegenoptions::DIF_DWARF;
   }
 
   /// Set the debugger tuning to "default", since we're definitely not tuning
@@ -107,6 +101,9 @@ public:
   void AddHIPRuntimeLibArgs(const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs) const override;
 
+  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
+
   bool getWindowsSDKLibraryPath(
       const llvm::opt::ArgList &Args, std::string &path) const;
   bool getUniversalCRTLibraryPath(const llvm::opt::ArgList &Args,
@@ -143,8 +140,9 @@ private:
   std::optional<llvm::StringRef> WinSdkDir, WinSdkVersion, WinSysRoot;
   std::string VCToolChainPath;
   llvm::ToolsetLayout VSLayout = llvm::ToolsetLayout::OlderVS;
-  CudaInstallationDetector CudaInstallation;
-  RocmInstallationDetector RocmInstallation;
+  LazyDetector<CudaInstallationDetector> CudaInstallation;
+  LazyDetector<RocmInstallationDetector> RocmInstallation;
+  LazyDetector<SYCLInstallationDetector> SYCLInstallation;
 };
 
 } // end namespace toolchains

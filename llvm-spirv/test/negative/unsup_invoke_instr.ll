@@ -23,7 +23,7 @@ define dso_local i32 @_funcEx() #4 {
 }
 
 ; Function Attrs: noinline norecurse optnone uwtable
-define dso_local i32 @func() #5 personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define dso_local i32 @func() #5 personality ptr @__gxx_personality_v0 {
 entry:
   %call = invoke i32 @_funcEx()
           to label %invoke.cont unwind label %lpad
@@ -32,12 +32,12 @@ invoke.cont:
   ret i32 0
 
 lpad:
-  %0 = landingpad { i8*, i32 }
+  %0 = landingpad { ptr, i32 }
           cleanup
   ret i32 0
 }
 
-declare dso_local i32 @__gxx_personality_v0(...)
+declare dso_local i32 @__gxx_personality_v0()
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="/localdisk2/icl/fadeeval/sycl_workspace/reproducer2/test.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { norecurse nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

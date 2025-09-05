@@ -3,7 +3,8 @@
 ; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=fiji < %s | FileCheck --check-prefix=GFX8 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx900 < %s | FileCheck --check-prefix=GFX9 %s
 ; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx1010 < %s | FileCheck --check-prefixes=GFX10PLUS,GFX10 %s
-; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx1100 -amdgpu-enable-delay-alu=0 < %s | FileCheck --check-prefixes=GFX10PLUS,GFX11 %s
+; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx1100 -mattr=+real-true16 -amdgpu-enable-delay-alu=0 < %s | FileCheck --check-prefixes=GFX10PLUS,GFX11,GFX11-TRUE16 %s
+; RUN: llc -mtriple=amdgcn-amd-amdpal -mcpu=gfx1100 -mattr=-real-true16 -amdgpu-enable-delay-alu=0 < %s | FileCheck --check-prefixes=GFX10PLUS,GFX11,GFX11-FAKE16 %s
 
 define i8 @v_usubsat_i8(i8 %lhs, i8 %rhs) {
 ; GFX6-LABEL: v_usubsat_i8:
@@ -27,14 +28,29 @@ define i8 @v_usubsat_i8(i8 %lhs, i8 %rhs) {
 ; GFX9-NEXT:    v_sub_u16_sdwa v0, v0, v1 clamp dst_sel:DWORD dst_unused:UNUSED_PAD src0_sel:BYTE_0 src1_sel:BYTE_0
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
 ;
-; GFX10PLUS-LABEL: v_usubsat_i8:
-; GFX10PLUS:       ; %bb.0:
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10PLUS-NEXT:    v_and_b32_e32 v1, 0xff, v1
-; GFX10PLUS-NEXT:    v_and_b32_e32 v0, 0xff, v0
-; GFX10PLUS-NEXT:    v_sub_nc_u16 v0, v0, v1 clamp
-; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
+; GFX10-LABEL: v_usubsat_i8:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    v_and_b32_e32 v1, 0xff, v1
+; GFX10-NEXT:    v_and_b32_e32 v0, 0xff, v0
+; GFX10-NEXT:    v_sub_nc_u16 v0, v0, v1 clamp
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-TRUE16-LABEL: v_usubsat_i8:
+; GFX11-TRUE16:       ; %bb.0:
+; GFX11-TRUE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-TRUE16-NEXT:    v_and_b16 v0.h, 0xff, v1.l
+; GFX11-TRUE16-NEXT:    v_and_b16 v0.l, 0xff, v0.l
+; GFX11-TRUE16-NEXT:    v_sub_nc_u16 v0.l, v0.l, v0.h clamp
+; GFX11-TRUE16-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-FAKE16-LABEL: v_usubsat_i8:
+; GFX11-FAKE16:       ; %bb.0:
+; GFX11-FAKE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-FAKE16-NEXT:    v_and_b32_e32 v1, 0xff, v1
+; GFX11-FAKE16-NEXT:    v_and_b32_e32 v0, 0xff, v0
+; GFX11-FAKE16-NEXT:    v_sub_nc_u16 v0, v0, v1 clamp
+; GFX11-FAKE16-NEXT:    s_setpc_b64 s[30:31]
   %result = call i8 @llvm.usub.sat.i8(i8 %lhs, i8 %rhs)
   ret i8 %result
 }
@@ -61,12 +77,23 @@ define i16 @v_usubsat_i16(i16 %lhs, i16 %rhs) {
 ; GFX9-NEXT:    v_sub_u16_e64 v0, v0, v1 clamp
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
 ;
-; GFX10PLUS-LABEL: v_usubsat_i16:
-; GFX10PLUS:       ; %bb.0:
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10PLUS-NEXT:    v_sub_nc_u16 v0, v0, v1 clamp
-; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
+; GFX10-LABEL: v_usubsat_i16:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    v_sub_nc_u16 v0, v0, v1 clamp
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-TRUE16-LABEL: v_usubsat_i16:
+; GFX11-TRUE16:       ; %bb.0:
+; GFX11-TRUE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-TRUE16-NEXT:    v_sub_nc_u16 v0.l, v0.l, v1.l clamp
+; GFX11-TRUE16-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-FAKE16-LABEL: v_usubsat_i16:
+; GFX11-FAKE16:       ; %bb.0:
+; GFX11-FAKE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-FAKE16-NEXT:    v_sub_nc_u16 v0, v0, v1 clamp
+; GFX11-FAKE16-NEXT:    s_setpc_b64 s[30:31]
   %result = call i16 @llvm.usub.sat.i16(i16 %lhs, i16 %rhs)
   ret i16 %result
 }
@@ -95,12 +122,23 @@ define i16 @usubsat_as_bithack_i16(i16 %x) {
 ; GFX9-NEXT:    v_sub_u16_e64 v0, v0, s4 clamp
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
 ;
-; GFX10PLUS-LABEL: usubsat_as_bithack_i16:
-; GFX10PLUS:       ; %bb.0:
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10PLUS-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
-; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
+; GFX10-LABEL: usubsat_as_bithack_i16:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-TRUE16-LABEL: usubsat_as_bithack_i16:
+; GFX11-TRUE16:       ; %bb.0:
+; GFX11-TRUE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-TRUE16-NEXT:    v_sub_nc_u16 v0.l, v0.l, 0x8000 clamp
+; GFX11-TRUE16-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-FAKE16-LABEL: usubsat_as_bithack_i16:
+; GFX11-FAKE16:       ; %bb.0:
+; GFX11-FAKE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-FAKE16-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
+; GFX11-FAKE16-NEXT:    s_setpc_b64 s[30:31]
   %signsplat = ashr i16 %x, 15
   %flipsign = xor i16 %x, 32768
   %result = and i16 %signsplat, %flipsign
@@ -131,12 +169,23 @@ define i16 @usubsat_as_bithack2_i16(i16 %x) {
 ; GFX9-NEXT:    v_sub_u16_e64 v0, v0, s4 clamp
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
 ;
-; GFX10PLUS-LABEL: usubsat_as_bithack2_i16:
-; GFX10PLUS:       ; %bb.0:
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10PLUS-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
-; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
+; GFX10-LABEL: usubsat_as_bithack2_i16:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-TRUE16-LABEL: usubsat_as_bithack2_i16:
+; GFX11-TRUE16:       ; %bb.0:
+; GFX11-TRUE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-TRUE16-NEXT:    v_sub_nc_u16 v0.l, v0.l, 0x8000 clamp
+; GFX11-TRUE16-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-FAKE16-LABEL: usubsat_as_bithack2_i16:
+; GFX11-FAKE16:       ; %bb.0:
+; GFX11-FAKE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-FAKE16-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
+; GFX11-FAKE16-NEXT:    s_setpc_b64 s[30:31]
   %signsplat = ashr i16 %x, 15
   %flipsign = add i16 %x, 32768
   %result = and i16 %signsplat, %flipsign
@@ -167,12 +216,23 @@ define i16 @usubsat_as_bithack_commute_i16(i16 %x) {
 ; GFX9-NEXT:    v_sub_u16_e64 v0, v0, s4 clamp
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
 ;
-; GFX10PLUS-LABEL: usubsat_as_bithack_commute_i16:
-; GFX10PLUS:       ; %bb.0:
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10PLUS-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
-; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
+; GFX10-LABEL: usubsat_as_bithack_commute_i16:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-TRUE16-LABEL: usubsat_as_bithack_commute_i16:
+; GFX11-TRUE16:       ; %bb.0:
+; GFX11-TRUE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-TRUE16-NEXT:    v_sub_nc_u16 v0.l, v0.l, 0x8000 clamp
+; GFX11-TRUE16-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-FAKE16-LABEL: usubsat_as_bithack_commute_i16:
+; GFX11-FAKE16:       ; %bb.0:
+; GFX11-FAKE16-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-FAKE16-NEXT:    v_sub_nc_u16 v0, v0, 0x8000 clamp
+; GFX11-FAKE16-NEXT:    s_setpc_b64 s[30:31]
   %signsplat = ashr i16 %x, 15
   %flipsign = add i16 %x, 32768
   %result = and i16 %flipsign, %signsplat
@@ -202,7 +262,6 @@ define i32 @v_usubsat_i32(i32 %lhs, i32 %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_i32:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v0, v0, v1 clamp
 ; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
   %result = call i32 @llvm.usub.sat.i32(i32 %lhs, i32 %rhs)
@@ -213,17 +272,16 @@ define <2 x i16> @v_usubsat_v2i16(<2 x i16> %lhs, <2 x i16> %rhs) {
 ; GFX6-LABEL: v_usubsat_v2i16:
 ; GFX6:       ; %bb.0:
 ; GFX6-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX6-NEXT:    v_and_b32_e32 v4, 0xffff, v3
+; GFX6-NEXT:    v_and_b32_e32 v3, 0xffff, v3
 ; GFX6-NEXT:    v_and_b32_e32 v1, 0xffff, v1
 ; GFX6-NEXT:    v_and_b32_e32 v2, 0xffff, v2
 ; GFX6-NEXT:    v_and_b32_e32 v0, 0xffff, v0
-; GFX6-NEXT:    v_max_u32_e32 v1, v1, v4
+; GFX6-NEXT:    v_max_u32_e32 v1, v1, v3
 ; GFX6-NEXT:    v_max_u32_e32 v0, v0, v2
 ; GFX6-NEXT:    v_sub_i32_e32 v1, vcc, v1, v3
 ; GFX6-NEXT:    v_sub_i32_e32 v0, vcc, v0, v2
 ; GFX6-NEXT:    v_lshlrev_b32_e32 v2, 16, v1
 ; GFX6-NEXT:    v_or_b32_e32 v0, v0, v2
-; GFX6-NEXT:    v_and_b32_e32 v1, 0xffff, v1
 ; GFX6-NEXT:    s_setpc_b64 s[30:31]
 ;
 ; GFX8-LABEL: v_usubsat_v2i16:
@@ -243,7 +301,6 @@ define <2 x i16> @v_usubsat_v2i16(<2 x i16> %lhs, <2 x i16> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v2i16:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_pk_sub_u16 v0, v0, v1 clamp
 ; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
   %result = call <2 x i16> @llvm.usub.sat.v2i16(<2 x i16> %lhs, <2 x i16> %rhs)
@@ -290,7 +347,6 @@ define <3 x i16> @v_usubsat_v3i16(<3 x i16> %lhs, <3 x i16> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v3i16:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_pk_sub_u16 v0, v0, v2 clamp
 ; GFX10PLUS-NEXT:    v_pk_sub_u16 v1, v1, v3 clamp
 ; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
@@ -345,7 +401,6 @@ define <2 x float> @v_usubsat_v4i16(<4 x i16> %lhs, <4 x i16> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v4i16:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_pk_sub_u16 v0, v0, v2 clamp
 ; GFX10PLUS-NEXT:    v_pk_sub_u16 v1, v1, v3 clamp
 ; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
@@ -381,7 +436,6 @@ define <2 x i32> @v_usubsat_v2i32(<2 x i32> %lhs, <2 x i32> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v2i32:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v0, v0, v2 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v1, v1, v3 clamp
 ; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
@@ -420,7 +474,6 @@ define <3 x i32> @v_usubsat_v3i32(<3 x i32> %lhs, <3 x i32> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v3i32:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v0, v0, v3 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v1, v1, v4 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v2, v2, v5 clamp
@@ -464,7 +517,6 @@ define <4 x i32> @v_usubsat_v4i32(<4 x i32> %lhs, <4 x i32> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v4i32:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v0, v0, v4 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v1, v1, v5 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v2, v2, v6 clamp
@@ -525,7 +577,6 @@ define <8 x i32> @v_usubsat_v8i32(<8 x i32> %lhs, <8 x i32> %rhs) {
 ; GFX10PLUS-LABEL: v_usubsat_v8i32:
 ; GFX10PLUS:       ; %bb.0:
 ; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v0, v0, v8 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v1, v1, v9 clamp
 ; GFX10PLUS-NEXT:    v_sub_nc_u32_e64 v2, v2, v10 clamp
@@ -628,7 +679,6 @@ define <16 x i32> @v_usubsat_v16i32(<16 x i32> %lhs, <16 x i32> %rhs) {
 ; GFX10-LABEL: v_usubsat_v16i32:
 ; GFX10:       ; %bb.0:
 ; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX10-NEXT:    buffer_load_dword v31, off, s[0:3], s32
 ; GFX10-NEXT:    v_sub_nc_u32_e64 v0, v0, v16 clamp
 ; GFX10-NEXT:    v_sub_nc_u32_e64 v1, v1, v17 clamp
@@ -652,7 +702,6 @@ define <16 x i32> @v_usubsat_v16i32(<16 x i32> %lhs, <16 x i32> %rhs) {
 ; GFX11-LABEL: v_usubsat_v16i32:
 ; GFX11:       ; %bb.0:
 ; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX11-NEXT:    s_waitcnt_vscnt null, 0x0
 ; GFX11-NEXT:    scratch_load_b32 v31, off, s32
 ; GFX11-NEXT:    v_sub_nc_u32_e64 v0, v0, v16 clamp
 ; GFX11-NEXT:    v_sub_nc_u32_e64 v1, v1, v17 clamp
@@ -708,16 +757,25 @@ define i64 @v_usubsat_i64(i64 %lhs, i64 %rhs) {
 ; GFX9-NEXT:    v_cndmask_b32_e64 v1, v3, 0, vcc
 ; GFX9-NEXT:    s_setpc_b64 s[30:31]
 ;
-; GFX10PLUS-LABEL: v_usubsat_i64:
-; GFX10PLUS:       ; %bb.0:
-; GFX10PLUS-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GFX10PLUS-NEXT:    s_waitcnt_vscnt null, 0x0
-; GFX10PLUS-NEXT:    v_sub_co_u32 v2, vcc_lo, v0, v2
-; GFX10PLUS-NEXT:    v_sub_co_ci_u32_e32 v3, vcc_lo, v1, v3, vcc_lo
-; GFX10PLUS-NEXT:    v_cmp_gt_u64_e32 vcc_lo, v[2:3], v[0:1]
-; GFX10PLUS-NEXT:    v_cndmask_b32_e64 v0, v2, 0, vcc_lo
-; GFX10PLUS-NEXT:    v_cndmask_b32_e64 v1, v3, 0, vcc_lo
-; GFX10PLUS-NEXT:    s_setpc_b64 s[30:31]
+; GFX10-LABEL: v_usubsat_i64:
+; GFX10:       ; %bb.0:
+; GFX10-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX10-NEXT:    v_sub_co_u32 v2, vcc_lo, v0, v2
+; GFX10-NEXT:    v_sub_co_ci_u32_e32 v3, vcc_lo, v1, v3, vcc_lo
+; GFX10-NEXT:    v_cmp_gt_u64_e32 vcc_lo, v[2:3], v[0:1]
+; GFX10-NEXT:    v_cndmask_b32_e64 v0, v2, 0, vcc_lo
+; GFX10-NEXT:    v_cndmask_b32_e64 v1, v3, 0, vcc_lo
+; GFX10-NEXT:    s_setpc_b64 s[30:31]
+;
+; GFX11-LABEL: v_usubsat_i64:
+; GFX11:       ; %bb.0:
+; GFX11-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GFX11-NEXT:    v_sub_co_u32 v2, vcc_lo, v0, v2
+; GFX11-NEXT:    v_sub_co_ci_u32_e64 v3, null, v1, v3, vcc_lo
+; GFX11-NEXT:    v_cmp_gt_u64_e32 vcc_lo, v[2:3], v[0:1]
+; GFX11-NEXT:    v_cndmask_b32_e64 v0, v2, 0, vcc_lo
+; GFX11-NEXT:    v_cndmask_b32_e64 v1, v3, 0, vcc_lo
+; GFX11-NEXT:    s_setpc_b64 s[30:31]
   %result = call i64 @llvm.usub.sat.i64(i64 %lhs, i64 %rhs)
   ret i64 %result
 }

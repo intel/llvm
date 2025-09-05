@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -sycl-std=2017 -fsycl-is-device -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -triple spir64 | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 
@@ -6,7 +6,7 @@ template <typename T> class Fobj {
 public:
   Fobj() {}
   void operator()() const {
-    auto L0 = []() [[intel::reqd_sub_group_size(4)]]{};
+    auto L0 = []() [[sycl::reqd_sub_group_size(4)]]{};
     L0();
   }
 };
@@ -25,14 +25,14 @@ void invoke() {
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'int'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit-inline
-// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' inline
+// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit_instantiation implicit-inline
+// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' implicit_instantiation inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
+// CHECK:       CXXOperatorCallExpr {{.*}} 'void' '()'
 // CHECK:       IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:  value: Int 4
@@ -42,13 +42,13 @@ void invoke() {
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'short'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit-inline
-// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' inline
+// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit_instantiation implicit-inline
+// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' implicit_instantiation inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
 // CHECK-NEXT:  value: Int 4
 // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK:       CXXOperatorCallExpr {{.*}} 'void':'void' '()'
+// CHECK:       CXXOperatorCallExpr {{.*}} 'void' '()'
 // CHECK-NOT:   IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK:       CXXConstructorDecl

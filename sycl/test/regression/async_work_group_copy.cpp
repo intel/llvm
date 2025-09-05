@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsyntax-only -fpreview-breaking-changes %s %}
 
 // Test checks for that no compile errors occur for
 // builtin async_work_group_copy
@@ -46,12 +47,14 @@ template <typename T> void test() {
   async_work_group_test<vec<T, 4>>();
   async_work_group_test<vec<T, 8>>();
   async_work_group_test<vec<T, 16>>();
-  async_work_group_test<detail::make_unsigned_t<T>>();
-  async_work_group_test<vec<detail::make_unsigned_t<T>, 2>>();
-  async_work_group_test<vec<detail::make_unsigned_t<T>, 3>>();
-  async_work_group_test<vec<detail::make_unsigned_t<T>, 4>>();
-  async_work_group_test<vec<detail::make_unsigned_t<T>, 8>>();
-  async_work_group_test<vec<detail::make_unsigned_t<T>, 16>>();
+  if constexpr (std::is_integral_v<T>) {
+    async_work_group_test<detail::make_unsigned_t<T>>();
+    async_work_group_test<vec<detail::make_unsigned_t<T>, 2>>();
+    async_work_group_test<vec<detail::make_unsigned_t<T>, 3>>();
+    async_work_group_test<vec<detail::make_unsigned_t<T>, 4>>();
+    async_work_group_test<vec<detail::make_unsigned_t<T>, 8>>();
+    async_work_group_test<vec<detail::make_unsigned_t<T>, 16>>();
+  }
 }
 
 int main() {

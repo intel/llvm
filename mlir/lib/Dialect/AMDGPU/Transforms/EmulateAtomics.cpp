@@ -9,12 +9,13 @@
 #include "mlir/Dialect/AMDGPU/Transforms/Passes.h"
 
 #include "mlir/Dialect/AMDGPU/IR/AMDGPUDialect.h"
+#include "mlir/Dialect/AMDGPU/Utils/Chipset.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 namespace mlir::amdgpu {
 #define GEN_PASS_DEF_AMDGPUEMULATEATOMICSPASS
@@ -53,7 +54,7 @@ enum class DataArgAction : unsigned char {
 
 // Fix up the fact that, when we're migrating from a general bugffer atomic
 // to a load or to a CAS, the number of openrands, and thus the number of
-// entries needed in operand_segment_sizes, needs to change. We use this method
+// entries needed in operandSegmentSizes, needs to change. We use this method
 // because we'd like to preserve unknown attributes on the atomic instead of
 // discarding them.
 static void patchOperandSegmentSizes(ArrayRef<NamedAttribute> attrs,
@@ -61,7 +62,7 @@ static void patchOperandSegmentSizes(ArrayRef<NamedAttribute> attrs,
                                      DataArgAction action) {
   newAttrs.reserve(attrs.size());
   for (NamedAttribute attr : attrs) {
-    if (attr.getName().getValue() != "operand_segment_sizes") {
+    if (attr.getName().getValue() != "operandSegmentSizes") {
       newAttrs.push_back(attr);
       continue;
     }
@@ -84,6 +85,23 @@ static void patchOperandSegmentSizes(ArrayRef<NamedAttribute> attrs,
     }
     newAttrs.push_back(NamedAttribute(attr.getName(), newSegments));
   }
+}
+
+// A helper function to flatten a vector value to a scalar containing its bits,
+// returning the value itself if othetwise.
+static Value flattenVecToBits(ConversionPatternRewriter &rewriter, Location loc,
+                              Value val) {
+  auto vectorType = dyn_cast<VectorType>(val.getType());
+  if (!vectorType)
+    return val;
+
+  int64_t bitwidth =
+      vectorType.getElementTypeBitWidth() * vectorType.getNumElements();
+  Type allBitsType = rewriter.getIntegerType(bitwidth);
+  auto allBitsVecType = VectorType::get({1}, allBitsType);
+  Value bitcast = rewriter.create<vector::BitCastOp>(loc, allBitsVecType, val);
+  Value scalar = rewriter.create<vector::ExtractOp>(loc, bitcast, 0);
+  return scalar;
 }
 
 template <typename AtomicOp, typename ArithOp>
@@ -113,6 +131,7 @@ LogicalResult RawBufferAtomicByCasPattern<AtomicOp, ArithOp>::matchAndRewrite(
   rewriter.setInsertionPointToEnd(loopBlock);
   Value prevLoad = loopBlock->getArgument(0);
   Value operated = rewriter.create<ArithOp>(loc, data, prevLoad);
+  dataType = operated.getType();
 
   SmallVector<NamedAttribute> cmpswapAttrs;
   patchOperandSegmentSizes(origAttrs, cmpswapAttrs, DataArgAction::Duplicate);
@@ -126,8 +145,8 @@ LogicalResult RawBufferAtomicByCasPattern<AtomicOp, ArithOp>::matchAndRewrite(
   // an int->float bitcast is introduced to account for the fact that cmpswap
   // only takes integer arguments.
 
-  Value prevLoadForCompare = prevLoad;
-  Value atomicResForCompare = atomicRes;
+  Value prevLoadForCompare = flattenVecToBits(rewriter, loc, prevLoad);
+  Value atomicResForCompare = flattenVecToBits(rewriter, loc, atomicRes);
   if (auto floatDataTy = dyn_cast<FloatType>(dataType)) {
     Type equivInt = rewriter.getIntegerType(floatDataTy.getWidth());
     prevLoadForCompare =
@@ -144,15 +163,23 @@ LogicalResult RawBufferAtomicByCasPattern<AtomicOp, ArithOp>::matchAndRewrite(
 }
 
 void mlir::amdgpu::populateAmdgpuEmulateAtomicsPatterns(
-    ConversionTarget &target, RewritePatternSet &patterns, Chipset chipset) {
+    ConversionTarget &target, RewritePatternSet &patterns, Chipset chipset,
+    PatternBenefit benefit) {
   // gfx10 has no atomic adds.
-  if (chipset.majorVersion == 10 || chipset.majorVersion < 9 ||
-      (chipset.majorVersion == 9 && chipset.minorVersion < 0x08)) {
+  if (chipset.majorVersion == 10 || chipset < Chipset(9, 0, 8)) {
     target.addIllegalOp<RawBufferAtomicFaddOp>();
+  }
+  // gfx11 has no fp16 atomics
+  if (chipset.majorVersion == 11) {
+    target.addDynamicallyLegalOp<RawBufferAtomicFaddOp>(
+        [](RawBufferAtomicFaddOp op) -> bool {
+          Type elemType = getElementTypeOrSelf(op.getValue().getType());
+          return !isa<Float16Type, BFloat16Type>(elemType);
+        });
   }
   // gfx9 has no to a very limited support for floating-point min and max.
   if (chipset.majorVersion == 9) {
-    if (chipset.minorVersion >= 0x0a) {
+    if (chipset >= Chipset(9, 0, 0xa)) {
       // gfx90a supports f64 max (and min, but we don't have a min wrapper right
       // now) but all other types need to be emulated.
       target.addDynamicallyLegalOp<RawBufferAtomicFmaxOp>(
@@ -162,11 +189,22 @@ void mlir::amdgpu::populateAmdgpuEmulateAtomicsPatterns(
     } else {
       target.addIllegalOp<RawBufferAtomicFmaxOp>();
     }
+    // TODO(https://github.com/llvm/llvm-project/issues/129206): Refactor
+    // this to avoid hardcoding ISA version: gfx950 has bf16 atomics.
+    if (chipset < Chipset(9, 5, 0)) {
+      target.addDynamicallyLegalOp<RawBufferAtomicFaddOp>(
+          [](RawBufferAtomicFaddOp op) -> bool {
+            Type elemType = getElementTypeOrSelf(op.getValue().getType());
+            return !isa<BFloat16Type>(elemType);
+          });
+    }
   }
-  patterns
-      .add<RawBufferAtomicByCasPattern<RawBufferAtomicFaddOp, arith::AddFOp>,
-           RawBufferAtomicByCasPattern<RawBufferAtomicFmaxOp, arith::MaxFOp>>(
-          patterns.getContext());
+  patterns.add<
+      RawBufferAtomicByCasPattern<RawBufferAtomicFaddOp, arith::AddFOp>,
+      RawBufferAtomicByCasPattern<RawBufferAtomicFmaxOp, arith::MaximumFOp>,
+      RawBufferAtomicByCasPattern<RawBufferAtomicSmaxOp, arith::MaxSIOp>,
+      RawBufferAtomicByCasPattern<RawBufferAtomicUminOp, arith::MinUIOp>>(
+      patterns.getContext(), benefit);
 }
 
 void AmdgpuEmulateAtomicsPass::runOnOperation() {

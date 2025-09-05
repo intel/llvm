@@ -36,16 +36,92 @@ def DeviceMappingAttrInterface : AttrInterface<"DeviceMappingAttrInterface"> {
   }];
 
  let methods = [
-    InterfaceMethod<[{
-        Returns mapping as an integer from the attribute.
+    InterfaceMethod<
+      /*desc=*/"Return mapping as an integer from the attribute.",
+      /*retTy=*/"int64_t",
+      /*methodName=*/"getMappingId",
+      /*args=*/(ins)
+    >,
+    InterfaceMethod<
+      /*desc=*/"Return true if the attribute specifies a linear mapping",
+      /*retTy=*/"bool",
+      /*methodName=*/"isLinearMapping",
+      /*args=*/(ins)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the [0..n) relative index of the attribute depending on its group.
+        This can be used to index into a contiguous array.
       }],
-      "int64_t", "getMappingId", (ins)
+      /*retTy=*/"int64_t",
+      /*methodName=*/"getRelativeIndex", 
+      /*args=*/(ins)
     >
   ];
 }
 
+def DeviceMaskingAttrInterface : AttrInterface<"DeviceMaskingAttrInterface"> {
+  let cppNamespace = "::mlir";
+  let description = [{
+    Attribute interface describing how to filter the processing units that a
+    region is mapped to.
+
+    For instance, consider the following example mask which specifies processing
+    units 2, 4 and 5 are active:
+    ```
+              8       4       0
+      mask  : 0 0 0 1 1 0 1 0 0
+    ```
+    The logical ID for an active processing unit is defined as its position
+    relative to the other active processing units. In this example, we have:
+    ```
+      Processing Unit    LogicalID
+              0             N/A
+              1             N/A
+              2              0
+              3             N/A
+              4              1
+              5              2
+              6             N/A
+              7             N/A
+    ```
+  }];
+
+ let methods = [
+    InterfaceMethod<
+      /*desc=*/[{
+        Create the logical active id for a given physical id.
+        Expects a physicalLinearMappingId of I64Type.
+      }],
+      /*retTy=*/"Value",
+      /*methodName=*/"createLogicalLinearMappingId",
+      /*args=*/(ins "OpBuilder&":$builder, "Value":$physicalLinearMappingId)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the dynamic condition determining whether a given physical id is
+        active under the mask.
+        Expects a physicalLinearMappingId of I64Type.
+      }],
+      /*retTy=*/"Value",
+      /*methodName=*/"createIsActiveIdPredicate",
+      /*args=*/(ins "OpBuilder&":$builder, "Value":$physicalLinearMappingId)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the maximal number of pysical ids supported.
+        This is to account for temporary implementation limitations (e.g. i64)
+        and fail gracefully with actionnable error messages.
+      }],
+      /*retTy=*/"int64_t",
+      /*methodName=*/"getMaxNumPhysicalIds",
+      /*args=*/(ins)
+    >,
+  ];
+}
+
 def DeviceMappingArrayAttr :
-  TypedArrayAttrBase<DeviceMappingAttrInterface,
+  TypedArrayAttrBase<AnyAttrOf<[DeviceMappingAttrInterface, DeviceMaskingAttrInterface]>,
   "Device Mapping array attribute"> { }
 
 #endif // MLIR_DEVICEMAPPINGINTERFACE

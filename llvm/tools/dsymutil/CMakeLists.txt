@@ -7,11 +7,15 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsDescs
   AllTargetsInfos
   AsmPrinter
+  BitReader
+  BitStreamReader
   CodeGen
   CodeGenTypes
   DWARFLinker
+  DWARFLinkerClassic
   DWARFLinkerParallel
   DebugInfoDWARF
+  DebugInfoDWARFLowLevel
   MC
   Object
   Option
@@ -30,16 +34,18 @@ add_llvm_tool(dsymutil
   MachODebugMapParser.cpp
   MachOUtils.cpp
   Reproducer.cpp
-  SymbolMap.cpp
+  RelocationMap.cpp
+  SwiftModule.cpp
 
   DEPENDS
   intrinsics_gen
   ${tablegen_deps}
   DsymutilTableGen
+  GENERATE_DRIVER
   )
 
-if(APPLE)
+if(APPLE AND NOT LLVM_TOOL_LLVM_DRIVER_BUILD)
   target_link_libraries(dsymutil PRIVATE "-framework CoreFoundation")
-endif(APPLE)
+endif(APPLE AND NOT LLVM_TOOL_LLVM_DRIVER_BUILD)
 
 # target_link_libraries(dsymutil PRIVATE ${LLVM_ATOMIC_LIB})

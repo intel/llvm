@@ -11,14 +11,14 @@
 
 #include "lldb/Core/Address.h"
 #include "lldb/Core/Disassembler.h"
+#include "lldb/Core/dwarf.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-private.h"
 #include "llvm/DebugInfo/DWARF/DWARFLocationExpression.h"
+#include "llvm/Support/Error.h"
 #include <functional>
-
-class DWARFUnit;
 
 namespace lldb_private {
 
@@ -35,6 +35,32 @@ namespace lldb_private {
 /// location expression or a location list and interprets it.
 class DWARFExpression {
 public:
+  using Stack = std::vector<Value>;
+
+  class Delegate {
+  public:
+    Delegate() = default;
+    virtual ~Delegate() = default;
+
+    virtual uint16_t GetVersion() const = 0;
+    virtual dw_addr_t GetBaseAddress() const = 0;
+    virtual uint8_t GetAddressByteSize() const = 0;
+    virtual llvm::Expected<std::pair<uint64_t, bool>>
+    GetDIEBitSizeAndSign(uint64_t relative_die_offset) const = 0;
+    virtual dw_addr_t ReadAddressFromDebugAddrSection(uint32_t index) const = 0;
+    virtual lldb::offset_t
+    GetVendorDWARFOpcodeSize(const DataExtractor &data,
+                             const lldb::offset_t data_offset,
+                             const uint8_t op) const = 0;
+    virtual bool ParseVendorDWARFOpcode(uint8_t op,
+                                        const DataExtractor &opcodes,
+                                        lldb::offset_t &offset,
+                                        Stack &stack) const = 0;
+
+    Delegate(const Delegate &) = delete;
+    Delegate &operator=(const Delegate &) = delete;
+  };
+
   DWARFExpression();
 
   /// Constructor
@@ -45,45 +71,33 @@ public:
   DWARFExpression(const DataExtractor &data);
 
   /// Destructor
-  virtual ~DWARFExpression();
+  ~DWARFExpression();
 
   /// Return true if the location expression contains data
   bool IsValid() const;
 
-  /// If a location is not a location list, return true if the location
-  /// contains a DW_OP_addr () opcode in the stream that matches \a file_addr.
-  /// If file_addr is LLDB_INVALID_ADDRESS, the this function will return true
-  /// if the variable there is any DW_OP_addr in a location that (yet still is
-  /// NOT a location list). This helps us detect if a variable is a global or
-  /// static variable since there is no other indication from DWARF debug
-  /// info.
+  /// Return the address specified by the first
+  /// DW_OP_{addr, addrx, GNU_addr_index} in the operation stream.
   ///
   /// \param[in] dwarf_cu
-  ///     The dwarf unit this expression belongs to.
-  ///
-  /// \param[in] op_addr_idx
-  ///     The DW_OP_addr index to retrieve in case there is more than
-  ///     one DW_OP_addr opcode in the location byte stream.
-  ///
-  /// \param[out] error
-  ///     If the location stream contains unknown DW_OP opcodes or the
-  ///     data is missing, \a error will be set to \b true.
+  ///     The dwarf unit this expression belongs to. Only required to resolve
+  ///     DW_OP{addrx, GNU_addr_index}.
   ///
   /// \return
-  ///     LLDB_INVALID_ADDRESS if the location doesn't contain a
-  ///     DW_OP_addr for \a op_addr_idx, otherwise a valid file address
-  lldb::addr_t GetLocation_DW_OP_addr(const DWARFUnit *dwarf_cu,
-                                      uint32_t op_addr_idx, bool &error) const;
+  ///     The address specified by the operation, if the operation exists, or
+  ///     an llvm::Error otherwise.
+  llvm::Expected<lldb::addr_t>
+  GetLocation_DW_OP_addr(const Delegate *dwarf_cu) const;
 
-  bool Update_DW_OP_addr(const DWARFUnit *dwarf_cu, lldb::addr_t file_addr);
+  bool Update_DW_OP_addr(const Delegate *dwarf_cu, lldb::addr_t file_addr);
 
   void UpdateValue(uint64_t const_value, lldb::offset_t const_value_byte_size,
                    uint8_t addr_byte_size);
 
-  bool ContainsThreadLocalStorage(const DWARFUnit *dwarf_cu) const;
+  bool ContainsThreadLocalStorage(const Delegate *dwarf_cu) const;
 
   bool LinkThreadLocalStorage(
-      const DWARFUnit *dwarf_cu,
+      const Delegate *dwarf_cu,
       std::function<lldb::addr_t(lldb::addr_t file_addr)> const
           &link_address_callback);
 
@@ -134,17 +148,11 @@ public:
   /// \return
   ///     True on success; false otherwise.  If error_ptr is non-NULL,
   ///     details of the failure are provided through it.
-  static bool Evaluate(ExecutionContext *exe_ctx, RegisterContext *reg_ctx,
-                       lldb::ModuleSP module_sp, const DataExtractor &opcodes,
-                       const DWARFUnit *dwarf_cu,
-                       const lldb::RegisterKind reg_set,
-                       const Value *initial_value_ptr,
-                       const Value *object_address_ptr, Value &result,
-                       Status *error_ptr);
-
-  static bool ParseDWARFLocationList(const DWARFUnit *dwarf_cu,
-                                     const DataExtractor &data,
-                                     DWARFExpressionList *loc_list);
+  static llvm::Expected<Value>
+  Evaluate(ExecutionContext *exe_ctx, RegisterContext *reg_ctx,
+           lldb::ModuleSP module_sp, const DataExtractor &opcodes,
+           const Delegate *dwarf_cu, const lldb::RegisterKind reg_set,
+           const Value *initial_value_ptr, const Value *object_address_ptr);
 
   bool GetExpressionData(DataExtractor &data) const {
     data = m_data;

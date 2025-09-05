@@ -45,7 +45,7 @@ struct BadArgument {
   BadArgument& operator=(BadArgument&);
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: operator=() should take 'BadArgument const&', 'BadArgument&&' or 'BadArgument'
   BadArgument& operator=(const BadArgument&&);
-  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: operator=() should take 'BadAr
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: operator=() should take 'BadArgument const&', 'BadArgument&&' or 'BadArgument'
 };
 
 struct BadModifier {
@@ -76,7 +76,7 @@ class BadReturnStatement {
 public:
   BadReturnStatement& operator=(BadReturnStatement&& rhs) {
     n = std::move(rhs.n);
-    return rhs;
+    return *&rhs;
 // CHECK-MESSAGES: :[[@LINE-1]]:5: warning: operator=() should always return '*this'
   }
 
@@ -163,3 +163,16 @@ struct TemplateTypeAlias {
   Alias3<TypeAlias::Alias> &operator=(double) { return *this; }
   // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: operator=() should return 'TemplateTypeAlias&' [misc-unconventional-assign-operator]
 };
+
+namespace gh143237 {
+template<typename T>
+struct TemplateAssignment {
+  explicit TemplateAssignment(int) {
+  }
+
+  TemplateAssignment& operator=(int n) {
+    // No warning
+    return *this = TemplateAssignment(n);
+  }
+};
+}

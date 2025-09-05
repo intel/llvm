@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/SizeOpts.h"
+#include "llvm/Analysis/BlockFrequencyInfo.h"
 
 using namespace llvm;
 
@@ -98,14 +99,16 @@ struct BasicBlockBFIAdapter {
 bool llvm::shouldOptimizeForSize(const Function *F, ProfileSummaryInfo *PSI,
                                  BlockFrequencyInfo *BFI,
                                  PGSOQueryType QueryType) {
-  return shouldFuncOptimizeForSizeImpl<BasicBlockBFIAdapter>(F, PSI, BFI,
-                                                             QueryType);
+  if (F->hasOptSize())
+    return true;
+  return shouldFuncOptimizeForSizeImpl(F, PSI, BFI, QueryType);
 }
 
 bool llvm::shouldOptimizeForSize(const BasicBlock *BB, ProfileSummaryInfo *PSI,
                                  BlockFrequencyInfo *BFI,
                                  PGSOQueryType QueryType) {
   assert(BB);
-  return shouldOptimizeForSizeImpl<BasicBlockBFIAdapter>(BB, PSI, BFI,
-                                                         QueryType);
+  if (BB->getParent()->hasOptSize())
+    return true;
+  return shouldOptimizeForSizeImpl(BB, PSI, BFI, QueryType);
 }

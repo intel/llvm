@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -internal-isystem %S/Inputs -fsycl-is-device -Wno-sycl-2017-compat -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump -Wno-sycl-2017-compat %s | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -internal-isystem %S/Inputs -fsycl-is-device -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -ast-dump %s | FileCheck %s
 
 // Test that checks [[intel::use_stall_enable_clusters]] attribute support on function.
 
@@ -16,8 +16,8 @@ queue q;
 
 // Tests for incorrect argument values for Intel FPGA use_stall_enable_clusters function attribute.
 #ifdef TRIGGER_ERROR
-[[intel::use_stall_enable_clusters(1)]] void test1() {} // expected-error{{'use_stall_enable_clusters' attribute takes no arguments}}
-[[intel::use_stall_enable_clusters]] int test2;         // expected-error{{'use_stall_enable_clusters' attribute only applies to functions}}
+[[intel::use_stall_enable_clusters(1)]] void test1() {} // expected-error{{'intel::use_stall_enable_clusters' attribute takes no arguments}}
+[[intel::use_stall_enable_clusters]] int test2;         // expected-error{{'intel::use_stall_enable_clusters' attribute only applies to functions}}
 #endif
 
 // Test attribute is presented on function call operator (of a function object).

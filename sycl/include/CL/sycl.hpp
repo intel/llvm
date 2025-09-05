@@ -8,6 +8,13 @@
 
 #pragma once
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpedantic"
+#warning "CL/sycl.hpp is deprecated, use sycl/sycl.hpp"
+#pragma clang diagnostic pop
+#endif
+
 #include <sycl/sycl.hpp>
 
 namespace cl {

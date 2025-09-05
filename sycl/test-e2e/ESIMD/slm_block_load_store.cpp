@@ -8,16 +8,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: esimd_emulator
+//
+// Note: "lin" format below is used for Win L0 as well.
+// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.51086
+//
 
 // This test verifies usage of slm_block_load() and slm_block_store().
 
 #include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -97,15 +95,6 @@ int main() {
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
-
-  // GPU driver had an error in handling of SLM aligned block_loads/stores,
-  // which has been fixed only in "1.3.26816", and in win/opencl version going
-  // _after_ 101.4575.
-  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                 "26816", "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
-    return 0;
-  }
 
   constexpr size_t Align4 = 4;
   constexpr size_t Align8 = 8;

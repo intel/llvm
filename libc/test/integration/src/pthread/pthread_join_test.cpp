@@ -9,7 +9,7 @@
 #include "src/pthread/pthread_create.h"
 #include "src/pthread/pthread_join.h"
 
-#include "src/errno/libc_errno.h"
+#include "src/__support/libc_errno.h"
 
 #include "test/IntegrationTest/test.h"
 #include <pthread.h>
@@ -17,10 +17,11 @@
 static void *simpleFunc(void *) { return nullptr; }
 static void nullJoinTest() {
   pthread_t Tid;
-  ASSERT_EQ(__llvm_libc::pthread_create(&Tid, nullptr, simpleFunc, nullptr), 0);
-  ASSERT_EQ(libc_errno, 0);
-  ASSERT_EQ(__llvm_libc::pthread_join(Tid, nullptr), 0);
-  ASSERT_EQ(libc_errno, 0);
+  ASSERT_EQ(LIBC_NAMESPACE::pthread_create(&Tid, nullptr, simpleFunc, nullptr),
+            0);
+  ASSERT_ERRNO_SUCCESS();
+  ASSERT_EQ(LIBC_NAMESPACE::pthread_join(Tid, nullptr), 0);
+  ASSERT_ERRNO_SUCCESS();
 }
 
 TEST_MAIN() {

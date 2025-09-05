@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -45,7 +45,8 @@ This extension is implemented and fully supported by {dpcpp}.
 [NOTE]
 ====
 Although {dpcpp} supports this extension on all backends, it is currently used
-only on Level Zero. Other backends ignore the properties defined in this specification.
+on Level Zero, CUDA, and HIP.
+Other backends ignore the properties defined in this specification.
 ====
 
 == Overview

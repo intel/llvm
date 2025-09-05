@@ -1,4 +1,4 @@
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 %struct.__neon_int8x8x2_t = type { <8 x i8>, <8 x i8> }
 

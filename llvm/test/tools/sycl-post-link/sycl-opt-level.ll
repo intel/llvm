@@ -4,7 +4,7 @@
 ; on their optimization levels.
 ; sycl-post-link adds 'optLevel' property to the device binary
 
-; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-OPT-LEVEL-PROP-0
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-OPT-LEVEL-PROP-1

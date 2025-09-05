@@ -17,15 +17,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-static Command *getCommand(const EventImplPtr &Event) {
-  return (Command *)Event->getCommand();
-}
-
-void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
+void Scheduler::GraphProcessor::waitForEvent(event_impl &Event,
                                              ReadLockT &GraphReadLock,
                                              std::vector<Command *> &ToCleanUp,
-                                             bool LockTheLock) {
-  Command *Cmd = getCommand(Event);
+                                             bool LockTheLock, bool *Success) {
+  Command *Cmd = Event.getCommand();
   // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
@@ -36,12 +32,12 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
       enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
-    throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
-  assert(Cmd->getEvent() == Event);
+  assert(Cmd->getEvent().get() == &Event);
 
   GraphReadLock.unlock();
-  Event->waitInternal();
+  Event.waitInternal(Success);
 
   if (LockTheLock)
     GraphReadLock.lock();
@@ -52,16 +48,6 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   Command *RootCommand,
                                                   BlockingT Blocking) {
   if (Cmd == RootCommand || Blocking)
-    return true;
-  // Async kernel enqueue depending on host task is not compatible with in order
-  // queue. If we have host_task_1, kernel_2 depending on host_task_1 and
-  // kernel_3 without explicit dependencies submitted to in order queue: host
-  // task blocks kernel_2 from being enqueued while kernel_3 has no such
-  // dependencies so in current impl it could be enqueued earlier that kernel_2.
-  // That makes it impossible to use this path with blocking users for in order
-  // queue.
-  if (QueueImplPtr Queue = RootCommand->getEvent()->getSubmittedQueue();
-      Queue && Queue->isInOrder())
     return true;
   {
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
@@ -88,28 +74,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   if (Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
-  if (KernelFusionCommand *FusionCmd = isPartOfActiveFusion(Cmd)) {
-    // The fusion is still in-flight, but some other event/command depending
-    // on one of the kernels in the fusion list has triggered it to be
-    // enqueued. To avoid circular dependencies and deadlocks, we will need to
-    // cancel fusion here and enqueue the kernels in the fusion list right
-    // away.
-    printFusionWarning("Aborting fusion because synchronization with one of "
-                       "the kernels in the fusion list was requested");
-    // We need to unlock the read lock, as cancelFusion in the scheduler will
-    // acquire a write lock to alter the graph.
-    GraphReadLock.unlock();
-    // Cancel fusion will take care of enqueueing all the kernels.
-    Scheduler::getInstance().cancelFusion(FusionCmd->getQueue());
-    // Lock the read lock again.
-    GraphReadLock.lock();
-    // The fusion (placeholder) command should have been enqueued by
-    // cancelFusion.
-    if (FusionCmd->isSuccessfullyEnqueued()) {
-      return true;
-    }
-  }
-
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
@@ -119,7 +83,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
-    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+    if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;
@@ -132,7 +96,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // MHostDepsEvents. TO FIX: implement enqueue of blocked commands on host task
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
-    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+    if (Command *DepCmd = Event->getCommand())
       if (!enqueueCommand(DepCmd, GraphReadLock, EnqueueResult, ToCleanUp,
                           RootCommand, Blocking))
         return false;

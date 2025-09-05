@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "MustCheckErrsCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
@@ -20,8 +19,7 @@ void MustCheckErrsCheck::registerMatchers(MatchFinder *Finder) {
                               "ERR_CAST", "PTR_ERR_OR_ZERO"));
   auto NonCheckingStmts = stmt(anyOf(compoundStmt(), labelStmt()));
   Finder->addMatcher(
-      callExpr(callee(ErrFn), hasParent(NonCheckingStmts)).bind("call"),
-      this);
+      callExpr(callee(ErrFn), hasParent(NonCheckingStmts)).bind("call"), this);
 
   auto ReturnToCheck = returnStmt(hasReturnValue(callExpr(callee(ErrFn))));
   auto ReturnsErrFn = functionDecl(hasDescendant(ReturnToCheck));
@@ -31,13 +29,13 @@ void MustCheckErrsCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void MustCheckErrsCheck::check(const MatchFinder::MatchResult &Result) {
-  const CallExpr *MatchedCallExpr = Result.Nodes.getNodeAs<CallExpr>("call");
+  const auto *MatchedCallExpr = Result.Nodes.getNodeAs<CallExpr>("call");
   if (MatchedCallExpr) {
     diag(MatchedCallExpr->getExprLoc(), "result from function %0 is unused")
         << MatchedCallExpr->getDirectCallee();
   }
 
-  const CallExpr *MatchedTransitiveCallExpr =
+  const auto *MatchedTransitiveCallExpr =
       Result.Nodes.getNodeAs<CallExpr>("transitive_call");
   if (MatchedTransitiveCallExpr) {
     diag(MatchedTransitiveCallExpr->getExprLoc(),

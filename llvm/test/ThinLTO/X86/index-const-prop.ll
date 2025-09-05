@@ -6,7 +6,7 @@
 ; -stats requires asserts
 ; REQUIRES: asserts
 
-; RUN: opt -module-summary -opaque-pointers %s -o %t1.bc
+; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto-action=thinlink -o %t3.index.bc %t1.bc %t2.bc
 ; RUN: llvm-lto -thinlto-action=import -exported-symbol=main  %t1.bc -thinlto-index=%t3.index.bc -o %t1.imported.bc -stats 2>&1 | FileCheck %s --check-prefix=STATS
@@ -23,7 +23,7 @@
 ; IMPORT-NEXT: @gFoo.llvm.0 = internal unnamed_addr global i32 1, align 4, !dbg !5
 ; IMPORT: !DICompileUnit({{.*}})
 
-; OPTIMIZE:        define i32 @main
+; OPTIMIZE:        define noundef i32 @main
 ; OPTIMIZE-NEXT:     ret i32 3
 
 ; IMPORT2: @gBar = available_externally local_unnamed_addr global i32 2, align 4, !dbg !0

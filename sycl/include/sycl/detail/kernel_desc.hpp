@@ -10,9 +10,25 @@
 
 // FIXME: include export.hpp because integration header emitted by the compiler
 // uses the macro defined in this header, but it doesn't explicitly include it.
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-
 // This header file must not include any standard C++ header files.
+
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#if __has_builtin(__builtin_sycl_kernel_name)
+static_assert(__has_builtin(__builtin_sycl_kernel_param_count) &&
+              __has_builtin(__builtin_sycl_kernel_name) &&
+              __has_builtin(__builtin_sycl_kernel_param_access_target) &&
+              __has_builtin(__builtin_sycl_kernel_param_size) &&
+              __has_builtin(__builtin_sycl_kernel_param_offset) &&
+              __has_builtin(__builtin_sycl_kernel_file_name) &&
+              __has_builtin(__builtin_sycl_kernel_function_name) &&
+              __has_builtin(__builtin_sycl_kernel_line_number) &&
+              __has_builtin(__builtin_sycl_kernel_column_number));
+#else
+#define __INTEL_SYCL_USE_INTEGRATION_HEADERS 1
+#endif
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -42,6 +58,9 @@ enum class kernel_param_kind_t {
   kind_pointer = 3,
   kind_specialization_constants_buffer = 4,
   kind_stream = 5,
+  kind_work_group_memory = 6,
+  kind_dynamic_work_group_memory = 7,
+  kind_dynamic_accessor = 8,
   kind_invalid = 0xf, // not a valid kernel kind
 };
 
@@ -77,8 +96,7 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID();
 #ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
+  static constexpr const kernel_param_desc_t &getParamDesc(int) {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
@@ -88,12 +106,14 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
   static constexpr int64_t getKernelSize() { return 0; }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 #else
 template <char...> struct KernelInfoData {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
-    static kernel_param_desc_t Dummy;
+  static constexpr const kernel_param_desc_t &getParamDesc(int) {
     return Dummy;
   }
   static constexpr const char *getName() { return ""; }
@@ -103,6 +123,9 @@ template <char...> struct KernelInfoData {
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
   static constexpr int64_t getKernelSize() { return 0; }
+
+private:
+  static constexpr kernel_param_desc_t Dummy{};
 };
 
 // C++14 like index_sequence and make_index_sequence
@@ -136,7 +159,7 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() {
     return SubKernelInfo::getNumParams();
   }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
+  static constexpr const kernel_param_desc_t &getParamDesc(int Idx) {
     return SubKernelInfo::getParamDesc(Idx);
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
@@ -150,6 +173,19 @@ template <class KernelNameType> struct KernelInfo {
   }
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
+
+template <auto *Func> struct FreeFunctionInfoData {
+  static constexpr unsigned getNumParams() { return 0; }
+  static constexpr const char *getFunctionName() { return ""; }
+};
+
+// Built-ins accept an object due to lacking infrastructure support for
+// accepting types. The kernel name type itself isn't used because it might be
+// incomplete, cv-qualified, or not default constructible. Passing an object
+// also allows future extension for SYCL kernels defined as free functions.
+template <typename KNT> struct KernelIdentity {
+  using type = KNT;
+};
 
 } // namespace detail
 } // namespace _V1

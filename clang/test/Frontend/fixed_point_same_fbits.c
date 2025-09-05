@@ -1,8 +1,5 @@
-// Added -Xclang -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang -Xclang -opaque-pointers -ffixed-point -S -emit-llvm -o - %s | FileCheck %s -check-prefix=DEFAULT
-// RUN: %clang_cc1 -opaque-pointers -ffixed-point -fpadding-on-unsigned-fixed-point -S -emit-llvm -o - %s | FileCheck %s -check-prefix=SAME
+// RUN: %clang -ffixed-point -S -emit-llvm -o - %s | FileCheck %s -check-prefix=DEFAULT
+// RUN: %clang_cc1 -ffixed-point -fpadding-on-unsigned-fixed-point -emit-llvm -o - %s | FileCheck %s -check-prefix=SAME
 
 /* The scale for unsigned fixed point types should be the same as that of signed
  * fixed point types when -fsame-fbits is enabled. */

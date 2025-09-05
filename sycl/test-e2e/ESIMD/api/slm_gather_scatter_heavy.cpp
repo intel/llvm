@@ -8,8 +8,12 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: esimd_emulator
-
+//
+// GPU driver had an error in handling of SLM aligned block_loads/stores,
+// which has been fixed only in "1.3.26816", and in win/opencl version going
+// _after_ 101.4575.
+// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+//
 // The test checks functionality of the slm gather/scatter ESIMD intrinsics.
 // It varies element type, vector length and stride of gather/scatter operation.
 // For simplicity of calculations, workgroup size (number of work items same
@@ -27,9 +31,6 @@
 #include "../esimd_test_utils.hpp"
 
 #include <iomanip>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -445,15 +446,6 @@ int main() {
   auto dev = q.get_device();
   esimd_test::printTestLabel(q);
 
-  // GPU driver had an error in handling of SLM aligned block_loads/stores,
-  // which has been fixed only in "1.3.26816", and in win/opencl version going
-  // _after_ 101.4575.
-  if (!esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                 "26816", "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
-    return 0;
-  }
-
   bool passed = true;
   passed &= test_vl1<char, 3>(q);
   passed &= test<char, 16, 3>(q);
@@ -474,6 +466,15 @@ int main() {
     passed &= test_vl1<half, 7>(q);
     passed &= test<half, 16, 2>(q);
   }
+  if (dev.has(sycl::aspect::fp64)) {
+    passed &= test<double, 8, 2>(q);
+    passed &= test<double, 16, 5>(q);
+    passed &= test<double, 32, 3>(q);
+  }
+
+  passed &= test<int64_t, 8, 2>(q);
+  passed &= test<int64_t, 16, 5>(q);
+  passed &= test<int64_t, 32, 3>(q);
 
   std::cout << (!passed ? "TEST FAILED\n" : "TEST Passed\n");
   return passed ? 0 : 1;

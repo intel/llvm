@@ -19,6 +19,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Compiler.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -58,10 +59,19 @@ inline StringRef toStringRef(bool B) { return StringRef(B ? "true" : "false"); }
 inline StringRef toStringRef(ArrayRef<uint8_t> Input) {
   return StringRef(reinterpret_cast<const char *>(Input.begin()), Input.size());
 }
+inline StringRef toStringRef(ArrayRef<char> Input) {
+  return StringRef(Input.begin(), Input.size());
+}
 
 /// Construct a string ref from an array ref of unsigned chars.
-inline ArrayRef<uint8_t> arrayRefFromStringRef(StringRef Input) {
-  return {Input.bytes_begin(), Input.bytes_end()};
+template <class CharT = uint8_t>
+inline ArrayRef<CharT> arrayRefFromStringRef(StringRef Input) {
+  static_assert(std::is_same<CharT, char>::value ||
+                    std::is_same<CharT, unsigned char>::value ||
+                    std::is_same<CharT, signed char>::value,
+                "Expected byte type");
+  return ArrayRef<CharT>(reinterpret_cast<const CharT *>(Input.data()),
+                         Input.size());
 }
 
 /// Interpret the given character \p C as a hexadecimal digit and return its
@@ -98,10 +108,14 @@ inline bool isDigit(char C) { return C >= '0' && C <= '9'; }
 /// Checks if character \p C is a hexadecimal numeric character.
 inline bool isHexDigit(char C) { return hexDigitValue(C) != ~0U; }
 
+/// Checks if character \p C is a lowercase letter as classified by "C" locale.
+inline bool isLower(char C) { return 'a' <= C && C <= 'z'; }
+
+/// Checks if character \p C is a uppercase letter as classified by "C" locale.
+inline bool isUpper(char C) { return 'A' <= C && C <= 'Z'; }
+
 /// Checks if character \p C is a valid letter as classified by "C" locale.
-inline bool isAlpha(char C) {
-  return ('a' <= C && C <= 'z') || ('A' <= C && C <= 'Z');
-}
+inline bool isAlpha(char C) { return isLower(C) || isUpper(C); }
 
 /// Checks whether character \p C is either a decimal digit or an uppercase or
 /// lowercase letter as classified by "C" locale.
@@ -127,6 +141,17 @@ inline bool isPrint(char C) {
   return (0x20 <= UC) && (UC <= 0x7E);
 }
 
+/// Checks whether character \p C is a punctuation character.
+///
+/// Locale-independent version of the C standard library ispunct. The list of
+/// punctuation characters can be found in the documentation of std::ispunct:
+/// https://en.cppreference.com/w/cpp/string/byte/ispunct.
+inline bool isPunct(char C) {
+  static constexpr StringLiteral Punctuations =
+      R"(!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~)";
+  return Punctuations.contains(C);
+}
+
 /// Checks whether character \p C is whitespace in the "C" locale.
 ///
 /// Locale-independent version of the C standard library isspace.
@@ -137,14 +162,14 @@ inline bool isSpace(char C) {
 
 /// Returns the corresponding lowercase character if \p x is uppercase.
 inline char toLower(char x) {
-  if (x >= 'A' && x <= 'Z')
+  if (isUpper(x))
     return x - 'A' + 'a';
   return x;
 }
 
 /// Returns the corresponding uppercase character if \p x is lowercase.
 inline char toUpper(char x) {
-  if (x >= 'a' && x <= 'z')
+  if (isLower(x))
     return x - 'a' + 'A';
   return x;
 }
@@ -154,7 +179,8 @@ inline std::string utohexstr(uint64_t X, bool LowerCase = false,
   char Buffer[17];
   char *BufPtr = std::end(Buffer);
 
-  if (X == 0) *--BufPtr = '0';
+  if (X == 0 && !Width)
+    *--BufPtr = '0';
 
   for (unsigned i = 0; Width ? (i < Width) : X; ++i) {
     unsigned char Mod = static_cast<unsigned char>(X) & 15;
@@ -316,10 +342,12 @@ inline std::string itostr(int64_t X) {
 }
 
 inline std::string toString(const APInt &I, unsigned Radix, bool Signed,
-                            bool formatAsCLiteral = false) {
+                            bool formatAsCLiteral = false,
+                            bool UpperCase = true,
+                            bool InsertSeparators = false) {
   SmallString<40> S;
-  I.toString(S, Radix, Signed, formatAsCLiteral);
-  return std::string(S.str());
+  I.toString(S, Radix, Signed, formatAsCLiteral, UpperCase, InsertSeparators);
+  return std::string(S);
 }
 
 inline std::string toString(const APSInt &I, unsigned Radix) {
@@ -329,7 +357,7 @@ inline std::string toString(const APSInt &I, unsigned Radix) {
 /// StrInStrNoCase - Portable version of strcasestr.  Locates the first
 /// occurrence of string 's1' in string 's2', ignoring case.  Returns
 /// the offset of s2 in s1 or npos if s2 cannot be found.
-StringRef::size_type StrInStrNoCase(StringRef s1, StringRef s2);
+LLVM_ABI StringRef::size_type StrInStrNoCase(StringRef s1, StringRef s2);
 
 /// getToken - This function extracts one token from source, ignoring any
 /// leading characters that appear in the Delimiters string, and ending the
@@ -337,14 +365,14 @@ StringRef::size_type StrInStrNoCase(StringRef s1, StringRef s2);
 /// there are no tokens in the source string, an empty string is returned.
 /// The function returns a pair containing the extracted token and the
 /// remaining tail string.
-std::pair<StringRef, StringRef> getToken(StringRef Source,
-                                         StringRef Delimiters = " \t\n\v\f\r");
+LLVM_ABI std::pair<StringRef, StringRef>
+getToken(StringRef Source, StringRef Delimiters = " \t\n\v\f\r");
 
 /// SplitString - Split up the specified string according to the specified
 /// delimiters, appending the result fragments to the output list.
-void SplitString(StringRef Source,
-                 SmallVectorImpl<StringRef> &OutFragments,
-                 StringRef Delimiters = " \t\n\v\f\r");
+LLVM_ABI void SplitString(StringRef Source,
+                          SmallVectorImpl<StringRef> &OutFragments,
+                          StringRef Delimiters = " \t\n\v\f\r");
 
 /// Returns the English suffix for an ordinal integer (-st, -nd, -rd, -th).
 inline StringRef getOrdinalSuffix(unsigned Val) {
@@ -367,26 +395,26 @@ inline StringRef getOrdinalSuffix(unsigned Val) {
 
 /// Print each character of the specified string, escaping it if it is not
 /// printable or if it is an escape char.
-void printEscapedString(StringRef Name, raw_ostream &Out);
+LLVM_ABI void printEscapedString(StringRef Name, raw_ostream &Out);
 
 /// Print each character of the specified string, escaping HTML special
 /// characters.
-void printHTMLEscaped(StringRef String, raw_ostream &Out);
+LLVM_ABI void printHTMLEscaped(StringRef String, raw_ostream &Out);
 
 /// printLowerCase - Print each character as lowercase if it is uppercase.
-void printLowerCase(StringRef String, raw_ostream &Out);
+LLVM_ABI void printLowerCase(StringRef String, raw_ostream &Out);
 
 /// Converts a string from camel-case to snake-case by replacing all uppercase
 /// letters with '_' followed by the letter in lowercase, except if the
 /// uppercase letter is the first character of the string.
-std::string convertToSnakeFromCamelCase(StringRef input);
+LLVM_ABI std::string convertToSnakeFromCamelCase(StringRef input);
 
 /// Converts a string from snake-case to camel-case by replacing all occurrences
 /// of '_' followed by a lowercase letter with the letter in uppercase.
 /// Optionally allow capitalization of the first letter (if it is a lowercase
 /// letter)
-std::string convertToCamelFromSnakeCase(StringRef input,
-                                        bool capitalizeFirst = false);
+LLVM_ABI std::string convertToCamelFromSnakeCase(StringRef input,
+                                                 bool capitalizeFirst = false);
 
 namespace detail {
 
@@ -414,7 +442,7 @@ inline std::string join_impl(IteratorT Begin, IteratorT End,
 
   size_t Len = (std::distance(Begin, End) - 1) * Separator.size();
   for (IteratorT I = Begin; I != End; ++I)
-    Len += (*I).size();
+    Len += StringRef(*I).size();
   S.reserve(Len);
   size_t PrevCapacity = S.capacity();
   (void)PrevCapacity;

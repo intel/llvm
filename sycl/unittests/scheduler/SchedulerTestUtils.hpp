@@ -13,6 +13,7 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/kernel_name_str_t.hpp>
 
 #include <functional>
 #include <gmock/gmock.h>
@@ -34,7 +35,7 @@ class Command;
 class MockCommand : public sycl::detail::Command {
 public:
   MockCommand(
-      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
+      sycl::detail::queue_impl *Queue, sycl::detail::Requirement Req,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(Req)} {
     using namespace testing;
@@ -44,7 +45,7 @@ public:
   }
 
   MockCommand(
-      sycl::detail::QueueImplPtr Queue,
+      sycl::detail::queue_impl *Queue,
       sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
     using namespace testing;
@@ -60,7 +61,7 @@ public:
     return &MRequirement;
   };
 
-  cl_int enqueueImp() override { return MRetVal; }
+  ur_result_t enqueueImp() override { return MRetVal; }
 
   MOCK_METHOD3(enqueue,
                bool(sycl::detail::EnqueueResultT &, sycl::detail::BlockingT,
@@ -71,12 +72,12 @@ public:
     return sycl::detail::Command::enqueue(EnqueueResult, Blocking, ToCleanUp);
   }
 
-  cl_int MRetVal = CL_SUCCESS;
+  ur_result_t MRetVal = UR_RESULT_SUCCESS;
 
   void waitForEventsCall(
-      std::shared_ptr<sycl::detail::queue_impl> Queue,
+      sycl::detail::queue_impl *Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
-      pi_event &Event) {
+      ur_event_handle_t &Event) {
     Command::waitForEvents(Queue, RawEvents, Event);
   }
 
@@ -88,7 +89,7 @@ protected:
 
 class MockCommandWithCallback : public MockCommand {
 public:
-  MockCommandWithCallback(sycl::detail::QueueImplPtr Queue,
+  MockCommandWithCallback(sycl::detail::queue_impl *Queue,
                           sycl::detail::Requirement Req,
                           std::function<void()> Callback)
       : MockCommand(Queue, Req), MCallback(std::move(Callback)) {}
@@ -108,10 +109,9 @@ public:
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
 
   sycl::detail::MemObjRecord *
-  getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
-                          sycl::detail::Requirement *Req,
-                          std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
+  getOrInsertMemObjRecord(sycl::detail::queue_impl *Queue,
+                          sycl::detail::Requirement *Req) {
+    return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
 
   void decrementLeafCountersForRecord(sycl::detail::MemObjRecord *Rec) {
@@ -153,7 +153,7 @@ public:
   sycl::detail::AllocaCommandBase *
   getOrCreateAllocaForReq(sycl::detail::MemObjRecord *Record,
                           const sycl::detail::Requirement *Req,
-                          sycl::detail::QueueImplPtr Queue,
+                          sycl::detail::queue_impl *Queue,
                           std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
@@ -167,7 +167,7 @@ public:
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,
                    sycl::detail::Requirement *Req,
-                   const sycl::detail::QueueImplPtr &Queue,
+                   sycl::detail::queue_impl *Queue,
                    std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
   }
@@ -181,7 +181,7 @@ public:
   sycl::detail::UpdateHostRequirementCommand *
   insertUpdateHostReqCmd(sycl::detail::MemObjRecord *Record,
                          sycl::detail::Requirement *Req,
-                         const sycl::detail::QueueImplPtr &Queue,
+                         sycl::detail::queue_impl *Queue,
                          std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
   }
@@ -189,23 +189,17 @@ public:
   sycl::detail::EmptyCommand *
   addEmptyCmd(sycl::detail::Command *Cmd,
               const std::vector<sycl::detail::Requirement *> &Reqs,
-              const sycl::detail::QueueImplPtr &Queue,
               sycl::detail::Command::BlockReason Reason,
               std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Queue, Reason, ToEnqueue);
+    return MGraphBuilder.addEmptyCmd(Cmd, Reqs, Reason, ToEnqueue);
   }
 
-  sycl::detail::Command *
-  addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
-        sycl::detail::QueueImplPtr Queue,
-        std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue)
-        .NewCmd;
-  }
-
-  void cancelFusion(sycl::detail::QueueImplPtr Queue,
-                    std::vector<sycl::detail::Command *> &ToEnqueue) {
-    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
+  sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
+                               sycl::detail::queue_impl *Queue,
+                               std::vector<sycl::detail::Command *> &ToEnqueue,
+                               bool EventNeeded) {
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
+                               EventNeeded);
   }
 };
 
@@ -218,49 +212,57 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessRange*/ {0, 0, 0},
           /*MemoryRange*/ {0, 0, 0},
           /*AccessMode*/ sycl::access::mode::read_write,
-          /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
+          /*SYCLMemObj*/ &*sycl::detail::getSyclObjImpl(MemObj),
           /*Dims*/ 0,
-          /*ElementSize*/ 0};
+          /*ElementSize*/ 0,
+          /*Offset*/ size_t(0)};
 }
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
-      : sycl::handler(Queue, IsHost) {}
+  MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
+      : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
+            Queue, CallerNeedsEvent)) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
-  using sycl::handler::MImpl;
+  using sycl::handler::impl;
+  using sycl::handler::setNDRangeDescriptor;
 
-  sycl::detail::NDRDescT &getNDRDesc() { return MNDRDesc; }
+  sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
-  sycl::detail::CG::CGTYPE &getCGType() { return MCGType; }
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;
   }
   std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
     return MHostKernel;
   }
-  std::vector<std::vector<char>> &getArgsStorage() { return CGData.MArgsStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return impl->CGData.MArgsStorage;
+  }
   std::vector<sycl::detail::AccessorImplPtr> &getAccStorage() {
-    return CGData.MAccStorage;
+    return impl->CGData.MAccStorage;
   }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
-    return CGData.MSharedPtrStorage;
+    return impl->CGData.MSharedPtrStorage;
   }
   std::vector<sycl::detail::Requirement *> &getRequirements() {
-    return CGData.MRequirements;
+    return impl->CGData.MRequirements;
   }
-  std::vector<sycl::detail::EventImplPtr> &getEvents() { return CGData.MEvents; }
-  std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
-  std::string &getKernelName() { return MKernelName; }
+  std::vector<sycl::detail::EventImplPtr> &getEvents() {
+    return impl->CGData.MEvents;
+  }
+  std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
+  sycl::detail::KernelNameStrT getKernelName() {
+    return toKernelNameStrT(MKernelName);
+  }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
-  std::unique_ptr<sycl::detail::HostTask> &getHostTask() { return MHostTask; }
-  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
-
-  void setType(sycl::detail::CG::CGTYPE Type) {
-    static_cast<sycl::handler *>(this)->MCGType = Type;
+  std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
+    return impl->MHostTask;
   }
+  sycl::detail::queue_impl *getQueue() { return impl->get_queue_or_null(); }
+
+  void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
   template <typename KernelType, typename ArgType, int Dims,
             typename KernelName>
@@ -270,7 +272,7 @@ public:
   }
 
   template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
-    static_cast<sycl::handler *>(this)->MNDRDesc.set(std::move(Range));
+    setNDRangeDescriptor(std::move(Range));
   }
 
   void addStream(const sycl::detail::StreamImplPtr &Stream) {
@@ -278,8 +280,8 @@ public:
   }
 
   std::unique_ptr<sycl::detail::CG> finalize() {
-    throw sycl::runtime_error("Unhandled type of command group",
-                              PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Unhandled type of command group");
 
     return nullptr;
   }
@@ -287,9 +289,9 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                            bool IsHost)
-      : MockHandler(Queue, IsHost) {}
+  MockHandlerCustomFinalize(sycl::detail::queue_impl &Queue,
+                            bool CallerNeedsEvent)
+      : MockHandler(Queue, CallerNeedsEvent) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     std::unique_ptr<sycl::detail::CG> CommandGroup;
@@ -297,23 +299,25 @@ public:
         getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
         getRequirements(), getEvents());
     switch (getType()) {
-    case sycl::detail::CG::Kernel: {
+    case sycl::detail::CGType::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), {}, getCodeLoc()));
+          std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
+          getKernelName(), *impl->MDeviceKernelInfoPtr, getStreamStorage(),
+          impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
+          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+          getCodeLoc()));
       break;
     }
-    case sycl::detail::CG::CodeplayHostTask: {
+    case sycl::detail::CGType::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
-          std::move(getHostTask()), getQueue(), getQueue()->getContextImplPtr(),
-          getArgs(), std::move(CGData), getCGType(), getCodeLoc()));
+          std::move(getHostTask()), getQueue(), &getQueue()->getContextImpl(),
+          getArgs(), std::move(CGData), getType(), getCodeLoc()));
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

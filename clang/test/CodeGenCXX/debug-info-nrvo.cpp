@@ -1,9 +1,9 @@
-// INTEL RUN: %clangxx -Xclang -opaque-pointers -target x86_64-unknown-unknown -g \
-// INTEL RUN:   %s -emit-llvm -S -o - | FileCheck %s
+// RUN: %clangxx -target x86_64-unknown-unknown -g \
+// RUN:   %s -emit-llvm -S -o - | FileCheck %s
 
-// INTEL RUN: %clangxx -Xclang -opaque-pointers -target x86_64-unknown-unknown -g \
-// INTEL RUN:   -fno-elide-constructors %s -emit-llvm -S -o - | \
-// INTEL RUN:   FileCheck %s -check-prefix=NOELIDE
+// RUN: %clangxx -target x86_64-unknown-unknown -g \
+// RUN:   -fno-elide-constructors %s -emit-llvm -S -o - | \
+// RUN:   FileCheck %s -check-prefix=NOELIDE
 
 struct Foo {
   Foo() = default;
@@ -27,9 +27,9 @@ int main() {
 // stored in the return register.
 
 // CHECK: %[[RESULT:.*]] = alloca ptr, align 8
-// CHECK: call void @llvm.dbg.declare(metadata ptr %[[RESULT]],
-// CHECK-SAME: metadata !DIExpression(DW_OP_deref)
+// CHECK: #dbg_declare(ptr %[[RESULT]],
+// CHECK-SAME: !DIExpression(DW_OP_deref)
 
 // NOELIDE: %[[FOO:.*]] = alloca %struct.Foo, align 4
-// NOELIDE: call void @llvm.dbg.declare(metadata ptr %[[FOO]],
-// NOELIDE-SAME:                        metadata !DIExpression()
+// NOELIDE: #dbg_declare(ptr %[[FOO]],
+// NOELIDE-SAME:                        !DIExpression()

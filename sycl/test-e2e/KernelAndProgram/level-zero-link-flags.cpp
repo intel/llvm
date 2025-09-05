@@ -1,4 +1,4 @@
-// REQUIRES: level_zero
+// REQUIRES: target-spir, level_zero
 // RUN: %{build} -Xsycl-target-linker=spir64 -foo -o %t.out
 // RUN: %{run} %t.out
 //==--- level-zero-link-flags.cpp - Error handling for link flags --==//
@@ -12,16 +12,19 @@
 //
 //===--------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class MyKernel;
 
 void test() {
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
+  sycl::device Device = Queue.get_device();
 
   auto BundleInput =
-      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context);
+      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context,
+                                                                   {Device});
   auto BundleObject = sycl::compile(BundleInput);
 
   try {

@@ -151,14 +151,16 @@ void OMPDeclareTargetDeclAttr::printPrettyPragma(
 
 std::optional<OMPDeclareTargetDeclAttr *>
 OMPDeclareTargetDeclAttr::getActiveAttr(const ValueDecl *VD) {
-  if (!VD->hasAttrs())
+  if (llvm::all_of(VD->redecls(), [](const Decl *D) { return !D->hasAttrs(); }))
     return std::nullopt;
   unsigned Level = 0;
   OMPDeclareTargetDeclAttr *FoundAttr = nullptr;
-  for (auto *Attr : VD->specific_attrs<OMPDeclareTargetDeclAttr>()) {
-    if (Level <= Attr->getLevel()) {
-      Level = Attr->getLevel();
-      FoundAttr = Attr;
+  for (const Decl *D : VD->redecls()) {
+    for (auto *Attr : D->specific_attrs<OMPDeclareTargetDeclAttr>()) {
+      if (Level <= Attr->getLevel()) {
+        Level = Attr->getLevel();
+        FoundAttr = Attr;
+      }
     }
   }
   if (FoundAttr)
@@ -222,6 +224,12 @@ void OMPDeclareVariantAttr::printPrettyPragma(
     PrintExprs(adjustArgsNeedDevicePtr_begin(), adjustArgsNeedDevicePtr_end());
     OS << ")";
   }
+  if (adjustArgsNeedDeviceAddr_size()) {
+    OS << " adjust_args(need_device_addr:";
+    PrintExprs(adjustArgsNeedDeviceAddr_begin(),
+               adjustArgsNeedDeviceAddr_end());
+    OS << ")";
+  }
 
   auto PrintInteropInfo = [&OS](OMPInteropInfo *Begin, OMPInteropInfo *End) {
     for (OMPInteropInfo *I = Begin; I != End; ++I) {
@@ -266,6 +274,10 @@ unsigned AlignedAttr::getAlignment(ASTContext &Ctx) const {
            Ctx.getCharWidth();
 
   return Ctx.getTargetDefaultAlignForAttributeAligned();
+}
+
+StringLiteral *FormatMatchesAttr::getFormatString() const {
+  return cast<StringLiteral>(getExpectedFormat());
 }
 
 #include "clang/AST/AttrImpl.inc"

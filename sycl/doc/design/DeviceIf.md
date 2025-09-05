@@ -5,7 +5,7 @@ This document describes the design for the DPC++ implementation of the
 [sycl\_ext\_oneapi\_device\_architecture][2] extensions.
 
 [1]: <../extensions/proposed/sycl_ext_oneapi_device_if.asciidoc>
-[2]: <../extensions/proposed/sycl_ext_oneapi_device_architecture.asciidoc>
+[2]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 
 
 ## Phased implementation
@@ -88,6 +88,9 @@ recognizes:
 * `amd_gpu_gfx700`
 * `amd_gpu_gfx701`
 * `amd_gpu_gfx702`
+* `amd_gpu_gfx703`
+* `amd_gpu_gfx704`
+* `amd_gpu_gfx705`
 * `amd_gpu_gfx801`
 * `amd_gpu_gfx802`
 * `amd_gpu_gfx803`
@@ -98,7 +101,12 @@ recognizes:
 * `amd_gpu_gfx904`
 * `amd_gpu_gfx906`
 * `amd_gpu_gfx908`
+* `amd_gpu_gfx909`
 * `amd_gpu_gfx90a`
+* `amd_gpu_gfx90c`
+* `amd_gpu_gfx940`
+* `amd_gpu_gfx941`
+* `amd_gpu_gfx942`
 * `amd_gpu_gfx1010`
 * `amd_gpu_gfx1011`
 * `amd_gpu_gfx1012`
@@ -106,7 +114,18 @@ recognizes:
 * `amd_gpu_gfx1030`
 * `amd_gpu_gfx1031`
 * `amd_gpu_gfx1032`
+* `amd_gpu_gfx1033`
 * `amd_gpu_gfx1034`
+* `amd_gpu_gfx1035`
+* `amd_gpu_gfx1036`
+* `amd_gpu_gfx1100`
+* `amd_gpu_gfx1101`
+* `amd_gpu_gfx1102`
+* `amd_gpu_gfx1103`
+* `amd_gpu_gfx1150`
+* `amd_gpu_gfx1151`
+* `amd_gpu_gfx1200`
+* `amd_gpu_gfx1201`
 
 The above listed device names may not be mixed with the existing target name
 `spir64_gen` on the same command line.  In addition, the user must not pass the
@@ -153,23 +172,27 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_INTEL_GPU_ACM_G11__`
 * `__SYCL_TARGET_INTEL_GPU_ACM_G12__`
 * `__SYCL_TARGET_INTEL_GPU_PVC__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM50__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM52__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM53__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM60__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM61__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM62__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM70__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM72__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM75__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM80__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM86__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM87__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM89__`
-* `__SYCL_TARGET_NVIDIA_GPU_SM90__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_50__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_52__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_53__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_60__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_61__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_62__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_70__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_72__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_75__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_80__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_86__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_87__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_89__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_90__`
+* `__SYCL_TARGET_NVIDIA_GPU_SM_90A__`
 * `__SYCL_TARGET_AMD_GPU_GFX700__`
 * `__SYCL_TARGET_AMD_GPU_GFX701__`
 * `__SYCL_TARGET_AMD_GPU_GFX702__`
+* `__SYCL_TARGET_AMD_GPU_GFX703__`
+* `__SYCL_TARGET_AMD_GPU_GFX704__`
+* `__SYCL_TARGET_AMD_GPU_GFX705__`
 * `__SYCL_TARGET_AMD_GPU_GFX801__`
 * `__SYCL_TARGET_AMD_GPU_GFX802__`
 * `__SYCL_TARGET_AMD_GPU_GFX803__`
@@ -180,7 +203,12 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX904__`
 * `__SYCL_TARGET_AMD_GPU_GFX906__`
 * `__SYCL_TARGET_AMD_GPU_GFX908__`
+* `__SYCL_TARGET_AMD_GPU_GFX909__`
 * `__SYCL_TARGET_AMD_GPU_GFX90A__`
+* `__SYCL_TARGET_AMD_GPU_GFX90C__`
+* `__SYCL_TARGET_AMD_GPU_GFX940__`
+* `__SYCL_TARGET_AMD_GPU_GFX941__`
+* `__SYCL_TARGET_AMD_GPU_GFX942__`
 * `__SYCL_TARGET_AMD_GPU_GFX1010__`
 * `__SYCL_TARGET_AMD_GPU_GFX1011__`
 * `__SYCL_TARGET_AMD_GPU_GFX1012__`
@@ -188,7 +216,18 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX1030__`
 * `__SYCL_TARGET_AMD_GPU_GFX1031__`
 * `__SYCL_TARGET_AMD_GPU_GFX1032__`
+* `__SYCL_TARGET_AMD_GPU_GFX1033__`
 * `__SYCL_TARGET_AMD_GPU_GFX1034__`
+* `__SYCL_TARGET_AMD_GPU_GFX1035__`
+* `__SYCL_TARGET_AMD_GPU_GFX1036__`
+* `__SYCL_TARGET_AMD_GPU_GFX1100__`
+* `__SYCL_TARGET_AMD_GPU_GFX1101__`
+* `__SYCL_TARGET_AMD_GPU_GFX1102__`
+* `__SYCL_TARGET_AMD_GPU_GFX1103__`
+* `__SYCL_TARGET_AMD_GPU_GFX1150__`
+* `__SYCL_TARGET_AMD_GPU_GFX1151__`
+* `__SYCL_TARGET_AMD_GPU_GFX1200__`
+* `__SYCL_TARGET_AMD_GPU_GFX1201__`
 
 If the user invokes the compiler driver with `-fsycl-targets=spir64_x86_64`,
 the compiler driver must predefine the following C++ macro name:

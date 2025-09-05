@@ -8,16 +8,17 @@
 
 #pragma once
 
-#include <sycl/context.hpp>                               // for context
-#include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
-#include <sycl/device.hpp>                                // for device
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
-#include <sycl/image.hpp>                                 // for image_chan...
-#include <sycl/range.hpp>                                 // for range
+#include <sycl/context.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
+#include <sycl/image.hpp>
+#include <sycl/range.hpp>
 
-#include <cstddef> // for size_t
-#include <memory>  // for shared_ptr
-#include <variant> // for hash
+#include <cstddef>
+#include <memory>
+#include <variant>
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,12 +27,6 @@ inline namespace _V1 {
 class queue;
 
 namespace ext::oneapi::experimental {
-
-/// Opaque image memory handle type
-struct image_mem_handle {
-  using handle_type = void *;
-  handle_type raw_handle;
-};
 
 namespace detail {
 
@@ -44,13 +39,16 @@ public:
                                const context &syclContext);
   __SYCL_EXPORT ~image_mem_impl();
 
+  image_mem_impl(const image_mem_impl &) = delete;
+  image_mem_impl &operator=(const image_mem_impl &) = delete;
+
   raw_handle_type get_handle() const { return handle; }
   const image_descriptor &get_descriptor() const { return descriptor; }
   sycl::device get_device() const { return syclDevice; }
   sycl::context get_context() const { return syclContext; }
 
 private:
-  raw_handle_type handle{nullptr};
+  raw_handle_type handle{0};
   image_descriptor descriptor;
   sycl::device syclDevice;
   sycl::context syclContext;
@@ -97,7 +95,7 @@ protected:
   std::shared_ptr<detail::image_mem_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
@@ -109,17 +107,17 @@ enum image_copy_flags : unsigned int {
   DtoD = 2,
 };
 
+// The types of handles to image-backing memory
+enum class image_memory_handle_type : unsigned int {
+  usm_pointer = 0,
+  opaque_handle = 1,
+};
+
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::image_mem> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::image_mem &image_mem) const {
-    return hash<std::shared_ptr<
-        sycl::ext::oneapi::experimental::detail::image_mem_impl>>()(
-        sycl::detail::getSyclObjImpl(image_mem));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::image_mem>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::image_mem> {};

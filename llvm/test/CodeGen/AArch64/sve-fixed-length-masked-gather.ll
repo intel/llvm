@@ -13,15 +13,15 @@ define void @masked_gather_v2i8(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK-LABEL: masked_gather_v2i8:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldrb w8, [x0]
+; CHECK-NEXT:    ldrb w9, [x0, #1]
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    fmov s0, w8
-; CHECK-NEXT:    ldrb w8, [x0, #1]
-; CHECK-NEXT:    mov v0.s[1], w8
+; CHECK-NEXT:    mov v0.s[1], w9
 ; CHECK-NEXT:    cmeq v0.2s, v0.2s, #0
 ; CHECK-NEXT:    sshll v0.2d, v0.2s, #0
 ; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1b { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1b { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    ptrue p0.s, vl2
 ; CHECK-NEXT:    xtn v0.2s, v0.2d
 ; CHECK-NEXT:    st1b { z0.s }, p0, [x0]
@@ -29,7 +29,7 @@ define void @masked_gather_v2i8(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <2 x i8>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = icmp eq <2 x i8> %cval, zeroinitializer
-  %vals = call <2 x i8> @llvm.masked.gather.v2i8(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i8> undef)
+  %vals = call <2 x i8> @llvm.masked.gather.v2i8(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i8> poison)
   store <2 x i8> %vals, ptr %a
   ret void
 }
@@ -39,19 +39,19 @@ define void @masked_gather_v4i8(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr s0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl4
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    ushll v0.8h, v0.8b, #0
 ; CHECK-NEXT:    cmeq v0.4h, v0.4h, #0
 ; CHECK-NEXT:    sunpklo z0.s, z0.h
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
 ; CHECK-NEXT:    cmpne p1.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1b { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1b { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1b { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <4 x i8>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = icmp eq <4 x i8> %cval, zeroinitializer
-  %vals = call <4 x i8> @llvm.masked.gather.v4i8(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i8> undef)
+  %vals = call <4 x i8> @llvm.masked.gather.v4i8(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i8> poison)
   store <4 x i8> %vals, ptr %a
   ret void
 }
@@ -60,11 +60,9 @@ define void @masked_gather_v8i8(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8i8:
 ; VBITS_GE_256:       // %bb.0:
 ; VBITS_GE_256-NEXT:    ldr d0, [x0]
-; VBITS_GE_256-NEXT:    mov x8, #4
 ; VBITS_GE_256-NEXT:    ptrue p0.d, vl4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
 ; VBITS_GE_256-NEXT:    cmeq v0.8b, v0.8b, #0
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p0/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z3.d }, p0/z, [x1]
 ; VBITS_GE_256-NEXT:    zip2 v1.8b, v0.8b, v0.8b
 ; VBITS_GE_256-NEXT:    zip1 v0.8b, v0.8b, v0.8b
 ; VBITS_GE_256-NEXT:    shl v1.4h, v1.4h, #8
@@ -76,14 +74,16 @@ define void @masked_gather_v8i8(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-NEXT:    sunpklo z1.d, z1.s
 ; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
 ; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z1.d, #0
-; VBITS_GE_256-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; VBITS_GE_256-NEXT:    ld1b { z0.d }, p1/z, [z2.d]
-; VBITS_GE_256-NEXT:    ld1b { z1.d }, p0/z, [z3.d]
-; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    ld1b { z1.d }, p1/z, [z1.d]
+; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; VBITS_GE_256-NEXT:    ld1b { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_256-NEXT:    uzp1 z1.s, z1.s, z1.s
-; VBITS_GE_256-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; VBITS_GE_256-NEXT:    uzp1 z1.h, z1.h, z1.h
-; VBITS_GE_256-NEXT:    uzp1 v0.8b, v1.8b, v0.8b
+; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
+; VBITS_GE_256-NEXT:    uzp1 z0.h, z0.h, z0.h
+; VBITS_GE_256-NEXT:    uzp1 v0.8b, v0.8b, v1.8b
 ; VBITS_GE_256-NEXT:    str d0, [x0]
 ; VBITS_GE_256-NEXT:    ret
 ;
@@ -91,13 +91,13 @@ define void @masked_gather_v8i8(ptr %a, ptr %b) #0 {
 ; VBITS_GE_512:       // %bb.0:
 ; VBITS_GE_512-NEXT:    ldr d0, [x0]
 ; VBITS_GE_512-NEXT:    ptrue p0.d, vl8
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; VBITS_GE_512-NEXT:    cmeq v0.8b, v0.8b, #0
 ; VBITS_GE_512-NEXT:    sunpklo z0.h, z0.b
 ; VBITS_GE_512-NEXT:    sunpklo z0.s, z0.h
 ; VBITS_GE_512-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_512-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; VBITS_GE_512-NEXT:    ld1b { z0.d }, p0/z, [z1.d]
+; VBITS_GE_512-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; VBITS_GE_512-NEXT:    ld1b { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_512-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; VBITS_GE_512-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; VBITS_GE_512-NEXT:    uzp1 z0.b, z0.b, z0.b
@@ -106,7 +106,7 @@ define void @masked_gather_v8i8(ptr %a, ptr %b) #0 {
   %cval = load <8 x i8>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = icmp eq <8 x i8> %cval, zeroinitializer
-  %vals = call <8 x i8> @llvm.masked.gather.v8i8(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i8> undef)
+  %vals = call <8 x i8> @llvm.masked.gather.v8i8(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i8> poison)
   store <8 x i8> %vals, ptr %a
   ret void
 }
@@ -116,13 +116,13 @@ define void @masked_gather_v16i8(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl16
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    cmeq v0.16b, v0.16b, #0
 ; CHECK-NEXT:    sunpklo z0.h, z0.b
 ; CHECK-NEXT:    sunpklo z0.s, z0.h
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
-; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1b { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1b { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; CHECK-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; CHECK-NEXT:    uzp1 z0.b, z0.b, z0.b
@@ -131,7 +131,7 @@ define void @masked_gather_v16i8(ptr %a, ptr %b) vscale_range(8,0) #0 {
   %cval = load <16 x i8>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = icmp eq <16 x i8> %cval, zeroinitializer
-  %vals = call <16 x i8> @llvm.masked.gather.v16i8(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i8> undef)
+  %vals = call <16 x i8> @llvm.masked.gather.v16i8(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i8> poison)
   store <16 x i8> %vals, ptr %a
   ret void
 }
@@ -142,18 +142,18 @@ define void @masked_gather_v32i8(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.b, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1b { z0.b }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    cmpeq p0.b, p0/z, z0.b, #0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
 ; CHECK-NEXT:    punpklo p0.h, p0.b
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1b { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1b { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1b { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x i8>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = icmp eq <32 x i8> %cval, zeroinitializer
-  %vals = call <32 x i8> @llvm.masked.gather.v32i8(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i8> undef)
+  %vals = call <32 x i8> @llvm.masked.gather.v32i8(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i8> poison)
   store <32 x i8> %vals, ptr %a
   ret void
 }
@@ -166,15 +166,15 @@ define void @masked_gather_v2i16(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK-LABEL: masked_gather_v2i16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldrh w8, [x0]
+; CHECK-NEXT:    ldrh w9, [x0, #2]
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    fmov s0, w8
-; CHECK-NEXT:    ldrh w8, [x0, #2]
-; CHECK-NEXT:    mov v0.s[1], w8
+; CHECK-NEXT:    mov v0.s[1], w9
 ; CHECK-NEXT:    cmeq v0.2s, v0.2s, #0
 ; CHECK-NEXT:    sshll v0.2d, v0.2s, #0
 ; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    ptrue p0.s, vl2
 ; CHECK-NEXT:    xtn v0.2s, v0.2d
 ; CHECK-NEXT:    st1h { z0.s }, p0, [x0]
@@ -182,7 +182,7 @@ define void @masked_gather_v2i16(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <2 x i16>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = icmp eq <2 x i16> %cval, zeroinitializer
-  %vals = call <2 x i16> @llvm.masked.gather.v2i16(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i16> undef)
+  %vals = call <2 x i16> @llvm.masked.gather.v2i16(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i16> poison)
   store <2 x i16> %vals, ptr %a
   ret void
 }
@@ -192,12 +192,12 @@ define void @masked_gather_v4i16(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr d0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl4
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    cmeq v0.4h, v0.4h, #0
 ; CHECK-NEXT:    sunpklo z0.s, z0.h
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
-; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1h { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; CHECK-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; CHECK-NEXT:    str d0, [x0]
@@ -205,7 +205,7 @@ define void @masked_gather_v4i16(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <4 x i16>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = icmp eq <4 x i16> %cval, zeroinitializer
-  %vals = call <4 x i16> @llvm.masked.gather.v4i16(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i16> undef)
+  %vals = call <4 x i16> @llvm.masked.gather.v4i16(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i16> poison)
   store <4 x i16> %vals, ptr %a
   ret void
 }
@@ -214,38 +214,38 @@ define void @masked_gather_v8i16(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8i16:
 ; VBITS_GE_256:       // %bb.0:
 ; VBITS_GE_256-NEXT:    ldr q0, [x0]
-; VBITS_GE_256-NEXT:    mov x8, #4
 ; VBITS_GE_256-NEXT:    ptrue p0.d, vl4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
 ; VBITS_GE_256-NEXT:    cmeq v0.8h, v0.8h, #0
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p0/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z3.d }, p0/z, [x1]
-; VBITS_GE_256-NEXT:    ext v1.16b, v0.16b, v0.16b, #8
-; VBITS_GE_256-NEXT:    sunpklo z0.s, z0.h
-; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z0.d, #0
-; VBITS_GE_256-NEXT:    ld1h { z0.d }, p1/z, [z3.d]
-; VBITS_GE_256-NEXT:    sunpklo z1.s, z1.h
+; VBITS_GE_256-NEXT:    sunpklo z1.s, z0.h
+; VBITS_GE_256-NEXT:    ext v0.16b, v0.16b, v0.16b, #8
 ; VBITS_GE_256-NEXT:    sunpklo z1.d, z1.s
-; VBITS_GE_256-NEXT:    cmpne p0.d, p0/z, z1.d, #0
-; VBITS_GE_256-NEXT:    ld1h { z1.d }, p0/z, [z2.d]
-; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
-; VBITS_GE_256-NEXT:    uzp1 z0.h, z0.h, z0.h
+; VBITS_GE_256-NEXT:    sunpklo z0.s, z0.h
+; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z1.d, #0
+; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x1]
+; VBITS_GE_256-NEXT:    ld1h { z1.d }, p1/z, [z1.d]
+; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    ld1h { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_256-NEXT:    uzp1 z1.s, z1.s, z1.s
 ; VBITS_GE_256-NEXT:    uzp1 z1.h, z1.h, z1.h
-; VBITS_GE_256-NEXT:    mov v0.d[1], v1.d[0]
-; VBITS_GE_256-NEXT:    str q0, [x0]
+; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
+; VBITS_GE_256-NEXT:    uzp1 z0.h, z0.h, z0.h
+; VBITS_GE_256-NEXT:    mov v1.d[1], v0.d[0]
+; VBITS_GE_256-NEXT:    str q1, [x0]
 ; VBITS_GE_256-NEXT:    ret
 ;
 ; VBITS_GE_512-LABEL: masked_gather_v8i16:
 ; VBITS_GE_512:       // %bb.0:
 ; VBITS_GE_512-NEXT:    ldr q0, [x0]
 ; VBITS_GE_512-NEXT:    ptrue p0.d, vl8
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; VBITS_GE_512-NEXT:    cmeq v0.8h, v0.8h, #0
 ; VBITS_GE_512-NEXT:    sunpklo z0.s, z0.h
 ; VBITS_GE_512-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_512-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; VBITS_GE_512-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; VBITS_GE_512-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; VBITS_GE_512-NEXT:    ld1h { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_512-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; VBITS_GE_512-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; VBITS_GE_512-NEXT:    str q0, [x0]
@@ -253,7 +253,7 @@ define void @masked_gather_v8i16(ptr %a, ptr %b) #0 {
   %cval = load <8 x i16>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = icmp eq <8 x i16> %cval, zeroinitializer
-  %vals = call <8 x i16> @llvm.masked.gather.v8i16(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i16> undef)
+  %vals = call <8 x i16> @llvm.masked.gather.v8i16(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i16> poison)
   store <8 x i16> %vals, ptr %a
   ret void
 }
@@ -264,17 +264,17 @@ define void @masked_gather_v16i16(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK-NEXT:    ptrue p0.h, vl16
 ; CHECK-NEXT:    ptrue p1.d, vl16
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    cmpeq p0.h, p0/z, z0.h, #0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1h { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <16 x i16>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = icmp eq <16 x i16> %cval, zeroinitializer
-  %vals = call <16 x i16> @llvm.masked.gather.v16i16(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i16> undef)
+  %vals = call <16 x i16> @llvm.masked.gather.v16i16(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i16> poison)
   store <16 x i16> %vals, ptr %a
   ret void
 }
@@ -285,17 +285,17 @@ define void @masked_gather_v32i16(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.h, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    cmpeq p0.h, p0/z, z0.h, #0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1h { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x i16>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = icmp eq <32 x i16> %cval, zeroinitializer
-  %vals = call <32 x i16> @llvm.masked.gather.v32i16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i16> undef)
+  %vals = call <32 x i16> @llvm.masked.gather.v32i16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i16> poison)
   store <32 x i16> %vals, ptr %a
   ret void
 }
@@ -309,18 +309,18 @@ define void @masked_gather_v2i32(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr d0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr q1, [x1]
-; CHECK-NEXT:    cmeq v0.2s, v0.2s, #0
-; CHECK-NEXT:    sshll v0.2d, v0.2s, #0
+; CHECK-NEXT:    ushll v0.2d, v0.2s, #0
+; CHECK-NEXT:    cmeq v0.2d, v0.2d, #0
 ; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    xtn v0.2s, v0.2d
 ; CHECK-NEXT:    str d0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <2 x i32>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = icmp eq <2 x i32> %cval, zeroinitializer
-  %vals = call <2 x i32> @llvm.masked.gather.v2i32(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i32> undef)
+  %vals = call <2 x i32> @llvm.masked.gather.v2i32(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i32> poison)
   store <2 x i32> %vals, ptr %a
   ret void
 }
@@ -330,18 +330,18 @@ define void @masked_gather_v4i32(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl4
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    cmeq v0.4s, v0.4s, #0
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
-; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1w { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; CHECK-NEXT:    str q0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <4 x i32>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = icmp eq <4 x i32> %cval, zeroinitializer
-  %vals = call <4 x i32> @llvm.masked.gather.v4i32(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i32> undef)
+  %vals = call <4 x i32> @llvm.masked.gather.v4i32(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i32> poison)
   store <4 x i32> %vals, ptr %a
   ret void
 }
@@ -350,22 +350,22 @@ define void @masked_gather_v8i32(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8i32:
 ; VBITS_GE_256:       // %bb.0:
 ; VBITS_GE_256-NEXT:    ptrue p0.s, vl8
-; VBITS_GE_256-NEXT:    mov x8, #4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
+; VBITS_GE_256-NEXT:    ptrue p2.d, vl4
 ; VBITS_GE_256-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; VBITS_GE_256-NEXT:    ptrue p1.d, vl4
-; VBITS_GE_256-NEXT:    ld1d { z1.d }, p1/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p1/z, [x1]
-; VBITS_GE_256-NEXT:    cmpeq p2.s, p0/z, z0.s, #0
-; VBITS_GE_256-NEXT:    mov z0.s, p2/z, #-1 // =0xffffffffffffffff
-; VBITS_GE_256-NEXT:    punpklo p2.h, p2.b
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p2/z, [x1]
+; VBITS_GE_256-NEXT:    cmpeq p1.s, p0/z, z0.s, #0
+; VBITS_GE_256-NEXT:    mov z0.s, p1/z, #-1 // =0xffffffffffffffff
+; VBITS_GE_256-NEXT:    punpklo p1.h, p1.b
+; VBITS_GE_256-NEXT:    and p1.b, p1/z, p1.b, p2.b
 ; VBITS_GE_256-NEXT:    ext z0.b, z0.b, z0.b, #16
-; VBITS_GE_256-NEXT:    and p2.b, p2/z, p2.b, p1.b
+; VBITS_GE_256-NEXT:    ld1w { z1.d }, p1/z, [z1.d]
 ; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_256-NEXT:    ld1w { z2.d }, p2/z, [z2.d]
-; VBITS_GE_256-NEXT:    cmpne p1.d, p1/z, z0.d, #0
-; VBITS_GE_256-NEXT:    ld1w { z0.d }, p1/z, [z1.d]
+; VBITS_GE_256-NEXT:    cmpne p1.d, p2/z, z0.d, #0
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p2/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    uzp1 z1.s, z1.s, z1.s
+; VBITS_GE_256-NEXT:    ld1w { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_256-NEXT:    ptrue p1.s, vl4
-; VBITS_GE_256-NEXT:    uzp1 z1.s, z2.s, z2.s
 ; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; VBITS_GE_256-NEXT:    splice z1.s, p1, z1.s, z0.s
 ; VBITS_GE_256-NEXT:    st1w { z1.s }, p0, [x0]
@@ -376,16 +376,16 @@ define void @masked_gather_v8i32(ptr %a, ptr %b) #0 {
 ; VBITS_GE_512-NEXT:    ptrue p0.s, vl8
 ; VBITS_GE_512-NEXT:    ptrue p1.d, vl8
 ; VBITS_GE_512-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; VBITS_GE_512-NEXT:    cmpeq p0.s, p0/z, z0.s, #0
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; VBITS_GE_512-NEXT:    punpklo p0.h, p0.b
-; VBITS_GE_512-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; VBITS_GE_512-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; VBITS_GE_512-NEXT:    st1w { z0.d }, p1, [x0]
 ; VBITS_GE_512-NEXT:    ret
   %cval = load <8 x i32>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = icmp eq <8 x i32> %cval, zeroinitializer
-  %vals = call <8 x i32> @llvm.masked.gather.v8i32(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i32> undef)
+  %vals = call <8 x i32> @llvm.masked.gather.v8i32(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i32> poison)
   store <8 x i32> %vals, ptr %a
   ret void
 }
@@ -396,16 +396,16 @@ define void @masked_gather_v16i32(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK-NEXT:    ptrue p0.s, vl16
 ; CHECK-NEXT:    ptrue p1.d, vl16
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    cmpeq p0.s, p0/z, z0.s, #0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <16 x i32>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = icmp eq <16 x i32> %cval, zeroinitializer
-  %vals = call <16 x i32> @llvm.masked.gather.v16i32(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i32> undef)
+  %vals = call <16 x i32> @llvm.masked.gather.v16i32(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i32> poison)
   store <16 x i32> %vals, ptr %a
   ret void
 }
@@ -416,16 +416,16 @@ define void @masked_gather_v32i32(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    cmpeq p0.s, p0/z, z0.s, #0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x i32>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = icmp eq <32 x i32> %cval, zeroinitializer
-  %vals = call <32 x i32> @llvm.masked.gather.v32i32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i32> undef)
+  %vals = call <32 x i32> @llvm.masked.gather.v32i32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i32> poison)
   store <32 x i32> %vals, ptr %a
   ret void
 }
@@ -452,7 +452,7 @@ define void @masked_gather_v1i64(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <1 x i64>, ptr %a
   %ptrs = load <1 x ptr>, ptr %b
   %mask = icmp eq <1 x i64> %cval, zeroinitializer
-  %vals = call <1 x i64> @llvm.masked.gather.v1i64(<1 x ptr> %ptrs, i32 8, <1 x i1> %mask, <1 x i64> undef)
+  %vals = call <1 x i64> @llvm.masked.gather.v1i64(<1 x ptr> %ptrs, i32 8, <1 x i1> %mask, <1 x i64> poison)
   store <1 x i64> %vals, ptr %a
   ret void
 }
@@ -460,18 +460,17 @@ define void @masked_gather_v1i64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 define void @masked_gather_v2i64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK-LABEL: masked_gather_v2i64:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr q1, [x1]
-; CHECK-NEXT:    cmeq v0.2d, v0.2d, #0
-; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1d { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ldr q0, [x0]
+; CHECK-NEXT:    cmpeq p0.d, p0/z, z0.d, #0
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    str q0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <2 x i64>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = icmp eq <2 x i64> %cval, zeroinitializer
-  %vals = call <2 x i64> @llvm.masked.gather.v2i64(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i64> undef)
+  %vals = call <2 x i64> @llvm.masked.gather.v2i64(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x i64> poison)
   store <2 x i64> %vals, ptr %a
   ret void
 }
@@ -481,15 +480,15 @@ define void @masked_gather_v4i64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl4
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    cmpeq p1.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <4 x i64>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = icmp eq <4 x i64> %cval, zeroinitializer
-  %vals = call <4 x i64> @llvm.masked.gather.v4i64(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i64> undef)
+  %vals = call <4 x i64> @llvm.masked.gather.v4i64(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x i64> poison)
   store <4 x i64> %vals, ptr %a
   ret void
 }
@@ -497,16 +496,16 @@ define void @masked_gather_v4i64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 define void @masked_gather_v8i64(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8i64:
 ; VBITS_GE_256:       // %bb.0:
-; VBITS_GE_256-NEXT:    mov x8, #4
 ; VBITS_GE_256-NEXT:    ptrue p0.d, vl4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
 ; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x0, x8, lsl #3]
 ; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x0]
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p0/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z3.d }, p0/z, [x1]
 ; VBITS_GE_256-NEXT:    cmpeq p1.d, p0/z, z0.d, #0
-; VBITS_GE_256-NEXT:    cmpeq p2.d, p0/z, z1.d, #0
-; VBITS_GE_256-NEXT:    ld1d { z0.d }, p1/z, [z2.d]
-; VBITS_GE_256-NEXT:    ld1d { z1.d }, p2/z, [z3.d]
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
+; VBITS_GE_256-NEXT:    cmpeq p1.d, p0/z, z1.d, #0
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x1]
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p1/z, [z1.d]
 ; VBITS_GE_256-NEXT:    st1d { z0.d }, p0, [x0, x8, lsl #3]
 ; VBITS_GE_256-NEXT:    st1d { z1.d }, p0, [x0]
 ; VBITS_GE_256-NEXT:    ret
@@ -515,15 +514,15 @@ define void @masked_gather_v8i64(ptr %a, ptr %b) #0 {
 ; VBITS_GE_512:       // %bb.0:
 ; VBITS_GE_512-NEXT:    ptrue p0.d, vl8
 ; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; VBITS_GE_512-NEXT:    cmpeq p1.d, p0/z, z0.d, #0
-; VBITS_GE_512-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_512-NEXT:    st1d { z0.d }, p0, [x0]
 ; VBITS_GE_512-NEXT:    ret
   %cval = load <8 x i64>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = icmp eq <8 x i64> %cval, zeroinitializer
-  %vals = call <8 x i64> @llvm.masked.gather.v8i64(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i64> undef)
+  %vals = call <8 x i64> @llvm.masked.gather.v8i64(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x i64> poison)
   store <8 x i64> %vals, ptr %a
   ret void
 }
@@ -533,15 +532,15 @@ define void @masked_gather_v16i64(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl16
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    cmpeq p1.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <16 x i64>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = icmp eq <16 x i64> %cval, zeroinitializer
-  %vals = call <16 x i64> @llvm.masked.gather.v16i64(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i64> undef)
+  %vals = call <16 x i64> @llvm.masked.gather.v16i64(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x i64> poison)
   store <16 x i64> %vals, ptr %a
   ret void
 }
@@ -551,15 +550,15 @@ define void @masked_gather_v32i64(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl32
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    cmpeq p1.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x i64>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = icmp eq <32 x i64> %cval, zeroinitializer
-  %vals = call <32 x i64> @llvm.masked.gather.v32i64(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i64> undef)
+  %vals = call <32 x i64> @llvm.masked.gather.v32i64(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x i64> poison)
   store <32 x i64> %vals, ptr %a
   ret void
 }
@@ -572,9 +571,8 @@ define void @masked_gather_v2f16(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK-LABEL: masked_gather_v2f16:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr s1, [x0]
-; CHECK-NEXT:    ptrue p0.d, vl4
 ; CHECK-NEXT:    movi v0.2d, #0000000000000000
-; CHECK-NEXT:    ldr q2, [x1]
+; CHECK-NEXT:    ptrue p0.d, vl4
 ; CHECK-NEXT:    fcmeq v1.4h, v1.4h, #0.0
 ; CHECK-NEXT:    sshll v1.4s, v1.4h, #0
 ; CHECK-NEXT:    mov v0.h[0], v1.h[0]
@@ -583,7 +581,8 @@ define void @masked_gather_v2f16(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK-NEXT:    sunpklo z0.s, z0.h
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
 ; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z2.d]
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; CHECK-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; CHECK-NEXT:    str s0, [x0]
@@ -591,7 +590,7 @@ define void @masked_gather_v2f16(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <2 x half>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = fcmp oeq <2 x half> %cval, zeroinitializer
-  %vals = call <2 x half> @llvm.masked.gather.v2f16(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x half> undef)
+  %vals = call <2 x half> @llvm.masked.gather.v2f16(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x half> poison)
   store <2 x half> %vals, ptr %a
   ret void
 }
@@ -601,12 +600,12 @@ define void @masked_gather_v4f16(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr d0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl4
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq v0.4h, v0.4h, #0.0
 ; CHECK-NEXT:    sunpklo z0.s, z0.h
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
-; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1h { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; CHECK-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; CHECK-NEXT:    str d0, [x0]
@@ -614,7 +613,7 @@ define void @masked_gather_v4f16(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <4 x half>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = fcmp oeq <4 x half> %cval, zeroinitializer
-  %vals = call <4 x half> @llvm.masked.gather.v4f16(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x half> undef)
+  %vals = call <4 x half> @llvm.masked.gather.v4f16(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x half> poison)
   store <4 x half> %vals, ptr %a
   ret void
 }
@@ -623,38 +622,38 @@ define void @masked_gather_v8f16(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8f16:
 ; VBITS_GE_256:       // %bb.0:
 ; VBITS_GE_256-NEXT:    ldr q0, [x0]
-; VBITS_GE_256-NEXT:    mov x8, #4
 ; VBITS_GE_256-NEXT:    ptrue p0.d, vl4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
 ; VBITS_GE_256-NEXT:    fcmeq v0.8h, v0.8h, #0.0
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p0/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z3.d }, p0/z, [x1]
-; VBITS_GE_256-NEXT:    ext v1.16b, v0.16b, v0.16b, #8
-; VBITS_GE_256-NEXT:    sunpklo z0.s, z0.h
-; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z0.d, #0
-; VBITS_GE_256-NEXT:    ld1h { z0.d }, p1/z, [z3.d]
-; VBITS_GE_256-NEXT:    sunpklo z1.s, z1.h
+; VBITS_GE_256-NEXT:    sunpklo z1.s, z0.h
+; VBITS_GE_256-NEXT:    ext v0.16b, v0.16b, v0.16b, #8
 ; VBITS_GE_256-NEXT:    sunpklo z1.d, z1.s
-; VBITS_GE_256-NEXT:    cmpne p0.d, p0/z, z1.d, #0
-; VBITS_GE_256-NEXT:    ld1h { z1.d }, p0/z, [z2.d]
-; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
-; VBITS_GE_256-NEXT:    uzp1 z0.h, z0.h, z0.h
+; VBITS_GE_256-NEXT:    sunpklo z0.s, z0.h
+; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z1.d, #0
+; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x1]
+; VBITS_GE_256-NEXT:    ld1h { z1.d }, p1/z, [z1.d]
+; VBITS_GE_256-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    ld1h { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_256-NEXT:    uzp1 z1.s, z1.s, z1.s
 ; VBITS_GE_256-NEXT:    uzp1 z1.h, z1.h, z1.h
-; VBITS_GE_256-NEXT:    mov v0.d[1], v1.d[0]
-; VBITS_GE_256-NEXT:    str q0, [x0]
+; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
+; VBITS_GE_256-NEXT:    uzp1 z0.h, z0.h, z0.h
+; VBITS_GE_256-NEXT:    mov v1.d[1], v0.d[0]
+; VBITS_GE_256-NEXT:    str q1, [x0]
 ; VBITS_GE_256-NEXT:    ret
 ;
 ; VBITS_GE_512-LABEL: masked_gather_v8f16:
 ; VBITS_GE_512:       // %bb.0:
 ; VBITS_GE_512-NEXT:    ldr q0, [x0]
 ; VBITS_GE_512-NEXT:    ptrue p0.d, vl8
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; VBITS_GE_512-NEXT:    fcmeq v0.8h, v0.8h, #0.0
 ; VBITS_GE_512-NEXT:    sunpklo z0.s, z0.h
 ; VBITS_GE_512-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_512-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; VBITS_GE_512-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; VBITS_GE_512-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; VBITS_GE_512-NEXT:    ld1h { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_512-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; VBITS_GE_512-NEXT:    uzp1 z0.h, z0.h, z0.h
 ; VBITS_GE_512-NEXT:    str q0, [x0]
@@ -662,7 +661,7 @@ define void @masked_gather_v8f16(ptr %a, ptr %b) #0 {
   %cval = load <8 x half>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = fcmp oeq <8 x half> %cval, zeroinitializer
-  %vals = call <8 x half> @llvm.masked.gather.v8f16(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x half> undef)
+  %vals = call <8 x half> @llvm.masked.gather.v8f16(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x half> poison)
   store <8 x half> %vals, ptr %a
   ret void
 }
@@ -673,17 +672,17 @@ define void @masked_gather_v16f16(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK-NEXT:    ptrue p0.h, vl16
 ; CHECK-NEXT:    ptrue p1.d, vl16
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.h, p0/z, z0.h, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1h { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <16 x half>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = fcmp oeq <16 x half> %cval, zeroinitializer
-  %vals = call <16 x half> @llvm.masked.gather.v16f16(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x half> undef)
+  %vals = call <16 x half> @llvm.masked.gather.v16f16(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x half> poison)
   store <16 x half> %vals, ptr %a
   ret void
 }
@@ -694,17 +693,17 @@ define void @masked_gather_v32f16(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.h, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.h, p0/z, z0.h, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1h { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1h { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x half>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = fcmp oeq <32 x half> %cval, zeroinitializer
-  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> undef)
+  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> poison)
   store <32 x half> %vals, ptr %a
   ret void
 }
@@ -718,18 +717,18 @@ define void @masked_gather_v2f32(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr d0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    fcmeq v0.2s, v0.2s, #0.0
 ; CHECK-NEXT:    sshll v0.2d, v0.2s, #0
 ; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    xtn v0.2s, v0.2d
 ; CHECK-NEXT:    str d0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <2 x float>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = fcmp oeq <2 x float> %cval, zeroinitializer
-  %vals = call <2 x float> @llvm.masked.gather.v2f32(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x float> undef)
+  %vals = call <2 x float> @llvm.masked.gather.v2f32(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x float> poison)
   store <2 x float> %vals, ptr %a
   ret void
 }
@@ -739,18 +738,18 @@ define void @masked_gather_v4f32(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl4
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq v0.4s, v0.4s, #0.0
 ; CHECK-NEXT:    sunpklo z0.d, z0.s
-; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    cmpne p1.d, p0/z, z0.d, #0
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1w { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; CHECK-NEXT:    str q0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <4 x float>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = fcmp oeq <4 x float> %cval, zeroinitializer
-  %vals = call <4 x float> @llvm.masked.gather.v4f32(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x float> undef)
+  %vals = call <4 x float> @llvm.masked.gather.v4f32(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x float> poison)
   store <4 x float> %vals, ptr %a
   ret void
 }
@@ -759,22 +758,22 @@ define void @masked_gather_v8f32(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8f32:
 ; VBITS_GE_256:       // %bb.0:
 ; VBITS_GE_256-NEXT:    ptrue p0.s, vl8
-; VBITS_GE_256-NEXT:    mov x8, #4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
+; VBITS_GE_256-NEXT:    ptrue p2.d, vl4
 ; VBITS_GE_256-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; VBITS_GE_256-NEXT:    ptrue p1.d, vl4
-; VBITS_GE_256-NEXT:    ld1d { z1.d }, p1/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p1/z, [x1]
-; VBITS_GE_256-NEXT:    fcmeq p2.s, p0/z, z0.s, #0.0
-; VBITS_GE_256-NEXT:    mov z0.s, p2/z, #-1 // =0xffffffffffffffff
-; VBITS_GE_256-NEXT:    punpklo p2.h, p2.b
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p2/z, [x1]
+; VBITS_GE_256-NEXT:    fcmeq p1.s, p0/z, z0.s, #0.0
+; VBITS_GE_256-NEXT:    mov z0.s, p1/z, #-1 // =0xffffffffffffffff
+; VBITS_GE_256-NEXT:    punpklo p1.h, p1.b
+; VBITS_GE_256-NEXT:    and p1.b, p1/z, p1.b, p2.b
 ; VBITS_GE_256-NEXT:    ext z0.b, z0.b, z0.b, #16
-; VBITS_GE_256-NEXT:    and p2.b, p2/z, p2.b, p1.b
+; VBITS_GE_256-NEXT:    ld1w { z1.d }, p1/z, [z1.d]
 ; VBITS_GE_256-NEXT:    sunpklo z0.d, z0.s
-; VBITS_GE_256-NEXT:    ld1w { z2.d }, p2/z, [z2.d]
-; VBITS_GE_256-NEXT:    cmpne p1.d, p1/z, z0.d, #0
-; VBITS_GE_256-NEXT:    ld1w { z0.d }, p1/z, [z1.d]
+; VBITS_GE_256-NEXT:    cmpne p1.d, p2/z, z0.d, #0
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p2/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    uzp1 z1.s, z1.s, z1.s
+; VBITS_GE_256-NEXT:    ld1w { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_256-NEXT:    ptrue p1.s, vl4
-; VBITS_GE_256-NEXT:    uzp1 z1.s, z2.s, z2.s
 ; VBITS_GE_256-NEXT:    uzp1 z0.s, z0.s, z0.s
 ; VBITS_GE_256-NEXT:    splice z1.s, p1, z1.s, z0.s
 ; VBITS_GE_256-NEXT:    st1w { z1.s }, p0, [x0]
@@ -785,16 +784,16 @@ define void @masked_gather_v8f32(ptr %a, ptr %b) #0 {
 ; VBITS_GE_512-NEXT:    ptrue p0.s, vl8
 ; VBITS_GE_512-NEXT:    ptrue p1.d, vl8
 ; VBITS_GE_512-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; VBITS_GE_512-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; VBITS_GE_512-NEXT:    punpklo p0.h, p0.b
-; VBITS_GE_512-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; VBITS_GE_512-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; VBITS_GE_512-NEXT:    st1w { z0.d }, p1, [x0]
 ; VBITS_GE_512-NEXT:    ret
   %cval = load <8 x float>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = fcmp oeq <8 x float> %cval, zeroinitializer
-  %vals = call <8 x float> @llvm.masked.gather.v8f32(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x float> undef)
+  %vals = call <8 x float> @llvm.masked.gather.v8f32(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x float> poison)
   store <8 x float> %vals, ptr %a
   ret void
 }
@@ -805,16 +804,16 @@ define void @masked_gather_v16f32(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK-NEXT:    ptrue p0.s, vl16
 ; CHECK-NEXT:    ptrue p1.d, vl16
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <16 x float>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = fcmp oeq <16 x float> %cval, zeroinitializer
-  %vals = call <16 x float> @llvm.masked.gather.v16f32(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x float> undef)
+  %vals = call <16 x float> @llvm.masked.gather.v16f32(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x float> poison)
   store <16 x float> %vals, ptr %a
   ret void
 }
@@ -825,16 +824,16 @@ define void @masked_gather_v32f32(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x float>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = fcmp oeq <32 x float> %cval, zeroinitializer
-  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> undef)
+  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> poison)
   store <32 x float> %vals, ptr %a
   ret void
 }
@@ -861,7 +860,7 @@ define void @masked_gather_v1f64(ptr %a, ptr %b) vscale_range(2,0) #0 {
   %cval = load <1 x double>, ptr %a
   %ptrs = load <1 x ptr>, ptr %b
   %mask = fcmp oeq <1 x double> %cval, zeroinitializer
-  %vals = call <1 x double> @llvm.masked.gather.v1f64(<1 x ptr> %ptrs, i32 8, <1 x i1> %mask, <1 x double> undef)
+  %vals = call <1 x double> @llvm.masked.gather.v1f64(<1 x ptr> %ptrs, i32 8, <1 x i1> %mask, <1 x double> poison)
   store <1 x double> %vals, ptr %a
   ret void
 }
@@ -871,16 +870,16 @@ define void @masked_gather_v2f64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr q0, [x0]
 ; CHECK-NEXT:    ptrue p0.d, vl2
-; CHECK-NEXT:    ldr q1, [x1]
 ; CHECK-NEXT:    fcmeq v0.2d, v0.2d, #0.0
 ; CHECK-NEXT:    cmpne p0.d, p0/z, z0.d, #0
-; CHECK-NEXT:    ld1d { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ldr q0, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    str q0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <2 x double>, ptr %a
   %ptrs = load <2 x ptr>, ptr %b
   %mask = fcmp oeq <2 x double> %cval, zeroinitializer
-  %vals = call <2 x double> @llvm.masked.gather.v2f64(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x double> undef)
+  %vals = call <2 x double> @llvm.masked.gather.v2f64(<2 x ptr> %ptrs, i32 8, <2 x i1> %mask, <2 x double> poison)
   store <2 x double> %vals, ptr %a
   ret void
 }
@@ -890,15 +889,15 @@ define void @masked_gather_v4f64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl4
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq p1.d, p0/z, z0.d, #0.0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <4 x double>, ptr %a
   %ptrs = load <4 x ptr>, ptr %b
   %mask = fcmp oeq <4 x double> %cval, zeroinitializer
-  %vals = call <4 x double> @llvm.masked.gather.v4f64(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x double> undef)
+  %vals = call <4 x double> @llvm.masked.gather.v4f64(<4 x ptr> %ptrs, i32 8, <4 x i1> %mask, <4 x double> poison)
   store <4 x double> %vals, ptr %a
   ret void
 }
@@ -906,16 +905,16 @@ define void @masked_gather_v4f64(ptr %a, ptr %b) vscale_range(2,0) #0 {
 define void @masked_gather_v8f64(ptr %a, ptr %b) #0 {
 ; VBITS_GE_256-LABEL: masked_gather_v8f64:
 ; VBITS_GE_256:       // %bb.0:
-; VBITS_GE_256-NEXT:    mov x8, #4
 ; VBITS_GE_256-NEXT:    ptrue p0.d, vl4
+; VBITS_GE_256-NEXT:    mov x8, #4 // =0x4
 ; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x0, x8, lsl #3]
 ; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x0]
-; VBITS_GE_256-NEXT:    ld1d { z2.d }, p0/z, [x1, x8, lsl #3]
-; VBITS_GE_256-NEXT:    ld1d { z3.d }, p0/z, [x1]
 ; VBITS_GE_256-NEXT:    fcmeq p1.d, p0/z, z0.d, #0.0
-; VBITS_GE_256-NEXT:    fcmeq p2.d, p0/z, z1.d, #0.0
-; VBITS_GE_256-NEXT:    ld1d { z0.d }, p1/z, [z2.d]
-; VBITS_GE_256-NEXT:    ld1d { z1.d }, p2/z, [z3.d]
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p0/z, [x1, x8, lsl #3]
+; VBITS_GE_256-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
+; VBITS_GE_256-NEXT:    fcmeq p1.d, p0/z, z1.d, #0.0
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p0/z, [x1]
+; VBITS_GE_256-NEXT:    ld1d { z1.d }, p1/z, [z1.d]
 ; VBITS_GE_256-NEXT:    st1d { z0.d }, p0, [x0, x8, lsl #3]
 ; VBITS_GE_256-NEXT:    st1d { z1.d }, p0, [x0]
 ; VBITS_GE_256-NEXT:    ret
@@ -924,15 +923,15 @@ define void @masked_gather_v8f64(ptr %a, ptr %b) #0 {
 ; VBITS_GE_512:       // %bb.0:
 ; VBITS_GE_512-NEXT:    ptrue p0.d, vl8
 ; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; VBITS_GE_512-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; VBITS_GE_512-NEXT:    fcmeq p1.d, p0/z, z0.d, #0.0
-; VBITS_GE_512-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; VBITS_GE_512-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; VBITS_GE_512-NEXT:    st1d { z0.d }, p0, [x0]
 ; VBITS_GE_512-NEXT:    ret
   %cval = load <8 x double>, ptr %a
   %ptrs = load <8 x ptr>, ptr %b
   %mask = fcmp oeq <8 x double> %cval, zeroinitializer
-  %vals = call <8 x double> @llvm.masked.gather.v8f64(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x double> undef)
+  %vals = call <8 x double> @llvm.masked.gather.v8f64(<8 x ptr> %ptrs, i32 8, <8 x i1> %mask, <8 x double> poison)
   store <8 x double> %vals, ptr %a
   ret void
 }
@@ -942,15 +941,15 @@ define void @masked_gather_v16f64(ptr %a, ptr %b) vscale_range(8,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl16
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq p1.d, p0/z, z0.d, #0.0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <16 x double>, ptr %a
   %ptrs = load <16 x ptr>, ptr %b
   %mask = fcmp oeq <16 x double> %cval, zeroinitializer
-  %vals = call <16 x double> @llvm.masked.gather.v16f64(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x double> undef)
+  %vals = call <16 x double> @llvm.masked.gather.v16f64(<16 x ptr> %ptrs, i32 8, <16 x i1> %mask, <16 x double> poison)
   store <16 x double> %vals, ptr %a
   ret void
 }
@@ -960,15 +959,15 @@ define void @masked_gather_v32f64(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl32
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq p1.d, p0/z, z0.d, #0.0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z1.d]
+; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [z0.d]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cval = load <32 x double>, ptr %a
   %ptrs = load <32 x ptr>, ptr %b
   %mask = fcmp oeq <32 x double> %cval, zeroinitializer
-  %vals = call <32 x double> @llvm.masked.gather.v32f64(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x double> undef)
+  %vals = call <32 x double> @llvm.masked.gather.v32f64(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x double> poison)
   store <32 x double> %vals, ptr %a
   ret void
 }
@@ -982,10 +981,10 @@ define void @masked_gather_32b_scaled_sext_f16(ptr %a, ptr %b, ptr %base) vscale
 ; CHECK-NEXT:    ptrue p0.h, vl32
 ; CHECK-NEXT:    ptrue p1.s, vl32
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1w { z1.s }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.h, p0/z, z0.h, #0.0
+; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z1.s, sxtw #1]
+; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z0.s, sxtw #1]
 ; CHECK-NEXT:    st1h { z0.s }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x half>, ptr %a
@@ -993,7 +992,7 @@ define void @masked_gather_32b_scaled_sext_f16(ptr %a, ptr %b, ptr %base) vscale
   %ext = sext <32 x i32> %idxs to <32 x i64>
   %ptrs = getelementptr half, ptr %base, <32 x i64> %ext
   %mask = fcmp oeq <32 x half> %cvals, zeroinitializer
-  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> undef)
+  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> poison)
   store <32 x half> %vals, ptr %a
   ret void
 }
@@ -1003,9 +1002,9 @@ define void @masked_gather_32b_scaled_sext_f32(ptr %a, ptr %b, ptr %base) vscale
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq p1.s, p0/z, z0.s, #0.0
-; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x2, z1.s, sxtw #2]
+; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x1]
+; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x2, z0.s, sxtw #2]
 ; CHECK-NEXT:    st1w { z0.s }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a
@@ -1013,7 +1012,7 @@ define void @masked_gather_32b_scaled_sext_f32(ptr %a, ptr %b, ptr %base) vscale
   %ext = sext <32 x i32> %idxs to <32 x i64>
   %ptrs = getelementptr float, ptr %base, <32 x i64> %ext
   %mask = fcmp oeq <32 x float> %cvals, zeroinitializer
-  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> undef)
+  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> poison)
   store <32 x float> %vals, ptr %a
   ret void
 }
@@ -1023,9 +1022,9 @@ define void @masked_gather_32b_scaled_sext_f64(ptr %a, ptr %b, ptr %base) vscale
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.d, vl32
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
-; CHECK-NEXT:    ld1sw { z1.d }, p0/z, [x1]
 ; CHECK-NEXT:    fcmeq p1.d, p0/z, z0.d, #0.0
-; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x2, z1.d, lsl #3]
+; CHECK-NEXT:    ld1sw { z0.d }, p0/z, [x1]
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x2, z0.d, lsl #3]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x double>, ptr %a
@@ -1033,7 +1032,7 @@ define void @masked_gather_32b_scaled_sext_f64(ptr %a, ptr %b, ptr %base) vscale
   %ext = sext <32 x i32> %idxs to <32 x i64>
   %ptrs = getelementptr double, ptr %base, <32 x i64> %ext
   %mask = fcmp oeq <32 x double> %cvals, zeroinitializer
-  %vals = call <32 x double> @llvm.masked.gather.v32f64(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x double> undef)
+  %vals = call <32 x double> @llvm.masked.gather.v32f64(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x double> poison)
   store <32 x double> %vals, ptr %a
   ret void
 }
@@ -1044,10 +1043,10 @@ define void @masked_gather_32b_scaled_zext(ptr %a, ptr %b, ptr %base) vscale_ran
 ; CHECK-NEXT:    ptrue p0.h, vl32
 ; CHECK-NEXT:    ptrue p1.s, vl32
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1w { z1.s }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.h, p0/z, z0.h, #0.0
+; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z1.s, uxtw #1]
+; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z0.s, uxtw #1]
 ; CHECK-NEXT:    st1h { z0.s }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x half>, ptr %a
@@ -1055,7 +1054,7 @@ define void @masked_gather_32b_scaled_zext(ptr %a, ptr %b, ptr %base) vscale_ran
   %ext = zext <32 x i32> %idxs to <32 x i64>
   %ptrs = getelementptr half, ptr %base, <32 x i64> %ext
   %mask = fcmp oeq <32 x half> %cvals, zeroinitializer
-  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> undef)
+  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> poison)
   store <32 x half> %vals, ptr %a
   ret void
 }
@@ -1066,10 +1065,10 @@ define void @masked_gather_32b_unscaled_sext(ptr %a, ptr %b, ptr %base) vscale_r
 ; CHECK-NEXT:    ptrue p0.h, vl32
 ; CHECK-NEXT:    ptrue p1.s, vl32
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1w { z1.s }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.h, p0/z, z0.h, #0.0
+; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z1.s, sxtw]
+; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z0.s, sxtw]
 ; CHECK-NEXT:    st1h { z0.s }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x half>, ptr %a
@@ -1078,7 +1077,7 @@ define void @masked_gather_32b_unscaled_sext(ptr %a, ptr %b, ptr %base) vscale_r
   %byte_ptrs = getelementptr i8, ptr %base, <32 x i64> %ext
   %ptrs = bitcast <32 x ptr> %byte_ptrs to <32 x ptr>
   %mask = fcmp oeq <32 x half> %cvals, zeroinitializer
-  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> undef)
+  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> poison)
   store <32 x half> %vals, ptr %a
   ret void
 }
@@ -1089,10 +1088,10 @@ define void @masked_gather_32b_unscaled_zext(ptr %a, ptr %b, ptr %base) vscale_r
 ; CHECK-NEXT:    ptrue p0.h, vl32
 ; CHECK-NEXT:    ptrue p1.s, vl32
 ; CHECK-NEXT:    ld1h { z0.h }, p0/z, [x0]
-; CHECK-NEXT:    ld1w { z1.s }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.h, p0/z, z0.h, #0.0
+; CHECK-NEXT:    ld1w { z0.s }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z1.s, uxtw]
+; CHECK-NEXT:    ld1h { z0.s }, p0/z, [x2, z0.s, uxtw]
 ; CHECK-NEXT:    st1h { z0.s }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x half>, ptr %a
@@ -1101,7 +1100,7 @@ define void @masked_gather_32b_unscaled_zext(ptr %a, ptr %b, ptr %base) vscale_r
   %byte_ptrs = getelementptr i8, ptr %base, <32 x i64> %ext
   %ptrs = bitcast <32 x ptr> %byte_ptrs to <32 x ptr>
   %mask = fcmp oeq <32 x half> %cvals, zeroinitializer
-  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> undef)
+  %vals = call <32 x half> @llvm.masked.gather.v32f16(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x half> poison)
   store <32 x half> %vals, ptr %a
   ret void
 }
@@ -1112,17 +1111,17 @@ define void @masked_gather_64b_scaled(ptr %a, ptr %b, ptr %base) vscale_range(16
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x2, z1.d, lsl #2]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x2, z0.d, lsl #2]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a
   %idxs = load <32 x i64>, ptr %b
   %ptrs = getelementptr float, ptr %base, <32 x i64> %idxs
   %mask = fcmp oeq <32 x float> %cvals, zeroinitializer
-  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> undef)
+  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> poison)
   store <32 x float> %vals, ptr %a
   ret void
 }
@@ -1133,10 +1132,10 @@ define void @masked_gather_64b_unscaled(ptr %a, ptr %b, ptr %base) vscale_range(
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x2, z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x2, z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a
@@ -1144,7 +1143,7 @@ define void @masked_gather_64b_unscaled(ptr %a, ptr %b, ptr %base) vscale_range(
   %byte_ptrs = getelementptr i8, ptr %base, <32 x i64> %idxs
   %ptrs = bitcast <32 x ptr> %byte_ptrs to <32 x ptr>
   %mask = fcmp oeq <32 x float> %cvals, zeroinitializer
-  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> undef)
+  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> poison)
   store <32 x float> %vals, ptr %a
   ret void
 }
@@ -1155,10 +1154,10 @@ define void @masked_gather_vec_plus_reg(ptr %a, ptr %b, i64 %off) vscale_range(1
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x2, z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [x2, z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a
@@ -1166,7 +1165,7 @@ define void @masked_gather_vec_plus_reg(ptr %a, ptr %b, i64 %off) vscale_range(1
   %byte_ptrs = getelementptr i8, <32 x ptr> %bases, i64 %off
   %ptrs = bitcast <32 x ptr> %byte_ptrs to <32 x ptr>
   %mask = fcmp oeq <32 x float> %cvals, zeroinitializer
-  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> undef)
+  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> poison)
   store <32 x float> %vals, ptr %a
   ret void
 }
@@ -1177,10 +1176,10 @@ define void @masked_gather_vec_plus_imm(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d, #4]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d, #4]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a
@@ -1188,7 +1187,7 @@ define void @masked_gather_vec_plus_imm(ptr %a, ptr %b) vscale_range(16,0) #0 {
   %byte_ptrs = getelementptr i8, <32 x ptr> %bases, i64 4
   %ptrs = bitcast <32 x ptr> %byte_ptrs to <32 x ptr>
   %mask = fcmp oeq <32 x float> %cvals, zeroinitializer
-  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> undef)
+  %vals = call <32 x float> @llvm.masked.gather.v32f32(<32 x ptr> %ptrs, i32 8, <32 x i1> %mask, <32 x float> poison)
   store <32 x float> %vals, ptr %a
   ret void
 }
@@ -1197,15 +1196,15 @@ define void @masked_gather_passthru(ptr %a, ptr %b, ptr %c) vscale_range(16,0) #
 ; CHECK-LABEL: masked_gather_passthru:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ptrue p0.s, vl32
-; CHECK-NEXT:    ptrue p1.d, vl32
+; CHECK-NEXT:    ptrue p2.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
+; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x2]
 ; CHECK-NEXT:    fcmeq p1.s, p0/z, z0.s, #0.0
-; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x2]
+; CHECK-NEXT:    ld1d { z0.d }, p2/z, [x1]
 ; CHECK-NEXT:    punpklo p2.h, p1.b
-; CHECK-NEXT:    ld1w { z1.d }, p2/z, [z1.d]
-; CHECK-NEXT:    uzp1 z1.s, z1.s, z1.s
-; CHECK-NEXT:    mov z0.s, p1/m, z1.s
+; CHECK-NEXT:    ld1w { z0.d }, p2/z, [z0.d]
+; CHECK-NEXT:    uzp1 z0.s, z0.s, z0.s
+; CHECK-NEXT:    sel z0.s, p1, z0.s, z1.s
 ; CHECK-NEXT:    st1w { z0.s }, p0, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a
@@ -1223,10 +1222,10 @@ define void @masked_gather_passthru_0(ptr %a, ptr %b) vscale_range(16,0) #0 {
 ; CHECK-NEXT:    ptrue p0.s, vl32
 ; CHECK-NEXT:    ptrue p1.d, vl32
 ; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x0]
-; CHECK-NEXT:    ld1d { z1.d }, p1/z, [x1]
 ; CHECK-NEXT:    fcmeq p0.s, p0/z, z0.s, #0.0
+; CHECK-NEXT:    ld1d { z0.d }, p1/z, [x1]
 ; CHECK-NEXT:    punpklo p0.h, p0.b
-; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z1.d]
+; CHECK-NEXT:    ld1w { z0.d }, p0/z, [z0.d]
 ; CHECK-NEXT:    st1w { z0.d }, p1, [x0]
 ; CHECK-NEXT:    ret
   %cvals = load <32 x float>, ptr %a

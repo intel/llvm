@@ -34,16 +34,12 @@
 #define LLVM_SUPPORT_PROPERTYSETIO_H
 
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include <istream>
-#include <map>
-#include <memory>
-#include <string>
-#include <type_traits>
+#include "llvm/Support/xxhash.h"
 
 namespace llvm {
 namespace util {
@@ -81,8 +77,8 @@ public:
 
   PropertyValue(uint32_t Val) : Ty(UINT32), Val({Val}) {}
   PropertyValue(const byte *Data, SizeTy DataBitSize);
-  template <typename T>
-  PropertyValue(const std::vector<T> &Data)
+  template <typename C, typename T = typename C::value_type>
+  PropertyValue(const C &Data)
       : PropertyValue(reinterpret_cast<const byte *>(Data.data()),
                       Data.size() * sizeof(T) * /* bits in one byte */ 8) {}
   PropertyValue(const llvm::StringRef &Str)
@@ -162,9 +158,19 @@ public:
     }
   }
 
+  const char *data() const {
+    switch (Ty) {
+    case UINT32:
+      return reinterpret_cast<const char *>(&Val.UInt32Val);
+    case BYTE_ARRAY:
+      return reinterpret_cast<const char *>(Val.ByteArrayVal);
+    default:
+      llvm_unreachable_internal("unsupported property type");
+    }
+  }
+
 private:
   template <typename T> T &getValueRef();
-  void copy(const PropertyValue &P);
 
   Type Ty = NONE;
   // TODO: replace this union with std::variant when uplifting to C++17
@@ -175,68 +181,105 @@ private:
   } Val;
 };
 
-// A property set. Preserves insertion order when iterating elements.
-using PropertySet = MapVector<StringRef, PropertyValue>;
+/// Structure for specialization of DenseMap in PropertySetRegistry.
+struct PropertySetKeyInfo {
+  static unsigned getHashValue(const SmallString<16> &K) { return xxHash64(K); }
 
-// A "registry" of multiple property sets. Maps a property set name to its
-// contents. Can be read/written.
+  static SmallString<16> getEmptyKey() { return SmallString<16>(""); }
+
+  static SmallString<16> getTombstoneKey() { return SmallString<16>("_"); }
+
+  static bool isEqual(StringRef L, StringRef R) { return L == R; }
+};
+
+using PropertyMapTy = DenseMap<SmallString<16>, unsigned, PropertySetKeyInfo>;
+/// A property set. Preserves insertion order when iterating elements.
+using PropertySet = MapVector<SmallString<16>, PropertyValue, PropertyMapTy>;
+
+/// A registry of property sets. Maps a property set name to its
+/// content.
+///
+/// The order of keys is preserved and corresponds to the order of insertion.
 class PropertySetRegistry {
 public:
-  using MapTy = MapVector<StringRef, PropertySet>;
+  using MapTy = MapVector<SmallString<16>, PropertySet, PropertyMapTy>;
 
   // Specific property category names used by tools.
   static constexpr char SYCL_SPECIALIZATION_CONSTANTS[] =
       "SYCL/specialization constants";
   static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
       "SYCL/specialization constants default values";
+  // TODO: remove SYCL_DEVICELIB_REQ_MASK when devicelib online linking path
+  // is totally removed.
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
+  static constexpr char SYCL_DEVICELIB_METADATA[] = "SYCL/devicelib metadata";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
   static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
+  static constexpr char SYCL_KERNEL_NAMES[] = "SYCL/kernel names";
   static constexpr char SYCL_EXPORTED_SYMBOLS[] = "SYCL/exported symbols";
+  static constexpr char SYCL_IMPORTED_SYMBOLS[] = "SYCL/imported symbols";
   static constexpr char SYCL_DEVICE_GLOBALS[] = "SYCL/device globals";
   static constexpr char SYCL_DEVICE_REQUIREMENTS[] = "SYCL/device requirements";
   static constexpr char SYCL_HOST_PIPES[] = "SYCL/host pipes";
+  static constexpr char SYCL_VIRTUAL_FUNCTIONS[] = "SYCL/virtual functions";
+  static constexpr char SYCL_IMPLICIT_LOCAL_ARG[] = "SYCL/implicit local arg";
+  static constexpr char SYCL_REGISTERED_KERNELS[] = "SYCL/registered kernels";
 
-  // Function for bulk addition of an entire property set under given category
-  // (property set name).
+  static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
+      "reqd_work_group_size_uint64_t";
+
+  // SYCLBIN specific property sets.
+  static constexpr char SYCLBIN_GLOBAL_METADATA[] = "SYCLBIN/global metadata";
+  static constexpr char SYCLBIN_IR_MODULE_METADATA[] =
+      "SYCLBIN/ir module metadata";
+  static constexpr char SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA[] =
+      "SYCLBIN/native device code image metadata";
+
+  /// Function for bulk addition of an entire property set in the given
+  /// \p Category .
   template <typename MapTy> void add(StringRef Category, const MapTy &Props) {
-    using KeyTy = typename MapTy::value_type::first_type;
-    static_assert(std::is_same<typename std::remove_const<KeyTy>::type,
-                               llvm::StringRef>::value,
-                  "wrong key type");
-
     assert(PropSetMap.find(Category) == PropSetMap.end() &&
            "category already added");
     auto &PropSet = PropSetMap[Category];
 
     for (const auto &Prop : Props)
-      PropSet.insert({Prop.first, PropertyValue(Prop.second)});
+      PropSet.insert_or_assign(Prop.first, PropertyValue(Prop.second));
   }
 
-  // Function to add a property to a given category (property set name).
+  /// Adds the given \p PropVal with the given \p PropName into the given \p
+  /// Category .
   template <typename T>
   void add(StringRef Category, StringRef PropName, const T &PropVal) {
     auto &PropSet = PropSetMap[Category];
     PropSet.insert({PropName, PropertyValue(PropVal)});
   }
 
-  // Parses and creates a property set registry.
+  void remove(StringRef Category, StringRef PropName) {
+    auto PropertySetIt = PropSetMap.find(Category);
+    if (PropertySetIt == PropSetMap.end())
+      return;
+    auto &PropertySet = PropertySetIt->second;
+    auto PropIt = PropertySet.find(PropName);
+    if (PropIt == PropertySet.end())
+      return;
+    PropertySet.erase(PropIt);
+  }
+
+  /// Parses from the given \p Buf a property set registry.
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);
 
-  // Dumps a property set registry to a stream.
+  /// Dumps the property set registry to the given \p Out stream.
   void write(raw_ostream &Out) const;
 
-  // Start iterator of all preperty sets in the registry.
   MapTy::const_iterator begin() const { return PropSetMap.begin(); }
-  // End iterator of all preperty sets in the registry.
   MapTy::const_iterator end() const { return PropSetMap.end(); }
 
-  // Retrieves a property set with given name.
+  /// Retrieves a property set with given \p Name .
   PropertySet &operator[](StringRef Name) { return PropSetMap[Name]; }
-  // Constant access to the underlying map.
+  /// Constant access to the underlying map.
   const MapTy &getPropSets() const { return PropSetMap; }
 
 private:

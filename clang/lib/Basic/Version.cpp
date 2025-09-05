@@ -57,6 +57,14 @@ std::string getLLVMRevision() {
 #endif
 }
 
+std::string getClangVendor() {
+#ifdef CLANG_VENDOR
+  return CLANG_VENDOR;
+#else
+  return "";
+#endif
+}
+
 std::string getClangFullRepositoryVersion() {
   std::string buf;
   llvm::raw_string_ostream OS(buf);
@@ -92,10 +100,7 @@ std::string getClangFullVersion() {
 std::string getClangToolFullVersion(StringRef ToolName) {
   std::string buf;
   llvm::raw_string_ostream OS(buf);
-#ifdef CLANG_VENDOR
-  OS << CLANG_VENDOR;
-#endif
-  OS << ToolName << " version " CLANG_VERSION_STRING;
+  OS << getClangVendor() << ToolName << " version " CLANG_VERSION_STRING;
 
   std::string repo = getClangFullRepositoryVersion();
   if (!repo.empty()) {
@@ -110,10 +115,7 @@ std::string getClangFullCPPVersion() {
   // the one we report on the command line.
   std::string buf;
   llvm::raw_string_ostream OS(buf);
-#ifdef CLANG_VENDOR
-  OS << CLANG_VENDOR;
-#endif
-  OS << "Clang " CLANG_VERSION_STRING;
+  OS << getClangVendor() << "Clang " CLANG_VERSION_STRING;
 
   std::string repo = getClangFullRepositoryVersion();
   if (!repo.empty()) {
@@ -125,11 +127,8 @@ std::string getClangFullCPPVersion() {
 
 llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
 getSYCLVersionMacros(const LangOptions &LangOpts) {
-  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017)
-    return {{"CL_SYCL_LANGUAGE_VERSION", "121"},
-            {"SYCL_LANGUAGE_VERSION", "201707"}};
   if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
-    return {{"SYCL_LANGUAGE_VERSION", "202001"}};
+    return {{"SYCL_LANGUAGE_VERSION", "202012L"}};
   llvm_unreachable("SYCL standard should be set");
 }
 } // end namespace clang

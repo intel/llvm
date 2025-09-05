@@ -1,5 +1,5 @@
 // REQUIRES: xptifw, opencl
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
@@ -10,7 +10,7 @@
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 bool func(sycl::queue &Queue, int depth = 0) {
   bool MismatchFound = false;
   // Create a buffer of 4 ints to be used inside the kernel code.
@@ -32,7 +32,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   // Get read only access to the buffer on the host.
   // This introduces an implicit barrier which blocks execution until the
   // command group above completes.
-  const auto HostAccessor = Buffer.get_access<sycl::access::mode::read>();
+  const sycl::host_accessor HostAccessor(Buffer, sycl::read_only);
 
   // Check the results.
   for (size_t I = 0; I < Buffer.size(); ++I) {
@@ -65,7 +65,7 @@ int main() {
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID2]]
   // CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID1]]
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID1]]
-  MismatchFound &= func(Queue, 2);
+  MismatchFound |= func(Queue, 2);
 
   return MismatchFound;
 }

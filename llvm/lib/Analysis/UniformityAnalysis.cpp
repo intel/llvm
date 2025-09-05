@@ -10,7 +10,6 @@
 #include "llvm/ADT/GenericUniformityImpl.h"
 #include "llvm/Analysis/CycleAnalysis.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -80,13 +79,12 @@ template <>
 void llvm::GenericUniformityAnalysisImpl<
     SSAContext>::propagateTemporalDivergence(const Instruction &I,
                                              const Cycle &DefCycle) {
-  if (isDivergent(I))
-    return;
   for (auto *User : I.users()) {
     auto *UserInstr = cast<Instruction>(User);
     if (DefCycle.contains(UserInstr->getParent()))
       continue;
     markDivergent(*UserInstr);
+    recordTemporalDivergence(&I, UserInstr, &DefCycle);
   }
 }
 
@@ -118,9 +116,9 @@ llvm::UniformityInfo UniformityInfoAnalysis::run(Function &F,
   auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
   auto &TTI = FAM.getResult<TargetIRAnalysis>(F);
   auto &CI = FAM.getResult<CycleAnalysis>(F);
-  UniformityInfo UI{F, DT, CI, &TTI};
+  UniformityInfo UI{DT, CI, &TTI};
   // Skip computation if we can assume everything is uniform.
-  if (TTI.hasBranchDivergence())
+  if (TTI.hasBranchDivergence(&F))
     UI.compute();
 
   return UI;
@@ -145,17 +143,15 @@ PreservedAnalyses UniformityInfoPrinterPass::run(Function &F,
 
 char UniformityInfoWrapperPass::ID = 0;
 
-UniformityInfoWrapperPass::UniformityInfoWrapperPass() : FunctionPass(ID) {
-  initializeUniformityInfoWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+UniformityInfoWrapperPass::UniformityInfoWrapperPass() : FunctionPass(ID) {}
 
 INITIALIZE_PASS_BEGIN(UniformityInfoWrapperPass, "uniformity",
-                      "Uniformity Analysis", true, true)
+                      "Uniformity Analysis", false, true)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(CycleInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
 INITIALIZE_PASS_END(UniformityInfoWrapperPass, "uniformity",
-                    "Uniformity Analysis", true, true)
+                    "Uniformity Analysis", false, true)
 
 void UniformityInfoWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
@@ -171,11 +167,10 @@ bool UniformityInfoWrapperPass::runOnFunction(Function &F) {
       getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
 
   m_function = &F;
-  m_uniformityInfo =
-      UniformityInfo{F, domTree, cycleInfo, &targetTransformInfo};
+  m_uniformityInfo = UniformityInfo{domTree, cycleInfo, &targetTransformInfo};
 
   // Skip computation if we can assume everything is uniform.
-  if (targetTransformInfo.hasBranchDivergence())
+  if (targetTransformInfo.hasBranchDivergence(m_function))
     m_uniformityInfo.compute();
 
   return false;

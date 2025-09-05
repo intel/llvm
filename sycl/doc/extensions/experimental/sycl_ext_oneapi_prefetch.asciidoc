@@ -1,0 +1,674 @@
+= sycl_ext_oneapi_prefetch
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in this
+specification are implemented in DPC++, but they are not finalized and may
+change incompatibly in future versions of DPC++ without prior notice. *Shipping
+software products should not rely on APIs defined in this specification.*
+
+== Overview
+
+Many devices targeted by SYCL support software prefetch operations, which
+act as asynchronous memory reads intended to populate cache(s). Prefetches are
+generally used to hide memory latency, and their deployment may be a critical
+component for software tuning on some hardware.
+
+The `multi_ptr::prefetch` function provided by SYCL 2020 is insufficient to
+cover many real use-cases -- it does not acknowledge the existence of a cache
+hierarchy, and does not provide a mechanism for cooperative (i.e. group)
+prefetches.
+
+This proposal addresses these shortcomings by introducing a set of
+free functions that groups of work-items can use to prefetch data into specific
+levels of cache (controlled via compile-time properties).
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_PREFETCH` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Specifying cache levels
+
+The level of cache targeted by a prefetch is specified using compile-time
+properties. This extension defines hints for four levels of cache,
+corresponding to the four levels of cache currently defined in SYCL (e.g.
+as used by `info::partition_affinity_domain`).
+
+[NOTE]
+====
+Not all devices targeted by SYCL will have four levels of cache. Some of these
+hints may have no meaning on some devices. However, implementations are
+encouraged to map these constants to the closest level of cache available.
+====
+
+When multiple cache levels are specified, the lowest level takes precedence
+(e.g. a request to prefetch into L1 and L4 is treated as a request to prefetch
+into L1). When no cache levels are specified, the default behavior is to
+prefetch into the lowest level cache (i.e. L1).
+
+[NOTE]
+====
+Future hints may alter the default behavior of prefetches with respect to cache
+levels. Any such alterations are expected to be documented in the definition
+of those new hints.
+====
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class cache_level {
+  L1,
+  L2,
+  L3,
+  L4,
+};
+
+struct nontemporal;
+
+struct prefetch_hint_key {
+  template <cache_level Level, typename Hint>
+  using value_t = property_value<prefetch_hint_key,
+                                 std::integral_constant<cache_level, Level>,
+                                 Hint>;
+};
+
+template <cache_level Level, typename Hint>
+inline constexpr prefetch_hint_key::value_t<Level, Hint> prefetch_hint;
+
+inline constexpr prefetch_hint_key::value_t<cache_level::L1, void> prefetch_hint_L1;
+inline constexpr prefetch_hint_key::value_t<cache_level::L2, void> prefetch_hint_L2;
+inline constexpr prefetch_hint_key::value_t<cache_level::L3, void> prefetch_hint_L3;
+inline constexpr prefetch_hint_key::value_t<cache_level::L4, void> prefetch_hint_L4;
+
+inline constexpr prefetch_hint_key::value_t<cache_level::L1, nontemporal> prefetch_hint_L1_nt;
+inline constexpr prefetch_hint_key::value_t<cache_level::L2, nontemporal> prefetch_hint_L2_nt;
+inline constexpr prefetch_hint_key::value_t<cache_level::L3, nontemporal> prefetch_hint_L3_nt;
+inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal> prefetch_hint_L4_nt;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+If the `nontemporal` type is used as the value of the `Hint` template
+parameter, this acts as a hint that the data being prefetched will not be
+reused.
+
+[NOTE]
+====
+The implementation of `nontemporal` is device-specific, owing to differences in
+cache hierarchies and replacement policies. On some devices non-temporal data
+may be evicted earlier than temporal data, while on other devices non-temporal
+data may not be stored in certain levels of cache at all.
+====
+
+
+=== Work-item prefetches
+
+The functions in this section allow individual work-items to prefetch data.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Properties = empty_properties_t>
+void prefetch(void* ptr, Properties properties = {});
+
+template <typename Properties = empty_properties_t>
+void prefetch(void* ptr, size_t bytes, Properties properties = {});
+
+template <typename T, typename Properties = empty_properties_t>
+void prefetch(T* ptr, Properties properties = {});
+
+template <typename T, typename Properties = empty_properties_t>
+void prefetch(T* ptr, size_t count, Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes, Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count, Properties properties = {});
+
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              id<Dimensions> offset, Properties properties = {});
+
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              id<Dimensions> offset, size_t count, Properties properties = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[source,c++]
+----
+template <typename Properties = empty_properties_t>
+void prefetch(void* ptr, Properties properties = {});
+----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Acts as a hint to the implementation that the cacheline containing
+the byte at `ptr` should be prefetched into the levels of cache specified by
+`properties`.
+
+[source,c++]
+----
+template <typename Properties = empty_properties_t>
+void prefetch(void* ptr, size_t bytes, Properties properties = {});
+----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Acts as a hint to the implementation that the cachelines containing
+the `bytes` bytes starting at `ptr` should be prefetched into the levels of
+cache specified by `properties`.
+
+[source,c++]
+----
+template <typename T, typename Properties = empty_properties_t>
+void prefetch(T* ptr, Properties properties = {});
+----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch((void*) ptr, sizeof(T), properties)`.
+
+[source,c++]
+----
+template <typename T, typename Properties = empty_properties_t>
+void prefetch(T* ptr, size_t count, Properties properties = {});
+----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch((void*) ptr, count * sizeof(T), properties)`.
+
+[source,c++]
+----
+template <access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, Properties properties = {});
+----
+_Constraints_: Available only if `AddressSpace == global_space || AddressSpace
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch(ptr.get(), properties)`.
+
+[source,c++]
+----
+template <access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes, Properties properties = {});
+----
+_Constraints_: Available only if `AddressSpace == global_space || AddressSpace
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch(ptr.get(), bytes, properties)`.
+
+[source,c++]
+----
+template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, Properties properties = {});
+----
+_Constraints_: Available only if `AddressSpace == global_space || AddressSpace
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch(ptr.get(), properties)`.
+
+[source,c++]
+----
+template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count, Properties properties = {});
+----
+_Constraints_: Available only if `AddressSpace == global_space || AddressSpace
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch(ptr.get(), count, properties)`.
+
+[source,c++]
+----
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              id<Dimensions> offset, Properties properties = {});
+----
+_Constraints_: Available only if `Dimensions > 0 && (AccessMode == read ||
+AccessMode == read_write)` is `true` and
+`is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Effects_: Equivalent to `prefetch((void*) &acc[offset], sizeof(DataT),
+properties)`.
+
+[source,c++]
+----
+template <typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+              size_t offset, size_t count, Properties properties = {});
+----
+_Constraints_: Available only if `Dimensions > 0 && (AccessMode == read ||
+AccessMode == read_write)` is `true` and
+`is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Effects_: Equivalent to `prefetch((void*) &acc[offset], count * sizeof(DataT),
+properties)`.
+
+
+==== Usage examples
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+q.parallel_for(N, [=](auto i) {
+  for (int j = 0; j < M; ++j) {
+    syclex::prefetch(&data[j + 10], syclex::properties{syclex::prefetch_hint_L1});
+    syclex::prefetch(&data[j + 100], syclex::properties{syclex::prefetch_hint_L3});
+    foo(data[j]);
+  }
+});
+----
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+q.parallel_for(N, [=](auto i) {
+  for (int j = 0; j < M; ++j) {
+    syclex::prefetch(&data[j + 10], syclex::properties{syclex::prefetch_hint<syclex::cache_level::L1, syclex::nontemporal>});
+    foo(data[j]);
+  }
+});
+----
+
+=== Group prefetches
+
+The functions in this section allow groups of work-items to cooperatively
+prefetch the same data. These functions are all group functions, as defined
+in Section 4.17.3 of the SYCL specification.
+
+[NOTE]
+====
+Although calling `joint_prefetch` is functionally equivalent to calling
+`prefetch` from every work-item in a group, some implementations may be able
+to issue cooperative prefetches more efficiently on some hardware.
+====
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Group, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, void* ptr, Properties properties = {});
+
+template <typename Group, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, void* ptr, size_t bytes, Properties properties = {});
+
+template <typename Group, typename T, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, T* ptr, Properties properties = {});
+
+template <typename Group, typename T, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
+                    Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
+                    Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <typename Group, typename T,
+          access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
+                    Properties properties = {});
+
+// Only available if AddressSpace == global_space || AddressSpace == generic_space
+template <typename Group, typename T,
+          access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
+                    Properties properties = {});
+
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, Properties properties = {});
+
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, size_t count, Properties properties = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[source,c++]
+----
+template <typename Group, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, void* ptr, Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr` and
+`properties` must be the same for all work-items in group `g`.
+
+_Effects_: Acts as a hint to the implementation that the cacheline containing
+the byte at `ptr` should be prefetched into the levels of cache specified by
+`properties`.
+
+[source,c++]
+----
+template <typename Group, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, void* ptr, size_t bytes, Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr`, `bytes`
+and `properties` must be the same for all work-items in group `g`.
+
+_Effects_: Acts as a hint to the implementation that the cachelines containing
+the `bytes` bytes starting at `ptr` should be prefetched into the levels of
+cache specified by `properties`.
+
+[source,c++]
+----
+template <typename Group, typename T, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, T* ptr, Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr` and
+`properties` must be the same for all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, (void*) ptr, sizeof(T),
+properties)`.
+
+[source,c++]
+----
+template <typename Group, typename T, typename Properties = empty_properties_t>
+void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr`, `count`
+and `properties` must be the same for all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, (void*) ptr, count * sizeof(T),
+properties)`.
+
+[source,c++]
+----
+template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
+                    Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `AddressSpace == global_space || AddressSpace == generic_space` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr` and
+`properties` must be the same for all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, ptr.get(), properties)`.
+
+
+[source,c++]
+----
+template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
+                    Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `AddressSpace == global_space || AddressSpace == generic_space` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr`, `bytes`
+and `properties` must be the same for all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, ptr.get(), bytes, properties)`.
+
+[source,c++]
+----
+template <typename Group, typename T,
+          access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
+                    Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `AddressSpace == global_space || AddressSpace == generic_space` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr` and
+`properties` must be the same for all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, ptr.get(), properties)`.
+
+[source,c++]
+----
+template <typename Group, typename T,
+          access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
+                    Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
+
+_Preconditions_: `ptr` must point to an object in global memory. `ptr`, `count`
+and `properties` must be the same for all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, ptr.get(), count, properties)`.
+
+[source,c++]
+----
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `Dimensions > 0 && (AccessMode == read || AccessMode ==
+read_write)` is `true` and `is_property_list_v<std::decay_t<Properties>>` is
+`true`.
+
+_Preconditions_: `acc`, `offset` and `properties` must be the same for all
+work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, (void*) &acc[offset],
+sizeof(DataT), properties)`.
+
+[source,c++]
+----
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = empty_properties_t>
+void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+                    size_t offset, size_t count, Properties properties = {});
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+`true` and `Dimensions > 0 && (AccessMode == read || AccessMode ==
+read_write)` is `true` and `is_property_list_v<std::decay_t<Properties>>` is
+`true`.
+
+_Preconditions_: `acc`, `offset`, `count` and `properties` must be the same for
+all work-items in group `g`.
+
+_Effects_: Equivalent to `joint_prefetch(g, (void*) &acc[offset], count *
+sizeof(DataT), properties)`.
+
+
+==== Usage examples
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+q.parallel_for(sycl::nd_range{N, L}, [=](sycl::nd_item<1> it) {
+  auto sg = it.get_sub_group();
+  for (int j = sg.get_local_id(); j < M; j += sg.get_max_local_range()) {
+    syclex::joint_prefetch(sg, &data[j + 100], sg.get_max_local_range(), syclex::properties{syclex::prefetch_hint_L3});
+    foo(sg, data[j]);
+  }
+});
+----
+
+
+== Issues
+
+. Which level of cache should be targeted for an empty property list?
++
+--
+*UNRESOLVED*:
+Defaulting to the lowest level of cache may be expected by some users, who
+would like the prefetch to place data as close to the compute units as
+possible. Defaulting to the highest level of cache may be expected by other
+users, since that level typically has the highest capacity and may contain
+data from all other levels -- naive usage of prefetches in this case would be
+less likely to cause thrashing across multiple levels of cache.
+
+The current draft of this extension sets the default as the lowest level,
+consistent with the behavior of the `prefetch` pragmas proposed for OpenMP.
+Developers who want to prefetch data into specific levels of cache can simply
+override this behavior, and can prefetch into the last level of cache by
+specifing `prefetch_hint_L4`.
+--
+
+. How should multi-dimensional prefetches be handled?
++
+--
+*UNRESOLVED*:
+Some developers think of multi-dimensional accessors in terms of the underlying
+(linearized) memory, and would expect to describe prefetches in terms of scalar
+counts. Other developers might expect prefetches using multi-dimensional
+accessors to accept counts described using `range` objects.
+--

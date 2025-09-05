@@ -83,7 +83,7 @@ define i32 @test2(ptr nocapture %p, i32 %n) nounwind readonly {
 ; CHECK-NEXT:    [[TMP4:%.*]] = add nsw i32 [[TMP3]], [[TMP2]]
 ; CHECK-NEXT:    br label [[BB1_1:%.*]]
 ; CHECK:       bb1.1:
-; CHECK-NEXT:    [[INDVAR_NEXT_1:%.*]] = add nuw nsw i64 [[INDVAR_NEXT]], 1
+; CHECK-NEXT:    [[INDVAR_NEXT_1:%.*]] = add nuw nsw i64 [[INDVAR]], 2
 ; CHECK-NEXT:    [[EXITCOND_1:%.*]] = icmp ne i64 [[INDVAR_NEXT_1]], [[TMP]]
 ; CHECK-NEXT:    br i1 [[EXITCOND_1]], label [[BB_2:%.*]], label [[BB1_BB2_CRIT_EDGE]]
 ; CHECK:       bb.2:
@@ -92,7 +92,7 @@ define i32 @test2(ptr nocapture %p, i32 %n) nounwind readonly {
 ; CHECK-NEXT:    [[TMP6:%.*]] = add nsw i32 [[TMP5]], [[TMP4]]
 ; CHECK-NEXT:    br label [[BB1_2:%.*]]
 ; CHECK:       bb1.2:
-; CHECK-NEXT:    [[INDVAR_NEXT_2:%.*]] = add nuw nsw i64 [[INDVAR_NEXT_1]], 1
+; CHECK-NEXT:    [[INDVAR_NEXT_2:%.*]] = add nuw nsw i64 [[INDVAR]], 3
 ; CHECK-NEXT:    [[EXITCOND_2:%.*]] = icmp ne i64 [[INDVAR_NEXT_2]], [[TMP]]
 ; CHECK-NEXT:    br i1 [[EXITCOND_2]], label [[BB_3:%.*]], label [[BB1_BB2_CRIT_EDGE]]
 ; CHECK:       bb.3:
@@ -101,7 +101,7 @@ define i32 @test2(ptr nocapture %p, i32 %n) nounwind readonly {
 ; CHECK-NEXT:    [[TMP8]] = add nsw i32 [[TMP7]], [[TMP6]]
 ; CHECK-NEXT:    br label [[BB1_3]]
 ; CHECK:       bb1.3:
-; CHECK-NEXT:    [[INDVAR_NEXT_3]] = add i64 [[INDVAR_NEXT_2]], 1
+; CHECK-NEXT:    [[INDVAR_NEXT_3]] = add i64 [[INDVAR]], 4
 ; CHECK-NEXT:    [[EXITCOND_3:%.*]] = icmp ne i64 [[INDVAR_NEXT_3]], [[TMP]]
 ; CHECK-NEXT:    br i1 [[EXITCOND_3]], label [[BB]], label [[BB1_BB2_CRIT_EDGE]], !llvm.loop [[LOOP2:![0-9]+]]
 ; CHECK:       bb1.bb2_crit_edge:
@@ -143,7 +143,7 @@ bb2:                                              ; preds = %bb1.bb2_crit_edge, 
 
 ; Check phi update for loop with an early-exit.
 ;
-define i32 @test3() nounwind uwtable ssp align 2 {
+define i32 @test3(i1 %arg) nounwind uwtable ssp align 2 {
 ;
 ; CHECK-LABEL: @test3(
 ; CHECK-NEXT:  entry:
@@ -156,9 +156,9 @@ define i32 @test3() nounwind uwtable ssp align 2 {
 ; CHECK-NEXT:    br i1 [[COND2]], label [[EXIT:%.*]], label [[DO_COND:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    [[TMP7_I:%.*]] = load i32, ptr undef, align 8
-; CHECK-NEXT:    br i1 undef, label [[DO_COND]], label [[LAND_LHS_TRUE:%.*]]
+; CHECK-NEXT:    br i1 [[ARG:%.*]], label [[DO_COND]], label [[LAND_LHS_TRUE:%.*]]
 ; CHECK:       land.lhs.true:
-; CHECK-NEXT:    br i1 true, label [[RETURN_LOOPEXIT:%.*]], label [[DO_COND]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[RETURN_LOOPEXIT:%.*]], label [[DO_COND]]
 ; CHECK:       do.cond:
 ; CHECK-NEXT:    [[COND3:%.*]] = call zeroext i1 @check()
 ; CHECK-NEXT:    br i1 [[COND3]], label [[DO_END:%.*]], label [[DO_BODY_1:%.*]]
@@ -167,9 +167,9 @@ define i32 @test3() nounwind uwtable ssp align 2 {
 ; CHECK-NEXT:    br i1 [[COND2_1]], label [[EXIT_1:%.*]], label [[DO_COND_1:%.*]]
 ; CHECK:       exit.1:
 ; CHECK-NEXT:    [[TMP7_I_1:%.*]] = load i32, ptr undef, align 8
-; CHECK-NEXT:    br i1 undef, label [[DO_COND_1]], label [[LAND_LHS_TRUE_1:%.*]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[DO_COND_1]], label [[LAND_LHS_TRUE_1:%.*]]
 ; CHECK:       land.lhs.true.1:
-; CHECK-NEXT:    br i1 true, label [[RETURN_LOOPEXIT]], label [[DO_COND_1]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[RETURN_LOOPEXIT]], label [[DO_COND_1]]
 ; CHECK:       do.cond.1:
 ; CHECK-NEXT:    [[COND3_1:%.*]] = call zeroext i1 @check()
 ; CHECK-NEXT:    br i1 [[COND3_1]], label [[DO_END]], label [[DO_BODY_2:%.*]]
@@ -178,9 +178,9 @@ define i32 @test3() nounwind uwtable ssp align 2 {
 ; CHECK-NEXT:    br i1 [[COND2_2]], label [[EXIT_2:%.*]], label [[DO_COND_2:%.*]]
 ; CHECK:       exit.2:
 ; CHECK-NEXT:    [[TMP7_I_2:%.*]] = load i32, ptr undef, align 8
-; CHECK-NEXT:    br i1 undef, label [[DO_COND_2]], label [[LAND_LHS_TRUE_2:%.*]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[DO_COND_2]], label [[LAND_LHS_TRUE_2:%.*]]
 ; CHECK:       land.lhs.true.2:
-; CHECK-NEXT:    br i1 true, label [[RETURN_LOOPEXIT]], label [[DO_COND_2]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[RETURN_LOOPEXIT]], label [[DO_COND_2]]
 ; CHECK:       do.cond.2:
 ; CHECK-NEXT:    [[COND3_2:%.*]] = call zeroext i1 @check()
 ; CHECK-NEXT:    br i1 [[COND3_2]], label [[DO_END]], label [[DO_BODY_3:%.*]]
@@ -189,9 +189,9 @@ define i32 @test3() nounwind uwtable ssp align 2 {
 ; CHECK-NEXT:    br i1 [[COND2_3]], label [[EXIT_3:%.*]], label [[DO_COND_3:%.*]]
 ; CHECK:       exit.3:
 ; CHECK-NEXT:    [[TMP7_I_3:%.*]] = load i32, ptr undef, align 8
-; CHECK-NEXT:    br i1 undef, label [[DO_COND_3]], label [[LAND_LHS_TRUE_3:%.*]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[DO_COND_3]], label [[LAND_LHS_TRUE_3:%.*]]
 ; CHECK:       land.lhs.true.3:
-; CHECK-NEXT:    br i1 true, label [[RETURN_LOOPEXIT]], label [[DO_COND_3]]
+; CHECK-NEXT:    br i1 [[ARG]], label [[RETURN_LOOPEXIT]], label [[DO_COND_3]]
 ; CHECK:       do.cond.3:
 ; CHECK-NEXT:    [[COND3_3:%.*]] = call zeroext i1 @check()
 ; CHECK-NEXT:    br i1 [[COND3_3]], label [[DO_END]], label [[DO_BODY]], !llvm.loop [[LOOP3:![0-9]+]]
@@ -217,10 +217,10 @@ do.body:                                          ; preds = %do.cond, %if.end
 
 exit:                  ; preds = %do.body
   %tmp7.i = load i32, ptr undef, align 8
-  br i1 undef, label %do.cond, label %land.lhs.true
+  br i1 %arg, label %do.cond, label %land.lhs.true
 
 land.lhs.true:                                    ; preds = %exit
-  br i1 undef, label %return, label %do.cond
+  br i1 %arg, label %return, label %do.cond
 
 do.cond:                                          ; preds = %land.lhs.true, %exit, %do.body
   %cond3 = call zeroext i1 @check()

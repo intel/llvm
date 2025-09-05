@@ -1,10 +1,14 @@
 set(LLVM_LINK_COMPONENTS
+  Core
   DebugInfoDWARF
-  DWP
+  DebugInfoDWARFLowLevel
   JITLink
   MC
   Object
   Support
+  DWARFLinker
+  DWARFLinkerClassic
+  AsmPrinter
   TargetParser
   )
 
@@ -14,9 +18,15 @@ add_llvm_library(LLVMBOLTRewrite
   DWARFRewriter.cpp
   ExecutableFileMemoryManager.cpp
   JITLinkLinker.cpp
+  LinuxKernelRewriter.cpp
   MachORewriteInstance.cpp
+  MetadataManager.cpp
+  BuildIDRewriter.cpp
+  PseudoProbeRewriter.cpp
   RewriteInstance.cpp
+  SDTRewriter.cpp
 
+  NO_EXPORT
   DISABLE_LLVM_LINK_LLVM_DYLIB
 
   LINK_LIBS

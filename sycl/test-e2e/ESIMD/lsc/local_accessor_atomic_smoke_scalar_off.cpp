@@ -7,13 +7,10 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor atomic operations with scalar offset.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// UNSUPPORTED: esimd_emulator
 
 #define USE_SCALAR_OFFSET
 

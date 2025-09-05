@@ -18,7 +18,7 @@ where Clang is used are:
 - Static analysis.
 - Documentation/cross-reference generation.
 
-If you know of (or wrote!) a tool or project using Clang, please post on 
+If you know of (or wrote!) a tool or project using Clang, please post on
 `the Discourse forums (Clang Frontend category)
 <https://discourse.llvm.org/c/clang/6>`_ to have it added.
 (or if you are already a Clang contributor, feel free to directly commit
@@ -34,7 +34,7 @@ List of projects and tools
    etc."
 
 `<https://rprichard.github.io/CxxCodeBrowser/>`_
-   "A C/C++ source code indexer and navigator"
+   "A C/C++ source code indexer and navigator."
 
 `<https://github.com/etaoins/qconnectlint>`_
    "qconnectlint is a Clang tool for statically verifying the consistency
@@ -98,3 +98,6 @@ List of projects and tools
    uses of reserved identifiers to ensuring that code adheres to lifecycle
    protocols for certain LibreOffice-specific classes.  They may serve as
    examples for writing RecursiveASTVisitor-based plugins."
+
+`<https://github.com/banach-space/clang-tutor>`_
+   "A collection of out-of-tree Clang plugins for teaching and learning."

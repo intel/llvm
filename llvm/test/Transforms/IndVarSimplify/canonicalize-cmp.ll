@@ -12,7 +12,7 @@ define i32 @test_01(i32 %a, i32 %b, ptr %p) {
 ; CHECK-NEXT:    br label [[LOOP_ENTRY:%.*]]
 ; CHECK:       loop.entry:
 ; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[LOOP_BE:%.*]] ]
-; CHECK-NEXT:    [[CMP1:%.*]] = icmp ult i32 [[IV]], 100
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp samesign ult i32 [[IV]], 100
 ; CHECK-NEXT:    br i1 [[CMP1]], label [[B1:%.*]], label [[B2:%.*]]
 ; CHECK:       b1:
 ; CHECK-NEXT:    store i32 [[IV]], ptr [[P:%.*]], align 4
@@ -80,7 +80,7 @@ define i32 @test_02(i32 %a, i32 %b, ptr %p) {
 ; CHECK-NEXT:    br label [[LOOP_ENTRY:%.*]]
 ; CHECK:       loop.entry:
 ; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[LOOP_BE:%.*]] ]
-; CHECK-NEXT:    [[CMP1:%.*]] = icmp ugt i32 100, [[IV]]
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp samesign ugt i32 100, [[IV]]
 ; CHECK-NEXT:    br i1 [[CMP1]], label [[B1:%.*]], label [[B2:%.*]]
 ; CHECK:       b1:
 ; CHECK-NEXT:    store i32 [[IV]], ptr [[P:%.*]], align 4
@@ -150,7 +150,7 @@ define i32 @test_03(ptr %p, ptr %capacity_p, ptr %num_elements_p) {
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[BACKEDGE:%.*]] ]
-; CHECK-NEXT:    [[BYTES_TO_WRITE:%.*]] = sub nsw i32 [[CAPACITY]], [[IV]]
+; CHECK-NEXT:    [[BYTES_TO_WRITE:%.*]] = sub nuw nsw i32 [[CAPACITY]], [[IV]]
 ; CHECK-NEXT:    [[CAPACITY_CHECK:%.*]] = icmp slt i32 [[BYTES_TO_WRITE]], 4
 ; CHECK-NEXT:    br i1 [[CAPACITY_CHECK]], label [[OUT_OF_BOUNDS:%.*]], label [[BACKEDGE]]
 ; CHECK:       backedge:
@@ -198,7 +198,7 @@ define i32 @test_04(ptr %p, ptr %capacity_p, ptr %num_elements_p) {
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[BACKEDGE:%.*]] ]
-; CHECK-NEXT:    [[BYTES_TO_WRITE:%.*]] = sub nsw i32 [[CAPACITY]], [[IV]]
+; CHECK-NEXT:    [[BYTES_TO_WRITE:%.*]] = sub nuw nsw i32 [[CAPACITY]], [[IV]]
 ; CHECK-NEXT:    [[CAPACITY_CHECK:%.*]] = icmp sle i32 [[BYTES_TO_WRITE]], 3
 ; CHECK-NEXT:    br i1 [[CAPACITY_CHECK]], label [[OUT_OF_BOUNDS:%.*]], label [[BACKEDGE]]
 ; CHECK:       backedge:

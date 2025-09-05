@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/sampler_impl.hpp>
+#include <sycl/image.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
@@ -20,7 +21,8 @@ sampler::sampler(coordinate_normalization_mode normalizationMode,
           normalizationMode, addressingMode, filteringMode, propList)) {}
 
 sampler::sampler(cl_sampler clSampler, const context &syclContext)
-    : impl(std::make_shared<detail::sampler_impl>(clSampler, syclContext)) {}
+    : impl(std::make_shared<detail::sampler_impl>(
+          clSampler, *detail::getSyclObjImpl(syclContext))) {}
 
 addressing_mode sampler::get_addressing_mode() const {
   return impl->get_addressing_mode();
@@ -43,21 +45,9 @@ bool sampler::operator!=(const sampler &rhs) const {
   return !(impl == rhs.impl);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool sampler::has_property<param_type>() const noexcept {      \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type sampler::get_property<param_type>() const {         \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
+const property_list &sampler::getPropList() const {
+  return impl->getPropList();
+}
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

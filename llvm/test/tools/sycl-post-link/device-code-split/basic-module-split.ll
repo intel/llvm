@@ -1,8 +1,14 @@
-; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0,CHECK
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1,CHECK
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-TXT
+
+; RUN: sycl-module-split -split=source -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-TU0,CHECK
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-TU1,CHECK
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-TU0-TXT
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefixes CHECK-TU1-TXT
 ; ModuleID = 'basic-module-split.ll'
 source_filename = "basic-module-split.ll"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -27,8 +33,8 @@ entry:
   ret void
 }
 
-; CHECK-TU1: define dso_local spir_func void @{{.*}}foo{{.*}}()
-; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU1: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
+; CHECK-TU0-NOT: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
 
 ; CHECK-TU1: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
 
@@ -37,7 +43,7 @@ entry:
   %a = alloca i32, align 4
   %call = call spir_func i32 @_Z3barIiET_S0_(i32 1)
   %add = add nsw i32 2, %call
-  store i32 %add, i32* %a, align 4
+  store i32 %add, ptr %a, align 4
   ret void
 }
 
@@ -48,8 +54,8 @@ entry:
 define linkonce_odr dso_local spir_func i32 @_Z3barIiET_S0_(i32 %arg) comdat {
 entry:
   %arg.addr = alloca i32, align 4
-  store i32 %arg, i32* %arg.addr, align 4
-  %0 = load i32, i32* %arg.addr, align 4
+  store i32 %arg, ptr %arg.addr, align 4
+  %0 = load i32, ptr %arg.addr, align 4
   ret i32 %0
 }
 
@@ -66,14 +72,14 @@ entry:
   ret void
 }
 
-; CHECK-TU1: define dso_local spir_func void @{{.*}}foo1{{.*}}()
-; CHECK-TU0-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU1: define {{.*}} spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-TU0-NOT: define {{.*}} spir_func void @{{.*}}foo1{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo1v() {
 entry:
   %a = alloca i32, align 4
-  store i32 2, i32* %a, align 4
+  store i32 2, ptr %a, align 4
   ret void
 }
 
@@ -90,17 +96,17 @@ entry:
   ret void
 }
 
-; CHECK-TU1-NOT: define dso_local spir_func void @{{.*}}foo2{{.*}}()
-; CHECK-TU0: define dso_local spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU1-NOT: define {{.*}} spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-TU0: define {{.*}} spir_func void @{{.*}}foo2{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo2v() {
 entry:
   %a = alloca i32, align 4
-; CHECK-TU0: %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @{{.*}}GV{{.*}} to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
-  %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @_ZL2GV to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
+; CHECK-TU0: %0 = load i32, ptr addrspace(4) addrspacecast (ptr addrspace(1) @{{.*}}GV{{.*}} to ptr addrspace(4)), align 4
+  %0 = load i32, ptr addrspace(4) getelementptr inbounds ([1 x i32], ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL2GV to ptr addrspace(4)), i64 0, i64 0), align 4
   %add = add nsw i32 4, %0
-  store i32 %add, i32* %a, align 4
+  store i32 %add, ptr %a, align 4
   ret void
 }
 

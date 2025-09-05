@@ -17,23 +17,19 @@
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/TextAPI/Architecture.h"
+#include "llvm/TextAPI/InterfaceFile.h"
 
 namespace llvm {
 
 class raw_ostream;
 
-namespace MachO {
-
-class InterfaceFile;
-
-}
-
 namespace object {
 
-class TapiFile : public SymbolicFile {
+class LLVM_ABI TapiFile : public SymbolicFile {
 public:
   TapiFile(MemoryBufferRef Source, const MachO::InterfaceFile &Interface,
            MachO::Architecture Arch);
@@ -50,6 +46,8 @@ public:
   basic_symbol_iterator symbol_end() const override;
 
   Expected<SymbolRef::Type> getSymbolType(DataRefImpl DRI) const;
+
+  bool hasSegmentInfo() { return FileKind >= MachO::FileType::TBD_V5; }
 
   static bool classof(const Binary *v) { return v->isTapiFile(); }
 
@@ -69,6 +67,7 @@ private:
 
   std::vector<Symbol> Symbols;
   MachO::Architecture Arch;
+  MachO::FileType FileKind;
 };
 
 } // end namespace object.

@@ -6,19 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __LLVM_LIBC_MACROS_LINUX_SYS_WAIT_MACROS_H
-#define __LLVM_LIBC_MACROS_LINUX_SYS_WAIT_MACROS_H
+#ifndef LLVM_LIBC_MACROS_LINUX_SYS_WAIT_MACROS_H
+#define LLVM_LIBC_MACROS_LINUX_SYS_WAIT_MACROS_H
 
-// Wait flags
-#define WNOHANG 1    // Do not block
-#define WUNTRACED 2  // Report is a child has stopped even if untraced
-#define WCONTINUED 8 // Report if a stopped child has been resumed by SIGCONT
+#include <linux/wait.h>
 
-// Wait status info macros
-#define WTERMSIG(status) (((status)&0x7F))
+#define WCOREDUMP(status) ((status) & WCOREFLAG)
+#define WEXITSTATUS(status) (((status) & 0xff00) >> 8)
+#define WIFCONTINUED(status) ((status) == 0xffff)
 #define WIFEXITED(status) (WTERMSIG(status) == 0)
-#define WEXITSTATUS(status) (((status)&0xFF00) >> 8)
-#define WIFSIGNALED(status)                                                    \
-  ((WTERMSIG(status) < 0x7F) && (WTERMSIG(status) > 0))
+#define WIFSIGNALED(status) ((WTERMSIG(status) + 1) >= 2)
+#define WIFSTOPPED(status) (WTERMSIG(status) == 0x7f)
+#define WSTOPSIG(status) WEXITSTATUS(status)
+#define WTERMSIG(status) ((status) & 0x7f)
 
-#endif // __LLVM_LIBC_MACROS_LINUX_SYS_WAIT_MACROS_H
+#define WCOREFLAG 0x80
+#define W_EXITCODE(ret, sig) ((ret) << 8 | (sig))
+#define W_STOPCODE(sig) ((sig) << 8 | 0x7f)
+
+#endif // LLVM_LIBC_MACROS_LINUX_SYS_WAIT_MACROS_H

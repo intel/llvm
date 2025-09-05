@@ -1,5 +1,4 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -9,19 +8,18 @@
 
     Use it as a base file for testing any condition.
 
-    clang++ -fsycl -sycl-std=121 -o binx.bin basic-rw.cpp
+    clang++ -fsycl -o binx.bin basic-rw.cpp
 
     ONEAPI_DEVICE_SELECTOR=opencl:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=level_zero:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=opencl:cpu ./binx.bin
 
-    ONEAPI_DEVICE_SELECTOR=opecl:acc ../binx.bin    <--  does not support image
-   operations at this time.
+    ONEAPI_DEVICE_SELECTOR=opencl:fpga ../binx.bin    <--  does not support
+   image operations at this time.
 
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -87,7 +85,7 @@ void test_rw(image_channel_order ChanOrder, image_channel_type ChanType) {
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read four pixels, no sampler" << std::endl;
     check_pixels(test_acc, ref, offset);
   } // ~image / ~buffer

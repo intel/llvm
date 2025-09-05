@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 //==---------- barrier.cpp - SYCL sub_group barrier test -------*- C++ -*---==//
@@ -12,7 +12,7 @@
 #include "helper.hpp"
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/group_barrier.hpp>
 
 template <typename T, bool UseNewSyntax> class sycl_subgr;
 using namespace sycl;

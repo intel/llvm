@@ -15,48 +15,91 @@
 #include "mlir/Parser/Parser.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Endian.h"
+#include "llvm/Support/MemoryBufferRef.h"
+#include "llvm/Support/raw_ostream.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
 using namespace mlir;
 
-using testing::ElementsAre;
-
-StringLiteral IRWithResources = R"(
+StringLiteral irWithResources = R"(
 module @TestDialectResources attributes {
   bytecode.test = dense_resource<resource> : tensor<4xi32>
 } {}
 {-#
   dialect_resources: {
     builtin: {
-      resource: "0x1000000001000000020000000300000004000000"
+      resource: "0x2000000001000000020000000300000004000000",
+      resource_2: "0x2000000001000000020000000300000004000000"
     }
   }
 #-}
 )";
+
+struct MockOstream final : public raw_ostream {
+  std::unique_ptr<std::byte[]> buffer;
+  size_t size = 0;
+
+  MOCK_METHOD(void, reserveExtraSpace, (uint64_t extraSpace), (override));
+
+  MockOstream() : raw_ostream(true) {}
+  uint64_t current_pos() const override { return pos; }
+
+private:
+  size_t pos = 0;
+
+  void write_impl(const char *ptr, size_t length) override {
+    if (pos + length <= size) {
+      memcpy((void *)(buffer.get() + pos), ptr, length);
+      pos += length;
+    } else {
+      report_fatal_error(
+          "Attempted to write past the end of the fixed size buffer.");
+    }
+  }
+};
 
 TEST(Bytecode, MultiModuleWithResource) {
   MLIRContext context;
   Builder builder(&context);
   ParserConfig parseConfig(&context);
   OwningOpRef<Operation *> module =
-      parseSourceString<Operation *>(IRWithResources, parseConfig);
+      parseSourceString<Operation *>(irWithResources, parseConfig);
   ASSERT_TRUE(module);
 
-  // Write the module to bytecode
-  std::string buffer;
-  llvm::raw_string_ostream ostream(buffer);
+  // Write the module to bytecode.
+  MockOstream ostream;
+  EXPECT_CALL(ostream, reserveExtraSpace).WillOnce([&](uint64_t space) {
+    ostream.buffer = std::make_unique<std::byte[]>(space);
+    ostream.size = space;
+  });
   ASSERT_TRUE(succeeded(writeBytecodeToFile(module.get(), ostream)));
+
+  // Create copy of buffer which is aligned to requested resource alignment.
+  std::string buffer((char *)ostream.buffer.get(),
+                     (char *)ostream.buffer.get() + ostream.size);
+  constexpr size_t kAlignment = 0x20;
+  size_t bufferSize = buffer.size();
+  buffer.reserve(bufferSize + kAlignment - 1);
+  size_t pad = (~(uintptr_t)buffer.data() + 1) & (kAlignment - 1);
+  buffer.insert(0, pad, ' ');
+  StringRef alignedBuffer(buffer.data() + pad, bufferSize);
 
   // Parse it back
   OwningOpRef<Operation *> roundTripModule =
-      parseSourceString<Operation *>(ostream.str(), parseConfig);
+      parseSourceString<Operation *>(alignedBuffer, parseConfig);
   ASSERT_TRUE(roundTripModule);
 
+  // FIXME: Parsing external resources does not work on big-endian
+  // platforms currently.
+  if (llvm::endianness::native == llvm::endianness::big)
+    GTEST_SKIP();
+
   // Try to see if we have a valid resource in the parsed module.
-  auto checkResourceAttribute = [&](Operation *op) {
-    Attribute attr = roundTripModule->getAttr("bytecode.test");
+  auto checkResourceAttribute = [](Operation *parsedModule) {
+    Attribute attr = parsedModule->getDiscardableAttr("bytecode.test");
     ASSERT_TRUE(attr);
     auto denseResourceAttr = dyn_cast<DenseI32ResourceElementsAttr>(attr);
     ASSERT_TRUE(denseResourceAttr);
@@ -72,4 +115,64 @@ TEST(Bytecode, MultiModuleWithResource) {
 
   checkResourceAttribute(*module);
   checkResourceAttribute(*roundTripModule);
+}
+
+namespace {
+/// A custom operation for the purpose of showcasing how discardable attributes
+/// are handled in absence of properties.
+class OpWithoutProperties : public Op<OpWithoutProperties> {
+public:
+  // Begin boilerplate.
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(OpWithoutProperties)
+  using Op::Op;
+  static ArrayRef<StringRef> getAttributeNames() {
+    static StringRef attributeNames[] = {StringRef("inherent_attr")};
+    return ArrayRef(attributeNames);
+  };
+  static StringRef getOperationName() {
+    return "test_op_properties.op_without_properties";
+  }
+  // End boilerplate.
+};
+
+// A trivial supporting dialect to register the above operation.
+class TestOpPropertiesDialect : public Dialect {
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestOpPropertiesDialect)
+  static constexpr StringLiteral getDialectNamespace() {
+    return StringLiteral("test_op_properties");
+  }
+  explicit TestOpPropertiesDialect(MLIRContext *context)
+      : Dialect(getDialectNamespace(), context,
+                TypeID::get<TestOpPropertiesDialect>()) {
+    addOperations<OpWithoutProperties>();
+  }
+};
+} // namespace
+
+constexpr StringLiteral withoutPropertiesAttrsSrc = R"mlir(
+    "test_op_properties.op_without_properties"()
+      {inherent_attr = 42, other_attr = 56} : () -> ()
+)mlir";
+
+TEST(Bytecode, OpWithoutProperties) {
+  MLIRContext context;
+  context.getOrLoadDialect<TestOpPropertiesDialect>();
+  ParserConfig config(&context);
+  OwningOpRef<Operation *> op =
+      parseSourceString(withoutPropertiesAttrsSrc, config);
+
+  std::string bytecode;
+  llvm::raw_string_ostream os(bytecode);
+  ASSERT_TRUE(succeeded(writeBytecodeToFile(op.get(), os)));
+  std::unique_ptr<Block> block = std::make_unique<Block>();
+  ASSERT_TRUE(succeeded(readBytecodeFile(
+      llvm::MemoryBufferRef(bytecode, "string-buffer"), block.get(), config)));
+  Operation *roundtripped = &block->front();
+  EXPECT_EQ(roundtripped->getAttrs().size(), 2u);
+  EXPECT_TRUE(roundtripped->getInherentAttr("inherent_attr") != std::nullopt);
+  EXPECT_TRUE(roundtripped->getDiscardableAttr("other_attr") != Attribute());
+
+  EXPECT_TRUE(OperationEquivalence::computeHash(op.get()) ==
+              OperationEquivalence::computeHash(roundtripped));
 }

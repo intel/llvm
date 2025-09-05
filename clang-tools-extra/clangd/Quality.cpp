@@ -258,7 +258,7 @@ static SymbolRelevanceSignals::AccessibleScope
 computeScope(const NamedDecl *D) {
   // Injected "Foo" within the class "Foo" has file scope, not class scope.
   const DeclContext *DC = D->getDeclContext();
-  if (auto *R = dyn_cast_or_null<RecordDecl>(D))
+  if (auto *R = dyn_cast_or_null<CXXRecordDecl>(D))
     if (R->isInjectedClassName())
       DC = DC->getParent();
   // Class constructor should have the same scope as the class.
@@ -274,7 +274,8 @@ computeScope(const NamedDecl *D) {
     return SymbolRelevanceSignals::ClassScope;
   // ExternalLinkage threshold could be tweaked, e.g. module-visible as global.
   // Avoid caching linkage if it may change after enclosing code completion.
-  if (hasUnstableLinkage(D) || D->getLinkageInternal() < ExternalLinkage)
+  if (hasUnstableLinkage(D) || llvm::to_underlying(D->getLinkageInternal()) <
+                                   llvm::to_underlying(Linkage::External))
     return SymbolRelevanceSignals::FileScope;
   return SymbolRelevanceSignals::GlobalScope;
 }
@@ -553,7 +554,6 @@ std::string sortText(float Score, llvm::StringRef Name) {
   llvm::write_hex(OS, encodeFloat(-Score), llvm::HexPrintStyle::Lower,
                   /*Width=*/2 * sizeof(Score));
   OS << Name;
-  OS.flush();
   return S;
 }
 

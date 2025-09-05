@@ -106,4 +106,18 @@ program openacc_serial_loop_validity
   end do
   !$acc end serial
 
+  !$acc serial loop
+  do i = 1, n
+    if(i == 10) cycle
+  end do
+
+  !$acc serial loop async(1) device_type(nvidia) async(3)
+  do i = 1, n
+  end do
+
+!ERROR: At most one ASYNC clause can appear on the SERIAL LOOP directive or in group separated by the DEVICE_TYPE clause
+  !$acc serial loop async(1) device_type(nvidia) async async
+  do i = 1, n
+  end do
+
 end program openacc_serial_loop_validity

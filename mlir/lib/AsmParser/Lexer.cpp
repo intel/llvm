@@ -11,13 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "Lexer.h"
+#include "Token.h"
 #include "mlir/AsmParser/CodeComplete.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/Support/LLVM.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SourceMgr.h"
+#include <cassert>
+#include <cctype>
 
 using namespace mlir;
 
@@ -151,7 +157,7 @@ Token Lexer::lexToken() {
         skipComment();
         continue;
       }
-      return emitError(tokStart, "unexpected character");
+      return formToken(Token::slash, tokStart);
 
     case '@':
       return lexAtIdentifier(tokStart);

@@ -7,28 +7,28 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestWorkspace.h"
+#include "clang-include-cleaner/Record.h"
 #include "index/FileIndex.h"
 #include "gtest/gtest.h"
+#include <memory>
 #include <optional>
 
 namespace clang {
 namespace clangd {
 
 std::unique_ptr<SymbolIndex> TestWorkspace::index() {
-  auto Index = std::make_unique<FileIndex>();
+  auto Index = std::make_unique<FileIndex>(/*SupportContainedRefs=*/true);
   for (const auto &Input : Inputs) {
     if (!Input.second.IsMainFile)
       continue;
     TU.Code = Input.second.Code;
     TU.Filename = Input.first().str();
-    TU.preamble(
-        [&](CapturedASTCtx ASTCtx,
-            const std::shared_ptr<const CanonicalIncludes> CanonIncludes) {
-          auto &Ctx = ASTCtx.getASTContext();
-          auto &PP = ASTCtx.getPreprocessor();
-          Index->updatePreamble(testPath(Input.first()), "null", Ctx, PP,
-                                *CanonIncludes);
-        });
+    TU.preamble([&](CapturedASTCtx ASTCtx,
+                    std::shared_ptr<const include_cleaner::PragmaIncludes> PI) {
+      auto &Ctx = ASTCtx.getASTContext();
+      auto &PP = ASTCtx.getPreprocessor();
+      Index->updatePreamble(testPath(Input.first()), "null", Ctx, PP, *PI);
+    });
     ParsedAST MainAST = TU.build();
     Index->updateMain(testPath(Input.first()), MainAST);
   }

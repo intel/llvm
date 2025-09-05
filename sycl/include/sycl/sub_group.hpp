@@ -8,21 +8,18 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/access/access.hpp> // for address_space, decorated
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
-#include <sycl/exception.hpp>                  // for runtime_error, make_e...
+#include <sycl/exception.hpp>                  // for exception, make_error...
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
-#include <sycl/range.hpp>                      // for range
-#include <sycl/types.hpp>                      // for vec
-
-#ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/ext/oneapi/functional.hpp>
-#endif
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp> // for range
 
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for _Swallow_assign, ignore
@@ -33,14 +30,32 @@ inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
-
+template <typename Type, int NumElements> class __SYCL_EBO vec;
 namespace detail {
 
 namespace sub_group {
 
 // Selects 8, 16, 32, or 64-bit type depending on size of scalar type T.
 template <typename T>
-using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
+using SelectBlockT = fixed_width_unsigned<sizeof(T)>;
+
+template <typename MultiPtrTy> auto convertToBlockPtr(MultiPtrTy MultiPtr) {
+  static_assert(is_multi_ptr_v<MultiPtrTy>);
+  auto DecoratedPtr = convertToOpenCLType(MultiPtr);
+  using DecoratedPtrTy = decltype(DecoratedPtr);
+  using ElemTy = remove_decoration_t<std::remove_pointer_t<DecoratedPtrTy>>;
+
+  using TargetElemTy = SelectBlockT<ElemTy>;
+  // TODO: Handle cv qualifiers.
+#ifdef __SYCL_DEVICE_ONLY__
+  using ResultTy =
+      typename DecoratedType<TargetElemTy,
+                             deduce_AS<DecoratedPtrTy>::value>::type *;
+#else
+  using ResultTy = TargetElemTy *;
+#endif
+  return reinterpret_cast<ResultTy>(DecoratedPtr);
+}
 
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
@@ -57,11 +72,7 @@ template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 T load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
-
-  BlockT Ret =
-      __spirv_SubgroupBlockReadINTEL<BlockT>(reinterpret_cast<PtrT>(src.get()));
+  BlockT Ret = __spirv_SubgroupBlockReadINTEL<BlockT>(convertToBlockPtr(src));
 
   return sycl::bit_cast<T>(Ret);
 }
@@ -71,23 +82,17 @@ template <int N, typename T, access::address_space Space,
 vec<T, N> load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
+  VecT Ret = __spirv_SubgroupBlockReadINTEL<VecT>(convertToBlockPtr(src));
 
-  VecT Ret =
-      __spirv_SubgroupBlockReadINTEL<VecT>(reinterpret_cast<PtrT>(src.get()));
-
-  return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
+  return sycl::bit_cast<vec<T, N>>(Ret);
 }
 
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 void store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      multi_ptr<BlockT, Space, DecorateAddress>>;
 
-  __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
+  __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<BlockT>(x));
 }
 
@@ -96,10 +101,8 @@ template <int N, typename T, access::address_space Space,
 void store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) {
   using BlockT = SelectBlockT<T>;
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
 
-  __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
+  __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<VecT>(x));
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -126,12 +129,9 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 } // namespace detail
 
 struct sub_group;
-namespace ext::oneapi {
-inline sycl::sub_group this_sub_group();
-namespace experimental {
-inline sycl::sub_group this_sub_group();
-} // namespace experimental
-} // namespace ext::oneapi
+namespace ext::oneapi::this_work_item {
+inline sycl::sub_group get_sub_group();
+} // namespace ext::oneapi::this_work_item
 
 struct sub_group {
 
@@ -146,10 +146,10 @@ struct sub_group {
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId();
+    return __spirv_BuiltInSubgroupLocalInvocationId();
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -157,35 +157,35 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupSize();
+    return __spirv_BuiltInSubgroupSize();
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
   range_type get_max_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupMaxSize();
+    return __spirv_BuiltInSubgroupMaxSize();
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupId();
+    return __spirv_BuiltInSubgroupId();
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -193,68 +193,17 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_NumSubgroups();
+    return __spirv_BuiltInNumSubgroups();
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T>
-  using EnableIfIsScalarArithmetic =
-      std::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value, T>;
-
-  /* --- one-input shuffles --- */
-  /* indices in [0 , sub_group size) */
-
-  template <typename T> T shuffle(T x, id_type local_id) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffle(x, local_id);
-#else
-    (void)x;
-    (void)local_id;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T> T shuffle_down(T x, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
-#else
-    (void)x;
-    (void)delta;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T> T shuffle_up(T x, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
-#else
-    (void)x;
-    (void)delta;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T> T shuffle_xor(T x, id_type value) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleXor(x, value);
-#else
-    (void)x;
-    (void)value;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -263,6 +212,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<!std::is_same<remove_decoration_t<T>, T>::value, T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
@@ -273,56 +223,62 @@ struct sub_group {
 
   // Method for raw pointer
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<std::is_same<remove_decoration_t<T>, T>::value, T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
 
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     return src[get_local_id()[0]];
-#else  // __NVPTX__
-    auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(src);
-    if (l)
+#else  // __NVPTX__ || __AMDGCN__
+    if (auto l =
+            detail::dynamic_address_cast<access::address_space::local_space>(
+                src))
       return load(l);
 
-    auto g = __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(src);
-    if (g)
+    if (auto g =
+            detail::dynamic_address_cast<access::address_space::global_space>(
+                src))
       return load(g);
 
-    assert(!"Sub-group load() is supported for local or global pointers only.");
+    // Sub-group load() is supported for local or global pointers only.
     return {};
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   T load(CVT *src) const {
     (void)src;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
   }
 #endif //__SYCL_DEVICE_ONLY__
 
   template <typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space, IsDecorated> cv_src) const {
     multi_ptr<T, Space, IsDecorated> src =
         sycl::detail::GetUnqualMultiPtr(cv_src);
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     return src.get()[get_local_id()[0]];
 #else
     return sycl::detail::sub_group::load(src);
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
 #else
     (void)src;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   template <typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space, IsDecorated> cv_src) const {
@@ -332,14 +288,15 @@ struct sub_group {
     return src.get()[get_local_id()[0]];
 #else
     (void)src;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
@@ -352,9 +309,10 @@ struct sub_group {
     }
     return res;
   }
-#else  // __NVPTX__
+#else  // __NVPTX__ || __AMDGCN__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N != 1 && N != 3 && N != 16,
@@ -367,6 +325,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 16,
@@ -381,6 +340,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 3,
@@ -395,6 +355,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 1,
@@ -408,18 +369,20 @@ struct sub_group {
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space, IsDecorated> src) const {
     (void)src;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
   }
 #endif // __SYCL_DEVICE_ONLY__
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
       vec<T, N>>
@@ -434,14 +397,15 @@ struct sub_group {
     return res;
 #else
     (void)src;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
   template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<!std::is_same<remove_decoration_t<T>, T>::value>
   store(T *dst, const remove_decoration_t<T> &x) const {
     store(sycl::multi_ptr<remove_decoration_t<T>,
@@ -452,59 +416,65 @@ struct sub_group {
 
   // Method for raw pointer
   template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<std::is_same<remove_decoration_t<T>, T>::value>
   store(T *dst, const remove_decoration_t<T> &x) const {
 
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     dst[get_local_id()[0]] = x;
-#else  // __NVPTX__
-    auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(dst);
-    if (l) {
+#else  // __NVPTX__ || __AMDGCN__
+    if (auto l =
+            detail::dynamic_address_cast<access::address_space::local_space>(
+                dst)) {
       store(l, x);
       return;
     }
 
-    auto g = __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(dst);
-    if (g) {
+    if (auto g =
+            detail::dynamic_address_cast<access::address_space::global_space>(
+                dst)) {
       store(g, x);
       return;
     }
 
-    assert(
-        !"Sub-group store() is supported for local or global pointers only.");
+    // Sub-group store() is supported for local or global pointers only.
     return;
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
   }
 #else  //__SYCL_DEVICE_ONLY__
-  template <typename T> void store(T *dst, const T &x) const {
+  template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
+  void store(T *dst, const T &x) const {
     (void)dst;
     (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
   }
 #endif //__SYCL_DEVICE_ONLY__
 
   template <typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
     dst.get()[get_local_id()[0]] = x;
 #else
     sycl::detail::sub_group::store(dst, x);
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
 #else
     (void)dst;
     (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
   template <typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const {
@@ -513,15 +483,16 @@ struct sub_group {
 #else
     (void)dst;
     (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) const {
@@ -529,9 +500,10 @@ struct sub_group {
       *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
     }
   }
-#else // __NVPTX__
+#else // __NVPTX__ || __AMDGCN__
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N != 1 && N != 3 && N != 16>
@@ -541,6 +513,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 1>
@@ -550,6 +523,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 3>
@@ -561,6 +535,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 16>
@@ -570,22 +545,24 @@ struct sub_group {
                                         x.hi());
   }
 
-#endif // __NVPTX__
+#endif // __NVPTX__ || __AMDGCN__
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) const {
     (void)dst;
     (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
   }
 #endif // __SYCL_DEVICE_ONLY__
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) const {
@@ -596,12 +573,15 @@ struct sub_group {
 #else
     (void)dst;
     (void)x;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
   /* --- synchronization functions --- */
+  __SYCL_DEPRECATED(
+      "Sub-group barrier with no arguments is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier() const {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
@@ -611,13 +591,14 @@ struct sub_group {
             __spv::MemorySemanticsMask::WorkgroupMemory |
             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
-  __SYCL_DEPRECATED("Sub-group barrier accepting fence_space is deprecated."
-                    "Use barrier() without a fence_space instead.")
+  __SYCL_DEPRECATED(
+      "Sub-group barrier accepting fence_space is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
@@ -625,125 +606,8 @@ struct sub_group {
                            flags);
 #else
     (void)accessSpace;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  /* --- deprecated collective functions --- */
-  template <typename T>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::broadcast instead.")
-  EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
-#else
-    (void)x;
-    (void)local_id;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::reduce instead.")
-  EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<__spv::GroupOperation::Reduce>(
-        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
-#else
-    (void)x;
-    (void)op;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::reduce instead.")
-  EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return op(init, reduce(x, op));
-#else
-    (void)x;
-    (void)init;
-    (void)op;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::exclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
-        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
-#else
-    (void)x;
-    (void)op;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::exclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
-                                               BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    if (get_local_id().get(0) == 0) {
-      x = op(init, x);
-    }
-    T scan = exclusive_scan(x, op);
-    if (get_local_id().get(0) == 0) {
-      scan = init;
-    }
-    return scan;
-#else
-    (void)x;
-    (void)init;
-    (void)op;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::inclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
-        typename sycl::detail::GroupOpTag<T>::type(), *this, x, op);
-#else
-    (void)x;
-    (void)op;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif
-  }
-
-  template <typename T, class BinaryOperation>
-  __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
-                    "sycl::ext::oneapi::inclusive_scan instead.")
-  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
-                                               T init) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    if (get_local_id().get(0) == 0) {
-      x = op(init, x);
-    }
-    return inclusive_scan(x, op);
-#else
-    (void)x;
-    (void)op;
-    (void)init;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -751,8 +615,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -760,8 +624,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -769,8 +633,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return get_local_linear_id() == 0;
 #else
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -781,8 +645,8 @@ struct sub_group {
 #else
     std::ignore = lhs;
     std::ignore = rhs;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
@@ -792,40 +656,20 @@ struct sub_group {
 #else
     std::ignore = lhs;
     std::ignore = rhs;
-    throw runtime_error("Sub-groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Sub-groups are not supported on host.");
 #endif
   }
 
 protected:
   template <int dimensions> friend class sycl::nd_item;
-  friend sub_group ext::oneapi::this_sub_group();
-  friend sub_group ext::oneapi::experimental::this_sub_group();
+  friend sub_group ext::oneapi::this_work_item::get_sub_group();
   sub_group() = default;
 };
 
-namespace ext::oneapi {
-__SYCL_DEPRECATED(
-    "use sycl::ext::oneapi::experimental::this_sub_group() instead")
-inline sycl::sub_group this_sub_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::sub_group();
-#else
-  throw runtime_error("Sub-groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
-#endif
+template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+  return sub_group();
 }
-namespace experimental {
-inline sycl::sub_group this_sub_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::sub_group();
-#else
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Sub-groups are not supported on host.");
-#endif
-}
-} // namespace experimental
-} // namespace ext::oneapi
 
 } // namespace _V1
 } // namespace sycl

@@ -117,7 +117,9 @@ mlir::raw_indented_ostream::printReindented(StringRef str,
   // Skip empty lines.
   while (!output.empty()) {
     auto split = output.split('\n');
-    size_t indent = split.first.find_first_not_of(" \t");
+    // Trim Windows \r characters from \r\n line endings.
+    auto firstTrimmed = split.first.rtrim('\r');
+    size_t indent = firstTrimmed.find_first_not_of(" \t");
     if (indent != StringRef::npos) {
       // Set an initial value.
       leadingWs = indent;
@@ -129,7 +131,8 @@ mlir::raw_indented_ostream::printReindented(StringRef str,
   StringRef remaining = output;
   while (!remaining.empty()) {
     auto split = remaining.split('\n');
-    size_t indent = split.first.find_first_not_of(" \t");
+    auto firstTrimmed = split.first.rtrim('\r');
+    size_t indent = firstTrimmed.find_first_not_of(" \t");
     if (indent != StringRef::npos)
       leadingWs = std::min(leadingWs, static_cast<int>(indent));
     remaining = split.second;
@@ -163,8 +166,7 @@ inline void mlir::raw_indented_ostream::write_impl(const char *ptr,
       break;
     }
 
-    auto split =
-        std::make_pair(str.slice(0, idx), str.slice(idx + 1, StringRef::npos));
+    auto split = std::make_pair(str.substr(0, idx), str.substr(idx + 1));
     // Print empty new line without spaces if line only has spaces and no extra
     // prefix is requested.
     if (!split.first.ltrim().empty() || !currentExtraPrefix.empty())

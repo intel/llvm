@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # ===- gen_std.py -  ------------------------------------------*- python -*--===#
 #
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -215,7 +215,7 @@ def GetCCompatibilitySymbols(symbol):
     # Introduce two more entries, both in the global namespace, one using the
     # C++-compat header and another using the C header.
     results = []
-    if symbol.namespace != None:
+    if symbol.namespace is not None:
         # avoid printing duplicated entries, for C macros!
         results.append(cppreference_parser.Symbol(symbol.name, None, [header]))
     c_header = "<" + header[2:-1] + ".h>"  # <cstdio> => <stdio.h>
@@ -242,6 +242,11 @@ def main():
             (symbol_index_root, "filesystem.html", "std::filesystem::"),
             (symbol_index_root, "pmr.html", "std::pmr::"),
             (symbol_index_root, "ranges.html", "std::ranges::"),
+
+            (symbol_index_root, "views.html", "std::ranges::views::"),
+            # std::ranges::views can be accessed as std::views.
+            (symbol_index_root, "views.html", "std::views::"),
+
             (symbol_index_root, "regex_constants.html", "std::regex_constants::"),
             (symbol_index_root, "this_thread.html", "std::this_thread::"),
             # Zombie symbols that were available from the Standard Library, but are

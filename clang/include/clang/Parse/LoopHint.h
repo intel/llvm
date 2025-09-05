@@ -11,10 +11,10 @@
 
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Sema/Ownership.h"
-#include "clang/Sema/ParsedAttr.h"
 
 namespace clang {
+
+class Expr;
 
 /// Loop optimization hint for loop and unroll pragmas.
 struct LoopHint {

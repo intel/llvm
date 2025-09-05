@@ -1,4 +1,6 @@
 // REQUIRES: aspect-queue_profiling
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/13591
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
@@ -10,12 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Fails there.
-// UNSUPPORTED: opencl && gpu && gpu-intel-pvc
-
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

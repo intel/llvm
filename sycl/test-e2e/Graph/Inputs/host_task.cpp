@@ -3,13 +3,9 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{};
 
   using T = int;
-
-  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
-    return 0;
-  }
 
   const T ModValue = T{7};
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
@@ -66,12 +62,8 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 
@@ -82,7 +74,9 @@ int main() {
   free(PtrB, Queue);
   free(PtrC, Queue);
 
-  assert(Reference == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, Reference[i], DataC[i], "DataC"));
+  }
 
   return 0;
 }

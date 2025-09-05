@@ -3,14 +3,14 @@
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-HOST
 
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -target-cpu sm_70 -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK-DEVICE
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -target-cpu sm_70 -emit-llvm %s -fopenmp-is-target-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK-DEVICE
 
 // Test declare target link under unified memory requirement.
 
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-HOST
 
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -target-cpu sm_70 -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK-DEVICE
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-cuda-mode -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -target-cpu sm_70 -emit-llvm %s -fopenmp-is-target-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s --check-prefix CHECK-DEVICE
 
 // expected-no-diagnostics
 
@@ -47,10 +47,10 @@ int bar(int n){
 // CHECK-HOST: [[OFFLOAD_MAPTYPES:@.+]] = private unnamed_addr constant [2 x i64] [i64 800, i64 800]
 
 // CHECK-HOST: [[OMP_OFFLOAD_ENTRY_LINK_VAR_PTR_NAME:@.+]] = internal unnamed_addr constant [21 x i8]
-// CHECK-HOST: [[OMP_OFFLOAD_ENTRY_LINK_VAR_PTR:@.+]] = weak{{.*}} constant %struct.__tgt_offload_entry { ptr [[VAR_DECL_TGT_LINK_PTR]], ptr [[OMP_OFFLOAD_ENTRY_LINK_VAR_PTR_NAME]], i64 8, i32 1, i32 0 }, section "omp_offloading_entries"
+// CHECK-HOST: [[OMP_OFFLOAD_ENTRY_LINK_VAR_PTR:@.+]] = weak constant %struct.__tgt_offload_entry { i64 0, i16 1, i16 1, i32 1, ptr [[VAR_DECL_TGT_LINK_PTR]], ptr [[OMP_OFFLOAD_ENTRY_LINK_VAR_PTR_NAME]], i64 8, i64 0, ptr null }, section "llvm_offload_entries"
 
 // CHECK-HOST: [[OMP_OFFLOAD_ENTRY_TO_VAR_PTR_NAME:@.+]] = internal unnamed_addr constant [24 x i8]
-// CHECK-HOST: [[OMP_OFFLOAD_ENTRY_TO_VAR_PTR:@.+]] = weak{{.*}} constant %struct.__tgt_offload_entry { ptr [[VAR_DECL_TGT_TO_PTR]], ptr [[OMP_OFFLOAD_ENTRY_TO_VAR_PTR_NAME]], i64 8, i32 0, i32 0 }, section "omp_offloading_entries"
+// CHECK-HOST: [[OMP_OFFLOAD_ENTRY_TO_VAR_PTR:@.+]] = weak constant %struct.__tgt_offload_entry { i64 0, i16 1, i16 1, i32 0, ptr [[VAR_DECL_TGT_TO_PTR]], ptr @.offloading.entry_name.1, i64 8, i64 0, ptr null }, section "llvm_offload_entries"
 
 // CHECK-HOST: [[N_CASTED:%.+]] = alloca i64
 // CHECK-HOST: [[SUM_CASTED:%.+]] = alloca i64

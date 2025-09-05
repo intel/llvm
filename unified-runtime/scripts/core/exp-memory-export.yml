@@ -1,0 +1,145 @@
+#
+# Copyright (C) 2025 Codeplay
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+# Exceptions.
+#
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Memory Export Extension APIs"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support Memory Export."
+name: $x_device_info_t
+etors:
+    - name: MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP
+      value: "0x8000"
+      desc: |-
+            [$x_bool_t] returns true if the device supports the allocation of 
+            exportable linear layout device memory and exporting that memory to
+            an interoperable handle.
+--- #--------------------------------------------------------------------------
+type: function
+desc: |-
+      Allocate an exportable memory region and return a pointer to that
+      allocation.
+class: $xMemoryExport
+name: AllocExportableMemoryExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] Handle to context in which to allocate memory."
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] Handle to device on which to allocate memory."
+    - type: size_t
+      name: alignment
+      desc: "[in] Requested alignment of the allocation."
+    - type: size_t
+      name: size
+      desc: "[in] Requested size of the allocation."
+    - type: $x_exp_external_mem_type_t
+      name: handleTypeToExport
+      desc: |-
+            [in] Type of the memory handle to be exported (e.g. file descriptor,
+            or win32 NT handle).
+    - type: void **
+      name: ppMem
+      desc: "[out][alloc] Pointer to allocated exportable memory."
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`(hDevice == nullptr) || (hContext == nullptr)`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`ppMem == nullptr`"
+    - $X_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
+      - "`alignment != 0 && ((alignment & (alignment-1)) != 0)`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "If `alignment` exceeds largest supported data type by `hDevice`"
+    - $X_RESULT_ERROR_INVALID_USM_SIZE:
+      - "`size == 0`"
+    - $X_RESULT_ERROR_UNSUPPORTED_SIZE:
+      - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE."
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Free an exportable memory allocation."
+class: $xMemoryExport
+name: FreeExportableMemoryExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] Handle to context in which to free memory."
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] Handle to device on which to free memory."
+    - type: void *
+      name: pMem
+      desc: |-
+            [in][release] Pointer to exportable memory to be deallocated.
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`(hDevice == nullptr) || (hContext == nullptr)`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`pMem == nullptr`"
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_DEVICE_LOST
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: |-
+      Obtain an exportable handle to a memory allocated with 
+      `AllocExportableMemoryExp`.
+      The returned external memory type will be that which was specified upon
+      allocation of the exportable memory (e.g. `opaque_fd` or
+      `win32_nt_handle`).
+class: $xMemoryExport
+name: ExportMemoryHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: |-
+            [in] Handle to context in which the exportable memory was allocated.
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: |-
+            [in] Handle to device on which the exportable memory was allocated.
+    - type: $x_exp_external_mem_type_t
+      name: handleTypeToExport
+      desc: |-
+            [in] Type of the memory handle to be exported (e.g. file descriptor,
+            or win32 NT handle).
+    - type: void *
+      name: pMem
+      desc: "[in] Pointer to exportable memory handle."
+    - type: void *
+      name: pMemHandleRet
+      desc: "[out] Returned exportable handle to memory allocated in `pMem`"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`(hDevice == nullptr) || (hContext == nullptr)`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`pMemHandleRet == nullptr || pMem == nullptr`"
+    - $X_RESULT_ERROR_INVALID_ENUMERATION
+    - $X_RESULT_ERROR_DEVICE_LOST
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_DEVICE_MEMORY

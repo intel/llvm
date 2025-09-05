@@ -52,6 +52,28 @@ int main() {
       sycl::ext::oneapi::experimental::foo(42),
       sycl::ext::oneapi::experimental::foz(3.14, false)};
 
+  // Constructing using a subset of properties in the type.
+  constexpr decltype(sycl::ext::oneapi::experimental::properties{
+      sycl::ext::oneapi::experimental::bar,
+      sycl::ext::oneapi::experimental::foo(42),
+      sycl::ext::oneapi::experimental::foz(3.14, false)}) SubsetCtorProps1{
+      sycl::ext::oneapi::experimental::foo(42),
+      sycl::ext::oneapi::experimental::foz(3.14, false)};
+  constexpr decltype(sycl::ext::oneapi::experimental::properties{
+      sycl::ext::oneapi::experimental::bar,
+      sycl::ext::oneapi::experimental::foo(42),
+      sycl::ext::oneapi::experimental::foz(3.14, false)}) SubsetCtorProps2{
+      sycl::ext::oneapi::experimental::bar,
+      sycl::ext::oneapi::experimental::foz(3.14, false)};
+  constexpr decltype(sycl::ext::oneapi::experimental::properties{
+      sycl::ext::oneapi::experimental::bar,
+      sycl::ext::oneapi::experimental::foo(42),
+      sycl::ext::oneapi::experimental::foz(3.14, false)}) SubsetCtorProps3{
+      sycl::ext::oneapi::experimental::foz(3.14, false)};
+  constexpr decltype(sycl::ext::oneapi::experimental::properties{
+      sycl::ext::oneapi::experimental::bar,
+      sycl::ext::oneapi::experimental::foo(42)}) SubsetCtorProps4{};
+
   // Runtime value property without constexpr ctors
   // expected-error@+2 {{constexpr variable cannot have non-literal type}}
   constexpr decltype(sycl::ext::oneapi::experimental::properties{

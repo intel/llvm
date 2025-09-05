@@ -1,5 +1,5 @@
 ; Verify that forward declarations from call instructions work even with non-zero AS
-; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers - | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis - | FileCheck %s
 
 define void @call_named() {
 entry:
@@ -33,7 +33,7 @@ return:
 
 declare i32 @foo() addrspace(40)
 ; CHECK: declare i32 @foo() addrspace(40)
-declare i32 @named(i16* nocapture) addrspace(40)
-; CHECK: declare i32 @named(ptr nocapture) addrspace(40)
+declare i32 @named(i16* captures(none)) addrspace(40)
+; CHECK: declare i32 @named(ptr captures(none)) addrspace(40)
 declare i32 @0(i16*) addrspace(40)
 ; CHECK: declare i32 @0(ptr) addrspace(40)

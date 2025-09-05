@@ -30,6 +30,8 @@ if.end:                                           ; preds = %if.then, %entry
 
 define coldcc void @foo_private_ptr2(ptr addrspace(5) nocapture %p1, ptr addrspace(5) nocapture %p2) {
 entry:
+  call void @forbid_sroa(ptr addrspace(5) %p1)
+  call void @forbid_sroa(ptr addrspace(5) %p2)
   %tmp1 = load float, ptr addrspace(5) %p1, align 4
   %cmp = fcmp ogt float %tmp1, 1.000000e+00
   br i1 %cmp, label %if.then, label %if.end
@@ -59,7 +61,7 @@ entry:
 
 ; GCN: define amdgpu_kernel void @test_inliner(
 ; GCN-INL1:     %c1 = tail call coldcc float @foo(
-; GCN-INLDEF:   %cmp.i = fcmp ogt float %tmp2, 0.000000e+00
+; GCN-INLDEF:   %cmp.i = fcmp ogt float %{{.+}}, 0.000000e+00
 ; GCN-MAXBBDEF: %div.i{{[0-9]*}} = fdiv float 1.000000e+00, %c
 ; GCN-MAXBBDEF: %div.i{{[0-9]*}} = fdiv float 2.000000e+00, %tmp1.i
 ; GCN-MAXBB1:   call coldcc void @foo_private_ptr
@@ -160,7 +162,7 @@ entry:
   br label %bb.1
 
 bb.1:
-  store float 1.0, ptr undef
+  store float 1.0, ptr poison
   br label %bb.2
 
 bb.2:
@@ -171,6 +173,7 @@ bb.2:
 
 declare i32 @llvm.amdgcn.workitem.id.x() #1
 declare float @_Z3sinf(float) #1
+declare void @forbid_sroa(ptr addrspace(5) nocapture %p)
 
 attributes #0 = { noinline }
 attributes #1 = { nounwind readnone }

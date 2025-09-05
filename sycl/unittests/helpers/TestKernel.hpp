@@ -8,24 +8,66 @@
 
 #pragma once
 
+#include "MockDeviceImage.hpp"
 #include "MockKernelInfo.hpp"
-#include "PiImage.hpp"
+#include <sycl/stream.hpp>
 
-template <size_t KernelSize = 1> class TestKernel;
+class TestKernel;
+class TestKernelWithAcc;
+class TestKernelWithStream;
+class TestKernelWithPtr;
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <size_t KernelSize>
-struct KernelInfo<TestKernel<KernelSize>>
-    : public unittest::MockKernelInfoBase {
+template <>
+struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr int64_t getKernelSize() { return KernelSize; }
+  static constexpr int64_t getKernelSize() { return 1; }
   static constexpr const char *getFileName() { return "TestKernel.hpp"; }
   static constexpr const char *getFunctionName() {
     return "TestKernelFunctionName";
   }
-  static constexpr unsigned getLineNumber() { return 13; }
+  static constexpr unsigned getLineNumber() { return 14; }
+  static constexpr unsigned getColumnNumber() { return 8; }
+};
+
+template <>
+struct KernelInfo<TestKernelWithAcc> : public unittest::MockKernelInfoBase {
+  static constexpr const char *getName() { return "TestKernelWithAcc"; }
+  static constexpr int64_t getKernelSize() {
+    return sizeof(sycl::accessor<int, 0, sycl::access::mode::read_write,
+                                 sycl::target::device>);
+  }
+  static constexpr const char *getFileName() { return "TestKernel.hpp"; }
+  static constexpr const char *getFunctionName() {
+    return "TestKernelWithAccFunctionName";
+  }
+  static constexpr unsigned getLineNumber() { return 15; }
+  static constexpr unsigned getColumnNumber() { return 8; }
+};
+
+template <>
+struct KernelInfo<TestKernelWithStream> : public unittest::MockKernelInfoBase {
+  static constexpr const char *getName() { return "TestKernelWithStream"; }
+  static constexpr int64_t getKernelSize() { return sizeof(sycl::stream); }
+  static constexpr const char *getFileName() { return "TestKernel.hpp"; }
+  static constexpr const char *getFunctionName() {
+    return "TestKernelWithStreamFunctionName";
+  }
+  static constexpr unsigned getLineNumber() { return 15; }
+  static constexpr unsigned getColumnNumber() { return 8; }
+};
+
+template <>
+struct KernelInfo<TestKernelWithPtr> : public unittest::MockKernelInfoBase {
+  static constexpr const char *getName() { return "TestKernelWithPtr"; }
+  static constexpr int64_t getKernelSize() { return sizeof(void *); }
+  static constexpr const char *getFileName() { return "TestKernel.hpp"; }
+  static constexpr const char *getFunctionName() {
+    return "TestKernelWithPtrFunctionName";
+  }
+  static constexpr unsigned getLineNumber() { return 16; }
   static constexpr unsigned getColumnNumber() { return 8; }
 };
 
@@ -33,25 +75,9 @@ struct KernelInfo<TestKernel<KernelSize>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Imgs[] = {
+    sycl::unittest::generateDefaultImage({"TestKernel"}),
+    sycl::unittest::generateDefaultImage({"TestKernelWithAcc"}),
+    sycl::unittest::generateDefaultImage({"TestKernelWithStream"}),
+    sycl::unittest::generateDefaultImage({"TestKernelWithPtr"})};
+static sycl::unittest::MockDeviceImageArray<4> ImgArray{Imgs};

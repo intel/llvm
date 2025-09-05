@@ -23,6 +23,7 @@ struct Section {
   // For now, each section is only an opaque binary blob with no distinction
   // between custom and known sections.
   uint8_t SectionType;
+  std::optional<uint8_t> HeaderSecSizeEncodingLen;
   StringRef Name;
   ArrayRef<uint8_t> Contents;
 };
@@ -31,6 +32,7 @@ struct Object {
   llvm::wasm::WasmObjectHeader Header;
   // For now don't discriminate between kinds of sections.
   std::vector<Section> Sections;
+  bool isRelocatableObject = false;
 
   void addSectionWithOwnedContents(Section NewSection,
                                    std::unique_ptr<MemoryBuffer> &&Content);

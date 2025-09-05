@@ -10,11 +10,11 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -39,12 +39,11 @@ class SYCLMemObjI;
 
 class Command;
 
-class __SYCL_EXPORT AccessorImplHost {
+class AccessorImplHost {
 public:
-  // TODO: Remove when ABI break is allowed.
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, int OffsetInBytes = 0,
+                   int ElemSize, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {})
       : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
@@ -55,7 +54,7 @@ public:
 
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {})
       : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
@@ -110,7 +109,7 @@ public:
 
   unsigned int MDims;
   unsigned int MElemSize;
-  unsigned int MOffsetInBytes;
+  size_t MOffsetInBytes;
   bool MIsSubBuffer;
 
   void *&MData = MAccData.MData;
@@ -128,20 +127,18 @@ public:
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 
-class __SYCL_EXPORT LocalAccessorImplHost {
+class LocalAccessorImplHost {
 public:
   // Allocate ElemSize more data to have sufficient padding to enforce
   // alignment.
   LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize,
                         const property_list &PropertyList)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
-        MMem(Size[0] * Size[1] * Size[2] * ElemSize + ElemSize),
         MPropertyList(PropertyList) {}
 
   sycl::range<3> MSize;
   int MDims;
   int MElemSize;
-  std::vector<char> MMem;
   property_list MPropertyList;
 };
 

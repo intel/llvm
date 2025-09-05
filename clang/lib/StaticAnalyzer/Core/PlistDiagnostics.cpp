@@ -13,7 +13,6 @@
 #include "clang/Analysis/IssueHash.h"
 #include "clang/Analysis/MacroExpansionContext.h"
 #include "clang/Analysis/PathDiagnostic.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/PlistSupport.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Version.h"
@@ -23,10 +22,8 @@
 #include "clang/Lex/TokenConcatenation.h"
 #include "clang/Rewrite/Core/HTMLRewrite.h"
 #include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Support/Casting.h"
 #include <memory>
 #include <optional>
 
@@ -367,10 +364,8 @@ void PlistPrinter::ReportMacroSubPieces(raw_ostream &o,
                                         unsigned indent, unsigned depth) {
   MacroPieces.push_back(&P);
 
-  for (PathPieces::const_iterator I = P.subPieces.begin(),
-                                  E = P.subPieces.end();
-       I != E; ++I) {
-    ReportPiece(o, **I, indent, depth, /*includeControlFlow*/ false);
+  for (const auto &SubPiece : P.subPieces) {
+    ReportPiece(o, *SubPiece, indent, depth, /*includeControlFlow*/ false);
   }
 
   assert(P.getFixits().size() == 0 &&
@@ -500,12 +495,12 @@ static void printCoverage(const PathDiagnostic *D,
 
   // Mapping from file IDs to executed lines.
   const FilesToLineNumsMap &ExecutedLines = D->getExecutedLines();
-  for (auto I = ExecutedLines.begin(), E = ExecutedLines.end(); I != E; ++I) {
-    unsigned FileKey = AddFID(FM, Fids, I->first);
+  for (const auto &[FID, Lines] : ExecutedLines) {
+    unsigned FileKey = AddFID(FM, Fids, FID);
     Indent(o, IndentLevel) << "<key>" << FileKey << "</key>\n";
     Indent(o, IndentLevel) << "<array>\n";
     IndentLevel++;
-    for (unsigned LineNo : I->second) {
+    for (unsigned LineNo : Lines) {
       Indent(o, IndentLevel);
       EmitInteger(o, LineNo) << "\n";
     }
@@ -543,9 +538,9 @@ void ento::createPlistDiagnosticConsumer(
   if (OutputFile.empty())
     return;
 
-  C.push_back(new PlistDiagnostics(DiagOpts, OutputFile, PP, CTU,
-                                   MacroExpansions,
-                                   /*supportsMultipleFiles=*/false));
+  C.push_back(std::make_unique<PlistDiagnostics>(
+      DiagOpts, OutputFile, PP, CTU, MacroExpansions,
+      /*supportsMultipleFiles=*/false));
   createTextMinimalPathDiagnosticConsumer(std::move(DiagOpts), C, OutputFile,
                                           PP, CTU, MacroExpansions);
 }
@@ -560,9 +555,9 @@ void ento::createPlistMultiFileDiagnosticConsumer(
   if (OutputFile.empty())
     return;
 
-  C.push_back(new PlistDiagnostics(DiagOpts, OutputFile, PP, CTU,
-                                   MacroExpansions,
-                                   /*supportsMultipleFiles=*/true));
+  C.push_back(std::make_unique<PlistDiagnostics>(
+      DiagOpts, OutputFile, PP, CTU, MacroExpansions,
+      /*supportsMultipleFiles=*/true));
   createTextMinimalPathDiagnosticConsumer(std::move(DiagOpts), C, OutputFile,
                                           PP, CTU, MacroExpansions);
 }
@@ -576,8 +571,8 @@ void PlistDiagnostics::printBugPath(llvm::raw_ostream &o, const FIDMap &FM,
                              }) &&
          "PathDiagnostic is not partitioned so that notes precede the rest");
 
-  PathPieces::const_iterator FirstNonNote = std::partition_point(
-      Path.begin(), Path.end(), [](const PathDiagnosticPieceRef &E) {
+  PathPieces::const_iterator FirstNonNote =
+      llvm::partition_point(Path, [](const PathDiagnosticPieceRef &E) {
         return E->getKind() == PathDiagnosticPiece::Note;
       });
 
@@ -597,8 +592,8 @@ void PlistDiagnostics::printBugPath(llvm::raw_ostream &o, const FIDMap &FM,
 
   o << "   <array>\n";
 
-  for (PathPieces::const_iterator E = Path.end(); I != E; ++I)
-    Printer.ReportDiag(o, **I);
+  for (const auto &Piece : llvm::make_range(I, Path.end()))
+    Printer.ReportDiag(o, *Piece);
 
   o << "   </array>\n";
 
@@ -806,7 +801,7 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
   o << " <key>files</key>\n"
        " <array>\n";
   for (FileID FID : Fids)
-    EmitString(o << "  ", SM.getFileEntryForID(FID)->getName()) << '\n';
+    EmitString(o << "  ", SM.getFileEntryRefForID(FID)->getName()) << '\n';
   o << " </array>\n";
 
   if (llvm::AreStatisticsEnabled() && DiagOpts.ShouldSerializeStats) {
@@ -814,7 +809,6 @@ void PlistDiagnostics::FlushDiagnosticsImpl(
     std::string stats;
     llvm::raw_string_ostream os(stats);
     llvm::PrintStatisticsJSON(os);
-    os.flush();
     EmitString(o, html::EscapeText(stats)) << '\n';
   }
 

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "UnaryStaticAssertCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
@@ -21,7 +20,8 @@ void UnaryStaticAssertCheck::registerMatchers(MatchFinder *Finder) {
 void UnaryStaticAssertCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *MatchedDecl =
       Result.Nodes.getNodeAs<StaticAssertDecl>("static_assert");
-  const StringLiteral *AssertMessage = MatchedDecl->getMessage();
+  const auto *AssertMessage =
+      dyn_cast_if_present<StringLiteral>(MatchedDecl->getMessage());
 
   SourceLocation Loc = MatchedDecl->getLocation();
 

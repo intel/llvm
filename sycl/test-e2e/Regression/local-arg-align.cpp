@@ -2,8 +2,8 @@
 //
 // RUN: %{run} %t.out
 
-// FIXME: enable opaque pointers support
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: system-windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10682
 
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
@@ -14,7 +14,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+#include <sycl/vector.hpp>
 
 using namespace sycl;
 

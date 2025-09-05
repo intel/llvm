@@ -21,15 +21,18 @@ namespace llvm {
 
 class GCNSubtarget;
 class MachineMemOperand;
-
-class AMDGPUInstrInfo {
-public:
-  explicit AMDGPUInstrInfo(const GCNSubtarget &st);
-
-  static bool isUniformMMO(const MachineMemOperand *MMO);
-};
+class MachineInstr;
 
 namespace AMDGPU {
+
+bool isUniformMMO(const MachineMemOperand *MMO);
+
+/// Return the intrinsic ID for opcodes with the G_AMDGPU_INTRIN_ prefix.
+///
+/// These opcodes have an Intrinsic::ID operand similar to a GIntrinsic. But
+/// they are not actual instances of GIntrinsics, so we cannot use
+/// GIntrinsic::getIntrinsicID() on them.
+Intrinsic::ID getIntrinsicID(const MachineInstr &I);
 
 struct RsrcIntrinsic {
   unsigned Intr;

@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 
@@ -15,21 +16,19 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-using namespace sycl::ext::intel::esimd::detail;
 using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental::esimd::detail;
 
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           bool Transposed = false, bool Transformed = false,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           bool use_prefetch = false>
 bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           int X, int Y) {
 
   constexpr int N =
-      get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth,
-                                 Transposed, Transformed>();
+      sycl::ext::intel::experimental::esimd::detail::get_lsc_block_2d_data_size<
+          T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>();
   /* Due to store_2d a is subject to stricter restrictions:
    *   NBlocks always 1, no Transposed, no Transformed, max BlockHeight 8.
    * Series of 2d stores with height 1 are used to write loaded data to output
@@ -37,10 +36,16 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
    * and rounds up BlockHeight.
    */
   constexpr int SH = Transformed
-                         ? roundUpNextMultiple<BlockHeight, 4 / sizeof(T)>()
+                         ? sycl::ext::intel::esimd::detail::roundUpNextMultiple<
+                               BlockHeight, 4 / sizeof(T)>()
                          : BlockHeight;
-  constexpr int SW = Transformed ? getNextPowerOf2<BlockWidth>() : BlockWidth;
-  constexpr int SN = get_lsc_block_2d_data_size<T, 1u, 1u, SW, false, false>();
+  constexpr int SW =
+      Transformed
+          ? sycl::ext::intel::esimd::detail::getNextPowerOf2<BlockWidth>()
+          : BlockWidth;
+  constexpr int SN =
+      sycl::ext::intel::experimental::esimd::detail::get_lsc_block_2d_data_size<
+          T, 1u, 1u, SW, false, false>();
 
   std::cout << "N  = " << N << std::endl;
   std::cout << "SN = " << SN << std::endl;
@@ -85,14 +90,14 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
 
             simd<T, N> vals;
             if constexpr (use_prefetch) {
-              lsc_prefetch_2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L3H>(
+              lsc_prefetch_2d<T, BlockWidth, BlockHeight, NBlocks, L1H, L2H>(
                   in + off, width, height, pitch, X, Y);
               vals = lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks,
                                  Transposed, Transformed>(in + off, width,
                                                           height, pitch, X, Y);
             } else {
               vals = lsc_load_2d<T, BlockWidth, BlockHeight, NBlocks,
-                                 Transposed, Transformed, L1H, L3H>(
+                                 Transposed, Transformed, L1H, L2H>(
                   in + off, width, height, pitch, X, Y);
             }
 

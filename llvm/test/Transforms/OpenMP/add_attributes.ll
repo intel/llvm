@@ -589,6 +589,8 @@ declare i32 @__kmpc_omp_task_with_deps(ptr, i32, ptr, i32, ptr, i32, ptr)
 
 declare void @__kmpc_omp_wait_deps(ptr, i32, i32, ptr, i32, ptr)
 
+declare void @__kmpc_omp_taskwait_deps_51(ptr, i32, i32, ptr, i32, ptr, i32)
+
 declare i32 @__kmpc_cancellationpoint(ptr, i32, i32)
 
 declare void @__kmpc_push_num_teams(ptr, i32, i32, i32)
@@ -641,19 +643,17 @@ declare i32 @__tgt_target_teams_mapper(ptr, i64, ptr, i32, ptr, ptr, ptr, ptr, p
 
 declare i32 @__tgt_target_teams_nowait_mapper(ptr, i64, ptr, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, i32, i32, ptr, i32, ptr)
 
-declare void @__tgt_register_requires(i64)
-
 declare void @__tgt_target_data_begin_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
-declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 declare void @__tgt_target_data_end_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
-declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 declare void @__tgt_target_data_update_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
-declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 declare i64 @__tgt_mapper_num_components(ptr)
 
@@ -670,7 +670,7 @@ declare ptr @__kmpc_task_reduction_modifier_init(ptr, i32, i32, i32, ptr)
 declare void @__kmpc_proxy_task_completed_ooo(ptr)
 
 ; Function Attrs: noinline cold
-declare void @__kmpc_barrier_simple_spmd(ptr nocapture nofree readonly, i32) #0
+declare void @__kmpc_barrier_simple_spmd(ptr nofree readonly captures(none), i32) #0
 
 attributes #0 = { noinline cold }
 
@@ -722,11 +722,9 @@ declare void @__kmpc_kernel_prepare_parallel(ptr);
 
 declare i32 @__kmpc_masked(ptr, i32, i32);
 
-declare void @__kmpc_nvptx_end_reduce_nowait(i32);
+declare i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i64, ptr, ptr, ptr);
 
-declare i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i32, i32, i64, ptr, ptr, ptr);
-
-declare i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, i32, ptr, i32, ptr, ptr, ptr, ptr, ptr, ptr, ptr);
+declare i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, ptr, i32, i64, ptr, ptr, ptr, ptr, ptr, ptr, ptr);
 
 declare i32 @__kmpc_omp_reg_task_with_affinity(ptr, i32, ptr, i32, ptr);
 
@@ -736,9 +734,9 @@ declare i32 @__kmpc_shuffle_int32(i32, i16, i16);
 
 declare i64 @__kmpc_shuffle_int64(i64, i16, i16);
 
-declare void @__kmpc_target_deinit(ptr, i8);
+declare void @__kmpc_target_deinit();
 
-declare i32 @__kmpc_target_init(ptr, i8, i1);
+declare i32 @__kmpc_target_init(ptr, ptr);
 
 declare void @__tgt_interop_destroy(ptr, i32, ptr, i32, i32, ptr, i32);
 
@@ -816,7 +814,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK-NEXT: declare dso_local i32 @omp_get_max_active_levels()
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare dso_local void @omp_get_schedule(ptr nocapture writeonly, ptr nocapture writeonly)
+; CHECK-NEXT: declare dso_local void @omp_get_schedule(ptr writeonly captures(none), ptr writeonly captures(none))
 
 ; CHECK-NOT: Function Attrs
 ; CHECK: declare dso_local i32 @omp_get_max_task_priority()
@@ -924,7 +922,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK: declare dso_local i32 @omp_get_place_num_procs(i32)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare dso_local void @omp_get_place_proc_ids(i32, ptr nocapture writeonly)
+; CHECK-NEXT: declare dso_local void @omp_get_place_proc_ids(i32, ptr writeonly captures(none))
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare dso_local i32 @omp_get_place_num()
@@ -1101,7 +1099,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK-NEXT: declare void @__kmpc_end_single(ptr, i32)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare ptr @__kmpc_omp_task_alloc(ptr, i32, i32, i64, i64, ptr)
+; CHECK-NEXT: declare noalias ptr @__kmpc_omp_task_alloc(ptr, i32, i32, i64, i64, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare i32 @__kmpc_omp_task(ptr, i32, ptr)
@@ -1185,7 +1183,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK-NEXT: declare void @__kmpc_taskloop(ptr, i32, ptr, i32, ptr, ptr, i64, i32, i32, i64, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare ptr @__kmpc_omp_target_task_alloc(ptr, i32, i32, i64, i64, ptr, i64)
+; CHECK-NEXT: declare noalias ptr @__kmpc_omp_target_task_alloc(ptr, i32, i32, i64, i64, ptr, i64)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare ptr @__kmpc_taskred_modifier_init(ptr, i32, i32, i32, ptr)
@@ -1218,7 +1216,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK-NEXT: declare void @__kmpc_doacross_fini(ptr, i32)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare ptr @__kmpc_alloc(i32, i64, ptr)
+; CHECK-NEXT: declare noalias ptr @__kmpc_alloc(i32, i64, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare void @__kmpc_free(i32, ptr, ptr)
@@ -1251,25 +1249,22 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK-NEXT: declare i32 @__tgt_target_teams_nowait_mapper(ptr, i64, ptr, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, i32, i32, ptr, i32, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare void @__tgt_register_requires(i64)
-
-; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare void @__tgt_target_data_begin_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+; CHECK-NEXT: declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare void @__tgt_target_data_end_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+; CHECK-NEXT: declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare void @__tgt_target_data_update_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+; CHECK-NEXT: declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare i64 @__tgt_mapper_num_components(ptr)
@@ -1293,13 +1288,13 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK-NEXT: declare void @__kmpc_proxy_task_completed_ooo(ptr)
 
 ; CHECK: ; Function Attrs: cold convergent noinline nounwind
-; CHECK-NEXT: declare void @__kmpc_barrier_simple_spmd(ptr nocapture nofree readonly, i32)
+; CHECK-NEXT: declare void @__kmpc_barrier_simple_spmd(ptr nofree readonly captures(none), i32)
 
 ; CHECK: ; Function Attrs: nounwind
-; CHECK-NEXT: declare ptr @__kmpc_aligned_alloc(i32, i64, i64, ptr)
+; CHECK-NEXT: declare noalias ptr @__kmpc_aligned_alloc(i32, i64, i64, ptr)
 
 ; CHECK: ; Function Attrs: nosync nounwind allocsize(0)
-; CHECK-NEXT: declare ptr @__kmpc_alloc_shared(i64)
+; CHECK-NEXT: declare noalias ptr @__kmpc_alloc_shared(i64)
 
 ; CHECK: ; Function Attrs: convergent nounwind
 ; CHECK: declare void @__kmpc_barrier_simple_generic(ptr, i32)
@@ -1335,7 +1330,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK: declare void @__kmpc_fork_call_if(ptr, i32, ptr, i32, ptr)
 
 ; CHECK: ; Function Attrs: nosync nounwind
-; CHECK-NEXT: declare void @__kmpc_free_shared(ptr allocptr nocapture, i64)
+; CHECK-NEXT: declare void @__kmpc_free_shared(ptr allocptr captures(none), i64)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK-NEXT: declare i32 @__kmpc_get_hardware_num_blocks()
@@ -1368,13 +1363,10 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK: declare i32 @__kmpc_masked(ptr, i32, i32)
 
 ; CHECK-NOT: Function Attrs
-; CHECK: declare void @__kmpc_nvptx_end_reduce_nowait(i32)
+; CHECK: declare i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i64, ptr, ptr, ptr)
 
 ; CHECK-NOT: Function Attrs
-; CHECK: declare i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i32, i32, i64, ptr, ptr, ptr)
-
-; CHECK-NOT: Function Attrs
-; CHECK: declare i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, i32, ptr, i32, ptr, ptr, ptr, ptr, ptr, ptr, ptr)
+; CHECK: declare i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, ptr, i32, i64, ptr, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; CHECK: ; Function Attrs: nounwind
 ; CHECK: declare i32 @__kmpc_omp_reg_task_with_affinity(ptr, i32, ptr, i32, ptr)
@@ -1389,10 +1381,10 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; CHECK: declare i64 @__kmpc_shuffle_int64(i64, i16, i16)
 
 ; CHECK-NOT: Function Attrs
-; CHECK: declare void @__kmpc_target_deinit(ptr, i8)
+; CHECK: declare void @__kmpc_target_deinit()
 
 ; CHECK-NOT: Function Attrs
-; CHECK: declare i32 @__kmpc_target_init(ptr, i8, i1)
+; CHECK: declare i32 @__kmpc_target_init(ptr, ptr)
 
 ; CHECK-NOT: Function Attrs
 ; CHECK: declare void @__tgt_interop_destroy(ptr, i32, ptr, i32, i32, ptr, i32)
@@ -1475,8 +1467,8 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare dso_local i32 @omp_get_max_active_levels()
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare dso_local void @omp_get_schedule(ptr nocapture writeonly, ptr nocapture writeonly)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare dso_local void @omp_get_schedule(ptr writeonly captures(none), ptr writeonly captures(none))
 
 ; OPTIMISTIC-NOT: Function Attrs
 ; OPTIMISTIC: declare dso_local i32 @omp_get_max_task_priority()
@@ -1517,7 +1509,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC-NOT: Function Attrs
 ; OPTIMISTIC: declare dso_local void @omp_init_nest_lock_with_hint(ptr, i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare dso_local double @omp_get_wtime()
 
 ; OPTIMISTIC-NOT: Function Attrs
@@ -1583,8 +1575,8 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC-NOT: Function Attrs
 ; OPTIMISTIC: declare dso_local i32 @omp_get_place_num_procs(i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare dso_local void @omp_get_place_proc_ids(i32, ptr nocapture writeonly)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare dso_local void @omp_get_place_proc_ids(i32, ptr writeonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare dso_local i32 @omp_get_place_num()
@@ -1592,7 +1584,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare dso_local i32 @omp_get_partition_num_places()
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare dso_local void @omp_get_partition_place_nums(ptr)
 
 ; OPTIMISTIC-NOT: Function Attrs
@@ -1640,230 +1632,230 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare dso_local i32 @omp_get_supported_active_levels()
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_global_thread_num(ptr nocapture nofree readonly)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: read, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_global_thread_num(ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_fork_call(ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly, ...)
+; OPTIMISTIC-NEXT: declare void @__kmpc_fork_call(ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none), ...)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_taskwait(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_taskwait(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_taskyield(ptr nocapture nofree readonly, i32, i32)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_taskyield(ptr nofree readonly captures(none), i32, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_push_num_threads(ptr nocapture nofree readonly, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_push_num_threads(ptr nofree readonly captures(none), i32, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_push_proc_bind(ptr nocapture nofree readonly, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_push_proc_bind(ptr nofree readonly captures(none), i32, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_serialized_parallel(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_serialized_parallel(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_serialized_parallel(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_serialized_parallel(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_master(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_master(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_master(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_master(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_critical(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_critical(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_critical_with_hint(ptr nocapture nofree readonly, i32, ptr, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_critical_with_hint(ptr nofree readonly captures(none), i32, ptr, i32)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_critical(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_critical(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_begin(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_begin(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_end(ptr nocapture nofree readonly)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end(ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_reduce(ptr nocapture nofree readonly, i32, i32, i64, ptr nocapture nofree readonly, ptr, ptr)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_reduce(ptr nofree readonly captures(none), i32, i32, i64, ptr nofree readonly captures(none), ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_reduce_nowait(ptr nocapture nofree readonly, i32, i32, i64, ptr nocapture nofree readonly, ptr, ptr)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_reduce_nowait(ptr nofree readonly captures(none), i32, i32, i64, ptr nofree readonly captures(none), ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_reduce(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_reduce(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_reduce_nowait(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_reduce_nowait(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_ordered(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_ordered(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_ordered(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_ordered(ptr nofree readonly captures(none), i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_4(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_4u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_8(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_8u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_4(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_fini(ptr nofree readonly captures(none), i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_4u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_4(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_8(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_4u(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_init_8u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_8(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_for_static_fini(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_8u(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_4(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_4(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_4u(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_4u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_8(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_8(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
 
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_team_static_init_8u(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_4(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_4u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_8(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_8u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_for_static_init_8u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_single(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_single(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_single(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_single(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_omp_task_alloc(ptr nocapture nofree readonly, i32, i32, i64, i64, ptr nocapture nofree readonly)
+; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_omp_task_alloc(ptr nofree readonly captures(none), i32, i32, i64, i64, ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_task(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_task(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_end_taskgroup(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_end_taskgroup(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_taskgroup(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_taskgroup(ptr nofree readonly captures(none), i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_4(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), i32, i32, i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_4u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), i32, i32, i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_8(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), i64, i64, i64, i64)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_8u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), i64, i64, i64, i64)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_4(ptr nofree readonly captures(none), i32, i32, i32, i32, i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_4u(ptr nofree readonly captures(none), i32, i32, i32, i32, i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_8(ptr nofree readonly captures(none), i32, i32, i64, i64, i64, i64)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_8u(ptr nofree readonly captures(none), i32, i32, i64, i64, i64, i64)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_4(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none))
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_4u(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none))
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_8(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none))
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_8u(ptr nofree readonly captures(none), i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_4(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, i32, i32, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_4(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_4u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, i32, i32, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_4u(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_8(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, i64, i64, i64, i64)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_8(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dist_dispatch_init_8u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, i64, i64, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_4(ptr nocapture nofree readonly, i32, i32, i32, i32, i32, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_4u(ptr nocapture nofree readonly, i32, i32, i32, i32, i32, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_8(ptr nocapture nofree readonly, i32, i32, i64, i64, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_init_8u(ptr nocapture nofree readonly, i32, i32, i64, i64, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_4(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_4u(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_8(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_dispatch_next_8u(ptr nocapture nofree readonly, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_4(ptr nocapture nofree readonly, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_4u(ptr nocapture nofree readonly, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_8(ptr nocapture nofree readonly, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_8u(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_dispatch_fini_8u(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_omp_task_begin_if0(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_omp_task_begin_if0(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_omp_task_complete_if0(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_omp_task_complete_if0(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_task_with_deps(ptr nocapture nofree readonly, i32, ptr, i32, ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_omp_task_with_deps(ptr nofree readonly captures(none), i32, ptr, i32, ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_omp_wait_deps(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_omp_wait_deps(ptr nofree readonly captures(none), i32, i32, ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare i32 @__kmpc_cancellationpoint(ptr nocapture nofree readonly, i32, i32)
+; OPTIMISTIC-NEXT: declare i32 @__kmpc_cancellationpoint(ptr nofree readonly captures(none), i32, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC-NEXT: declare void @__kmpc_push_num_teams(ptr nocapture nofree readonly, i32, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_push_num_teams(ptr nofree readonly captures(none), i32, i32, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_fork_teams(ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly, ...)
+; OPTIMISTIC-NEXT: declare void @__kmpc_fork_teams(ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none), ...)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_taskloop(ptr nocapture nofree readonly, i32, ptr, i32, ptr nocapture nofree, ptr nocapture nofree, i64, i32, i32, i64, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_taskloop(ptr nofree readonly captures(none), i32, ptr, i32, ptr nofree captures(none), ptr nofree captures(none), i64, i32, i32, i64, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_omp_target_task_alloc(ptr nocapture nofree readonly, i32, i32, i64, i64, ptr nocapture nofree readonly, i64)
+; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_omp_target_task_alloc(ptr nofree readonly captures(none), i32, i32, i64, i64, ptr nofree readonly captures(none), i64)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_taskred_modifier_init(ptr nocapture nofree readonly, i32, i32, i32, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_taskred_modifier_init(ptr nofree readonly captures(none), i32, i32, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
 ; OPTIMISTIC-NEXT: declare ptr @__kmpc_taskred_init(i32, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_task_reduction_modifier_fini(ptr nocapture nofree readonly, i32, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_task_reduction_modifier_fini(ptr nofree readonly captures(none), i32, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_copyprivate(ptr nocapture nofree readonly, i32, i64, ptr nocapture nofree readonly, ptr, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_copyprivate(ptr nofree readonly captures(none), i32, i64, ptr nofree readonly captures(none), ptr, i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_threadprivate_cached(ptr nocapture nofree readonly, i32, ptr, i64, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_threadprivate_cached(ptr nofree readonly captures(none), i32, ptr, i64, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare void @__kmpc_threadprivate_register(ptr nocapture nofree readonly, ptr, ptr nocapture nofree readonly, ptr nocapture nofree readonly, ptr nocapture nofree readonly)
+; OPTIMISTIC-NEXT: declare void @__kmpc_threadprivate_register(ptr nofree readonly captures(none), ptr, ptr nofree readonly captures(none), ptr nofree readonly captures(none), ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_init(ptr nocapture nofree readonly, i32, i32, ptr)
+; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_init(ptr nofree readonly captures(none), i32, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_wait(ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly)
+; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_wait(ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_post(ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly)
+; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_post(ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_fini(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_doacross_fini(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
 ; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_alloc(i32, i64, ptr)
@@ -1872,7 +1864,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC-NEXT: declare void @__kmpc_free(i32, ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_init_allocator(i32, ptr, i32, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_init_allocator(i32, ptr, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nosync nounwind willreturn
 ; OPTIMISTIC-NEXT: declare void @__kmpc_destroy_allocator(i32, ptr)
@@ -1899,25 +1891,22 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC-NEXT: declare i32 @__tgt_target_teams_nowait_mapper(ptr, i64, ptr, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, i32, i32, ptr, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
-; OPTIMISTIC-NEXT: declare void @__tgt_register_requires(i64)
-
-; OPTIMISTIC: ; Function Attrs: nounwind
 ; OPTIMISTIC-NEXT: declare void @__tgt_target_data_begin_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
-; OPTIMISTIC-NEXT: declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+; OPTIMISTIC-NEXT: declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
 ; OPTIMISTIC-NEXT: declare void @__tgt_target_data_end_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
-; OPTIMISTIC-NEXT: declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+; OPTIMISTIC-NEXT: declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
 ; OPTIMISTIC-NEXT: declare void @__tgt_target_data_update_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
-; OPTIMISTIC-NEXT: declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr)
+; OPTIMISTIC-NEXT: declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32, ptr, ptr, ptr, ptr, ptr, ptr, i32, ptr, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nounwind
 ; OPTIMISTIC-NEXT: declare i64 @__tgt_mapper_num_components(ptr)
@@ -1926,22 +1915,22 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC-NEXT: declare void @__tgt_push_mapper_component(ptr, ptr, ptr, i64, i64, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_task_allow_completion_event(ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_task_allow_completion_event(ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_task_reduction_get_th_data(i32, ptr, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_task_reduction_get_th_data(i32, ptr, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_task_reduction_init(i32, i32, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_task_reduction_init(i32, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
-; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_task_reduction_modifier_init(ptr, i32, i32, i32, ptr)
+; OPTIMISTIC-NEXT: declare ptr @__kmpc_task_reduction_modifier_init(ptr, i32, i32, i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
 ; OPTIMISTIC-NEXT: declare void @__kmpc_proxy_task_completed_ooo(ptr)
 
 ; OPTIMISTIC: ; Function Attrs: cold convergent noinline nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_barrier_simple_spmd(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC-NEXT: declare void @__kmpc_barrier_simple_spmd(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn
 ; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_aligned_alloc(i32, i64, i64, ptr)
@@ -1950,28 +1939,28 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC-NEXT: declare noalias ptr @__kmpc_alloc_shared(i64)
 
 ; OPTIMISTIC: ; Function Attrs: convergent nounwind
-; OPTIMISTIC: declare void @__kmpc_barrier_simple_generic(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC: declare void @__kmpc_barrier_simple_generic(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC-NOT: Function Attrs
 ; OPTIMISTIC: declare void @__kmpc_begin_sharing_variables(ptr, i64)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare void @__kmpc_distribute_static_fini(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC: declare void @__kmpc_distribute_static_fini(ptr nofree readonly captures(none), i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC: declare void @__kmpc_distribute_static_init_4(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC: declare void @__kmpc_distribute_static_init_4u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i32, i32)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC: declare void @__kmpc_distribute_static_init_8(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
+
+; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: read)
+; OPTIMISTIC: declare void @__kmpc_distribute_static_init_8u(ptr nofree readonly captures(none), i32, i32, ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), ptr nofree captures(none), i64, i64)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare void @__kmpc_distribute_static_init_4(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare void @__kmpc_distribute_static_init_4u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i32, i32)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare void @__kmpc_distribute_static_init_8(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare void @__kmpc_distribute_static_init_8u(ptr nocapture nofree readonly, i32, i32, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, ptr nocapture nofree, i64, i64)
-
-; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare void @__kmpc_end_masked(ptr nocapture nofree readonly, i32)
+; OPTIMISTIC: declare void @__kmpc_end_masked(ptr nofree readonly captures(none), i32)
 
 ; OPTIMISTIC-NOT: Function Attrs
 ; OPTIMISTIC: declare void @__kmpc_end_sharing_variables()
@@ -1980,10 +1969,10 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC: declare void @__kmpc_error(ptr, i32, ptr)
 
 ; OPTIMISTIC-NOT: Function Attrs
-; OPTIMISTIC: declare void @__kmpc_fork_call_if(ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly, i32, ptr)
+; OPTIMISTIC: declare void @__kmpc_fork_call_if(ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none), i32, ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nosync nounwind
-; OPTIMISTIC-NEXT: declare void @__kmpc_free_shared(ptr allocptr nocapture, i64)
+; OPTIMISTIC-NEXT: declare void @__kmpc_free_shared(ptr allocptr captures(none), i64)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(inaccessiblemem: read)
 ; OPTIMISTIC-NEXT: declare i32 @__kmpc_get_hardware_num_blocks()
@@ -2013,19 +2002,16 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC: declare void @__kmpc_kernel_prepare_parallel(ptr)
 
 ; OPTIMISTIC: ; Function Attrs: nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite)
-; OPTIMISTIC: declare i32 @__kmpc_masked(ptr nocapture nofree readonly, i32, i32)
+; OPTIMISTIC: declare i32 @__kmpc_masked(ptr nofree readonly captures(none), i32, i32)
 
 ; OPTIMISTIC-NOT: Function Attrs
-; OPTIMISTIC: declare void @__kmpc_nvptx_end_reduce_nowait(i32)
+; OPTIMISTIC: declare i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i64, ptr, ptr, ptr)
 
 ; OPTIMISTIC-NOT: Function Attrs
-; OPTIMISTIC: declare i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i32, i32, i64, ptr, ptr, ptr)
-
-; OPTIMISTIC-NOT: Function Attrs
-; OPTIMISTIC: declare i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, i32, ptr, i32, ptr, ptr, ptr, ptr, ptr, ptr, ptr)
+; OPTIMISTIC: declare i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, ptr, i32, i64, ptr, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; OPTIMISTIC: nofree nosync nounwind willreturn
-; OPTIMISTIC: declare i32 @__kmpc_omp_reg_task_with_affinity(ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly, i32, ptr nocapture nofree readonly)
+; OPTIMISTIC: declare i32 @__kmpc_omp_reg_task_with_affinity(ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none), i32, ptr nofree readonly captures(none))
 
 ; OPTIMISTIC: alwaysinline
 ; OPTIMISTIC: declare void @__kmpc_parallel_51(ptr, i32, i32, i32, i32, ptr, ptr, ptr, i64)
@@ -2037,10 +2023,10 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; OPTIMISTIC: declare i64 @__kmpc_shuffle_int64(i64, i16, i16)
 
 ; OPTIMISTIC-NOT: Function Attrs
-; OPTIMISTIC: declare void @__kmpc_target_deinit(ptr, i8)
+; OPTIMISTIC: declare void @__kmpc_target_deinit()
 
 ; OPTIMISTIC-NOT: Function Attrs
-; OPTIMISTIC: declare i32 @__kmpc_target_init(ptr, i8, i1)
+; OPTIMISTIC: declare i32 @__kmpc_target_init(ptr, ptr)
 
 ; OPTIMISTIC-NOT: Function Attrs
 ; OPTIMISTIC: declare void @__tgt_interop_destroy(ptr, i32, ptr, i32, i32, ptr, i32)
@@ -2125,7 +2111,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT-NEXT: declare dso_local signext i32 @omp_get_max_active_levels()
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare dso_local void @omp_get_schedule(ptr nocapture writeonly, ptr nocapture writeonly)
+; EXT-NEXT: declare dso_local void @omp_get_schedule(ptr writeonly captures(none), ptr writeonly captures(none))
 
 ; EXT-NOT: Function Attrs
 ; EXT: declare dso_local i32 @omp_get_max_task_priority()
@@ -2233,7 +2219,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT: declare dso_local i32 @omp_get_place_num_procs(i32)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare dso_local void @omp_get_place_proc_ids(i32 signext, ptr nocapture writeonly)
+; EXT-NEXT: declare dso_local void @omp_get_place_proc_ids(i32 signext, ptr writeonly captures(none))
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare dso_local signext i32 @omp_get_place_num()
@@ -2410,7 +2396,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT-NEXT: declare void @__kmpc_end_single(ptr, i32 signext)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare ptr @__kmpc_omp_task_alloc(ptr, i32 signext, i32 signext, i64, i64, ptr)
+; EXT-NEXT: declare noalias ptr @__kmpc_omp_task_alloc(ptr, i32 signext, i32 signext, i64, i64, ptr)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare signext i32 @__kmpc_omp_task(ptr, i32 signext, ptr)
@@ -2481,6 +2467,9 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT: ; Function Attrs: convergent nounwind
 ; EXT-NEXT: declare void @__kmpc_omp_wait_deps(ptr, i32 signext, i32 signext, ptr, i32 signext, ptr)
 
+; EXT: ; Function Attrs: convergent nounwind
+; EXT-NEXT: declare void @__kmpc_omp_taskwait_deps_51(ptr, i32 signext, i32 signext, ptr, i32 signext, ptr, i32 signext)
+
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare signext i32 @__kmpc_cancellationpoint(ptr, i32 signext, i32 signext)
 
@@ -2494,7 +2483,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT-NEXT: declare void @__kmpc_taskloop(ptr, i32 signext, ptr, i32 signext, ptr, ptr, i64, i32 signext, i32 signext, i64, ptr)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare ptr @__kmpc_omp_target_task_alloc(ptr, i32 signext, i32 signext, i64, i64, ptr, i64)
+; EXT-NEXT: declare noalias ptr @__kmpc_omp_target_task_alloc(ptr, i32 signext, i32 signext, i64, i64, ptr, i64)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare ptr @__kmpc_taskred_modifier_init(ptr, i32 signext, i32 signext, i32 signext, ptr)
@@ -2527,7 +2516,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT-NEXT: declare void @__kmpc_doacross_fini(ptr, i32 signext)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare ptr @__kmpc_alloc(i32 signext, i64, ptr)
+; EXT-NEXT: declare noalias ptr @__kmpc_alloc(i32 signext, i64, ptr)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare void @__kmpc_free(i32 signext, ptr, ptr)
@@ -2560,25 +2549,22 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT-NEXT: declare signext i32 @__tgt_target_teams_nowait_mapper(ptr, i64, ptr, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr, i32 signext, i32 signext, i32 signext, ptr, i32 signext, ptr)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare void @__tgt_register_requires(i64)
-
-; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare void @__tgt_target_data_begin_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr)
+; EXT-NEXT: declare void @__tgt_target_data_begin_nowait_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr, i32 signext, ptr, i32 signext, ptr)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare void @__tgt_target_data_end_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr)
+; EXT-NEXT: declare void @__tgt_target_data_end_nowait_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr, i32 signext, ptr, i32 signext, ptr)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare void @__tgt_target_data_update_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr)
+; EXT-NEXT: declare void @__tgt_target_data_update_nowait_mapper(ptr, i64, i32 signext, ptr, ptr, ptr, ptr, ptr, ptr, i32 signext, ptr, i32 signext, ptr)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare i64 @__tgt_mapper_num_components(ptr)
@@ -2602,13 +2588,13 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT-NEXT: declare void @__kmpc_proxy_task_completed_ooo(ptr)
 
 ; EXT: ; Function Attrs: cold convergent noinline nounwind
-; EXT-NEXT: declare void @__kmpc_barrier_simple_spmd(ptr nocapture nofree readonly, i32 signext)
+; EXT-NEXT: declare void @__kmpc_barrier_simple_spmd(ptr nofree readonly captures(none), i32 signext)
 
 ; EXT: ; Function Attrs: nounwind
-; EXT-NEXT: declare ptr @__kmpc_aligned_alloc(i32 signext, i64, i64, ptr)
+; EXT-NEXT: declare noalias ptr @__kmpc_aligned_alloc(i32 signext, i64, i64, ptr)
 
 ; EXT: ; Function Attrs: nosync nounwind allocsize(0)
-; EXT-NEXT: declare ptr @__kmpc_alloc_shared(i64)
+; EXT-NEXT: declare noalias ptr @__kmpc_alloc_shared(i64)
 
 ; EXT: ; Function Attrs: convergent nounwind
 ; EXT: declare void @__kmpc_barrier_simple_generic(ptr, i32 signext)
@@ -2644,7 +2630,7 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT: declare void @__kmpc_fork_call_if(ptr, i32 signext, ptr, i32 signext, ptr)
 
 ; EXT: ; Function Attrs: nosync nounwind
-; EXT-NEXT: declare void @__kmpc_free_shared(ptr allocptr nocapture, i64)
+; EXT-NEXT: declare void @__kmpc_free_shared(ptr allocptr captures(none), i64)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT-NEXT: declare zeroext i32 @__kmpc_get_hardware_num_blocks()
@@ -2677,13 +2663,10 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT: declare signext i32 @__kmpc_masked(ptr, i32 signext, i32 signext)
 
 ; EXT-NOT: Function Attrs
-; EXT: declare void @__kmpc_nvptx_end_reduce_nowait(i32 signext)
+; EXT: declare signext i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i64, ptr, ptr, ptr)
 
 ; EXT-NOT: Function Attrs
-; EXT: declare signext i32 @__kmpc_nvptx_parallel_reduce_nowait_v2(ptr, i32 signext, i32 signext, i64, ptr, ptr, ptr)
-
-; EXT-NOT: Function Attrs
-; EXT: declare signext i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, i32 signext, ptr, i32 zeroext, ptr, ptr, ptr, ptr, ptr, ptr, ptr)
+; EXT: declare signext i32 @__kmpc_nvptx_teams_reduce_nowait_v2(ptr, ptr, i32 zeroext, i64, ptr, ptr, ptr, ptr, ptr, ptr, ptr)
 
 ; EXT: ; Function Attrs: nounwind
 ; EXT: declare signext i32 @__kmpc_omp_reg_task_with_affinity(ptr, i32 signext, ptr, i32 signext, ptr)
@@ -2698,10 +2681,10 @@ declare i32 @__tgt_target_kernel_nowait(ptr, i64, i32, i32, ptr, ptr, i32, ptr, 
 ; EXT: declare i64 @__kmpc_shuffle_int64(i64, i16 signext, i16 signext)
 
 ; EXT-NOT: Function Attrs
-; EXT: declare void @__kmpc_target_deinit(ptr, i8 signext)
+; EXT: declare void @__kmpc_target_deinit()
 
 ; EXT-NOT: Function Attrs
-; EXT: declare signext i32 @__kmpc_target_init(ptr, i8 signext, i1 signext)
+; EXT: declare signext i32 @__kmpc_target_init(ptr, ptr)
 
 ; EXT-NOT: Function Attrs
 ; EXT: declare void @__tgt_interop_destroy(ptr, i32 signext, ptr, i32 signext, i32 signext, ptr, i32 signext)

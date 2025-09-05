@@ -8,14 +8,13 @@
 #include <memory>
 #include <stdio.h>
 #include <sycl/ext/oneapi/dot_product.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // Change if tests are added/removed
 static int testCount = 4;
 static int passCount;
 
 using namespace sycl;
-using namespace sycl::detail::gtl;
 using namespace sycl::ext::oneapi;
 
 constexpr int RangeLength = 100;

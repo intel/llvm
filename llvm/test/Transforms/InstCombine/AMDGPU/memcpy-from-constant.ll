@@ -4,13 +4,11 @@
 ; Make sure the optimization from memcpy-from-global.ll happens, but
 ; the constant source is not a global variable.
 
-target datalayout = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32-p7:160:256:256:32-p8:128:128-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
-
 ; Simple memcpy to alloca from constant address space argument.
 define i8 @memcpy_constant_arg_ptr_to_alloca(ptr addrspace(4) noalias readonly align 4 dereferenceable(32) %arg, i32 %idx) {
 ; CHECK-LABEL: @memcpy_constant_arg_ptr_to_alloca(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[IDX:%.*]] to i64
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
 ; CHECK-NEXT:    [[LOAD:%.*]] = load i8, ptr addrspace(4) [[GEP]], align 1
 ; CHECK-NEXT:    ret i8 [[LOAD]]
 ;
@@ -24,8 +22,8 @@ define i8 @memcpy_constant_arg_ptr_to_alloca(ptr addrspace(4) noalias readonly a
 define i8 @memcpy_constant_arg_ptr_to_alloca_load_metadata(ptr addrspace(4) noalias readonly align 4 dereferenceable(32) %arg, i32 %idx) {
 ; CHECK-LABEL: @memcpy_constant_arg_ptr_to_alloca_load_metadata(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[IDX:%.*]] to i64
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
-; CHECK-NEXT:    [[LOAD:%.*]] = load i8, ptr addrspace(4) [[GEP]], align 1, !noalias !0
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[LOAD:%.*]] = load i8, ptr addrspace(4) [[GEP]], align 1, !noalias [[META0:![0-9]+]]
 ; CHECK-NEXT:    ret i8 [[LOAD]]
 ;
   %alloca = alloca [32 x i8], align 4, addrspace(5)
@@ -38,7 +36,7 @@ define i8 @memcpy_constant_arg_ptr_to_alloca_load_metadata(ptr addrspace(4) noal
 define i64 @memcpy_constant_arg_ptr_to_alloca_load_alignment(ptr addrspace(4) noalias readonly align 4 dereferenceable(256) %arg, i32 %idx) {
 ; CHECK-LABEL: @memcpy_constant_arg_ptr_to_alloca_load_alignment(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[IDX:%.*]] to i64
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr [32 x i64], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds [32 x i64], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
 ; CHECK-NEXT:    [[LOAD:%.*]] = load i64, ptr addrspace(4) [[GEP]], align 16
 ; CHECK-NEXT:    ret i64 [[LOAD]]
 ;
@@ -68,7 +66,7 @@ define i64 @memcpy_constant_arg_ptr_to_alloca_load_atomic(ptr addrspace(4) noali
 define i8 @memmove_constant_arg_ptr_to_alloca(ptr addrspace(4) noalias readonly align 4 dereferenceable(32) %arg, i32 %idx) {
 ; CHECK-LABEL: @memmove_constant_arg_ptr_to_alloca(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[IDX:%.*]] to i64
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
 ; CHECK-NEXT:    [[LOAD:%.*]] = load i8, ptr addrspace(4) [[GEP]], align 1
 ; CHECK-NEXT:    ret i8 [[LOAD]]
 ;
@@ -83,7 +81,7 @@ define i8 @memmove_constant_arg_ptr_to_alloca(ptr addrspace(4) noalias readonly 
 define amdgpu_kernel void @memcpy_constant_byref_arg_ptr_to_alloca(ptr addrspace(4) noalias readonly align 4 byref([32 x i8]) %arg, ptr addrspace(1) %out, i32 %idx) {
 ; CHECK-LABEL: @memcpy_constant_byref_arg_ptr_to_alloca(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[IDX:%.*]] to i64
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
 ; CHECK-NEXT:    [[LOAD:%.*]] = load i8, ptr addrspace(4) [[GEP]], align 1
 ; CHECK-NEXT:    store i8 [[LOAD]], ptr addrspace(1) [[OUT:%.*]], align 1
 ; CHECK-NEXT:    ret void
@@ -138,7 +136,7 @@ define amdgpu_kernel void @memcpy_constant_intrinsic_ptr_to_alloca(ptr addrspace
 define i8 @memcpy_constant_arg_ptr_to_alloca_addrspacecast_to_flat(ptr addrspace(4) noalias readonly align 4 dereferenceable(32) %arg, i32 %idx) {
 ; CHECK-LABEL: @memcpy_constant_arg_ptr_to_alloca_addrspacecast_to_flat(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[IDX:%.*]] to i64
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds [32 x i8], ptr addrspace(4) [[ARG:%.*]], i64 0, i64 [[TMP1]]
 ; CHECK-NEXT:    [[LOAD:%.*]] = load i8, ptr addrspace(4) [[GEP]], align 1
 ; CHECK-NEXT:    ret i8 [[LOAD]]
 ;
@@ -185,7 +183,7 @@ bb:
 define amdgpu_kernel void @byref_infloop_metadata(ptr %scratch, ptr addrspace(4) byref(%struct.ty) align 4 %arg) local_unnamed_addr #1 {
 ; CHECK-LABEL: @byref_infloop_metadata(
 ; CHECK-NEXT:  bb:
-; CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i32(ptr noundef nonnull align 4 dereferenceable(16) [[SCRATCH:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(16) [[ARG:%.*]], i32 16, i1 false), !noalias !0
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p4.i32(ptr noundef nonnull align 4 dereferenceable(16) [[SCRATCH:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(16) [[ARG:%.*]], i32 16, i1 false), !noalias [[META0]]
 ; CHECK-NEXT:    ret void
 ;
 bb:

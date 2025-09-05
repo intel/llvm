@@ -1,7 +1,8 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/atomic.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

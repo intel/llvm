@@ -4,7 +4,7 @@
 
 ;; With a small limit, *_aux are either imported declarations (external/linkonce_odr/weak_odr)
 ;; or unimported (linkonce/weak). Check we discard dso_local.
-; RUN: llvm-lto2 run -opaque-pointers %t/a.bc %t/b.bc -o %t1 -save-temps -import-instr-limit=3 \
+; RUN: llvm-lto2 run %t/a.bc %t/b.bc -o %t1 -save-temps -import-instr-limit=3 \
 ; RUN:   -r=%t/a.bc,main,plx -r=%t/a.bc,extern, -r=%t/a.bc,linkonce, -r=%t/a.bc,linkonceodr, -r=%t/a.bc,weak, -r=%t/a.bc,weakodr, \
 ; RUN:   -r=%t/b.bc,a,pl -r=%t/b.bc,b,pl -r=%t/b.bc,extern,pl -r=%t/b.bc,extern_aux,pl \
 ; RUN:   -r=%t/b.bc,linkonce,pl -r=%t/b.bc,linkonce_aux,pl -r=%t/b.bc,linkonceodr,pl -r=%t/b.bc,linkonceodr_aux,pl \
@@ -13,7 +13,7 @@
 
 ;; With a large limit, *_aux are either imported definitions (external/linkonce_odr/weak_odr)
 ;; or unimported (linkonce/weak). Check we discard dso_local as well.
-; RUN: llvm-lto2 run -opaque-pointers %t/a.bc %t/b.bc -o %t2 -save-temps -import-instr-limit=10 \
+; RUN: llvm-lto2 run %t/a.bc %t/b.bc -o %t2 -save-temps -import-instr-limit=10 \
 ; RUN:   -r=%t/a.bc,main,plx -r=%t/a.bc,extern, -r=%t/a.bc,linkonce, -r=%t/a.bc,linkonceodr, -r=%t/a.bc,weak, -r=%t/a.bc,weakodr, \
 ; RUN:   -r=%t/b.bc,a,pl -r=%t/b.bc,b,pl -r=%t/b.bc,extern,pl -r=%t/b.bc,extern_aux,pl \
 ; RUN:   -r=%t/b.bc,linkonce,pl -r=%t/b.bc,linkonce_aux,pl -r=%t/b.bc,linkonceodr,pl -r=%t/b.bc,linkonceodr_aux,pl \

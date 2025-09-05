@@ -23,11 +23,16 @@ namespace Fortran::parser {
 // R905 char-variable -> variable
 // "char-variable" is attempted first since it's not type constrained but
 // syntactically ambiguous with "file-unit-number", which is constrained.
+// Note, "file-unit-number" is replaced by "expr" to allow for better
+// error messages.
 TYPE_PARSER(construct<IoUnit>(variable / lookAhead(space / ",);\n"_ch)) ||
-    construct<IoUnit>(fileUnitNumber) || construct<IoUnit>(star))
+    construct<IoUnit>(
+        indirect(expr) / (lookAhead(space >> ",)"_ch) || atEndOfStmt)) ||
+    construct<IoUnit>(star))
 
 // R1202 file-unit-number -> scalar-int-expr
-TYPE_PARSER(construct<FileUnitNumber>(scalarIntExpr / !"="_tok))
+TYPE_PARSER(construct<FileUnitNumber>(
+    scalarIntExpr / (lookAhead(space >> ",)"_ch) || atEndOfStmt)))
 
 // R1204 open-stmt -> OPEN ( connect-spec-list )
 TYPE_CONTEXT_PARSER("OPEN statement"_en_US,
@@ -601,28 +606,26 @@ TYPE_PARSER(construct<format::IntrinsicTypeDataEditDesc>(
         "A " >> pure(format::IntrinsicTypeDataEditDesc::Kind::A), maybe(width),
         noInt, noInt) ||
     // PGI/Intel extension: omitting width (and all else that follows)
-    extension<LanguageFeature::AbbreviatedEditDescriptor>(
-        "nonstandard usage: abbreviated edit descriptor"_port_en_US,
-        construct<format::IntrinsicTypeDataEditDesc>(
-            "I " >> pure(format::IntrinsicTypeDataEditDesc::Kind::I) ||
-                ("B "_tok / !letter /* don't occlude BN & BZ */) >>
-                    pure(format::IntrinsicTypeDataEditDesc::Kind::B) ||
-                "O " >> pure(format::IntrinsicTypeDataEditDesc::Kind::O) ||
-                "Z " >> pure(format::IntrinsicTypeDataEditDesc::Kind::Z) ||
-                "F " >> pure(format::IntrinsicTypeDataEditDesc::Kind::F) ||
-                ("D "_tok / !letter /* don't occlude DT, DC, & DP */) >>
-                    pure(format::IntrinsicTypeDataEditDesc::Kind::D) ||
-                "E " >>
-                    ("N " >>
-                            pure(format::IntrinsicTypeDataEditDesc::Kind::EN) ||
-                        "S " >>
-                            pure(format::IntrinsicTypeDataEditDesc::Kind::ES) ||
-                        "X " >>
-                            pure(format::IntrinsicTypeDataEditDesc::Kind::EX) ||
-                        pure(format::IntrinsicTypeDataEditDesc::Kind::E)) ||
-                "G " >> pure(format::IntrinsicTypeDataEditDesc::Kind::G) ||
-                "L " >> pure(format::IntrinsicTypeDataEditDesc::Kind::L),
-            noInt, noInt, noInt)))
+    // Parse them just to get them to the I/O checker in semantics;
+    // they are not supported by the runtime.
+    extension<LanguageFeature::AbbreviatedEditDescriptor>(construct<
+        format::IntrinsicTypeDataEditDesc>(
+        "I " >> pure(format::IntrinsicTypeDataEditDesc::Kind::I) ||
+            ("B "_tok / !letter /* don't occlude BN & BZ */) >>
+                pure(format::IntrinsicTypeDataEditDesc::Kind::B) ||
+            "O " >> pure(format::IntrinsicTypeDataEditDesc::Kind::O) ||
+            "Z " >> pure(format::IntrinsicTypeDataEditDesc::Kind::Z) ||
+            "F " >> pure(format::IntrinsicTypeDataEditDesc::Kind::F) ||
+            ("D "_tok / !letter /* don't occlude DT, DC, & DP */) >>
+                pure(format::IntrinsicTypeDataEditDesc::Kind::D) ||
+            "E " >>
+                ("N " >> pure(format::IntrinsicTypeDataEditDesc::Kind::EN) ||
+                    "S " >> pure(format::IntrinsicTypeDataEditDesc::Kind::ES) ||
+                    "X " >> pure(format::IntrinsicTypeDataEditDesc::Kind::EX) ||
+                    pure(format::IntrinsicTypeDataEditDesc::Kind::E)) ||
+            "G " >> pure(format::IntrinsicTypeDataEditDesc::Kind::G) ||
+            "L " >> pure(format::IntrinsicTypeDataEditDesc::Kind::L),
+        noInt, noInt, noInt)))
 
 // R1307 data-edit-desc (part 2 of 2)
 // R1312 v -> [sign] digit-string

@@ -15,7 +15,7 @@
 ; that testglobfunc was dropped to available_externally. Otherwise we would
 ; have linker multiply defined errors as it is no longer in a comdat and
 ; would clash with the copy from this module.
-; RUN: llvm-dis -opaque-pointers %t3.0.0.preopt.bc -o - | FileCheck %s
+; RUN: llvm-dis %t3.0.0.preopt.bc -o - | FileCheck %s
 
 ; CHECK: @llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__cxx_global_var_init, ptr @C }]
 ; CHECK: @C = available_externally dso_local global %"class.Test::ptr" zeroinitializer, align 4
@@ -25,7 +25,7 @@
 
 ; Check the behavior with the prevailing testglobfunc in %t2.o.
 ; RUN: llvm-lto2 run -r=%t1.o,C,pl -r=%t2.o,C,l -r=%t1.o,testglobfunc,lx -r=%t2.o,testglobfunc,plx -o %t4 %t1.o %t2.o -save-temps
-; RUN: llvm-dis -opaque-pointers %t4.0.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK2
+; RUN: llvm-dis %t4.0.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK2
 
 ; CHECK2: @llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 65535, ptr @__cxx_global_var_init, ptr @C }]
 ; CHECK2: @C = available_externally dso_local global %"class.Test::ptr" zeroinitializer, align 4

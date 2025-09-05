@@ -25,9 +25,11 @@
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_ON_UNIX
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
@@ -75,7 +77,7 @@ bool diagsContainErrors(const std::vector<Diag> &Diagnostics) {
 class ErrorCheckingCallbacks : public ClangdServer::Callbacks {
 public:
   void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
-                          std::vector<Diag> Diagnostics) override {
+                          llvm::ArrayRef<Diag> Diagnostics) override {
     bool HadError = diagsContainErrors(Diagnostics);
     std::lock_guard<std::mutex> Lock(Mutex);
     HadErrorInLastDiags = HadError;
@@ -96,7 +98,7 @@ private:
 class MultipleErrorCheckingCallbacks : public ClangdServer::Callbacks {
 public:
   void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
-                          std::vector<Diag> Diagnostics) override {
+                          llvm::ArrayRef<Diag> Diagnostics) override {
     bool HadError = diagsContainErrors(Diagnostics);
 
     std::lock_guard<std::mutex> Lock(Mutex);
@@ -305,7 +307,7 @@ TEST(ClangdServerTest, PropagatesContexts) {
   } FS;
   struct Callbacks : public ClangdServer::Callbacks {
     void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
-                            std::vector<Diag> Diagnostics) override {
+                            llvm::ArrayRef<Diag> Diagnostics) override {
       Got = Context::current().getExisting(Secret);
     }
     int Got;
@@ -371,7 +373,7 @@ TEST(ClangdServerTest, PropagatesVersion) {
   MockFS FS;
   struct Callbacks : public ClangdServer::Callbacks {
     void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
-                            std::vector<Diag> Diagnostics) override {
+                            llvm::ArrayRef<Diag> Diagnostics) override {
       Got = Version.str();
     }
     std::string Got = "";
@@ -391,7 +393,7 @@ TEST(ClangdServerTest, SearchLibDir) {
   ErrorCheckingCallbacks DiagConsumer;
   MockCompilationDatabase CDB;
   CDB.ExtraClangFlags.insert(CDB.ExtraClangFlags.end(),
-                             {"-xc++", "-target", "x86_64-linux-unknown",
+                             {"-xc++", "--target=x86_64-unknown-linux-gnu",
                               "-m64", "--gcc-toolchain=/randomusr",
                               "-stdlib=libstdc++"});
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
@@ -688,7 +690,7 @@ int d;
     TestDiagConsumer() : Stats(FilesCount, FileStat()) {}
 
     void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
-                            std::vector<Diag> Diagnostics) override {
+                            llvm::ArrayRef<Diag> Diagnostics) override {
       StringRef FileIndexStr = llvm::sys::path::stem(File);
       ASSERT_TRUE(FileIndexStr.consume_front("Foo"));
 
@@ -867,7 +869,7 @@ TEST(ClangdThreadingTest, NoConcurrentDiagnostics) {
         : StartSecondReparse(std::move(StartSecondReparse)) {}
 
     void onDiagnosticsReady(PathRef, llvm::StringRef,
-                            std::vector<Diag>) override {
+                            llvm::ArrayRef<Diag>) override {
       ++Count;
       std::unique_lock<std::mutex> Lock(Mutex, std::try_to_lock_t());
       ASSERT_TRUE(Lock.owns_lock())
@@ -942,7 +944,7 @@ void f() {}
   FS.Files[Path] = Code;
   runAddDocument(Server, Path, Code);
 
-  auto Replaces = runFormatFile(Server, Path, /*Rng=*/std::nullopt);
+  auto Replaces = runFormatFile(Server, Path, /*Rngs=*/{});
   EXPECT_TRUE(static_cast<bool>(Replaces));
   auto Changed = tooling::applyAllReplacements(Code, *Replaces);
   EXPECT_TRUE(static_cast<bool>(Changed));
@@ -1204,7 +1206,7 @@ TEST(ClangdServer, TidyOverrideTest) {
   struct DiagsCheckingCallback : public ClangdServer::Callbacks {
   public:
     void onDiagnosticsReady(PathRef File, llvm::StringRef Version,
-                            std::vector<Diag> Diagnostics) override {
+                            llvm::ArrayRef<Diag> Diagnostics) override {
       std::lock_guard<std::mutex> Lock(Mutex);
       HadDiagsInLastCallback = !Diagnostics.empty();
     }

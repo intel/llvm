@@ -23,13 +23,6 @@ int postfix_inc = a++;
 // CHECK-NEXT:      `-IntegerLiteral {{.*}} 'int'
 int unary_address = &(a + 1);
 
-// CHECK:       VarDecl {{.*}} ternary 'int' cinit
-// CHECK-NEXT:  `-ConditionalOperator {{.*}}
-// CHECK-NEXT:    |-DeclRefExpr {{.*}} 'a'
-// CHECK-NEXT:    |-RecoveryExpr {{.*}}
-// CHECK-NEXT:    `-DeclRefExpr {{.*}} 'a'
-int ternary = a ? undef : a;
-
 void test1() {
   // CHECK:     `-RecoveryExpr {{.*}} contains-errors
   // CHECK-NEXT:  `-DeclRefExpr {{.*}} 'a' 'const int'
@@ -91,12 +84,6 @@ void test3() {
   // CHECK-NEXT: |   `-DeclRefExpr {{.*}} '__builtin_classify_type'
   // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 1
   (*__builtin_classify_type)(1);
-
-  extern void ext();
-  // CHECK:     CallExpr {{.*}} '<dependent type>' contains-errors
-  // CHECK-NEXT: |-DeclRefExpr {{.*}} 'ext'
-  // CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>'
-  ext(undef_var);
 }
 
 // Verify no crash.
@@ -110,19 +97,24 @@ void test4() {
   };
 }
 
-// Verify no crash
-void test5_GH62711() {
-  // CHECK:      VAArgExpr {{.*}} 'int' contains-errors
-  // CHECK-NEXT: | `-ImplicitCastExpr {{.*}} '<dependent type>' contains-errors
-  // CHECK-NEXT: |   `-RecoveryExpr {{.*}} '<dependent type>' contains-errors
-  if (__builtin_va_arg(undef, int) << 1);
-}
+// No crash on DeclRefExpr that refers to ValueDecl with invalid initializers.
+void test7() {
+  int b[] = {""()};
 
-void test6_GH50244() {
-  double array[16];
-  // CHECK:      UnaryExprOrTypeTraitExpr {{.*}} 'unsigned long' contains-errors sizeof
-  // CHECK-NEXT: `-CallExpr {{.*}} '<dependent type>' contains-errors
-  // CHECK-NEXT:   |-DeclRefExpr {{.*}} 'int ()'
-  // CHECK-NEXT:   `-RecoveryExpr {{.*}} '<dependent type>'
-  sizeof array / sizeof foo(undef);
+  // CHECK:      CStyleCastExpr {{.*}} 'unsigned int' contains-errors
+  // CHECK-NEXT: | `-DeclRefExpr {{.*}} 'int[]' contains-errors
+  (unsigned) b; // GH50236
+
+  // CHECK:      BinaryOperator {{.*}} '<dependent type>' contains-errors '+'
+  // CHECK-NEXT: |-DeclRefExpr {{.*}} 'int[]' contains-errors
+  // CHECK-NEXT: `-IntegerLiteral {{.*}}
+  b + 1; // GH50243
+
+  // CHECK:      CallExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT: |-DeclRefExpr {{.*}} 'int ()' Function
+  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'int[]' contains-errors
+  return c(b); // GH48636
 }
+int test8_GH50320_b[] = {""()};
+// CHECK: ArraySubscriptExpr {{.*}} 'int' contains-errors lvalue
+int test8 = test_8GH50320_b[0];

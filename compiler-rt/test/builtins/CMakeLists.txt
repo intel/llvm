@@ -13,6 +13,11 @@ configure_lit_site_cfg(
 
 include(builtin-config-ix)
 
+if (COMPILER_RT_BUILD_CRT)
+  list(APPEND BUILTINS_TEST_DEPS crt)
+endif()
+pythonize_bool(COMPILER_RT_BUILD_CRT)
+
 # Indicate if this is an MSVC environment.
 pythonize_bool(MSVC)
 
@@ -51,7 +56,7 @@ foreach(arch ${BUILTIN_TEST_ARCH})
       string(REPLACE ";" " " BUILTINS_TEST_TARGET_CFLAGS "${BUILTINS_TEST_TARGET_CFLAGS}")
     endif()
   else()
-    if (${arch} MATCHES "arm|armhf|aarch64|arm64|i?86|x86_64|AMD64|riscv32|riscv64" AND COMPILER_RT_HAS_${arch}_FLOAT16)
+    if (${arch} MATCHES "arm|armhf|aarch64|arm64|i?86|x86_64|AMD64|riscv32|riscv64|s390x" AND COMPILER_RT_HAS_${arch}_FLOAT16)
       list(APPEND BUILTINS_TEST_TARGET_CFLAGS -DCOMPILER_RT_HAS_FLOAT16)
       string(REPLACE ";" " " BUILTINS_TEST_TARGET_CFLAGS "${BUILTINS_TEST_TARGET_CFLAGS}")
     endif()
@@ -108,4 +113,3 @@ endforeach()
 add_lit_testsuite(check-builtins "Running the Builtins tests"
   ${BUILTINS_TESTSUITES}
   DEPENDS ${BUILTINS_TEST_DEPS})
-set_target_properties(check-builtins PROPERTIES FOLDER "Compiler-RT Misc")

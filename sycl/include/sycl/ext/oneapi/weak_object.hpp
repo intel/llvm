@@ -8,13 +8,12 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>     // for target, mode
-#include <sycl/accessor.hpp>          // for accessor
-#include <sycl/buffer.hpp>            // for buffer
-#include <sycl/detail/impl_utils.hpp> // for createSyc...
-#include <sycl/detail/memcpy.hpp>     // for detail
-#include <sycl/exception.hpp>         // for make_erro...
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/access/access.hpp>               // for target, mode
+#include <sycl/accessor.hpp>                    // for accessor
+#include <sycl/buffer.hpp>                      // for buffer
+#include <sycl/detail/impl_utils.hpp>           // for createSyc...
+#include <sycl/detail/memcpy.hpp>               // for detail
+#include <sycl/exception.hpp>                   // for make_erro...
 #include <sycl/ext/oneapi/weak_object_base.hpp> // for weak_obje...
 #include <sycl/range.hpp>                       // for range
 #include <sycl/stream.hpp>                      // for stream

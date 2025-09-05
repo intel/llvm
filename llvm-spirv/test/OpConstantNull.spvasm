@@ -1,0 +1,46 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testNullConstants"
+       %void = OpTypeVoid
+       %bool = OpTypeBool
+       %uint = OpTypeInt 32 0
+      %float = OpTypeFloat 32
+     %boolv3 = OpTypeVector %bool 3
+     %uintv3 = OpTypeVector %uint 3
+    %floatv3 = OpTypeVector %float 3
+          %5 = OpTypeFunction %void %bool %boolv3 %uint %uintv3 %float %floatv3
+      %bool0 = OpConstantNull %bool
+    %boolv30 = OpConstantNull %boolv3
+      %uint0 = OpConstantNull %uint
+    %uintv30 = OpConstantNull %uintv3
+     %float0 = OpConstantNull %float
+   %floatv30 = OpConstantNull %floatv3
+
+          %1 = OpFunction %void None %5
+         %pb = OpFunctionParameter %bool
+       %pbv3 = OpFunctionParameter %boolv3
+         %pu = OpFunctionParameter %uint
+       %puv3 = OpFunctionParameter %uintv3
+         %pf = OpFunctionParameter %float
+       %pfv3 = OpFunctionParameter %floatv3
+      %entry = OpLabel
+         %tb = OpLogicalEqual %bool %pb %bool0
+       %tbv3 = OpLogicalEqual %boolv3 %pbv3 %boolv30
+         %tu = OpIEqual %bool %pu %uint0
+       %tuv3 = OpIEqual %boolv3 %puv3 %uintv30
+         %tf = OpFOrdEqual %bool %pf %float0
+       %tfv3 = OpFOrdEqual %boolv3 %pfv3 %floatv30
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: icmp eq i1 %[[#]], false
+; CHECK: icmp eq <3 x i1> %[[#]], zeroinitializer
+; CHECK: icmp eq i32 %[[#]], 0
+; CHECK: icmp eq <3 x i32> %[[#]], zeroinitializer
+; CHECK: fcmp oeq float %[[#]], 0.000000e+00
+; CHECK: fcmp oeq <3 x float> %[[#]], zeroinitializer

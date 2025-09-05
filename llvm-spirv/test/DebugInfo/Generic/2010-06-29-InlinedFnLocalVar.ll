@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O2 %t.ll -o - | FileCheck %s
 
@@ -14,7 +14,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/Generic/2010-06-29-InlinedFnLocalVar.ll"
 
-@i = common global i32 0, !dbg !0
+@i = common addrspace(1) global i32 0, !dbg !0
 
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #0
@@ -25,11 +25,11 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) #0
 ; Function Attrs: nounwind ssp
 define i32 @bar() #1 !dbg !8 {
 entry:
-  %0 = load i32, i32* @i, align 4, !dbg !11
+  %0 = load i32, ptr addrspace(1) @i, align 4, !dbg !11
   tail call void @llvm.dbg.value(metadata i32 %0, metadata !13, metadata !24), !dbg !25
   tail call void @llvm.dbg.declare(metadata !5, metadata !18, metadata !24), !dbg !26
   %1 = mul nsw i32 %0, %0, !dbg !27
-  store i32 %1, i32* @i, align 4, !dbg !11
+  store i32 %1, ptr addrspace(1) @i, align 4, !dbg !11
   ret i32 %1, !dbg !28
 }
 

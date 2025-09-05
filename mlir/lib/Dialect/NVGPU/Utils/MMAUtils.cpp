@@ -7,10 +7,8 @@
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/NVGPU/Utils/MMAUtils.h"
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
-#include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 using namespace mlir;
@@ -103,16 +101,15 @@ nvgpu::getMmaSyncRegisterType(const WarpMatrixInfo &type) {
 
   Type elType = type.vectorType.getElementType();
   if (elType.isF16()) {
-    return FragmentElementInfo{
-        LLVM::getFixedVectorType(Float16Type::get(ctx), 2), 2, 32,
-        inferNumRegistersPerMatrixFragment(type)};
+    return FragmentElementInfo{VectorType::get(2, Float16Type::get(ctx)), 2, 32,
+                               inferNumRegistersPerMatrixFragment(type)};
   }
 
   // f64 operand
   Type f64Ty = Float64Type::get(ctx);
   if (elType.isF64()) {
     return isAccum
-               ? FragmentElementInfo{LLVM::getFixedVectorType(f64Ty, 2), 2, 128,
+               ? FragmentElementInfo{VectorType::get(2, f64Ty), 2, 128,
                                      inferNumRegistersPerMatrixFragment(type)}
                : FragmentElementInfo{f64Ty, 1, 64,
                                      inferNumRegistersPerMatrixFragment(type)};
@@ -120,30 +117,27 @@ nvgpu::getMmaSyncRegisterType(const WarpMatrixInfo &type) {
 
   // int8 operand
   if (elType.isInteger(8)) {
-    return FragmentElementInfo{
-        LLVM::getFixedVectorType(IntegerType::get(ctx, 8), 4), 4, 32,
-        inferNumRegistersPerMatrixFragment(type)};
+    return FragmentElementInfo{VectorType::get(4, IntegerType::get(ctx, 8)), 4,
+                               32, inferNumRegistersPerMatrixFragment(type)};
   }
 
   // int4 operand
   if (elType.isInteger(4)) {
-    return FragmentElementInfo{
-        LLVM::getFixedVectorType(IntegerType::get(ctx, 4), 8), 8, 32,
-        inferNumRegistersPerMatrixFragment(type)};
+    return FragmentElementInfo{VectorType::get(8, IntegerType::get(ctx, 4)), 8,
+                               32, inferNumRegistersPerMatrixFragment(type)};
   }
 
   // Integer 32bit acc operands
   if (elType.isInteger(32)) {
-    return FragmentElementInfo{
-        LLVM::getFixedVectorType(IntegerType::get(ctx, 32), 2), 2, 64,
-        inferNumRegistersPerMatrixFragment(type)};
+    return FragmentElementInfo{VectorType::get(2, IntegerType::get(ctx, 32)), 2,
+                               64, inferNumRegistersPerMatrixFragment(type)};
   }
 
   // Floating point 32bit operands
   if (elType.isF32()) {
     Type f32Ty = Float32Type::get(ctx);
     return isAccum
-               ? FragmentElementInfo{LLVM::getFixedVectorType(f32Ty, 2), 2, 64,
+               ? FragmentElementInfo{VectorType::get(2, f32Ty), 2, 64,
                                      inferNumRegistersPerMatrixFragment(type)}
                : FragmentElementInfo{f32Ty, 1, 32,
                                      inferNumRegistersPerMatrixFragment(type)};
@@ -271,4 +265,55 @@ nvgpu::getLaneIdToLdMatrixMatrixCoord(OpBuilder &builder, Location loc,
     return makeMap({contiguous, strided});
 
   return failure();
+}
+
+bool nvgpu::canLowerToWarpMatrixOperation(vector::TransferReadOp op) {
+  if (op.getMask() || op.hasOutOfBoundsDim())
+    return false;
+  VectorType type = op.getType();
+  // The result type should be 2D. Note that it is possible to expand support so
+  // that we are robust to extra unit dimensions that failed to fold, but that
+  // would significantly increase downstream code complexity in the conversion
+  // step. For now, we rely on other patterns to ensure canonical 2D form is
+  // used when targeting the `nvgpu.mma.sync` lowering path.
+  if (!type.hasStaticShape() || type.getRank() != 2)
+    return false;
+
+  // Currently we can't support reads on tensor types because we need stride
+  // information to ensure correctness of downstream assumptions. It is possible
+  // to enable this if caller can assert that tensor will be lowered in a
+  // particular manner.
+  auto sourceType = dyn_cast<MemRefType>(op.getBase().getType());
+  if (!sourceType)
+    return false;
+
+  // Check that the last dimension of the read is contiguous. Note that it is
+  // possible to expand support for this by scalarizing all the loads during
+  // conversion.
+  auto [strides, offset] = sourceType.getStridesAndOffset();
+  return strides.back() == 1;
+}
+
+bool nvgpu::canLowerToWarpMatrixOperation(vector::TransferWriteOp op) {
+  if (op.getMask() || op.hasOutOfBoundsDim() || op.getTransferRank() == 0)
+    return false;
+  VectorType type = op.getVectorType();
+  if (!type.hasStaticShape() || type.getRank() != 2)
+    return false;
+  // TODO: Currently we rely on lowering to a `vector.store` operation. We could
+  // support the transposed write case by lowering to scalarized `memref.store`
+  // operations.
+  if (!op.getPermutationMap().isMinorIdentity())
+    return false;
+  // Currently we can't support reads on tensor types because we need stride
+  // information to ensure correctness of downstream assumptions.
+  auto sourceType = dyn_cast<MemRefType>(op.getBase().getType());
+  if (!sourceType)
+    return false;
+
+  // Check that the last dimension of the target memref is contiguous. Note that
+  // it is possible to expand support for this by scalarizing all the stores
+  // during conversion.
+  auto [strides, offset] = sourceType.getStridesAndOffset();
+  return strides.back() == 1;
 }

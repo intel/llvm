@@ -7,20 +7,22 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/builtins.hpp>      // for max
-#include <sycl/context.hpp>       // for context
-#include <sycl/detail/common.hpp> // for code_location
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
-#include <sycl/device.hpp>        // for device
-#include <sycl/property_list.hpp> // for property_list
-#include <sycl/queue.hpp>         // for queue
-#include <sycl/usm/usm_enums.hpp> // for alloc
+#include <sycl/builtins.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <algorithm> // for max
 #include <cstddef>   // for size_t
 
 namespace sycl {
 inline namespace _V1 {
+
+class context;
+
 ///
 // Explicit USM
 ///
@@ -155,6 +157,13 @@ __SYCL_EXPORT void *aligned_alloc(
     const detail::code_location &CodeLoc = detail::code_location::current());
 
 ///
+// Helper function used to determine if the Alignment argument is a power of 2
+///
+inline size_t is_not_power_of_two(size_t Alignment) {
+  return (Alignment & (Alignment - 1));
+}
+
+///
 // Template forms
 ///
 template <typename T>
@@ -179,6 +188,9 @@ T *aligned_alloc_device(
     size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return static_cast<T *>(aligned_alloc_device(max(Alignment, alignof(T)),
                                                Count * sizeof(T), Dev, Ctxt,
                                                PropList, CodeLoc));
@@ -189,6 +201,9 @@ T *aligned_alloc_device(
     size_t Alignment, size_t Count, const queue &Q,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return aligned_alloc_device<T>(Alignment, Count, Q.get_device(),
                                  Q.get_context(), PropList, CodeLoc);
 }
@@ -230,6 +245,9 @@ T *aligned_alloc_host(
     size_t Alignment, size_t Count, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return static_cast<T *>(aligned_alloc_host(std ::max(Alignment, alignof(T)),
                                              Count * sizeof(T), Ctxt, PropList,
                                              CodeLoc));
@@ -240,6 +258,9 @@ T *aligned_alloc_host(
     size_t Alignment, size_t Count, const queue &Q,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return aligned_alloc_host<T>(Alignment, Count, Q.get_context(), PropList,
                                CodeLoc);
 }
@@ -249,6 +270,9 @@ T *aligned_alloc_shared(
     size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return static_cast<T *>(aligned_alloc_shared(max(Alignment, alignof(T)),
                                                Count * sizeof(T), Dev, Ctxt,
                                                PropList, CodeLoc));
@@ -259,6 +283,9 @@ T *aligned_alloc_shared(
     size_t Alignment, size_t Count, const queue &Q,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return aligned_alloc_shared<T>(Alignment, Count, Q.get_device(),
                                  Q.get_context(), PropList, CodeLoc);
 }
@@ -286,6 +313,9 @@ T *aligned_alloc(
     size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
     usm::alloc Kind, const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return static_cast<T *>(aligned_alloc(max(Alignment, alignof(T)),
                                         Count * sizeof(T), Dev, Ctxt, Kind,
                                         PropList, CodeLoc));
@@ -296,6 +326,9 @@ T *aligned_alloc(
     size_t Alignment, size_t Count, const queue &Q, usm::alloc Kind,
     const property_list &PropList = {},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
+  if (is_not_power_of_two(Alignment)) {
+    return nullptr;
+  }
   return aligned_alloc<T>(Alignment, Count, Q.get_device(), Q.get_context(),
                           Kind, PropList, CodeLoc);
 }

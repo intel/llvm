@@ -102,7 +102,7 @@ void SPIRVFunction::decode(std::istream &I) {
 
     switch (Decoder.OpCode) {
     case OpFunctionParameter: {
-      auto Param = static_cast<SPIRVFunctionParameter *>(Decoder.getEntry());
+      auto *Param = static_cast<SPIRVFunctionParameter *>(Decoder.getEntry());
       assert(Param);
       Module->add(Param);
       Param->setParent(this);
@@ -153,6 +153,7 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
                                           std::to_string(Entry->getOpCode()))) {
       // Bail out if the opcode is not implemented.
       Module->setInvalid();
+      delete Entry;
       return false;
     }
 
@@ -164,6 +165,7 @@ bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
                                SPIRVDebug::DebugNoLine) ||
                Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
                                SPIRVDebug::DebugNoLine)) {
+      delete Entry;
       continue;
     } else if (Inst->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
                                SPIRVDebug::DebugLine) ||

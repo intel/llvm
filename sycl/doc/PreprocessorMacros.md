@@ -34,6 +34,11 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Disables warning diagnostic issued when calling `device::has(aspect::image)`
   and `platform::has(aspect::image)`.
 
+- **SYCL_DISABLE_FSYCL_SYCLHPP_WARNING**
+
+  Disable warning diagnostic issued when including `<sycl/sycl.hpp>` without
+  `-fsycl` compiler flag.
+
 - **SYCL_FALLBACK_ASSERT**
 
   Defining as non-zero enables the fallback assert feature even on devices
@@ -48,10 +53,12 @@ This file describes macros that have effect on SYCL compiler and run-time.
   support for `assert()` via `aspect::ext_oneapi_native_assert`.
   This macro is undefined by default.
 
-- **SYCL2020_CONFORMANT_APIS**
+- **SYCL2020_CONFORMANT_APIS (deprecated)**
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
   implementations may be widespread and not conform to it.
   Defining this macro currently has no effect on the API.
+  This preprocessor macro has been deprecated in favor of the
+  `-fpreview-breaking-changes` compiler option.
 
 ## Version macros
 

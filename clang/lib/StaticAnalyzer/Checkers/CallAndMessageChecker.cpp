@@ -20,9 +20,7 @@
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace clang;
@@ -123,11 +121,10 @@ private:
 
   void LazyInit_BT(const char *desc, std::unique_ptr<BugType> &BT) const {
     if (!BT)
-      BT.reset(new BuiltinBug(OriginalName, desc));
+      BT.reset(new BugType(OriginalName, desc));
   }
-  bool uninitRefOrPointer(CheckerContext &C, const SVal &V,
-                          SourceRange ArgRange, const Expr *ArgEx,
-                          std::unique_ptr<BugType> &BT,
+  bool uninitRefOrPointer(CheckerContext &C, SVal V, SourceRange ArgRange,
+                          const Expr *ArgEx, std::unique_ptr<BugType> &BT,
                           const ParmVarDecl *ParamDecl, const char *BD,
                           int ArgumentNumber) const;
 };
@@ -185,7 +182,7 @@ static void describeUninitializedArgumentInCall(const CallEvent &Call,
 }
 
 bool CallAndMessageChecker::uninitRefOrPointer(
-    CheckerContext &C, const SVal &V, SourceRange ArgRange, const Expr *ArgEx,
+    CheckerContext &C, SVal V, SourceRange ArgRange, const Expr *ArgEx,
     std::unique_ptr<BugType> &BT, const ParmVarDecl *ParamDecl, const char *BD,
     int ArgumentNumber) const {
 
@@ -256,6 +253,8 @@ public:
       const RecordDecl *RD = RT->getDecl()->getDefinition();
       assert(RD && "Referred record has no definition");
       for (const auto *I : RD->fields()) {
+        if (I->isUnnamedBitField())
+          continue;
         const FieldRegion *FR = MrMgr.getFieldRegion(I, R);
         FieldChain.push_back(I);
         T = I->getType();
@@ -263,7 +262,7 @@ public:
           if (Find(FR))
             return true;
         } else {
-          const SVal &V = StoreMgr.getBinding(store, loc::MemRegionVal(FR));
+          SVal V = StoreMgr.getBinding(store, loc::MemRegionVal(FR));
           if (V.isUndef())
             return true;
         }
@@ -379,7 +378,7 @@ ProgramStateRef CallAndMessageChecker::checkFunctionPointerCall(
       return nullptr;
     }
     if (!BT_call_undef)
-      BT_call_undef.reset(new BuiltinBug(
+      BT_call_undef.reset(new BugType(
           OriginalName,
           "Called function pointer is an uninitialized pointer value"));
     emitBadCall(BT_call_undef.get(), C, Callee);
@@ -395,7 +394,7 @@ ProgramStateRef CallAndMessageChecker::checkFunctionPointerCall(
       return nullptr;
     }
     if (!BT_call_null)
-      BT_call_null.reset(new BuiltinBug(
+      BT_call_null.reset(new BugType(
           OriginalName, "Called function pointer is null (null dereference)"));
     emitBadCall(BT_call_null.get(), C, Callee);
     return nullptr;
@@ -450,7 +449,7 @@ ProgramStateRef CallAndMessageChecker::checkCXXMethodCall(
       return nullptr;
     }
     if (!BT_cxx_call_undef)
-      BT_cxx_call_undef.reset(new BuiltinBug(
+      BT_cxx_call_undef.reset(new BugType(
           OriginalName, "Called C++ object pointer is uninitialized"));
     emitBadCall(BT_cxx_call_undef.get(), C, CC->getCXXThisExpr());
     return nullptr;
@@ -466,7 +465,7 @@ ProgramStateRef CallAndMessageChecker::checkCXXMethodCall(
     }
     if (!BT_cxx_call_null)
       BT_cxx_call_null.reset(
-          new BuiltinBug(OriginalName, "Called C++ object pointer is null"));
+          new BugType(OriginalName, "Called C++ object pointer is null"));
     emitBadCall(BT_cxx_call_null.get(), C, CC->getCXXThisExpr());
     return nullptr;
   }
@@ -495,13 +494,13 @@ CallAndMessageChecker::checkCXXDeallocation(const CXXDeallocatorCall *DC,
     return nullptr;
   if (!BT_cxx_delete_undef)
     BT_cxx_delete_undef.reset(
-        new BuiltinBug(OriginalName, "Uninitialized argument value"));
+        new BugType(OriginalName, "Uninitialized argument value"));
   if (DE->isArrayFormAsWritten())
     Desc = "Argument to 'delete[]' is uninitialized";
   else
     Desc = "Argument to 'delete' is uninitialized";
-  BugType *BT = BT_cxx_delete_undef.get();
-  auto R = std::make_unique<PathSensitiveBugReport>(*BT, Desc, N);
+  auto R =
+      std::make_unique<PathSensitiveBugReport>(*BT_cxx_delete_undef, Desc, N);
   bugreporter::trackExpressionValue(N, DE, *R);
   C.emitReport(std::move(R));
   return nullptr;
@@ -585,21 +584,21 @@ void CallAndMessageChecker::checkPreObjCMessage(const ObjCMethodCall &msg,
       switch (msg.getMessageKind()) {
       case OCM_Message:
         if (!BT_msg_undef)
-          BT_msg_undef.reset(new BuiltinBug(OriginalName,
-                                            "Receiver in message expression "
-                                            "is an uninitialized value"));
+          BT_msg_undef.reset(new BugType(OriginalName,
+                                         "Receiver in message expression "
+                                         "is an uninitialized value"));
         BT = BT_msg_undef.get();
         break;
       case OCM_PropertyAccess:
         if (!BT_objc_prop_undef)
-          BT_objc_prop_undef.reset(new BuiltinBug(
+          BT_objc_prop_undef.reset(new BugType(
               OriginalName,
               "Property access on an uninitialized object pointer"));
         BT = BT_objc_prop_undef.get();
         break;
       case OCM_Subscript:
         if (!BT_objc_subscript_undef)
-          BT_objc_subscript_undef.reset(new BuiltinBug(
+          BT_objc_subscript_undef.reset(new BugType(
               OriginalName,
               "Subscript access on an uninitialized object pointer"));
         BT = BT_objc_subscript_undef.get();
@@ -634,8 +633,8 @@ void CallAndMessageChecker::emitNilReceiverBug(CheckerContext &C,
   }
 
   if (!BT_msg_ret)
-    BT_msg_ret.reset(new BuiltinBug(OriginalName,
-                                    "Receiver in message expression is 'nil'"));
+    BT_msg_ret.reset(
+        new BugType(OriginalName, "Receiver in message expression is 'nil'"));
 
   const ObjCMessageExpr *ME = msg.getOriginExpr();
 
@@ -674,7 +673,6 @@ void CallAndMessageChecker::HandleNilReceiver(CheckerContext &C,
                                               ProgramStateRef state,
                                               const ObjCMethodCall &Msg) const {
   ASTContext &Ctx = C.getASTContext();
-  static CheckerProgramPointTag Tag(this, "NilReceiver");
 
   // Check the return type of the message expression.  A message to nil will
   // return different values depending on the return type and the architecture.
@@ -685,7 +683,7 @@ void CallAndMessageChecker::HandleNilReceiver(CheckerContext &C,
   if (CanRetTy->isStructureOrClassType()) {
     // Structure returns are safe since the compiler zeroes them out.
     SVal V = C.getSValBuilder().makeZeroVal(RetTy);
-    C.addTransition(state->BindExpr(Msg.getOriginExpr(), LCtx, V), &Tag);
+    C.addTransition(state->BindExpr(Msg.getOriginExpr(), LCtx, V));
     return;
   }
 
@@ -704,7 +702,7 @@ void CallAndMessageChecker::HandleNilReceiver(CheckerContext &C,
             Ctx.LongDoubleTy == CanRetTy ||
             Ctx.LongLongTy == CanRetTy ||
             Ctx.UnsignedLongLongTy == CanRetTy)))) {
-      if (ExplodedNode *N = C.generateErrorNode(state, &Tag))
+      if (ExplodedNode *N = C.generateErrorNode(state))
         emitNilReceiverBug(C, Msg, N);
       return;
     }
@@ -723,7 +721,7 @@ void CallAndMessageChecker::HandleNilReceiver(CheckerContext &C,
     // of this case unless we have *a lot* more knowledge.
     //
     SVal V = C.getSValBuilder().makeZeroVal(RetTy);
-    C.addTransition(state->BindExpr(Msg.getOriginExpr(), LCtx, V), &Tag);
+    C.addTransition(state->BindExpr(Msg.getOriginExpr(), LCtx, V));
     return;
   }
 

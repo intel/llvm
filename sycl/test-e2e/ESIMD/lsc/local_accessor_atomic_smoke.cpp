@@ -7,19 +7,13 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// UNSUPPORTED: esimd_emulator
 
 #include "../esimd_test_utils.hpp"
-
-#include <CL/sycl.hpp>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -79,20 +73,20 @@ const char *to_string(DWORDAtomicOp op) {
     return "smin";
   case DWORDAtomicOp::smax:
     return "smax";
-#ifndef USE_DWORD_ATOMICS
   case DWORDAtomicOp::fmax:
     return "fmax";
   case DWORDAtomicOp::fmin:
     return "fmin";
-#endif // !USE_DWORD_ATOMICS
+  case DWORDAtomicOp::fadd:
+    return "fadd";
+  case DWORDAtomicOp::fsub:
+    return "fsub";
   case DWORDAtomicOp::fcmpxchg:
     return "fcmpxchg";
   case DWORDAtomicOp::load:
     return "load";
   case DWORDAtomicOp::store:
     return "store";
-  case DWORDAtomicOp::predec:
-    return "predec";
   }
   return "<unknown>";
 }
@@ -127,6 +121,10 @@ const char *to_string(LSCAtomicOp op) {
     return "lsc::fmax";
   case LSCAtomicOp::fmin:
     return "lsc::fmin";
+  case LSCAtomicOp::fadd:
+    return "lsc::fadd";
+  case LSCAtomicOp::fsub:
+    return "lsc::fsub";
   case LSCAtomicOp::fcmpxchg:
     return "lsc::fcmpxchg";
   case LSCAtomicOp::load:
@@ -176,8 +174,8 @@ bool test(queue q) {
       auto accessor = local_accessor<T, 1>(size, cgh);
 
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            int i = ndi.get_global_id(0);
 #ifndef USE_SCALAR_OFFSET
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
@@ -188,7 +186,8 @@ bool test(queue q) {
             data.copy_from(arr);
 
             simd<uint32_t, size> LocalOffsets(0, sizeof(T));
-            scatter<T, size>(accessor, LocalOffsets, data, 0, 1);
+            if (ndi.get_local_id(0) == 0)
+              scatter<T, size>(accessor, LocalOffsets, data, 0, 1);
             simd_mask<N> m = 1;
             if (masked_lane < N)
               m[masked_lane] = 0;
@@ -217,8 +216,11 @@ bool test(queue q) {
                   ;
               }
             }
-            auto data0 = gather<T, size>(accessor, LocalOffsets, 0);
-            data0.copy_to(arr);
+            barrier();
+            if (ndi.get_local_id(0) == 0) {
+              auto data0 = gather<T, size>(accessor, LocalOffsets, 0);
+              data0.copy_to(arr);
+            }
           });
     });
     e.wait();
@@ -625,7 +627,8 @@ int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
 
   bool passed = true;
 #ifndef CMPXCHG_TEST

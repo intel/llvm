@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop-linkage.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t2.bc -r=%t2.bc,foo,pl -r=%t2.bc,g1,pl -r=%t2.bc,g2,pl -r=%t2.bc,g3, \
+; RUN: llvm-lto2 run -save-temps %t2.bc -r=%t2.bc,foo,pl -r=%t2.bc,g1,pl -r=%t2.bc,g2,pl -r=%t2.bc,g3, \
 ; RUN:                           %t1.bc -r=%t1.bc,foo, -r=%t1.bc,main,plx -r=%t1.bc,g2,  -o %t3
 ; RUN: llvm-dis %t3.2.3.import.bc -o - | FileCheck %s
 

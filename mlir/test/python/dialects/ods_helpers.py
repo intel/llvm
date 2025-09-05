@@ -3,6 +3,7 @@
 import gc
 
 from mlir.ir import *
+from mlir.dialects._ods_common import equally_sized_accessor
 
 
 def run(f):
@@ -96,8 +97,8 @@ def testOdsBuildDefaultNonVariadic():
             # CHECK: %[[V0:.+]] = "custom.value"
             # CHECK: %[[V1:.+]] = "custom.value"
             # CHECK: "custom.test_op"(%[[V0]], %[[V1]])
-            # CHECK-NOT: operand_segment_sizes
-            # CHECK-NOT: result_segment_sizes
+            # CHECK-NOT: operandSegmentSizes
+            # CHECK-NOT: resultSegmentSizes
             # CHECK-SAME: : (i32, i32) -> (i8, i16)
             print(m)
 
@@ -128,8 +129,8 @@ def testOdsBuildDefaultSizedVariadic():
             # CHECK: %[[V2:.+]] = "custom.value"
             # CHECK: %[[V3:.+]] = "custom.value"
             # CHECK: "custom.test_op"(%[[V0]], %[[V1]], %[[V2]], %[[V3]])
-            # CHECK-SAME: operand_segment_sizes = array<i32: 1, 2, 1>
-            # CHECK-SAME: result_segment_sizes = array<i32: 2, 1, 1>
+            # CHECK-SAME: operandSegmentSizes = array<i32: 1, 2, 1>
+            # CHECK-SAME: resultSegmentSizes = array<i32: 2, 1, 1>
             # CHECK-SAME: : (i32, i32, i32, i32) -> (i8, i16, i32, i64)
             op = TestOp.build_generic(
                 results=[[t0, t1], t2, t3], operands=[v0, [v1, v2], v3]
@@ -137,8 +138,8 @@ def testOdsBuildDefaultSizedVariadic():
 
             # Now test with optional omitted.
             # CHECK: "custom.test_op"(%[[V0]])
-            # CHECK-SAME: operand_segment_sizes = array<i32: 1, 0, 0>
-            # CHECK-SAME: result_segment_sizes = array<i32: 0, 0, 1>
+            # CHECK-SAME: operandSegmentSizes = array<i32: 1, 0, 0>
+            # CHECK-SAME: resultSegmentSizes = array<i32: 0, 0, 1>
             # CHECK-SAME: (i32) -> i64
             op = TestOp.build_generic(
                 results=[None, None, t3], operands=[v0, None, None]
@@ -208,3 +209,70 @@ def testOdsBuildDefaultCastError():
 
 
 run(testOdsBuildDefaultCastError)
+
+
+def testOdsEquallySizedAccessor():
+    class TestOpMultiResultSegments(OpView):
+        OPERATION_NAME = "custom.test_op"
+        _ODS_REGIONS = (1, True)
+
+    with Context() as ctx, Location.unknown():
+        ctx.allow_unregistered_dialects = True
+        m = Module.create()
+        with InsertionPoint(m.body):
+            v = add_dummy_value()
+            ts = [IntegerType.get_signless(i * 8) for i in range(4)]
+
+            op = TestOpMultiResultSegments.build_generic(
+                results=[ts[0], ts[1], ts[2], ts[3]], operands=[v]
+            )
+            start, elements_per_group = equally_sized_accessor(op.results, 1, 3, 1, 0)
+            # CHECK: start: 1, elements_per_group: 1
+            print(f"start: {start}, elements_per_group: {elements_per_group}")
+            # CHECK: i8
+            print(op.results[start].type)
+
+            start, elements_per_group = equally_sized_accessor(op.results, 1, 3, 1, 1)
+            # CHECK: start: 2, elements_per_group: 1
+            print(f"start: {start}, elements_per_group: {elements_per_group}")
+            # CHECK: i16
+            print(op.results[start].type)
+
+
+run(testOdsEquallySizedAccessor)
+
+
+def testOdsEquallySizedAccessorMultipleSegments():
+    class TestOpMultiResultSegments(OpView):
+        OPERATION_NAME = "custom.test_op"
+        _ODS_REGIONS = (1, True)
+        _ODS_RESULT_SEGMENTS = [0, -1, -1]
+
+    def types(lst):
+        return [e.type for e in lst]
+
+    with Context() as ctx, Location.unknown():
+        ctx.allow_unregistered_dialects = True
+        m = Module.create()
+        with InsertionPoint(m.body):
+            v = add_dummy_value()
+            ts = [IntegerType.get_signless(i * 8) for i in range(7)]
+
+            op = TestOpMultiResultSegments.build_generic(
+                results=[ts[0], [ts[1], ts[2], ts[3]], [ts[4], ts[5], ts[6]]],
+                operands=[v],
+            )
+            start, elements_per_group = equally_sized_accessor(op.results, 1, 2, 1, 0)
+            # CHECK: start: 1, elements_per_group: 3
+            print(f"start: {start}, elements_per_group: {elements_per_group}")
+            # CHECK: [IntegerType(i8), IntegerType(i16), IntegerType(i24)]
+            print(types(op.results[start : start + elements_per_group]))
+
+            start, elements_per_group = equally_sized_accessor(op.results, 1, 2, 1, 1)
+            # CHECK: start: 4, elements_per_group: 3
+            print(f"start: {start}, elements_per_group: {elements_per_group}")
+            # CHECK: [IntegerType(i32), IntegerType(i40), IntegerType(i48)]
+            print(types(op.results[start : start + elements_per_group]))
+
+
+run(testOdsEquallySizedAccessorMultipleSegments)

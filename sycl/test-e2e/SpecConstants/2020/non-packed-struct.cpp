@@ -1,7 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 struct user_defined_type {
   float a;

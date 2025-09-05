@@ -47,7 +47,7 @@ entry:
   ret i8 %y
 }
 !5 = !{i32 0, i8 0}
-; CHECK: Range types must match instruction type!
+; CHECK: Range pair types must match!
 ; CHECK:  %y = load
 
 define i8 @f7(ptr %x) {
@@ -56,7 +56,7 @@ entry:
   ret i8 %y
 }
 !6 = !{i8 0, i32 0}
-; CHECK: Range types must match instruction type!
+; CHECK: Range pair types must match!
 ; CHECK:  %y = load
 
 define i8 @f8(ptr %x) {
@@ -154,3 +154,10 @@ define <2 x i8> @vector_range_wrong_type(ptr %x) {
 }
 !19 = !{i16 0, i16 10}
 ; CHECK: Range types must match instruction type!
+
+define i32 @range_assert(ptr %x) {
+  %y = load i32, ptr %x, !range !20
+  ret i32 %y
+}
+; CHECK: The upper and lower limits cannot be the same value{{$}}
+!20 = !{i32 123, i32 123}

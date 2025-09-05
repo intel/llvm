@@ -1,0 +1,382 @@
+#
+# Copyright (C) 2022 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime APIs"
+ordinal: "9"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Command type"
+class: $xEvent
+name: $x_command_t
+etors:
+    - name: KERNEL_LAUNCH
+      desc: Event created by $xEnqueueKernelLaunch
+    - name: EVENTS_WAIT
+      desc: Event created by $xEnqueueEventsWait
+    - name: EVENTS_WAIT_WITH_BARRIER
+      desc: Event created by $xEnqueueEventsWaitWithBarrier
+    - name: MEM_BUFFER_READ
+      desc: Event created by $xEnqueueMemBufferRead
+    - name: MEM_BUFFER_WRITE
+      desc: Event created by $xEnqueueMemBufferWrite
+    - name: MEM_BUFFER_READ_RECT
+      desc: Event created by $xEnqueueMemBufferReadRect
+    - name: MEM_BUFFER_WRITE_RECT
+      desc: Event created by $xEnqueueMemBufferWriteRect
+    - name: MEM_BUFFER_COPY
+      desc: Event created by $xEnqueueMemBufferCopy
+    - name: MEM_BUFFER_COPY_RECT
+      desc: Event created by $xEnqueueMemBufferCopyRect
+    - name: MEM_BUFFER_FILL
+      desc: Event created by $xEnqueueMemBufferFill
+    - name: MEM_IMAGE_READ
+      desc: Event created by $xEnqueueMemImageRead
+    - name: MEM_IMAGE_WRITE
+      desc: Event created by $xEnqueueMemImageWrite
+    - name: MEM_IMAGE_COPY
+      desc: Event created by $xEnqueueMemImageCopy
+    # Will not be generated
+    # https://github.com/oneapi-src/unified-runtime/issues/50
+    - name: MEM_IMAGE_FILL
+      desc: Event created by $xEnqueueMemImageFill
+      version: "9999.0"
+    - name: MEM_BUFFER_MAP
+      desc: Event created by $xEnqueueMemBufferMap
+    # Will not be generated
+    # https://github.com/oneapi-src/unified-runtime/issues/50
+    - name: MEM_IMAGE_MAP
+      desc: Event created by $xEnqueueMemImageMap
+      version: "9999.0"
+    - name: MEM_UNMAP
+      desc: Event created by $xEnqueueMemUnmap
+    - name: USM_FILL
+      desc: Event created by $xEnqueueUSMFill
+    - name: USM_MEMCPY
+      desc: Event created by $xEnqueueUSMMemcpy
+    - name: USM_PREFETCH
+      desc: Event created by $xEnqueueUSMPrefetch
+    - name: USM_ADVISE
+      desc: Event created by $xEnqueueUSMAdvise
+    - name: USM_FILL_2D
+      desc: Event created by $xEnqueueUSMFill2D
+    - name: USM_MEMCPY_2D
+      desc: Event created by $xEnqueueUSMMemcpy2D
+    - name: DEVICE_GLOBAL_VARIABLE_WRITE
+      desc: Event created by $xEnqueueDeviceGlobalVariableWrite
+    - name: DEVICE_GLOBAL_VARIABLE_READ
+      desc: Event created by $xEnqueueDeviceGlobalVariableRead
+    - name: READ_HOST_PIPE
+      desc: Event created by $xEnqueueReadHostPipe
+    - name: WRITE_HOST_PIPE
+      desc: Event created by $xEnqueueWriteHostPipe
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Event Status"
+class: $xEvent
+name: $x_event_status_t
+etors:
+    - name: COMPLETE
+      desc: Command is complete
+    - name: RUNNING
+      desc: Command is running
+    - name: SUBMITTED
+      desc: Command is submitted
+    - name: QUEUED
+      desc: Command is queued
+    - name: ERROR
+      desc: Command was abnormally terminated
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Event query information type"
+class: $xEvent
+name: $x_event_info_t
+typed_etors: True
+etors:
+    - name: COMMAND_QUEUE
+      desc: "[$x_queue_handle_t] Command queue information of an event object"
+    - name: CONTEXT
+      desc: "[$x_context_handle_t] Context information of an event object"
+    - name: COMMAND_TYPE
+      desc: "[$x_command_t] Command type information of an event object"
+    - name: COMMAND_EXECUTION_STATUS
+      desc: "[$x_event_status_t] Command execution status of an event object"
+    - name: REFERENCE_COUNT
+      desc: |
+            [uint32_t] Reference count of the event object.
+            The reference count returned should be considered immediately stale.
+            It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Profiling query information type"
+class: $xEvent
+name: $x_profiling_info_t
+typed_etors: True
+etors:
+    - name: COMMAND_QUEUED
+      desc: "[uint64_t][optional-query] A 64-bit value of current device counter in nanoseconds when the event is enqueued"
+    - name: COMMAND_SUBMIT
+      desc: "[uint64_t][optional-query] A 64-bit value of current device counter in nanoseconds when the event is submitted"
+    - name: COMMAND_START
+      desc: "[uint64_t][optional-query] A 64-bit value of current device counter in nanoseconds when the event starts execution"
+    - name: COMMAND_END
+      desc: "[uint64_t][optional-query] A 64-bit value of current device counter in nanoseconds when the event has finished execution"
+    - name: COMMAND_COMPLETE
+      desc: "[uint64_t][optional-query] A 64-bit value of current device counter in nanoseconds when the event and any child events enqueued by this event on the device have finished execution"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get event object information"
+class: $xEvent
+name: GetInfo
+ordinal: "0"
+analogue:
+    - "**clGetEventInfo**"
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in] handle of the event object"
+    - type: $x_event_info_t
+      name: propName
+      desc: "[in] the name of the event property to query"
+    - type: size_t
+      name: propSize
+      desc: "[in] size in bytes of the event property value"
+    - type: void*
+      name: pPropValue
+      desc: "[out][optional][typename(propName, propSize)] value of the event property"
+    - type: size_t*
+      name: pPropSizeRet
+      desc: "[out][optional] bytes returned in event property"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get profiling information for the command associated with an event object"
+class: $xEvent
+name: GetProfilingInfo
+ordinal: "0"
+analogue:
+    - "**clGetEventProfilingInfo**"
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in] handle of the event object"
+    - type: $x_profiling_info_t
+      name: propName
+      desc: "[in] the name of the profiling property to query"
+    - type: size_t
+      name: propSize
+      desc: "[in] size in bytes of the profiling property value"
+    - type: void*
+      name: pPropValue
+      desc: "[out][optional][typename(propName, propSize)] value of the profiling property"
+    - type: size_t*
+      name: pPropSizeRet
+      desc: "[out][optional] pointer to the actual size in bytes returned in propValue"
+returns:
+    - $X_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
+      - "If `hEvent`s associated queue was not created with `UR_QUEUE_FLAG_PROFILING_ENABLE`."
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "`pPropValue && propSize == 0`"
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+      - "If `propName` is not supported by the adapter."
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Wait for a list of events to finish."
+class: $xEvent
+name: Wait
+decl: static
+ordinal: "0"
+analogue:
+    - "**clWaitForEvent**"
+params:
+    - type: uint32_t
+      name: numEvents
+      desc: "[in] number of events in the event list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: "[in][range(0, numEvents)] pointer to a list of events to wait for completion"
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "`numEvents == 0`"
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+      - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Get a reference to an event handle. Increment the event object's reference count."
+class: $xEvent
+name: Retain
+ordinal: "0"
+analogue:
+    - "**clRetainEvent**"
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in][retain] handle of the event object"
+returns:
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Decrement the event object's reference count and delete the event object if the reference count becomes zero."
+class: $xEvent
+name: Release
+ordinal: "0"
+analogue:
+    - "**clReleaseEvent**"
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in][release] handle of the event object"
+returns:
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return platform native event handle."
+class: $xEvent
+name: GetNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Retrieved native handle can be used for direct interaction with the native platform driver."
+    - "Use interoperability platform extensions to convert native handle to native type."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_event_handle_t"
+      name: hEvent
+      desc: |
+            [in] handle of the event.
+    - type: $x_native_handle_t*
+      name: phNativeEvent
+      desc: |
+            [out] a pointer to the native handle of the event.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Properties for for $xEventCreateWithNativeHandle."
+class: $xQueue
+name: $x_event_native_properties_t
+base: $x_base_properties_t
+members:
+    - type: bool
+      name: isNativeHandleOwned
+      desc: |
+            [in] If true then ownership of the native handle is transferred to
+            the resultant object. This means the object will be responsible for
+            releasing the native resources at the end of its lifetime.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create runtime event object from native event handle."
+class: $xEvent
+name: CreateWithNativeHandle
+decl: static
+ordinal: "0"
+details:
+    - "Creates runtime event handle from native driver event handle."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_native_handle_t
+      name: hNativeEvent
+      desc: |
+            [in][nocheck] the native handle of the event.
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: "const $x_event_native_properties_t*"
+      name: pProperties
+      desc: "[in][optional] pointer to native event properties struct"
+    - type: "$x_event_handle_t*"
+      name: phEvent
+      desc: |
+            [out][alloc] pointer to the handle of the event object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Event states for all events."
+class: $xEvent
+name: $x_execution_info_t
+etors:
+    - name: COMPLETE
+      desc: "Indicates that the event has completed."
+    - name: RUNNING
+      desc: "Indicates that the device has started processing this event."
+    - name: SUBMITTED
+      desc: "Indicates that the event has been submitted by the host to the device."
+    - name: QUEUED
+      desc: "Indicates that the event has been queued, this is the initial state of events."
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Event callback function that can be registered by the application."
+name: $x_event_callback_t
+return: void
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in] handle to event"
+    - type: $x_execution_info_t
+      name: execStatus
+      desc: "[in] execution status of the event"
+    - type: void*
+      name: pUserData
+      desc: "[in][out] pointer to data to be passed to callback"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Register a user callback function for a specific command execution status."
+class: $xEvent
+name: SetCallback
+decl: static
+ordinal: "0"
+details:
+    - "The registered callback function will be called when the execution status of command associated with event changes to an execution status equal to or past the status specified by command_exec_status."
+    - "`execStatus` must not be `UR_EXECUTION_INFO_QUEUED` as this is the initial state of all events."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_event_handle_t
+      name: hEvent
+      desc: "[in] handle of the event object"
+    - type: $x_execution_info_t
+      name: execStatus
+      desc: "[in] execution status of the event"
+    - type: $x_event_callback_t
+      name: pfnNotify
+      desc: "[in] execution status of the event"
+    - type: void*
+      name: pUserData
+      desc: "[in][out][optional] pointer to data to be passed to callback."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "`execStatus == UR_EXECUTION_INFO_QUEUED`"

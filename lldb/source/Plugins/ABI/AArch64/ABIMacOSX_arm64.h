@@ -27,11 +27,6 @@ public:
   bool GetArgumentValues(lldb_private::Thread &thread,
                          lldb_private::ValueList &values) const override;
 
-  bool
-  CreateFunctionEntryUnwindPlan(lldb_private::UnwindPlan &unwind_plan) override;
-
-  bool CreateDefaultUnwindPlan(lldb_private::UnwindPlan &unwind_plan) override;
-
   bool RegisterIsVolatile(const lldb_private::RegisterInfo *reg_info) override;
 
   // The arm64 ABI requires that stack frames be 16 byte aligned.
@@ -46,7 +41,7 @@ public:
   // in other environments there can be a large number of different functions
   // involved in async traps.
   bool CallFrameAddressIsValid(lldb::addr_t cfa) override {
-    // Make sure the stack call frame addresses are are 8 byte aligned
+    // Make sure the stack call frame addresses are 8 byte aligned
     if (cfa & (8ull - 1ull))
       return false; // Not 8 byte aligned
     if (cfa == 0)

@@ -9,7 +9,7 @@
 
 ;; Single kernel is sole user of single variable, all options codegen as direct access to kernel struct
 
-@k0.lds = addrspace(3) global i8 undef
+@k0.lds = addrspace(3) global i8 poison
 define amdgpu_kernel void @k0() {
 ; CHECK-LABEL: @k0(
 ; CHECK-NEXT:    [[LD:%.*]] = load i8, ptr addrspace(3) @llvm.amdgcn.kernel.k0.lds, align 1
@@ -25,12 +25,12 @@ define amdgpu_kernel void @k0() {
 
 ;; Function is reachable from one kernel. Variable goes in module lds or the kernel struct, but never both.
 
-@f0.lds = addrspace(3) global i16 undef
+@f0.lds = addrspace(3) global i16 poison
 define void @f0() {
 ; MODULE-LABEL: @f0(
-; MODULE-NEXT:    [[LD:%.*]] = load i16, ptr addrspace(3) getelementptr inbounds ([[LLVM_AMDGCN_MODULE_LDS_T:%.*]], ptr addrspace(3) @llvm.amdgcn.module.lds, i32 0, i32 1), align 4, !alias.scope !1, !noalias !4
+; MODULE-NEXT:    [[LD:%.*]] = load i16, ptr addrspace(3) getelementptr inbounds ([[LLVM_AMDGCN_MODULE_LDS_T:%.*]], ptr addrspace(3) @llvm.amdgcn.module.lds, i32 0, i32 1), align 4, !alias.scope [[META1:![0-9]+]], !noalias [[META4:![0-9]+]]
 ; MODULE-NEXT:    [[MUL:%.*]] = mul i16 [[LD]], 3
-; MODULE-NEXT:    store i16 [[MUL]], ptr addrspace(3) getelementptr inbounds ([[LLVM_AMDGCN_MODULE_LDS_T]], ptr addrspace(3) @llvm.amdgcn.module.lds, i32 0, i32 1), align 4, !alias.scope !1, !noalias !4
+; MODULE-NEXT:    store i16 [[MUL]], ptr addrspace(3) getelementptr inbounds ([[LLVM_AMDGCN_MODULE_LDS_T]], ptr addrspace(3) @llvm.amdgcn.module.lds, i32 0, i32 1), align 4, !alias.scope [[META1]], !noalias [[META4]]
 ; MODULE-NEXT:    ret void
 ;
 ; TABLE-LABEL: @f0(
@@ -60,7 +60,7 @@ define void @f0() {
 
 define amdgpu_kernel void @k_f0() {
 ; MODULE-LABEL: @k_f0(
-; MODULE-NEXT:    call void @llvm.donothing() [ "ExplicitUse"(ptr addrspace(3) @llvm.amdgcn.module.lds) ], !alias.scope !5, !noalias !1
+; MODULE-NEXT:    call void @llvm.donothing() [ "ExplicitUse"(ptr addrspace(3) @llvm.amdgcn.module.lds) ], !alias.scope [[META10:![0-9]+]], !noalias [[META1]]
 ; MODULE-NEXT:    call void @f0()
 ; MODULE-NEXT:    ret void
 ;
@@ -70,6 +70,7 @@ define amdgpu_kernel void @k_f0() {
 ; TABLE-NEXT:    ret void
 ;
 ; K_OR_HY-LABEL: @k_f0(
+; K_OR_HY-NEXT:    call void @llvm.donothing() [ "ExplicitUse"(ptr addrspace(3) @llvm.amdgcn.kernel.k_f0.lds) ]
 ; K_OR_HY-NEXT:    call void @f0()
 ; K_OR_HY-NEXT:    ret void
 ;
@@ -79,12 +80,12 @@ define amdgpu_kernel void @k_f0() {
 
 ;; As above, but with the kernel also uing the variable.
 
-@both.lds = addrspace(3) global i32 undef
+@both.lds = addrspace(3) global i32 poison
 define void @f_both() {
 ; MODULE-LABEL: @f_both(
-; MODULE-NEXT:    [[LD:%.*]] = load i32, ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope !5, !noalias !4
+; MODULE-NEXT:    [[LD:%.*]] = load i32, ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope [[META10]], !noalias [[META11:![0-9]+]]
 ; MODULE-NEXT:    [[MUL:%.*]] = mul i32 [[LD]], 4
-; MODULE-NEXT:    store i32 [[MUL]], ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope !5, !noalias !4
+; MODULE-NEXT:    store i32 [[MUL]], ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope [[META10]], !noalias [[META11]]
 ; MODULE-NEXT:    ret void
 ;
 ; TABLE-LABEL: @f_both(
@@ -115,9 +116,9 @@ define void @f_both() {
 define amdgpu_kernel void @k0_both() {
 ; MODULE-LABEL: @k0_both(
 ; MODULE-NEXT:    call void @llvm.donothing() [ "ExplicitUse"(ptr addrspace(3) @llvm.amdgcn.module.lds) ]
-; MODULE-NEXT:    [[LD:%.*]] = load i32, ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope !5, !noalias !1
+; MODULE-NEXT:    [[LD:%.*]] = load i32, ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope [[META10]], !noalias [[META1]]
 ; MODULE-NEXT:    [[MUL:%.*]] = mul i32 [[LD]], 5
-; MODULE-NEXT:    store i32 [[MUL]], ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope !5, !noalias !1
+; MODULE-NEXT:    store i32 [[MUL]], ptr addrspace(3) @llvm.amdgcn.module.lds, align 4, !alias.scope [[META10]], !noalias [[META1]]
 ; MODULE-NEXT:    call void @f_both()
 ; MODULE-NEXT:    ret void
 ;
@@ -130,6 +131,7 @@ define amdgpu_kernel void @k0_both() {
 ; TABLE-NEXT:    ret void
 ;
 ; K_OR_HY-LABEL: @k0_both(
+; K_OR_HY-NEXT:    call void @llvm.donothing() [ "ExplicitUse"(ptr addrspace(3) @llvm.amdgcn.kernel.k0_both.lds) ]
 ; K_OR_HY-NEXT:    [[LD:%.*]] = load i32, ptr addrspace(3) @llvm.amdgcn.kernel.k0_both.lds, align 4
 ; K_OR_HY-NEXT:    [[MUL:%.*]] = mul i32 [[LD]], 5
 ; K_OR_HY-NEXT:    store i32 [[MUL]], ptr addrspace(3) @llvm.amdgcn.kernel.k0_both.lds, align 4

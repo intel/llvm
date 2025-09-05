@@ -2,7 +2,9 @@ static_library("Symbolize") {
   output_name = "LLVMSymbolize"
   deps = [
     "//llvm/include/llvm/Config:config",
+    "//llvm/lib/DebugInfo/BTF",
     "//llvm/lib/DebugInfo/DWARF",
+    "//llvm/lib/DebugInfo/GSYM",
     "//llvm/lib/DebugInfo/PDB",
     "//llvm/lib/Demangle",
     "//llvm/lib/Object",

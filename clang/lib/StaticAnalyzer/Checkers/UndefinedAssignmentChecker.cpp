@@ -23,7 +23,7 @@ using namespace ento;
 namespace {
 class UndefinedAssignmentChecker
   : public Checker<check::Bind> {
-  mutable std::unique_ptr<BugType> BT;
+  const BugType BT{this, "Assigned value is uninitialized"};
 
 public:
   void checkBind(SVal location, SVal val, const Stmt *S,
@@ -39,7 +39,6 @@ void UndefinedAssignmentChecker::checkBind(SVal location, SVal val,
 
   // Do not report assignments of uninitialized values inside swap functions.
   // This should allow to swap partially uninitialized structs
-  // (radar://14129997)
   if (const FunctionDecl *EnclosingFunctionDecl =
       dyn_cast<FunctionDecl>(C.getStackFrame()->getDecl()))
     if (C.getCalleeName(EnclosingFunctionDecl) == "swap")
@@ -50,11 +49,6 @@ void UndefinedAssignmentChecker::checkBind(SVal location, SVal val,
   if (!N)
     return;
 
-  static const char *const DefaultMsg =
-      "Assigned value is garbage or undefined";
-  if (!BT)
-    BT.reset(new BuiltinBug(this, DefaultMsg));
-
   // Generate a report for this bug.
   llvm::SmallString<128> Str;
   llvm::raw_svector_ostream OS(Str);
@@ -63,8 +57,7 @@ void UndefinedAssignmentChecker::checkBind(SVal location, SVal val,
 
   while (StoreE) {
     if (const UnaryOperator *U = dyn_cast<UnaryOperator>(StoreE)) {
-      OS << "The expression is an uninitialized value. "
-            "The computed value will also be garbage";
+      OS << "The expression uses uninitialized memory";
 
       ex = U->getSubExpr();
       break;
@@ -73,8 +66,8 @@ void UndefinedAssignmentChecker::checkBind(SVal location, SVal val,
     if (const BinaryOperator *B = dyn_cast<BinaryOperator>(StoreE)) {
       if (B->isCompoundAssignmentOp()) {
         if (C.getSVal(B->getLHS()).isUndef()) {
-          OS << "The left expression of the compound assignment is an "
-                "uninitialized value. The computed value will also be garbage";
+          OS << "The left expression of the compound assignment uses "
+             << "uninitialized memory";
           ex = B->getLHS();
           break;
         }
@@ -95,7 +88,7 @@ void UndefinedAssignmentChecker::checkBind(SVal location, SVal val,
         for (auto *I : CD->inits()) {
           if (I->getInit()->IgnoreImpCasts() == StoreE) {
             OS << "Value assigned to field '" << I->getMember()->getName()
-               << "' in implicit constructor is garbage or undefined";
+               << "' in implicit constructor is uninitialized";
             break;
           }
         }
@@ -106,9 +99,9 @@ void UndefinedAssignmentChecker::checkBind(SVal location, SVal val,
   }
 
   if (OS.str().empty())
-    OS << DefaultMsg;
+    OS << BT.getDescription();
 
-  auto R = std::make_unique<PathSensitiveBugReport>(*BT, OS.str(), N);
+  auto R = std::make_unique<PathSensitiveBugReport>(BT, OS.str(), N);
   if (ex) {
     R->addRange(ex->getSourceRange());
     bugreporter::trackExpressionValue(N, ex, *R);

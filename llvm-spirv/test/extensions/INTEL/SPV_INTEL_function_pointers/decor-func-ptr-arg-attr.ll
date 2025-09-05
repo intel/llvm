@@ -3,46 +3,46 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.spt -o %t.spv -to-binary
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix CHECK-LLVM
 
 ; CHECK-SPIRV: Capability FunctionPointersINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
 
-; CHECK-SPIRV: Decorate [[#TargetId:]] ArgumentAttributeINTEL 0 4
-; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 5
+; CHECK-SPIRV: Decorate [[#TargetId:]] ArgumentAttributeINTEL 0 5
+; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 4
 ; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 2
 ; CHECK-SPIRV: FunctionPointerCallINTEL
 ; CHECK-SPIRV-SAME: [[#TargetId]]
 
-; CHECK-LLVM: call spir_func void %cond.i.i(ptr noalias nocapture byval(%multi_ptr) %agg.tmp.i.i)
+; CHECK-LLVM: call spir_func void %cond.i.i(ptr noalias byval(%multi_ptr) captures(none) %agg.tmp.i.i)
 
 ; ModuleID = 'sycl_test.cpp'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-%"multi_ptr" = type { i32* }
+%"multi_ptr" = type { ptr }
 %"range" = type { %"array" }
 %"array" = type { [1 x i64] }
-%wrapper_class = type { i32 addrspace(1)* }
-%wrapper_class.0 = type { i32 addrspace(1)* }
+%wrapper_class = type { ptr addrspace(1) }
+%wrapper_class.0 = type { ptr addrspace(1) }
 
 $RoundedRangeKernel = comdat any
 
 ; Function Attrs: nounwind
-define spir_func void @inc_function(%"multi_ptr"* byval(%"multi_ptr") noalias nocapture %ptr) #0 {
+define spir_func void @inc_function(ptr byval(%"multi_ptr") noalias captures(none) %ptr) #0 {
 entry:
   ret void
 }
 
 
 ; Function Attrs: convergent norecurse
-define weak_odr dso_local spir_kernel void @RoundedRangeKernel(%"range"* byval(%"range") align 8 %_arg_NumWorkItems, i1 zeroext %_arg_, %wrapper_class* byval(%wrapper_class) align 8 %_arg_1, %wrapper_class.0* byval(%wrapper_class.0) align 8 %_arg_2) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !6 {
+define weak_odr dso_local spir_kernel void @RoundedRangeKernel(ptr byval(%"range") align 8 %_arg_NumWorkItems, i1 zeroext %_arg_, ptr byval(%wrapper_class) align 8 %_arg_1, ptr byval(%wrapper_class.0) align 8 %_arg_2) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !6 {
 entry:
   %agg.tmp.i.i = alloca %"multi_ptr", align 8
-  %cond.i.i = select i1 %_arg_, void (%"multi_ptr"*)* @inc_function, void (%"multi_ptr"*)* null
-  call spir_func void %cond.i.i(%"multi_ptr"* nonnull byval(%"multi_ptr") align 8 noalias nocapture %agg.tmp.i.i) #1, !callees !7
+  %cond.i.i = select i1 %_arg_, ptr @inc_function, ptr null
+  call spir_func void %cond.i.i(ptr nonnull byval(%"multi_ptr") align 8 noalias captures(none) %agg.tmp.i.i) #1, !callees !7
   ret void
 }
 
@@ -64,4 +64,4 @@ attributes #1 = { convergent }
 !4 = !{}
 !5 = !{!"Compiler"}
 !6 = !{i32 -1, i32 -1, i32 -1, i32 -1}
-!7 = !{void (%"multi_ptr"*)* @inc_function}
+!7 = !{ptr @inc_function}

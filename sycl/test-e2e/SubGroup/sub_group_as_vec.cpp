@@ -1,23 +1,18 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -Wno-deprecated-declarations
+// RUN: %{run} %t1.out
 //
-// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out
-// RUN: %{run} %t.out
-//
-// Missing  __spirv_GenericCastToPtrExplicit_ToLocal,
-// __spirv_SubgroupLocalInvocationId, __spirv_GenericCastToPtrExplicit_ToGlobal,
-// __spirv_SubgroupBlockReadINTEL, __assert_fail,
-// __spirv_SubgroupBlockWriteINTEL on AMD
-// error message `Barrier is not supported on the host device yet.` on Nvidia.
-// XFAIL: hip_amd || hip_nvidia
-// UNSUPPORTED: ze_debug
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t2.out -Wno-deprecated-declarations
+// RUN: %{run} %t2.out
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "helper.hpp"
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <sycl/sycl.hpp>
 
 int main(int argc, char *argv[]) {
   sycl::queue queue;
@@ -57,8 +52,8 @@ int main(int argc, char *argv[]) {
             }
             it.barrier();
 
-            int i = (it.get_global_id(0) / sg.get_max_local_range()[0]) *
-                    sg.get_max_local_range()[0];
+            int i = (it.get_global_id(0) / sg.get_local_range()[0]) *
+                    sg.get_local_range()[0];
             // Global address space
             auto x = sg.load(&global[i]);
             auto x_cv1 = sg.load<const volatile sycl::int2>(&global[i]);

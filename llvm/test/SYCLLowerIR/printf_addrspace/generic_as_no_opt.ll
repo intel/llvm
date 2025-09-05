@@ -36,76 +36,76 @@ $_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_ = comdat any
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUlvE_() #0 comdat !kernel_arg_buffer_location !9 {
 entry:
   %0 = alloca %class.anon.0, align 1
-  %1 = addrspacecast %class.anon.0* %0 to %class.anon.0 addrspace(4)*
-  call spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %1) #8
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) %1) #8
   ret void
 }
 
 ; CHECK-LABEL: define internal spir_func void @_ZZZ4main{{.*}}
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define internal spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #2 align 2 {
+define internal spir_func void @_ZZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_ENKUlvE_clEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) %this) #2 align 2 {
 entry:
-  %this.addr = alloca %class.anon.0 addrspace(4)*, align 8
-  %IntFormatString = alloca i8 addrspace(4)*, align 8
-  %this.addr.ascast = addrspacecast %class.anon.0 addrspace(4)** %this.addr to %class.anon.0 addrspace(4)* addrspace(4)*
-  %IntFormatString.ascast = addrspacecast i8 addrspace(4)** %IntFormatString to i8 addrspace(4)* addrspace(4)*
-  store %class.anon.0 addrspace(4)* %this, %class.anon.0 addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
-  %this1 = load %class.anon.0 addrspace(4)*, %class.anon.0 addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
+  %IntFormatString = alloca ptr addrspace(4), align 8
+  %this.addr.ascast = addrspacecast ptr %this.addr to ptr addrspace(4)
+  %IntFormatString.ascast = addrspacecast ptr %IntFormatString to ptr addrspace(4)
+  store ptr addrspace(4) %this, ptr addrspace(4) %this.addr.ascast, align 8
+  %this1 = load ptr addrspace(4), ptr addrspace(4) %this.addr.ascast, align 8
   ; In particular, make sure that no argument promotion has been done for float
   ; upon variadic redeclaration:
-  ; CHECK: call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(2)* @.str._AS2, i32 0, i32 0), float 1.000000e+00)
-  %call = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJfEEEiPKT_DpT0_(i8 addrspace(4)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(4)* addrspacecast ([15 x i8] addrspace(1)* @.str to [15 x i8] addrspace(4)*), i64 0, i64 0), float 1.000000e+00) #8
-  store i8 addrspace(4)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(4)* addrspacecast ([15 x i8] addrspace(1)* @.str.1 to [15 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspace(4)* %IntFormatString.ascast, align 8
-  %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %IntFormatString.ascast, align 8
-  ; CHECK: call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(2)* @.str.1._AS2, i32 0, i32 0), i32 2)
-  %call2 = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(i8 addrspace(4)* %0, i32 2) #8
-  %1 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %IntFormatString.ascast, align 8
-  ; CHECK: call spir_func i32 (i8 addrspace(2)*, ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)* getelementptr inbounds ([15 x i8], [15 x i8] addrspace(2)* @.str.1._AS2, i32 0, i32 0), i32 3)
-  %call3 = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(i8 addrspace(4)* %1, i32 3) #8
+  ; CHECK: call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2) @.str._AS2, float 1.000000e+00)
+  %call = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJfEEEiPKT_DpT0_(ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str to ptr addrspace(4)), float 1.000000e+00) #8
+  store ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), ptr addrspace(4) %IntFormatString.ascast, align 8
+  %0 = load ptr addrspace(4), ptr addrspace(4) %IntFormatString.ascast, align 8
+  ; CHECK: call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2) @.str.1._AS2, i32 2)
+  %call2 = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(ptr addrspace(4) %0, i32 2) #8
+  %1 = load ptr addrspace(4), ptr addrspace(4) %IntFormatString.ascast, align 8
+  ; CHECK: call spir_func i32 (ptr addrspace(2), ...) @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2) @.str.1._AS2, i32 3)
+  %call3 = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(ptr addrspace(4) %1, i32 3) #8
   ret void
 }
 
-; CHECK-LABEL: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(i8 addrspace(2)*, ...)
+; CHECK-LABEL: declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2), ...)
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJfEEEiPKT_DpT0_(i8 addrspace(4)* %__format, float %args) #2 comdat {
+define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJfEEEiPKT_DpT0_(ptr addrspace(4) %__format, float %args) #2 comdat {
 entry:
   %retval = alloca i32, align 4
-  %__format.addr = alloca i8 addrspace(4)*, align 8
+  %__format.addr = alloca ptr addrspace(4), align 8
   %args.addr = alloca float, align 4
-  %retval.ascast = addrspacecast i32* %retval to i32 addrspace(4)*
-  %__format.addr.ascast = addrspacecast i8 addrspace(4)** %__format.addr to i8 addrspace(4)* addrspace(4)*
-  %args.addr.ascast = addrspacecast float* %args.addr to float addrspace(4)*
-  store i8 addrspace(4)* %__format, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
-  store float %args, float addrspace(4)* %args.addr.ascast, align 4
-  %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
-  %1 = load float, float addrspace(4)* %args.addr.ascast, align 4
-  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJfEEiPKcDpT_(i8 addrspace(4)* %0, float %1) #8
+  %retval.ascast = addrspacecast ptr %retval to ptr addrspace(4)
+  %__format.addr.ascast = addrspacecast ptr %__format.addr to ptr addrspace(4)
+  %args.addr.ascast = addrspacecast ptr %args.addr to ptr addrspace(4)
+  store ptr addrspace(4) %__format, ptr addrspace(4) %__format.addr.ascast, align 8
+  store float %args, ptr addrspace(4) %args.addr.ascast, align 4
+  %0 = load ptr addrspace(4), ptr addrspace(4) %__format.addr.ascast, align 8
+  %1 = load float, ptr addrspace(4) %args.addr.ascast, align 4
+  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJfEEiPKcDpT_(ptr addrspace(4) %0, float %1) #8
   ret i32 %call
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(i8 addrspace(4)* %__format, i32 %args) #2 comdat {
+define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJiEEEiPKT_DpT0_(ptr addrspace(4) %__format, i32 %args) #2 comdat {
 entry:
   %retval = alloca i32, align 4
-  %__format.addr = alloca i8 addrspace(4)*, align 8
+  %__format.addr = alloca ptr addrspace(4), align 8
   %args.addr = alloca i32, align 4
-  %retval.ascast = addrspacecast i32* %retval to i32 addrspace(4)*
-  %__format.addr.ascast = addrspacecast i8 addrspace(4)** %__format.addr to i8 addrspace(4)* addrspace(4)*
-  %args.addr.ascast = addrspacecast i32* %args.addr to i32 addrspace(4)*
-  store i8 addrspace(4)* %__format, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
-  store i32 %args, i32 addrspace(4)* %args.addr.ascast, align 4
-  %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
-  %1 = load i32, i32 addrspace(4)* %args.addr.ascast, align 4
-  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJiEEiPKcDpT_(i8 addrspace(4)* %0, i32 %1) #8
+  %retval.ascast = addrspacecast ptr %retval to ptr addrspace(4)
+  %__format.addr.ascast = addrspacecast ptr %__format.addr to ptr addrspace(4)
+  %args.addr.ascast = addrspacecast ptr %args.addr to ptr addrspace(4)
+  store ptr addrspace(4) %__format, ptr addrspace(4) %__format.addr.ascast, align 8
+  store i32 %args, ptr addrspace(4) %args.addr.ascast, align 4
+  %0 = load ptr addrspace(4), ptr addrspace(4) %__format.addr.ascast, align 8
+  %1 = load i32, ptr addrspace(4) %args.addr.ascast, align 4
+  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJiEEiPKcDpT_(ptr addrspace(4) %0, i32 %1) #8
   ret i32 %call
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJfEEiPKcDpT_(i8 addrspace(4)*, float) #7
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJfEEiPKcDpT_(ptr addrspace(4), float) #7
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJiEEiPKcDpT_(i8 addrspace(4)*, i32) #7
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJiEEiPKcDpT_(ptr addrspace(4), i32) #7
 
 attributes #0 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="experimental-printf.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { convergent noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

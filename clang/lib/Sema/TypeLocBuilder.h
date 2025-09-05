@@ -20,7 +20,7 @@
 namespace clang {
 
 class TypeLocBuilder {
-  enum { InlineCapacity = 8 * sizeof(SourceLocation) };
+  static constexpr int InlineCapacity = 8 * sizeof(SourceLocation);
 
   /// The underlying location-data buffer.  Data grows from the end
   /// of the buffer backwards.
@@ -38,7 +38,7 @@ class TypeLocBuilder {
 #endif
 
   /// The inline buffer.
-  enum { BufferMaxAlignment = alignof(void *) };
+  static constexpr int BufferMaxAlignment = alignof(void *);
   alignas(BufferMaxAlignment) char InlineBuffer[InlineCapacity];
   unsigned NumBytesAtAlign4;
   bool AtAlign8;
@@ -52,6 +52,9 @@ public:
     if (Buffer != InlineBuffer)
       delete[] Buffer;
   }
+
+  TypeLocBuilder(const TypeLocBuilder &) = delete;
+  TypeLocBuilder &operator=(const TypeLocBuilder &) = delete;
 
   /// Ensures that this buffer has at least as much capacity as described.
   void reserve(size_t Requested) {

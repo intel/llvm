@@ -14,8 +14,9 @@ func.func @array_ref(%arg0: !fir.box<!fir.array<?xf32>>, %arg1: !fir.ref<i64>) {
 // CHECK-SAME:    %[[VAL_1:.*]]: !fir.ref<i64>) {
 // CHECK:  %[[VAL_2:.*]] = fir.declare %[[VAL_1]] {uniq_name = "n"} : (!fir.ref<i64>) -> !fir.ref<i64>
 // CHECK:  %[[VAL_3:.*]] = fir.declare %[[VAL_0]] {uniq_name = "x"} : (!fir.box<!fir.array<?xf32>>) -> !fir.box<!fir.array<?xf32>>
+// CHECK:  %[[VAL_4:.*]] = fir.rebox %[[VAL_3]] : (!fir.box<!fir.array<?xf32>>) -> !fir.box<!fir.array<?xf32>>
 // CHECK:  %[[VAL_5:.*]] = fir.load %[[VAL_2]] : !fir.ref<i64>
-// CHECK:  %[[VAL_6:.*]] = fir.array_coor %[[VAL_3]] %[[VAL_5]] : (!fir.box<!fir.array<?xf32>>, i64) -> !fir.ref<f32>
+// CHECK:  %[[VAL_6:.*]] = fir.array_coor %[[VAL_4]] %[[VAL_5]] : (!fir.box<!fir.array<?xf32>>, i64) -> !fir.ref<f32>
 
 
 func.func @char_array_ref(%arg0: !fir.box<!fir.array<?x!fir.char<1,?>>>, %arg1: !fir.ref<i32>) {
@@ -31,9 +32,10 @@ func.func @char_array_ref(%arg0: !fir.box<!fir.array<?x!fir.char<1,?>>>, %arg1: 
 // CHECK-SAME:    %[[VAL_1:.*]]: !fir.ref<i32>) {
 // CHECK:  %[[VAL_2:.*]] = fir.declare %[[VAL_1]] {uniq_name = "n"} : (!fir.ref<i32>) -> !fir.ref<i32>
 // CHECK:  %[[VAL_3:.*]] = fir.declare %[[VAL_0]] {uniq_name = "x"} : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
-// CHECK:  %[[VAL_5:.*]] = fir.box_elesize %[[VAL_3]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> index
+// CHECK:  %[[VAL_4:.*]] = fir.rebox %[[VAL_3]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+// CHECK:  %[[VAL_5:.*]] = fir.box_elesize %[[VAL_4]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> index
 // CHECK:  %[[VAL_6:.*]] = arith.constant 10 : index
-// CHECK:  %[[VAL_7:.*]] = fir.array_coor %[[VAL_3]] %[[VAL_6]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>, index) -> !fir.ref<!fir.char<1,?>>
+// CHECK:  %[[VAL_7:.*]] = fir.array_coor %[[VAL_4]] %[[VAL_6]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>, index) -> !fir.ref<!fir.char<1,?>>
 // CHECK:  %[[VAL_8:.*]] = fir.emboxchar %[[VAL_7]], %[[VAL_5]] : (!fir.ref<!fir.char<1,?>>, index) -> !fir.boxchar<1>
 
 
@@ -51,8 +53,9 @@ func.func @char_array_ref_cst_len(%arg0: !fir.box<!fir.array<?x!fir.char<1,5>>>,
 // CHECK:  %[[VAL_2:.*]] = fir.declare %[[VAL_1]] {uniq_name = "n"} : (!fir.ref<i32>) -> !fir.ref<i32>
 // CHECK:  %[[VAL_3:.*]] = arith.constant 5 : index
 // CHECK:  %[[VAL_4:.*]] = fir.declare %[[VAL_0]] typeparams %[[VAL_3]] {uniq_name = "x"} : (!fir.box<!fir.array<?x!fir.char<1,5>>>, index) -> !fir.box<!fir.array<?x!fir.char<1,5>>>
+// CHECK:  %[[VAL_5:.*]] = fir.rebox %[[VAL_4]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>) -> !fir.box<!fir.array<?x!fir.char<1,5>>>
 // CHECK:  %[[VAL_6:.*]] = arith.constant 10 : index
-// CHECK:  %[[VAL_7:.*]] = fir.array_coor %[[VAL_4]] %[[VAL_6]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>, index) -> !fir.ref<!fir.char<1,5>>
+// CHECK:  %[[VAL_7:.*]] = fir.array_coor %[[VAL_5]] %[[VAL_6]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>, index) -> !fir.ref<!fir.char<1,5>>
 
 
 func.func @char_array_ref_3(%arg0: !fir.ref<!fir.array<100x!fir.char<1,?>>>, %arg1: !fir.ref<i32>) {
@@ -121,16 +124,17 @@ func.func @array_section_2(%arg0: !fir.box<!fir.array<?xf32>>, %arg1: !fir.ref<i
 // CHECK-SAME:    %[[VAL_1:.*]]: !fir.ref<i64>) {
 // CHECK:  %[[VAL_2:.*]] = fir.declare %[[VAL_1]] {uniq_name = "n"} : (!fir.ref<i64>) -> !fir.ref<i64>
 // CHECK:  %[[VAL_3:.*]] = fir.declare %[[VAL_0]] {uniq_name = "x"} : (!fir.box<!fir.array<?xf32>>) -> !fir.box<!fir.array<?xf32>>
+// CHECK:  %[[VAL_4:.*]] = fir.rebox %[[VAL_3]] : (!fir.box<!fir.array<?xf32>>) -> !fir.box<!fir.array<?xf32>>
 // CHECK:  %[[VAL_5:.*]] = fir.load %[[VAL_2]] : !fir.ref<i64>
 // CHECK:  %[[VAL_6:.*]] = arith.constant 0 : index
-// CHECK:  %[[VAL_7:.*]]:3 = fir.box_dims %[[VAL_3]], %[[VAL_6]] : (!fir.box<!fir.array<?xf32>>, index) -> (index, index, index)
+// CHECK:  %[[VAL_7:.*]]:3 = fir.box_dims %[[VAL_4]], %[[VAL_6]] : (!fir.box<!fir.array<?xf32>>, index) -> (index, index, index)
 // CHECK:  %[[VAL_8:.*]] = fir.convert %[[VAL_5]] : (i64) -> index
 // CHECK:  %[[VAL_9:.*]] = arith.constant 3 : index
 // CHECK:  %[[VAL_10:.*]] = arith.constant 42 : index
 // CHECK:  %[[VAL_11:.*]] = fir.shape %[[VAL_10]] : (index) -> !fir.shape<1>
 // CHECK:  %[[VAL_12:.*]] = fir.undefined index
 // CHECK:  %[[VAL_13:.*]] = fir.slice %[[VAL_8]], %[[VAL_7]]#1, %[[VAL_9]] : (index, index, index) -> !fir.slice<1>
-// CHECK:  %[[VAL_14:.*]] = fir.rebox %[[VAL_3]] {{\[}}%[[VAL_13]]] : (!fir.box<!fir.array<?xf32>>, !fir.slice<1>) -> !fir.box<!fir.array<?xf32>>
+// CHECK:  %[[VAL_14:.*]] = fir.rebox %[[VAL_4]] {{\[}}%[[VAL_13]]] : (!fir.box<!fir.array<?xf32>>, !fir.slice<1>) -> !fir.box<!fir.array<?xf32>>
 
 
 func.func @char_array_section(%arg0: !fir.box<!fir.array<?x!fir.char<1,?>>>, %arg1: !fir.ref<i32>) {
@@ -151,16 +155,17 @@ func.func @char_array_section(%arg0: !fir.box<!fir.array<?x!fir.char<1,?>>>, %ar
 // CHECK-SAME:    %[[VAL_1:.*]]: !fir.ref<i32>) {
 // CHECK:  %[[VAL_2:.*]] = fir.declare %[[VAL_1]] {uniq_name = "n"} : (!fir.ref<i32>) -> !fir.ref<i32>
 // CHECK:  %[[VAL_3:.*]] = fir.declare %[[VAL_0]] {uniq_name = "x"} : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
-// CHECK:  %[[VAL_5:.*]] = fir.box_elesize %[[VAL_3]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> index
+// CHECK:  %[[VAL_4:.*]] = fir.rebox %[[VAL_3]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+// CHECK:  %[[VAL_5:.*]] = fir.box_elesize %[[VAL_4]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>) -> index
 // CHECK:  %[[VAL_6:.*]] = arith.constant 1 : index
 // CHECK:  %[[VAL_7:.*]] = arith.constant 0 : index
-// CHECK:  %[[VAL_8:.*]]:3 = fir.box_dims %[[VAL_3]], %[[VAL_7]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>, index) -> (index, index, index)
+// CHECK:  %[[VAL_8:.*]]:3 = fir.box_dims %[[VAL_4]], %[[VAL_7]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>, index) -> (index, index, index)
 // CHECK:  %[[VAL_9:.*]] = arith.constant 3 : index
 // CHECK:  %[[VAL_10:.*]] = arith.constant 42 : index
 // CHECK:  %[[VAL_11:.*]] = fir.shape %[[VAL_10]] : (index) -> !fir.shape<1>
 // CHECK:  %[[VAL_12:.*]] = fir.undefined index
 // CHECK:  %[[VAL_13:.*]] = fir.slice %[[VAL_6]], %[[VAL_8]]#1, %[[VAL_9]] : (index, index, index) -> !fir.slice<1>
-// CHECK:  %[[VAL_14:.*]] = fir.rebox %[[VAL_3]] {{\[}}%[[VAL_13]]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
+// CHECK:  %[[VAL_14:.*]] = fir.rebox %[[VAL_4]] {{\[}}%[[VAL_13]]] : (!fir.box<!fir.array<?x!fir.char<1,?>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,?>>>
 
 
 func.func @char_array_section_cst_len(%arg0: !fir.box<!fir.array<?x!fir.char<1,5>>>, %arg1: !fir.ref<i32>) {
@@ -182,15 +187,16 @@ func.func @char_array_section_cst_len(%arg0: !fir.box<!fir.array<?x!fir.char<1,5
 // CHECK:  %[[VAL_2:.*]] = fir.declare %[[VAL_1]] {uniq_name = "n"} : (!fir.ref<i32>) -> !fir.ref<i32>
 // CHECK:  %[[VAL_3:.*]] = arith.constant 5 : index
 // CHECK:  %[[VAL_4:.*]] = fir.declare %[[VAL_0]] typeparams %[[VAL_3]] {uniq_name = "x"} : (!fir.box<!fir.array<?x!fir.char<1,5>>>, index) -> !fir.box<!fir.array<?x!fir.char<1,5>>>
+// CHECK:  %[[VAL_5:.*]] = fir.rebox %[[VAL_4]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>) -> !fir.box<!fir.array<?x!fir.char<1,5>>>
 // CHECK:  %[[VAL_6:.*]] = arith.constant 1 : index
 // CHECK:  %[[VAL_7:.*]] = arith.constant 0 : index
-// CHECK:  %[[VAL_8:.*]]:3 = fir.box_dims %[[VAL_4]], %[[VAL_7]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>, index) -> (index, index, index)
+// CHECK:  %[[VAL_8:.*]]:3 = fir.box_dims %[[VAL_5]], %[[VAL_7]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>, index) -> (index, index, index)
 // CHECK:  %[[VAL_9:.*]] = arith.constant 3 : index
 // CHECK:  %[[VAL_10:.*]] = arith.constant 42 : index
 // CHECK:  %[[VAL_11:.*]] = fir.shape %[[VAL_10]] : (index) -> !fir.shape<1>
 // CHECK:  %[[VAL_12:.*]] = fir.undefined index
 // CHECK:  %[[VAL_13:.*]] = fir.slice %[[VAL_6]], %[[VAL_8]]#1, %[[VAL_9]] : (index, index, index) -> !fir.slice<1>
-// CHECK:  %[[VAL_14:.*]] = fir.rebox %[[VAL_4]] {{\[}}%[[VAL_13]]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,5>>>
+// CHECK:  %[[VAL_14:.*]] = fir.rebox %[[VAL_5]] {{\[}}%[[VAL_13]]] : (!fir.box<!fir.array<?x!fir.char<1,5>>>, !fir.slice<1>) -> !fir.box<!fir.array<?x!fir.char<1,5>>>
 
 func.func @test_polymorphic_array_elt(%arg0: !fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>> {fir.bindc_name = "x"}) {
   %0:2 = hlfir.declare %arg0 {uniq_name = "_QFtest1Ex"} : (!fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>) -> (!fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>, !fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>)
@@ -203,7 +209,74 @@ func.func @test_polymorphic_array_elt(%arg0: !fir.class<!fir.array<?x!fir.type<_
 // CHECK:           %[[VAL_1:.*]] = fir.declare %[[VAL_0]] {uniq_name = "_QFtest1Ex"} : (!fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>) -> !fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>
 // CHECK:           %[[VAL_2:.*]] = fir.rebox %[[VAL_1]] : (!fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>) -> !fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>
 // CHECK:           %[[VAL_3:.*]] = arith.constant 7 : index
-// CHECK:           %[[VAL_4:.*]] = fir.array_coor %[[VAL_1]] %[[VAL_3]] : (!fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>, index) -> !fir.ref<!fir.type<_QMtypesTt1>>
-// CHECK:           %[[VAL_5:.*]] = fir.embox %[[VAL_4]] source_box %[[VAL_1]] : (!fir.ref<!fir.type<_QMtypesTt1>>, !fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>) -> !fir.class<!fir.type<_QMtypesTt1>>
+// CHECK:           %[[VAL_4:.*]] = fir.array_coor %[[VAL_2]] %[[VAL_3]] : (!fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>, index) -> !fir.ref<!fir.type<_QMtypesTt1>>
+// CHECK:           %[[VAL_5:.*]] = fir.embox %[[VAL_4]] source_box %[[VAL_2]] : (!fir.ref<!fir.type<_QMtypesTt1>>, !fir.class<!fir.array<?x!fir.type<_QMtypesTt1>>>) -> !fir.class<!fir.type<_QMtypesTt1>>
 // CHECK:           return
 // CHECK:         }
+
+// Test proper generation of fir.array_coor for contiguous box with default lbounds.
+func.func @_QPtest_contiguous_derived_default(%arg0: !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>> {fir.bindc_name = "d1", fir.contiguous, fir.optional}) {
+  %c1 = arith.constant 1 : index
+  %c16_i32 = arith.constant 16 : i32
+  %0 = fir.dummy_scope : !fir.dscope
+  %1:2 = hlfir.declare %arg0 dummy_scope %0 {fortran_attrs = #fir.var_attrs<contiguous, optional>, uniq_name = "_QFtest_contiguous_derived_defaultEd1"} : (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.dscope) -> (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>)
+  fir.select_type %1#1 : !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>> [#fir.type_is<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>, ^bb1, unit, ^bb2]
+^bb1:  // pred: ^bb0
+  %2 = fir.convert %1#1 : (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>) -> !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+  %3:2 = hlfir.declare %2 {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_defaultEd1"} : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>) -> (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>)
+  %4 = hlfir.designate %3#0 (%c1, %c1)  : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, index, index) -> !fir.ref<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>
+  %5 = hlfir.designate %4{"i"}   : (!fir.ref<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>) -> !fir.ref<i32>
+  hlfir.assign %c16_i32 to %5 : i32, !fir.ref<i32>
+  cf.br ^bb3
+^bb2:  // pred: ^bb0
+  %6:2 = hlfir.declare %1#1 {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_defaultEd1"} : (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>) -> (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>)
+  cf.br ^bb3
+^bb3:  // 2 preds: ^bb1, ^bb2
+  return
+}
+// CHECK-LABEL:   func.func @_QPtest_contiguous_derived_default(
+// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_9:.*]] = fir.declare %{{.*}} {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_defaultEd1"} : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>) -> !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+// CHECK:           %[[VAL_10:.*]] = fir.rebox %[[VAL_9]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>) -> !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+// CHECK:           %[[VAL_11:.*]] = fir.box_addr %[[VAL_10]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>) -> !fir.ref<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+// CHECK:           %[[VAL_12:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_13:.*]]:3 = fir.box_dims %[[VAL_10]], %[[VAL_12]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, index) -> (index, index, index)
+// CHECK:           %[[VAL_14:.*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_15:.*]]:3 = fir.box_dims %[[VAL_10]], %[[VAL_14]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, index) -> (index, index, index)
+// CHECK:           %[[VAL_16:.*]] = fir.shape %[[VAL_13]]#1, %[[VAL_15]]#1 : (index, index) -> !fir.shape<2>
+// CHECK:           %[[VAL_17:.*]] = fir.array_coor %[[VAL_11]](%[[VAL_16]]) %[[VAL_0]], %[[VAL_0]] : (!fir.ref<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.shape<2>, index, index) -> !fir.ref<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>
+
+// Test proper generation of fir.array_coor for contiguous box with non-default lbounds.
+func.func @_QPtest_contiguous_derived_lbounds(%arg0: !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>> {fir.bindc_name = "d1", fir.contiguous}) {
+  %c3 = arith.constant 3 : index
+  %c1 = arith.constant 1 : index
+  %c16_i32 = arith.constant 16 : i32
+  %0 = fir.dummy_scope : !fir.dscope
+  %1 = fir.shift %c1, %c3 : (index, index) -> !fir.shift<2>
+  %2:2 = hlfir.declare %arg0(%1) dummy_scope %0 {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_lboundsEd1"} : (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.shift<2>, !fir.dscope) -> (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>)
+  fir.select_type %2#1 : !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>> [#fir.type_is<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>, ^bb1, unit, ^bb2]
+^bb1:  // pred: ^bb0
+  %3 = fir.convert %2#1 : (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>) -> !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+  %4:2 = hlfir.declare %3(%1) {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_lboundsEd1"} : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.shift<2>) -> (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>)
+  %5 = hlfir.designate %4#0 (%c1, %c3)  : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, index, index) -> !fir.ref<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>
+  %6 = hlfir.designate %5{"i"}   : (!fir.ref<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>) -> !fir.ref<i32>
+  hlfir.assign %c16_i32 to %6 : i32, !fir.ref<i32>
+  cf.br ^bb3
+^bb2:  // pred: ^bb0
+  %7:2 = hlfir.declare %2#1(%1) {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_lboundsEd1"} : (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.shift<2>) -> (!fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>, !fir.class<!fir.array<?x?x!fir.type<_QMtypesTt1>>>)
+  cf.br ^bb3
+^bb3:  // 2 preds: ^bb1, ^bb2
+  return
+}
+// CHECK-LABEL:   func.func @_QPtest_contiguous_derived_lbounds(
+// CHECK:           %[[VAL_0:.*]] = arith.constant 3 : index
+// CHECK:           %[[VAL_1:.*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_8:.*]] = fir.declare %{{.*}}(%[[VAL_4:.*]]) {fortran_attrs = #fir.var_attrs<contiguous>, uniq_name = "_QFtest_contiguous_derived_lboundsEd1"} : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.shift<2>) -> !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+// CHECK:           %[[VAL_9:.*]] = fir.rebox %[[VAL_8]](%[[VAL_4]]) : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.shift<2>) -> !fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+// CHECK:           %[[VAL_10:.*]] = fir.box_addr %[[VAL_9]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>) -> !fir.ref<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>
+// CHECK:           %[[VAL_11:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_12:.*]]:3 = fir.box_dims %[[VAL_9]], %[[VAL_11]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, index) -> (index, index, index)
+// CHECK:           %[[VAL_13:.*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_14:.*]]:3 = fir.box_dims %[[VAL_9]], %[[VAL_13]] : (!fir.box<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, index) -> (index, index, index)
+// CHECK:           %[[VAL_15:.*]] = fir.shape_shift %[[VAL_1]], %[[VAL_12]]#1, %[[VAL_0]], %[[VAL_14]]#1 : (index, index, index, index) -> !fir.shapeshift<2>
+// CHECK:           %[[VAL_16:.*]] = fir.array_coor %[[VAL_10]](%[[VAL_15]]) %[[VAL_1]], %[[VAL_0]] : (!fir.ref<!fir.array<?x?x!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>>, !fir.shapeshift<2>, index, index) -> !fir.ref<!fir.type<_QMtypesTt2{t1:!fir.type<_QMtypesTt1>,i:i32}>>

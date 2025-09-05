@@ -267,15 +267,11 @@ static StackDuration mergeStackDuration(const StackDuration &Left,
   Data.IntermediateDurations.reserve(Left.IntermediateDurations.size() +
                                      Right.IntermediateDurations.size());
   // Aggregate the durations.
-  for (auto duration : Left.TerminalDurations)
-    Data.TerminalDurations.push_back(duration);
-  for (auto duration : Right.TerminalDurations)
-    Data.TerminalDurations.push_back(duration);
+  llvm::append_range(Data.TerminalDurations, Left.TerminalDurations);
+  llvm::append_range(Data.TerminalDurations, Right.TerminalDurations);
 
-  for (auto duration : Left.IntermediateDurations)
-    Data.IntermediateDurations.push_back(duration);
-  for (auto duration : Right.IntermediateDurations)
-    Data.IntermediateDurations.push_back(duration);
+  llvm::append_range(Data.IntermediateDurations, Left.IntermediateDurations);
+  llvm::append_range(Data.IntermediateDurations, Right.IntermediateDurations);
   return Data;
 }
 
@@ -478,7 +474,7 @@ public:
 
   /// Prints top stacks for each thread.
   void printPerThread(raw_ostream &OS, FuncIdConversionHelper &FN) {
-    for (auto iter : Roots) {
+    for (const auto &iter : Roots) {
       OS << "Thread " << iter.first << ":\n";
       print(OS, FN, iter.second);
       OS << "\n";
@@ -489,12 +485,8 @@ public:
   template <AggregationType AggType>
   void printAllPerThread(raw_ostream &OS, FuncIdConversionHelper &FN,
                          StackOutputFormat format) {
-    for (auto iter : Roots) {
-      uint32_t threadId = iter.first;
-      RootVector &perThreadRoots = iter.second;
-      bool reportThreadId = true;
-      printAll<AggType>(OS, FN, perThreadRoots, threadId, reportThreadId);
-    }
+    for (const auto &iter : Roots)
+      printAll<AggType>(OS, FN, iter.second, iter.first, true);
   }
 
   /// Prints top stacks from looking at all the leaves and ignoring thread IDs.
@@ -503,16 +495,8 @@ public:
   void printIgnoringThreads(raw_ostream &OS, FuncIdConversionHelper &FN) {
     RootVector RootValues;
 
-    // Function to pull the values out of a map iterator.
-    using RootsType = decltype(Roots.begin())::value_type;
-    auto MapValueFn = [](const RootsType &Value) { return Value.second; };
-
-    for (const auto &RootNodeRange :
-         make_range(map_iterator(Roots.begin(), MapValueFn),
-                    map_iterator(Roots.end(), MapValueFn))) {
-      for (auto *RootNode : RootNodeRange)
-        RootValues.push_back(RootNode);
-    }
+    for (const auto &RootNodeRange : make_second_range(Roots))
+      llvm::append_range(RootValues, RootNodeRange);
 
     print(OS, FN, RootValues);
   }
@@ -521,7 +505,7 @@ public:
   /// thread IDs.
   RootVector mergeAcrossThreads(std::forward_list<StackTrieNode> &NodeStore) {
     RootVector MergedByThreadRoots;
-    for (auto MapIter : Roots) {
+    for (const auto &MapIter : Roots) {
       const auto &RootNodeVector = MapIter.second;
       for (auto *Node : RootNodeVector) {
         auto MaybeFoundIter =
@@ -569,8 +553,7 @@ public:
       while (!S.empty()) {
         auto *Top = S.pop_back_val();
         printSingleStack<AggType>(OS, FN, ReportThread, ThreadId, Top);
-        for (const auto *C : Top->Callees)
-          S.push_back(C);
+        llvm::append_range(S, Top->Callees);
       }
     }
   }
@@ -645,8 +628,7 @@ public:
               TopStacksByCount.pop_back();
           }
         }
-        for (const auto *C : Top->Callees)
-          S.push_back(C);
+        llvm::append_range(S, Top->Callees);
       }
     }
 

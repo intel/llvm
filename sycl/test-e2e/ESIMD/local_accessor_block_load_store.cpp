@@ -5,21 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
-// UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -111,9 +102,7 @@ int main() {
   Pass &= test<int, 16, Align16>(Q);
   Pass &= test<float, 16, Align16>(Q);
 
-  if (Dev.has(aspect::fp16) &&
-      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "26032", "101.4502"))
+  if (Dev.has(aspect::fp16))
     Pass &= test<sycl::half, 16, Align16>(Q);
 
   // Check SLM load/store with vector size that is not power of 2

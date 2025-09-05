@@ -5,18 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} %debug_option -O0 -o %t.out
-// RUN: echo "SYCL_PRINT_EXECUTION_GRAPH=always" > %t.cfg
-// RUN: env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
-// RUN: ls | grep dot
-// RUN: rm *.dot
-// RUN: env SYCL_PRINT_EXECUTION_GRAPH=always %t.out
-// RUN: ls | grep dot
-// RUN: rm *.dot
-// RUN: %t.out
-// RUN: ls | not grep dot
+// RUN: %{build} %debug_option %O0 -o %t.out
+// RUN: echo SYCL_PRINT_EXECUTION_GRAPH=always > %t.cfg
+// RUN: %{run-unfiltered-devices} env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
+// RUN: %{run-aux} cat *.dot > /dev/null
+// RUN: %{run-aux} rm *.dot
+// RUN: %{run-unfiltered-devices} env SYCL_PRINT_EXECUTION_GRAPH=always %t.out
+// RUN: %{run-aux} cat *.dot > /dev/null
+// RUN: %{run-aux} rm *.dot
+// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run-aux} not cat *.dot > /dev/null
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::buffer<int, 1> Buf(sycl::range<1>{1});

@@ -12,6 +12,7 @@
 #include "SYCL.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Driver/Action.h"
+#include "clang/Driver/CudaInstallationDetector.h"
 #include "clang/Driver/Multilib.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
@@ -23,66 +24,11 @@
 
 namespace clang {
 namespace driver {
-
-/// A class to find a viable CUDA installation
-class CudaInstallationDetector {
-private:
-  const Driver &D;
-  bool IsValid = false;
-  CudaVersion Version = CudaVersion::UNKNOWN;
-  std::string InstallPath;
-  std::string BinPath;
-  std::string LibDevicePath;
-  std::string IncludePath;
-  llvm::StringMap<std::string> LibDeviceMap;
-
-  // CUDA architectures for which we have raised an error in
-  // CheckCudaVersionSupportsArch.
-  mutable std::bitset<(int)CudaArch::LAST> ArchsWithBadVersion;
-
-public:
-  CudaInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
-                           const llvm::opt::ArgList &Args);
-
-  void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
-                          llvm::opt::ArgStringList &CC1Args) const;
-
-  /// Emit an error if Version does not support the given Arch.
-  ///
-  /// If either Version or Arch is unknown, does not emit an error.  Emits at
-  /// most one error per Arch.
-  void CheckCudaVersionSupportsArch(CudaArch Arch) const;
-
-  /// Check whether we detected a valid Cuda install.
-  bool isValid() const { return IsValid; }
-  /// Print information about the detected CUDA installation.
-  void print(raw_ostream &OS) const;
-
-  /// Get the detected Cuda install's version.
-  CudaVersion version() const {
-    return Version == CudaVersion::NEW ? CudaVersion::PARTIALLY_SUPPORTED
-                                       : Version;
-  }
-  /// Get the detected Cuda installation path.
-  StringRef getInstallPath() const { return InstallPath; }
-  /// Get the detected path to Cuda's bin directory.
-  StringRef getBinPath() const { return BinPath; }
-  /// Get the detected Cuda Include path.
-  StringRef getIncludePath() const { return IncludePath; }
-  /// Get the detected Cuda device library path.
-  StringRef getLibDevicePath() const { return LibDevicePath; }
-  /// Get libdevice file for given architecture
-  std::string getLibDeviceFile(StringRef Gpu) const {
-    return LibDeviceMap.lookup(Gpu);
-  }
-  void WarnIfUnsupportedVersion();
-};
-
 namespace tools {
 namespace NVPTX {
 
 // Run ptxas, the NVPTX assembler.
-class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
+class LLVM_LIBRARY_VISIBILITY Assembler final : public Tool {
 public:
   Assembler(const ToolChain &TC) : Tool("NVPTX::Assembler", "ptxas", TC) {}
 
@@ -109,9 +55,9 @@ public:
 };
 
 // Runs nvlink, which links GPU object files ("cubin" files) into a single file.
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
-  Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
+  Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "nvlink", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
 
@@ -159,8 +105,8 @@ namespace toolchains {
 class LLVM_LIBRARY_VISIBILITY NVPTXToolChain : public ToolChain {
 public:
   NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
-                 const llvm::Triple &HostTriple, const llvm::opt::ArgList &Args,
-                 bool Freestanding);
+                 const llvm::Triple &HostTriple,
+                 const llvm::opt::ArgList &Args);
 
   NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                  const llvm::opt::ArgList &Args);
@@ -182,6 +128,7 @@ public:
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }
+  bool HasNativeLLVMSupport() const override { return true; }
   bool isPICDefaultForced() const override { return false; }
   bool SupportsProfiling() const override { return false; }
 
@@ -195,14 +142,16 @@ public:
   unsigned GetDefaultDwarfVersion() const override { return 2; }
   unsigned getMaxDwarfVersion() const override { return 2; }
 
+  /// Uses nvptx-arch tool to get arch of the system GPU. Will return error
+  /// if unable to find one.
+  virtual Expected<SmallVector<std::string>>
+  getSystemGPUArchs(const llvm::opt::ArgList &Args) const override;
+
   CudaInstallationDetector CudaInstallation;
 
 protected:
   Tool *buildAssembler() const override; // ptxas.
   Tool *buildLinker() const override;    // nvlink.
-
-private:
-  bool Freestanding = false;
 };
 
 class LLVM_LIBRARY_VISIBILITY CudaToolChain : public NVPTXToolChain {
@@ -214,6 +163,8 @@ public:
   const llvm::Triple *getAuxTriple() const override {
     return &HostTC.getTriple();
   }
+
+  bool HasNativeLLVMSupport() const override { return false; }
 
   std::string getInputFilename(const InputInfo &Input) const override;
 
@@ -229,9 +180,6 @@ public:
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const override;
 
-  // math-errno should be the default for SYCL but not other OFK using CUDA TC
-  bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
-
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
 
@@ -246,6 +194,10 @@ public:
   void AddIAMCUIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                            llvm::opt::ArgStringList &CC1Args) const override;
 
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadingKind) const override;
+
   SanitizerMask getSupportedSanitizers() const override;
 
   VersionTuple
@@ -255,10 +207,7 @@ public:
   Tool *SelectTool(const JobAction &JA) const override;
   const ToolChain &HostTC;
 
-  /// Uses nvptx-arch tool to get arch of the system GPU. Will return error
-  /// if unable to find one.
-  virtual Expected<SmallVector<std::string>>
-  getSystemGPUArchs(const llvm::opt::ArgList &Args) const override;
+  SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildAssembler() const override; // ptxas

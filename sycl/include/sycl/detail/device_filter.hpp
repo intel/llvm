@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -18,6 +17,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 // ---------------------------------------
@@ -46,10 +46,28 @@ public:
   std::optional<unsigned> SubSubDeviceNum;
 
   bool IsNegativeTarget = false; // used to represent negative filters.
+  // used in filter selector to keep count of the number of devices with
+  // the same Backend and DeviceType.
+  int MatchesSeen = 0;
 
   ods_target(backend be) { Backend = be; };
   ods_target(){};
   friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
+
+#if __cplusplus >= 202002L
+  bool operator==(const ods_target &Other) const = default;
+#else
+  bool operator==(const ods_target &Other) const {
+    return Backend == Other.Backend && DeviceType == Other.DeviceType &&
+           HasDeviceWildCard == Other.HasDeviceWildCard &&
+           DeviceNum == Other.DeviceNum &&
+           HasSubDeviceWildCard == Other.HasSubDeviceWildCard &&
+           HasSubSubDeviceWildCard == Other.HasSubSubDeviceWildCard &&
+           SubSubDeviceNum == Other.SubSubDeviceNum &&
+           IsNegativeTarget == Other.IsNegativeTarget &&
+           MatchesSeen == Other.MatchesSeen;
+  }
+#endif
 };
 
 class ods_target_list {
@@ -65,68 +83,6 @@ public:
 
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
 std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
-
-// ---------------------------------------
-// SYCL_DEVICE_FILTER support
-
-struct device_filter {
-  std::optional<backend> Backend;
-  std::optional<info::device_type> DeviceType;
-  std::optional<int> DeviceNum;
-  int MatchesSeen = 0;
-
-  device_filter(){};
-  device_filter(const std::string &FilterString);
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter &Filter);
-};
-
-class device_filter_list {
-  std::vector<device_filter> FilterList;
-
-public:
-  device_filter_list() {}
-  device_filter_list(const std::string &FilterString);
-  device_filter_list(device_filter &Filter);
-  void addFilter(device_filter &Filter);
-  std::vector<device_filter> &get() { return FilterList; }
-  bool backendCompatible(backend Backend);
-  bool deviceTypeCompatible(info::device_type DeviceType);
-  bool deviceNumberCompatible(int DeviceNum);
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter_list &List);
-};
-
-inline std::ostream &operator<<(std::ostream &Out,
-                                const device_filter &Filter) {
-  Out << Filter.Backend << ":";
-  if (Filter.DeviceType == info::device_type::host) {
-    Out << "host";
-  } else if (Filter.DeviceType == info::device_type::cpu) {
-    Out << "cpu";
-  } else if (Filter.DeviceType == info::device_type::gpu) {
-    Out << "gpu";
-  } else if (Filter.DeviceType == info::device_type::accelerator) {
-    Out << "accelerator";
-  } else if (Filter.DeviceType == info::device_type::all) {
-    Out << "*";
-  } else {
-    Out << "unknown";
-  }
-  if (Filter.DeviceNum) {
-    Out << ":" << Filter.DeviceNum.value();
-  }
-  return Out;
-}
-
-inline std::ostream &operator<<(std::ostream &Out,
-                                const device_filter_list &List) {
-  for (const device_filter &Filter : List.FilterList) {
-    Out << Filter;
-    Out << ",";
-  }
-  return Out;
-}
 
 } // namespace detail
 } // namespace _V1

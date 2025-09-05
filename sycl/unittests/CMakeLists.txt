@@ -7,6 +7,8 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
+
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
@@ -22,15 +24,11 @@ string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
 
+add_subdirectory(mock_opencl)
+
 add_custom_target(check-sycl-unittests)
 
-# TODO PI tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_PI_TESTS "Enable PI-specific unit tests" ON)
-
-if (SYCL_PI_TESTS)
-  add_subdirectory(pi)
-endif()
-
+add_subdirectory(ur)
 add_subdirectory(allowlist)
 add_subdirectory(config)
 add_subdirectory(misc)
@@ -44,15 +42,23 @@ add_subdirectory(pipes)
 add_subdirectory(program_manager)
 add_subdirectory(assert)
 add_subdirectory(Extensions)
-add_subdirectory(windows)
 add_subdirectory(event)
 add_subdirectory(buffer)
 add_subdirectory(context_device)
 add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
-# TODO Enable xpti tests for Windows
-if (NOT WIN32)
-  add_subdirectory(xpti_trace)
+add_subdirectory(buffer/l0_specific)
+
+# Enable compression unit-tests only if zstd is present.
+if (LLVM_ENABLE_ZSTD)
+    add_subdirectory(compression)
 endif()
 
+# TODO Enable xpti tests for Windows
+if (SYCL_ENABLE_XPTI_TRACING AND NOT WIN32)
+    add_subdirectory(xpti_trace)
+endif()
+add_subdirectory(sampler)
+add_subdirectory(reduction)
+add_subdirectory(OneAPIDeviceSelector)

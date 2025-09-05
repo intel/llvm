@@ -24,14 +24,6 @@ namespace __asan {
 void InitializeAsanInterceptors();
 void InitializePlatformInterceptors();
 
-#define ENSURE_ASAN_INITED()      \
-  do {                            \
-    CHECK(!asan_init_is_running); \
-    if (UNLIKELY(!asan_inited)) { \
-      AsanInitFromRtl();          \
-    }                             \
-  } while (0)
-
 }  // namespace __asan
 
 // There is no general interception at all on Fuchsia.
@@ -42,12 +34,10 @@ void InitializePlatformInterceptors();
 // Use macro to describe if specific function should be
 // intercepted on a given platform.
 #if !SANITIZER_WINDOWS
-# define ASAN_INTERCEPT_ATOLL_AND_STRTOLL 1
 # define ASAN_INTERCEPT__LONGJMP 1
 # define ASAN_INTERCEPT_INDEX 1
 # define ASAN_INTERCEPT_PTHREAD_CREATE 1
 #else
-# define ASAN_INTERCEPT_ATOLL_AND_STRTOLL 0
 # define ASAN_INTERCEPT__LONGJMP 0
 # define ASAN_INTERCEPT_INDEX 0
 # define ASAN_INTERCEPT_PTHREAD_CREATE 0
@@ -134,11 +124,11 @@ void InitializePlatformInterceptors();
 # define ASAN_INTERCEPT_PTHREAD_ATFORK 0
 #endif
 
-DECLARE_REAL(int, memcmp, const void *a1, const void *a2, uptr size)
+DECLARE_REAL(int, memcmp, const void *a1, const void *a2, SIZE_T size)
 DECLARE_REAL(char*, strchr, const char *str, int c)
 DECLARE_REAL(SIZE_T, strlen, const char *s)
-DECLARE_REAL(char*, strncpy, char *to, const char *from, uptr size)
-DECLARE_REAL(uptr, strnlen, const char *s, uptr maxlen)
+DECLARE_REAL(char*, strncpy, char *to, const char *from, SIZE_T size)
+DECLARE_REAL(SIZE_T, strnlen, const char *s, SIZE_T maxlen)
 DECLARE_REAL(char*, strstr, const char *s1, const char *s2)
 
 #  if !SANITIZER_APPLE

@@ -13,10 +13,12 @@
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Symbol/Symtab.h"
 #include "lldb/Symbol/UnwindTable.h"
+#include "lldb/Utility/AddressableBits.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/FileSpecList.h"
+#include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/UUID.h"
 #include "lldb/lldb-private.h"
 #include "llvm/Support/Threading.h"
@@ -80,9 +82,14 @@ public:
   enum BinaryType {
     eBinaryTypeInvalid = 0,
     eBinaryTypeUnknown,
-    eBinaryTypeKernel,    /// kernel binary
-    eBinaryTypeUser,      /// user process binary
-    eBinaryTypeStandalone /// standalone binary / firmware
+    /// kernel binary
+    eBinaryTypeKernel,
+    /// user process binary, dyld addr
+    eBinaryTypeUser,
+    /// user process binary, dyld_all_image_infos addr
+    eBinaryTypeUserAllImageInfos,
+    /// standalone binary / firmware
+    eBinaryTypeStandalone
   };
 
   struct LoadableData {
@@ -177,6 +184,7 @@ public:
                                         lldb::offset_t file_offset,
                                         lldb::offset_t file_size,
                                         lldb_private::ModuleSpecList &specs);
+  static bool IsObjectFile(lldb_private::FileSpec file_spec);
   /// Split a path into a file path with object name.
   ///
   /// For paths like "/tmp/foo.a(bar.o)" we often need to split a path up into
@@ -312,7 +320,7 @@ public:
   ///
   /// \return
   ///     The symbol table for this object file.
-  Symtab *GetSymtab();
+  Symtab *GetSymtab(bool can_create = true);
 
   /// Parse the symbol table into the provides symbol table object.
   ///
@@ -494,13 +502,13 @@ public:
 
   /// Some object files may have the number of bits used for addressing
   /// embedded in them, e.g. a Mach-O core file using an LC_NOTE.  These
-  /// object files can return the address mask that should be used in
-  /// the Process.
+  /// object files can return an AddressableBits object that can can be
+  /// used to set the address masks in the Process.
+  ///
   /// \return
-  ///     The mask will have bits set which aren't used for addressing --
-  ///     typically, the high bits.
-  ///     Zero is returned when no address bits mask is available.
-  virtual lldb::addr_t GetAddressMask() { return 0; }
+  ///     Returns an AddressableBits object which can be used to set
+  ///     the address masks in the Process.
+  virtual lldb_private::AddressableBits GetAddressableBits() { return {}; }
 
   /// When the ObjectFile is a core file, lldb needs to locate the "binary" in
   /// the core file.  lldb can iterate over the pages looking for a valid
@@ -536,6 +544,42 @@ public:
     uuid.Clear();
     return false;
   }
+
+  /// Get metadata about thread ids from the corefile.
+  ///
+  /// The corefile may have metadata (e.g. a Mach-O "process metadata"
+  /// LC_NOTE) which for the threads in the process; this method tries
+  /// to retrieve them.
+  ///
+  /// \param[out] tids
+  ///     Filled in with a vector of tid_t's that matches the number
+  ///     of threads in the corefile (ObjectFile::GetNumThreadContexts).
+  ///     If a tid is not specified for one of the corefile threads,
+  ///     that entry in the vector will have LLDB_INVALID_THREAD_ID and
+  ///     the caller should assign a tid to the thread that does not
+  ///     conflict with the ones provided in this array.
+  ///     As additional metadata are added, this method may return a
+  ///     \a tids vector with no thread id's specified at all; the
+  ///     corefile may only specify one of the other metadata.
+  ///
+  /// \return
+  ///     Returns true if thread metadata was found in this corefile.
+  ///
+  virtual bool GetCorefileThreadExtraInfos(std::vector<lldb::tid_t> &tids) {
+    return false;
+  }
+
+  /// Get process metadata from the corefile in a StructuredData dictionary.
+  ///
+  /// The corefile may have notes (e.g. a Mach-O "process metadata" LC_NOTE)
+  /// which provide metadata about the process and threads in a JSON or
+  /// similar format.
+  ///
+  /// \return
+  ///     A StructuredData object with the metadata in the note, if there is
+  ///     one.  An empty shared pointer is returned if not metadata is found,
+  ///     or a problem parsing it.
+  virtual StructuredData::ObjectSP GetCorefileProcessMetadata() { return {}; }
 
   virtual lldb::RegisterContextSP
   GetThreadContextAtIndex(uint32_t idx, lldb_private::Thread &thread) {
@@ -630,8 +674,9 @@ public:
   // When an object file is in memory, subclasses should try and lock the
   // process weak pointer. If the process weak pointer produces a valid
   // ProcessSP, then subclasses can call this function to read memory.
-  static lldb::DataBufferSP ReadMemory(const lldb::ProcessSP &process_sp,
-                                       lldb::addr_t addr, size_t byte_size);
+  static lldb::WritableDataBufferSP
+  ReadMemory(const lldb::ProcessSP &process_sp, lldb::addr_t addr,
+             size_t byte_size);
 
   // This function returns raw file contents. Do not use it if you want
   // transparent decompression of section contents.
@@ -654,6 +699,12 @@ public:
   virtual size_t ReadSectionData(Section *section,
                                  DataExtractor &section_data);
 
+  // Returns the section data size. This is special-cased for PECOFF
+  // due to file alignment.
+  virtual size_t GetSectionDataSize(Section *section) {
+    return section->GetFileSize();
+  }
+
   /// Returns true if the object file exists only in memory.
   bool IsInMemory() const { return m_memory_addr != LLDB_INVALID_ADDRESS; }
 
@@ -670,6 +721,13 @@ public:
   static lldb::SymbolType GetSymbolTypeFromName(
       llvm::StringRef name,
       lldb::SymbolType symbol_type_hint = lldb::eSymbolTypeUndefined);
+
+  /// Parses the section type from a section name for DWARF sections.
+  ///
+  /// The \a name must be stripped of the default prefix (e.g. ".debug_" or
+  /// "__debug_"). If there's no matching section type, \a eSectionTypeOther
+  /// will be returned.
+  static lldb::SectionType GetDWARFSectionTypeFromName(llvm::StringRef name);
 
   /// Loads this objfile to memory.
   ///
@@ -710,6 +768,7 @@ public:
 
   static lldb::DataBufferSP MapFileData(const FileSpec &file, uint64_t Size,
                                         uint64_t Offset);
+  std::string GetObjectName() const;
 
 protected:
   // Member variables.

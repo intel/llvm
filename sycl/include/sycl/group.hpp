@@ -8,13 +8,12 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>            // for __spirv_MemoryBarrier
-#include <CL/__spirv/spirv_types.hpp>          // for Scope, __ocl_event_t
+#include <sycl/__spirv/spirv_types.hpp>        // for Scope, __ocl_event_t
 #include <sycl/access/access.hpp>              // for decorated, mode, addr...
 #include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
 #include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_traits.hpp> // for ConvertToOpenCLType_t
+#include <sycl/detail/generic_type_traits.hpp> // for convertToOpenCLType
 #include <sycl/detail/helpers.hpp>             // for Builder, getSPIRVMemo...
 #include <sycl/detail/item_base.hpp>           // for id, range
 #include <sycl/detail/type_traits.hpp>         // for is_bool, change_base_...
@@ -134,7 +133,7 @@ public:
 
   id<Dimensions> get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "get_local_id() is not implemented on host");
@@ -176,20 +175,30 @@ public:
 
   bool leader() const { return (get_local_linear_id() == 0); }
 
+  // Note: These signatures for parallel_for_work_item are intentionally
+  // non-conforming. The spec says this should take const WorkItemFunctionT &,
+  // but we take it by value, and rely on passing by value being done as passing
+  // a copy by reference (ptr byval) to ensure that the special handling in
+  // SYCLLowerWGScopePass to mutate the passed functor object works.
+
   template <typename WorkItemFunctionT>
-  void parallel_for_work_item(WorkItemFunctionT Func) const {
+#ifdef __NativeCPU__
+  __attribute__((__libclc_call__))
+#endif
+  void
+  parallel_for_work_item(WorkItemFunctionT Func) const {
     // need barriers to enforce SYCL semantics for the work item loop -
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
-        __spirv::initGlobalSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
     range<Dimensions> LocalSize{
-        __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
     id<Dimensions> GlobalId{
-        __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
     id<Dimensions> LocalId{
-        __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>()};
 
     // no 'iterate' in the device code variant, because
     // (1) this code is already invoked by each work item as a part of the
@@ -204,7 +213,7 @@ public:
 
     Func(HItem);
 #else
-    id<Dimensions> GroupStartID = index * localRange;
+    id<Dimensions> GroupStartID = index * id<Dimensions>{localRange};
 
     // ... host variant needs explicit 'iterate' because it is serial
     detail::NDLoop<Dimensions>::iterate(
@@ -228,18 +237,22 @@ public:
   }
 
   template <typename WorkItemFunctionT>
-  void parallel_for_work_item(range<Dimensions> flexibleRange,
-                              WorkItemFunctionT Func) const {
+#ifdef __NativeCPU__
+  __attribute__((__libclc_call__))
+#endif
+  void
+  parallel_for_work_item(range<Dimensions> flexibleRange,
+                         WorkItemFunctionT Func) const {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
     range<Dimensions> GlobalSize{
-        __spirv::initGlobalSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>()};
     range<Dimensions> LocalSize{
-        __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>()};
+        __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>()};
     id<Dimensions> GlobalId{
-        __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>()};
     id<Dimensions> LocalId{
-        __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>()};
+        __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>()};
 
     item<Dimensions, false> GlobalItem =
         detail::Builder::createItem<Dimensions, false>(GlobalSize, GlobalId);
@@ -286,11 +299,13 @@ public:
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
   void mem_fence(
+      [[maybe_unused]]
       typename std::enable_if_t<accessMode == access::mode::read ||
                                     accessMode == access::mode::write ||
                                     accessMode == access::mode::read_write,
                                 access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
+#ifdef __SYCL_DEVICE_ONLY__
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
     // barrier only for load operations or only for store operations.
@@ -301,6 +316,7 @@ public:
     // we can fix this later, for example, by using OpenCL 1.2 functions
     // read_mem_fence() and write_mem_fence().
     __spirv_MemoryBarrier(__spv::Scope::Workgroup, flags);
+#endif
   }
 
   /// Asynchronously copies a number of elements specified by \p numElements
@@ -310,40 +326,48 @@ public:
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
   __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
-  std::enable_if_t<!detail::is_bool<dataT>::value,
-                   device_event> async_work_group_copy(local_ptr<dataT> dest,
-                                                       global_ptr<dataT> src,
-                                                       size_t numElements,
-                                                       size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, srcStride, 0);
-    return device_event(E);
-  }
-
-  /// Asynchronously copies a number of elements specified by \p numElements
-  /// from the source pointed by \p src to destination pointed by \p dest with
-  /// the destination stride specified by \p destStride, and returns a SYCL
-  /// device_event which can be used to wait on the completion of the copy.
-  /// Permitted types for dataT are all scalar and vector types, except boolean.
-  template <typename dataT>
-  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
-  std::enable_if_t<!detail::is_bool<dataT>::value,
-                   device_event> async_work_group_copy(global_ptr<dataT> dest,
-                                                       local_ptr<dataT> src,
-                                                       size_t numElements,
-                                                       size_t destStride)
+  std::enable_if_t<
+      !detail::is_bool<dataT>::value,
+      device_event> async_work_group_copy([[maybe_unused]] local_ptr<dataT>
+                                              dest,
+                                          [[maybe_unused]] global_ptr<dataT>
+                                              src,
+                                          [[maybe_unused]] size_t numElements,
+                                          [[maybe_unused]] size_t srcStride)
       const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, destStride, 0);
+#ifdef __SYCL_DEVICE_ONLY__
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, srcStride, 0);
     return device_event(E);
+#else
+    return nullptr;
+#endif
+  }
+
+  /// Asynchronously copies a number of elements specified by \p numElements
+  /// from the source pointed by \p src to destination pointed by \p dest with
+  /// the destination stride specified by \p destStride, and returns a SYCL
+  /// device_event which can be used to wait on the completion of the copy.
+  /// Permitted types for dataT are all scalar and vector types, except boolean.
+  template <typename dataT>
+  __SYCL2020_DEPRECATED("Use decorated multi_ptr arguments instead")
+  std::enable_if_t<
+      !detail::is_bool<dataT>::value,
+      device_event> async_work_group_copy([[maybe_unused]] global_ptr<dataT>
+                                              dest,
+                                          [[maybe_unused]] local_ptr<dataT> src,
+                                          [[maybe_unused]] size_t numElements,
+                                          [[maybe_unused]] size_t destStride)
+      const {
+#ifdef __SYCL_DEVICE_ONLY__
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, destStride, 0);
+    return device_event(E);
+#else
+    return nullptr;
+#endif
   }
 
   /// Asynchronously copies a number of elements specified by \p numElements
@@ -356,16 +380,18 @@ public:
   std::enable_if_t<!detail::is_bool<DestDataT>::value &&
                        std::is_same_v<std::remove_const_t<SrcDataT>, DestDataT>,
                    device_event>
-  async_work_group_copy(decorated_local_ptr<DestDataT> dest,
-                        decorated_global_ptr<SrcDataT> src, size_t numElements,
-                        size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, srcStride, 0);
+  async_work_group_copy([[maybe_unused]] decorated_local_ptr<DestDataT> dest,
+                        [[maybe_unused]] decorated_global_ptr<SrcDataT> src,
+                        [[maybe_unused]] size_t numElements,
+                        [[maybe_unused]] size_t srcStride) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, srcStride, 0);
     return device_event(E);
+#else
+    return nullptr;
+#endif
   }
 
   /// Asynchronously copies a number of elements specified by \p numElements
@@ -378,16 +404,18 @@ public:
   std::enable_if_t<!detail::is_bool<DestDataT>::value &&
                        std::is_same_v<std::remove_const_t<SrcDataT>, DestDataT>,
                    device_event>
-  async_work_group_copy(decorated_global_ptr<DestDataT> dest,
-                        decorated_local_ptr<SrcDataT> src, size_t numElements,
-                        size_t destStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
-    __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, destStride, 0);
+  async_work_group_copy([[maybe_unused]] decorated_global_ptr<DestDataT> dest,
+                        [[maybe_unused]] decorated_local_ptr<SrcDataT> src,
+                        [[maybe_unused]] size_t numElements,
+                        [[maybe_unused]] size_t destStride) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    __ocl_event_t E = __spirv_GroupAsyncCopy(
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, destStride, 0);
     return device_event(E);
+#else
+    return nullptr;
+#endif
   }
 
   /// Specialization for scalar bool type.
@@ -461,12 +489,12 @@ public:
     using QualSrcT =
         std::conditional_t<std::is_const_v<SrcT>, const uint8_t, uint8_t>;
     auto DestP = multi_ptr<uint8_t, DestS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<uint8_t, DestS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<uint8_t, DestS,
+                                            access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -490,12 +518,12 @@ public:
     using QualSrcVecT =
         std::conditional_t<std::is_const_v<SrcT>, std::add_const_t<VecT>, VecT>;
     auto DestP = multi_ptr<VecT, DestS, access::decorated::yes>(
-        detail::cast_AS<
+        reinterpret_cast<
             typename multi_ptr<VecT, DestS, access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcVecT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcVecT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcVecT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -685,38 +713,7 @@ protected:
   friend class detail::Builder;
   group(const range<Dimensions> &G, const range<Dimensions> &L,
         const range<Dimensions> GroupRange, const id<Dimensions> &I)
-      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {
-    // Make sure local range divides global without remainder:
-    __SYCL_ASSERT(((G % L).size() == 0) &&
-                  "global range is not multiple of local");
-    __SYCL_ASSERT((((G / L) - GroupRange).size() == 0) &&
-                  "inconsistent group constructor arguments");
-  }
+      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {}
 };
-
-template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_group() instead")
-group<Dims> this_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<group<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-
-namespace ext::oneapi::experimental {
-template <int Dims> group<Dims> this_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(
-      sycl::detail::declptr<group<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

@@ -221,6 +221,8 @@ public:
               (!MGenericIsActive && MHACIt != Rhs.MHACIt));
     }
 
+    IteratorT &operator=(const IteratorT<IsConst> &) = delete;
+
     // pre-increment
     IteratorT<IsConst> &operator++() {
       increment();

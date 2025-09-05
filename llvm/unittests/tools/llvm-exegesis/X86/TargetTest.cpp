@@ -12,12 +12,20 @@
 #include <memory>
 
 #include "MCTargetDesc/X86MCTargetDesc.h"
+#include "MmapUtils.h"
+#include "SubprocessMemory.h"
+#include "TestBase.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 #include "llvm/MC/MCInstPrinter.h"
+
+#ifdef __linux__
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#endif // __linux__
 
 namespace llvm {
 
@@ -54,12 +62,9 @@ using testing::AllOf;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::Eq;
-using testing::Gt;
 using testing::IsEmpty;
 using testing::Matcher;
-using testing::NotNull;
 using testing::Property;
-using testing::SizeIs;
 
 Matcher<MCOperand> IsImm(int64_t Value) {
   return AllOf(Property(&MCOperand::isImm, Eq(true)),
@@ -78,6 +83,12 @@ Matcher<MCInst> OpcodeIs(unsigned Opcode) {
 Matcher<MCInst> IsMovImmediate(unsigned Opcode, int64_t Reg, int64_t Value) {
   return AllOf(OpcodeIs(Opcode), ElementsAre(IsReg(Reg), IsImm(Value)));
 }
+
+#ifdef __linux__
+Matcher<MCInst> IsMovRegToReg(unsigned Opcode, int64_t Reg1, int64_t Reg2) {
+  return AllOf(OpcodeIs(Opcode), ElementsAre(IsReg(Reg1), IsReg(Reg2)));
+}
+#endif
 
 Matcher<MCInst> IsMovValueToStack(unsigned Opcode, int64_t Value,
                                   size_t Offset) {
@@ -102,19 +113,9 @@ Matcher<MCInst> IsStackDeallocate(unsigned Size) {
                ElementsAre(IsReg(X86::RSP), IsReg(X86::RSP), IsImm(Size)));
 }
 
-constexpr const char kTriple[] = "x86_64-unknown-linux";
-
-class X86TargetTest : public ::testing::Test {
+class X86TargetTest : public X86TestBase {
 protected:
-  X86TargetTest(const char *Features)
-      : State(cantFail(LLVMState::Create(kTriple, "core2", Features))) {}
-
-  static void SetUpTestCase() {
-    LLVMInitializeX86TargetInfo();
-    LLVMInitializeX86Target();
-    LLVMInitializeX86TargetMC();
-    InitializeX86ExegesisTarget();
-  }
+  X86TargetTest(const char *Features) : X86TestBase("core2", Features) {}
 
   std::vector<MCInst> setRegTo(unsigned Reg, const APInt &Value) {
     return State.getExegesisTarget().setRegTo(State.getSubtargetInfo(), Reg,
@@ -124,8 +125,6 @@ protected:
   const Instruction &getInstr(unsigned OpCode) {
     return State.getIC().getInstr(OpCode);
   }
-
-  LLVMState State;
 };
 
 class X86Core2TargetTest : public X86TargetTest {
@@ -232,7 +231,20 @@ TEST_F(X86Core2AvxTargetTest, SetRegToVR128Value_Use_VMOVDQUrm) {
                   IsStackDeallocate(16)));
 }
 
-TEST_F(X86Core2Avx512TargetTest, SetRegToVR128Value_Use_VMOVDQU32Z128rm) {
+TEST_F(X86Core2Avx512TargetTest,
+       SetRegToVR128ValueHighXMM_Use_VMOVDQU32Z128rm) {
+  EXPECT_THAT(
+      setRegTo(X86::XMM16, APInt(128, "11112222333344445555666677778888", 16)),
+      ElementsAre(IsStackAllocate(16),
+                  IsMovValueToStack(X86::MOV32mi, 0x77778888UL, 0),
+                  IsMovValueToStack(X86::MOV32mi, 0x55556666UL, 4),
+                  IsMovValueToStack(X86::MOV32mi, 0x33334444UL, 8),
+                  IsMovValueToStack(X86::MOV32mi, 0x11112222UL, 12),
+                  IsMovValueFromStack(X86::VMOVDQU32Z128rm, X86::XMM16),
+                  IsStackDeallocate(16)));
+}
+
+TEST_F(X86Core2Avx512TargetTest, SetRegToVR128ValueLowXMM_Use_VMOVDQUrm) {
   EXPECT_THAT(
       setRegTo(X86::XMM0, APInt(128, "11112222333344445555666677778888", 16)),
       ElementsAre(IsStackAllocate(16),
@@ -240,7 +252,7 @@ TEST_F(X86Core2Avx512TargetTest, SetRegToVR128Value_Use_VMOVDQU32Z128rm) {
                   IsMovValueToStack(X86::MOV32mi, 0x55556666UL, 4),
                   IsMovValueToStack(X86::MOV32mi, 0x33334444UL, 8),
                   IsMovValueToStack(X86::MOV32mi, 0x11112222UL, 12),
-                  IsMovValueFromStack(X86::VMOVDQU32Z128rm, X86::XMM0),
+                  IsMovValueFromStack(X86::VMOVDQUrm, X86::XMM0),
                   IsStackDeallocate(16)));
 }
 
@@ -262,7 +274,26 @@ TEST_F(X86Core2AvxTargetTest, SetRegToVR256Value_Use_VMOVDQUYrm) {
                         IsStackDeallocate(32)}));
 }
 
-TEST_F(X86Core2Avx512TargetTest, SetRegToVR256Value_Use_VMOVDQU32Z256rm) {
+TEST_F(X86Core2Avx512TargetTest,
+       SetRegToVR256ValueHighYMM_Use_VMOVDQU32Z256rm) {
+  const char ValueStr[] =
+      "1111111122222222333333334444444455555555666666667777777788888888";
+  EXPECT_THAT(
+      setRegTo(X86::YMM16, APInt(256, ValueStr, 16)),
+      ElementsAreArray({IsStackAllocate(32),
+                        IsMovValueToStack(X86::MOV32mi, 0x88888888UL, 0),
+                        IsMovValueToStack(X86::MOV32mi, 0x77777777UL, 4),
+                        IsMovValueToStack(X86::MOV32mi, 0x66666666UL, 8),
+                        IsMovValueToStack(X86::MOV32mi, 0x55555555UL, 12),
+                        IsMovValueToStack(X86::MOV32mi, 0x44444444UL, 16),
+                        IsMovValueToStack(X86::MOV32mi, 0x33333333UL, 20),
+                        IsMovValueToStack(X86::MOV32mi, 0x22222222UL, 24),
+                        IsMovValueToStack(X86::MOV32mi, 0x11111111UL, 28),
+                        IsMovValueFromStack(X86::VMOVDQU32Z256rm, X86::YMM16),
+                        IsStackDeallocate(32)}));
+}
+
+TEST_F(X86Core2Avx512TargetTest, SetRegToVR256ValueLowYMM_Use_VMOVDQUYrm) {
   const char ValueStr[] =
       "1111111122222222333333334444444455555555666666667777777788888888";
   EXPECT_THAT(
@@ -276,7 +307,7 @@ TEST_F(X86Core2Avx512TargetTest, SetRegToVR256Value_Use_VMOVDQU32Z256rm) {
                         IsMovValueToStack(X86::MOV32mi, 0x33333333UL, 20),
                         IsMovValueToStack(X86::MOV32mi, 0x22222222UL, 24),
                         IsMovValueToStack(X86::MOV32mi, 0x11111111UL, 28),
-                        IsMovValueFromStack(X86::VMOVDQU32Z256rm, X86::YMM0),
+                        IsMovValueFromStack(X86::VMOVDQUYrm, X86::YMM0),
                         IsStackDeallocate(32)}));
 }
 
@@ -543,6 +574,14 @@ TEST_F(X86Core2TargetTest, SetRegToFP1_4Bits) {
                           OpcodeIs(X86::LD_Fp80m), IsStackDeallocate(10)));
 }
 
+TEST_F(X86Core2TargetTest, SetRegToDf1) {
+  EXPECT_THAT(setRegTo(X86::DF, APInt(1, 1)), ElementsAre(OpcodeIs(X86::STD)));
+}
+
+TEST_F(X86Core2TargetTest, SetRegToDf0) {
+  EXPECT_THAT(setRegTo(X86::DF, APInt(1, 0)), ElementsAre(OpcodeIs(X86::CLD)));
+}
+
 TEST_F(X86Core2Avx512TargetTest, FillMemoryOperands_ADD64rm) {
   const Instruction &I = getInstr(X86::ADD64rm);
   InstructionTemplate IT(&I);
@@ -575,6 +614,89 @@ TEST_F(X86Core2TargetTest, AllowAsBackToBack) {
   EXPECT_FALSE(
       State.getExegesisTarget().allowAsBackToBack(getInstr(X86::LEA64r)));
 }
+
+#ifdef __linux__
+TEST_F(X86Core2TargetTest, GenerateLowerMunmapTest) {
+  std::vector<MCInst> GeneratedCode;
+  State.getExegesisTarget().generateLowerMunmap(GeneratedCode);
+  EXPECT_THAT(GeneratedCode,
+              ElementsAre(IsMovImmediate(X86::MOV64ri, X86::RDI, 0),
+                          OpcodeIs(X86::LEA64r), OpcodeIs(X86::SHR64ri),
+                          OpcodeIs(X86::SHL64ri), OpcodeIs(X86::SUB64ri32),
+                          IsMovImmediate(X86::MOV64ri, X86::RAX, SYS_munmap),
+                          OpcodeIs(X86::SYSCALL)));
+}
+
+#ifdef __arm__
+static constexpr const uintptr_t VAddressSpaceCeiling = 0xC0000000;
+#else
+static constexpr const uintptr_t VAddressSpaceCeiling = 0x0000800000000000;
+#endif
+
+TEST_F(X86Core2TargetTest, GenerateUpperMunmapTest) {
+  std::vector<MCInst> GeneratedCode;
+  State.getExegesisTarget().generateUpperMunmap(GeneratedCode);
+  EXPECT_THAT(
+      GeneratedCode,
+      ElementsAreArray({OpcodeIs(X86::LEA64r), OpcodeIs(X86::MOV64rr),
+                        OpcodeIs(X86::ADD64rr), OpcodeIs(X86::SHR64ri),
+                        OpcodeIs(X86::SHL64ri), OpcodeIs(X86::ADD64ri32),
+                        IsMovImmediate(X86::MOV64ri, X86::RSI,
+                                       VAddressSpaceCeiling - getpagesize()),
+                        OpcodeIs(X86::SUB64rr),
+                        IsMovImmediate(X86::MOV64ri, X86::RAX, SYS_munmap),
+                        OpcodeIs(X86::SYSCALL)}));
+}
+
+TEST_F(X86Core2TargetTest, GenerateExitSyscallTest) {
+  EXPECT_THAT(State.getExegesisTarget().generateExitSyscall(127),
+              ElementsAre(IsMovImmediate(X86::MOV64ri, X86::RDI, 127),
+                          IsMovImmediate(X86::MOV64ri, X86::RAX, SYS_exit),
+                          OpcodeIs(X86::SYSCALL)));
+}
+
+TEST_F(X86Core2TargetTest, GenerateMmapTest) {
+  EXPECT_THAT(State.getExegesisTarget().generateMmap(0x1000, 4096, 0x2000),
+              ElementsAre(IsMovImmediate(X86::MOV64ri, X86::RDI, 0x1000),
+                          IsMovImmediate(X86::MOV64ri, X86::RSI, 4096),
+                          IsMovImmediate(X86::MOV64ri, X86::RDX,
+                                         PROT_READ | PROT_WRITE),
+                          IsMovImmediate(X86::MOV64ri, X86::R10,
+                                         MAP_SHARED | MAP_FIXED_NOREPLACE),
+                          IsMovImmediate(X86::MOV64ri, X86::R8, 0x2000),
+                          OpcodeIs(X86::MOV32rm),
+                          IsMovImmediate(X86::MOV64ri, X86::R9, 0),
+                          IsMovImmediate(X86::MOV64ri, X86::RAX, SYS_mmap),
+                          OpcodeIs(X86::SYSCALL)));
+}
+
+TEST_F(X86Core2TargetTest, GenerateMmapAuxMemTest) {
+  std::vector<MCInst> GeneratedCode;
+  State.getExegesisTarget().generateMmapAuxMem(GeneratedCode);
+  EXPECT_THAT(
+      GeneratedCode,
+      ElementsAre(
+          IsMovImmediate(
+              X86::MOV64ri, X86::RDI,
+              State.getExegesisTarget().getAuxiliaryMemoryStartAddress()),
+          IsMovImmediate(X86::MOV64ri, X86::RSI,
+                         SubprocessMemory::AuxiliaryMemorySize),
+          IsMovImmediate(X86::MOV64ri, X86::RDX, PROT_READ | PROT_WRITE),
+          IsMovImmediate(X86::MOV64ri, X86::R10,
+                         MAP_SHARED | MAP_FIXED_NOREPLACE),
+          OpcodeIs(X86::MOV64rr), IsMovImmediate(X86::MOV64ri, X86::R9, 0),
+          IsMovImmediate(X86::MOV64ri, X86::RAX, SYS_mmap),
+          OpcodeIs(X86::SYSCALL)));
+}
+
+TEST_F(X86Core2TargetTest, MoveArgumentRegistersTest) {
+  std::vector<MCInst> GeneratedCode;
+  State.getExegesisTarget().moveArgumentRegisters(GeneratedCode);
+  EXPECT_THAT(GeneratedCode,
+              ElementsAre(IsMovRegToReg(X86::MOV64rr, X86::R12, X86::RDI),
+                          IsMovRegToReg(X86::MOV64rr, X86::R13, X86::RSI)));
+}
+#endif // __linux__
 
 } // namespace
 } // namespace exegesis

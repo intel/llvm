@@ -4,7 +4,6 @@ void test0(void) __attribute__((visibility("default")));
 void test1(void) __attribute__((visibility("hidden")));
 void test2(void) __attribute__((visibility("internal")));
 
-// rdar://problem/10753392
 void test3(void) __attribute__((visibility("protected"))); // expected-warning {{target does not support 'protected' visibility; using 'default'}}
 
 struct __attribute__((visibility("hidden"))) test4; // expected-note {{previous attribute is here}}
@@ -26,3 +25,9 @@ typedef int __attribute__((visibility("default"))) bar; // expected-warning {{'v
 int x __attribute__((type_visibility("default"))); // expected-error {{'type_visibility' attribute only applies to types and namespaces}}
 
 int PR17105 __attribute__((visibility(hidden))); // expected-error {{'visibility' attribute requires a string}}
+
+#pragma clang attribute push([[gnu::visibility("default")]], apply_to=function)
+
+void func(void) {}
+
+#pragma clang attribute pop

@@ -20,7 +20,7 @@
 ; CHECK:       str     x28, [sp, #24]
 ; CHECK:       stp     x29, x30, [sp, #32]
 ; CHECK:       add     x29, sp, #32
-; CHECK:       sub     sp, sp, #624
+; CHECK:       sub     sp, sp, #608
 ; CHECK:       mov     x19, sp
 ; CHECK:       mov     x0, #-2
 ; CHECK:       stur    x0, [x29, #16]
@@ -41,17 +41,17 @@
 ; CHECK-LABEL: .Ltmp0:
 ; CHECK:       bl      "?func2@@YAHXZ
 
-; CHECK:        [[CATCHRETDEST:.LBB0_[0-9]+]]:      // %catchret.dest
+; CHECK:        [[CATCHRETDEST:.LBB0_[0-9]+]]:      // Block address taken
 
 ; Check the catch funclet.
-; CHECK-LABEL: "?catch$2@?0??func@@YAHXZ@4HA":
+; CHECK-LABEL: "?catch$4@?0??func@@YAHXZ@4HA":
 
 ; Check that the stack space is allocated only for the callee saved registers.
 ; CHECK:       stp     x19, x20, [sp, #-48]!
 ; CHECK:       str     x21, [sp, #16]
 ; CHECK:       str     x28, [sp, #24]
 ; CHECK:       stp     x29, x30, [sp, #32]
-; CHECK:       add     x20, x19, #12
+; CHECK:       add     x20, x19, #0
 
 ; Check that there are no further stack updates.
 ; CHECK-NOT:   sub     sp, sp
@@ -66,7 +66,7 @@
 ; CHECK:       stur    w8, [x29, [[X_OFFSET]]]
 
 ; Check that the funclet branches back to the catchret destination
-; CHECK:       adrp    x0, .LBB0_3
+; CHECK:       adrp    x0, .LBB0_2
 ; CHECK-NEXT:  add     x0, x0, [[CATCHRETDEST]]
 
 
@@ -76,11 +76,11 @@
 ; CHECK-LABEL:        "$cppxdata$?func@@YAHXZ":
 ; CHECK-NEXT:         .word   429065506               // MagicNumber
 ; CHECK-NEXT:         .word   2                       // MaxState
-; CHECK-NEXT:         .word   ("$stateUnwindMap$?func@@YAHXZ")@IMGREL // UnwindMap
+; CHECK-NEXT:         .word   "$stateUnwindMap$?func@@YAHXZ"@IMGREL // UnwindMap
 ; CHECK-NEXT:         .word   1                       // NumTryBlocks
-; CHECK-NEXT:         .word   ("$tryMap$?func@@YAHXZ")@IMGREL // TryBlockMap
+; CHECK-NEXT:         .word   "$tryMap$?func@@YAHXZ"@IMGREL // TryBlockMap
 ; CHECK-NEXT:         .word   4                       // IPMapEntries
-; CHECK-NEXT:         .word   ("$ip2state$?func@@YAHXZ")@IMGREL // IPToStateXData
+; CHECK-NEXT:         .word   "$ip2state$?func@@YAHXZ"@IMGREL // IPToStateXData
 ; CHECK-NEXT:         .word   -16                     // UnwindHelp
 
 ; UNWIND: Function: ?func@@YAHXZ (0x0)
@@ -91,7 +91,7 @@
 ; UNWIND-NEXT: ; str x21, [sp, #16]
 ; UNWIND-NEXT: ; stp x19, x20, [sp, #-64]!
 ; UNWIND-NEXT: ; end
-; UNWIND: Function: ?catch$2@?0??func@@YAHXZ@4HA
+; UNWIND: Function: ?catch$4@?0??func@@YAHXZ@4HA
 ; UNWIND: Prologue [
 ; UNWIND-NEXT: ; stp x29, x30, [sp, #32]
 ; UNWIND-NEXT: ; str x28, [sp, #24]

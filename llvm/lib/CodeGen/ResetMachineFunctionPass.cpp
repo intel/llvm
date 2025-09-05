@@ -22,6 +22,7 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "reset-machine-function"
@@ -59,14 +60,17 @@ namespace {
       auto ClearVRegTypesOnReturn =
           make_scope_exit([&MF]() { MF.getRegInfo().clearVirtRegTypes(); });
 
-      if (MF.getProperties().hasProperty(
-              MachineFunctionProperties::Property::FailedISel)) {
+      if (MF.getProperties().hasFailedISel()) {
         if (AbortOnFailedISel)
           report_fatal_error("Instruction selection failed");
         LLVM_DEBUG(dbgs() << "Resetting: " << MF.getName() << '\n');
         ++NumFunctionsReset;
         MF.reset();
         MF.initTargetMachineFunctionInfo(MF.getSubtarget());
+
+        const TargetMachine &TM = MF.getTarget();
+        // MRI callback for target specific initializations.
+        TM.registerMachineRegisterInfoCallback(MF);
 
         if (EmitFallbackDiag) {
           const Function &F = MF.getFunction();

@@ -3,7 +3,7 @@
 ; RUN: split-file %s %t
 ; RUN: opt -module-summary %t/hide-me.ll -o %t/hide-me.bc
 ; RUN: opt -module-summary %t/ref.ll -o %t/ref.bc
-; RUN: llvm-lto2 run -opaque-pointers \
+; RUN: llvm-lto2 run \
 ; RUN:               -r %t/hide-me.bc,_hide_me,p \
 ; RUN:               -r %t/ref.bc,_main,plx  \
 ; RUN:               -r %t/ref.bc,_hide_me,l \

@@ -36,10 +36,12 @@ config.test_exec_root = os.path.join(config.lld_obj_root, "test")
 
 llvm_config.use_default_substitutions()
 llvm_config.use_lld()
+config.substitutions.append(("%llvm_src_root", config.llvm_src_root))
 
 tool_patterns = [
     "llc",
     "llvm-as",
+    "llvm-cgdata",
     "llvm-mc",
     "llvm-nm",
     "llvm-objdump",
@@ -67,14 +69,6 @@ if platform.system() in ["NetBSD"]:
 if lit_config.useValgrind:
     config.target_triple += "-vg"
 
-# Running on ELF based *nix
-if platform.system() in ["FreeBSD", "NetBSD", "Linux"]:
-    config.available_features.add("system-linker-elf")
-
-# Set if host-cxxabi's demangler can handle target's symbols.
-if platform.system() not in ["Windows"]:
-    config.available_features.add("demangler")
-
 llvm_config.feature_config(
     [
         (
@@ -85,11 +79,13 @@ llvm_config.feature_config(
                 "ARM": "arm",
                 "AVR": "avr",
                 "Hexagon": "hexagon",
+                "LoongArch": "loongarch",
                 "Mips": "mips",
                 "MSP430": "msp430",
                 "PowerPC": "ppc",
                 "RISCV": "riscv",
                 "Sparc": "sparc",
+                "SystemZ": "systemz",
                 "WebAssembly": "wasm",
                 "X86": "x86",
             },
@@ -109,10 +105,8 @@ if not run_lld_main_twice:
     config.environment["LLD_IN_TEST"] = "1"
 else:
     config.environment["LLD_IN_TEST"] = "2"
-    # Many ELF tests fail in this mode.
-    config.excludes.append("ELF")
-    # Some old Mach-O backend tests fail, and it's due for removal anyway.
-    config.excludes.append("mach-o")
+    # Many wasm tests fail.
+    config.excludes.append("wasm")
     # Some new Mach-O backend tests fail; give them a way to mark themselves
     # unsupported in this mode.
     config.available_features.add("main-run-twice")

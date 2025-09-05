@@ -1,37 +1,42 @@
-// DEFINE: %{option} = enable-runtime-library=true
-// DEFINE: %{compile} = mlir-opt %s --sparse-compiler=%{option}
-// DEFINE: %{run} = mlir-cpu-runner \
-// DEFINE:  -e entry -entry-point-result=void  \
-// DEFINE:  -shared-libs=%mlir_c_runner_utils | \
-// DEFINE: FileCheck %s
+//--------------------------------------------------------------------------------------------------
+// WHEN CREATING A NEW TEST, PLEASE JUST COPY & PASTE WITHOUT EDITS.
 //
-// RUN: %{compile} | %{run}
+// Set-up that's shared across all tests in this directory. In principle, this
+// config could be moved to lit.local.cfg. However, there are downstream users that
+//  do not use these LIT config files. Hence why this is kept inline.
+//
+// DEFINE: %{sparsifier_opts} = enable-runtime-library=true
+// DEFINE: %{sparsifier_opts_sve} = enable-arm-sve=true %{sparsifier_opts}
+// DEFINE: %{compile} = mlir-opt %s --sparsifier="%{sparsifier_opts}"
+// DEFINE: %{compile_sve} = mlir-opt %s --sparsifier="%{sparsifier_opts_sve}"
+// DEFINE: %{run_libs} = -shared-libs=%mlir_c_runner_utils,%mlir_runner_utils
+// DEFINE: %{run_libs_sve} = -shared-libs=%native_mlir_runner_utils,%native_mlir_c_runner_utils
+// DEFINE: %{run_opts} = -e main -entry-point-result=void
+// DEFINE: %{run} = mlir-runner %{run_opts} %{run_libs}
+// DEFINE: %{run_sve} = %mcr_aarch64_cmd --march=aarch64 --mattr="+sve" %{run_opts} %{run_libs_sve}
+//
+// DEFINE: %{env} =
+//--------------------------------------------------------------------------------------------------
+
+// RUN: %{compile} | %{run} | FileCheck %s
 //
 // Do the same run, but now with direct IR generation.
-// REDEFINE: %{option} = enable-runtime-library=false
-// RUN: %{compile} | %{run}
+// REDEFINE: %{sparsifier_opts} = enable-runtime-library=false
+// RUN: %{compile} | %{run} | FileCheck %s
 //
 // Do the same run, but now with direct IR generation and vectorization.
-// REDEFINE: %{option} = "enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true"
-// RUN: %{compile} | %{run}
-
-// Do the same run, but now with direct IR generation and, if available, VLA
-// vectorization.
-// REDEFINE: %{option} = "enable-runtime-library=false vl=4 enable-arm-sve=%ENABLE_VLA"
-// REDEFINE: %{run} = %lli_host_or_aarch64_cmd \
-// REDEFINE:   --entry-function=entry_lli \
-// REDEFINE:   --extra-module=%S/Inputs/main_for_lli.ll \
-// REDEFINE:   %VLA_ARCH_ATTR_OPTIONS \
-// REDEFINE:   --dlopen=%mlir_native_utils_lib_dir/libmlir_c_runner_utils%shlibext | \
-// REDEFINE: FileCheck %s
-// RUN: %{compile} | mlir-translate -mlir-to-llvmir | %{run}
+// REDEFINE: %{sparsifier_opts} = enable-runtime-library=false vl=2 reassociate-fp-reductions=true enable-index-optimizations=true
+// RUN: %{compile} | %{run} | FileCheck %s
+//
+// Do the same run, but now with direct IR generation and VLA vectorization.
+// RUN: %if mlir_arm_sve_tests %{ %{compile_sve} | %{run_sve} | FileCheck %s %}
 
 #SparseVector = #sparse_tensor.encoding<{
-  lvlTypes = ["compressed"]
+  map = (d0) -> (d0 : compressed)
 }>
 
 #SparseMatrix = #sparse_tensor.encoding<{
-  lvlTypes = ["compressed", "compressed"]
+  map = (d0, d1) -> (d0 : compressed, d1 : compressed)
 }>
 
 #trait_1d = {
@@ -60,8 +65,9 @@ module {
   //
   // Kernel that uses index in the index notation (conjunction).
   //
-  func.func @sparse_index_1d_conj(%arga: tensor<8xi64, #SparseVector>,
-                                  %out: tensor<8xi64>) -> tensor<8xi64> {
+  func.func @sparse_index_1d_conj(%arga: tensor<8xi64, #SparseVector>)
+      -> tensor<8xi64> {
+    %out = tensor.empty() : tensor<8xi64>
     %r = linalg.generic #trait_1d
         ins(%arga: tensor<8xi64, #SparseVector>)
        outs(%out: tensor<8xi64>) {
@@ -77,8 +83,9 @@ module {
   //
   // Kernel that uses index in the index notation (disjunction).
   //
-  func.func @sparse_index_1d_disj(%arga: tensor<8xi64, #SparseVector>,
-                                  %out: tensor<8xi64>) -> tensor<8xi64> {
+  func.func @sparse_index_1d_disj(%arga: tensor<8xi64, #SparseVector>)
+      -> tensor<8xi64> {
+    %out = tensor.empty() : tensor<8xi64>
     %r = linalg.generic #trait_1d
         ins(%arga: tensor<8xi64, #SparseVector>)
        outs(%out: tensor<8xi64>) {
@@ -94,8 +101,9 @@ module {
   //
   // Kernel that uses indices in the index notation (conjunction).
   //
-  func.func @sparse_index_2d_conj(%arga: tensor<3x4xi64, #SparseMatrix>,
-                                  %out: tensor<3x4xi64>) -> tensor<3x4xi64> {
+  func.func @sparse_index_2d_conj(%arga: tensor<3x4xi64, #SparseMatrix>)
+      -> tensor<3x4xi64> {
+    %out = tensor.empty() : tensor<3x4xi64>
     %r = linalg.generic #trait_2d
         ins(%arga: tensor<3x4xi64, #SparseMatrix>)
        outs(%out: tensor<3x4xi64>) {
@@ -114,8 +122,9 @@ module {
   //
   // Kernel that uses indices in the index notation (disjunction).
   //
-  func.func @sparse_index_2d_disj(%arga: tensor<3x4xi64, #SparseMatrix>,
-                                  %out: tensor<3x4xi64>) -> tensor<3x4xi64> {
+  func.func @sparse_index_2d_disj(%arga: tensor<3x4xi64, #SparseMatrix>)
+      -> tensor<3x4xi64> {
+    %out = tensor.empty() : tensor<3x4xi64>
     %r = linalg.generic #trait_2d
         ins(%arga: tensor<3x4xi64, #SparseMatrix>)
        outs(%out: tensor<3x4xi64>) {
@@ -134,7 +143,7 @@ module {
   //
   // Main driver.
   //
-  func.func @entry() {
+  func.func @main() {
     %c0 = arith.constant 0 : index
     %du = arith.constant -1 : i64
 
@@ -156,19 +165,15 @@ module {
                                   [ 1,  1,  3,  4 ] ]> : tensor<3x4xi64>
     %dm = sparse_tensor.convert %m2 : tensor<3x4xi64> to tensor<3x4xi64, #SparseMatrix>
 
-    // Setup out tensors.
-    %init_8 = bufferization.alloc_tensor() : tensor<8xi64>
-    %init_3_4 = bufferization.alloc_tensor() : tensor<3x4xi64>
-
     // Call the kernels.
-    %0 = call @sparse_index_1d_conj(%sv, %init_8) : (tensor<8xi64, #SparseVector>, tensor<8xi64>) -> tensor<8xi64>
-    %1 = call @sparse_index_1d_disj(%sv, %init_8) : (tensor<8xi64, #SparseVector>, tensor<8xi64>) -> tensor<8xi64>
-    %2 = call @sparse_index_1d_conj(%dv, %init_8) : (tensor<8xi64, #SparseVector>, tensor<8xi64>) -> tensor<8xi64>
-    %3 = call @sparse_index_1d_disj(%dv, %init_8) : (tensor<8xi64, #SparseVector>, tensor<8xi64>) -> tensor<8xi64>
-    %4 = call @sparse_index_2d_conj(%sm, %init_3_4) : (tensor<3x4xi64, #SparseMatrix>, tensor<3x4xi64>) -> tensor<3x4xi64>
-    %5 = call @sparse_index_2d_disj(%sm, %init_3_4) : (tensor<3x4xi64, #SparseMatrix>, tensor<3x4xi64>) -> tensor<3x4xi64>
-    %6 = call @sparse_index_2d_conj(%dm, %init_3_4) : (tensor<3x4xi64, #SparseMatrix>, tensor<3x4xi64>) -> tensor<3x4xi64>
-    %7 = call @sparse_index_2d_disj(%dm, %init_3_4) : (tensor<3x4xi64, #SparseMatrix>, tensor<3x4xi64>) -> tensor<3x4xi64>
+    %0 = call @sparse_index_1d_conj(%sv) : (tensor<8xi64, #SparseVector>) -> tensor<8xi64>
+    %1 = call @sparse_index_1d_disj(%sv) : (tensor<8xi64, #SparseVector>) -> tensor<8xi64>
+    %2 = call @sparse_index_1d_conj(%dv) : (tensor<8xi64, #SparseVector>) -> tensor<8xi64>
+    %3 = call @sparse_index_1d_disj(%dv) : (tensor<8xi64, #SparseVector>) -> tensor<8xi64>
+    %4 = call @sparse_index_2d_conj(%sm) : (tensor<3x4xi64, #SparseMatrix>) -> tensor<3x4xi64>
+    %5 = call @sparse_index_2d_disj(%sm) : (tensor<3x4xi64, #SparseMatrix>) -> tensor<3x4xi64>
+    %6 = call @sparse_index_2d_conj(%dm) : (tensor<3x4xi64, #SparseMatrix>) -> tensor<3x4xi64>
+    %7 = call @sparse_index_2d_disj(%dm) : (tensor<3x4xi64, #SparseMatrix>) -> tensor<3x4xi64>
 
     //
     // Verify result.
@@ -204,6 +209,14 @@ module {
     bufferization.dealloc_tensor %dv : tensor<8xi64, #SparseVector>
     bufferization.dealloc_tensor %sm : tensor<3x4xi64, #SparseMatrix>
     bufferization.dealloc_tensor %dm : tensor<3x4xi64, #SparseMatrix>
+    bufferization.dealloc_tensor %0 : tensor<8xi64>
+    bufferization.dealloc_tensor %1 : tensor<8xi64>
+    bufferization.dealloc_tensor %2 : tensor<8xi64>
+    bufferization.dealloc_tensor %3 : tensor<8xi64>
+    bufferization.dealloc_tensor %4 : tensor<3x4xi64>
+    bufferization.dealloc_tensor %5 : tensor<3x4xi64>
+    bufferization.dealloc_tensor %6 : tensor<3x4xi64>
+    bufferization.dealloc_tensor %7 : tensor<3x4xi64>
 
     return
   }

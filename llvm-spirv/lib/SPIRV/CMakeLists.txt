@@ -15,7 +15,7 @@ set(SRC_LIST
   SPIRVLowerConstExpr.cpp
   SPIRVLowerMemmove.cpp
   SPIRVLowerOCLBlocks.cpp
-  SPIRVLowerSaddWithOverflow.cpp
+  SPIRVLowerLLVMIntrinsic.cpp
   SPIRVReader.cpp
   SPIRVRegularizeLLVM.cpp
   SPIRVToLLVMDbgTran.cpp
@@ -26,6 +26,7 @@ set(SRC_LIST
   SPIRVUtil.cpp
   SPIRVWriter.cpp
   SPIRVWriterPass.cpp
+  PassPlugin.cpp
   PreprocessMetadata.cpp
   libSPIRV/SPIRVBasicBlock.cpp
   libSPIRV/SPIRVDebug.cpp
@@ -37,10 +38,11 @@ set(SRC_LIST
   libSPIRV/SPIRVStream.cpp
   libSPIRV/SPIRVType.cpp
   libSPIRV/SPIRVValue.cpp
+  libSPIRV/SPIRVError.cpp
+  libSPIRV/SPIRVFnVar.cpp
 )
-add_llvm_library(LLVMSPIRVLib
-  ${SRC_LIST}
-  LINK_COMPONENTS
+
+set(SPIRVLIB_LINK_COMPONENTS
     Analysis
     BitWriter
     CodeGen
@@ -52,6 +54,16 @@ add_llvm_library(LLVMSPIRVLib
     Support
     TargetParser
     TransformUtils
+    )
+
+if(SPIRV_BACKEND_FOUND)
+  list(APPEND SPIRVLIB_LINK_COMPONENTS "SPIRVCodeGen")
+endif()
+
+add_llvm_library(LLVMSPIRVLib
+  ${SRC_LIST}
+  LINK_COMPONENTS
+    ${SPIRVLIB_LINK_COMPONENTS}
   DEPENDS
     intrinsics_gen
   )

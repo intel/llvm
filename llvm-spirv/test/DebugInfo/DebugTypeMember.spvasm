@@ -1,0 +1,62 @@
+; Tests translation of DebugTypeMember with DebugInfoNone type
+
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.1 -o %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+
+; CHECK-LLVM: ![[#Type:]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "SPIRV unknown type")
+; CHECK-LLVM: !DIDerivedType(tag: DW_TAG_member, name: "anon_static_decl_var", scope: ![[#]], file: ![[#]], line: 5, baseType: ![[#Type]], flags: DIFlagPublic | DIFlagStaticMember, extraData: i32 351)
+
+; SPIR-V
+; Version: 1.1
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 36
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+          %1 = OpExtInstImport "OpenCL.std"
+          %2 = OpExtInstImport "OpenCL.DebugInfo.100"
+               OpMemoryModel Physical64 OpenCL
+          %8 = OpString "/testdir/test.cpp"
+         %12 = OpString "int"
+         %18 = OpString "anon_static_decl_struct"
+         %19 = OpString ""
+         %23 = OpString "anon_static_decl_var"
+         %28 = OpString "ref"
+         %29 = OpString "_Z3refv"
+               OpSource Unknown 0
+               OpName %_Z3refv "_Z3refv"
+               OpName %entry "entry"
+               OpModuleProcessed "Debug info producer: clang based Intel(R) oneAPI DPC++/C++ Compiler 2024.1.0 (2024.x.0.YYYYMMDD)"
+               OpDecorate %_Z3refv LinkageAttributes "_Z3refv" Export
+       %uint = OpTypeInt 32 0
+   %uint_351 = OpConstant %uint 351
+    %uint_32 = OpConstant %uint 32
+     %uint_8 = OpConstant %uint 8
+     %uint_0 = OpConstant %uint 0
+          %4 = OpTypeFunction %uint
+       %void = OpTypeVoid
+         %10 = OpExtInst %void %2 DebugSource %8
+         %11 = OpExtInst %void %2 DebugCompilationUnit 65536 4 %10 CPP_for_OpenCL
+         %14 = OpExtInst %void %2 DebugTypeBasic %12 %uint_32 Signed
+         %17 = OpExtInst %void %2 DebugInfoNone
+         %20 = OpExtInst %void %2 DebugSource %19
+         %21 = OpExtInst %void %2 DebugLexicalBlock %20 0 0 %11 %19
+         %25 = OpExtInst %void %2 DebugTypeMember %23 %17 %10 5 0 %16 %uint_0 %uint_0 FlagIsProtected|FlagIsPrivate|FlagStaticMember %uint_351
+         %16 = OpExtInst %void %2 DebugTypeComposite %18 Structure %10 4 0 %21 %17 %uint_8 FlagTypePassByValue %25
+         %27 = OpExtInst %void %2 DebugTypeFunction None %14
+         %30 = OpExtInst %void %2 DebugFunction %28 %27 %10 11 0 %11 %29 FlagIsDefinition|FlagPrototyped 11 %_Z3refv %17
+         %31 = OpExtInst %void %2 DebugOperation Constu 351
+         %32 = OpExtInst %void %2 DebugOperation StackValue
+         %33 = OpExtInst %void %2 DebugExpression %31 %32
+         %34 = OpExtInst %void %2 DebugGlobalVariable %23 %17 %10 5 0 %11 %19 %33 FlagIsLocal|FlagIsDefinition %25
+    %_Z3refv = OpFunction %uint None %4
+      %entry = OpLabel
+         %35 = OpExtInst %void %2 DebugScope %30
+               OpLine %8 12 3
+               OpReturnValue %uint_351
+               OpFunctionEnd

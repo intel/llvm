@@ -3,11 +3,13 @@
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s
 // RUN: spirv-val %t.spv
 
+// CHECK: Name [[#TestFn:]] "__clang_ocl_kern_imp_test_fn"
 // CHECK: TypeImage [[TypeImage:[0-9]+]]
 // CHECK: TypeSampler [[TypeSampler:[0-9]+]]
 // CHECK: TypePointer [[TypeImagePtr:[0-9]+]] {{[0-9]+}} [[TypeImage]]
 // CHECK: TypePointer [[TypeSamplerPtr:[0-9]+]] {{[0-9]+}} [[TypeSampler]]
 
+// CHECK: Function [[#]] [[#TestFn]]
 // CHECK: FunctionParameter [[TypeImage]] [[srcimg:[0-9]+]]
 // CHECK: FunctionParameter [[TypeSampler]] [[sampler:[0-9]+]]
 

@@ -59,11 +59,14 @@ uintptr_t GetCurrentProcess(void);
 // specified range.
 
 void __clear_cache(void *start, void *end) {
-#if __i386__ || __x86_64__ || defined(_M_IX86) || defined(_M_X64)
+#if defined(_WIN32) &&                                                         \
+    (defined(__arm__) || defined(__aarch64__) || defined(__arm64ec__))
+  FlushInstructionCache(GetCurrentProcess(), start, end - start);
+#elif __i386__ || __x86_64__ || defined(_M_IX86) || defined(_M_X64)
 // Intel processors have a unified instruction and data cache
 // so there is nothing to do
-#elif defined(_WIN32) && (defined(__arm__) || defined(__aarch64__))
-  FlushInstructionCache(GetCurrentProcess(), start, end - start);
+#elif defined(__s390__)
+// no-op
 #elif defined(__arm__) && !defined(__APPLE__)
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
   struct arm_sync_icache_args arg;
@@ -110,10 +113,14 @@ void __clear_cache(void *start, void *end) {
                      "jr.hb $at\n"
                      "move $at, $0\n"
                      ".set at");
-#else
+#elif defined(__linux__) || defined(__OpenBSD__)
     // Pre-R6 may not be globalized. And some implementations may give strange
     // synci_step. So, let's use libc call for it.
-    cacheflush(start, end_int - start_int, BCACHE);
+    _flush_cache(start, end_int - start_int, BCACHE);
+#else
+    (void)start_int;
+    (void)end_int;
+    compilerrt_abort();
 #endif
   }
 #elif defined(__aarch64__) && !defined(__APPLE__)

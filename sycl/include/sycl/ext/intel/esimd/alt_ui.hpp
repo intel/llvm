@@ -8,6 +8,8 @@
 // "Alternative" convenience Explicit SIMD APIs.
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 

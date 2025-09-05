@@ -18,6 +18,7 @@
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 
 using namespace llvm;
 
@@ -46,8 +47,8 @@ static MCDisassembler *createSparcDisassembler(const Target &T,
   return new SparcDisassembler(STI, Ctx);
 }
 
-
-extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSparcDisassembler() {
+extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
+LLVMInitializeSparcDisassembler() {
   // Register the disassembler.
   TargetRegistry::RegisterMCDisassembler(getTheSparcTarget(),
                                          createSparcDisassembler);
@@ -101,20 +102,16 @@ static const unsigned FCCRegDecoderTable[] = {
   SP::FCC0, SP::FCC1, SP::FCC2, SP::FCC3 };
 
 static const unsigned ASRRegDecoderTable[] = {
-  SP::Y,     SP::ASR1,  SP::ASR2,  SP::ASR3,
-  SP::ASR4,  SP::ASR5,  SP::ASR6,  SP::ASR7,
-  SP::ASR8,  SP::ASR9,  SP::ASR10, SP::ASR11,
-  SP::ASR12, SP::ASR13, SP::ASR14, SP::ASR15,
-  SP::ASR16, SP::ASR17, SP::ASR18, SP::ASR19,
-  SP::ASR20, SP::ASR21, SP::ASR22, SP::ASR23,
-  SP::ASR24, SP::ASR25, SP::ASR26, SP::ASR27,
-  SP::ASR28, SP::ASR29, SP::ASR30, SP::ASR31};
+    SP::Y,     SP::ASR1,  SP::ASR2,  SP::ASR3,  SP::ASR4,  SP::ASR5,  SP::ASR6,
+    SP::ASR7,  SP::ASR8,  SP::ASR9,  SP::ASR10, SP::ASR11, SP::ASR12, SP::ASR13,
+    SP::ASR14, SP::ASR15, SP::ASR16, SP::ASR17, SP::ASR18, SP::ASR19, SP::ASR20,
+    SP::ASR21, SP::ASR22, SP::ASR23, SP::ASR24, SP::ASR25, SP::ASR26, SP::ASR27,
+    SP::ASR28, SP::ASR29, SP::ASR30, SP::ASR31};
 
 static const unsigned PRRegDecoderTable[] = {
-  SP::TPC, SP::TNPC, SP::TSTATE, SP::TT, SP::TICK, SP::TBA, SP::PSTATE,
-  SP::TL, SP::PIL, SP::CWP, SP::CANSAVE, SP::CANRESTORE, SP::CLEANWIN,
-  SP::OTHERWIN, SP::WSTATE, SP::PC
-};
+    SP::TPC,     SP::TNPC,       SP::TSTATE,   SP::TT,       SP::TICK,
+    SP::TBA,     SP::PSTATE,     SP::TL,       SP::PIL,      SP::CWP,
+    SP::CANSAVE, SP::CANRESTORE, SP::CLEANWIN, SP::OTHERWIN, SP::WSTATE};
 
 static const uint16_t IntPairDecoderTable[] = {
   SP::G0_G1, SP::G2_G3, SP::G4_G5, SP::G6_G7,
@@ -265,9 +262,14 @@ DecodeCoprocPairRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Address,
 
 static DecodeStatus DecodeCall(MCInst &Inst, unsigned insn, uint64_t Address,
                                const MCDisassembler *Decoder);
+static DecodeStatus DecodeSIMM5(MCInst &Inst, unsigned insn, uint64_t Address,
+                                const MCDisassembler *Decoder);
 static DecodeStatus DecodeSIMM13(MCInst &Inst, unsigned insn, uint64_t Address,
                                  const MCDisassembler *Decoder);
-
+template <unsigned N>
+constexpr static DecodeStatus DecodeDisp(MCInst &MI, uint32_t ImmVal,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder);
 #include "SparcGenDisassemblerTables.inc"
 
 /// Read four bytes from the ArrayRef and return 32 bit word.
@@ -280,6 +282,7 @@ static DecodeStatus readInstruction32(ArrayRef<uint8_t> Bytes, uint64_t Address,
     return MCDisassembler::Fail;
   }
 
+  Size = 4;
   Insn = IsLittleEndian
              ? (Bytes[0] << 0) | (Bytes[1] << 8) | (Bytes[2] << 16) |
                    (Bytes[3] << 24)
@@ -316,12 +319,7 @@ DecodeStatus SparcDisassembler::getInstruction(MCInst &Instr, uint64_t &Size,
   Result =
       decodeInstruction(DecoderTableSparc32, Instr, Insn, Address, this, STI);
 
-  if (Result != MCDisassembler::Fail) {
-    Size = 4;
-    return Result;
-  }
-
-  return MCDisassembler::Fail;
+  return Result;
 }
 
 static bool tryAddingSymbolicOperand(int64_t Value, bool isBranch,
@@ -334,17 +332,34 @@ static bool tryAddingSymbolicOperand(int64_t Value, bool isBranch,
 
 static DecodeStatus DecodeCall(MCInst &MI, unsigned insn, uint64_t Address,
                                const MCDisassembler *Decoder) {
-  unsigned tgt = fieldFromInstruction(insn, 0, 30);
-  tgt <<= 2;
-  if (!tryAddingSymbolicOperand(tgt+Address, false, Address,
-                                0, 30, MI, Decoder))
-    MI.addOperand(MCOperand::createImm(tgt));
+  int64_t CallOffset = SignExtend64(fieldFromInstruction(insn, 0, 30), 30) * 4;
+  if (!tryAddingSymbolicOperand(Address + CallOffset, false, Address, 0, 30, MI,
+                                Decoder))
+    MI.addOperand(MCOperand::createImm(CallOffset));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeSIMM5(MCInst &MI, unsigned insn, uint64_t Address,
+                                const MCDisassembler *Decoder) {
+  assert(isUInt<5>(insn));
+  MI.addOperand(MCOperand::createImm(SignExtend64<5>(insn)));
   return MCDisassembler::Success;
 }
 
 static DecodeStatus DecodeSIMM13(MCInst &MI, unsigned insn, uint64_t Address,
                                  const MCDisassembler *Decoder) {
-  unsigned tgt = SignExtend32<13>(fieldFromInstruction(insn, 0, 13));
-  MI.addOperand(MCOperand::createImm(tgt));
+  assert(isUInt<13>(insn));
+  MI.addOperand(MCOperand::createImm(SignExtend64<13>(insn)));
+  return MCDisassembler::Success;
+}
+
+template <unsigned N>
+constexpr static DecodeStatus DecodeDisp(MCInst &MI, uint32_t ImmVal,
+                                         uint64_t Address,
+                                         const MCDisassembler *Decoder) {
+  int64_t BranchOffset = SignExtend64(ImmVal, N) * 4;
+  if (!tryAddingSymbolicOperand(Address + BranchOffset, true, Address, 0, N, MI,
+                                Decoder))
+    MI.addOperand(MCOperand::createImm(BranchOffset));
   return MCDisassembler::Success;
 }

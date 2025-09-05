@@ -4,6 +4,10 @@
 int printf(const char *, ...);
 void exit(int);
 
+float frexpf(float, int*);
+double frexp(double, int*);
+long double frexpl(long double, int*);
+
 // CHECK: declare i32 @printf(ptr noundef, ...)
 void f0() {
   printf("a\n");
@@ -20,8 +24,12 @@ char* f2(char* a, char* b) {
   return __builtin_strstr(a, b);
 }
 
+// Note: Use asm label to disable intrinsic lowering of modf.
+double modf(double x, double*) asm("modf");
+float modff(float x, float*) asm("modff");
+long double modfl(long double x, long double*) asm("modfl");
+
 // frexp is NOT readnone. It writes to its pointer argument.
-// <rdar://problem/10070234>
 //
 // CHECK: f3
 // CHECK: call double @frexp(double noundef %
@@ -49,12 +57,12 @@ char* f2(char* a, char* b) {
 // CHECK: ret
 int f3(double x) {
   int e;
-  __builtin_frexp(x, &e);
-  __builtin_frexpf(x, &e);
-  __builtin_frexpl(x, &e);
-  __builtin_modf(x, &e);
-  __builtin_modff(x, &e);
-  __builtin_modfl(x, &e);
+  frexp(x, &e);
+  frexpf(x, &e);
+  frexpl(x, &e);
+  modf(x, &e);
+  modff(x, &e);
+  modfl(x, &e);
   __builtin_remquo(x, x, &e);
   __builtin_remquof(x, x, &e);
   __builtin_remquol(x, x, &e);

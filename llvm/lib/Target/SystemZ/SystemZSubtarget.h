@@ -106,6 +106,10 @@ public:
   bool GETTER() const { return ATTRIBUTE; }
 #include "SystemZGenSubtargetInfo.inc"
 
+  bool isXRaySupported() const override { return true; }
+
+  bool isAddressedViaADA(const GlobalValue *GV) const;
+
   // Return true if GV can be accessed using LARL for reloc model RM
   // and code model CM.
   bool isPC32DBLSymbol(const GlobalValue *GV, CodeModel::Model CM) const;

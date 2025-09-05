@@ -58,10 +58,11 @@ func.func @user(%arg0: f32, %arg1: f32) -> f32 {
 
 // CHECK:     @add_lr
 // CHECK-NOT: @also_add_lr
-// CHECK-NOT: @add_rl
+// CHECK:     @add_rl
 // CHECK-NOT: @also_add_rl
 // CHECK:     @user
-// CHECK-4:     call @add_lr
+// CHECK-2:     call @add_lr
+// CHECK-2:     call @add_rl
 
 // -----
 
@@ -108,7 +109,7 @@ func.func @user(%pred : i1, %arg0: f32, %arg1: f32) -> f32 {
 
 // -----
 
-func.func @deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32, %odd: f32) 
+func.func @deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32, %odd: f32)
     -> f32 {
   %0 = scf.if %p0 -> f32 {
     %1 = scf.if %p1 -> f32 {
@@ -188,7 +189,7 @@ func.func @deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32, %odd: f32)
   return %0 : f32
 }
 
-func.func @also_deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32, 
+func.func @also_deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32,
     %odd: f32) -> f32 {
   %0 = scf.if %p0 -> f32 {
     %1 = scf.if %p1 -> f32 {
@@ -268,7 +269,7 @@ func.func @also_deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32,
   return %0 : f32
 }
 
-func.func @reverse_deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32, 
+func.func @reverse_deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32,
     %odd: f32) -> f32 {
   %0 = scf.if %p0 -> f32 {
     %1 = scf.if %p1 -> f32 {
@@ -348,13 +349,13 @@ func.func @reverse_deep_tree(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %even: f32,
   return %0 : f32
 }
 
-func.func @user(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %odd: f32, %even: f32) 
+func.func @user(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %odd: f32, %even: f32)
     -> (f32, f32, f32) {
-  %0 = call @deep_tree(%p0, %p1, %p2, %p3, %odd, %even) 
+  %0 = call @deep_tree(%p0, %p1, %p2, %p3, %odd, %even)
       : (i1, i1, i1, i1, f32, f32) -> f32
-  %1 = call @also_deep_tree(%p0, %p1, %p2, %p3, %odd, %even) 
+  %1 = call @also_deep_tree(%p0, %p1, %p2, %p3, %odd, %even)
       : (i1, i1, i1, i1, f32, f32) -> f32
-  %2 = call @reverse_deep_tree(%p0, %p1, %p2, %p3, %odd, %even) 
+  %2 = call @reverse_deep_tree(%p0, %p1, %p2, %p3, %odd, %even)
       : (i1, i1, i1, i1, f32, f32) -> f32
   return %0, %1, %2 : f32, f32, f32
 }
@@ -365,3 +366,50 @@ func.func @user(%p0: i1, %p1: i1, %p2: i1, %p3: i1, %odd: f32, %even: f32)
 // CHECK:     @user
 // CHECK-2:     call @deep_tree
 // CHECK:       call @reverse_deep_tree
+
+// -----
+
+func.func private @func_declaration(i32, i32) -> i32
+func.func private @func_declaration1(i32, i32) -> i32
+
+func.func @user(%arg0: i32, %arg1: i32) -> (i32, i32) {
+  %0 = call @func_declaration(%arg0, %arg1) : (i32, i32) -> i32
+  %1 = call @func_declaration1(%arg0, %arg1) : (i32, i32) -> i32
+  return %0, %1 : i32, i32
+}
+
+// CHECK:  @func_declaration
+// CHECK:  @func_declaration1
+// CHECK:  @user
+// CHECK:    call @func_declaration
+// CHECK:    call @func_declaration1
+
+// -----
+
+func.func @identity(%arg0: tensor<f32>) -> tensor<f32> {
+  return %arg0 : tensor<f32>
+}
+
+func.func @also_identity(%arg0: tensor<f32>) -> tensor<f32> {
+  return %arg0 : tensor<f32>
+}
+
+func.func @yet_another_identity(%arg0: tensor<f32>) -> tensor<f32> {
+  return %arg0 : tensor<f32>
+}
+
+func.func @user(%arg0: tensor<f32>) -> tensor<f32> {
+  %f = constant @identity : (tensor<f32>) -> tensor<f32>
+  %0 = call_indirect %f(%arg0) : (tensor<f32>) -> tensor<f32>
+  %f_0 = constant @also_identity : (tensor<f32>) -> tensor<f32>
+  %1 = call_indirect %f_0(%0) : (tensor<f32>) -> tensor<f32>
+  %2 = call @yet_another_identity(%1) : (tensor<f32>) -> tensor<f32>
+  return %2 : tensor<f32>
+}
+
+// CHECK:     @identity
+// CHECK-NOT: @also_identity
+// CHECK-NOT: @yet_another_identity
+// CHECK:     @user
+// CHECK-2:     constant @identity
+// CHECK:       call @identity

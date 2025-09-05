@@ -1,0 +1,122 @@
+name: 'Run SYCL E2E tests'
+
+inputs:
+  ref:
+    required: false
+  binaries_artifact:
+    # Number of input parameters for manual 'workflow_dispatch' is limited, so
+    # we treat empty value as 'in-container' when in 'run-only' mode via
+    # 'workflow_dispatch'.
+    required: false
+  testing_mode:
+    required: true
+  extra_cmake_args:
+    required: false
+  target_devices:
+    required: false
+    default: all
+  extra_lit_opts:
+    required: false
+  retention-days:
+    required: false
+  sycl_compiler:
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+  - name: Checkout E2E tests
+    if: |
+      !(inputs.testing_mode == 'run-only'
+         && (inputs.binaries_artifact == 'in-container'
+             || github.event_name == 'workflow_dispatch'))
+    uses: actions/checkout@v4
+    with:
+      path: llvm
+      ref: ${{ inputs.ref || github.sha }}
+      sparse-checkout: |
+        llvm/utils/lit
+        sycl/test-e2e
+  - name: Download E2E Binaries
+    if: |
+      inputs.testing_mode == 'run-only'
+      && !(inputs.binaries_artifact == 'in-container'
+           || github.event_name == 'workflow_dispatch')
+    uses: actions/download-artifact@v4
+    with:
+      name: ${{ inputs.binaries_artifact }}
+  - name: Extract E2E Binaries
+    if: |
+      inputs.testing_mode == 'run-only'
+      && !(inputs.binaries_artifact == 'in-container'
+           || github.event_name == 'workflow_dispatch')
+    shell: bash
+    run: |
+      mkdir build-e2e
+      tar -I 'zstd' -xf e2e_binaries.tar.zst -C build-e2e
+
+  - name: Extract E2E tests from container image
+    if: |
+      inputs.testing_mode == 'run-only'
+      && (inputs.binaries_artifact == 'in-container'
+          || github.event_name == 'workflow_dispatch')
+    shell: bash
+    run: |
+      mkdir build-e2e llvm
+      tar -I 'zstd' -xf /sycl-prebuilt/e2e_binaries.tar.zst -C build-e2e
+      tar -I 'zstd' -xf /sycl-prebuilt/e2e_sources.tar.zst -C llvm
+
+  - name: Deduce E2E CMake options
+    if: inputs.testing_mode != 'run-only'
+    id: cmake_opts
+    shell: bash
+    env:
+      CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
+    run: |
+      if [ -n "$CMAKE_EXTRA_ARGS" ]; then
+        echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
+      fi
+  - name: Configure E2E tests
+    if: inputs.testing_mode != 'run-only'
+    shell: bash
+    run: |
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.sycl_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+  - name: SYCL End-to-end tests
+    id: run_e2e
+    continue-on-error: true
+    shell: bash
+    env:
+      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
+    run: |
+      ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+  # Two steps below are duplicated between Lin/Win actions, updates must change both
+  - name: E2E logs
+    if: ${{ always() }}
+    shell: bash
+    run: |
+      echo "::group::Show Full E2E Log"
+      cat e2e.log
+      echo "::endgroup::"
+  - name: Report E2E Failures
+    if: steps.run_e2e.outcome != 'success'
+    shell: bash
+    # For some reason Github uses the first line from the `run: |` section for
+    # the folded entry when displaying instead of this step's name.
+    run: |
+        # Report E2E Failures
+        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log
+        exit 1
+
+  - name: Pack E2E binaries
+    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    shell: bash
+    run: |
+      tar -I 'zstd -9' -cf e2e_binaries.tar.zst -C ./build-e2e .
+  - name: Upload E2E binaries
+    if: ${{ always() && !cancelled() && inputs.binaries_artifact != '' && inputs.testing_mode != 'run-only'}}
+    uses: actions/upload-artifact@v4
+    with:
+      name: ${{ inputs.binaries_artifact }}
+      path: e2e_binaries.tar.zst
+      retention-days: ${{ inputs.retention-days }}

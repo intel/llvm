@@ -1,13 +1,5 @@
-// FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
-// UNSUPPORTED: cuda || hip
-// CUDA and HIP compilation and runtime do not yet support sub-groups.
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: windows
-// The failure is caused by intel/llvm#5213
 
 //==- free_function_queries_sub_group.cpp - SYCL free queries for sub group -=//
 //
@@ -18,7 +10,7 @@
 //===------------------------------------------------------------------------===//
 
 #include "../../SubGroup/helper.hpp"
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -31,15 +23,11 @@ int main() {
   int counter{0};
   {
     constexpr int checks_number{4};
-    int results[checks_number]{};
+    int results[checks_number]{41, 42, 43, 44};
     {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
-      if (!core_sg_supported(q.get_device())) {
-        std::cout << "Skipping test" << std::endl;
-        return 0;
-      }
       sycl::nd_range<1> NDR(sycl::range<1>{n}, sycl::range<1>{2});
       q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
@@ -52,11 +40,11 @@ int main() {
           static_assert(std::is_same<decltype(nd_i), sycl::nd_item<1>>::value,
                         "lambda arg type is unexpected");
           auto that_nd_item =
-              sycl::ext::oneapi::experimental::this_nd_item<1>();
+              sycl::ext::oneapi::this_work_item::get_nd_item<1>();
           results_acc[0] = that_nd_item == nd_i;
 
           auto that_sub_group =
-              sycl::ext::oneapi::experimental::this_sub_group();
+              sycl::ext::oneapi::this_work_item::get_sub_group();
           results_acc[1] = that_sub_group.get_local_linear_id() ==
                            that_nd_item.get_sub_group().get_local_linear_id();
           results_acc[2] = that_sub_group.get_local_id() ==

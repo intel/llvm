@@ -1,8 +1,5 @@
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
-// Test not intended to run on PVC
-// UNSUPPORTED: gpu-intel-pvc
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES: sg-8
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
@@ -20,6 +17,7 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include "../../../ESIMD/esimd_test_utils.hpp"
 #include "Inputs/common.hpp"
 
 int main(void) {
@@ -27,6 +25,7 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+
   bool passed = true;
 
   // simd_size 8

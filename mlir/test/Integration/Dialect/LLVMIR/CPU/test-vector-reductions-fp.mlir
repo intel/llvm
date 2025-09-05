@@ -1,4 +1,4 @@
-// RUN: mlir-cpu-runner %s -e entry -entry-point-result=void  \
+// RUN: mlir-runner %s -e entry -entry-point-result=void  \
 // RUN: -shared-libs=%mlir_c_runner_utils | \
 // RUN: FileCheck %s
 
@@ -32,6 +32,18 @@ module {
     %min = llvm.intr.vector.reduce.fmin(%v)
         : (vector<4xf32>) -> f32
     llvm.call @printF32(%min) : (f32) -> ()
+    llvm.call @printNewline() : () -> ()
+    // CHECK: 1
+
+    %maximum = llvm.intr.vector.reduce.fmaximum(%v)
+        : (vector<4xf32>) -> f32
+    llvm.call @printF32(%maximum) : (f32) -> ()
+    llvm.call @printNewline() : () -> ()
+    // CHECK: 4
+
+    %minimum = llvm.intr.vector.reduce.fminimum(%v)
+        : (vector<4xf32>) -> f32
+    llvm.call @printF32(%minimum) : (f32) -> ()
     llvm.call @printNewline() : () -> ()
     // CHECK: 1
 

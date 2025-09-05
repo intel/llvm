@@ -1,8 +1,19 @@
-#include <sycl/sycl.hpp>
+#pragma once
+
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
+#include <condition_variable> // std::conditional_variable
+#include <fstream>
+#include <mutex> // std::mutex, std::unique_lock
 #include <numeric>
+
+#if GRAPH_TESTS_VERBOSE_PRINT
+#include <chrono>
+#endif
 
 // Test constants.
 constexpr size_t Size = 1024;      // Number of data elements in a buffer.
@@ -399,11 +410,138 @@ auto add_empty_node(
 }
 
 // Values for dotp tests
-constexpr float Alpha = 1.0f;
-constexpr float Beta = 2.0f;
-constexpr float Gamma = 3.0f;
+constexpr int Alpha = 1;
+constexpr int Beta = 2;
+constexpr int Gamma = 3;
 
 // Reference function for dotp
-float dotp_reference_result(size_t N) {
-  return N * (Alpha * 1.0f + Beta * 2.0f) * (Gamma * 3.0f + Beta * 2.0f);
+int dotp_reference_result(size_t N) {
+  return N * (Alpha * 1 + Beta * 2) * (Gamma * 3 + Beta * 2);
+}
+
+/* Single use thread barrier which makes threads wait until defined number of
+ * threads reach it.
+ * std:barrier should be used instead once compiler is moved to C++20 standard.
+ */
+class Barrier {
+public:
+  Barrier() = delete;
+  explicit Barrier(std::size_t count) : threadNum(count) {}
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (--threadNum == 0) {
+      cv.notify_all();
+    } else {
+      cv.wait(lock, [this] { return threadNum == 0; });
+    }
+  }
+
+private:
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::size_t threadNum;
+};
+
+template <typename T>
+bool inline check_value(const T &Ref, const T &Got,
+                        const std::string &VariableName) {
+  if (Got != Ref) {
+    std::cout << "Unexpected value of " << VariableName << ": " << Got
+              << " (got) vs " << Ref << " (expected)" << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+template <typename T>
+bool inline check_value(const size_t index, const T &Ref, const T &Got,
+                        const std::string &VariableName) {
+  if (Got != Ref) {
+    std::cout << "Unexpected value at index " << index << " for "
+              << VariableName << ": " << Got << " (got) vs " << Ref
+              << " (expected)" << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+kernel_bundle<bundle_state::executable>
+loadKernelsFromFile(queue &Q, std::string FileName) {
+  // Read the SPIR-V module from disk.
+  std::ifstream SpvStream(FileName, std::ios::binary);
+  SpvStream.seekg(0, std::ios::end);
+  size_t sz = SpvStream.tellg();
+  SpvStream.seekg(0);
+  std::vector<std::byte> Spv(sz);
+  SpvStream.read(reinterpret_cast<char *>(Spv.data()), sz);
+
+  // Create a kernel bundle from the binary SPIR-V.
+  kernel_bundle<bundle_state::ext_oneapi_source> KernelBundleSrc =
+      exp_ext::create_kernel_bundle_from_source(
+          Q.get_context(), exp_ext::source_language::spirv, Spv);
+
+  // Build the SPIR-V module for our device.
+  kernel_bundle<bundle_state::executable> KernelBundleExe =
+      exp_ext::build(KernelBundleSrc);
+  return KernelBundleExe;
+}
+
+bool verifyProfiling(event Event) {
+  auto Submit =
+      Event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto Start =
+      Event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto End =
+      Event.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+#if GRAPH_TESTS_VERBOSE_PRINT
+  std::cout << "Submit = " << Submit << std::endl;
+  std::cout << "Start = " << Start << std::endl;
+  std::cout << "End = " << End << " ( " << (End - Start) << " ) "
+            << " => full ( " << (End - Submit) << " ) " << std::endl;
+#endif
+
+  assert((Submit && Start && End) && "Profiling information failed.");
+  assert(Submit <= Start);
+  assert(Start < End);
+
+  bool Pass = sycl::info::event_command_status::complete ==
+              Event.get_info<sycl::info::event::command_execution_status>();
+
+  return Pass;
+}
+
+bool compareProfiling(event Event1, event Event2) {
+  assert(Event1 != Event2);
+
+  auto SubmitEvent1 =
+      Event1.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto StartEvent1 =
+      Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto EndEvent1 =
+      Event1.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((SubmitEvent1 && StartEvent1 && EndEvent1) &&
+         "Profiling information failed.");
+
+  auto SubmitEvent2 =
+      Event2.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto StartEvent2 =
+      Event2.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto EndEvent2 =
+      Event2.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((SubmitEvent2 && StartEvent2 && EndEvent2) &&
+         "Profiling information failed.");
+
+  assert(SubmitEvent1 != SubmitEvent2);
+  assert(StartEvent1 != StartEvent2);
+  assert(EndEvent1 != EndEvent2);
+
+  bool Pass1 = sycl::info::event_command_status::complete ==
+               Event1.get_info<sycl::info::event::command_execution_status>();
+  bool Pass2 = sycl::info::event_command_status::complete ==
+               Event2.get_info<sycl::info::event::command_execution_status>();
+
+  return (Pass1 && Pass2);
 }

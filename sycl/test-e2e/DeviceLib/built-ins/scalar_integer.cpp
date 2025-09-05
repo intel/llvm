@@ -1,7 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #include <array>
 #include <cassert>
@@ -412,7 +417,7 @@ int main() {
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class upsampleSC1UC1>(
-            [=]() { AccR[0] = s::upsample((char)0x10, (unsigned char)0x10); });
+            [=]() { AccR[0] = s::upsample((int8_t)0x10, (uint8_t)0x10); });
       });
     }
     assert(r == 0x1010);

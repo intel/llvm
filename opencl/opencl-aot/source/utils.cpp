@@ -171,12 +171,13 @@ getOpenCLPlatform(DeviceType Type) {
 
   std::map<DeviceType, std::vector<std::string>>
       DeviceTypesToSupportedPlatformNames{
-          {cpu, {StrIntelPlatformCommon, StrIntelPlatformCpuRt}},
+          {cpu, {StrIntelPlatformCommon, std::move(StrIntelPlatformCpuRt)}},
           {gpu,
-           {StrIntelPlatformCommon, StrIntelPlatformNeoHd,
-            StrIntelPlatformNeoUhd}},
+           {StrIntelPlatformCommon, std::move(StrIntelPlatformNeoHd),
+            std::move(StrIntelPlatformNeoUhd)}},
           {fpga_fast_emu,
-           {StrIntelPlatformFastEmu, StrIntelPlatformFastEmuPreview}}};
+           {std::move(StrIntelPlatformFastEmu),
+            std::move(StrIntelPlatformFastEmuPreview)}}};
 
   cl_platform_id PlatformId(nullptr);
   cl_int CLErr(CL_SUCCESS);
@@ -234,7 +235,7 @@ getOpenCLPlatform(DeviceType Type) {
       tie(std::ignore, ErrorMessage, CLErr) = getOpenCLDevice(Platform, Type);
       if (!clFailed(CLErr)) {
         PlatformId = Platform;
-        PlatformName = PlatformNameOnLoopIteration;
+        PlatformName = std::move(PlatformNameOnLoopIteration);
         break;
       }
     }
@@ -405,7 +406,10 @@ readBinaryFile(std::string FileName) {
 
 bool isFileEndsWithGivenExtentionName(const std::string &FileName,
                                       const char *Ext) {
-  return FileName.substr(FileName.find_last_of('.')) == Ext;
+  std::size_t LastCharPosition = FileName.find_last_of('.');
+  if (LastCharPosition == std::string::npos)
+    return false;
+  return FileName.substr(LastCharPosition) == Ext;
 }
 
 bool isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,

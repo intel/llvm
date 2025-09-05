@@ -1,11 +1,9 @@
-// UNSUPPORTED: cuda || hip_nvidia
-// REQUIRES: gpu,linux
+// REQUIRES: sg-8
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
 #include <vector>
 
 using dataType = sycl::opencl::cl_int;
@@ -19,7 +17,7 @@ template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
             cgh);
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(8)]] {
           C[wiID] = 43;
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("");
@@ -30,7 +28,7 @@ template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
 
 int main() {
   KernelFunctor<> f(DEFAULT_PROBLEM_SIZE);
-  if (!launchInlineASMTest(f, true, false, {8}))
+  if (!launchInlineASMTest(f, {8}))
     return 0;
 
   if (verify_all_the_same(f.getOutputBufferData(), 43))

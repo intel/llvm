@@ -247,7 +247,7 @@ CrossTranslationUnitContext::getLookupName(const NamedDecl *ND) {
   bool Ret = index::generateUSRForDecl(ND, DeclUSR);
   if (Ret)
     return {};
-  return std::string(DeclUSR.str());
+  return std::string(DeclUSR);
 }
 
 /// Recursively visits the decls of a DeclContext, and returns one with the
@@ -392,11 +392,11 @@ void CrossTranslationUnitContext::emitCrossTUDiagnostics(const IndexError &IE) {
 
 CrossTranslationUnitContext::ASTUnitStorage::ASTUnitStorage(
     CompilerInstance &CI)
-    : Loader(CI, CI.getAnalyzerOpts()->CTUDir,
-             CI.getAnalyzerOpts()->CTUInvocationList),
+    : Loader(CI, CI.getAnalyzerOpts().CTUDir,
+             CI.getAnalyzerOpts().CTUInvocationList),
       LoadGuard(CI.getASTContext().getLangOpts().CPlusPlus
-                    ? CI.getAnalyzerOpts()->CTUImportCppThreshold
-                    : CI.getAnalyzerOpts()->CTUImportThreshold) {}
+                    ? CI.getAnalyzerOpts().CTUImportCppThreshold
+                    : CI.getAnalyzerOpts().CTUImportThreshold) {}
 
 llvm::Expected<ASTUnit *>
 CrossTranslationUnitContext::ASTUnitStorage::getASTUnitForFile(
@@ -453,7 +453,8 @@ CrossTranslationUnitContext::ASTUnitStorage::getASTUnitForFunction(
       return std::move(IndexLoadError);
 
     // Check if there is an entry in the index for the function.
-    if (!NameFileMap.count(FunctionName)) {
+    auto It = NameFileMap.find(FunctionName);
+    if (It == NameFileMap.end()) {
       ++NumNotInOtherTU;
       return llvm::make_error<IndexError>(index_error_code::missing_definition);
     }
@@ -461,7 +462,7 @@ CrossTranslationUnitContext::ASTUnitStorage::getASTUnitForFunction(
     // Search in the index for the filename where the definition of FunctionName
     // resides.
     if (llvm::Expected<ASTUnit *> FoundForFile =
-            getASTUnitForFile(NameFileMap[FunctionName], DisplayCTUProgress)) {
+            getASTUnitForFile(It->second, DisplayCTUProgress)) {
 
       // Update the cache.
       NameASTUnitMap[FunctionName] = *FoundForFile;
@@ -551,7 +552,7 @@ CrossTranslationUnitContext::ASTLoader::load(StringRef Identifier) {
   // Normalize by removing relative path components.
   llvm::sys::path::remove_dots(Path, /*remove_dot_dot*/ true, PathStyle);
 
-  if (Path.endswith(".ast"))
+  if (Path.ends_with(".ast"))
     return loadFromDump(Path);
   else
     return loadFromSource(Path);
@@ -559,16 +560,16 @@ CrossTranslationUnitContext::ASTLoader::load(StringRef Identifier) {
 
 CrossTranslationUnitContext::LoadResultTy
 CrossTranslationUnitContext::ASTLoader::loadFromDump(StringRef ASTDumpPath) {
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  auto DiagOpts = std::make_shared<DiagnosticOptions>();
   TextDiagnosticPrinter *DiagClient =
-      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+      new TextDiagnosticPrinter(llvm::errs(), *DiagOpts);
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
-      new DiagnosticsEngine(DiagID, &*DiagOpts, DiagClient));
+      new DiagnosticsEngine(DiagID, *DiagOpts, DiagClient));
   return ASTUnit::LoadFromASTFile(
-      std::string(ASTDumpPath.str()),
-      CI.getPCHContainerOperations()->getRawReader(), ASTUnit::LoadEverything,
-      Diags, CI.getFileSystemOpts(), CI.getHeaderSearchOptsPtr());
+      ASTDumpPath, CI.getPCHContainerOperations()->getRawReader(),
+      ASTUnit::LoadEverything, DiagOpts, Diags, CI.getFileSystemOpts(),
+      CI.getHeaderSearchOpts());
 }
 
 /// Load the AST from a source-file, which is supposed to be located inside the
@@ -602,17 +603,17 @@ CrossTranslationUnitContext::ASTLoader::loadFromSource(
                  CommandLineArgs.begin(),
                  [](auto &&CmdPart) { return CmdPart.c_str(); });
 
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{&CI.getDiagnosticOpts()};
+  auto DiagOpts = std::make_shared<DiagnosticOptions>(CI.getDiagnosticOpts());
   auto *DiagClient = new ForwardingDiagnosticConsumer{CI.getDiagnosticClient()};
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID{
       CI.getDiagnostics().getDiagnosticIDs()};
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
-      new DiagnosticsEngine{DiagID, &*DiagOpts, DiagClient});
+      new DiagnosticsEngine{DiagID, *DiagOpts, DiagClient});
 
-  return std::unique_ptr<ASTUnit>(ASTUnit::LoadFromCommandLine(
+  return ASTUnit::LoadFromCommandLine(
       CommandLineArgs.begin(), (CommandLineArgs.end()),
-      CI.getPCHContainerOperations(), Diags,
-      CI.getHeaderSearchOpts().ResourceDir));
+      CI.getPCHContainerOperations(), DiagOpts, Diags,
+      CI.getHeaderSearchOpts().ResourceDir);
 }
 
 llvm::Expected<InvocationListTy>

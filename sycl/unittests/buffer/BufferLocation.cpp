@@ -5,10 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
@@ -20,87 +18,105 @@
 const uint64_t DEFAULT_VALUE = 7777;
 static uint64_t PassedLocation = DEFAULT_VALUE;
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
-                                   void *, pi_mem *,
-                                   const pi_mem_properties *properties) {
+ur_result_t redefinedMemBufferCreateBefore(void *pParams) {
+  auto params = reinterpret_cast<ur_mem_buffer_create_params_t *>(pParams);
   PassedLocation = DEFAULT_VALUE;
-  if (!properties)
-    return PI_SUCCESS;
+  if (!*params->ppProperties)
+    return UR_RESULT_SUCCESS;
+
+  auto nextProps =
+      static_cast<ur_base_properties_t *>((*params->ppProperties)->pNext);
 
   // properties must ended by 0
-  size_t I = 0;
-  while (true) {
-    if (properties[I] != 0) {
-      if (properties[I] != PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION) {
-        I += 2;
-      } else {
-        PassedLocation = properties[I + 1];
-        break;
-      }
+  while (nextProps) {
+    if (nextProps->stype !=
+        UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES) {
+      nextProps = static_cast<ur_base_properties_t *>(nextProps->pNext);
+      break;
     }
+    PassedLocation =
+        reinterpret_cast<ur_buffer_alloc_location_properties_t *>(nextProps)
+            ->location;
+    nextProps = reinterpret_cast<ur_base_properties_t *>(nextProps->pNext);
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfoAfter(pi_device device,
-                                             pi_device_info param_name,
-                                             size_t param_value_size,
-                                             void *param_value,
-                                             size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
-    *Result = PI_DEVICE_TYPE_ACC;
+static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params->ppropName) {
+  case UR_DEVICE_INFO_TYPE: {
+    auto *Result = reinterpret_cast<ur_device_type_t *>(*params->ppPropValue);
+    *Result = UR_DEVICE_TYPE_FPGA;
+    break;
   }
-  if (param_name == PI_DEVICE_INFO_COMPILER_AVAILABLE) {
-    auto *Result = reinterpret_cast<pi_bool *>(param_value);
+  case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
+    auto *Result = reinterpret_cast<ur_bool_t *>(*params->ppPropValue);
     *Result = true;
+    break;
   }
-  if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
+  case UR_DEVICE_INFO_EXTENSIONS: {
     const std::string name = "cl_intel_mem_alloc_buffer_location";
 
     // Increase size by one for the null terminator
     const size_t nameSize = name.size() + 1;
 
-    if (!param_value) {
+    if (!*params->ppPropValue) {
+      size_t beforeSize = **params->ppPropSizeRet;
       // Choose bigger size so that both original and redefined function
-      // has enough memory for storing the extension string
-      *param_value_size_ret =
-          nameSize > *param_value_size_ret ? nameSize : *param_value_size_ret;
+      // has enough memory for storing the extension string. If the original has
+      // reported it has a non-empty string to report, we additionally need room
+      // for a space.
+      **params->ppPropSizeRet = beforeSize + (beforeSize > 0) + nameSize;
     } else {
-      char *dst = static_cast<char *>(param_value);
-      strcpy(dst, name.data());
+      assert(*params->ppropSize >= nameSize);
+      // Insert at the end of the extension string.
+      size_t nameOffset = *params->ppropSize - nameSize;
+      char *dst = static_cast<char *>(*params->ppPropValue);
+      // If the offset isn't at the start of the string, we need to insert a
+      // space before it.
+      if (nameOffset > 0)
+        dst[nameOffset - 1] = ' ';
+      strcpy(dst + *params->ppropSize - nameSize, name.data());
     }
+    break;
   }
   // This mock device has no sub-devices
-  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 0;
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
+    if (*params->ppPropSizeRet) {
+      **params->ppPropSizeRet = 0;
     }
+    break;
   }
-  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
-    assert(param_value_size == sizeof(pi_device_affinity_domain));
-    if (param_value) {
-      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    assert(*params->ppropSize == sizeof(ur_device_affinity_domain_flags_t));
+    if (*params->ppPropValue) {
+      *static_cast<ur_device_affinity_domain_flags_t *>(*params->ppPropValue) =
+          0;
     }
+    break;
   }
-  return PI_SUCCESS;
+  default:
+    break;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  BufferTest()
+      : Mock{}, Plt([]() {
+          // Make sure these are re-defined before we create device hierarchy.
+          mock::getCallbacks().set_before_callback(
+              "urMemBufferCreate", &redefinedMemBufferCreateBefore);
+          mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                                  &redefinedDeviceGetInfoAfter);
+          return sycl::platform{};
+        }()) {}
 
 protected:
-  void SetUp() override {
-    Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
-        redefinedMemBufferCreate);
-    Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfoAfter);
-  }
-
-protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
@@ -122,8 +138,7 @@ TEST_F(BufferTest, BufferLocationOnly) {
             sycl::ext::oneapi::accessor_property_list<
                 sycl::ext::intel::property::buffer_location::instance<2>>>
             Acc{Buf, cgh, sycl::read_write, PL};
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)2);
@@ -151,9 +166,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
                 sycl::ext::oneapi::property::no_alias::instance<true>,
                 sycl::ext::intel::property::buffer_location::instance<5>>>
             Acc{Buf, cgh, sycl::write_only, PL};
-
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)5);
@@ -173,10 +186,9 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
             Acc{Buf, cgh, sycl::write_only, PL};
       })
       .wait();
-  std::shared_ptr<sycl::detail::buffer_impl> BufImpl =
-      sycl::detail::getSyclObjImpl(Buf);
+  sycl::detail::buffer_impl &BufImpl = *sycl::detail::getSyclObjImpl(Buf);
   EXPECT_EQ(
-      BufImpl->get_property<sycl::property::buffer::detail::buffer_location>()
+      BufImpl.get_property<sycl::property::buffer::detail::buffer_location>()
           .get_buffer_location(),
       (uint64_t)3);
 
@@ -192,7 +204,7 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
       .wait();
 
   EXPECT_EQ(
-      BufImpl->has_property<sycl::property::buffer::detail::buffer_location>(),
+      BufImpl.has_property<sycl::property::buffer::detail::buffer_location>(),
       0);
 }
 
@@ -209,8 +221,7 @@ TEST_F(BufferTest, WOBufferLocation) {
                        sycl::access::placeholder::false_t,
                        sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::read_write};
-        constexpr size_t KS = sizeof(decltype(Acc));
-        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+        cgh.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, DEFAULT_VALUE);

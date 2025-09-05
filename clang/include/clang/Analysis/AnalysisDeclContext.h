@@ -331,7 +331,7 @@ public:
   unsigned getIndex() const { return Index; }
 
   CFGElement getCallSiteCFGElement() const { return (*Block)[Index]; }
-  
+
   void Profile(llvm::FoldingSetNodeID &ID) override;
 
   static void Profile(llvm::FoldingSetNodeID &ID, AnalysisDeclContext *ADC,
@@ -451,7 +451,7 @@ public:
       bool synthesizeBodies = false, bool addStaticInitBranches = false,
       bool addCXXNewAllocator = true, bool addRichCXXConstructors = true,
       bool markElidedCXXConstructors = true, bool addVirtualBaseBranches = true,
-      CodeInjector *injector = nullptr);
+      std::unique_ptr<CodeInjector> injector = nullptr);
 
   AnalysisDeclContext *getContext(const Decl *D);
 

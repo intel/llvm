@@ -44,8 +44,8 @@ public:
                                   int &FARsLeft) const;
   ABIArgInfo classifyReturnType(QualType RetTy) const;
 
-  Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                    QualType Ty) const override;
+  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
+                   AggValueSlot Slot) const override;
 
   ABIArgInfo extendType(QualType Ty) const;
 
@@ -110,10 +110,9 @@ bool LoongArchABIInfo::detectFARsEligibleStructHelper(
     uint64_t Size = getContext().getTypeSize(Ty);
     if (IsInt && Size > GRLen)
       return false;
-    // Can't be eligible if larger than the FP registers. Half precision isn't
-    // currently supported on LoongArch and the ABI hasn't been confirmed, so
-    // default to the integer ABI in that case.
-    if (IsFloat && (Size > FRLen || Size < 32))
+    // Can't be eligible if larger than the FP registers. Handling of half
+    // precision values has been specified in the ABI, so don't block those.
+    if (IsFloat && Size > FRLen)
       return false;
     // Can't be eligible if an integer type was already found (int+int pairs
     // are not eligible).
@@ -146,8 +145,15 @@ bool LoongArchABIInfo::detectFARsEligibleStructHelper(
   }
 
   if (const ConstantArrayType *ATy = getContext().getAsConstantArrayType(Ty)) {
-    uint64_t ArraySize = ATy->getSize().getZExtValue();
+    uint64_t ArraySize = ATy->getZExtSize();
     QualType EltTy = ATy->getElementType();
+    // Non-zero-length arrays of empty records make the struct ineligible to be
+    // passed via FARs in C++.
+    if (const auto *RTy = EltTy->getAs<RecordType>()) {
+      if (ArraySize != 0 && isa<CXXRecordDecl>(RTy->getDecl()) &&
+          isEmptyRecord(getContext(), EltTy, true, true))
+        return false;
+    }
     CharUnits EltSize = getContext().getTypeSizeInChars(EltTy);
     for (uint64_t i = 0; i < ArraySize; ++i) {
       if (!detectFARsEligibleStructHelper(EltTy, CurOff, Field1Ty, Field1Off,
@@ -163,10 +169,11 @@ bool LoongArchABIInfo::detectFARsEligibleStructHelper(
     // copy constructor are not eligible for the FP calling convention.
     if (getRecordArgABI(Ty, CGT.getCXXABI()))
       return false;
-    if (isEmptyRecord(getContext(), Ty, true))
-      return true;
     const RecordDecl *RD = RTy->getDecl();
-    // Unions aren't eligible unless they're empty (which is caught above).
+    if (isEmptyRecord(getContext(), Ty, true, true) &&
+        (!RD->isUnion() || !isa<CXXRecordDecl>(RD)))
+      return true;
+    // Unions aren't eligible unless they're empty in C (which is caught above).
     if (RD->isUnion())
       return false;
     const ASTRecordLayout &Layout = getContext().getASTRecordLayout(RD);
@@ -184,7 +191,7 @@ bool LoongArchABIInfo::detectFARsEligibleStructHelper(
     for (const FieldDecl *FD : RD->fields()) {
       QualType QTy = FD->getType();
       if (FD->isBitField()) {
-        unsigned BitWidth = FD->getBitWidthValue(getContext());
+        unsigned BitWidth = FD->getBitWidthValue();
         // Zero-width bitfields are ignored.
         if (BitWidth == 0)
           continue;
@@ -221,6 +228,8 @@ bool LoongArchABIInfo::detectFARsEligibleStruct(
   NeededFARs = 0;
   if (!detectFARsEligibleStructHelper(Ty, CharUnits::Zero(), Field1Ty,
                                       Field1Off, Field2Ty, Field2Off))
+    return false;
+  if (!Field1Ty)
     return false;
   // Not really a candidate if we have a single int but no float.
   if (Field1Ty && !Field2Ty && !Field1Ty->isFloatingPointTy())
@@ -295,15 +304,18 @@ ABIArgInfo LoongArchABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
   if (CGCXXABI::RecordArgABI RAA = getRecordArgABI(Ty, getCXXABI())) {
     if (GARsLeft)
       GARsLeft -= 1;
-    return getNaturalAlignIndirect(Ty, /*ByVal=*/RAA ==
-                                           CGCXXABI::RAA_DirectInMemory);
+    return getNaturalAlignIndirect(
+        Ty, /*AddrSpace=*/getDataLayout().getAllocaAddrSpace(),
+        /*ByVal=*/RAA == CGCXXABI::RAA_DirectInMemory);
   }
 
-  // Ignore empty structs/unions.
-  if (isEmptyRecord(getContext(), Ty, true))
-    return ABIArgInfo::getIgnore();
-
   uint64_t Size = getContext().getTypeSize(Ty);
+
+  // Ignore empty struct or union whose size is zero, e.g. `struct { }` in C or
+  // `struct { int a[0]; }` in C++. In C++, `struct { }` is empty but it's size
+  // is 1 byte and g++ doesn't ignore it; clang++ matches this behaviour.
+  if (isEmptyRecord(getContext(), Ty, true) && Size == 0)
+    return ABIArgInfo::getIgnore();
 
   // Pass floating point values via FARs if possible.
   if (IsFixed && Ty->isFloatingType() && !Ty->isComplexType() &&
@@ -369,7 +381,9 @@ ABIArgInfo LoongArchABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
       if (EIT->getNumBits() > 128 ||
           (!getContext().getTargetInfo().hasInt128Type() &&
            EIT->getNumBits() > 64))
-        return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
+        return getNaturalAlignIndirect(
+            Ty, /*AddrSpace=*/getDataLayout().getAllocaAddrSpace(),
+            /*ByVal=*/false);
     }
 
     return ABIArgInfo::getDirect();
@@ -392,7 +406,9 @@ ABIArgInfo LoongArchABIInfo::classifyArgumentType(QualType Ty, bool IsFixed,
     return ABIArgInfo::getDirect(
         llvm::ArrayType::get(llvm::IntegerType::get(getVMContext(), GRLen), 2));
   }
-  return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
+  return getNaturalAlignIndirect(
+      Ty, /*AddrSpace=*/getDataLayout().getAllocaAddrSpace(),
+      /*ByVal=*/false);
 }
 
 ABIArgInfo LoongArchABIInfo::classifyReturnType(QualType RetTy) const {
@@ -405,17 +421,13 @@ ABIArgInfo LoongArchABIInfo::classifyReturnType(QualType RetTy) const {
   return classifyArgumentType(RetTy, /*IsFixed=*/true, GARsLeft, FARsLeft);
 }
 
-Address LoongArchABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                                    QualType Ty) const {
+RValue LoongArchABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                                   QualType Ty, AggValueSlot Slot) const {
   CharUnits SlotSize = CharUnits::fromQuantity(GRLen / 8);
 
   // Empty records are ignored for parameter passing purposes.
-  if (isEmptyRecord(getContext(), Ty, true)) {
-    Address Addr = Address(CGF.Builder.CreateLoad(VAListAddr),
-                           getVAListElementType(CGF), SlotSize);
-    Addr = CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
-    return Addr;
-  }
+  if (isEmptyRecord(getContext(), Ty, true))
+    return Slot.asRValue();
 
   auto TInfo = getContext().getTypeInfoInChars(Ty);
 
@@ -423,7 +435,7 @@ Address LoongArchABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
   return emitVoidPtrVAArg(CGF, VAListAddr, Ty,
                           /*IsIndirect=*/TInfo.Width > 2 * SlotSize, TInfo,
                           SlotSize,
-                          /*AllowHigherAlign=*/true);
+                          /*AllowHigherAlign=*/true, Slot);
 }
 
 ABIArgInfo LoongArchABIInfo::extendType(QualType Ty) const {

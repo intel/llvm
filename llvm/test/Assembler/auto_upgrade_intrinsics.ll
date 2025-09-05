@@ -47,6 +47,13 @@ entry:
   ret void
 }
 
+declare i1 @llvm.coro.end(ptr, i1)
+define void @test.coro.end(ptr %ptr) {
+; CHECK-LABEL: @test.coro.end(
+; CHECK: call i1 @llvm.coro.end(ptr %ptr, i1 false, token none)
+  call i1 @llvm.coro.end(ptr %ptr, i1 false)
+  ret void
+}
 
 @a = private global [60 x i8] zeroinitializer, align 1
 
@@ -213,5 +220,5 @@ define void @test.prefetch.unnamed(ptr %ptr) {
 ; emitted at the end.
 ; CHECK: declare i32 @llvm.objectsize.i32.p0
 
-; CHECK: declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture)
-; CHECK: declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture)
+; CHECK: declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none))
+; CHECK: declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none))

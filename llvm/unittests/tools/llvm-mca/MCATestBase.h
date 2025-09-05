@@ -22,9 +22,9 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/MCA/Context.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 
 #include "gtest/gtest.h"
@@ -74,7 +74,7 @@ protected:
   /// `llvm-mca` tool to verify result correctness.
   /// This function only displays on SummaryView by default.
   virtual Error runBaselineMCA(json::Object &Result, ArrayRef<MCInst> Insts,
-                               ArrayRef<mca::View *> Views = std::nullopt,
+                               ArrayRef<mca::View *> Views = {},
                                const mca::PipelineOptions *PO = nullptr);
 };
 

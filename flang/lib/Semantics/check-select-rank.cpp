@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "check-select-rank.h"
-#include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
 #include "flang/Parser/message.h"
 #include "flang/Parser/tools.h"
 #include "flang/Semantics/tools.h"
+#include "flang/Support/Fortran.h"
 #include <list>
 #include <optional>
 #include <set>
@@ -86,8 +86,8 @@ void SelectRankConstructChecker::Leave(
                     .Attach(prevLocStar, "Previous use"_en_US);
               }
               if (saveSelSymbol &&
-                  IsAllocatableOrPointer(*saveSelSymbol)) { // C1155
-                context_.Say(parser::FindSourceLocation(selectRankStmtSel),
+                  IsAllocatableOrPointer(*saveSelSymbol)) { // F'2023 C1160
+                context_.Say(rankCaseStmt.source,
                     "RANK (*) cannot be used when selector is "
                     "POINTER or ALLOCATABLE"_err_en_US);
               }

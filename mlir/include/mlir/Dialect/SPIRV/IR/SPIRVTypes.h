@@ -20,6 +20,7 @@
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
 
+#include <cstdint>
 #include <tuple>
 
 namespace mlir {
@@ -28,8 +29,8 @@ namespace spirv {
 namespace detail {
 struct ArrayTypeStorage;
 struct CooperativeMatrixTypeStorage;
+struct TensorArmTypeStorage;
 struct ImageTypeStorage;
-struct JointMatrixTypeStorage;
 struct MatrixTypeStorage;
 struct PointerTypeStorage;
 struct RuntimeArrayTypeStorage;
@@ -96,7 +97,8 @@ public:
   std::optional<int64_t> getSizeInBytes();
 };
 
-// SPIR-V composite type: VectorType, SPIR-V ArrayType, or SPIR-V StructType.
+// SPIR-V composite type: VectorType, SPIR-V ArrayType, SPIR-V
+// StructType, or SPIR-V TensorArmType.
 class CompositeType : public SPIRVType {
 public:
   using SPIRVType::SPIRVType;
@@ -130,6 +132,8 @@ class ArrayType : public Type::TypeBase<ArrayType, CompositeType,
 public:
   using Base::Base;
 
+  static constexpr StringLiteral name = "spirv.array";
+
   static ArrayType get(Type elementType, unsigned elementCount);
 
   /// Returns an array type with the given stride in bytes.
@@ -159,6 +163,8 @@ class ImageType
     : public Type::TypeBase<ImageType, SPIRVType, detail::ImageTypeStorage> {
 public:
   using Base::Base;
+
+  static constexpr StringLiteral name = "spirv.image";
 
   static ImageType
   get(Type elementType, Dim dim,
@@ -199,6 +205,8 @@ class PointerType : public Type::TypeBase<PointerType, SPIRVType,
 public:
   using Base::Base;
 
+  static constexpr StringLiteral name = "spirv.pointer";
+
   static PointerType get(Type pointeeType, StorageClass storageClass);
 
   Type getPointeeType() const;
@@ -217,6 +225,8 @@ class RuntimeArrayType
                             detail::RuntimeArrayTypeStorage> {
 public:
   using Base::Base;
+
+  static constexpr StringLiteral name = "spirv.rtarray";
 
   static RuntimeArrayType get(Type elementType);
 
@@ -242,13 +252,16 @@ class SampledImageType
 public:
   using Base::Base;
 
+  static constexpr StringLiteral name = "spirv.sampled_image";
+
   static SampledImageType get(Type imageType);
 
   static SampledImageType
   getChecked(function_ref<InFlightDiagnostic()> emitError, Type imageType);
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              Type imageType);
+  static LogicalResult
+  verifyInvariants(function_ref<InFlightDiagnostic()> emitError,
+                   Type imageType);
 
   Type getImageType() const;
 
@@ -285,6 +298,8 @@ public:
 
   // Type for specifying the offset of the struct members
   using OffsetInfo = uint32_t;
+
+  static constexpr StringLiteral name = "spirv.struct";
 
   // Type for specifying the decoration(s) on struct members
   struct MemberDecorationInfo {
@@ -345,27 +360,7 @@ public:
 
   Type getElementType(unsigned) const;
 
-  /// Range class for element types.
-  class ElementTypeRange
-      : public ::llvm::detail::indexed_accessor_range_base<
-            ElementTypeRange, const Type *, Type, Type, Type> {
-  private:
-    using RangeBaseT::RangeBaseT;
-
-    /// See `llvm::detail::indexed_accessor_range_base` for details.
-    static const Type *offset_base(const Type *object, ptrdiff_t index) {
-      return object + index;
-    }
-    /// See `llvm::detail::indexed_accessor_range_base` for details.
-    static Type dereference_iterator(const Type *object, ptrdiff_t index) {
-      return object[index];
-    }
-
-    /// Allow base class access to `offset_base` and `dereference_iterator`.
-    friend RangeBaseT;
-  };
-
-  ElementTypeRange getElementTypes() const;
+  TypeRange getElementTypes() const;
 
   bool hasOffset() const;
 
@@ -398,55 +393,50 @@ public:
 llvm::hash_code
 hash_value(const StructType::MemberDecorationInfo &memberDecorationInfo);
 
-// SPIR-V cooperative matrix type
-class CooperativeMatrixNVType
-    : public Type::TypeBase<CooperativeMatrixNVType, CompositeType,
-                            detail::CooperativeMatrixTypeStorage> {
+// SPIR-V KHR cooperative matrix type
+class CooperativeMatrixType
+    : public Type::TypeBase<CooperativeMatrixType, CompositeType,
+                            detail::CooperativeMatrixTypeStorage,
+                            ShapedType::Trait> {
 public:
   using Base::Base;
 
-  static CooperativeMatrixNVType get(Type elementType, Scope scope,
-                                     unsigned rows, unsigned columns);
+  static constexpr StringLiteral name = "spirv.coopmatrix";
+
+  static CooperativeMatrixType get(Type elementType, uint32_t rows,
+                                   uint32_t columns, Scope scope,
+                                   CooperativeMatrixUseKHR use);
   Type getElementType() const;
 
-  /// Return the scope of the cooperative matrix.
+  /// Returns the scope of the matrix.
   Scope getScope() const;
-  /// return the number of rows of the matrix.
-  unsigned getRows() const;
-  /// return the number of columns of the matrix.
-  unsigned getColumns() const;
+  /// Returns the number of rows of the matrix.
+  uint32_t getRows() const;
+  /// Returns the number of columns of the matrix.
+  uint32_t getColumns() const;
+  /// Returns the use parameter of the cooperative matrix.
+  CooperativeMatrixUseKHR getUse() const;
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      std::optional<StorageClass> storage = std::nullopt);
   void getCapabilities(SPIRVType::CapabilityArrayRefVector &capabilities,
                        std::optional<StorageClass> storage = std::nullopt);
-};
 
-// SPIR-V joint matrix type
-class JointMatrixINTELType
-    : public Type::TypeBase<JointMatrixINTELType, CompositeType,
-                            detail::JointMatrixTypeStorage> {
-public:
-  using Base::Base;
+  operator ShapedType() const { return llvm::cast<ShapedType>(*this); }
 
-  static JointMatrixINTELType get(Type elementType, Scope scope, unsigned rows,
-                                  unsigned columns, MatrixLayout matrixLayout);
-  Type getElementType() const;
+  ArrayRef<int64_t> getShape() const;
 
-  /// Return the scope of the joint matrix.
-  Scope getScope() const;
-  /// return the number of rows of the matrix.
-  unsigned getRows() const;
-  /// return the number of columns of the matrix.
-  unsigned getColumns() const;
+  bool hasRank() const { return true; }
 
-  /// return the layout of the matrix
-  MatrixLayout getMatrixLayout() const;
+  CooperativeMatrixType cloneWith(std::optional<ArrayRef<int64_t>> shape,
+                                  Type elementType) const {
+    if (!shape)
+      return get(elementType, getRows(), getColumns(), getScope(), getUse());
 
-  void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
-                     std::optional<StorageClass> storage = std::nullopt);
-  void getCapabilities(SPIRVType::CapabilityArrayRefVector &capabilities,
-                       std::optional<StorageClass> storage = std::nullopt);
+    assert(shape.value().size() == 2);
+    return get(elementType, shape.value()[0], shape.value()[1], getScope(),
+               getUse());
+  }
 };
 
 // SPIR-V matrix type
@@ -455,13 +445,16 @@ class MatrixType : public Type::TypeBase<MatrixType, CompositeType,
 public:
   using Base::Base;
 
+  static constexpr StringLiteral name = "spirv.matrix";
+
   static MatrixType get(Type columnType, uint32_t columnCount);
 
   static MatrixType getChecked(function_ref<InFlightDiagnostic()> emitError,
                                Type columnType, uint32_t columnCount);
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              Type columnType, uint32_t columnCount);
+  static LogicalResult
+  verifyInvariants(function_ref<InFlightDiagnostic()> emitError,
+                   Type columnType, uint32_t columnCount);
 
   /// Returns true if the matrix elements are vectors of float elements.
   static bool isValidColumnType(Type columnType);
@@ -479,6 +472,46 @@ public:
 
   /// Returns the elements' type (i.e, single element type).
   Type getElementType() const;
+
+  void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
+                     std::optional<StorageClass> storage = std::nullopt);
+  void getCapabilities(SPIRVType::CapabilityArrayRefVector &capabilities,
+                       std::optional<StorageClass> storage = std::nullopt);
+};
+
+/// SPIR-V TensorARM Type
+class TensorArmType
+    : public Type::TypeBase<TensorArmType, CompositeType,
+                            detail::TensorArmTypeStorage, ShapedType::Trait> {
+public:
+  using Base::Base;
+
+  using ShapedTypeTraits = ShapedType::Trait<TensorArmType>;
+  using ShapedTypeTraits::getDimSize;
+  using ShapedTypeTraits::getDynamicDimIndex;
+  using ShapedTypeTraits::getElementTypeBitWidth;
+  using ShapedTypeTraits::getNumDynamicDims;
+  using ShapedTypeTraits::getNumElements;
+  using ShapedTypeTraits::getRank;
+  using ShapedTypeTraits::hasStaticShape;
+  using ShapedTypeTraits::isDynamicDim;
+
+  static constexpr StringLiteral name = "spirv.arm.tensor";
+
+  // TensorArm supports minimum rank of 1, hence an empty shape here means
+  // unranked.
+  static TensorArmType get(ArrayRef<int64_t> shape, Type elementType);
+  TensorArmType cloneWith(std::optional<ArrayRef<int64_t>> shape,
+                          Type elementType) const;
+
+  static LogicalResult
+  verifyInvariants(function_ref<InFlightDiagnostic()> emitError,
+                   ArrayRef<int64_t> shape, Type elementType);
+
+  Type getElementType() const;
+  ArrayRef<int64_t> getShape() const;
+  bool hasRank() const { return !getShape().empty(); }
+  operator ShapedType() const { return llvm::cast<ShapedType>(*this); }
 
   void getExtensions(SPIRVType::ExtensionArrayRefVector &extensions,
                      std::optional<StorageClass> storage = std::nullopt);

@@ -1,23 +1,44 @@
 # Exclude tests from libMLIR.so
-add_mlir_library(MLIRGPUTestPasses
-  TestConvertGPUKernelToCubin.cpp
-  TestConvertGPUKernelToHsaco.cpp
-  TestGpuMemoryPromotion.cpp
-  TestGpuRewrite.cpp
+get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-  EXCLUDE_FROM_LIBMLIR
+set(LIBS
+  ${conversion_libs}
 
-  LINK_LIBS PUBLIC
   MLIRAffineDialect
+  MLIRArithDialect
+  MLIRBuiltinToLLVMIRTranslation
   MLIRFuncDialect
   MLIRGPUDialect
   MLIRGPUToGPURuntimeTransforms
+  MLIRGPUTransforms
+  MLIRIR
   MLIRLLVMToLLVMIRTranslation
+  MLIRToLLVMIRTranslationRegistration
+  MLIRMemRefDialect
+  MLIRMemRefToLLVM
   MLIRNVVMDialect
   MLIRNVVMToLLVMIRTranslation
   MLIRPass
   MLIRROCDLDialect
   MLIRROCDLToLLVMIRTranslation
   MLIRSCFDialect
+  MLIRSupport
+  MLIRTargetLLVMIRExport
+  MLIRTransforms
   MLIRTransformUtils
+  MLIRTranslateLib
+  MLIRVectorDialect
+  MLIRVectorToLLVMPass
+  MLIRXeVMDialect
   )
+
+add_mlir_library(MLIRGPUTestPasses
+  TestGpuMemoryPromotion.cpp
+  TestGpuRewrite.cpp
+
+  EXCLUDE_FROM_LIBMLIR
+  )
+mlir_target_link_libraries(MLIRGPUTestPasses PUBLIC
+  ${LIBS}
+  )
+

@@ -1,20 +1,27 @@
-; RUN: sycl-post-link -spec-const=rt --ir-output-only < %s -S -o - \
+; RUN: sycl-post-link -spec-const=native --ir-output-only < %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
+; RUN: %if asserts %{ sycl-post-link -properties -spec-const=native -debug-only=SpecConst < %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that sycl-post-link tool is capable of handling
 ; composite specialization constants by lowering them into a set of SPIR-V
 ; friendly IR operations representing those constants.
 ;
 ; CHECK-LABEL: define {{.*}} spir_kernel void @_ZTS17SpecializedKernel
-; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
-; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 1]], float
-; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#N0]], float %[[#N1]])
+; CHECK: %[[#N0:]] = call spir_func i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
+; CHECK: %[[#N1:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#ID + 1]], float
+; CHECK: %[[#CONST:]] = call spir_func %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#N0]], float %[[#N1]])
 ; CHECK: %struct._ZTS1A.A %[[#CONST]]
 ;
 ; CHECK: !sycl.specialization-constants = !{![[#MD0:]]}
 ;
 ; CHECK: ![[#MD0]] = !{!"_ZTS13MyComposConst", i32 [[#ID]], i32 0, i32 4,
 ; CHECK-SAME: i32 [[#ID + 1]], i32 4, i32 4}
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 4}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 4, 42}
+; CHECK-LOG:{4, 4, 2.000000e+00}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

@@ -25,7 +25,7 @@ using namespace ento;
 namespace {
 class ExprInspectionChecker
     : public Checker<eval::Call, check::DeadSymbols, check::EndAnalysis> {
-  mutable std::unique_ptr<BugType> BT;
+  const BugType BT{this, "Checking analyzer assumptions", "debug"};
 
   // These stats are per-analysis, not per-branch, hence they shouldn't
   // stay inside the program state.
@@ -176,11 +176,7 @@ ExprInspectionChecker::reportBug(llvm::StringRef Msg, BugReporter &BR,
                                  std::optional<SVal> ExprVal) const {
   if (!N)
     return nullptr;
-
-  if (!BT)
-    BT.reset(new BugType(this, "Checking analyzer assumptions", "debug"));
-
-  auto R = std::make_unique<PathSensitiveBugReport>(*BT, Msg, N);
+  auto R = std::make_unique<PathSensitiveBugReport>(BT, Msg, N);
   if (ExprVal) {
     R->markInteresting(*ExprVal);
   }
@@ -231,10 +227,11 @@ void ExprInspectionChecker::analyzerWarnIfReached(const CallExpr *CE,
 
 void ExprInspectionChecker::analyzerNumTimesReached(const CallExpr *CE,
                                                     CheckerContext &C) const {
-  ++ReachedStats[CE].NumTimesReached;
-  if (!ReachedStats[CE].ExampleNode) {
+  ReachedStat &Stat = ReachedStats[CE];
+  ++Stat.NumTimesReached;
+  if (!Stat.ExampleNode) {
     // Later, in checkEndAnalysis, we'd throw a report against it.
-    ReachedStats[CE].ExampleNode = C.generateNonFatalErrorNode();
+    Stat.ExampleNode = C.generateNonFatalErrorNode();
   }
 }
 
@@ -260,7 +257,7 @@ void ExprInspectionChecker::analyzerExplain(const CallExpr *CE,
     return;
 
   SVal V = C.getSVal(Arg);
-  SValExplainer Ex(C.getASTContext());
+  SValExplainer Ex(C.getASTContext(), C.getState());
   reportBug(Ex.Visit(V), C);
 }
 
@@ -325,12 +322,12 @@ void ExprInspectionChecker::analyzerDump(const CallExpr *CE,
 
 void ExprInspectionChecker::analyzerGetExtent(const CallExpr *CE,
                                               CheckerContext &C) const {
-  const MemRegion *MR = getArgRegion(CE, C);
-  if (!MR)
+  const Expr *Arg = getArgExpr(CE, C);
+  if (!Arg)
     return;
 
   ProgramStateRef State = C.getState();
-  DefinedOrUnknownSVal Size = getDynamicExtent(State, MR, C.getSValBuilder());
+  SVal Size = getDynamicExtentWithOffset(State, C.getSVal(Arg));
 
   State = State->BindExpr(CE, C.getLocationContext(), Size);
   C.addTransition(State);
@@ -338,12 +335,12 @@ void ExprInspectionChecker::analyzerGetExtent(const CallExpr *CE,
 
 void ExprInspectionChecker::analyzerDumpExtent(const CallExpr *CE,
                                                CheckerContext &C) const {
-  const MemRegion *MR = getArgRegion(CE, C);
-  if (!MR)
+  const Expr *Arg = getArgExpr(CE, C);
+  if (!Arg)
     return;
 
-  DefinedOrUnknownSVal Size =
-      getDynamicExtent(C.getState(), MR, C.getSValBuilder());
+  ProgramStateRef State = C.getState();
+  SVal Size = getDynamicExtentWithOffset(State, C.getSVal(Arg));
   printAndReport(C, Size);
 }
 
@@ -362,8 +359,8 @@ void ExprInspectionChecker::analyzerDumpElementCount(const CallExpr *CE,
 
   assert(!ElementTy->isPointerType());
 
-  DefinedOrUnknownSVal ElementCount =
-      getDynamicElementCount(C.getState(), MR, C.getSValBuilder(), ElementTy);
+  DefinedOrUnknownSVal ElementCount = getDynamicElementCountWithOffset(
+      C.getState(), C.getSVal(getArgExpr(CE, C)), ElementTy);
   printAndReport(C, ElementCount);
 }
 
@@ -393,8 +390,7 @@ void ExprInspectionChecker::checkDeadSymbols(SymbolReaper &SymReaper,
   ProgramStateRef State = C.getState();
   const MarkedSymbolsTy &Syms = State->get<MarkedSymbols>();
   ExplodedNode *N = C.getPredecessor();
-  for (auto I = Syms.begin(), E = Syms.end(); I != E; ++I) {
-    SymbolRef Sym = *I;
+  for (SymbolRef Sym : Syms) {
     if (!SymReaper.isDead(Sym))
       continue;
 
@@ -434,9 +430,8 @@ void ExprInspectionChecker::analyzerHashDump(const CallExpr *CE,
   const LangOptions &Opts = C.getLangOpts();
   const SourceManager &SM = C.getSourceManager();
   FullSourceLoc FL(CE->getArg(0)->getBeginLoc(), SM);
-  std::string HashContent =
-      getIssueString(FL, getCheckerName().getName(), "Category",
-                     C.getLocationContext()->getDecl(), Opts);
+  std::string HashContent = getIssueString(
+      FL, getName(), "Category", C.getLocationContext()->getDecl(), Opts);
 
   reportBug(HashContent, C);
 }
@@ -491,8 +486,8 @@ public:
       return Str;
     if (std::optional<std::string> Str = Visit(S->getLHS()))
       return (*Str + " " + BinaryOperator::getOpcodeStr(S->getOpcode()) + " " +
-              std::to_string(S->getRHS().getLimitedValue()) +
-              (S->getRHS().isUnsigned() ? "U" : ""))
+              std::to_string(S->getRHS()->getLimitedValue()) +
+              (S->getRHS()->isUnsigned() ? "U" : ""))
           .str();
     return std::nullopt;
   }

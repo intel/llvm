@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>         // for Scope, MemorySemanticsMask
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_types.hpp>       // for Scope, MemorySemanticsMask
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
@@ -17,9 +18,7 @@
 
 #include <type_traits> // for is_same
 
-#ifdef __SYCL_DEVICE_ONLY__
-#include <cstring>
-#else
+#ifndef __SYCL_DEVICE_ONLY__
 #include <atomic> // for atomic, memory_order
 #endif
 

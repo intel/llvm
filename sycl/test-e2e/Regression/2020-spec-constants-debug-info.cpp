@@ -1,12 +1,15 @@
 // RUN: %{build} -g -o %t.out
-// RUN: %{build} -g -O0 -o %t.out
+// RUN: %{build} -g %O0 -o %t.out
 // RUN: %{build} -g -O2 -o %t.out
 //
 // The idea of this test is to make sure that we can compile the following
 // simple example without crashes/assertions firing at llvm-spirv step due to
 // debug info corrupted by sycl-post-link
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 constexpr sycl::specialization_id<int> test_id_1{42};
 

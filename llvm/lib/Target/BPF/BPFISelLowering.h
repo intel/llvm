@@ -71,10 +71,19 @@ private:
   bool HasAlu32;
   bool HasJmp32;
   bool HasJmpExt;
+  bool HasMovsx;
 
+  SDValue LowerSDIVSREM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerATOMIC_LOAD_STORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerTRAP(SDValue Op, SelectionDAG &DAG) const;
+
+  template <class NodeTy>
+  SDValue getAddr(NodeTy *N, SelectionDAG &DAG, unsigned Flags = 0) const;
 
   // Lower the result values of a call, copying them out of physregs into vregs
   SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
@@ -84,7 +93,7 @@ private:
                           SmallVectorImpl<SDValue> &InVals) const;
 
   // Maximum number of arguments to a call
-  static const unsigned MaxArgs;
+  static const size_t MaxArgs;
 
   // Lower a call into CALLSEQ_START - BPFISD:CALL - CALLSEQ_END chain
   SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
@@ -105,12 +114,14 @@ private:
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
 
-  EVT getOptimalMemOpType(const MemOp &Op,
+  EVT getOptimalMemOpType(LLVMContext &Context, const MemOp &Op,
                           const AttributeList &FuncAttributes) const override {
     return Op.size() >= 8 ? MVT::i64 : MVT::i32;
   }
 
-  bool isIntDivCheap(EVT VT, AttributeList Attr) const override { return true; }
+  bool isIntDivCheap(EVT VT, AttributeList Attr) const override {
+    return false;
+  }
 
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
                                          Type *Ty) const override {
@@ -125,8 +136,9 @@ private:
   //   ctx = ctx + reloc_offset
   //   ... (*(u8 *)(ctx + 1)) & 0x80 ...
   // which will be rejected by the verifier.
-  bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy,
-                             EVT NewVT) const override {
+  bool
+  shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy, EVT NewVT,
+                        std::optional<unsigned> ByteOffset) const override {
     return false;
   }
 
@@ -143,6 +155,7 @@ private:
   // For 32bit ALU result zext to 64bit is free.
   bool isZExtFree(Type *Ty1, Type *Ty2) const override;
   bool isZExtFree(EVT VT1, EVT VT2) const override;
+  bool isZExtFree(SDValue Val, EVT VT2) const override;
 
   unsigned EmitSubregExt(MachineInstr &MI, MachineBasicBlock *BB, unsigned Reg,
                          bool isSigned) const;

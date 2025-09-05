@@ -1,6 +1,4 @@
-; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
-; by default
-; RUN: opt -opaque-pointers -S -passes=hotcoldsplit -hotcoldsplit-threshold=0 < %s | FileCheck %s
+; RUN: opt -S -passes=hotcoldsplit -hotcoldsplit-threshold=0 < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.14.0"
@@ -13,7 +11,7 @@ target triple = "x86_64-apple-macosx10.14.0"
 ; CHECK: %p.ce = phi i32 [ 1, %coldbb ], [ 3, %coldbb2 ]
 ; CHECK-NEXT: store i32 %p.ce, ptr %p.ce.out
 
-define void @foo(i32 %cond) {
+define void @foo(i32 %cond, i1 %arg) {
 entry:
   %tobool = icmp eq i32 %cond, 0
   br i1 %tobool, label %if.end, label %coldbb
@@ -21,7 +19,7 @@ entry:
 coldbb:
   call void @sink()
   call void @sideeffect()
-  br i1 undef, label %if.end, label %coldbb2
+  br i1 %arg, label %if.end, label %coldbb2
 
 coldbb2:
   br label %if.end

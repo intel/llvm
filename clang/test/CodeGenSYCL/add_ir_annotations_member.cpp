@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
-// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
-// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:    -triple spir64-unknown-unknown -fsycl-is-device \
+// RUN:    -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
-// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR -S \
-// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR \
+// RUN:    -emit-llvm %s -o - | FileCheck %s
 
 // Tests the generation of IR annotation calls from
 // __sycl_detail__::add_ir_annotations_member attributes.

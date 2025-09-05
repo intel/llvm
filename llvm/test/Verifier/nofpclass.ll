@@ -1,4 +1,4 @@
-; RUN: not llvm-as -opaque-pointers -disable-output %s 2>&1 | FileCheck %s
+; RUN: not llvm-as -disable-output %s 2>&1 | FileCheck %s
 
 ; CHECK: 'nofpclass(nan)' applied to incompatible type!
 ; CHECK-NEXT: ptr @nofpclass_int_return
@@ -43,16 +43,6 @@ define nofpclass(nan) [4 x i32] @nofpclass_array_int([4 x i32] nofpclass(zero) %
 ; CHECK-NEXT: ptr @nofpclass_vector_array_int
 define nofpclass(nan) [4 x <8 x i32>] @nofpclass_vector_array_int([4 x <8 x i32>] nofpclass(zero) %arg) {
   ret [4 x <8 x i32>] %arg
-}
-
-%opaque = type opaque
-
-; CHECK: 'nofpclass(nan)' applied to incompatible type!
-; CHECK-NEXT: ptr @nofpclass_opaque_type
-; CHECK-NEXT: 'nofpclass(zero)' applied to incompatible type!
-; CHECK-NEXT: ptr @nofpclass_opaque_type
-define nofpclass(nan) %opaque @nofpclass_opaque_type(%opaque nofpclass(zero) %arg) {
-  ret %opaque %arg
 }
 
 %struct = type { i32, float }

@@ -75,6 +75,8 @@ void m() {
   while (true) {}
 }
 
+void n() { ::n(); } // expected-warning{{call itself}}
+
 class S {
   static void a();
   void b();
@@ -202,4 +204,14 @@ Q &evaluated_recursive_function(int x) {         // expected-warning{{call itsel
 int unevaluated_recursive_function() {
   (void)typeid(unevaluated_recursive_function());
   return 0;
+}
+
+void func1(int i) { // expected-warning {{call itself}}
+  if (i || !i)
+    func1(i);
+}
+void func2(int i) { // expected-warning {{call itself}}
+  if (!i && i) {}
+  else
+    func2(i);
 }

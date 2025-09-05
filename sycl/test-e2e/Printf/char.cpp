@@ -4,8 +4,7 @@
 // The test is written using conversion specifiers table from cppreference [1]
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
-// UNSUPPORTED: hip_amd
-// XFAIL: cuda && windows
+// UNSUPPORTED: target-amd
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
@@ -21,7 +20,8 @@
 // CHECK: literal strings: s=Hello World!
 // CHECK_DISABLED: non-literal strings: s=Hello, World! ls=
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include <cstring>
 

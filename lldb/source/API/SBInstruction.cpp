@@ -13,14 +13,13 @@
 #include "lldb/API/SBFrame.h"
 #include "lldb/API/SBFile.h"
 
-#include "lldb/API/SBInstruction.h"
 #include "lldb/API/SBStream.h"
 #include "lldb/API/SBTarget.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/EmulateInstruction.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Host/HostInfo.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -345,6 +344,6 @@ bool SBInstruction::TestEmulation(lldb::SBStream &output_stream,
 
   lldb::InstructionSP inst_sp(GetOpaque());
   if (inst_sp)
-    return inst_sp->TestEmulation(output_stream.get(), test_file);
+    return inst_sp->TestEmulation(output_stream.ref(), test_file);
   return false;
 }

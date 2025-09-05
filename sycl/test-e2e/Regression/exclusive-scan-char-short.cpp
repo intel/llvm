@@ -1,11 +1,15 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
+// REQUIRES: aspect-usm_shared_allocations
 // This test ensures the result computed by exclusive_scan_over_group
 // for the first work item when given a short or char argument with
 // the maximum or minimum operator is computed correctly.
+#include "../helpers.hpp"
 #include <numeric>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 queue q;
@@ -18,7 +22,7 @@ template <typename T, typename OpT> void test() {
   auto *p = malloc_shared<T>(1, q);
   *p = 0;
   T ref;
-  std::exclusive_scan(p, p + 1, &ref, init, op);
+  emu::exclusive_scan(p, p + 1, &ref, init, op);
   range r(1);
   q.parallel_for(nd_range(r, r), [=](nd_item<1> it) {
      auto g = it.get_group();

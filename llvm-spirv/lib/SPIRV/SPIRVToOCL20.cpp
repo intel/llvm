@@ -35,11 +35,12 @@
 // This file implements transform SPIR-V builtins to OCL 2.0 builtins.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl20"
 
 #include "OCLUtil.h"
 #include "SPIRVToOCL.h"
 #include "llvm/IR/Verifier.h"
+
+#define DEBUG_TYPE "spvtocl20"
 
 namespace SPIRV {
 
@@ -175,7 +176,7 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
     if (auto *TypedPtrTy = dyn_cast<TypedPointerType>(PtrArgTy)) {
       if (TypedPtrTy->getAddressSpace() != SPIRAS_Generic) {
         Type *ElementTy = TypedPtrTy->getElementType();
-        Type *FixedPtr = PointerType::get(ElementTy, SPIRAS_Generic);
+        Type *FixedPtr = PointerType::get(CI->getContext(), SPIRAS_Generic);
         PtrArg = Builder.CreateAddrSpaceCast(PtrArg, FixedPtr,
                                              PtrArg->getName() + ".as");
         PtrArgTy = TypedPointerType::get(ElementTy, SPIRAS_Generic);
@@ -206,9 +207,13 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   // value by pointer passed as 2nd argument (aka expected) while SPIR-V
   // instructions returns this new/original value as a resulting value.
   AllocaInst *PExpected = new AllocaInst(
-      MemTy, 0, "expected",
-      &*CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
+      MemTy, M->getDataLayout().getAllocaAddrSpace(), "expected",
+      CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
   PExpected->setAlignment(Align(MemTy->getScalarSizeInBits() / 8));
+
+  // Tail call implies that the callee doesn't access alloca from the caller.
+  // The newly created alloca invalidates the tail call semantics.
+  CI->setTailCall(false);
 
   // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has the same
   // semantics as OpAtomicCompareExchange.
@@ -217,8 +222,8 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
               [=](IRBuilder<> &Builder, Value *Expected) {
                 Builder.CreateStore(Expected, PExpected);
                 unsigned AddrSpc = SPIRAS_Generic;
-                Type *PtrTyAS = PointerType::getWithSamePointeeType(
-                    cast<PointerType>(PExpected->getType()), AddrSpc);
+                Type *PtrTyAS =
+                    PointerType::get(Expected->getContext(), AddrSpc);
                 Value *V = Builder.CreateAddrSpaceCast(
                     PExpected, PtrTyAS, PExpected->getName() + ".as");
                 return std::make_pair(V, TypedPointerType::get(MemTy, AddrSpc));
@@ -260,7 +265,7 @@ void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
   auto Mutator = mutateCallInst(CI, FName.str());
   Mutator.mapArg(6, [=](IRBuilder<> &Builder, Value *Invoke) {
     Value *Replace = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-        Invoke, Builder.getInt8PtrTy(SPIRAS_Generic), "", CI);
+        Invoke, Builder.getPtrTy(SPIRAS_Generic), "", CI->getIterator());
     return std::make_pair(
         Replace, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
   });

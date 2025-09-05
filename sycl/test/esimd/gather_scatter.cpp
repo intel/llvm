@@ -1,8 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
-
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -fsycl-esimd-force-stateless-mem -Xclang -verify %s
-// expected-no-diagnostics
+// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only -Wno-unused-command-line-argument %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
+// RUN: not %clangxx -fsycl -fsycl-device-only -fsyntax-only -fsycl-esimd-force-stateless-mem -Wno-unused-command-line-argument %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
 
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
@@ -12,9 +9,8 @@
 using namespace sycl::ext::intel::esimd;
 using namespace sycl;
 
-void kernel(
-    accessor<int, 1, access::mode::read_write, access::target::device> &buf)
-    SYCL_ESIMD_FUNCTION {
+void kernel(accessor<int, 1, access::mode::read_write, access::target::device>
+                &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, sizeof(int));
   simd<int, 32> v1(0, 1);
 
@@ -41,8 +37,7 @@ void kernel(
 }
 
 void kernel(accessor<uint16_t, 1, access::mode::read_write,
-                     access::target::device> &buf)
-    SYCL_ESIMD_FUNCTION {
+                     access::target::device> &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, sizeof(uint16_t));
   simd<uint16_t, 32> v1(0, 1);
 
@@ -62,4 +57,70 @@ void conv_kernel(accessor<uint16_t, 1, access::mode::read_write,
   simd<uint16_t, 32> v0 = gather<uint16_t, 32>(buf, 0);
 
   scatter<uint16_t, 32>(buf, 0, v0);
+}
+
+// --- Negative tests.
+
+// Incompatible mode (write).
+SYCL_EXTERNAL void
+kernel2(accessor<int, 1, access::mode::write, access::target::device> &buf)
+    SYCL_ESIMD_FUNCTION {
+  simd<int, 32> v;
+  simd<uint32_t, 32> offset(0, 1);
+  // CHECK: gather_scatter.cpp:72{{.*}}error: no matching function
+  // function for call to 'gather'
+  v = gather<int, 32>(buf, offset);
+}
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel3(accessor<int, 1, access::mode::read, access::target::device> &buf)
+    SYCL_ESIMD_FUNCTION {
+  simd<int, 32> v(0, 1);
+  simd<uint32_t, 32> offset(0, 1);
+  // CHECK: gather_scatter.cpp:83{{.*}}error: no matching function
+  // function for call to 'scatter'
+  scatter<int, 32>(buf, offset, v);
+}
+
+// Incompatible mode (write).
+SYCL_EXTERNAL void
+kernel4(accessor<int, 1, access::mode::write, access::target::device> &buf)
+    SYCL_ESIMD_FUNCTION {
+  simd<int, 32 * 4> v;
+  simd<uint32_t, 32> offset(0, sizeof(int) * 4);
+  // CHECK: gather_scatter.cpp:94{{.*}}error: no matching function
+  // function for call to 'gather'
+  v = gather_rgba(buf, offset);
+}
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel5(accessor<int, 1, access::mode::read, access::target::device> &buf)
+    SYCL_ESIMD_FUNCTION {
+  simd<int, 32 * 4> v(0, 1);
+  simd<uint32_t, 32> offset(0, sizeof(int) * 4);
+  // CHECK: gather_scatter.cpp:105{{.*}}error: no matching function
+  // function for call to 'scatter'
+  scatter_rgba(buf, offset, v);
+}
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel6(local_accessor<const int, 1> &buf) SYCL_ESIMD_FUNCTION {
+  simd<int, 32> v(0, 1);
+  simd<uint32_t, 32> offset(0, 1);
+  // CHECK: gather_scatter.cpp:115{{.*}}error: no matching function
+  // function for call to 'scatter'
+  scatter<int, 32>(buf, offset, v);
+}
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel7(local_accessor<const int, 1> &buf) SYCL_ESIMD_FUNCTION {
+  simd<int, 32 * 4> v(0, 1);
+  simd<uint32_t, 32> offset(0, sizeof(int) * 4);
+  // CHECK: gather_scatter.cpp:125{{.*}}error: no matching function
+  // function for call to 'scatter'
+  scatter_rgba(buf, offset, v);
 }

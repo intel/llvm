@@ -11,7 +11,6 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_ops.hpp>
 #include <type_traits>
 #endif
 
@@ -20,7 +19,8 @@ inline namespace _V1 {
 namespace access {
 
 enum class target {
-  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
+  device = 2014,
+  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = device,
   constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
@@ -28,7 +28,6 @@ enum class target {
   host_image = 2019,
   image_array = 2020,
   host_task = 2021,
-  device = global_buffer,
 };
 
 enum class mode {
@@ -60,12 +59,7 @@ enum class address_space : int {
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
-enum class decorated : int {
-  no = 0,
-  yes = 1,
-  legacy __SYCL2020_DEPRECATED("sycl::access::decorated::legacy "
-                               "is deprecated since SYCL 2020") = 2
-};
+enum class decorated : int { no = 0, yes = 1, legacy = 2 };
 } // namespace access
 
 using access::target;
@@ -256,10 +250,44 @@ struct deduce_AS
 };
 #endif
 
+template <typename T> struct remove_decoration_impl {
+  using type = T;
+};
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T> struct remove_decoration_impl<__OPENCL_GLOBAL_AS__ T> {
+  using type = T;
+};
+
+#ifdef __ENABLE_USM_ADDR_SPACE__
+template <typename T>
+struct remove_decoration_impl<__OPENCL_GLOBAL_DEVICE_AS__ T> {
+  using type = T;
+};
+
+template <typename T>
+struct remove_decoration_impl<__OPENCL_GLOBAL_HOST_AS__ T> {
+  using type = T;
+};
+
+#endif // __ENABLE_USM_ADDR_SPACE__
+
+template <typename T> struct remove_decoration_impl<__OPENCL_PRIVATE_AS__ T> {
+  using type = T;
+};
+
+template <typename T> struct remove_decoration_impl<__OPENCL_LOCAL_AS__ T> {
+  using type = T;
+};
+
+template <typename T> struct remove_decoration_impl<__OPENCL_CONSTANT_AS__ T> {
+  using type = T;
+};
+#endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
 template <typename T> struct remove_decoration {
-  using type = T;
+  using type = typename detail::remove_decoration_impl<T>::type;
 };
 
 // Propagate through const qualifier.
@@ -287,92 +315,8 @@ template <typename T> struct remove_decoration<const T &> {
   using type = const typename remove_decoration<T>::type &;
 };
 
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename T> struct remove_decoration<__OPENCL_GLOBAL_AS__ T> {
-  using type = T;
-};
-
-#ifdef __ENABLE_USM_ADDR_SPACE__
-template <typename T> struct remove_decoration<__OPENCL_GLOBAL_DEVICE_AS__ T> {
-  using type = T;
-};
-
-template <typename T> struct remove_decoration<__OPENCL_GLOBAL_HOST_AS__ T> {
-  using type = T;
-};
-
-#endif // __ENABLE_USM_ADDR_SPACE__
-
-template <typename T> struct remove_decoration<__OPENCL_PRIVATE_AS__ T> {
-  using type = T;
-};
-
-template <typename T> struct remove_decoration<__OPENCL_LOCAL_AS__ T> {
-  using type = T;
-};
-
-template <typename T> struct remove_decoration<__OPENCL_CONSTANT_AS__ T> {
-  using type = T;
-};
-#endif // __SYCL_DEVICE_ONLY__
-
 template <typename T>
 using remove_decoration_t = typename remove_decoration<T>::type;
-
-namespace detail {
-
-// Helper function for selecting appropriate casts between address spaces.
-template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
-#ifdef __SYCL_DEVICE_ONLY__
-  constexpr access::address_space ToAS = deduce_AS<ToT>::value;
-  constexpr access::address_space FromAS = deduce_AS<FromT>::value;
-  if constexpr (FromAS == access::address_space::generic_space) {
-#if defined(__NVPTX__) || defined(__AMDGCN__)
-    // TODO: NVPTX and AMDGCN backends do not currently support the
-    //       __spirv_GenericCastToPtrExplicit_* builtins, so to work around this
-    //       we do C-style casting. This may produce warnings when targetting
-    //       these backends.
-    return (ToT)from;
-#else
-    using ToElemT = std::remove_pointer_t<remove_decoration_t<ToT>>;
-    if constexpr (ToAS == access::address_space::global_space)
-      return __SYCL_GenericCastToPtrExplicit_ToGlobal<ToElemT>(from);
-    else if constexpr (ToAS == access::address_space::local_space)
-      return __SYCL_GenericCastToPtrExplicit_ToLocal<ToElemT>(from);
-    else if constexpr (ToAS == access::address_space::private_space)
-      return __SYCL_GenericCastToPtrExplicit_ToPrivate<ToElemT>(from);
-#ifdef __ENABLE_USM_ADDR_SPACE__
-    else if constexpr (ToAS == access::address_space::
-                                   ext_intel_global_device_space ||
-                       ToAS ==
-                           access::address_space::ext_intel_global_host_space)
-      // For extended address spaces we do not currently have a SPIR-V
-      // conversion function, so we do a C-style cast. This may produce
-      // warnings.
-      return (ToT)from;
-#endif // __ENABLE_USM_ADDR_SPACE__
-    else
-      return reinterpret_cast<ToT>(from);
-#endif // defined(__NVPTX__) || defined(__AMDGCN__)
-  } else
-#ifdef __ENABLE_USM_ADDR_SPACE__
-      if constexpr (FromAS == access::address_space::global_space &&
-                    (ToAS ==
-                         access::address_space::ext_intel_global_device_space ||
-                     ToAS ==
-                         access::address_space::ext_intel_global_host_space)) {
-    // Casting from global address space to the global device and host address
-    // spaces is allowed.
-    return (ToT)from;
-  } else
-#endif // __ENABLE_USM_ADDR_SPACE__
-#endif // __SYCL_DEVICE_ONLY__
-  {
-    return reinterpret_cast<ToT>(from);
-  }
-}
-
-} // namespace detail
 
 #undef __OPENCL_GLOBAL_AS__
 #undef __OPENCL_GLOBAL_DEVICE_AS__

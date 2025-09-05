@@ -45,6 +45,12 @@ Value spirv::Deserializer::getValue(uint32_t id) {
     return opBuilder.create<spirv::ConstantOp>(unknownLoc, constInfo->second,
                                                constInfo->first);
   }
+  if (std::optional<std::pair<Attribute, Type>> constCompositeReplicateInfo =
+          getConstantCompositeReplicate(id)) {
+    return opBuilder.create<spirv::EXTConstantCompositeReplicateOp>(
+        unknownLoc, constCompositeReplicateInfo->second,
+        constCompositeReplicateInfo->first);
+  }
   if (auto varOp = getGlobalVariable(id)) {
     auto addressOfOp = opBuilder.create<spirv::AddressOfOp>(
         unknownLoc, varOp.getType(), SymbolRefAttr::get(varOp.getOperation()));
@@ -56,10 +62,18 @@ Value spirv::Deserializer::getValue(uint32_t id) {
         SymbolRefAttr::get(constOp.getOperation()));
     return referenceOfOp.getReference();
   }
-  if (auto constCompositeOp = getSpecConstantComposite(id)) {
+  if (SpecConstantCompositeOp specConstCompositeOp =
+          getSpecConstantComposite(id)) {
     auto referenceOfOp = opBuilder.create<spirv::ReferenceOfOp>(
-        unknownLoc, constCompositeOp.getType(),
-        SymbolRefAttr::get(constCompositeOp.getOperation()));
+        unknownLoc, specConstCompositeOp.getType(),
+        SymbolRefAttr::get(specConstCompositeOp.getOperation()));
+    return referenceOfOp.getReference();
+  }
+  if (auto specConstCompositeReplicateOp =
+          getSpecConstantCompositeReplicate(id)) {
+    auto referenceOfOp = opBuilder.create<spirv::ReferenceOfOp>(
+        unknownLoc, specConstCompositeReplicateOp.getType(),
+        SymbolRefAttr::get(specConstCompositeReplicateOp.getOperation()));
     return referenceOfOp.getReference();
   }
   if (auto specConstOperationInfo = getSpecConstantOperation(id)) {
@@ -164,20 +178,23 @@ LogicalResult spirv::Deserializer::processInstruction(
   case spirv::Opcode::OpTypeRuntimeArray:
   case spirv::Opcode::OpTypeStruct:
   case spirv::Opcode::OpTypePointer:
-  case spirv::Opcode::OpTypeCooperativeMatrixNV:
+  case spirv::Opcode::OpTypeTensorARM:
+  case spirv::Opcode::OpTypeCooperativeMatrixKHR:
     return processType(opcode, operands);
   case spirv::Opcode::OpTypeForwardPointer:
     return processTypeForwardPointer(operands);
-  case spirv::Opcode::OpTypeJointMatrixINTEL:
-    return processType(opcode, operands);
   case spirv::Opcode::OpConstant:
     return processConstant(operands, /*isSpec=*/false);
   case spirv::Opcode::OpSpecConstant:
     return processConstant(operands, /*isSpec=*/true);
   case spirv::Opcode::OpConstantComposite:
     return processConstantComposite(operands);
+  case spirv::Opcode::OpConstantCompositeReplicateEXT:
+    return processConstantCompositeReplicateEXT(operands);
   case spirv::Opcode::OpSpecConstantComposite:
     return processSpecConstantComposite(operands);
+  case spirv::Opcode::OpSpecConstantCompositeReplicateEXT:
+    return processSpecConstantCompositeReplicateEXT(operands);
   case spirv::Opcode::OpSpecConstantOp:
     return processSpecConstantOperation(operands);
   case spirv::Opcode::OpConstantTrue:
@@ -353,7 +370,7 @@ Deserializer::processOp<spirv::EntryPointOp>(ArrayRef<uint32_t> words) {
     // The deserializer uses "spirv_fn_<id>" as the function name if the input
     // SPIR-V blob does not contain a name for it. We should use a more clear
     // indication for such case rather than relying on naming details.
-    if (!parsedFunc.getName().startswith("spirv_fn_"))
+    if (!parsedFunc.getName().starts_with("spirv_fn_"))
       return emitError(unknownLoc,
                        "function name mismatch between OpEntryPoint "
                        "and OpFunction with <id> ")
@@ -489,7 +506,8 @@ Deserializer::processOp<spirv::CopyMemoryOp>(ArrayRef<uint32_t> words) {
     auto attrValue = words[wordIndex++];
     auto attr = opBuilder.getAttr<spirv::MemoryAccessAttr>(
         static_cast<spirv::MemoryAccess>(attrValue));
-    attributes.push_back(opBuilder.getNamedAttr("memory_access", attr));
+    attributes.push_back(
+        opBuilder.getNamedAttr(attributeName<MemoryAccess>(), attr));
     isAlignedAttr = (attrValue == 2);
   }
 

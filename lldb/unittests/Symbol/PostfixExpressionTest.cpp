@@ -9,8 +9,10 @@
 #include "lldb/Symbol/PostfixExpression.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/StreamString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/DebugInfo/DIContext.h"
-#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpressionPrinter.h"
+#include "llvm/DebugInfo/DWARF/LowLevel/DWARFExpression.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gmock/gmock.h"
@@ -158,9 +160,9 @@ static std::string ParseAndGenerateDWARF(llvm::StringRef expr) {
 
   std::string result;
   llvm::raw_string_ostream os(result);
-  llvm::DWARFExpression(extractor, addr_size, llvm::dwarf::DWARF32)
-      .print(os, llvm::DIDumpOptions(), nullptr);
-  return std::move(os.str());
+  llvm::DWARFExpression E(extractor, addr_size, llvm::dwarf::DWARF32);
+  llvm::printDwarfExpression(&E, os, llvm::DIDumpOptions(), nullptr);
+  return result;
 }
 
 TEST(PostfixExpression, ToDWARF) {

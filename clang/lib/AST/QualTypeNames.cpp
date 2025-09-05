@@ -6,14 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/QualTypeNames.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
-#include "clang/AST/GlobalDecl.h"
 #include "clang/AST/Mangle.h"
-#include "clang/AST/QualTypeNames.h"
-
-#include <stdio.h>
-#include <memory>
+#include "clang/AST/Type.h"
 
 namespace clang {
 
@@ -65,8 +62,9 @@ static bool getFullyQualifiedTemplateName(const ASTContext &Ctx,
   assert(ArgTDecl != nullptr);
   QualifiedTemplateName *QTName = TName.getAsQualifiedTemplateName();
 
-  if (QTName && !QTName->hasTemplateKeyword()) {
-    NNS = QTName->getQualifier();
+  if (QTName &&
+      !QTName->hasTemplateKeyword() &&
+      (NNS = QTName->getQualifier())) {
     NestedNameSpecifier *QNNS = getFullyQualifiedNestedNameSpecifier(
         Ctx, NNS, WithGlobalNsPrefix);
     if (QNNS != NNS) {
@@ -147,7 +145,7 @@ static const Type *getFullyQualifiedTemplateType(const ASTContext &Ctx,
     if (MightHaveChanged) {
       QualType QT = Ctx.getTemplateSpecializationType(
           TST->getTemplateName(), FQArgs,
-          TST->getCanonicalTypeInternal());
+          /*CanonicalArgs=*/{}, TST->desugar());
       // getTemplateSpecializationType returns a fully qualified
       // version of the specialization itself, so no need to qualify
       // it.
@@ -179,7 +177,7 @@ static const Type *getFullyQualifiedTemplateType(const ASTContext &Ctx,
         TemplateName TN(TSTDecl->getSpecializedTemplate());
         QualType QT = Ctx.getTemplateSpecializationType(
             TN, FQArgs,
-            TSTRecord->getCanonicalTypeInternal());
+            /*CanonicalArgs=*/{}, TSTRecord->getCanonicalTypeInternal());
         // getTemplateSpecializationType returns a fully qualified
         // version of the specialization itself, so no need to qualify
         // it.
@@ -220,6 +218,7 @@ static NestedNameSpecifier *getFullyQualifiedNestedNameSpecifier(
     bool WithGlobalNsPrefix) {
   switch (Scope->getKind()) {
     case NestedNameSpecifier::Global:
+    case NestedNameSpecifier::Super:
       // Already fully qualified
       return Scope;
     case NestedNameSpecifier::Namespace:
@@ -240,9 +239,7 @@ static NestedNameSpecifier *getFullyQualifiedNestedNameSpecifier(
       // but use the name of it's prefix.
       return getFullyQualifiedNestedNameSpecifier(
           Ctx, Scope->getPrefix(), WithGlobalNsPrefix);
-    case NestedNameSpecifier::Super:
-    case NestedNameSpecifier::TypeSpec:
-    case NestedNameSpecifier::TypeSpecWithTemplate: {
+    case NestedNameSpecifier::TypeSpec: {
       const Type *Type = Scope->getAsType();
       // Find decl context.
       const TagDecl *TD = nullptr;
@@ -274,8 +271,8 @@ static NestedNameSpecifier *createNestedNameSpecifierForScopeOf(
   assert(Decl);
 
   const DeclContext *DC = Decl->getDeclContext()->getRedeclContext();
-  const auto *Outer = dyn_cast_or_null<NamedDecl>(DC);
-  const auto *OuterNS = dyn_cast_or_null<NamespaceDecl>(DC);
+  const auto *Outer = dyn_cast<NamedDecl>(DC);
+  const auto *OuterNS = dyn_cast<NamespaceDecl>(DC);
   if (Outer && !(OuterNS && OuterNS->isAnonymousNamespace())) {
     if (const auto *CxxDecl = dyn_cast<CXXRecordDecl>(DC)) {
       if (ClassTemplateDecl *ClassTempl =
@@ -374,8 +371,7 @@ NestedNameSpecifier *createNestedNameSpecifier(const ASTContext &Ctx,
   }
 
   return NestedNameSpecifier::Create(
-      Ctx, createOuterNNS(Ctx, TD, FullyQualify, WithGlobalNsPrefix),
-      false /*No TemplateKeyword*/, TypePtr);
+      Ctx, createOuterNNS(Ctx, TD, FullyQualify, WithGlobalNsPrefix), TypePtr);
 }
 
 /// Return the fully qualified type, including fully-qualified
@@ -399,9 +395,10 @@ QualType getFullyQualifiedType(QualType QT, const ASTContext &Ctx,
     Qualifiers Quals = QT.getQualifiers();
     // Fully qualify the pointee and class types.
     QT = getFullyQualifiedType(QT->getPointeeType(), Ctx, WithGlobalNsPrefix);
-    QualType Class = getFullyQualifiedType(QualType(MPT->getClass(), 0), Ctx,
-                                           WithGlobalNsPrefix);
-    QT = Ctx.getMemberPointerType(QT, Class.getTypePtr());
+    NestedNameSpecifier *Qualifier = getFullyQualifiedNestedNameSpecifier(
+        Ctx, MPT->getQualifier(), WithGlobalNsPrefix);
+    QT = Ctx.getMemberPointerType(QT, Qualifier,
+                                  MPT->getMostRecentCXXRecordDecl());
     // Add back the qualifiers.
     QT = Ctx.getQualifiedType(QT, Quals);
     return QT;
@@ -425,6 +422,18 @@ QualType getFullyQualifiedType(QualType QT, const ASTContext &Ctx,
     return QT;
   }
 
+  // Handle types with attributes such as `unique_ptr<int> _Nonnull`.
+  if (auto *AT = dyn_cast<AttributedType>(QT.getTypePtr())) {
+    QualType NewModified =
+        getFullyQualifiedType(AT->getModifiedType(), Ctx, WithGlobalNsPrefix);
+    QualType NewEquivalent =
+        getFullyQualifiedType(AT->getEquivalentType(), Ctx, WithGlobalNsPrefix);
+    Qualifiers Qualifiers = QT.getLocalQualifiers();
+    return Ctx.getQualifiedType(
+        Ctx.getAttributedType(AT->getAttrKind(), NewModified, NewEquivalent),
+        Qualifiers);
+  }
+
   // Remove the part of the type related to the type being a template
   // parameter (we won't report it as part of the 'type name' and it
   // is actually make the code below to be more complex (to handle
@@ -445,7 +454,7 @@ QualType getFullyQualifiedType(QualType QT, const ASTContext &Ctx,
   // elaborated type.
   Qualifiers PrefixQualifiers = QT.getLocalQualifiers();
   QT = QualType(QT.getTypePtr(), 0);
-  ElaboratedTypeKeyword Keyword = ETK_None;
+  ElaboratedTypeKeyword Keyword = ElaboratedTypeKeyword::None;
   if (const auto *ETypeInput = dyn_cast<ElaboratedType>(QT.getTypePtr())) {
     QT = ETypeInput->getNamedType();
     assert(!QT.hasLocalQualifiers());
@@ -476,7 +485,7 @@ QualType getFullyQualifiedType(QualType QT, const ASTContext &Ctx,
         Ctx, QT.getTypePtr(), WithGlobalNsPrefix);
     QT = QualType(TypePtr, 0);
   }
-  if (Prefix || Keyword != ETK_None) {
+  if (Prefix || Keyword != ElaboratedTypeKeyword::None) {
     QT = Ctx.getElaboratedType(Keyword, Prefix, QT);
   }
   QT = Ctx.getQualifiedType(QT, PrefixQualifiers);

@@ -15,24 +15,35 @@
 #include "clang/Basic/AllDiagnostics.h" // IWYU pragma: keep
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticIDs.h"
+#include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <optional>
+#include <set>
+#include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 namespace clang {
@@ -308,7 +319,6 @@ std::string mainMessage(const Diag &D, const ClangdDiagnosticOptions &Opts) {
       OS << "\n\n";
       printDiag(OS, Note);
     }
-  OS.flush();
   return capitalize(std::move(Result));
 }
 
@@ -324,7 +334,6 @@ std::string noteMessage(const Diag &Main, const DiagBase &Note,
     OS << "\n\n";
     printDiag(OS, Main);
   }
-  OS.flush();
   return capitalize(std::move(Result));
 }
 
@@ -460,6 +469,14 @@ void toLSPDiags(
     llvm::function_ref<void(clangd::Diagnostic, llvm::ArrayRef<Fix>)> OutFn) {
   clangd::Diagnostic Main;
   Main.severity = getSeverity(D.Severity);
+  // We downgrade severity for certain noisy warnings, like deprecated
+  // declartions. These already have visible decorations inside the editor and
+  // most users find the extra clutter in the UI (gutter, minimap, diagnostics
+  // views) overwhelming.
+  if (D.Severity == DiagnosticsEngine::Warning) {
+    if (llvm::is_contained(D.Tags, DiagnosticTag::Deprecated))
+      Main.severity = getSeverity(DiagnosticsEngine::Remark);
+  }
 
   // Main diagnostic should always refer to a range inside main file. If a
   // diagnostic made it so for, it means either itself or one of its notes is
@@ -560,7 +577,17 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
   for (auto &Diag : Output) {
     if (const char *ClangDiag = getDiagnosticCode(Diag.ID)) {
       // Warnings controlled by -Wfoo are better recognized by that name.
-      StringRef Warning = DiagnosticIDs::getWarningOptionForDiag(Diag.ID);
+      StringRef Warning = [&] {
+        if (OrigSrcMgr) {
+          return OrigSrcMgr->getDiagnostics()
+              .getDiagnosticIDs()
+              ->getWarningOptionForDiag(Diag.ID);
+        }
+        if (!DiagnosticIDs::IsCustomDiag(Diag.ID))
+          return DiagnosticIDs{}.getWarningOptionForDiag(Diag.ID);
+        return StringRef{};
+      }();
+
       if (!Warning.empty()) {
         Diag.Name = ("-W" + Warning).str();
       } else {
@@ -644,7 +671,7 @@ static void fillNonLocationData(DiagnosticsEngine::Level DiagLevel,
   llvm::SmallString<64> Message;
   Info.FormatDiagnostic(Message);
 
-  D.Message = std::string(Message.str());
+  D.Message = std::string(Message);
   D.Severity = DiagLevel;
   D.Category = DiagnosticIDs::getCategoryNameFromID(
                    DiagnosticIDs::getCategoryNumberForDiag(Info.getID()))
@@ -773,13 +800,13 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
           M << "'";
         }
         // Don't allow source code to inject newlines into diagnostics.
-        std::replace(Message.begin(), Message.end(), '\n', ' ');
+        llvm::replace(Message, '\n', ' ');
       }
     }
     if (Message.empty()) // either !SyntheticMessage, or we failed to make one.
       Info.FormatDiagnostic(Message);
     LastDiag->Fixes.push_back(
-        Fix{std::string(Message.str()), std::move(Edits), {}});
+        Fix{std::string(Message), std::move(Edits), {}});
     return true;
   };
 
@@ -877,20 +904,23 @@ void StoreDiags::flushLastDiag() {
   Output.push_back(std::move(*LastDiag));
 }
 
-bool isBuiltinDiagnosticSuppressed(unsigned ID,
-                                   const llvm::StringSet<> &Suppress,
-                                   const LangOptions &LangOpts) {
+bool isDiagnosticSuppressed(const clang::Diagnostic &Diag,
+                            const llvm::StringSet<> &Suppress,
+                            const LangOptions &LangOpts) {
   // Don't complain about header-only stuff in mainfiles if it's a header.
   // FIXME: would be cleaner to suppress in clang, once we decide whether the
   //        behavior should be to silently-ignore or respect the pragma.
-  if (ID == diag::pp_pragma_sysheader_in_main_file && LangOpts.IsHeaderFile)
+  if (Diag.getID() == diag::pp_pragma_sysheader_in_main_file &&
+      LangOpts.IsHeaderFile)
     return true;
 
-  if (const char *CodePtr = getDiagnosticCode(ID)) {
+  if (const char *CodePtr = getDiagnosticCode(Diag.getID())) {
     if (Suppress.contains(normalizeSuppressedCode(CodePtr)))
       return true;
   }
-  StringRef Warning = DiagnosticIDs::getWarningOptionForDiag(ID);
+  StringRef Warning =
+      Diag.getDiags()->getDiagnosticIDs()->getWarningOptionForDiag(
+          Diag.getID());
   if (!Warning.empty() && Suppress.contains(Warning))
     return true;
   return false;

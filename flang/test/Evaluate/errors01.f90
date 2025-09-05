@@ -6,20 +6,24 @@ module m
     real x
   end type t
  contains
-  subroutine s1(a,b)
-    real :: a(*), b(:)
+  subroutine s1(a,b,c)
+    real :: a(*), b(:), c(..)
     !CHECK: error: DIM=1 dimension is out of range for rank-1 assumed-size array
     integer :: ub1(ubound(a,1))
     !CHECK-NOT: error: DIM=1 dimension is out of range for rank-1 assumed-size array
     integer :: lb1(lbound(a,1))
-    !CHECK: error: DIM=0 dimension is out of range for rank-1 array
+    !CHECK: error: DIM=0 dimension must be positive
     integer :: ub2(ubound(a,0))
     !CHECK: error: DIM=2 dimension is out of range for rank-1 array
     integer :: ub3(ubound(a,2))
-    !CHECK: error: DIM=0 dimension is out of range for rank-1 array
+    !CHECK: error: DIM=0 dimension must be positive
     integer :: lb2(lbound(b,0))
     !CHECK: error: DIM=2 dimension is out of range for rank-1 array
     integer :: lb3(lbound(b,2))
+    !CHECK: error: DIM=0 dimension must be positive
+    integer :: lb4(lbound(c,0))
+    !CHECK: error: DIM=666 dimension is too large for any array (maximum rank 15)
+    integer :: lb4(lbound(c,666))
   end subroutine
   subroutine s2
     integer, parameter :: array(2,3) = reshape([(j, j=1, 6)], shape(array))
@@ -141,9 +145,9 @@ module m
   subroutine s12(x,y)
     class(t), intent(in) :: x
     class(*), intent(in) :: y
-    !CHERK: error: Must be a constant value
+    !CHECK: error: Must be a constant value
     integer, parameter :: bad1 = storage_size(x)
-    !CHERK: error: Must be a constant value
+    !CHECK: error: Must be a constant value
     integer, parameter :: bad2 = storage_size(y)
   end subroutine
   subroutine s13
@@ -152,18 +156,58 @@ module m
     !CHECK: error: NCOPIES= argument to REPEAT() should be nonnegative, but is -666
     print *, repeat(' ', -666)
   end subroutine
+  subroutine s14(n)
+    integer, intent(in) :: n
+    !CHECK: error: bit position for IBITS(POS=-1) is negative
+    print *, ibits(0, -1, n)
+    !CHECK: error: bit length for IBITS(LEN=-1) is negative
+    print *, ibits(0, n, -1)
+    !CHECK: error: IBITS() must have POS+LEN (>=33) no greater than 32
+    print *, ibits(0, n, 33)
+    !CHECK: error: IBITS() must have POS+LEN (>=33) no greater than 32
+    print *, ibits(0, 33, n)
+  end
+  subroutine s15
+    use ieee_arithmetic, only: ieee_flag_type, ieee_underflow, ieee_support_flag
+    type(ieee_flag_type) :: f1 = ieee_underflow, f2
+    !CHECK: portability: specification expression refers to local object 'f1' (initialized and saved)
+    integer ok(merge(kind(1),-1,ieee_support_flag(f1, x)))
+    !CHECK: error: Invalid specification expression: reference to local entity 'f2'
+    integer bad(merge(kind(1),-1,ieee_support_flag(f2, x)))
+  end
   subroutine warnings
+    use ieee_arithmetic, only: ieee_scalb
     real, parameter :: ok1 = scale(0.0, 99999) ! 0.0
     real, parameter :: ok2 = scale(1.0, -99999) ! 0.0
-    !CHECK: SCALE intrinsic folding overflow
+    !CHECK: SCALE/IEEE_SCALB intrinsic folding overflow
     real, parameter :: bad1 = scale(1.0, 99999)
+    !CHECK: SCALE/IEEE_SCALB intrinsic folding overflow
+    real, parameter :: bad1a = ieee_scalb(1.0, 99999)
     !CHECK: complex ABS intrinsic folding overflow
     real, parameter :: bad2 = abs(cmplx(huge(0.),huge(0.)))
     !CHECK: warning: DIM intrinsic folding overflow
     real, parameter :: bad3 = dim(huge(1.),-.5*huge(1.))
     !CHECK: warning: DIM intrinsic folding overflow
     integer, parameter :: bad4 = dim(huge(1),-1)
+    !CHECK: warning: HYPOT intrinsic folding overflow
+    real, parameter :: bad5 = hypot(huge(0.), huge(0.))
+    !CHECK: warning: SUM() of INTEGER(4) data overflowed
+    integer, parameter :: bad6 = sum([huge(1),huge(1)])
+    !CHECK: warning: SUM() of REAL(4) data overflowed
+    real, parameter :: bad7 = sum([huge(1.),huge(1.)])
+    !CHECK: warning: SUM() of COMPLEX(4) data overflowed
+    complex, parameter :: bad8 = sum([(huge(1.),0.),(huge(1.),0.)])
+    !CHECK: warning: PRODUCT() of INTEGER(4) data overflowed
+    integer, parameter :: bad9 = product([huge(1),huge(1)])
+    !CHECK: warning: PRODUCT() of REAL(4) data overflowed
+    real, parameter :: bad10 = product([huge(1.),huge(1.)])
+    !CHECK: warning: PRODUCT() of COMPLEX(4) data overflowed
+    complex, parameter :: bad11 = product([(huge(1.),0.),(huge(1.),0.)])
+    !CHECK: warning: conversion of 111111111111111111111_16 to INTEGER(8) overflowed; result is 430646668853801415
+    integer(8), parameter :: bad12 = int(111111111111111111111, 8)
     !CHECK: warning: overflow on REAL(8) to REAL(4) conversion
     x = 1.D40
+    !CHECK-NOT: warning: invalid argument
+    if (.not. isnan(real(z'ffffffffffffffff',8))) stop
   end subroutine
 end module

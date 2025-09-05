@@ -8,7 +8,8 @@
 
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.h"
 
-#include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
+#include "llvm/ExecutionEngine/Orc/Shared/OrcRTBridge.h"
+#include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Process.h"
 #include "llvm/TargetParser/Host.h"
@@ -190,7 +191,6 @@ Error SimpleRemoteEPCServer::sendSetupMessage(
 
   using namespace SimpleRemoteEPCDefaultBootstrapSymbolNames;
 
-  std::vector<char> SetupPacket;
   SimpleRemoteEPCExecutorInfo EI;
   EI.TargetTriple = sys::getProcessTriple();
   if (auto PageSize = sys::Process::getPageSize())
@@ -206,6 +206,10 @@ Error SimpleRemoteEPCServer::sendSetupMessage(
          "Dispatch function name should not be set");
   EI.BootstrapSymbols[ExecutorSessionObjectName] = ExecutorAddr::fromPtr(this);
   EI.BootstrapSymbols[DispatchFnName] = ExecutorAddr::fromPtr(jitDispatchEntry);
+  EI.BootstrapSymbols[rt::RegisterEHFrameSectionAllocActionName] =
+      ExecutorAddr::fromPtr(&llvm_orc_registerEHFrameSectionAllocAction);
+  EI.BootstrapSymbols[rt::DeregisterEHFrameSectionAllocActionName] =
+      ExecutorAddr::fromPtr(&llvm_orc_deregisterEHFrameSectionAllocAction);
 
   using SPSSerialize =
       shared::SPSArgList<shared::SPSSimpleRemoteEPCExecutorInfo>;

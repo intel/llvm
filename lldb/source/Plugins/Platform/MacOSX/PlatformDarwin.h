@@ -69,7 +69,7 @@ public:
 
   FileSpecList
   LocateExecutableScriptingResources(Target *target, Module &module,
-                                     Stream *feedback_stream) override;
+                                     Stream &feedback_stream) override;
 
   Status GetSharedModule(const ModuleSpec &module_spec, Process *process,
                          lldb::ModuleSP &module_sp,
@@ -117,12 +117,16 @@ public:
   llvm::Expected<StructuredData::DictionarySP>
   FetchExtendedCrashInformation(Process &process) override;
 
-  /// Return the toolchain directory the current LLDB instance is located in.
-  static FileSpec GetCurrentToolchainDirectory();
+  llvm::Expected<std::pair<XcodeSDK, bool>>
+  GetSDKPathFromDebugInfo(Module &module) override;
 
-  /// Return the command line tools directory the current LLDB instance is
-  /// located in.
-  static FileSpec GetCurrentCommandLineToolsDirectory();
+  llvm::Expected<std::string>
+  ResolveSDKPathFromDebugInfo(Module &module) override;
+
+  llvm::Expected<XcodeSDK> GetSDKPathFromDebugInfo(CompileUnit &unit) override;
+
+  llvm::Expected<std::string>
+  ResolveSDKPathFromDebugInfo(CompileUnit &unit) override;
 
 protected:
   static const char *GetCompatibleArch(ArchSpec::Core core, size_t idx);
@@ -138,7 +142,7 @@ protected:
     uint64_t abort_cause;      // unsigned int
   };
 
-  /// Extract the `__crash_info` annotations from each of of the target's
+  /// Extract the `__crash_info` annotations from each of the target's
   /// modules.
   ///
   /// If the platform have a crashed processes with a `__crash_info` section,
@@ -187,9 +191,6 @@ protected:
       const ModuleSpec &module_spec, Process *process,
       lldb::ModuleSP &module_sp, const FileSpecList *module_search_paths_ptr,
       llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules, bool *did_create_ptr);
-
-  static std::string FindComponentInPath(llvm::StringRef path,
-                                         llvm::StringRef component);
 
   // The OSType where lldb is running.
   static llvm::Triple::OSType GetHostOSType();

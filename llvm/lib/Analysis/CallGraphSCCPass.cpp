@@ -18,6 +18,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/AbstractCallSite.h"
 #include "llvm/IR/Function.h"
@@ -25,7 +26,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManagers.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/OptBisect.h"
 #include "llvm/IR/PassTimingInfo.h"
 #include "llvm/IR/PrintPasses.h"
 #include "llvm/Pass.h"
@@ -45,7 +45,7 @@ using namespace llvm;
 namespace llvm {
 cl::opt<unsigned> MaxDevirtIterations("max-devirt-iterations", cl::ReallyHidden,
                                       cl::init(4));
-}
+} // namespace llvm
 
 STATISTIC(MaxSCCIterations, "Maximum CGSCCPassMgr iterations on one SCC");
 
@@ -452,7 +452,6 @@ bool CGPassManager::RunAllPassesOnSCC(CallGraphSCC &CurSCC, CallGraph &CG,
         OS << LS;
         CGN->print(OS);
       }
-      OS.flush();
   #endif
       dumpPassInfo(P, EXECUTION_MSG, ON_CG_MSG, Functions);
     }
@@ -723,28 +722,6 @@ char PrintCallGraphPass::ID = 0;
 Pass *CallGraphSCCPass::createPrinterPass(raw_ostream &OS,
                                           const std::string &Banner) const {
   return new PrintCallGraphPass(Banner, OS);
-}
-
-static std::string getDescription(const CallGraphSCC &SCC) {
-  std::string Desc = "SCC (";
-  ListSeparator LS;
-  for (CallGraphNode *CGN : SCC) {
-    Desc += LS;
-    Function *F = CGN->getFunction();
-    if (F)
-      Desc += F->getName();
-    else
-      Desc += "<<null function>>";
-  }
-  Desc += ")";
-  return Desc;
-}
-
-bool CallGraphSCCPass::skipSCC(CallGraphSCC &SCC) const {
-  OptPassGate &Gate =
-      SCC.getCallGraph().getModule().getContext().getOptPassGate();
-  return Gate.isEnabled() &&
-         !Gate.shouldRunPass(this->getPassName(), getDescription(SCC));
 }
 
 char DummyCGSCCPass::ID = 0;

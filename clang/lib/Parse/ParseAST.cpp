@@ -15,12 +15,12 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/Stmt.h"
-#include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConsumer.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -109,7 +109,7 @@ void clang::ParseAST(Preprocessor &PP, ASTConsumer *Consumer,
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<Sema> CleanupSema(S.get());
 
-  ParseAST(*S.get(), PrintStats, SkipFunctionBodies);
+  ParseAST(*S, PrintStats, SkipFunctionBodies);
 }
 
 void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
@@ -131,7 +131,7 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
 
   std::unique_ptr<Parser> ParseOP(
       new Parser(S.getPreprocessor(), S, SkipFunctionBodies));
-  Parser &P = *ParseOP.get();
+  Parser &P = *ParseOP;
 
   llvm::CrashRecoveryContextCleanupRegistrar<const void, ResetStackCleanup>
       CleanupPrettyStack(llvm::SavePrettyStackState());
@@ -152,7 +152,15 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
   bool HaveLexer = S.getPreprocessor().getCurrentLexer();
 
   if (HaveLexer) {
-    llvm::TimeTraceScope TimeScope("Frontend");
+    llvm::TimeTraceScope TimeScope("Frontend", [&]() {
+      llvm::TimeTraceMetadata M;
+      if (llvm::isTimeTraceVerbose()) {
+        const SourceManager &SM = S.getSourceManager();
+        if (const auto *FE = SM.getFileEntryForID(SM.getMainFileID()))
+          M.File = FE->tryGetRealPathName();
+      }
+      return M;
+    });
     P.Initialize();
     Parser::DeclGroupPtrTy ADecl;
     Sema::ModuleImportState ImportState;
@@ -174,7 +182,7 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
     Consumer->HandleTopLevelDecl(DeclGroupRef(D));
 
   if (S.getLangOpts().SYCLIsDevice) {
-    for (Decl *D : S.syclDeviceDecls()) {
+    for (Decl *D : S.SYCL().syclDeviceDecls()) {
       Consumer->HandleTopLevelDecl(DeclGroupRef(D));
     }
   }

@@ -59,12 +59,13 @@ features:
 ## Rule Definition
 
 The core construct for defining a rewrite rule is defined in
-[`OpBase.td`][OpBase] as
+[`PatternBase.td`][PatternBase] as
 
 ```tablegen
 class Pattern<
     dag sourcePattern, list<dag> resultPatterns,
     list<dag> additionalConstraints = [],
+    list<dag> supplementalPatterns = [],
     dag benefitsAdded = (addBenefit 0)>;
 ```
 
@@ -108,8 +109,8 @@ The source pattern is for matching a DAG of operations. Arguments in the `dag`
 object are intended to **capture** the op arguments. They can also be used to
 **further limit** the match criteria. The capturing is done by specifying a
 symbol starting with the `$` sign, while further constraints are introduced by
-specifying a `TypeConstraint` (for an operand) or a `AttrConstraint` (for an
-attribute).
+specifying a `TypeConstraint` (for an operand), an `AttrConstraint` (for an
+attribute, or a `PropConstraint` for a property).
 
 #### Binding op arguments and limiting the match
 
@@ -236,9 +237,9 @@ In the above, we are using `BOp`'s result for building `COp`.
 
 Given that `COp` was specified with table-driven op definition, there will be
 several `build()` methods generated for it. One of them has aggregated
-parameters for result types, operands, and attributes in the signature: `void
+parameters for result types, operands, and properties in the signature: `void
 COp::build(..., ArrayRef<Type> resultTypes, Array<Value> operands,
-ArrayRef<NamedAttribute> attr)`. The pattern in the above calls this `build()`
+const COp::Properties& properties)`. The pattern in the above calls this `build()`
 method for constructing the `COp`.
 
 In general, arguments in the result pattern will be passed directly to the
@@ -379,6 +380,11 @@ template. The string can be an arbitrary C++ expression that evaluates into some
 C++ object expected at the `NativeCodeCall` site (here it would be expecting an
 array attribute). Typically the string should be a function call.
 
+In the case of properties, the return value of the `NativeCodeCall` should
+be in terms of the _interface_ type of a property. For example, the `NativeCodeCall`
+for a `StringProp` should return a `StringRef`, which will copied into the underlying
+`std::string`, just as if it were an argument to the operation's builder.
+
 ##### `NativeCodeCall` placeholders
 
 In `NativeCodeCall`, we can use placeholders like `$_builder`, `$N` and `$N...`.
@@ -415,13 +421,19 @@ must be either passed by reference or pointer to the variable used as argument
 so that the matched value can be returned. In the same example, `$val` will be
 bound to a variable with `Attribute` type (as `I32Attr`) and the type of the
 second argument in `Foo()` could be `Attribute&` or `Attribute*`. Names with
-attribute constraints will be captured as `Attribute`s while everything else
-will be treated as `Value`s.
+attribute constraints will be captured as `Attribute`s, names with
+property constraints (which must have a concrete interface type) will be treated
+as that type, and everything else will be treated as `Value`s.
 
 Positional placeholders will be substituted by the `dag` object parameters at
 the `NativeCodeCall` use site. For example, if we define `SomeCall :
 NativeCodeCall<"someFn($1, $2, $0)">` and use it like `(SomeCall $in0, $in1,
 $in2)`, then this will be translated into C++ call `someFn($in1, $in2, $in0)`.
+
+In the case of properties, the placeholder will be bound to a value of the _interface_
+type of the property. For example, passing in a `StringProp` as an argument to a `NativeCodeCall` will pass a `StringRef` (as if the getter of the matched
+operation were called) and not a `std::string`. See
+`mlir/include/mlir/IR/Properties.td` for details on interface vs. storage type.
 
 Positional range placeholders will be substituted by multiple `dag` object
 parameters at the `NativeCodeCall` use site. For example, if we define
@@ -646,6 +658,50 @@ correspond to multiple actual values.
 
 [TODO]
 
+#### Match variadic operand
+
+Use the `variadic` DAG node to match a variadic operand with a fixed number of
+actual sub-operands.
+
+For example, assume that `ConcatenateOp` is an operation with a variadic
+operand:
+
+```tablegen
+def ConcatenateOp : TEST_Op<"concatenate"> {
+  let arguments = (ins
+    Variadic<AnyTensor>:$inputs,
+    I32Attr:$axis
+  );
+
+  let results = (outs
+    AnyTensor$output
+  );
+}
+```
+
+We can match `ConcatenateOp` with exactly 2 actual operands with:
+
+```tablegen
+def : Pat<(ConcatenateOp (variadic $input0, $input1), $axis),
+          ...>;
+```
+
+The variadic sub-operands can be sub-DAGs to be matched:
+
+```tablegen
+def : Pat<(ConcatenateOp (variadic (SomeOp $a), (AnotherOp $b, $c)), $axis),
+          (OtherOp $a, $b, $c)>;
+```
+
+The variadic DAG can be bound to a symbol, which refers to the full
+`operand_range`:
+
+```tablegen
+def : Pat<(ConcatenateOp (variadic:$inputs $input0, $input1),
+                         ConstantAttr<I32Attr, "0">),
+          (VStackOp $inputs)>;
+```
+
 ### Supplying additional constraints
 
 Constraints can be placed on op arguments when matching. But sometimes we need
@@ -659,8 +715,8 @@ For example, we can write
 def HasNoUseOf: Constraint<CPred<"$_self.use_empty()">, "has no use">;
 
 def HasSameElementType : Constraint<
-    CPred<"$0.cast<ShapedType>().getElementType() == "
-          "$1.cast<ShapedType>().getElementType()">,
+    CPred<"cast<ShapedType>($0).getElementType() == "
+          "cast<ShapedType>($1).getElementType()">,
     "has same element type">;
 
 def : Pattern<(TwoResultOp:$results $input),
@@ -677,6 +733,36 @@ You can
     `TwoResultOp` must has no use);
 *   Apply constraints on multiple bound symbols (`$input` and `TwoResultOp`'s
     first result must have the same element type).
+
+### Supplying additional result patterns
+
+Sometimes we need to add additional code after the result patterns, e.g. coping
+the attributes of the source op to the result ops. These can be specified via
+`SupplementalPatterns` parameter. Similar to auxiliary patterns, they are not
+for replacing results in the source pattern.
+
+For example, we can write
+
+```tablegen
+def GetOwner: NativeCodeCall<"$0.getOwner()">;
+
+def CopyAttrFoo: NativeCodeCallVoid<
+  "$1->setAttr($_builder.getStringAttr(\"foo\"), $0->getInherentAttr(\"foo\"))">;
+
+def CopyAttrBar: NativeCodeCallVoid<
+  "$1->setAttr($_builder.getStringAttr(\"bar\"), $0->getInherentAttr(\"bar\"))">;
+
+
+def : Pattern<
+  (ThreeResultOp:$src ...),
+  [(ZeroResultOp:$dest1 ...), (ThreeResultOp:$dest2 ...)],
+  [(CopyAttrFoo (GetOwner $src), $dest1),
+    (CopyAttrBar (GetOwner $src), (GetOwner $dest2))]>;
+```
+
+This will copy the attribute `foo` and `bar` of `ThreeResultOp` in the source
+pattern to `ZeroResultOp` and `ThreeResultOp` in the result patterns respectively.
+The patterns are executed in specified order.
 
 ### Adjusting benefits
 

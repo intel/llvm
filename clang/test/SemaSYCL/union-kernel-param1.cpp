@@ -33,7 +33,7 @@ int main() {
 }
 
 // Check kernel_A parameters
-// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union union_acc_t)'
+// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union union_acc_t) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_acc 'union union_acc_t':'union_acc_t'
 
 // Check kernel_A inits
@@ -46,14 +46,14 @@ int main() {
 // CHECK: DeclRefExpr {{.*}} 'union union_acc_t':'union_acc_t' lvalue ParmVar {{.*}} '_arg_union_acc' 'union union_acc_t':'union_acc_t'
 
 // Check kernel_B parameters
-// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (S<int>)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>':'S<int>'
+// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (S<int>) __attribute__((device_kernel))'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>'
 
 // Check kernel_B inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>' 'void (const S<int> &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}}  'const S<int>'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>':'S<int>'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>'

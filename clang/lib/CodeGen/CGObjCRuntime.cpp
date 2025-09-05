@@ -31,15 +31,14 @@ using namespace CodeGen;
 uint64_t CGObjCRuntime::ComputeIvarBaseOffset(CodeGen::CodeGenModule &CGM,
                                               const ObjCInterfaceDecl *OID,
                                               const ObjCIvarDecl *Ivar) {
-  return CGM.getContext().lookupFieldBitOffset(OID, nullptr, Ivar) /
+  return CGM.getContext().lookupFieldBitOffset(OID, Ivar) /
          CGM.getContext().getCharWidth();
 }
 
 uint64_t CGObjCRuntime::ComputeIvarBaseOffset(CodeGen::CodeGenModule &CGM,
                                               const ObjCImplementationDecl *OID,
                                               const ObjCIvarDecl *Ivar) {
-  return CGM.getContext().lookupFieldBitOffset(OID->getClassInterface(), OID,
-                                               Ivar) /
+  return CGM.getContext().lookupFieldBitOffset(OID->getClassInterface(), Ivar) /
          CGM.getContext().getCharWidth();
 }
 
@@ -47,8 +46,7 @@ unsigned CGObjCRuntime::ComputeBitfieldBitOffset(
     CodeGen::CodeGenModule &CGM,
     const ObjCInterfaceDecl *ID,
     const ObjCIvarDecl *Ivar) {
-  return CGM.getContext().lookupFieldBitOffset(ID, ID->getImplementation(),
-                                               Ivar);
+  return CGM.getContext().lookupFieldBitOffset(ID, Ivar);
 }
 
 LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
@@ -63,13 +61,11 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
       CGF.CGM.getContext().getObjCObjectPointerType(InterfaceTy);
   QualType IvarTy =
       Ivar->getUsageType(ObjectPtrTy).withCVRQualifiers(CVRQualifiers);
-  llvm::Type *LTy = CGF.CGM.getTypes().ConvertTypeForMem(IvarTy);
-  llvm::Value *V = CGF.Builder.CreateBitCast(BaseValue, CGF.Int8PtrTy);
+  llvm::Value *V = BaseValue;
   V = CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, V, Offset, "add.ptr");
 
   if (!Ivar->isBitField()) {
-    V = CGF.Builder.CreateBitCast(V, llvm::PointerType::getUnqual(LTy));
-    LValue LV = CGF.MakeNaturalAlignAddrLValue(V, IvarTy);
+    LValue LV = CGF.MakeNaturalAlignRawAddrLValue(V, IvarTy);
     return LV;
   }
 
@@ -88,10 +84,10 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
   // non-synthesized ivars but we may be called for synthesized ivars.  However,
   // a synthesized ivar can never be a bit-field, so this is safe.
   uint64_t FieldBitOffset =
-      CGF.CGM.getContext().lookupFieldBitOffset(OID, nullptr, Ivar);
+      CGF.CGM.getContext().lookupFieldBitOffset(OID, Ivar);
   uint64_t BitOffset = FieldBitOffset % CGF.CGM.getContext().getCharWidth();
   uint64_t AlignmentBits = CGF.CGM.getTarget().getCharAlign();
-  uint64_t BitFieldSize = Ivar->getBitWidthValue(CGF.getContext());
+  uint64_t BitFieldSize = Ivar->getBitWidthValue();
   CharUnits StorageSize = CGF.CGM.getContext().toCharUnitsFromBits(
       llvm::alignTo(BitOffset + BitFieldSize, AlignmentBits));
   CharUnits Alignment = CGF.CGM.getContext().toCharUnitsFromBits(AlignmentBits);
@@ -107,10 +103,10 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
                              CGF.CGM.getContext().toBits(StorageSize),
                              CharUnits::fromQuantity(0)));
 
-  Address Addr = Address(V, CGF.Int8Ty, Alignment);
-  Addr = CGF.Builder.CreateElementBitCast(Addr,
-                                   llvm::Type::getIntNTy(CGF.getLLVMContext(),
-                                                         Info->StorageSize));
+  Address Addr =
+      Address(V, llvm::Type::getIntNTy(CGF.getLLVMContext(), Info->StorageSize),
+              Alignment);
+
   return LValue::MakeBitfield(Addr, *Info, IvarTy,
                               LValueBaseInfo(AlignmentSource::Decl),
                               TBAAAccessInfo());
@@ -224,19 +220,20 @@ void CGObjCRuntime::EmitTryCatchStmt(CodeGenFunction &CGF,
   CGBuilderTy::InsertPoint SavedIP = CGF.Builder.saveAndClearIP();
 
   // Emit the handlers.
-  for (unsigned I = 0, E = Handlers.size(); I != E; ++I) {
-    CatchHandler &Handler = Handlers[I];
-
+  for (CatchHandler &Handler : Handlers) {
     CGF.EmitBlock(Handler.Block);
 
     CodeGenFunction::LexicalScope Cleanups(CGF, Handler.Body->getSourceRange());
     SaveAndRestore RevertAfterScope(CGF.CurrentFuncletPad);
     if (useFunclets) {
-      llvm::Instruction *CPICandidate = Handler.Block->getFirstNonPHI();
-      if (auto *CPI = dyn_cast_or_null<llvm::CatchPadInst>(CPICandidate)) {
-        CGF.CurrentFuncletPad = CPI;
-        CPI->setOperand(2, CGF.getExceptionSlot().getPointer());
-        CGF.EHStack.pushCleanup<CatchRetScope>(NormalCleanup, CPI);
+      llvm::BasicBlock::iterator CPICandidate =
+          Handler.Block->getFirstNonPHIIt();
+      if (CPICandidate != Handler.Block->end()) {
+        if (auto *CPI = dyn_cast_or_null<llvm::CatchPadInst>(CPICandidate)) {
+          CGF.CurrentFuncletPad = CPI;
+          CPI->setOperand(2, CGF.getExceptionSlot().emitRawPointer(CGF));
+          CGF.EHStack.pushCleanup<CatchRetScope>(NormalCleanup, CPI);
+        }
       }
     }
 
@@ -364,20 +361,13 @@ CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
                                   CallArgList &callArgs) {
   unsigned ProgramAS = CGM.getDataLayout().getProgramAddressSpace();
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::PointerType *signatureType =
       llvm::PointerType::get(CGM.getLLVMContext(), ProgramAS);
-#endif
 
   // If there's a method, use information from that.
   if (method) {
     const CGFunctionInfo &signature =
       CGM.getTypes().arrangeObjCMessageSendSignature(method, callArgs[0].Ty);
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    llvm::PointerType *signatureType =
-      CGM.getTypes().GetFunctionType(signature)->getPointerTo(ProgramAS);
-#endif
 
     const CGFunctionInfo &signatureForCall =
       CGM.getTypes().arrangeCall(signature, callArgs);
@@ -389,11 +379,6 @@ CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
   const CGFunctionInfo &argsInfo =
     CGM.getTypes().arrangeUnprototypedObjCMessageSend(resultType, callArgs);
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  // Derive the signature to call from that.
-  llvm::PointerType *signatureType =
-    CGM.getTypes().GetFunctionType(argsInfo)->getPointerTo(ProgramAS);
-#endif
   return MessageSendInfo(argsInfo, signatureType);
 }
 
@@ -419,7 +404,7 @@ bool CGObjCRuntime::canMessageReceiverBeNull(CodeGenFunction &CGF,
     auto self = curMethod->getSelfDecl();
     if (self->getType().isConstQualified()) {
       if (auto LI = dyn_cast<llvm::LoadInst>(receiver->stripPointerCasts())) {
-        llvm::Value *selfAddr = CGF.GetAddrOfLocalVar(self).getPointer();
+        llvm::Value *selfAddr = CGF.GetAddrOfLocalVar(self).emitRawPointer(CGF);
         if (selfAddr == LI->getPointerOperand()) {
           return false;
         }

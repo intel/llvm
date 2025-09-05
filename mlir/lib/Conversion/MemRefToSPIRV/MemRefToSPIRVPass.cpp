@@ -17,7 +17,7 @@
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTMEMREFTOSPIRV
+#define GEN_PASS_DEF_CONVERTMEMREFTOSPIRVPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -26,7 +26,8 @@ using namespace mlir;
 namespace {
 /// A pass converting MLIR MemRef operations into the SPIR-V dialect.
 class ConvertMemRefToSPIRVPass
-    : public impl::ConvertMemRefToSPIRVBase<ConvertMemRefToSPIRVPass> {
+    : public impl::ConvertMemRefToSPIRVPassBase<ConvertMemRefToSPIRVPass> {
+  using Base::Base;
   void runOnOperation() override;
 };
 } // namespace
@@ -41,17 +42,11 @@ void ConvertMemRefToSPIRVPass::runOnOperation() {
 
   SPIRVConversionOptions options;
   options.boolNumBits = this->boolNumBits;
+  options.use64bitIndex = this->use64bitIndex;
   SPIRVTypeConverter typeConverter(targetAttr, options);
 
   // Use UnrealizedConversionCast as the bridge so that we don't need to pull in
   // patterns for other dialects.
-  auto addUnrealizedCast = [](OpBuilder &builder, Type type, ValueRange inputs,
-                              Location loc) {
-    auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
-    return std::optional<Value>(cast.getResult(0));
-  };
-  typeConverter.addSourceMaterialization(addUnrealizedCast);
-  typeConverter.addTargetMaterialization(addUnrealizedCast);
   target->addLegalOp<UnrealizedConversionCastOp>();
 
   RewritePatternSet patterns(context);
@@ -59,8 +54,4 @@ void ConvertMemRefToSPIRVPass::runOnOperation() {
 
   if (failed(applyPartialConversion(op, *target, std::move(patterns))))
     return signalPassFailure();
-}
-
-std::unique_ptr<OperationPass<>> mlir::createConvertMemRefToSPIRVPass() {
-  return std::make_unique<ConvertMemRefToSPIRVPass>();
 }

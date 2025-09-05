@@ -6,7 +6,9 @@
 // kernel lambdas containing kernel_handler arguments and w/o usage of
 // specialization constants in AOT mode
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 int main() {
   sycl::queue q;

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -16,31 +16,27 @@
 using namespace sycl;
 
 static int ReleaseCounter = 0;
-static pi_result redefinedEventRelease(pi_event event) {
+static ur_result_t redefinedEventRelease(void *) {
   ++ReleaseCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
-                                   void *, pi_mem *,
-                                   const pi_mem_properties *) {
-  return PI_SUCCESS;
-}
+ur_result_t redefinedMemBufferCreate(void *) { return UR_RESULT_SUCCESS; }
 
 class EventDestructionTest : public ::testing::Test {
 public:
-  EventDestructionTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  EventDestructionTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piEventRelease>(
-        redefinedEventRelease);
-    Mock.redefineBefore<detail::PiApiKind::piMemBufferCreate>(
-        redefinedMemBufferCreate);
+    mock::getCallbacks().set_before_callback("urEventRelease",
+                                             &redefinedEventRelease);
+    mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                             &redefinedMemBufferCreate);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
@@ -55,10 +51,10 @@ TEST_F(EventDestructionTest, EventDestruction) {
 
     {
       sycl::event E0 = Queue.submit(
-          [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+          [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
       E1 = Queue.submit([&](sycl::handler &cgh) {
         cgh.depends_on(E0);
-        cgh.single_task<TestKernel<>>([]() {});
+        cgh.single_task<TestKernel>([]() {});
       });
       E1.wait();
     }
@@ -71,7 +67,7 @@ TEST_F(EventDestructionTest, EventDestruction) {
 
     sycl::event E2 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on(E1);
-      cgh.single_task<TestKernel<>>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     });
     E2.wait();
     // Dependencies of E1 should be cleared here. It depends on E0.
@@ -79,7 +75,7 @@ TEST_F(EventDestructionTest, EventDestruction) {
 
     sycl::event E3 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on({E1, E2});
-      cgh.single_task<TestKernel<>>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     });
     E3.wait();
     // Dependency of E1 has already cleared. E2 depends on E1 that
@@ -93,20 +89,20 @@ TEST_F(EventDestructionTest, EventDestruction) {
     sycl::buffer<int, 1> Buf(&data[0], sycl::range<1>(2));
     Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel<>>([=]() {});
+      cgh.single_task<TestKernel>([=]() {});
     });
 
     Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel<>>([=]() {});
+      cgh.single_task<TestKernel>([=]() {});
     });
     sycl::event E1 = Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel<>>([=]() {});
+      cgh.single_task<TestKernel>([=]() {});
     });
     sycl::event E2 = Queue.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.single_task<TestKernel<>>([=]() {});
+      cgh.single_task<TestKernel>([=]() {});
     });
     E2.wait();
     // Dependencies are deleted through one level of dependencies. When
@@ -155,10 +151,10 @@ TEST_F(EventDestructionTest, GetWaitList) {
 
     {
       sycl::event E0 = Queue.submit(
-          [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+          [&](sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
       E1 = Queue.submit([&](sycl::handler &cgh) {
         cgh.depends_on(E0);
-        cgh.single_task<TestKernel<>>([]() {});
+        cgh.single_task<TestKernel>([]() {});
       });
       E1.wait();
       auto wait_list = E1.get_wait_list();
@@ -172,13 +168,13 @@ TEST_F(EventDestructionTest, GetWaitList) {
 
     sycl::event E2 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on(E1);
-      cgh.single_task<TestKernel<>>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     });
     E2.wait();
 
     sycl::event E3 = Queue.submit([&](sycl::handler &cgh) {
       cgh.depends_on({E1, E2});
-      cgh.single_task<TestKernel<>>([]() {});
+      cgh.single_task<TestKernel>([]() {});
     });
     E3.wait();
 

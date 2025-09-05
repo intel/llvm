@@ -1161,6 +1161,13 @@ def : Pat<(v8i16 (srl (sub v8i16:$vA, (v8i16 (bitconvert(vnot v4i32:$vB)))),
 def : Pat<(v16i8 (srl (sub v16i8:$vA, (v16i8 (bitconvert(vnot v4i32:$vB)))),
           (v16i8 (immEQOneV)))), (v16i8 (VAVGUB $vA, $vB))>;
 
+def : Pat<(v16i8 (shl v16i8:$vA, (v16i8 (immEQOneV)))),
+          (v16i8 (VADDUBM $vA, $vA))>;
+def : Pat<(v8i16 (shl v8i16:$vA, (v8i16 (immEQOneV)))),
+          (v8i16 (VADDUHM $vA, $vA))>;
+def : Pat<(v4i32 (shl v4i32:$vA, (v4i32 (immEQOneV)))),
+          (v4i32 (VADDUWM $vA, $vA))>;
+
 } // end HasAltivec
 
 // [PO VRT VRA VRB 1 PS XO], "_o" means CR6 is set.
@@ -1610,10 +1617,14 @@ class VX_VT5_EO5_VB5_XO9_o<bits<5> eo, bits<9> xo, string opc,
 }
 
 // Decimal Convert From/to National/Zoned/Signed-QWord
-def BCDCFN_rec  : VX_VT5_EO5_VB5_PS1_XO9_o<7, 385, "bcdcfn." , []>;
-def BCDCFZ_rec  : VX_VT5_EO5_VB5_PS1_XO9_o<6, 385, "bcdcfz." , []>;
-def BCDCTN_rec  : VX_VT5_EO5_VB5_XO9_o    <5, 385, "bcdctn." , []>;
-def BCDCTZ_rec  : VX_VT5_EO5_VB5_PS1_XO9_o<4, 385, "bcdctz." , []>;
+def BCDCFN_rec  : VX_VT5_EO5_VB5_PS1_XO9_o<7, 385, "bcdcfn." ,
+                  [(set v16i8:$VD, (int_ppc_national2packed v16i8:$VB, timm:$PS))]>;
+def BCDCFZ_rec  : VX_VT5_EO5_VB5_PS1_XO9_o<6, 385, "bcdcfz." , 
+                  [(set v16i8:$VD, (int_ppc_zoned2packed v16i8:$VB, timm:$PS))]>;
+def BCDCTN_rec  : VX_VT5_EO5_VB5_XO9_o    <5, 385, "bcdctn." , 
+                  [(set v16i8:$VD, (int_ppc_packed2national v16i8:$VB))]>;
+def BCDCTZ_rec  : VX_VT5_EO5_VB5_PS1_XO9_o<4, 385, "bcdctz." , 
+                  [(set v16i8:$VD, (int_ppc_packed2zoned v16i8:$VB, timm:$PS))]>;
 def BCDCFSQ_rec : VX_VT5_EO5_VB5_PS1_XO9_o<2, 385, "bcdcfsq.", []>;
 def BCDCTSQ_rec : VX_VT5_EO5_VB5_XO9_o    <0, 385, "bcdctsq.", []>;
 

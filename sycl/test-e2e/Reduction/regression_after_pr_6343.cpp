@@ -1,14 +1,17 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+// UNSUPPORTED: windows && run-mode
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19680
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 
 int main() {
-  device d(default_selector_v);
-  context ctx{d};
-  queue q{ctx, d};
+  queue q;
 
   int WGSize = 256;
   // Reduction implementation would spawn several other kernels to reduce

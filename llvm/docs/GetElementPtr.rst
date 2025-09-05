@@ -41,7 +41,7 @@ same. For example, when we write, in "C":
 
 it is natural to think that there is only one index, the selection of the field
 ``F``.  However, in this example, ``Foo`` is a pointer. That pointer
-must be indexed explicitly in LLVM. C, on the other hand, indices through it
+must be indexed explicitly in LLVM. C, on the other hand, indexes through it
 transparently.  To arrive at the same address location as the C code, you would
 provide the GEP instruction with two index operands. The first operand indexes
 through the pointer; the second operand indexes the field ``F`` of the
@@ -200,7 +200,7 @@ fine:
 
   @MyVar = external global { i32, [40 x i32 ] }
   ...
-  %idx = getelementptr { [40 x i32] }, ptr @MyVal, i64 0, i32 1, i64 17
+  %idx = getelementptr { i32, [40 x i32] }, ptr @MyVar, i64 0, i32 1, i64 17
 
 In this case, the structure does not contain a pointer and the GEP instruction
 can index through the global variable, into the second field of the structure

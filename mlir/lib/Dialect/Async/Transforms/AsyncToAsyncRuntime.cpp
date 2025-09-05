@@ -27,13 +27,12 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
 #include <optional>
 
 namespace mlir {
-#define GEN_PASS_DEF_ASYNCTOASYNCRUNTIME
-#define GEN_PASS_DEF_ASYNCFUNCTOASYNCRUNTIME
+#define GEN_PASS_DEF_ASYNCTOASYNCRUNTIMEPASS
+#define GEN_PASS_DEF_ASYNCFUNCTOASYNCRUNTIMEPASS
 #include "mlir/Dialect/Async/Passes.h.inc"
 } // namespace mlir
 
@@ -47,7 +46,7 @@ static constexpr const char kAsyncFnPrefix[] = "async_execute_fn";
 namespace {
 
 class AsyncToAsyncRuntimePass
-    : public impl::AsyncToAsyncRuntimeBase<AsyncToAsyncRuntimePass> {
+    : public impl::AsyncToAsyncRuntimePassBase<AsyncToAsyncRuntimePass> {
 public:
   AsyncToAsyncRuntimePass() = default;
   void runOnOperation() override;
@@ -58,7 +57,8 @@ public:
 namespace {
 
 class AsyncFuncToAsyncRuntimePass
-    : public impl::AsyncFuncToAsyncRuntimeBase<AsyncFuncToAsyncRuntimePass> {
+    : public impl::AsyncFuncToAsyncRuntimePassBase<
+          AsyncFuncToAsyncRuntimePass> {
 public:
   AsyncFuncToAsyncRuntimePass() = default;
   void runOnOperation() override;
@@ -94,8 +94,30 @@ struct CoroMachinery {
   Value coroHandle; // coroutine handle (!async.coro.getHandle value)
   Block *entry;     // coroutine entry block
   std::optional<Block *> setError; // set returned values to error state
-  Block *cleanup;   // coroutine cleanup block
-  Block *suspend;   // coroutine suspension block
+  Block *cleanup;                  // coroutine cleanup block
+
+  // Coroutine cleanup block for destroy after the coroutine is resumed,
+  //   e.g. async.coro.suspend state, [suspend], [resume], [destroy]
+  //
+  // This cleanup block is a duplicate of the cleanup block followed by the
+  // resume block. The purpose of having a duplicate cleanup block for destroy
+  // is to make the CFG clear so that the control flow analysis won't confuse.
+  //
+  // The overall structure of the lowered CFG can be the following,
+  //
+  //     Entry (calling async.coro.suspend)
+  //       |                \
+  //     Resume           Destroy (duplicate of Cleanup)
+  //       |                 |
+  //     Cleanup             |
+  //       |                 /
+  //      End (ends the corontine)
+  //
+  // If there is resume-specific cleanup logic, it can go into the Cleanup
+  // block but not the destroy block. Otherwise, it can fail block dominance
+  // check.
+  Block *cleanupForDestroy;
+  Block *suspend; // coroutine suspension block
 };
 } // namespace
 
@@ -161,16 +183,15 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
 
   // We treat TokenType as state update marker to represent side-effects of
   // async computations
-  bool isStateful = isa<TokenType>(func.getCallableResults().front());
+  bool isStateful = isa<TokenType>(func.getResultTypes().front());
 
   std::optional<Value> retToken;
   if (isStateful)
     retToken.emplace(builder.create<RuntimeCreateOp>(TokenType::get(ctx)));
 
   llvm::SmallVector<Value, 4> retValues;
-  ArrayRef<Type> resValueTypes = isStateful
-                                     ? func.getCallableResults().drop_front()
-                                     : func.getCallableResults();
+  ArrayRef<Type> resValueTypes =
+      isStateful ? func.getResultTypes().drop_front() : func.getResultTypes();
   for (auto resType : resValueTypes)
     retValues.emplace_back(
         builder.create<RuntimeCreateOp>(resType).getResult());
@@ -184,16 +205,21 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
   builder.create<cf::BranchOp>(originalEntryBlock);
 
   Block *cleanupBlock = func.addBlock();
+  Block *cleanupBlockForDestroy = func.addBlock();
   Block *suspendBlock = func.addBlock();
 
   // ------------------------------------------------------------------------ //
-  // Coroutine cleanup block: deallocate coroutine frame, free the memory.
+  // Coroutine cleanup blocks: deallocate coroutine frame, free the memory.
   // ------------------------------------------------------------------------ //
-  builder.setInsertionPointToStart(cleanupBlock);
-  builder.create<CoroFreeOp>(coroIdOp.getId(), coroHdlOp.getHandle());
+  auto buildCleanupBlock = [&](Block *cb) {
+    builder.setInsertionPointToStart(cb);
+    builder.create<CoroFreeOp>(coroIdOp.getId(), coroHdlOp.getHandle());
 
-  // Branch into the suspend block.
-  builder.create<cf::BranchOp>(suspendBlock);
+    // Branch into the suspend block.
+    builder.create<cf::BranchOp>(suspendBlock);
+  };
+  buildCleanupBlock(cleanupBlock);
+  buildCleanupBlock(cleanupBlockForDestroy);
 
   // ------------------------------------------------------------------------ //
   // Coroutine suspend block: mark the end of a coroutine and return allocated
@@ -209,14 +235,14 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
   SmallVector<Value, 4> ret;
   if (retToken)
     ret.push_back(*retToken);
-  ret.insert(ret.end(), retValues.begin(), retValues.end());
+  llvm::append_range(ret, retValues);
   builder.create<func::ReturnOp>(ret);
 
   // `async.await` op lowering will create resume blocks for async
   // continuations, and will conditionally branch to cleanup or suspend blocks.
 
   // The switch-resumed API based coroutine should be marked with
-  // coroutine.presplit attribute to mark the function as a coroutine.
+  // presplitcoroutine attribute to mark the function as a coroutine.
   func->setAttr("passthrough", builder.getArrayAttr(
                                    StringAttr::get(ctx, "presplitcoroutine")));
 
@@ -228,6 +254,7 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
   machinery.entry = entryBlock;
   machinery.setError = std::nullopt; // created lazily only if needed
   machinery.cleanup = cleanupBlock;
+  machinery.cleanupForDestroy = cleanupBlockForDestroy;
   machinery.suspend = suspendBlock;
   return machinery;
 }
@@ -277,10 +304,9 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
   cloneConstantsIntoTheRegion(execute.getBodyRegion());
 
   // Collect all outlined function inputs.
-  SetVector<mlir::Value> functionInputs(execute.getDependencies().begin(),
-                                        execute.getDependencies().end());
-  functionInputs.insert(execute.getBodyOperands().begin(),
-                        execute.getBodyOperands().end());
+  SetVector<mlir::Value> functionInputs(llvm::from_range,
+                                        execute.getDependencies());
+  functionInputs.insert_range(execute.getBodyOperands());
   getUsedValuesDefinedAbove(execute.getBodyRegion(), functionInputs);
 
   // Collect types for the outlined function inputs and outputs.
@@ -349,7 +375,7 @@ outlineExecuteOp(SymbolTable &symbolTable, ExecuteOp execute) {
 
     // Add async.coro.suspend as a suspended block terminator.
     builder.create<CoroSuspendOp>(coroSaveOp.getState(), coro.suspend,
-                                  branch.getDest(), coro.cleanup);
+                                  branch.getDest(), coro.cleanupForDestroy);
 
     branch.erase();
   }
@@ -555,7 +581,7 @@ public:
     // Inside regular functions we use the blocking wait operation to wait for
     // the async object (token, value or group) to become available.
     if (!isInCoroutine) {
-      ImplicitLocOpBuilder builder(loc, op, &rewriter);
+      ImplicitLocOpBuilder builder(loc, rewriter);
       builder.create<RuntimeAwaitOp>(loc, operand);
 
       // Assert that the awaited operands is not in the error state.
@@ -574,7 +600,7 @@ public:
       CoroMachinery &coro = funcCoro->getSecond();
       Block *suspended = op->getBlock();
 
-      ImplicitLocOpBuilder builder(loc, op, &rewriter);
+      ImplicitLocOpBuilder builder(loc, rewriter);
       MLIRContext *ctx = op->getContext();
 
       // Save the coroutine state and resume on a runtime managed thread when
@@ -589,7 +615,7 @@ public:
       // Add async.coro.suspend as a suspended block terminator.
       builder.setInsertionPointToEnd(suspended);
       builder.create<CoroSuspendOp>(coroSaveOp.getState(), coro.suspend, resume,
-                                    coro.cleanup);
+                                    coro.cleanupForDestroy);
 
       // Split the resume block into error checking and continuation.
       Block *continuation = rewriter.splitBlock(resume, Block::iterator(op));
@@ -696,8 +722,8 @@ public:
       // Switch the coroutine completion token to available state.
       rewriter.create<RuntimeSetAvailableOp>(loc, *coro.asyncToken);
 
-    rewriter.eraseOp(op);
     rewriter.create<cf::BranchOp>(loc, coro.cleanup);
+    rewriter.eraseOp(op);
 
     return success();
   }
@@ -766,7 +792,7 @@ void AsyncToAsyncRuntimePass::runOnOperation() {
   // Returns true if operation is inside the coroutine.
   auto isInCoroutine = [&](Operation *op) -> bool {
     auto parentFunc = op->getParentOfType<func::FuncOp>();
-    return coros->find(parentFunc) != coros->end();
+    return coros->contains(parentFunc);
   };
 
   // Lower async operations to async.runtime operations.
@@ -812,7 +838,7 @@ void AsyncToAsyncRuntimePass::runOnOperation() {
   runtimeTarget.addDynamicallyLegalOp<cf::AssertOp>(
       [&](cf::AssertOp op) -> bool {
         auto func = op->getParentOfType<func::FuncOp>();
-        return coros->find(func) == coros->end();
+        return !coros->contains(func);
       });
 
   if (failed(applyPartialConversion(module, runtimeTarget,
@@ -842,7 +868,7 @@ void mlir::populateAsyncFuncToAsyncRuntimeConversionPatterns(
       [coros](Operation *op) {
         auto exec = op->getParentOfType<ExecuteOp>();
         auto func = op->getParentOfType<func::FuncOp>();
-        return exec || coros->find(func) == coros->end();
+        return exec || !coros->contains(func);
       });
 }
 
@@ -869,13 +895,4 @@ void AsyncFuncToAsyncRuntimePass::runOnOperation() {
     signalPassFailure();
     return;
   }
-}
-
-std::unique_ptr<OperationPass<ModuleOp>> mlir::createAsyncToAsyncRuntimePass() {
-  return std::make_unique<AsyncToAsyncRuntimePass>();
-}
-
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::createAsyncFuncToAsyncRuntimePass() {
-  return std::make_unique<AsyncFuncToAsyncRuntimePass>();
 }

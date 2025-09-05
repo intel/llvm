@@ -1,5 +1,9 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip, cuda
+//
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images. Bindless
+// images should be used instead.
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -15,7 +19,6 @@
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -128,7 +131,7 @@ void test_normalized_clamp_linear_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read seven pixels at 'boundary' locations, starting out of "
                  "bounds,  sample:   Normalized +  Clamp  + Linear"
               << std::endl;

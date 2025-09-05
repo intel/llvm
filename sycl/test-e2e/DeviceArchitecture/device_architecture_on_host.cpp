@@ -1,9 +1,7 @@
-// UNSUPPORTED: cuda, hip, esimd_emulator, accelerator
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue q;

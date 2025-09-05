@@ -17,22 +17,22 @@ define i64 @bfis_in_loop_zero() {
 ; CHECK-NEXT:    mov x0, xzr
 ; CHECK-NEXT:    mov w8, wzr
 ; CHECK-NEXT:    ldr x9, [x9, :got_lo12:global]
+; CHECK-NEXT:    mov w10, #65536 // =0x10000
 ; CHECK-NEXT:    ldr x9, [x9]
 ; CHECK-NEXT:  .LBB0_1: // %midblock
 ; CHECK-NEXT:    // =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldrh w10, [x9, #72]
-; CHECK-NEXT:    cmp w10, #0
-; CHECK-NEXT:    ubfx x11, x10, #8, #24
-; CHECK-NEXT:    cset w12, ne
-; CHECK-NEXT:    csel w8, w8, w11, eq
-; CHECK-NEXT:    ldr x11, [x9, #8]
-; CHECK-NEXT:    and x9, x10, #0xff
-; CHECK-NEXT:    and x10, x0, #0xffffffff00000000
-; CHECK-NEXT:    orr x9, x9, x8, lsl #8
-; CHECK-NEXT:    orr x10, x10, x12, lsl #16
-; CHECK-NEXT:    orr x0, x10, x9
-; CHECK-NEXT:    ldr x9, [x11, #16]
-; CHECK-NEXT:    cbnz x11, .LBB0_1
+; CHECK-NEXT:    ldrh w11, [x9, #72]
+; CHECK-NEXT:    and x13, x0, #0xffffffff00000000
+; CHECK-NEXT:    lsr w12, w11, #8
+; CHECK-NEXT:    cmp w11, #0
+; CHECK-NEXT:    csel w8, w8, w12, eq
+; CHECK-NEXT:    ldr x12, [x9, #8]
+; CHECK-NEXT:    csel x9, xzr, x10, eq
+; CHECK-NEXT:    bfi w11, w8, #8, #24
+; CHECK-NEXT:    orr x13, x9, x13
+; CHECK-NEXT:    ldr x9, [x12, #16]
+; CHECK-NEXT:    orr x0, x13, x11
+; CHECK-NEXT:    cbnz x12, .LBB0_1
 ; CHECK-NEXT:  // %bb.2: // %exit
 ; CHECK-NEXT:    ret
 entry:
@@ -85,22 +85,22 @@ define i64 @bfis_in_loop_undef() {
 ; CHECK-NEXT:    mov w8, wzr
 ; CHECK-NEXT:    // implicit-def: $x0
 ; CHECK-NEXT:    ldr x9, [x9, :got_lo12:global]
-; CHECK-NEXT:    ldr x9, [x9]
+; CHECK-NEXT:    ldr x10, [x9]
+; CHECK-NEXT:    mov w9, #65536 // =0x10000
 ; CHECK-NEXT:  .LBB1_1: // %midblock
 ; CHECK-NEXT:    // =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    ldrh w10, [x9, #72]
-; CHECK-NEXT:    cmp w10, #0
-; CHECK-NEXT:    ubfx x11, x10, #8, #24
-; CHECK-NEXT:    cset w12, ne
-; CHECK-NEXT:    csel w8, w8, w11, eq
-; CHECK-NEXT:    ldr x11, [x9, #8]
-; CHECK-NEXT:    and x9, x10, #0xff
-; CHECK-NEXT:    and x10, x0, #0xffffffff00000000
-; CHECK-NEXT:    orr x9, x9, x8, lsl #8
-; CHECK-NEXT:    orr x10, x10, x12, lsl #16
-; CHECK-NEXT:    orr x0, x10, x9
-; CHECK-NEXT:    ldr x9, [x11, #16]
-; CHECK-NEXT:    cbnz x11, .LBB1_1
+; CHECK-NEXT:    ldrh w11, [x10, #72]
+; CHECK-NEXT:    and x13, x0, #0xffffffff00000000
+; CHECK-NEXT:    lsr w12, w11, #8
+; CHECK-NEXT:    cmp w11, #0
+; CHECK-NEXT:    csel w8, w8, w12, eq
+; CHECK-NEXT:    ldr x12, [x10, #8]
+; CHECK-NEXT:    csel x10, xzr, x9, eq
+; CHECK-NEXT:    bfi w11, w8, #8, #24
+; CHECK-NEXT:    orr x13, x10, x13
+; CHECK-NEXT:    ldr x10, [x12, #16]
+; CHECK-NEXT:    orr x0, x13, x11
+; CHECK-NEXT:    cbnz x12, .LBB1_1
 ; CHECK-NEXT:  // %bb.2: // %exit
 ; CHECK-NEXT:    ret
 entry:

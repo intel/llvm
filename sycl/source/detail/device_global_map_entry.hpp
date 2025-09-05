@@ -14,8 +14,9 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <unordered_set>
 
-#include <detail/pi_utils.hpp>
+#include <detail/ur_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
@@ -27,6 +28,8 @@ class context_impl;
 class device_impl;
 class platform_impl;
 class queue_impl;
+class event_impl;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
@@ -34,14 +37,14 @@ struct DeviceGlobalUSMMem {
 
   void *const &getPtr() const noexcept { return MPtr; }
 
-  // Gets the zero-initialization event if it exists. If not the OwnedPiEvent
+  // Gets the initialization event if it exists. If not the OwnedUrEvent
   // will contain no event.
-  OwnedPiEvent getZeroInitEvent(const PluginPtr &Plugin);
+  OwnedUrEvent getInitEvent(adapter_impl &Adapter);
 
 private:
   void *MPtr;
-  std::mutex MZeroInitEventMutex;
-  std::optional<sycl::detail::pi::PiEvent> MZeroInitEvent;
+  std::mutex MInitEventMutex;
+  ur_event_handle_t MInitEvent = nullptr;
 
   friend struct DeviceGlobalMapEntry;
 };
@@ -51,11 +54,11 @@ struct DeviceGlobalMapEntry {
   std::string MUniqueId;
   // Pointer to the device_global on host.
   const void *MDeviceGlobalPtr = nullptr;
+  // Images device_global are used by.
+  std::unordered_set<const RTDeviceBinaryImage *> MImages;
   // The image identifiers for the images using the device_global used by in the
   // cache.
   std::set<std::uintptr_t> MImageIdentifiers;
-  // The kernel-set IDs for the images using the device_global.
-  std::set<KernelSetId> MKSIds;
   // Size of the underlying type in the device_global.
   std::uint32_t MDeviceGlobalTSize = 0;
   // True if the device_global has been decorated with device_image_scope.
@@ -64,14 +67,15 @@ struct DeviceGlobalMapEntry {
   // Constructor for only initializing ID and pointer. The other members will
   // be initialized later.
   DeviceGlobalMapEntry(std::string UniqueId, const void *DeviceGlobalPtr)
-      : MUniqueId(UniqueId), MDeviceGlobalPtr(DeviceGlobalPtr) {}
+      : MUniqueId(std::move(UniqueId)), MDeviceGlobalPtr(DeviceGlobalPtr) {}
 
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.
-  DeviceGlobalMapEntry(std::string UniqueId, std::uintptr_t ImgId,
-                       KernelSetId KSId, std::uint32_t DeviceGlobalTSize,
+  DeviceGlobalMapEntry(std::string UniqueId, const RTDeviceBinaryImage *Img,
+                       std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
-      : MUniqueId(UniqueId), MImageIdentifiers{ImgId}, MKSIds{KSId},
+      : MUniqueId(std::move(UniqueId)), MImages{Img},
+        MImageIdentifiers{reinterpret_cast<uintptr_t>(Img)},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
 
@@ -85,7 +89,7 @@ struct DeviceGlobalMapEntry {
 
   // Initialize the device_global's element type size and the flag signalling
   // if the device_global has the device_image_scope property.
-  void initialize(std::uintptr_t ImgId, KernelSetId KSId,
+  void initialize(const RTDeviceBinaryImage *Img,
                   std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
     if (MDeviceGlobalTSize != 0) {
@@ -99,18 +103,29 @@ struct DeviceGlobalMapEntry {
           "Device global intializations disagree on image scope decoration.");
       return;
     }
-    MImageIdentifiers.insert(ImgId);
-    MKSIds.insert(KSId);
+    MImages.insert(Img);
+    MImageIdentifiers.insert(reinterpret_cast<uintptr_t>(Img));
     MDeviceGlobalTSize = DeviceGlobalTSize;
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
 
   // Gets or allocates USM memory for a device_global.
-  DeviceGlobalUSMMem &
-  getOrAllocateDeviceGlobalUSM(const std::shared_ptr<queue_impl> &QueueImpl);
+  DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl);
+
+  // This overload allows the allocation to be initialized without a queue. The
+  // UR adapter in use must report true for
+  // UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP to take advantage of this.
+  DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(const context &Context);
 
   // Removes resources for device_globals associated with the context.
   void removeAssociatedResources(const context_impl *CtxImpl);
+
+  // Cleans up the USM memory and intialization events associated with this
+  // entry. This should only be called when the device global entry is not
+  // owned by the program manager, as otherwise it will be bound to the lifetime
+  // of the owner context and will be cleaned up through
+  // removeAssociatedResources.
+  void cleanup();
 
 private:
   // Map from a device and a context to the associated USM allocation for the

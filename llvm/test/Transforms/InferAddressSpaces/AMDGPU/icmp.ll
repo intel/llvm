@@ -94,6 +94,14 @@ define i1 @icmp_mismatch_flat_group_private_cmp_undef(ptr addrspace(3) %group.pt
   ret i1 %cmp
 }
 
+; CHECK-LABEL: @icmp_mismatch_flat_group_private_cmp_poison(
+; CHECK: %cmp = icmp eq ptr addrspace(3) %group.ptr.0, poison
+define i1 @icmp_mismatch_flat_group_private_cmp_poison(ptr addrspace(3) %group.ptr.0) #0 {
+  %cast0 = addrspacecast ptr addrspace(3) %group.ptr.0 to ptr
+  %cmp = icmp eq ptr %cast0, addrspacecast (ptr addrspace(5) poison to ptr)
+  ret i1 %cmp
+}
+
 @lds0 = internal addrspace(3) global i32 0, align 4
 @global0 = internal addrspace(1) global i32 0, align 4
 
@@ -113,11 +121,11 @@ define i1 @icmp_mismatch_group_global_cmp_gv_gv(ptr addrspace(3) %group.ptr.0) #
   ret i1 %cmp
 }
 
-; CHECK-LABEL: @icmp_group_flat_cmp_undef(
-; CHECK: %cmp = icmp eq ptr addrspace(3) %group.ptr.0, undef
-define i1 @icmp_group_flat_cmp_undef(ptr addrspace(3) %group.ptr.0) #0 {
+; CHECK-LABEL: @icmp_group_flat_cmp_poison(
+; CHECK: %cmp = icmp eq ptr addrspace(3) %group.ptr.0, poison
+define i1 @icmp_group_flat_cmp_poison(ptr addrspace(3) %group.ptr.0) #0 {
   %cast0 = addrspacecast ptr addrspace(3) %group.ptr.0 to ptr
-  %cmp = icmp eq ptr %cast0, undef
+  %cmp = icmp eq ptr %cast0, poison
   ret i1 %cmp
 }
 
@@ -131,6 +139,14 @@ define i1 @icmp_mismatch_flat_group_private_cmp_null_swap(ptr addrspace(3) %grou
   ret i1 %cmp
 }
 
+; CHECK-LABEL: @icmp_group_flat_cmp_poison_swap(
+; CHECK: %cmp = icmp eq ptr addrspace(3) poison, %group.ptr.0
+define i1 @icmp_group_flat_cmp_poison_swap(ptr addrspace(3) %group.ptr.0) #0 {
+  %cast0 = addrspacecast ptr addrspace(3) %group.ptr.0 to ptr
+  %cmp = icmp eq ptr poison, %cast0
+  ret i1 %cmp
+}
+
 ; CHECK-LABEL: @icmp_group_flat_cmp_undef_swap(
 ; CHECK: %cmp = icmp eq ptr addrspace(3) undef, %group.ptr.0
 define i1 @icmp_group_flat_cmp_undef_swap(ptr addrspace(3) %group.ptr.0) #0 {
@@ -139,18 +155,16 @@ define i1 @icmp_group_flat_cmp_undef_swap(ptr addrspace(3) %group.ptr.0) #0 {
   ret i1 %cmp
 }
 
-; CHECK-LABEL: @icmp_mismatch_flat_group_private_cmp_undef_swap(
-; CHECK: %cmp = icmp eq ptr addrspace(3) undef, %group.ptr.0
-define i1 @icmp_mismatch_flat_group_private_cmp_undef_swap(ptr addrspace(3) %group.ptr.0) #0 {
+; CHECK-LABEL: @icmp_mismatch_flat_group_private_cmp_poison_swap(
+; CHECK: %cmp = icmp eq ptr addrspace(3) poison, %group.ptr.0
+define i1 @icmp_mismatch_flat_group_private_cmp_poison_swap(ptr addrspace(3) %group.ptr.0) #0 {
   %cast0 = addrspacecast ptr addrspace(3) %group.ptr.0 to ptr
-  %cmp = icmp eq ptr addrspacecast (ptr addrspace(5) undef to ptr), %cast0
+  %cmp = icmp eq ptr addrspacecast (ptr addrspace(5) poison to ptr), %cast0
   ret i1 %cmp
 }
 
 ; CHECK-LABEL: @icmp_flat_flat_from_group_vector(
-; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-; CHECK: %cmp = icmp eq <2 x ptr> %cast0, %cast1
-; endif
+; CHECK: %cmp = icmp eq <2 x ptr addrspace(3)> %group.ptr.0, %group.ptr.1
 define <2 x i1> @icmp_flat_flat_from_group_vector(<2 x ptr addrspace(3)> %group.ptr.0, <2 x ptr addrspace(3)> %group.ptr.1) #0 {
   %cast0 = addrspacecast <2 x ptr addrspace(3)> %group.ptr.0 to <2 x ptr>
   %cast1 = addrspacecast <2 x ptr addrspace(3)> %group.ptr.1 to <2 x ptr>

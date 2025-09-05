@@ -32,6 +32,7 @@ class A {
     // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: method 'call_static_member' can be made static
     // CHECK-FIXES: {{^}}  static int call_static_member() {
     already_static();
+    return 0;
   }
 
   int read_static() {
@@ -43,6 +44,24 @@ class A {
     // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: method 'write_static' can be made static
     // CHECK-FIXES: {{^}}  static void write_static() {
     static_field = 1;
+  }
+
+  void static_nested() {
+    // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: method 'static_nested' can be made static
+    // CHECK-FIXES: {{^}}  static void static_nested() {
+    struct Nested {
+      int Foo;
+      int getFoo() { return Foo; }
+    };
+  }
+
+  void write_nested() {
+    struct Nested {
+      int Foo;
+      int getFoo() { return Foo; }
+    };
+    // Ensure we still detect usages of `this` once we leave the nested class definition.
+    field = 1;
   }
 
   static int already_static() { return static_field; }

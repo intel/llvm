@@ -15,8 +15,7 @@ inline namespace _V1 {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
-  assert(!Impl->is_host() && "Cannot get the backend for host.");
-  return Impl->getContextImplPtr()->getBackend();
+  return Impl->getContextImpl().getBackend();
 }
 
 } // namespace detail

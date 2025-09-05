@@ -10,7 +10,6 @@
 #define MLIR_DIALECT_LINALG_UTILS_UTILS_H
 
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Linalg/Utils/IndexingUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "llvm/ADT/StringSet.h"
@@ -34,40 +33,24 @@ namespace linalg {
 //===----------------------------------------------------------------------===//
 // Utilities for inferring various semantics properties of Linalg ops.
 //===----------------------------------------------------------------------===//
+/// Shell function to compute the Destination Permutation of PackOp
+/// This function uses the helper function `computePackUnPackPerm` to get
+/// the permutation vector. Only major difference between UnPack and Pack is
+/// that packOp uses destination rank whereas unpack Uses source rank.
+SmallVector<int64_t> getPackInverseDestPerm(linalg::PackOp packOp);
 
-/// Possible dimension candidates that define a matmul embedded in the indexing
-/// maps of a LinalgOp.
-struct EmbeddedMatmulDimsCandidates {
-  DenseSet<int64_t> mPos, nPos, kPos;
-};
+/// Shell function to compute the Source Permutation of unPackOp.
+/// This function, like the getPackInverseDestPerm uses the helper function
+/// computePackUnPackPerm` to get the permutation vector.
+/// Only major difference between UnPack and Pack is that packOp uses
+/// destination rank whereas unpack Uses source rank.
+SmallVector<int64_t> getUnPackInverseSrcPerm(linalg::UnPackOp unpackOp);
 
-/// Given a `linalgOp` and one of its `opOperand`, returns the positions of the
-/// iterators of type `iter` that index the `opOperand` as a permutation.
-/// This is useful to infer various subcomputations on a given `linalgOp`.
-/// This is performed by looking up each result in the matching indexing map and
-/// determining whether:
-///   - It is a single AffineDimExpr.
-///   - It is the only result involving this AffineDimExpr.
-DenseSet<int64_t> findPermutationsIndexingOperand(LinalgOp linalgOp,
-                                                  OpOperand *opOperand,
-                                                  utils::IteratorType iter);
-
-/// Return true if `linalgOp` contains an embedded matmul subcomputation in its
-/// most minor dimensions.
-bool containsMostMinorMatmul(linalg::LinalgOp linalgOp);
-
-/// Find 2 parallel (m and n) and 1 reduction (k) dimension candidates that form
-/// a matmul subcomputation within `linalgOp`. These dimensions are such that:
-///   1. The m dimension is involved in an outer-product along LHS
-///      (i.e. it is a permutation on RES and LHS and does not appear in RHS).
-///   2. The n dimension is involved in an outer-product along RHS
-///      (i.e. it is a permutation on RES and RHS and does not appear in LHS).
-///   3. The k dimension appears as a permutation on LHS and RHS.
-///   4. m, n and k appear only once in any given indexing.
-/// This allows detecting that some matmul is embedded within `linalgOp` with
-/// some orthogonal heuristic.
-FailureOr<EmbeddedMatmulDimsCandidates>
-inferMatmulDims(linalg::LinalgOp linalgOp);
+/// Shell function to compute the Source rank permutation for unpackOp
+/// Unpack requires some packing metadata data information, so created
+/// another function where this value is passed by reference.
+SmallVector<int64_t> getUnPackInverseSrcPerm(linalg::UnPackOp,
+                                             PackingMetadata &metadata);
 
 //===----------------------------------------------------------------------===//
 // General utilities
@@ -88,12 +71,14 @@ bool isParallelIterator(utils::IteratorType iteratorType);
 /// Check if iterator type  has "reduction" semantics.
 bool isReductionIterator(utils::IteratorType iteratorType);
 
-/// Create a tensor::PadOp that pads `source` to the size of the statically
-/// sized `type` whose static sizes are assumed to be greater than the dynamic
-/// `source` size. The padding introduces trailing `pad` values until the
-/// target size is met. If `source` is defined by one or more LinalgOps that
-/// have been padded with the same value and sizes, return their padded result
-/// instead of creating a tensor::PadOp.
+/// Create a tensor::PadOp that pads `source` to the shape of `type` whose sizes
+/// are assumed to be greater than the dynamic `source` size. If `typeDynDims`
+/// is specified, then it must contain the sizes of all the dynamic dimensions
+/// in order of appearance in `type`, otherwise the function will pad those
+/// values to `0`. The padding introduces trailing `pad` values until the target
+/// size is met. If `source` is defined by one or more LinalgOps that have been
+/// padded with the same  value and sizes, return their padded result instead of
+/// creating a tensor::PadOp.
 ///
 /// Example:
 /// ```
@@ -108,13 +93,8 @@ bool isReductionIterator(utils::IteratorType iteratorType);
 /// %4 = tensor.pad %3 low[0, 0] high[...] { tensor.yield %other_cst }
 /// ```
 Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
-                            Value source, Value pad, bool nofold);
-
-/// Returns a GenericOp that transposes `inputTensor` into `outputTensor`
-/// using `transposeVector` to permute the `inputTensor` dimensions.
-GenericOp makeTransposeOp(OpBuilder &b, Location loc, Value inputTensor,
-                          Value outputTensor,
-                          ArrayRef<int64_t> transposeVector);
+                            Value source, Value padding, bool nofold,
+                            ValueRange typeDynDims = {});
 
 /// Returns GenericOp that copies an n-D memref. Unlike the current
 /// implementation of memref::CopyOp, this op can further tile, lower to loops
@@ -129,10 +109,6 @@ GenericOp makeMemRefCopyOp(OpBuilder &b, Location loc, Value from, Value to);
 /// point (and potentially cannot be handled).
 std::optional<SmallVector<ReassociationIndices>>
 getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes);
-
-/// Return the identity numeric value associated to the give op. Return
-/// std::nullopt if there is no known neutral element.
-std::optional<TypedAttr> getNeutralElement(Operation *op);
 
 //===----------------------------------------------------------------------===//
 // Fusion / Tiling utilities
@@ -217,11 +193,12 @@ computeAllSliceParameters(OpBuilder &builder, Location loc, LinalgOp linalgOp,
 /// at offsets `lbs` and with sizes `subShapeSizes`. `omitPartialTileCheck`
 /// controls whether to omit the partial/boundary tile condition check in
 /// cases where we statically know that it is unnecessary.
-Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
-                     ArrayRef<OpFoldResult> tileSizes, AffineMap map,
-                     ArrayRef<OpFoldResult> lbs, ArrayRef<OpFoldResult> ubs,
-                     ArrayRef<OpFoldResult> subShapeSizes,
-                     bool omitPartialTileCheck);
+Operation *makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
+                          ArrayRef<OpFoldResult> tileSizes, AffineMap map,
+                          ArrayRef<OpFoldResult> lbs,
+                          ArrayRef<OpFoldResult> ubs,
+                          ArrayRef<OpFoldResult> subShapeSizes,
+                          bool omitPartialTileCheck);
 
 /// Creates extract_slice/subview ops for all `valuesToTile` of the given
 /// `linalgOp` with `builder`, assuming `linalgOp` is being fused into a loop
@@ -258,7 +235,6 @@ struct FusionInfo {
   LinalgOp fusedProducer;
 };
 
-/// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
 /// `extract_slice` op (generally obtained by applying the tiling
@@ -266,7 +242,6 @@ struct FusionInfo {
 FailureOr<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                            OpOperand &consumerOpOperand);
 
-/// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
 /// `extract_slice` op (generally obtained by applying the tiling

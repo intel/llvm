@@ -9,8 +9,10 @@
 #ifndef LLDB_API_SBSTRUCTUREDDATA_H
 #define LLDB_API_SBSTRUCTUREDDATA_H
 
+#include "lldb/API/SBCommandReturnObject.h"
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBModule.h"
+#include "lldb/API/SBScriptObject.h"
 
 namespace lldb_private {
 namespace python {
@@ -28,6 +30,9 @@ public:
   SBStructuredData();
 
   SBStructuredData(const lldb::SBStructuredData &rhs);
+
+  SBStructuredData(const lldb::SBScriptObject obj,
+                   const lldb::SBDebugger &debugger);
 
   ~SBStructuredData();
 
@@ -72,8 +77,9 @@ public:
   /// Return the integer value if this data structure is an integer type.
   int64_t GetSignedIntegerValue(int64_t fail_value = 0) const;
 
-  LLDB_DEPRECATED("Specify if the value is signed or unsigned",
-                  "uint64_t GetUnsignedIntegerValue(uint64_t fail_value = 0)")
+  LLDB_DEPRECATED_FIXME(
+      "Specify if the value is signed or unsigned",
+      "uint64_t GetUnsignedIntegerValue(uint64_t fail_value = 0)")
   uint64_t GetIntegerValue(uint64_t fail_value = 0) const;
 
   /// Return the floating point value if this data structure is a floating
@@ -100,10 +106,16 @@ public:
   ///     \a dst in all cases.
   size_t GetStringValue(char *dst, size_t dst_len) const;
 
+  /// Return the generic pointer if this data structure is a generic type.
+  lldb::SBScriptObject GetGenericValue() const;
+
 protected:
   friend class SBAttachInfo;
+  friend class SBCommandReturnObject;
   friend class SBLaunchInfo;
   friend class SBDebugger;
+  friend class SBFrame;
+  friend class SBError;
   friend class SBTarget;
   friend class SBProcess;
   friend class SBThread;
@@ -114,6 +126,7 @@ protected:
   friend class SBTrace;
   friend class lldb_private::python::SWIGBridge;
   friend class lldb_private::lua::SWIGBridge;
+  friend class SBCommandInterpreter;
 
   SBStructuredData(const lldb_private::StructuredDataImpl &impl);
 

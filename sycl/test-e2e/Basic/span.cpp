@@ -1,11 +1,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Fails to release USM pointer on HIP for NVIDIA
-// XFAIL: hip_nvidia
-
+// REQUIRES: aspect-usm_shared_allocations
 #include <numeric>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/sycl_span.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 using namespace sycl;
 

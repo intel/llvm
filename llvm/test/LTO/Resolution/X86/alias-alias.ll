@@ -1,6 +1,6 @@
 ; RUN: llvm-as %s -o %t1.o
 ; RUN: llvm-as %p/Inputs/alias-alias-1.ll -o %t2.o
-; RUN: llvm-lto2 run -opaque-pointers -o %t3.o %t1.o %t2.o -r %t2.o,a, -r %t2.o,d,px -r %t1.o,a,p -r %t1.o,c,p -r %t1.o,b -save-temps
+; RUN: llvm-lto2 run -o %t3.o %t1.o %t2.o -r %t2.o,a, -r %t2.o,d,px -r %t1.o,a,p -r %t1.o,c,p -r %t1.o,b -save-temps
 ; RUN: llvm-dis < %t3.o.0.0.preopt.bc -o - | FileCheck %s
 ; RUN: FileCheck --check-prefix=RES %s < %t3.o.resolution.txt
 

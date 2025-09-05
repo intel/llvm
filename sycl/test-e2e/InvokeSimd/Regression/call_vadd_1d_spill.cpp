@@ -5,6 +5,9 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// GSD-10143
+// UNSUPPORTED: gpu
+
 // Tests invoke_simd support in the compiler/headers
 /* This program is basically an extension of the standard vector addition
  * program (i.e., call_vadd_1d). The only difference is that instead of adding 2
@@ -15,9 +18,10 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -29,7 +33,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;
@@ -108,14 +112,22 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(PA.get_pointer() + offset);
-            float vb = sg.load(PB.get_pointer() + offset);
-            float vp = sg.load(PP.get_pointer() + offset);
-            float vq = sg.load(PQ.get_pointer() + offset);
-            float vr = sg.load(PR.get_pointer() + offset);
-            float vx = sg.load(PX.get_pointer() + offset);
-            float vy = sg.load(PY.get_pointer() + offset);
-            float vz = sg.load(PZ.get_pointer() + offset);
+            auto Load = [&](auto Acc) {
+              float res;
+              group_load(sg,
+                         Acc.template get_multi_ptr<access::decorated::yes>() +
+                             offset,
+                         res);
+              return res;
+            };
+            float va = Load(PA);
+            float vb = Load(PB);
+            float vp = Load(PP);
+            float vq = Load(PQ);
+            float vr = Load(PR);
+            float vx = Load(PX);
+            float vy = Load(PY);
+            float vz = Load(PZ);
 
             float vc;
 
@@ -126,7 +138,9 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
               vc = SPMD_CALLEE_doVadd(va, vb, vx, vy, vx, vy, vx, vy, vx, vy,
                                       vp, vq, vr, vz);
             }
-            sg.store(PC.get_pointer() + offset, vc);
+            group_store(sg, vc,
+                        PC.get_multi_ptr<access::decorated::yes>().get() +
+                            offset);
           });
     });
     e.wait();

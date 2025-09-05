@@ -2,37 +2,37 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls --spirv-ext=+SPV_INTEL_fpga_loop_controls -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: 2 Capability UnstructuredLoopControlsINTEL
-; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL
-; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
-; CHECK-SPIRV: 11 Extension "SPV_INTEL_unstructured_loop_controls"
-; CHECK-SPIRV: 4 EntryPoint 6 [[FOO:[0-9]+]] "foo"
-; CHECK-SPIRV: 4 EntryPoint 6 [[BOO:[0-9]+]] "boo"
-; CHECK-SPIRV: 4 Name [[ENTRY_1:[0-9]+]] "entry"
-; CHECK-SPIRV: 5 Name [[FOR:[0-9]+]] "for.cond"
-; CHECK-SPIRV: 4 Name [[ENTRY_2:[0-9]+]] "entry"
-; CHECK-SPIRV: 5 Name [[WHILE:[0-9]+]] "while.body"
+; CHECK-SPIRV: Capability UnstructuredLoopControlsINTEL
+; CHECK-SPIRV: Capability FPGALoopControlsINTEL
+; CHECK-SPIRV: Extension "SPV_INTEL_fpga_loop_controls"
+; CHECK-SPIRV: Extension "SPV_INTEL_unstructured_loop_controls"
+; CHECK-SPIRV: Name [[FOO:[0-9]+]] "foo"
+; CHECK-SPIRV: Name [[ENTRY_1:[0-9]+]] "entry"
+; CHECK-SPIRV: Name [[FOR:[0-9]+]] "for.cond"
+; CHECK-SPIRV: Name [[BOO:[0-9]+]] "boo"
+; CHECK-SPIRV: Name [[ENTRY_2:[0-9]+]] "entry"
+; CHECK-SPIRV: Name [[WHILE:[0-9]+]] "while.body"
 
-; CHECK-SPIRV: 5 Function 2 [[FOO]] {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: 2 Label [[ENTRY_1]]
-; CHECK-SPIRV: 2 Branch [[FOR]]
-; CHECK-SPIRV: 2 Label [[FOR]]
+; CHECK-SPIRV: Function [[#]] [[FOO]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: Label [[ENTRY_1]]
+; CHECK-SPIRV: Branch [[FOR]]
+; CHECK-SPIRV: Label [[FOR]]
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
 ; LoopControlMaxConcurrencyINTELMask = 0x20000 (131072)
-; CHECK-SPIRV: 3 LoopControlINTEL 131072 2
-; CHECK-SPIRV-NEXT: 2 Branch [[FOR]]
+; CHECK-SPIRV: LoopControlINTEL 131072 2
+; CHECK-SPIRV-NEXT: Branch [[FOR]]
 
-; CHECK-SPIRV: 5 Function 2 [[BOO]] {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: 2 Label [[ENTRY_2]]
-; CHECK-SPIRV: 2 Branch [[WHILE]]
-; CHECK-SPIRV: 2 Label [[WHILE]]
+; CHECK-SPIRV: Function [[#]] [[BOO]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: Label [[ENTRY_2]]
+; CHECK-SPIRV: Branch [[WHILE]]
+; CHECK-SPIRV: Label [[WHILE]]
 ; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
 ; LoopControlInitiationIntervalINTELMask = 0x10000 (65536)
-; CHECK-SPIRV: 3 LoopControlINTEL 65536 2
-; CHECK-SPIRV-NEXT: 2 Branch [[WHILE]]
+; CHECK-SPIRV: LoopControlINTEL 65536 2
+; CHECK-SPIRV-NEXT: Branch [[WHILE]]
 
 ; ModuleID = 'infinite.cl'
 source_filename = "infinite.cl"

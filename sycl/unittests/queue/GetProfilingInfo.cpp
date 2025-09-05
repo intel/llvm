@@ -15,69 +15,51 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/context_impl.hpp>
 
 class InfoTestKernel;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<InfoTestKernel> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "InfoTestKernel"; }
-};
+MOCK_INTEGRATION_HEADER(InfoTestKernel)
 
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-template <typename T> sycl::unittest::PiImage generateTestImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"InfoTestKernel"});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
+static ur_result_t redefinedUrEventGetProfilingInfo(void *) {
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result
-redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
-  return PI_SUCCESS;
+static ur_result_t redefinedUrDeviceGet(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
+  // Host/Device timer syncronization isn't done all the time (cached), so we
+  // need brand new device for some of the testcases.
+  static std::intptr_t device_id = 10;
+  if (*params.ppNumDevices)
+    **params.ppNumDevices = 1;
+
+  if (*params.pphDevices && *params.pNumEntries > 0)
+    *params.pphDevices[0] = reinterpret_cast<ur_device_handle_t>(++device_id);
+
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(GetProfilingInfo, normal_pass_without_exception) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      redefinedPiEventGetProfilingInfo);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEventGetProfilingInfo",
+                                           &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage_1 =
-      generateTestImage<InfoTestKernel>();
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
 
-  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
       Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Ctx, {Dev}, {KernelID_1});
+      Ctx, {Dev}, {KernelID});
 
   const int globalWIs{512};
   try {
@@ -101,21 +83,19 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
 }
 
 TEST(GetProfilingInfo, command_exception_check) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      redefinedPiEventGetProfilingInfo);
-
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEventGetProfilingInfo",
+                                           &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage_1 =
-      generateTestImage<InfoTestKernel>();
-
-  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{Ctx, Dev};
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Ctx, {Dev}, {KernelID_1});
+      Ctx, {Dev}, {KernelID});
   const int globalWIs{512};
   {
     try {
@@ -204,17 +184,16 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
 }
 
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      redefinedPiEventGetProfilingInfo);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEventGetProfilingInfo",
+                                           &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage_1 =
-      generateTestImage<InfoTestKernel>();
-
-  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
   sycl::event event;
   {
@@ -222,7 +201,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
         Ctx, Dev,
         sycl::property_list{sycl::property::queue::enable_profiling{}}};
     auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-        Ctx, {Dev}, {KernelID_1});
+        Ctx, {Dev}, {KernelID});
     event = Queue.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
     });
@@ -245,23 +224,23 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
 }
 
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      redefinedPiEventGetProfilingInfo);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEventGetProfilingInfo",
+                                           &redefinedUrEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage_1 =
-      generateTestImage<InfoTestKernel>();
+  static sycl::unittest::MockDeviceImage DevImage =
+      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
 
-  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
   sycl::event event;
   {
     sycl::queue Queue{Ctx, Dev};
     auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-        Ctx, {Dev}, {KernelID_1});
+        Ctx, {Dev}, {KernelID});
     event = Queue.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
     });
@@ -313,27 +292,27 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
 
 bool DeviceTimerCalled;
 
-pi_result redefinedPiGetDeviceAndHostTimer(pi_device Device,
-                                           uint64_t *DeviceTime,
-                                           uint64_t *HostTime) {
+ur_result_t redefinedUrGetGlobalTimestamps(void *) {
   DeviceTimerCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(GetProfilingInfo,
      check_no_command_submission_time_when_event_profiling_disabled) {
   using namespace sycl;
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
-      redefinedPiGetDeviceAndHostTimer);
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefinedUrDeviceGet);
+  mock::getCallbacks().set_replace_callback("urDeviceGetGlobalTimestamps",
+                                            &redefinedUrGetGlobalTimestamps);
   device Dev = Plt.get_devices()[0];
   context Ctx{Dev};
   queue Queue{Ctx, Dev};
   DeviceTimerCalled = false;
 
-  event E = Queue.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  event E =
+      Queue.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   EXPECT_FALSE(DeviceTimerCalled);
 }
 
@@ -344,10 +323,12 @@ TEST(GetProfilingInfo,
 // accessor
 TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   using namespace sycl;
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
-      redefinedPiGetDeviceAndHostTimer);
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefinedUrDeviceGet);
+  mock::getCallbacks().set_replace_callback("urDeviceGetGlobalTimestamps",
+                                            &redefinedUrGetGlobalTimestamps);
   device Dev = Plt.get_devices()[0];
   context Ctx{Dev};
   queue Queue{Ctx, Dev, property::queue::enable_profiling()};
@@ -359,88 +340,39 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   event E = Queue.submit([&](handler &cgh) {
     accessor writeRes{Buf, cgh, read_write};
 
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 
   EXPECT_TRUE(DeviceTimerCalled);
 }
 
-pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device,
-                                                 uint64_t *DeviceTime,
-                                                 uint64_t *HostTime) {
-  return PI_ERROR_INVALID_OPERATION;
-}
+// Check that query fails for host task if queue doesn't have profiling
+// enabled.
+TEST(GetProfilingInfo, check_host_task_profiling_info) {
+  using namespace sycl;
+  [[maybe_unused]] unittest::UrMock<> Mock;
+  queue Queue;
+  event E = Queue.submit([&](handler &cgh) { cgh.host_task([]() {}); });
 
-TEST(GetProfilingInfo, unsupported_device_host_time) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
-      redefinedFailedPiGetDeviceAndHostTimer);
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::context Ctx{Dev};
+  auto expect_profiling_exception = [&](auto profiling_query) {
+    try {
+      std::ignore = profiling_query();
+      FAIL();
+    } catch (sycl::exception const &e) {
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated "
+          "with the event does not have the 'enable_profiling' property.");
+    }
+  };
 
-  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
-  try {
-    sycl::queue q{Ctx, Dev, {sycl::property::queue::enable_profiling()}};
-    FAIL() << "No exception was thrown";
-  } catch (sycl::exception &e) {
-    EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "Cannot enable profiling, the associated device "
-                           "does not have the queue_profiling aspect");
-  }
-}
-
-static pi_result redefinedDeviceGetInfoAcc(pi_device device,
-                                           pi_device_info param_name,
-                                           size_t param_value_size,
-                                           void *param_value,
-                                           size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
-    *Result = PI_DEVICE_TYPE_ACC;
-  }
-  return PI_SUCCESS;
-}
-
-TEST(GetProfilingInfo, partial_profiling_workaround) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
-      redefinedFailedPiGetDeviceAndHostTimer);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAcc);
-
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::context Ctx{Dev};
-
-  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
-
-  static sycl::unittest::PiImage DevImage_1 =
-      generateTestImage<InfoTestKernel>();
-  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
-  sycl::queue Queue{
-      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Ctx, {Dev}, {KernelID_1});
-
-  const int globalWIs{512};
-  auto event = Queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_submit>();
   });
-  event.wait();
-  try {
-    event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-    FAIL() << "No exception was thrown";
-  } catch (sycl::exception &e) {
-    EXPECT_EQ(e.code(), sycl::errc::invalid);
-    EXPECT_STREQ(
-        e.what(),
-        "Submit profiling information is temporarily unsupported on this "
-        "device. This is indicated by the lack of queue_profiling aspect, but, "
-        "as a temporary workaround, profiling can still be enabled to use "
-        "command_start and command_end profiling info.");
-  }
-  event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_start>();
+  });
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_end>();
+  });
 }

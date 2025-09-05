@@ -1,5 +1,5 @@
 // REQUIRES: xptifw, opencl
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
@@ -9,7 +9,7 @@
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   bool MismatchFound = false;
@@ -35,8 +35,8 @@ int main() {
     });
   });
 
-  const auto HostAccessor1 = Buffer1.get_access<sycl::access::mode::read>();
-  const auto HostAccessor2 = Buffer2.get_access<sycl::access::mode::read>();
+  const sycl::host_accessor HostAccessor1(Buffer1, sycl::read_only);
+  const sycl::host_accessor HostAccessor2(Buffer2, sycl::read_only);
 
   // Check the results.
   for (size_t I = 0; I < Buffer1.size(); ++I) {

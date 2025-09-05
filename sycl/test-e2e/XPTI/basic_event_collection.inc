@@ -4,7 +4,8 @@
 
 #else
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue Q{sycl::default_selector_v};

@@ -1,5 +1,5 @@
 # RUN: not llvm-mc -triple=riscv64 -mattr=+c < %s 2>&1 | FileCheck %s
-# RUN: not llvm-mc -triple=riscv64 -mattr=+experimental-zca < %s 2>&1 | FileCheck %s
+# RUN: not llvm-mc -triple=riscv64 -mattr=+zca < %s 2>&1 | FileCheck %s
 
 ## GPRC
 c.ld ra, 4(sp) # CHECK: :[[@LINE]]:6: error: invalid operand for instruction
@@ -8,8 +8,8 @@ c.addw   a0, a7 # CHECK: :[[@LINE]]:14: error: invalid operand for instruction
 c.subw   a0, a6 # CHECK: :[[@LINE]]:14: error: invalid operand for instruction
 
 ## GPRNoX0
-c.ldsp  x0, 4(sp) # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
-c.ldsp  zero, 4(sp) # CHECK: :[[@LINE]]:9: error: invalid operand for instruction
+c.ldsp  x0, 4(sp) # CHECK: :[[@LINE]]:9: error: register must be a GPR excluding zero (x0)
+c.ldsp  zero, 4(sp) # CHECK: :[[@LINE]]:9: error: register must be a GPR excluding zero (x0)
 
 # Out of range immediates
 

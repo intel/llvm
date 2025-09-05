@@ -1,9 +1,13 @@
 // REQUIRES: opencl, opencl_icd
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16576
+
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib -O3
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 #include <cassert>
 

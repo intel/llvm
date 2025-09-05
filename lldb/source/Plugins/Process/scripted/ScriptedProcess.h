@@ -12,6 +12,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/ScriptedMetadata.h"
+#include "lldb/Utility/State.h"
 #include "lldb/Utility/Status.h"
 
 #include "ScriptedThread.h"
@@ -51,7 +52,7 @@ public:
 
   void DidResume() override;
 
-  Status DoResume() override;
+  Status DoResume(lldb::RunDirection direction) override;
 
   Status DoAttachToProcessWithID(lldb::pid_t pid,
                                  const ProcessAttachInfo &attach_info) override;
@@ -93,6 +94,11 @@ public:
   void *GetImplementation() override;
 
   void ForceScriptedState(lldb::StateType state) override {
+    // If we're about to stop, we should fetch the loaded dynamic libraries
+    // dictionary before emitting the private stop event to avoid having the
+    // module loading happen while the process state is changing.
+    if (StateIsStoppedState(state, true))
+      GetLoadedDynamicLibrariesInfos();
     SetPrivateState(state);
   }
 

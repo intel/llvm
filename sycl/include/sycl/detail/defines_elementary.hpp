@@ -25,7 +25,12 @@
 #endif // __SYCL_ALWAYS_INLINE
 
 #ifdef SYCL_EXTERNAL
+#ifdef __NativeCPU__
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL __attribute__((__libclc_call__))
+#define __DPCPP_SYCL_EXTERNAL_LIBC SYCL_EXTERNAL
+#else
 #define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#endif
 #else
 #ifdef __SYCL_DEVICE_ONLY__
 #define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
@@ -34,6 +39,19 @@
 #define SYCL_EXTERNAL
 #endif
 #endif
+
+#ifndef __DPCPP_SYCL_EXTERNAL_LIBC
+#define __DPCPP_SYCL_EXTERNAL_LIBC __DPCPP_SYCL_EXTERNAL
+#endif
+
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
+#endif
+
 
 #ifndef __SYCL_ID_QUERIES_FIT_IN_INT__
 #define __SYCL_ID_QUERIES_FIT_IN_INT__ 0
@@ -48,7 +66,7 @@
 #endif // __SYCL_DEPRECATED
 
 #ifndef __SYCL2020_DEPRECATED
-#if SYCL_LANGUAGE_VERSION >= 202001 &&                                         \
+#if SYCL_LANGUAGE_VERSION == 202012L &&                                        \
     !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 #define __SYCL2020_DEPRECATED(message) __SYCL_DEPRECATED(message)
 #else
@@ -80,3 +98,33 @@
 
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
+
+// Helper macro to identify if fallback assert is needed
+#if defined(SYCL_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
+#else
+#define __SYCL_USE_FALLBACK_ASSERT 0
+#endif
+
+#if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
+// SYCL library is designed such a way that STL objects cross DLL boundary,
+// which is guaranteed to work properly only when the application uses the same
+// C++ runtime that SYCL library uses.
+// The appplications using sycl.dll must be linked with dynamic/release C++ MSVC
+// runtime, i.e. be compiled with /MD switch. Similarly, the applications using
+// sycld.dll must be linked with dynamic/debug C++ runtime and be compiled with
+// /MDd switch.
+// Compiler automatically adds /MD or /MDd when -fsycl switch is used.
+// The options /MD and /MDd that make the code to use dynamic runtime also
+// define the _DLL macro.
+#if defined(_MSC_VER)
+#pragma message(                                                               \
+    "SYCL library is designed to work safely with dynamic C++ runtime."        \
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "        \
+    "or -fsycl switch to set C++ runtime automatically.")
+#else
+#warning "SYCL library is designed to work safely with dynamic C++ runtime."\
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "\
+    "or -fsycl switch to set C++ runtime automatically."
+#endif
+#endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)

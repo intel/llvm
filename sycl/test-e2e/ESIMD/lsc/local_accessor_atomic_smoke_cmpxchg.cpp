@@ -7,13 +7,10 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor cmpxchg atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// UNSUPPORTED: esimd_emulator
 
 // This macro enables only cmpxchg tests. They may require more time to execute,
 // and have higher probablity to hit kernel execution time limit, so they are

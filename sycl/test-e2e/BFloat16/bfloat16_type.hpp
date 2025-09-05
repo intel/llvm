@@ -1,6 +1,6 @@
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cmath>
 

@@ -18,7 +18,7 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out 1
 // RUN: %{run-unfiltered-devices} %t.out 1
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 int main(int Argc, const char *Argv[]) {

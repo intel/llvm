@@ -2,6 +2,7 @@ add_lldb_unittest(TargetTests
   ABITest.cpp
   DynamicRegisterInfoTest.cpp
   ExecutionContextTest.cpp
+  LocateModuleCallbackTest.cpp
   MemoryRegionInfoTest.cpp
   MemoryTest.cpp
   MemoryTagMapTest.cpp
@@ -10,21 +11,31 @@ add_lldb_unittest(TargetTests
   RegisterFlagsTest.cpp
   RemoteAwarePlatformTest.cpp
   StackFrameRecognizerTest.cpp
+  SummaryStatisticsTest.cpp
   FindFileTest.cpp
 
+  LINK_COMPONENTS
+      Support
   LINK_LIBS
       lldbCore
       lldbHost
+      lldbPluginObjectFileBreakpad
       lldbPluginObjectFileELF
       lldbPluginPlatformLinux
       lldbPluginPlatformMacOSX
+      lldbPluginPlatformAndroid
+      lldbPluginSymbolFileBreakpad
       lldbPluginSymbolFileSymtab
       lldbTarget
       lldbSymbol
       lldbUtility
       lldbUtilityHelpers
-    LINK_COMPONENTS
-      Support
   )
 
-add_unittest_inputs(TargetTests TestModule.so)
+set(test_inputs
+  AndroidModule.so
+  AndroidModule.so.sym
+  AndroidModule.unstripped.so
+  TestModule.so
+  )
+add_unittest_inputs(TargetTests "${test_inputs}")

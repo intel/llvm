@@ -8,44 +8,38 @@
 //
 // REQUIRES: opencl,gpu,cpu,accelerator
 
+#include "../helpers.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   string forcedPIs;
-  if (envVal) {
-    cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
 
   {
-    default_selector ds;
-    device d = ds.select_device();
+    device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos);
-    cout << "OpenCL GPU Device is found: " << boolalpha << d.is_gpu()
-         << std::endl;
+    assert(name.find("OpenCL") != string::npos &&
+           "default_selector_v failed to find an opencl device");
   }
   {
-    gpu_selector gs;
-    device d = gs.select_device();
+    device d(gpu_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos);
-    cout << name << " is found: " << boolalpha << d.is_gpu() << std::endl;
+    assert(name.find("OpenCL") != string::npos &&
+           "gpu_selector_v failed to find an opencl device");
   }
   {
-    cpu_selector cs;
-    device d = cs.select_device();
-    cout << "CPU device is found : " << d.is_cpu() << std::endl;
+    device d(cpu_selector_v);
   }
   {
-    accelerator_selector as;
-    device d = as.select_device();
-    cout << "ACC device is found : " << d.is_accelerator() << std::endl;
+    device d(accelerator_selector_v);
   }
 
   return 0;

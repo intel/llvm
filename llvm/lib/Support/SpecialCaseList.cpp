@@ -14,58 +14,69 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/SpecialCaseList.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Regex.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include <stdio.h>
 #include <string>
 #include <system_error>
 #include <utility>
 
-#include <stdio.h>
 namespace llvm {
 
-bool SpecialCaseList::Matcher::insert(std::string Regexp,
-                                      unsigned LineNumber,
-                                      std::string &REError) {
-  if (Regexp.empty()) {
-    REError = "Supplied regexp was blank";
-    return false;
+Error SpecialCaseList::Matcher::insert(StringRef Pattern, unsigned LineNumber,
+                                       bool UseGlobs) {
+  if (Pattern.empty())
+    return createStringError(errc::invalid_argument,
+                             Twine("Supplied ") +
+                                 (UseGlobs ? "glob" : "regex") + " was blank");
+
+  if (!UseGlobs) {
+    // Replace * with .*
+    auto Regexp = Pattern.str();
+    for (size_t pos = 0; (pos = Regexp.find('*', pos)) != std::string::npos;
+         pos += strlen(".*")) {
+      Regexp.replace(pos, strlen("*"), ".*");
+    }
+
+    Regexp = (Twine("^(") + StringRef(Regexp) + ")$").str();
+
+    // Check that the regexp is valid.
+    Regex CheckRE(Regexp);
+    std::string REError;
+    if (!CheckRE.isValid(REError))
+      return createStringError(errc::invalid_argument, REError);
+
+    RegExes.emplace_back(std::make_pair(
+        std::make_unique<Regex>(std::move(CheckRE)), LineNumber));
+
+    return Error::success();
   }
 
-  if (Regex::isLiteralERE(Regexp)) {
-    Strings[Regexp] = LineNumber;
-    return true;
-  }
-
-  // Replace * with .*
-  for (size_t pos = 0; (pos = Regexp.find('*', pos)) != std::string::npos;
-       pos += strlen(".*")) {
-    Regexp.replace(pos, strlen("*"), ".*");
-  }
-
-  Regexp = (Twine("^(") + StringRef(Regexp) + ")$").str();
-
-  // Check that the regexp is valid.
-  Regex CheckRE(Regexp);
-  if (!CheckRE.isValid(REError))
-    return false;
-
-  RegExes.emplace_back(
-      std::make_pair(std::make_unique<Regex>(std::move(CheckRE)), LineNumber));
-  return true;
+  auto Glob = std::make_unique<Matcher::Glob>();
+  Glob->Name = Pattern.str();
+  Glob->LineNo = LineNumber;
+  // We must be sure to use the string in `Glob` rather than the provided
+  // reference which could be destroyed before match() is called
+  if (auto Err = GlobPattern::create(Glob->Name, /*MaxSubPatterns=*/1024)
+                     .moveInto(Glob->Pattern))
+    return Err;
+  Globs.push_back(std::move(Glob));
+  return Error::success();
 }
 
 unsigned SpecialCaseList::Matcher::match(StringRef Query) const {
-  auto It = Strings.find(Query);
-  if (It != Strings.end())
-    return It->second;
-  for (const auto &RegExKV : RegExes)
-    if (RegExKV.first->match(Query))
-      return RegExKV.second;
+  for (const auto &Glob : reverse(Globs))
+    if (Glob->Pattern.match(Query))
+      return Glob->LineNo;
+  for (const auto &[Regex, LineNumber] : reverse(RegExes))
+    if (Regex->match(Query))
+      return LineNumber;
   return 0;
 }
 
+// TODO: Refactor this to return Expected<...>
 std::unique_ptr<SpecialCaseList>
 SpecialCaseList::create(const std::vector<std::string> &Paths,
                         llvm::vfs::FileSystem &FS, std::string &Error) {
@@ -94,8 +105,8 @@ SpecialCaseList::createOrDie(const std::vector<std::string> &Paths,
 
 bool SpecialCaseList::createInternal(const std::vector<std::string> &Paths,
                                      vfs::FileSystem &VFS, std::string &Error) {
-  StringMap<size_t> Sections;
-  for (const auto &Path : Paths) {
+  for (size_t i = 0; i < Paths.size(); ++i) {
+    const auto &Path = Paths[i];
     ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrErr =
         VFS.getBufferForFile(Path);
     if (std::error_code EC = FileOrErr.getError()) {
@@ -103,7 +114,7 @@ bool SpecialCaseList::createInternal(const std::vector<std::string> &Paths,
       return false;
     }
     std::string ParseError;
-    if (!parse(FileOrErr.get().get(), Sections, ParseError)) {
+    if (!parse(i, FileOrErr.get().get(), ParseError)) {
       Error = (Twine("error parsing file '") + Path + "': " + ParseError).str();
       return false;
     }
@@ -113,82 +124,82 @@ bool SpecialCaseList::createInternal(const std::vector<std::string> &Paths,
 
 bool SpecialCaseList::createInternal(const MemoryBuffer *MB,
                                      std::string &Error) {
-  StringMap<size_t> Sections;
-  if (!parse(MB, Sections, Error))
+  if (!parse(0, MB, Error))
     return false;
   return true;
 }
 
-bool SpecialCaseList::parse(const MemoryBuffer *MB,
-                            StringMap<size_t> &SectionsMap,
+Expected<SpecialCaseList::Section *>
+SpecialCaseList::addSection(StringRef SectionStr, unsigned FileNo,
+                            unsigned LineNo, bool UseGlobs) {
+  Sections.emplace_back(SectionStr, FileNo);
+  auto &Section = Sections.back();
+
+  if (auto Err = Section.SectionMatcher->insert(SectionStr, LineNo, UseGlobs)) {
+    return createStringError(errc::invalid_argument,
+                             "malformed section at line " + Twine(LineNo) +
+                                 ": '" + SectionStr +
+                                 "': " + toString(std::move(Err)));
+  }
+
+  return &Section;
+}
+
+bool SpecialCaseList::parse(unsigned FileIdx, const MemoryBuffer *MB,
                             std::string &Error) {
-  // Iterate through each line in the exclusion list file.
-  SmallVector<StringRef, 16> Lines;
-  MB->getBuffer().split(Lines, '\n');
+  Section *CurrentSection;
+  if (auto Err = addSection("*", FileIdx, 1).moveInto(CurrentSection)) {
+    Error = toString(std::move(Err));
+    return false;
+  }
 
-  unsigned LineNo = 1;
-  StringRef Section = "*";
+  // In https://reviews.llvm.org/D154014 we added glob support and planned to
+  // remove regex support in patterns. We temporarily support the original
+  // behavior using regexes if "#!special-case-list-v1" is the first line of the
+  // file. For more details, see
+  // https://discourse.llvm.org/t/use-glob-instead-of-regex-for-specialcaselists/71666
+  bool UseGlobs = !MB->getBuffer().starts_with("#!special-case-list-v1\n");
 
-  for (auto I = Lines.begin(), E = Lines.end(); I != E; ++I, ++LineNo) {
-    *I = I->trim();
-    // Ignore empty lines and lines starting with "#"
-    if (I->empty() || I->startswith("#"))
+  for (line_iterator LineIt(*MB, /*SkipBlanks=*/true, /*CommentMarker=*/'#');
+       !LineIt.is_at_eof(); LineIt++) {
+    unsigned LineNo = LineIt.line_number();
+    StringRef Line = LineIt->trim();
+    if (Line.empty())
       continue;
 
     // Save section names
-    if (I->startswith("[")) {
-      if (!I->endswith("]")) {
-        Error = (Twine("malformed section header on line ") + Twine(LineNo) +
-                 ": " + *I).str();
-        return false;
-      }
-
-      Section = I->slice(1, I->size() - 1);
-
-      std::string REError;
-      Regex CheckRE(Section);
-      if (!CheckRE.isValid(REError)) {
+    if (Line.starts_with("[")) {
+      if (!Line.ends_with("]")) {
         Error =
-            (Twine("malformed regex for section ") + Section + ": '" + REError)
+            ("malformed section header on line " + Twine(LineNo) + ": " + Line)
                 .str();
         return false;
       }
 
+      if (auto Err = addSection(Line.drop_front().drop_back(), FileIdx, LineNo,
+                                UseGlobs)
+                         .moveInto(CurrentSection)) {
+        Error = toString(std::move(Err));
+        return false;
+      }
       continue;
     }
 
-    // Get our prefix and unparsed regexp.
-    std::pair<StringRef, StringRef> SplitLine = I->split(":");
-    StringRef Prefix = SplitLine.first;
-    if (SplitLine.second.empty()) {
+    // Get our prefix and unparsed glob.
+    auto [Prefix, Postfix] = Line.split(":");
+    if (Postfix.empty()) {
       // Missing ':' in the line.
-      Error = (Twine("malformed line ") + Twine(LineNo) + ": '" +
-               SplitLine.first + "'").str();
+      Error = ("malformed line " + Twine(LineNo) + ": '" + Line + "'").str();
       return false;
     }
 
-    std::pair<StringRef, StringRef> SplitRegexp = SplitLine.second.split("=");
-    std::string Regexp = std::string(SplitRegexp.first);
-    StringRef Category = SplitRegexp.second;
-
-    // Create this section if it has not been seen before.
-    if (!SectionsMap.contains(Section)) {
-      std::unique_ptr<Matcher> M = std::make_unique<Matcher>();
-      std::string REError;
-      if (!M->insert(std::string(Section), LineNo, REError)) {
-        Error = (Twine("malformed section ") + Section + ": '" + REError).str();
-        return false;
-      }
-
-      SectionsMap[Section] = Sections.size();
-      Sections.emplace_back(std::move(M));
-    }
-
-    auto &Entry = Sections[SectionsMap[Section]].Entries[Prefix][Category];
-    std::string REError;
-    if (!Entry.insert(std::move(Regexp), LineNo, REError)) {
-      Error = (Twine("malformed regex in line ") + Twine(LineNo) + ": '" +
-               SplitLine.second + "': " + REError).str();
+    auto [Pattern, Category] = Postfix.split("=");
+    auto &Entry = CurrentSection->Entries[Prefix][Category];
+    if (auto Err = Entry.insert(Pattern, LineNo, UseGlobs)) {
+      Error =
+          (Twine("malformed ") + (UseGlobs ? "glob" : "regex") + " in line " +
+           Twine(LineNo) + ": '" + Pattern + "': " + toString(std::move(Err)))
+              .str();
       return false;
     }
   }
@@ -199,31 +210,34 @@ SpecialCaseList::~SpecialCaseList() = default;
 
 bool SpecialCaseList::inSection(StringRef Section, StringRef Prefix,
                                 StringRef Query, StringRef Category) const {
-  return inSectionBlame(Section, Prefix, Query, Category);
+  auto [FileIdx, LineNo] = inSectionBlame(Section, Prefix, Query, Category);
+  return LineNo;
 }
 
-unsigned SpecialCaseList::inSectionBlame(StringRef Section, StringRef Prefix,
-                                         StringRef Query,
-                                         StringRef Category) const {
-  for (const auto &SectionIter : Sections)
-    if (SectionIter.SectionMatcher->match(Section)) {
-      unsigned Blame =
-          inSectionBlame(SectionIter.Entries, Prefix, Query, Category);
+std::pair<unsigned, unsigned>
+SpecialCaseList::inSectionBlame(StringRef Section, StringRef Prefix,
+                                StringRef Query, StringRef Category) const {
+  for (const auto &S : reverse(Sections)) {
+    if (S.SectionMatcher->match(Section)) {
+      unsigned Blame = inSectionBlame(S.Entries, Prefix, Query, Category);
       if (Blame)
-        return Blame;
+        return {S.FileIdx, Blame};
     }
-  return 0;
+  }
+  return NotFound;
 }
 
 unsigned SpecialCaseList::inSectionBlame(const SectionEntries &Entries,
                                          StringRef Prefix, StringRef Query,
                                          StringRef Category) const {
   SectionEntries::const_iterator I = Entries.find(Prefix);
-  if (I == Entries.end()) return 0;
+  if (I == Entries.end())
+    return 0;
   StringMap<Matcher>::const_iterator II = I->second.find(Category);
-  if (II == I->second.end()) return 0;
+  if (II == I->second.end())
+    return 0;
 
   return II->getValue().match(Query);
 }
 
-}  // namespace llvm
+} // namespace llvm

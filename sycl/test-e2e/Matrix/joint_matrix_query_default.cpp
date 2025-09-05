@@ -6,14 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 // Needs AMX.
-// REQUIRES: cpu
-// REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// REQUIRES: target-spir
+
+// REQUIRES: cpu
+// REQUIRES: aspect-ext_intel_matrix
+
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -39,7 +43,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   size_t K = NUM_COLS_A;
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * 4);
 
-  using myparams2 = tpu_params<tpu::amx, int8_t, int8_t, int>;
+  using myparams2 = matrix_params<
+      sycl::ext::oneapi::experimental::architecture::intel_cpu_spr, int8_t,
+      int8_t, int>;
   constexpr int TM = myparams2::M;
   constexpr int TN = myparams2::N;
   constexpr int TK = myparams2::K;
@@ -63,7 +69,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -77,10 +83,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            sycl::sub_group sg = spmd_item.get_sub_group();
 
            myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a;
-           myparams2::joint_matrix_b<
-               sub_group, ext::intel::experimental::matrix::layout::packed>
-               sub_b;
-           myparams2::joint_matrix_accumulator<sub_group> sub_c;
+           myparams2::joint_matrix_b<sub_group, layout::ext_intel_packed> sub_b;
+           myparams2::joint_matrix_c<sub_group> sub_c;
 
            joint_matrix_load(
                sg, sub_c,
@@ -99,7 +103,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
                  N * 4);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

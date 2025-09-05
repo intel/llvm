@@ -46,19 +46,7 @@ template <typename T> void checkIsPropertyOf() {
       is_property_value_of<decltype(wait_request_requested), T>::value);
 }
 
-// Checks is_property_key_of and is_property_value_of are false for non-pointer
-// type T.
-template <typename T> void checkIsValidPropertyOfNonPtr() {
-  static_assert(
-      is_valid_property<T, decltype(wait_request_not_requested)>::value ==
-      false);
-  static_assert(is_valid_property<T, decltype(latency<8>)>::value == false);
-}
-
 int main() {
-  static_assert(is_property_key<register_map_key>::value);
-  static_assert(is_property_key<buffer_location_key>::value);
-
   checkIsPropertyOf<decltype(AnnotatedArg1)>();
   static_assert(!AnnotatedArg1.has_property<register_map_key>());
   static_assert(!AnnotatedArg1.has_property<buffer_location_key>());
@@ -90,7 +78,5 @@ int main() {
   static_assert(AnnotatedArg4.get_property<read_write_mode_key>() ==
                 read_write_mode_read);
 
-  // Check if a property is valid for a given type
-  checkIsValidPropertyOfNonPtr<A>();
   return 0;
 }

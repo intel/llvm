@@ -397,7 +397,7 @@ define <vscale x 2 x i64> @bic_i64_zero(<vscale x 2 x i1> %pg, <vscale x 2 x i64
 define <vscale x 2 x i64> @bic_i64_zero_no_unique_reg(<vscale x 2 x i1> %pg, <vscale x 2 x i64> %a) {
 ; CHECK-LABEL: bic_i64_zero_no_unique_reg:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mov z1.d, #0 // =0x0
+; CHECK-NEXT:    movi v1.2d, #0000000000000000
 ; CHECK-NEXT:    mov z1.d, p0/m, z0.d
 ; CHECK-NEXT:    movprfx z0.d, p0/z, z0.d
 ; CHECK-NEXT:    bic z0.d, p0/m, z0.d, z1.d
@@ -414,10 +414,10 @@ define <vscale x 2 x i64> @bic_i64_zero_no_unique_reg(<vscale x 2 x i1> %pg, <vs
 define <vscale x 2 x i64> @bic_i64_zero_no_comm(<vscale x 2 x i1> %pg, <vscale x 2 x i64> %a, <vscale x 2 x i64> %b) {
 ; CHECK-LABEL: bic_i64_zero_no_comm:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mov z2.d, #0 // =0x0
-; CHECK-NEXT:    sel z0.d, p0, z0.d, z2.d
-; CHECK-NEXT:    bic z1.d, p0/m, z1.d, z0.d
+; CHECK-NEXT:    movi v2.2d, #0000000000000000
+; CHECK-NEXT:    mov z2.d, p0/m, z0.d
 ; CHECK-NEXT:    mov z0.d, z1.d
+; CHECK-NEXT:    bic z0.d, p0/m, z0.d, z2.d
 ; CHECK-NEXT:    ret
   %a_z = select <vscale x 2 x i1> %pg, <vscale x 2 x i64> %a, <vscale x 2 x i64> zeroinitializer
   %out = call <vscale x 2 x i64> @llvm.aarch64.sve.bic.nxv2i64(<vscale x 2 x i1> %pg,

@@ -15,11 +15,10 @@
 #define LLVM_IR_OPTBISECT_H
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 #include <limits>
 
 namespace llvm {
-
-class Pass;
 
 /// Extensions to this class implement mechanisms to disable passes and
 /// individual optimizations at compile time.
@@ -29,8 +28,8 @@ public:
 
   /// IRDescription is a textual description of the IR unit the pass is running
   /// over.
-  virtual bool shouldRunPass(const StringRef PassName,
-                             StringRef IRDescription) {
+  virtual bool shouldRunPass(StringRef PassName,
+                             StringRef IRDescription) const {
     return true;
   }
 
@@ -42,7 +41,7 @@ public:
 /// optimizations at compile time based on a command line option
 /// (-opt-bisect-limit) in order to perform a bisecting search for
 /// optimization-related problems.
-class OptBisect : public OptPassGate {
+class LLVM_ABI OptBisect : public OptPassGate {
 public:
   /// Default constructor. Initializes the state to "disabled". The bisection
   /// will be enabled by the cl::opt call-back when the command line option
@@ -55,9 +54,16 @@ public:
 
   /// Checks the bisect limit to determine if the specified pass should run.
   ///
-  /// This forwards to checkPass().
-  bool shouldRunPass(const StringRef PassName,
-                     StringRef IRDescription) override;
+  /// The method prints the name of the pass, its assigned bisect number, and
+  /// whether or not the pass will be executed. It returns true if the pass
+  /// should run, i.e. if the bisect limit is set to -1 or has not yet been
+  /// exceeded.
+  ///
+  /// Most passes should not call this routine directly. Instead, it is called
+  /// through helper routines provided by the base classes of the pass. For
+  /// instance, function passes should call FunctionPass::skipFunction().
+  bool shouldRunPass(StringRef PassName,
+                     StringRef IRDescription) const override;
 
   /// isEnabled() should return true before calling shouldRunPass().
   bool isEnabled() const override { return BisectLimit != Disabled; }
@@ -69,29 +75,16 @@ public:
     LastBisectNum = 0;
   }
 
-  /// Checks the bisect limit to determine if the specified pass should run.
-  ///
-  /// If the bisect limit is set to -1, the function prints a message describing
-  /// the pass and the bisect number assigned to it and return true.  Otherwise,
-  /// the function prints a message with the bisect number assigned to the
-  /// pass and indicating whether or not the pass will be run and return true if
-  /// the bisect limit has not yet been exceeded or false if it has.
-  ///
-  /// Most passes should not call this routine directly. Instead, they are
-  /// called through helper routines provided by the pass base classes.  For
-  /// instance, function passes should call FunctionPass::skipFunction().
-  bool checkPass(const StringRef PassName, const StringRef TargetDesc);
-
-  static const int Disabled = std::numeric_limits<int>::max();
+  static constexpr int Disabled = std::numeric_limits<int>::max();
 
 private:
   int BisectLimit = Disabled;
-  int LastBisectNum = 0;
+  mutable int LastBisectNum = 0;
 };
 
 /// Singleton instance of the OptBisect class, so multiple pass managers don't
 /// need to coordinate their uses of OptBisect.
-OptPassGate &getGlobalPassGate();
+LLVM_ABI OptPassGate &getGlobalPassGate();
 
 } // end namespace llvm
 

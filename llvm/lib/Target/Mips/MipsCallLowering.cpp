@@ -93,13 +93,14 @@ public:
 
 private:
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign VA) override;
+                        const CCValAssign &VA) override;
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
                            ISD::ArgFlagsTy Flags) override;
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
-                            MachinePointerInfo &MPO, CCValAssign &VA) override;
+                            const MachinePointerInfo &MPO,
+                            const CCValAssign &VA) override;
 
   unsigned assignCustomValue(CallLowering::ArgInfo &Arg,
                              ArrayRef<CCValAssign> VAs,
@@ -129,7 +130,7 @@ private:
 
 void MipsIncomingValueHandler::assignValueToReg(Register ValVReg,
                                                 Register PhysReg,
-                                                CCValAssign VA) {
+                                                const CCValAssign &VA) {
   markPhysRegUsed(PhysReg);
   IncomingValueHandler::assignValueToReg(ValVReg, PhysReg, VA);
 }
@@ -149,10 +150,9 @@ Register MipsIncomingValueHandler::getStackAddress(uint64_t Size,
   return MIRBuilder.buildFrameIndex(LLT::pointer(0, 32), FI).getReg(0);
 }
 
-void MipsIncomingValueHandler::assignValueToAddress(Register ValVReg,
-                                                    Register Addr, LLT MemTy,
-                                                    MachinePointerInfo &MPO,
-                                                    CCValAssign &VA) {
+void MipsIncomingValueHandler::assignValueToAddress(
+    Register ValVReg, Register Addr, LLT MemTy, const MachinePointerInfo &MPO,
+    const CCValAssign &VA) {
   MachineFunction &MF = MIRBuilder.getMF();
   auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad, MemTy,
                                      inferAlignFromPtrInfo(MF, MPO));
@@ -200,14 +200,15 @@ public:
 
 private:
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign VA) override;
+                        const CCValAssign &VA) override;
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
                            ISD::ArgFlagsTy Flags) override;
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
-                            MachinePointerInfo &MPO, CCValAssign &VA) override;
+                            const MachinePointerInfo &MPO,
+                            const CCValAssign &VA) override;
   unsigned assignCustomValue(CallLowering::ArgInfo &Arg,
                              ArrayRef<CCValAssign> VAs,
                              std::function<void()> *Thunk) override;
@@ -218,7 +219,7 @@ private:
 
 void MipsOutgoingValueHandler::assignValueToReg(Register ValVReg,
                                                 Register PhysReg,
-                                                CCValAssign VA) {
+                                                const CCValAssign &VA) {
   Register ExtReg = extendRegister(ValVReg, VA);
   MIRBuilder.buildCopy(PhysReg, ExtReg);
   MIB.addUse(PhysReg, RegState::Implicit);
@@ -240,10 +241,9 @@ Register MipsOutgoingValueHandler::getStackAddress(uint64_t Size,
   return AddrReg.getReg(0);
 }
 
-void MipsOutgoingValueHandler::assignValueToAddress(Register ValVReg,
-                                                    Register Addr, LLT MemTy,
-                                                    MachinePointerInfo &MPO,
-                                                    CCValAssign &VA) {
+void MipsOutgoingValueHandler::assignValueToAddress(
+    Register ValVReg, Register Addr, LLT MemTy, const MachinePointerInfo &MPO,
+    const CCValAssign &VA) {
   MachineFunction &MF = MIRBuilder.getMF();
   uint64_t LocMemOffset = VA.getLocMemOffset();
 
@@ -334,7 +334,6 @@ bool MipsCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
     splitToValueTypes(ArgRetInfo, RetInfos, DL, F.getCallingConv());
 
     SmallVector<CCValAssign, 16> ArgLocs;
-    SmallVector<ISD::OutputArg, 8> Outs;
 
     MipsCCState CCInfo(F.getCallingConv(), F.isVarArg(), MF, ArgLocs,
                        F.getContext());
@@ -383,8 +382,6 @@ bool MipsCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
     ++i;
   }
 
-  SmallVector<ISD::InputArg, 8> Ins;
-
   SmallVector<CCValAssign, 16> ArgLocs;
   MipsCCState CCInfo(F.getCallingConv(), F.isVarArg(), MF, ArgLocs,
                      F.getContext());
@@ -406,7 +403,8 @@ bool MipsCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
     return false;
 
   if (F.isVarArg()) {
-    ArrayRef<MCPhysReg> ArgRegs = ABI.GetVarArgRegs();
+    ArrayRef<MCPhysReg> ArgRegs =
+        ABI.getVarArgRegs(MF.getSubtarget<MipsSubtarget>().isGP64bit());
     unsigned Idx = CCInfo.getFirstUnallocated(ArgRegs);
 
     int VaArgOffset;
@@ -553,7 +551,6 @@ bool MipsCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
                                     F.getCallingConv());
 
     const std::string FuncName = F.getName().str();
-    SmallVector<ISD::InputArg, 8> Ins;
     SmallVector<CCValAssign, 8> ArgLocs;
     MipsIncomingValueAssigner Assigner(TLI.CCAssignFnForReturn(),
                                        FuncName.c_str(),

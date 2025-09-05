@@ -14,9 +14,18 @@ include "llvm/Target/Target.td"
 
 // LoongArch is divided into two versions, the 32-bit version (LA32) and the
 // 64-bit version (LA64).
+
+// LoongArch 32-bit is divided into two variants, the reduced 32-bit variant
+// (LA32R) and the standard 32-bit variant (LA32S).
+def Feature32S
+    : SubtargetFeature<"32s", "Has32S", "true",
+                       "LA32 Standard Basic Instruction Extension">;
+def Has32S : Predicate<"Subtarget->has32S()">;
+
 def Feature64Bit
     : SubtargetFeature<"64bit", "HasLA64", "true",
-                       "LA64 Basic Integer and Privilege Instruction Set">;
+                       "LA64 Basic Integer and Privilege Instruction Set",
+                       [Feature32S]>;
 def Feature32Bit
     : SubtargetFeature<"32bit", "HasLA32", "true",
                        "LA32 Basic Integer and Privilege Instruction Set">;
@@ -36,57 +45,39 @@ def LA64 : HwMode<"+64bit", [IsLA64]>;
 def FeatureBasicF
     : SubtargetFeature<"f", "HasBasicF", "true",
                        "'F' (Single-Precision Floating-Point)">;
-def HasBasicF
-    : Predicate<"Subtarget->hasBasicF()">,
-      AssemblerPredicate<(all_of FeatureBasicF),
-                         "'F' (Single-Precision Floating-Point)">;
+def HasBasicF : Predicate<"Subtarget->hasBasicF()">;
 
 // Double Precision floating point
 def FeatureBasicD
     : SubtargetFeature<"d", "HasBasicD", "true",
                        "'D' (Double-Precision Floating-Point)",
                        [FeatureBasicF]>;
-def HasBasicD
-    : Predicate<"Subtarget->hasBasicD()">,
-      AssemblerPredicate<(all_of FeatureBasicD),
-                         "'D' (Double-Precision Floating-Point)">;
+def HasBasicD : Predicate<"Subtarget->hasBasicD()">;
 
 // Loongson SIMD eXtension (LSX)
 def FeatureExtLSX
     : SubtargetFeature<"lsx", "HasExtLSX", "true",
                        "'LSX' (Loongson SIMD Extension)", [FeatureBasicD]>;
-def HasExtLSX
-    : Predicate<"Subtarget->hasExtLSX()">,
-      AssemblerPredicate<(all_of FeatureExtLSX),
-                         "'LSX' (Loongson SIMD Extension)">;
+def HasExtLSX : Predicate<"Subtarget->hasExtLSX()">;
 
 // Loongson Advanced SIMD eXtension (LASX)
 def FeatureExtLASX
     : SubtargetFeature<"lasx", "HasExtLASX", "true",
                        "'LASX' (Loongson Advanced SIMD Extension)",
                        [FeatureExtLSX]>;
-def HasExtLASX
-    : Predicate<"Subtarget->hasExtLASX()">,
-      AssemblerPredicate<(all_of FeatureExtLASX),
-                         "'LASX' (Loongson Advanced SIMD Extension)">;
+def HasExtLASX : Predicate<"Subtarget->hasExtLASX()">;
 
 // Loongson VirtualiZation (LVZ)
 def FeatureExtLVZ
     : SubtargetFeature<"lvz", "HasExtLVZ", "true",
                        "'LVZ' (Loongson Virtualization Extension)">;
-def HasExtLVZ
-    : Predicate<"Subtarget->hasExtLVZ()">,
-      AssemblerPredicate<(all_of FeatureExtLVZ),
-                         "'LVZ' (Loongson Virtualization Extension)">;
+def HasExtLVZ : Predicate<"Subtarget->hasExtLVZ()">;
 
 // Loongson Binary Translation (LBT)
 def FeatureExtLBT
     : SubtargetFeature<"lbt", "HasExtLBT", "true",
                        "'LBT' (Loongson Binary Translation Extension)">;
-def HasExtLBT
-    : Predicate<"Subtarget->hasExtLBT()">,
-      AssemblerPredicate<(all_of FeatureExtLBT),
-                         "'LBT' (Loongson Binary Translation Extension)">;
+def HasExtLBT : Predicate<"Subtarget->hasExtLBT()">;
 
 // Expand la.global as la.pcrel
 def LaGlobalWithPcrel
@@ -120,6 +111,49 @@ def FeatureUAL
     : SubtargetFeature<"ual", "HasUAL", "true",
                        "Allow memory accesses to be unaligned">;
 
+def FeatureRelax
+    : SubtargetFeature<"relax", "HasLinkerRelax", "true",
+                       "Enable Linker relaxation">;
+
+// Floating point approximation operation
+def FeatureFrecipe
+    : SubtargetFeature<"frecipe", "HasFrecipe", "true",
+                       "Support frecipe.{s/d} and frsqrte.{s/d} instructions">;
+def HasFrecipe : Predicate<"Subtarget->hasFrecipe()">;
+
+// Atomic memory swap and add instructions for byte and half word
+def FeatureLAM_BH
+    : SubtargetFeature<"lam-bh", "HasLAM_BH", "true",
+                        "Support amswap[_db].{b/h} and amadd[_db].{b/h} instructions">;
+def HasLAM_BH : Predicate<"Subtarget->hasLAM_BH()">;
+
+// Atomic memory compare and swap instructions for byte, half word, word and double word
+def FeatureLAMCAS
+    : SubtargetFeature<"lamcas", "HasLAMCAS", "true",
+                        "Support amcas[_db].{b/h/w/d}">;
+def HasLAMCAS : Predicate<"Subtarget->hasLAMCAS()">;
+
+def FeatureLD_SEQ_SA
+    : SubtargetFeature<"ld-seq-sa", "HasLD_SEQ_SA", "true",
+                        "Don't use a same-address load-load barrier (dbar 0x700)">;
+def HasLD_SEQ_SA : Predicate<"Subtarget->hasLD_SEQ_SA()">;
+
+// Assume div.w[u] and mod.w[u] can handle inputs that are not sign-extended.
+def FeatureDiv32
+    : SubtargetFeature<"div32", "HasDiv32", "true",
+                        "Assume div.w[u] and mod.w[u] can handle inputs that are not sign-extended">;
+def HasDiv32 : Predicate<"Subtarget->hasDiv32()">;
+
+// Support SC.Q instruction
+def FeatureSCQ
+    : SubtargetFeature<"scq", "HasSCQ", "true",
+                        "Support sc.q instruction">;
+def HasSCQ : Predicate<"Subtarget->hasSCQ()">;
+
+def TunePreferWInst
+    : SubtargetFeature<"prefer-w-inst", "PreferWInst", "true",
+                       "Prefer instructions with W suffix">;
+
 //===----------------------------------------------------------------------===//
 // Registers, instruction descriptions ...
 //===----------------------------------------------------------------------===//
@@ -133,7 +167,14 @@ include "LoongArchInstrInfo.td"
 //===----------------------------------------------------------------------===//
 
 def : ProcessorModel<"generic-la32", NoSchedModel, [Feature32Bit]>;
-def : ProcessorModel<"generic-la64", NoSchedModel, [Feature64Bit, FeatureUAL]>;
+def : ProcessorModel<"generic-la64", NoSchedModel, [Feature64Bit,
+                                                    FeatureUAL,
+                                                    FeatureExtLSX]>;
+
+// Generic 64-bit processor with double-precision floating-point support.
+def : ProcessorModel<"loongarch64", NoSchedModel, [Feature64Bit,
+                                                   FeatureUAL,
+                                                   FeatureBasicD]>;
 
 // Support generic for compatibility with other targets. The triple will be used
 // to change to the appropriate la32/la64 version.
@@ -145,14 +186,24 @@ def : ProcessorModel<"la464", NoSchedModel, [Feature64Bit,
                                              FeatureExtLVZ,
                                              FeatureExtLBT]>;
 
+def : ProcessorModel<"la664", NoSchedModel, [Feature64Bit,
+                                             FeatureUAL,
+                                             FeatureExtLASX,
+                                             FeatureExtLVZ,
+                                             FeatureExtLBT,
+                                             FeatureFrecipe,
+                                             FeatureLAM_BH,
+                                             FeatureLAMCAS,
+                                             FeatureLD_SEQ_SA,
+                                             FeatureDiv32,
+                                             FeatureSCQ]>;
+
 //===----------------------------------------------------------------------===//
 // Define the LoongArch target.
 //===----------------------------------------------------------------------===//
 
 def LoongArchInstrInfo : InstrInfo {
-  // guess mayLoad, mayStore, and hasSideEffects
-  // This option is a temporary migration help. It will go away.
-  let guessInstructionProperties = 1;
+  let guessInstructionProperties = 0;
 }
 
 def LoongArchAsmParser : AsmParser {

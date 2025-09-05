@@ -59,7 +59,7 @@ int main() {
 }
 
 // Check kernel_A parameters
-// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union MyUnion)'
+// CHECK: FunctionDecl {{.*}}kernel_A{{.*}} 'void (union MyUnion) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyUnion'
 
 // Check kernel_A inits
@@ -72,7 +72,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'union MyUnion':'MyUnion' lvalue ParmVar {{.*}} '_arg_union_mem' 'union MyUnion':'MyUnion'
 
 // Check kernel_B parameters
-// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
+// CHECK: FunctionDecl {{.*}}kernel_B{{.*}} 'void (union MyUnion, __global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_union_mem 'union MyUnion':'MyStruct::MyUnion'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_AccField '__global char *'
 // CHECK: ParmVarDecl {{.*}} used _arg_AccField 'sycl::range<1>'
@@ -98,7 +98,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}union-kernel-param2.cpp:48:9)' lvalue Var {{.*}} '__SYCLKernel' '(lambda at {{.*}}union-kernel-param2.cpp:48:9)'
 
 // Check kernel_C parameters
-// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__generated_MyStructWithPtr)'
+// CHECK: FunctionDecl {{.*}}kernel_C{{.*}} 'void (__generated_MyStructWithPtr) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_structWithPtr_mem '__generated_MyStructWithPtr'
 
 // Check kernel_C inits
@@ -107,7 +107,7 @@ int main() {
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' 'void (const MyStructWithPtr &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr':'const MyStructWithPtr' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyStructWithPtr' lvalue <NoOp>
 // CHECK-NEXT: UnaryOperator {{.*}} 'struct MyStructWithPtr':'MyStructWithPtr' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'struct MyStructWithPtr *' reinterpret_cast<struct MyStructWithPtr *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_MyStructWithPtr *' prefix '&' cannot overflow

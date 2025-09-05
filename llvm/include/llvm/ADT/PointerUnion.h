@@ -147,12 +147,18 @@ public:
   //        isa<T>, cast<T> and the llvm::dyn_cast<T>
 
   /// Test if the Union currently holds the type matching T.
-  template <typename T> inline bool is() const { return isa<T>(*this); }
+  template <typename T>
+  [[deprecated("Use isa instead")]]
+  inline bool is() const {
+    return isa<T>(*this);
+  }
 
   /// Returns the value of the specified pointer type.
   ///
   /// If the specified pointer type is incorrect, assert.
-  template <typename T> inline T get() const {
+  template <typename T>
+  [[deprecated("Use cast instead")]]
+  inline T get() const {
     assert(isa<T>(*this) && "Invalid accessor called");
     return cast<T>(*this);
   }
@@ -231,7 +237,7 @@ template <typename... PTs> struct CastInfoPointerUnionImpl {
   }
 
   template <typename To> static To doCast(From &F) {
-    assert(isPossible<To>(F) && "cast to an incompatible type !");
+    assert(isPossible<To>(F) && "cast to an incompatible type!");
     return PointerLikeTypeTraits<To>::getFromVoidPointer(F.Val.getPointer());
   }
 };

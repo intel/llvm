@@ -53,7 +53,6 @@
 // with null pointers.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spv-lower-ocl-blocks"
 
 #include "SPIRVLowerOCLBlocks.h"
 #include "SPIRVInternal.h"
@@ -62,6 +61,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Regex.h"
+
+#define DEBUG_TYPE "spv-lower-ocl-blocks"
 
 using namespace llvm;
 

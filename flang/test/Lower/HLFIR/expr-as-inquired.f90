@@ -11,7 +11,7 @@ end subroutine
 ! CHECK-LABEL: func.func @_QPtest_isallocated(
 ! CHECK:  %[[VAL_2:.*]]:2 = hlfir.declare %{{.*}}  {{.*}}El
 ! CHECK:  %[[VAL_3:.*]]:2 = hlfir.declare %{{.*}} {fortran_attrs = #fir.var_attrs<allocatable>, {{.*}}Ex"
-! CHECK:  %[[VAL_4:.*]] = fir.load %[[VAL_3]]#1 : !fir.ref<!fir.box<!fir.heap<!fir.array<?xf32>>>>
+! CHECK:  %[[VAL_4:.*]] = fir.load %[[VAL_3]]#0 : !fir.ref<!fir.box<!fir.heap<!fir.array<?xf32>>>>
 ! CHECK:  %[[VAL_5:.*]] = fir.box_addr %[[VAL_4]] : (!fir.box<!fir.heap<!fir.array<?xf32>>>) -> !fir.heap<!fir.array<?xf32>>
 ! CHECK:  %[[VAL_6:.*]] = fir.convert %[[VAL_5]] : (!fir.heap<!fir.array<?xf32>>) -> i64
 ! CHECK:  %[[VAL_7:.*]] = arith.constant 0 : i64
@@ -33,7 +33,7 @@ end subroutine
 ! CHECK:  %[[VAL_7:.*]] = arith.constant 3 : i64
 ! CHECK:  %[[VAL_8:.*]] = fir.convert %[[VAL_7]] : (i64) -> index
 ! CHECK:  %[[VAL_10:.*]]:2 = hlfir.declare %{{.*}}(%{{.*}})  {{.*}}Ex
-! CHECK:  %[[VAL_11:.*]] = fir.load %[[VAL_4]]#1 : !fir.ref<i32>
+! CHECK:  %[[VAL_11:.*]] = fir.load %[[VAL_4]]#0 : !fir.ref<i32>
 ! CHECK:  %[[VAL_12:.*]] = fir.shift %[[VAL_6]], %[[VAL_8]] : (index, index) -> !fir.shift<2>
 ! CHECK:  %[[VAL_13:.*]] = fir.rebox %[[VAL_10]]#1(%[[VAL_12]]) : (!fir.box<!fir.array<?x?xf32>>, !fir.shift<2>) -> !fir.box<!fir.array<?x?xf32>>
 ! CHECK:  %[[VAL_16:.*]] = fir.convert %[[VAL_13]] : (!fir.box<!fir.array<?x?xf32>>) -> !fir.box<none>

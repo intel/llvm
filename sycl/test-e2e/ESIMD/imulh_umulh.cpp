@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // The test verifies ESIMD API that multiplies 2 32-bit integer scalars/vectors
@@ -15,10 +14,6 @@
 // from function.
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -160,7 +155,7 @@ template <int N, bool AIsVector, bool BIsVector> bool tests(sycl::queue Q) {
 int main() {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>() << "\n";
 
   constexpr bool AIsVector = true;
   constexpr bool BIsVector = true;

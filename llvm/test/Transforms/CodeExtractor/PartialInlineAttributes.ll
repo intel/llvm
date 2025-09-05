@@ -1,6 +1,4 @@
-; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
-; by default
-; RUN: opt -opaque-pointers < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
+; RUN: opt < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
 
 define i32 @callee_most(i32 %v) unnamed_addr  #0 #1 {
 entry:
@@ -82,6 +80,6 @@ attributes #0 = {
 
 ; attributes to drop
 attributes #1 = {
-  alignstack=16 convergent inaccessiblememonly inaccessiblemem_or_argmemonly naked
+  alignstack=16 convergent inaccessiblememonly inaccessiblemem_or_argmemonly
   noreturn readonly argmemonly returns_twice speculatable "thunk"
 }

@@ -39,9 +39,14 @@
 #define __SYCL_TYPE(x)
 #endif
 
-// joint matrix should only be included by default for SPIR or NVPTX backends
-#if defined __SPIR__ || defined __NVPTX__ || !defined __SYCL_DEVICE_ONLY__
-#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
-#endif // __SPIR__ || __NVPTX__ || !__SYCL_DEVICE_ONLY
+#if __has_cpp_attribute(clang::builtin_alias)
+#define __SYCL_BUILTIN_ALIAS(x) [[clang::builtin_alias(x)]]
+#else
+#define __SYCL_BUILTIN_ALIAS(x)
+#endif
+
+#if __has_cpp_attribute(_Clang::__standalone_debug__)
+#define __SYCL_STANDALONE_DEBUG [[_Clang::__standalone_debug__]]
+#else
+#define __SYCL_STANDALONE_DEBUG
+#endif

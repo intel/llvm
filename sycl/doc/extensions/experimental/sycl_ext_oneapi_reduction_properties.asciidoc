@@ -1,0 +1,254 @@
+= sycl_ext_oneapi_reduction_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Overview
+
+In order to maximize portability across different device types, the SYCL 2020
+`reduction` interface gives implementers a significant amount of freedom in
+selecting the correct reduction algorithm to use for different types.
+
+In the majority of cases, a developer can trust an implementation to choose the
+best algorithm; however, there are situations in which a user may wish to
+constrain algorithm selection (e.g., to ensure run-to-run reproducibility).
+This extension introduces new compile-time properties for the `reduction`
+interface that enable developers to provide such constraints.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_REDUCTION_PROPERTIES` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== `reduction` overload
+
+New `reduction` overloads are introduced to allow developers to attach
+compile-time properties to a reduction object.
+
+Each new overload has the same behavior as its corresponding definition in the
+SYCL 2020 specification unless the definition of a property passed in via the
+final `sycl::ext::oneapi::experimental::properties` parameter says otherwise.
+
+[source,c++]
+----
+namespace sycl {
+
+template <typename BufferT, typename BinaryOperation, typename PropertyList>
+__unspecified__ reduction(BufferT vars, handler& cgh, BinaryOperation combiner,
+                          PropertyList properties);
+
+template <typename T, typename BinaryOperation, typename PropertyList>
+__unspecified__ reduction(T* var, BinaryOperation combiner,
+                          PropertyList properties);
+
+template <typename T, size_t Extent, typename BinaryOperation, typename PropertyList>
+__unspecified__ reduction(span<T, Extent> vars, BinaryOperation combiner,
+                          PropertyList properties);
+
+template <typename BufferT, typename BinaryOperation, typename PropertyList>
+__unspecified__
+reduction(BufferT vars, handler& cgh, const BufferT::value_type& identity,
+          BinaryOperation combiner, PropertyList properties);
+
+template <typename T, typename BinaryOperation, typename PropertyList>
+__unspecified__ reduction(T* var, const T& identity, BinaryOperation combiner,
+                          PropertyList properties);
+
+template <typename T, size_t Extent, typename BinaryOperation, typename PropertyList>
+__unspecified__ reduction(span<T, Extent> vars, const T& identity,
+                          BinaryOperation combiner,
+                          PropertyList properties);
+
+}
+----
+
+_Constraints_: Available only when `PropertyList` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "Reduction properties".
+
+The `reduction` functions that take no `identity` parameter have the following
+clause:
+
+_Mandates_: If `properties` contains the `initialize_to_identity` property,
+then the identity of the `BinaryOperation` operation must be identifiable via
+the `known_identity` trait class.
+
+=== Reduction properties
+
+New `reduction` properties are introduced to allow developers to constrain
+reduction algorithm selection based on desired behavior(s). Compile-time
+properties corresponding to existing runtime properties are also introduced to
+ensure that all information can be passed via a single property list.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct deterministic_key {
+  using value_t = property_value<deterministic_key>;
+};
+inline constexpr deterministic_key::value_t deterministic;
+
+struct initialize_to_identity_key {
+  using value_t = property_value<initialize_to_identity_key>;
+};
+inline constexpr initialize_to_identity_key::value_t initialize_to_identity;
+
+}
+----
+
+|===
+|Property|Description
+
+|`deterministic`
+a|When two reductions both have this property, they are guaranteed to produce
+the same result when all of the following conditions hold:
+
+* Both reductions run on the same device.
+* Both reductions are invoked with the same launch configuration (i.e., `range`
+  or `nd_range`).
+* The same values are contributed to each reduction.
+* The work-items in each reduction contribute those values in the same pattern
+  and the same order. For example, if the first reduction contributes values
+  _V1_, _V2_, and _V3_ (in that order) from a work-item with linear index _i_;
+  then the second reduction must also contribute values _V1_, _V2_, and _V3_
+  (in that order) from the work-item with linear index _i_.
+
+[_Note:_ Work-items may contribute different values to a reduction because of
+other potential sources of non-determinism, such as calls to group algorithms,
+use of atomic operations, etc. _{endnote}_]
+
+|`initialize_to_identity`
+|Adds the same requirement as
+`sycl::property::reduction::initialize_to_identity`.
+
+|===
+
+
+=== Usage example
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+float sum(sycl::queue q, float* input, size_t N) {
+
+  float result = 0;
+  {
+    sycl::buffer<float> buf{&result, 1};
+
+    q.submit([&](sycl::handler& h) {
+      auto reduction = sycl::reduction(buf, h, sycl::plus<>(), syclex::properties(syclex::deterministic));
+      h.parallel_for(N, reduction, [=](size_t i, auto& reducer) {
+        reducer += input[i];
+      });
+    });
+  }
+  return result;
+
+}
+
+...
+
+float x = sum(q, array, 1024);
+float y = sum(q, array, 1024);
+
+// NB: determinism guarantees bitwise reproducible reductions for floats
+assert(sycl::bit_cast<unsigned int>(x) == sycl::bit_cast<unsigned int>(y));
+----
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+Since SYCL implementations must support arbitrary types, we anticipate that
+many implementations will already have appropriate reduction variants available
+that satisfy the constraints imposed by these new properties. Implementing
+support for these new constraints may therefore be as straightforward as
+providing a new overload of `sycl::reduction` that overrides the algorithm
+selection process.
+
+The steps necessary to guarantee deterministic results are type-dependent. For
+integers and built-in combination operators, all implementations should be
+deterministic by default. For floating-point numbers and/or custom combination
+operators, it becomes necessary to ensure that the intermediate results from
+each work-item are always combined in the same order.
+
+
+== Issues
+
+None.

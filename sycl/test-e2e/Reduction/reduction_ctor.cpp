@@ -1,16 +1,13 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
-
 // This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
 // Note: This test relies on non-standard implementation details.
 
 #include "reduction_utils.hpp"
+
 #include <cassert>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

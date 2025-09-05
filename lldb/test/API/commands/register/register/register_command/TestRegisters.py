@@ -21,8 +21,26 @@ class RegisterCommandsTestCase(TestBase):
         self.dbg.GetSelectedTarget().GetProcess().Destroy()
         TestBase.tearDown(self)
 
+    # on macOS, detect if the current machine is arm64 and supports SME
+    def get_sme_available(self):
+        if self.getArchitecture() != "arm64":
+            return None
+        try:
+            sysctl_output = subprocess.check_output(
+                ["sysctl", "hw.optional.arm.FEAT_SME"]
+            ).decode("utf-8")
+        except subprocess.CalledProcessError:
+            return None
+        m = re.match(r"hw\.optional\.arm\.FEAT_SME: (\w+)", sysctl_output)
+        if m:
+            if int(m.group(1)) == 1:
+                return True
+            else:
+                return False
+        return None
+
     @skipIfiOSSimulator
-    @skipIf(archs=no_match(["amd64", "arm", "i386", "x86_64"]))
+    @skipIf(archs=no_match(["amd64", "arm$", "i386", "x86_64"]))
     @expectedFailureAll(oslist=["freebsd", "netbsd"], bugnumber="llvm.org/pr48371")
     def test_register_commands(self):
         """Test commands related to registers, in particular vector registers."""
@@ -32,11 +50,26 @@ class RegisterCommandsTestCase(TestBase):
         # verify that logging does not assert
         self.log_enable("registers")
 
+        error_str_matched = False
+        if self.get_sme_available() and self.platformIsDarwin():
+            # On Darwin AArch64 SME machines, we will have unavailable
+            # registers when not in Streaming SVE Mode/SME, so
+            # `register read -a` will report that some registers
+            # could not be read.  This is expected.
+            error_str_matched = True
+
+        if self.getArchitecture() == "x86_64" and self.platformIsDarwin():
+            # debugserver on x86 will provide ds/es/ss/gsbase when the
+            # kernel provides them, but most of the time they will be
+            # unavailable.  So "register read -a" will report that
+            # 4 registers were unavailable, it is expected.
+            error_str_matched = True
+
         self.expect(
             "register read -a",
             MISSING_EXPECTED_REGISTERS,
             substrs=["registers were unavailable"],
-            matching=False,
+            matching=error_str_matched,
         )
 
         all_registers = self.res.GetOutput()
@@ -60,14 +93,14 @@ class RegisterCommandsTestCase(TestBase):
                 self.runCmd("register read q15")  # may be available
 
         self.expect(
-            "register read -s 4", substrs=["invalid register set index: 4"], error=True
+            "register read -s 8", substrs=["invalid register set index: 8"], error=True
         )
 
     @skipIfiOSSimulator
     # Writing of mxcsr register fails, presumably due to a kernel/hardware
     # problem
     @skipIfTargetAndroid(archs=["i386"])
-    @skipIf(archs=no_match(["amd64", "arm", "i386", "x86_64"]))
+    @skipIf(archs=no_match(["amd64", "arm$", "i386", "x86_64"]))
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37995")
     def test_fp_register_write(self):
         """Test commands that write to registers, in particular floating-point registers."""
@@ -78,7 +111,6 @@ class RegisterCommandsTestCase(TestBase):
     # "register read fstat" always return 0xffff
     @expectedFailureAndroid(archs=["i386"])
     @skipIf(archs=no_match(["amd64", "i386", "x86_64"]))
-    @skipIfOutOfTreeDebugserver
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37995")
     def test_fp_special_purpose_register_read(self):
         """Test commands that read fpu special purpose registers."""
@@ -86,7 +118,7 @@ class RegisterCommandsTestCase(TestBase):
         self.fp_special_purpose_register_read()
 
     @skipIfiOSSimulator
-    @skipIf(archs=no_match(["amd64", "arm", "i386", "x86_64"]))
+    @skipIf(archs=no_match(["amd64", "arm$", "i386", "x86_64"]))
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr37683")
     def test_register_expressions(self):
         """Test expression evaluation with commands related to registers."""
@@ -524,7 +556,7 @@ class RegisterCommandsTestCase(TestBase):
             self.expect("expr -- $ax == (($ah << 8) | $al)", substrs=["true"])
 
     @skipIfiOSSimulator
-    @skipIf(archs=no_match(["amd64", "arm", "i386", "x86_64"]))
+    @skipIf(archs=no_match(["amd64", "arm$", "i386", "x86_64"]))
     def test_invalid_invocation(self):
         self.build()
         self.common_setup()
@@ -557,7 +589,7 @@ class RegisterCommandsTestCase(TestBase):
         )
 
     @skipIfiOSSimulator
-    @skipIf(archs=no_match(["amd64", "arm", "i386", "x86_64"]))
+    @skipIf(archs=no_match(["amd64", "arm$", "i386", "x86_64"]))
     def test_write_unknown_register(self):
         self.build()
         self.common_setup()
@@ -572,16 +604,22 @@ class RegisterCommandsTestCase(TestBase):
         self.build()
         self.common_setup()
 
-        self.expect("register info blub", error=True,
-                    substrs=["error: No register found with name 'blub'."])
+        self.expect(
+            "register info blub",
+            error=True,
+            substrs=["error: No register found with name 'blub'."],
+        )
 
     def test_info_many_registers(self):
         self.build()
         self.common_setup()
 
         # Only 1 register allowed at this time.
-        self.expect("register info abc def", error=True,
-                    substrs=["error: register info takes exactly 1 argument"])
+        self.expect(
+            "register info abc def",
+            error=True,
+            substrs=["error: register info takes exactly 1 argument"],
+        )
 
     @skipIf(archs=no_match(["aarch64"]))
     def test_info_register(self):
@@ -593,12 +631,17 @@ class RegisterCommandsTestCase(TestBase):
         self.common_setup()
 
         # Standard register. Doesn't invalidate anything, doesn't have an alias.
-        self.expect("register info x1", substrs=[
-                   "Name: x1",
-                   "Size: 8 bytes (64 bits)",
-                   "In sets: General Purpose Registers"])
-        self.expect("register info x1", substrs=["Invalidates:", "Name: x1 ("],
-                    matching=False)
+        self.expect(
+            "register info x1",
+            substrs=[
+                "Name: x1",
+                "Size: 8 bytes (64 bits)",
+                "In sets: General Purpose Registers",
+            ],
+        )
+        self.expect(
+            "register info x1", substrs=["Invalidates:", "Name: x1 ("], matching=False
+        )
 
         # These registers invalidate others as they are subsets of those registers.
         self.expect("register info w1", substrs=["Invalidates: x1"])
@@ -606,3 +649,87 @@ class RegisterCommandsTestCase(TestBase):
 
         # This has an alternative name according to the ABI.
         self.expect("register info x30", substrs=["Name: lr (x30)"])
+
+    @skipIfXmlSupportMissing
+    @skipUnlessPlatform(["linux", "freebsd"])
+    @skipIf(archs=no_match(["aarch64"]))
+    def test_register_read_fields(self):
+        """Test that when debugging a live process, we see the fields of certain
+        registers."""
+        self.build()
+        self.common_setup()
+
+        # N/Z/C/V bits will always be present, so check only for those.
+        self.expect(
+            "register read cpsr",
+            patterns=[r"= \(N = [0|1], Z = [0|1], C = [0|1], V = [0|1]"],
+        )
+        self.expect(
+            "register read fpsr", patterns=[r"= \(QC = [0|1], IDC = [0|1], IXC = [0|1]"]
+        )
+        # AHP/DN/FZ always present, others may vary.
+        self.expect(
+            "register read fpcr", patterns=[r"= \(AHP = [0|1], DN = [0|1], FZ = [0|1]"]
+        )
+
+        # Should get enumerator descriptions for RMode.
+        self.expect(
+            "register info fpcr",
+            substrs=["RMode: 0 = RN, 1 = RP, 2 = RM, 3 = RZ"],
+        )
+
+    @skipUnlessPlatform(["linux"])
+    @skipIf(archs=no_match(["x86_64"]))
+    def test_fs_gs_base(self):
+        """
+        Tests fs_base register can be read and equals to pthread_self() return value
+        and gs_base register equals zero.
+        """
+        self.build()
+        target = self.createTestTarget()
+        # Launch the process and stop.
+        self.expect("run", PROCESS_STOPPED, substrs=["stopped"])
+
+        process = target.GetProcess()
+
+        thread = process.GetThreadAtIndex(0)
+        self.assertTrue(thread.IsValid(), "current thread is valid")
+
+        current_frame = thread.GetFrameAtIndex(0)
+        self.assertTrue(current_frame.IsValid(), "current frame is valid")
+
+        reg_fs_base = current_frame.FindRegister("fs_base")
+        self.assertTrue(reg_fs_base.IsValid(), "fs_base is not available")
+        reg_gs_base = current_frame.FindRegister("gs_base")
+        self.assertTrue(reg_gs_base.IsValid(), "gs_base is not available")
+        self.assertEqual(reg_gs_base.GetValueAsSigned(-1), 0, f"gs_base should be zero")
+
+        # Evaluate pthread_self() and compare against fs_base register read.
+        pthread_self_code = "(uint64_t)pthread_self()"
+        pthread_self_val = current_frame.EvaluateExpression(pthread_self_code)
+        self.assertTrue(
+            pthread_self_val.IsValid(), f"{pthread_self_code} evaluation has failed"
+        )
+        self.assertNotEqual(
+            reg_fs_base.GetValueAsSigned(-1), -1, f"fs_base returned -1 which is wrong"
+        )
+
+        self.assertEqual(
+            reg_fs_base.GetValueAsUnsigned(0),
+            pthread_self_val.GetValueAsUnsigned(0),
+            "fs_base does not equal to pthread_self() value.",
+        )
+
+    def test_process_must_be_stopped(self):
+        """Check that all register commands error when the process is not stopped."""
+        self.build()
+        exe = self.getBuildArtifact("a.out")
+        pid = self.spawnSubprocess(exe, ["wait_for_attach"]).pid
+        # Async so we can enter commands while the process is running.
+        self.setAsync(True)
+        self.runCmd("process attach --continue -p %d" % pid)
+
+        err_msg = "Command requires a process which is currently stopped."
+        self.expect("register read pc", substrs=[err_msg], error=True)
+        self.expect("register write pc 0", substrs=[err_msg], error=True)
+        self.expect("register info pc", substrs=[err_msg], error=True)

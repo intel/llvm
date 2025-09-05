@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "../exception_safety_helpers.h"
 #include "../from_range_helpers.h"
 #include "MoveOnly.h"
 #include "almost_satisfies_types.h"
@@ -25,7 +26,7 @@
 #include "unwrap_container_adaptor.h"
 
 template <class Container, class Range>
-concept HasFromRangeCtr = requires (Range&& range) {
+concept HasFromRangeCtr = requires(Range&& range) {
   Container(std::from_range, std::forward<Range>(range));
   Container(std::from_range, std::forward<Range>(range), std::allocator<typename Container::value_type>());
 };
@@ -46,28 +47,26 @@ constexpr bool test_constraints() {
   return true;
 }
 
-template <template <class ...> class Adaptor,
-          template <class ...> class UnderlyingContainer,
+template <template <class...> class Adaptor,
+          template <class...> class UnderlyingContainer,
           class T,
           class Iter,
           class Sent,
           class Alloc>
 constexpr void test_container_adaptor_with_input(std::vector<T>&& input) {
-  auto b = Iter(input.data());
-  auto e = Iter(input.data() + input.size());
-  std::ranges::subrange in(std::move(b), Sent(std::move(e)));
-
   { // (range)
+    std::ranges::subrange in(Iter(input.data()), Sent(Iter(input.data() + input.size())));
     Adaptor<T> adaptor(std::from_range, in);
     UnwrapAdaptor<Adaptor<T>> unwrap_adaptor(std::move(adaptor));
     auto& c = unwrap_adaptor.get_container();
 
     assert(c.size() == static_cast<std::size_t>(std::distance(c.begin(), c.end())));
-    assert(std::ranges::equal(in, c));
+    assert(std::ranges::equal(input, c));
     LIBCPP_ASSERT(c.__invariants());
   }
 
   { // (range, allocator)
+    std::ranges::subrange in(Iter(input.data()), Sent(Iter(input.data() + input.size())));
     using C = UnderlyingContainer<T, Alloc>;
     Alloc alloc;
     Adaptor<T, C> adaptor(std::from_range, in, alloc);
@@ -76,23 +75,15 @@ constexpr void test_container_adaptor_with_input(std::vector<T>&& input) {
 
     assert(c.get_allocator() == alloc);
     assert(c.size() == static_cast<std::size_t>(std::distance(c.begin(), c.end())));
-    assert(std::ranges::equal(in, c));
+    assert(std::ranges::equal(input, c));
     LIBCPP_ASSERT(c.__invariants());
   }
 }
 
-template <template <class ...> class UnderlyingContainer,
-          class T,
-          class Iter,
-          class Sent,
-          class Comp,
-          class Alloc>
+template <template <class...> class UnderlyingContainer, class T, class Iter, class Sent, class Comp, class Alloc>
 constexpr void test_priority_queue_with_input(std::vector<T>&& input) {
-  auto b = Iter(input.data());
-  auto e = Iter(input.data() + input.size());
-  std::ranges::subrange in(std::move(b), Sent(std::move(e)));
-
   { // (range)
+    std::ranges::subrange in(Iter(input.data()), Sent(Iter(input.data() + input.size())));
     std::priority_queue<T> adaptor(std::from_range, in);
     UnwrapAdaptor<std::priority_queue<T>> unwrap_adaptor(std::move(adaptor));
     auto& c = unwrap_adaptor.get_container();
@@ -103,6 +94,7 @@ constexpr void test_priority_queue_with_input(std::vector<T>&& input) {
   }
 
   { // (range, comp)
+    std::ranges::subrange in(Iter(input.data()), Sent(Iter(input.data() + input.size())));
     using C = UnderlyingContainer<T>;
     Comp comp;
 
@@ -117,6 +109,7 @@ constexpr void test_priority_queue_with_input(std::vector<T>&& input) {
   }
 
   { // (range, allocator)
+    std::ranges::subrange in(Iter(input.data()), Sent(Iter(input.data() + input.size())));
     using C = UnderlyingContainer<T, Alloc>;
     Alloc alloc;
 
@@ -131,6 +124,7 @@ constexpr void test_priority_queue_with_input(std::vector<T>&& input) {
   }
 
   { // (range, comp, alloc)
+    std::ranges::subrange in(Iter(input.data()), Sent(Iter(input.data() + input.size())));
     using C = UnderlyingContainer<T, Alloc>;
     Comp comp;
     Alloc alloc;
@@ -147,8 +141,8 @@ constexpr void test_priority_queue_with_input(std::vector<T>&& input) {
   }
 }
 
-template <template <class ...> class Adaptor,
-          template <class ...> class UnderlyingContainer,
+template <template <class...> class Adaptor,
+          template <class...> class UnderlyingContainer,
           class T,
           class Iter,
           class Sent,
@@ -164,12 +158,7 @@ constexpr void test_container_adaptor() {
   test_with_input({5});
 }
 
-template <template <class ...> class UnderlyingContainer,
-          class T,
-          class Iter,
-          class Sent,
-          class Comp,
-          class Alloc>
+template <template <class...> class UnderlyingContainer, class T, class Iter, class Sent, class Comp, class Alloc>
 constexpr void test_priority_queue() {
   auto test_with_input = &test_priority_queue_with_input<UnderlyingContainer, T, Iter, Sent, Comp, Alloc>;
 
@@ -181,7 +170,7 @@ constexpr void test_priority_queue() {
   test_with_input({5});
 }
 
-template <template <class ...> class Container>
+template <template <class...> class Container>
 constexpr void test_container_adaptor_move_only() {
   MoveOnly input[5];
   std::ranges::subrange in(std::move_iterator{input}, std::move_iterator{input + 5});
@@ -189,25 +178,18 @@ constexpr void test_container_adaptor_move_only() {
   [[maybe_unused]] Container<MoveOnly> c(std::from_range, in);
 }
 
-template <template <class ...> class Adaptor>
+template <template <class...> class Adaptor>
 void test_exception_safety_throwing_copy() {
 #if !defined(TEST_HAS_NO_EXCEPTIONS)
-  using T = ThrowingCopy<3>;
-  T::reset();
-  T in[5];
-
-  try {
-    Adaptor<T, std::vector<T>> c(std::from_range, in);
-    assert(false); // The constructor call above should throw.
-
-  } catch (int) {
-    assert(T::created_by_copying == 3);
-    assert(T::destroyed == 2); // No destructor call for the partially-constructed element.
-  }
+  constexpr int ThrowOn = 3;
+  using T               = ThrowingCopy<ThrowOn>;
+  test_exception_safety_throwing_copy<ThrowOn, /*Size=*/5>([](T* from, T* to) {
+    [[maybe_unused]] Adaptor<T, std::vector<T>> c(std::from_range, std::ranges::subrange(from, to));
+  });
 #endif
 }
 
-template <template <class ...> class Adaptor, class T>
+template <template <class...> class Adaptor, class T>
 void test_exception_safety_throwing_allocator() {
 #if !defined(TEST_HAS_NO_EXCEPTIONS)
   T in[] = {0, 1};

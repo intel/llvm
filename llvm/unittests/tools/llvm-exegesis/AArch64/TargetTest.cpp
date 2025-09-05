@@ -24,7 +24,6 @@ void InitializeAArch64ExegesisTarget();
 
 namespace {
 
-using testing::Gt;
 using testing::IsEmpty;
 using testing::Not;
 using testing::NotNull;
@@ -66,7 +65,7 @@ TEST_F(AArch64TargetTest, SetRegToConstant) {
 }
 
 TEST_F(AArch64TargetTest, DefaultPfmCounters) {
-  const std::string Expected = "CPU_CYCLES";
+  const std::string Expected = "CYCLES";
   EXPECT_EQ(ExegesisTarget_->getPfmCounters("").CycleCounter, Expected);
   EXPECT_EQ(ExegesisTarget_->getPfmCounters("unknown_cpu").CycleCounter,
             Expected);

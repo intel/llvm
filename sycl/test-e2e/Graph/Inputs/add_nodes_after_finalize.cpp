@@ -5,7 +5,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{};
 
   using T = unsigned int;
 
@@ -59,14 +59,12 @@ int main() {
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Event =
+        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
 
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
+    Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExecAdditional);
     });
@@ -83,8 +81,10 @@ int main() {
   free(PtrC, Queue);
   free(PtrOut, Queue);
 
-  assert(ReferenceC == DataC);
-  assert(ReferenceOut == DataOut);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, ReferenceOut[i], DataOut[i], "DataOut"));
+  }
 
   return 0;
 }

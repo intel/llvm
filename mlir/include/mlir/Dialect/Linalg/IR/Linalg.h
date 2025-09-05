@@ -16,6 +16,7 @@
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -26,6 +27,9 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+
+#include "llvm/ADT/STLFunctionalExtras.h"
+
 #include <optional>
 
 namespace mlir {
@@ -72,6 +76,19 @@ AffineMap extractOrIdentityMap(std::optional<AffineMap> maybeMap, unsigned rank,
 SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
                                   ArrayRef<AffineExpr> b);
 
+/// Create one memref::DimOp or tensor::DimOp depending on the type of `val`.
+/// This is a polymorphic convenience function to abstract away the rank and
+/// concrete type of `val`.
+/// Asserts that `val` is a memref or tensor type.
+Value createOrFoldDimOp(OpBuilder &b, Location loc, Value val, int64_t dim);
+
+/// Create one memref::DimOp or tensor::DimOp depending on the type of `val`.
+/// This is a polymorphic convenience function to abstract away the rank and
+/// concrete type of `val`.
+/// Asserts that `val` is a memref or tensor type.
+OpFoldResult createFoldedDimOp(OpBuilder &b, Location loc, Value val,
+                               int64_t dim);
+
 } // namespace linalg
 } // namespace mlir
 
@@ -86,6 +103,20 @@ SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/IR/LinalgOpsEnums.h.inc"
+
+namespace mlir {
+namespace linalg {
+
+/// Converts the given `m` and `r` parameters to a WinogradConv2DFmr enumeration
+/// value.
+std::optional<WinogradConv2DFmr> getWinogradConv2DFmr(int64_t m, int64_t r);
+
+/// Converts the given WinogradConv2DFmr enumeration value to a pair of
+/// m and r parameters.
+std::pair<int64_t, int64_t> getFmrFromWinogradConv2DFmr(WinogradConv2DFmr fmr);
+
+} // namespace linalg
+} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // Linalg Attributes
@@ -109,5 +140,8 @@ SmallVector<AffineExpr, 4> concat(ArrayRef<AffineExpr> a,
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.h.inc"
+
+#define GET_OP_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgRelayoutOps.h.inc"
 
 #endif // MLIR_DIALECT_LINALG_IR_LINALG_H

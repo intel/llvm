@@ -12,6 +12,9 @@ class TestDbgInfoContentVector(TestBase):
     @add_test_categories(["libc++"])
     @skipIf(compiler=no_match("clang"))
     @skipIf(compiler="clang", compiler_version=["<", "12.0"])
+    @skipIf(macos_version=["<", "14.0"])
+    @skipIfDarwin  # https://github.com/llvm/llvm-project/issues/106475
+    @skipIfLinux
     def test(self):
         self.build()
 

@@ -2,7 +2,7 @@
 ; down to the ICP correctly.
 ;
 ; RUN: opt -module-summary < %s -o %t.bc
-; RUN: llvm-lto2 run -opaque-pointers -o %t.out %t.bc -save-temps \
+; RUN: llvm-lto2 run -o %t.out %t.bc -save-temps \
 ; RUN:   -r %t.bc,test,px -r %t.bc,bar,px -r %t.bc,externfunc,x \
 ; RUN:   -lto-sample-profile-file=%S/Inputs/load-sample-prof-icp.prof
 ; RUN: llvm-dis %t.out.1.4.opt.bc -o - | FileCheck %s

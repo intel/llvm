@@ -23,6 +23,7 @@
 #include "lldb/lldb-private-enumerations.h"
 #include "lldb/lldb-private-interfaces.h"
 #include "llvm/Support/JSON.h"
+#include <mutex>
 
 namespace lldb_private {
 
@@ -70,6 +71,10 @@ public:
 
   virtual ~OptionValue() = default;
 
+  OptionValue(const OptionValue &other);
+
+  OptionValue& operator=(const OptionValue &other);
+
   // Subclasses should override these functions
   virtual Type GetType() const = 0;
 
@@ -88,15 +93,7 @@ public:
   virtual void DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
                          uint32_t dump_mask) = 0;
 
-  // TODO: make this function pure virtual after implementing it in all
-  // child classes.
-  virtual llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) {
-    // Return nullptr which will create a llvm::json::Value() that is a NULL
-    // value. No setting should ever really have a NULL value in JSON. This
-    // indicates an error occurred and if/when we add a FromJSON() it will know
-    // to fail if someone tries to set it with a NULL JSON value.
-    return nullptr;
-  }
+  virtual llvm::json::Value ToJSON(const ExecutionContext *exe_ctx) const = 0;
 
   virtual Status
   SetValueFromString(llvm::StringRef value,
@@ -114,8 +111,8 @@ public:
   virtual lldb::OptionValueSP GetSubValue(const ExecutionContext *exe_ctx,
                                           llvm::StringRef name,
                                           Status &error) const {
-    error.SetErrorStringWithFormat("'%s' is not a value subvalue",
-                                   name.str().c_str());
+    error = Status::FromErrorStringWithFormatv("'{0}' is not a valid subvalue",
+                                               name);
     return lldb::OptionValueSP();
   }
 
@@ -287,6 +284,8 @@ public:
       return GetStringValue();
     if constexpr (std::is_same_v<T, ArchSpec>)
       return GetArchSpecValue();
+    if constexpr (std::is_same_v<T, FormatEntity::Entry>)
+      return GetFormatEntityValue();
     if constexpr (std::is_enum_v<T>)
       if (std::optional<int64_t> value = GetEnumerationValue())
         return static_cast<T>(*value);
@@ -298,11 +297,9 @@ public:
                 typename std::remove_pointer<T>::type>::type,
             std::enable_if_t<std::is_pointer_v<T>, bool> = true>
   T GetValueAs() const {
-    if constexpr (std::is_same_v<U, FormatEntity::Entry>)
-      return GetFormatEntity();
-    if constexpr (std::is_same_v<U, RegularExpression>)
-      return GetRegexValue();
-    return {};
+    static_assert(std::is_same_v<U, RegularExpression>,
+                  "only for RegularExpression");
+    return GetRegexValue();
   }
 
   bool SetValueAs(bool v) { return SetBooleanValue(v); }
@@ -324,6 +321,10 @@ public:
   bool SetValueAs(FileSpec v) { return SetFileSpecValue(v); }
 
   bool SetValueAs(ArchSpec v) { return SetArchSpecValue(v); }
+
+  bool SetValueAs(const FormatEntity::Entry &v) {
+    return SetFormatEntityValue(v);
+  }
 
   template <typename T, std::enable_if_t<std::is_enum_v<T>, bool> = true>
   bool SetValueAs(T t) {
@@ -381,8 +382,12 @@ private:
   std::optional<UUID> GetUUIDValue() const;
   bool SetUUIDValue(const UUID &uuid);
 
-  const FormatEntity::Entry *GetFormatEntity() const;
+  FormatEntity::Entry GetFormatEntityValue() const;
+  bool SetFormatEntityValue(const FormatEntity::Entry &entry);
+
   const RegularExpression *GetRegexValue() const;
+
+  mutable std::mutex m_mutex;
 };
 
 } // namespace lldb_private

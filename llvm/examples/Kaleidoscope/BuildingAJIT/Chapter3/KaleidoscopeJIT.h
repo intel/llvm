@@ -21,9 +21,12 @@
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/ExecutionEngine/Orc/IRPartitionLayer.h"
 #include "llvm/ExecutionEngine/Orc/IRTransformLayer.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorSymbolDef.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
@@ -47,6 +50,7 @@ private:
   RTDyldObjectLinkingLayer ObjectLayer;
   IRCompileLayer CompileLayer;
   IRTransformLayer OptimizeLayer;
+  IRPartitionLayer IPLayer;
   CompileOnDemandLayer CODLayer;
 
   JITDylib &MainJD;
@@ -63,12 +67,14 @@ public:
       : ES(std::move(ES)), EPCIU(std::move(EPCIU)), DL(std::move(DL)),
         Mangle(*this->ES, this->DL),
         ObjectLayer(*this->ES,
-                    []() { return std::make_unique<SectionMemoryManager>(); }),
+                    [](const MemoryBuffer &) {
+                      return std::make_unique<SectionMemoryManager>();
+                    }),
         CompileLayer(*this->ES, ObjectLayer,
                      std::make_unique<ConcurrentIRCompiler>(std::move(JTMB))),
         OptimizeLayer(*this->ES, CompileLayer, optimizeModule),
-        CODLayer(*this->ES, OptimizeLayer,
-                 this->EPCIU->getLazyCallThroughManager(),
+        IPLayer(*this->ES, OptimizeLayer),
+        CODLayer(*this->ES, IPLayer, this->EPCIU->getLazyCallThroughManager(),
                  [this] { return this->EPCIU->createIndirectStubsManager(); }),
         MainJD(this->ES->createBareJITDylib("<main>")) {
     MainJD.addGenerator(

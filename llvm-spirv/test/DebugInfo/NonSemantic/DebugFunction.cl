@@ -13,7 +13,7 @@
 // RUN: llvm-spirv %t.spv -to-text -o %t.spt
 // RUN: FileCheck %s --input-file %t.spt  --check-prefix=CHECK-SPIRV
 
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 float foo(int i) {
     return i * 3.14;
@@ -25,7 +25,9 @@ void kernel k() {
 // CHECK-SPIRV-DAG: String [[foo:[0-9]+]] "foo"
 // CHECK-SPIRV-DAG: String [[#EmptyStr:]] ""
 // CHECK-SPIRV-DAG: String [[k:[0-9]+]] "k"
-// CHECK-SPIRV-DAG: String [[#CV:]] "{{.*}}clang version [[#]].0.0
+// CHECK-SPIRV-DAG: String [[#CV:]] "{{.*}}clang version [[#]].[[#]].[[#]]
+// CHECK-SPIRV: TypeFloat [[#FloatTy:]] 32
+
 // CHECK-SPIRV: [[#CU:]] [[#]] DebugCompilationUnit
 // CHECK-SPIRV: [[#FuncFoo:]] [[#]] DebugFunction [[foo]] {{.*}} [[#CU]]
 // CHECK-SPIRV: [[#FuncK:]] [[#]] DebugFunction [[k]] {{.*}} [[#CU]]
@@ -33,7 +35,7 @@ void kernel k() {
 // CHECK-SPIRV-NOT: DebugEntryPoint
 // CHECK-SPIRV-NOT: DebugFunctionDefinition
 
-// CHECK-SPIRV: Function {{[0-9]+}} [[#foo_id:]]
+// CHECK-SPIRV: Function [[#FloatTy]] [[#foo_id:]]
 // CHECK-SPIRV: DebugFunctionDefinition [[#FuncFoo]] [[#foo_id]]
 // CHECK-LLVM: define spir_func float @_Z3fooi(i32 %i) #{{[0-9]+}} !dbg ![[#foo_id:]] {
 

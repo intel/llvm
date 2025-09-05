@@ -1,10 +1,11 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip, cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
-// type (such as unorm_int8)
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA works with image_channel_type::fp32, but not with
+// any 8-bit per channel type (such as unorm_int8). Bindless images should be
+// used instead.
 
 /*
     This file sets up an image, initializes it with data,
@@ -15,7 +16,6 @@
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -117,7 +117,7 @@ void test_normalized_none_linear_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read three pixels at inner boundary locations,  sample:  "
                  " Normalized +  None  + Linear"
               << std::endl;

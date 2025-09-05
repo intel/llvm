@@ -5,7 +5,6 @@ define hidden <2 x i64> @icmp_v2i32_sext_to_v2i64(<2 x i32> %arg) {
 ; CHECK-LABEL: icmp_v2i32_sext_to_v2i64:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; CHECK-NEXT:    s_waitcnt_vscnt null, 0x0
 ; CHECK-NEXT:    v_cmp_eq_u32_e32 vcc_lo, 0, v0
 ; CHECK-NEXT:    v_cndmask_b32_e64 v0, 0, 1, vcc_lo
 ; CHECK-NEXT:    v_cmp_eq_u32_e32 vcc_lo, 0, v1
@@ -24,15 +23,12 @@ define hidden <2 x i64> @icmp_v2i32_zext_to_v2i64(<2 x i32> %arg) {
 ; CHECK-LABEL: icmp_v2i32_zext_to_v2i64:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; CHECK-NEXT:    s_waitcnt_vscnt null, 0x0
 ; CHECK-NEXT:    v_cmp_eq_u32_e32 vcc_lo, 0, v0
 ; CHECK-NEXT:    v_mov_b32_e32 v3, 0
 ; CHECK-NEXT:    v_cndmask_b32_e64 v0, 0, 1, vcc_lo
 ; CHECK-NEXT:    v_cmp_eq_u32_e32 vcc_lo, 0, v1
-; CHECK-NEXT:    v_and_b32_e32 v0, 1, v0
-; CHECK-NEXT:    v_cndmask_b32_e64 v1, 0, 1, vcc_lo
-; CHECK-NEXT:    v_and_b32_e32 v2, 1, v1
 ; CHECK-NEXT:    v_mov_b32_e32 v1, 0
+; CHECK-NEXT:    v_cndmask_b32_e64 v2, 0, 1, vcc_lo
 ; CHECK-NEXT:    s_setpc_b64 s[30:31]
   %cmp = icmp eq <2 x i32> %arg, zeroinitializer
   %sext = zext <2 x i1> %cmp to <2 x i64>

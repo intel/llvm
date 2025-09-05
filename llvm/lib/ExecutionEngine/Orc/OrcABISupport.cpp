@@ -8,7 +8,6 @@
 
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "orc"
@@ -153,7 +152,7 @@ void OrcAArch64::writeTrampolines(char *TrampolineBlockWorkingMem,
 
   for (unsigned I = 0; I < NumTrampolines; ++I, OffsetToPtr -= TrampolineSize) {
     Trampolines[3 * I + 0] = 0xaa1e03f1;                      // mov x17, x30
-    Trampolines[3 * I + 1] = 0x58000010 | (OffsetToPtr << 3); // adr x16, Lptr
+    Trampolines[3 * I + 1] = 0x58000010 | (OffsetToPtr << 3); // ldr x16, Lptr
     Trampolines[3 * I + 2] = 0xd63f0200;                      // blr x16
   }
 }
@@ -165,11 +164,11 @@ void OrcAArch64::writeIndirectStubsBlock(
   //
   // .section __orc_stubs
   // stub1:
-  //                 ldr     x0, ptr1       ; PC-rel load of ptr1
-  //                 br      x0             ; Jump to resolver
+  //                 ldr     x16, ptr1       ; PC-rel load of ptr1
+  //                 br      x16             ; Jump to resolver
   // stub2:
-  //                 ldr     x0, ptr2       ; PC-rel load of ptr2
-  //                 br      x0             ; Jump to resolver
+  //                 ldr     x16, ptr2       ; PC-rel load of ptr2
+  //                 br      x16             ; Jump to resolver
   //
   // ...
   //
@@ -188,8 +187,10 @@ void OrcAArch64::writeIndirectStubsBlock(
          "PointersBlock is out of range");
   uint64_t PtrDisplacement =
       PointersBlockTargetAddress - StubsBlockTargetAddress;
+  assert((PtrDisplacement % 8 == 0) &&
+         "Displacement to pointer is not a multiple of 8");
   uint64_t *Stub = reinterpret_cast<uint64_t *>(StubsBlockWorkingMem);
-  uint64_t PtrOffsetField = PtrDisplacement << 3;
+  uint64_t PtrOffsetField = ((PtrDisplacement >> 2) & 0x7ffff) << 5;
 
   for (unsigned I = 0; I < NumStubs; ++I)
     Stub[I] = 0xd61f020058000010 | PtrOffsetField;

@@ -12,7 +12,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_func void @_Z1f() {
   %1 = alloca float, align 4
-  %2 = load float, float* %1, align 4
+  %2 = load float, ptr %1, align 4
   %3 = tail call spir_func <4 x i16> @_Z27__spirv_ConvertFToBF16INTELf(float %2)
   ret void
 }

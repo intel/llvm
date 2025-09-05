@@ -396,11 +396,12 @@ namespace TypeVector = TypeArray;
 
 namespace TypeSubrange {
 enum {
-  CountIdx        = 0,
-  LowerBoundIdx   = 1,
-  UpperBoundIdx   = 2,
+  LowerBoundIdx   = 0,
+  UpperBoundIdx   = 1,
+  CountIdx        = 2,
   StrideIdx       = 3,
-  OperandCount    = 4
+  MinOperandCount = 3,
+  MaxOperandCount = 4
 };
 }
 
@@ -502,17 +503,27 @@ enum {
 } // namespace TypeMember
 
 namespace TypeInheritance {
+namespace NonSemantic {
+enum {
+  ParentIdx       = 0,
+  OffsetIdx       = 1,
+  SizeIdx         = 2,
+  FlagsIdx        = 3,
+  OperandCount    = 4
+};
+}
+
+namespace OpenCL {
 enum {
   ChildIdx        = 0,
   ParentIdx       = 1,
   OffsetIdx       = 2,
   SizeIdx         = 3,
   FlagsIdx        = 4,
-  // NonSemantic
-  MinOperandCount = 4,
   OperandCount    = 5
 };
 }
+} // namespace TypeInheritance
 
 namespace TypePtrToMember {
 enum {
@@ -759,7 +770,7 @@ namespace Operation {
 enum {
   OpCodeIdx = 0
 };
-static std::map<ExpressionOpCode, unsigned> OpCountMap {
+static std::unordered_map<ExpressionOpCode, unsigned> OpCountMap {
   { Deref,              1 },
   { Plus,               1 },
   { Minus,              1 },
@@ -932,7 +943,7 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
 }
 
 namespace ImportedEntity {
-inline namespace OpenCL {
+namespace OpenCL {
 // it's bugged version, note 2nd index is missing
 // FIXME: need to remove it after some graceful period
 enum {
@@ -976,9 +987,9 @@ enum {
 
 // helper function to get parent scope of debug instruction, to be used
 // to determine with which compile unit the particular instruction relates
-inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
-                                     uint32_t &ParentScopeIdx,
-                                     const SPIRV::SPIRVExtInstSetKind ExtKind = SPIRV::SPIRVEIS_OpenCL) {
+inline bool hasDbgInstParentScopeIdx(
+    const uint32_t Kind, uint32_t &ParentScopeIdx,
+    const SPIRV::SPIRVExtInstSetKind ExtKind = SPIRV::SPIRVEIS_OpenCL) {
   switch (Kind) {
   case SPIRVDebug::Typedef:
     ParentScopeIdx = Typedef::ParentIdx;
@@ -990,7 +1001,10 @@ inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
     ParentScopeIdx = TypeMember::OpenCL::ParentIdx;
     return true;
   case SPIRVDebug::TypeInheritance:
-    ParentScopeIdx = TypeInheritance::ParentIdx;
+    if (ExtKind == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
+      ParentScopeIdx = TypeInheritance::OpenCL::ParentIdx;
+    else
+      ParentScopeIdx = TypeInheritance::NonSemantic::ParentIdx;
     return true;
   case SPIRVDebug::TypePtrToMember:
     ParentScopeIdx = TypePtrToMember::ParentIdx;
@@ -1020,7 +1034,10 @@ inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
     ParentScopeIdx = LocalVariable::ParentIdx;
     return true;
   case SPIRVDebug::ImportedEntity:
-    ParentScopeIdx = ImportedEntity::ParentIdx;
+    if (ExtKind == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
+      ParentScopeIdx = ImportedEntity::OpenCL::ParentIdx;
+    else
+      ParentScopeIdx = ImportedEntity::NonSemantic::ParentIdx;
     return true;
   case SPIRVDebug::ModuleINTEL:
     ParentScopeIdx = ModuleINTEL::ParentIdx;

@@ -1,5 +1,11 @@
-// for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip || ze_debug
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
+// compilation of the kernel, but for CUDA the failure is not thrown, but comes
+// from ptxas that crashes clang. The JIT part is not relevant, because the
+// flow is such that the AOT compilation still happens, it’s just that if we
+// request JIT, it will do the thing again at the run time.
+//
+// TODO: rewrite this into a unit-test
 
 // RUN: %{build} -DGPU -o %t_gpu.out
 // RUN: %{build} -o %t.out
@@ -14,15 +20,16 @@
 //===--------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 SYCL_EXTERNAL
 void symbol_that_does_not_exist();
 
 void test() {
   sycl::queue Queue;
 
-  // Submitting this kernel should result in a compile_program_error exception
-  // with a message indicating "PI_ERROR_BUILD_PROGRAM_FAILURE".
+  // Submitting this kernel should result in an exception with error code
+  // `sycl::errc::build` and a message indicating
+  // "PI_ERROR_BUILD_PROGRAM_FAILURE".
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef GPU
@@ -40,12 +47,13 @@ void test() {
     Queue.submit(
         [&](sycl::handler &CGH) { CGH.single_task<class SingleTask>(Kernel); });
     assert(false && "There must be compilation error");
-  } catch (const sycl::compile_program_error &e) {
+  } catch (const sycl::exception &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
-    assert(Msg.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos);
+    assert(e.code() == sycl::errc::build &&
+           "Caught exception was not a compilation error");
   } catch (...) {
-    assert(false && "There must be sycl::compile_program_error");
+    assert(false && "Caught exception was not a compilation error");
   }
 }
 

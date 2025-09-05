@@ -1,0 +1,48 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability ImageBasic
+               OpExtension "SPV_EXT_image_raw10_raw12"
+               OpMemoryModel Physical32 OpenCL
+
+               OpDecorate %test_raw1012 LinkageAttributes "test_raw1012" Export
+               OpDecorate %dst FuncParamAttr NoCapture
+               OpDecorate %dst Alignment 4
+
+       %uint = OpTypeInt 32 0
+    %uint_12 = OpConstant %uint 12
+    %uint_10 = OpConstant %uint 10
+     %uint_8 = OpConstant %uint 8
+       %void = OpTypeVoid
+  %_ptr_uint = OpTypePointer CrossWorkgroup %uint
+          %5 = OpTypeImage %void 2D 0 0 0 0 Unknown ReadOnly
+          %6 = OpTypeFunction %void %_ptr_uint %5
+
+%test_raw1012 = OpFunction %void None %6
+        %dst = OpFunctionParameter %_ptr_uint
+        %img = OpFunctionParameter %5
+      %entry = OpLabel
+         %15 = OpImageQueryFormat %uint %img
+               OpSwitch %15 %sw_epilog 0 %sw_epilog_sink_split 19 %sw_bb1 20 %sw_bb2
+     %sw_bb1 = OpLabel
+               OpBranch %sw_epilog_sink_split
+     %sw_bb2 = OpLabel
+               OpBranch %sw_epilog_sink_split
+%sw_epilog_sink_split = OpLabel
+      %_sink = OpPhi %uint %uint_12 %sw_bb2 %uint_10 %sw_bb1 %uint_8 %entry
+               OpStore %dst %_sink Aligned 4
+               OpBranch %sw_epilog
+  %sw_epilog = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: %[[#datatype:]] = call spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro
+; CHECK-NEXT: %[[#sub:]] = sub i32 %[[#datatype]], 4304
+; CHECK-NEXT: switch i32 %[[#sub]]
+; CHECK-NEXT: i32 0, label
+; CHECK-NEXT: i32 19, label
+; CHECK-NEXT: i32 20, label

@@ -9,11 +9,50 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
 // or remove any item in this file.
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_fabs(double x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_ceil(double x) { return __spirv_ocl_ceil(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_copysign(double x, double y) {
+  return __spirv_ocl_copysign(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_cospi(double x) { return __spirv_ocl_cospi(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_scalbln(double x, long int y) {
+  return __spirv_ocl_ldexp(x, (int)y);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_fmax(double x, double y) { return __spirv_ocl_fmax(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_fmin(double x, double y) { return __spirv_ocl_fmin(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_trunc(double x) { return __spirv_ocl_trunc(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_sinpi(double x) { return __spirv_ocl_sinpi(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_rsqrt(double x) { return __spirv_ocl_rsqrt(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_exp10(double x) { return __spirv_ocl_exp10(x); }
+
 DEVICE_EXTERN_C_INLINE
 double __devicelib_log(double x) { return __spirv_ocl_log(x); }
 
@@ -37,6 +76,12 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_modf(double x, double *intpart) {
   return __spirv_ocl_modf(x, intpart);
 }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_round(double x) { return __spirv_ocl_round(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_floor(double x) { return __spirv_ocl_floor(x); }
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_exp2(double x) { return __spirv_ocl_exp2(x); }
@@ -149,4 +194,4 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_scalbn(double x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

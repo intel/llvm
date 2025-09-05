@@ -158,7 +158,7 @@ a dominating header.
 
 * The `FixIrreducible <https://llvm.org/doxygen/FixIrreducible_8h.html>`_
   pass can transform irreducible control flow into loops by inserting
-  new loop headers. It is not inlcuded in any default optimization pass
+  new loop headers. It is not included in any default optimization pass
   pipeline, but is required for some back-end targets.
 
 
@@ -352,7 +352,7 @@ will be deleted by :ref:`-instcombine <passes-instcombine>`.
 Note that an exit block is outside of a loop, so how can such a phi "close"
 the value inside the loop since it uses it outside of it ? First of all,
 for phi nodes, as
-`mentioned in the LangRef <https://llvm.org/docs/LangRef.html#id311>`_:
+`mentioned in the LangRef <https://llvm.org/docs/LangRef.html#phi-instruction>`_:
 "the use of each incoming value is deemed to occur on the edge from the
 corresponding predecessor block to the current block". Now, an
 edge to an exit block is considered outside of the loop because
@@ -373,7 +373,7 @@ PHI nodes in the exit blocks (the alternative would be to
 scan the def-use chain [#def-use-chain]_ of all instructions in the loop).
 
 Then, consider for example
-:ref:`-loop-unswitch <passes-loop-unswitch>` ing the loop above.
+:ref:`simple-loop-unswitch <passes-simple-loop-unswitch>` ing the loop above.
 Because it is in LCSSA form, we know that any value defined inside of
 the loop will be used either only inside the loop or in a loop closing
 PHI node. In this case, the only loop closing PHI node is X4.

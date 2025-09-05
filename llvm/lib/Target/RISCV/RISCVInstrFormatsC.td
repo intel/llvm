@@ -12,7 +12,7 @@
 
 class RVInst16<dag outs, dag ins, string opcodestr, string argstr,
                list<dag> pattern, InstFormat format>
-    : Instruction {
+    : RVInstCommon<outs, ins, opcodestr, argstr, pattern, format> {
   field bits<16> Inst;
   // SoftFail is a field the disassembler can use to provide a way for
   // instructions to not match without killing the whole decode process. It is
@@ -20,17 +20,6 @@ class RVInst16<dag outs, dag ins, string opcodestr, string argstr,
   // to build the decode table.
   field bits<16> SoftFail = 0;
   let Size = 2;
-
-  bits<2> Opcode = 0;
-
-  let Namespace = "RISCV";
-
-  dag OutOperandList = outs;
-  dag InOperandList = ins;
-  let AsmString = opcodestr # "\t" # argstr;
-  let Pattern = pattern;
-
-  let TSFlags{4-0} = format.Value;
 }
 
 class RVInst16CR<bits<4> funct4, bits<2> opcode, dag outs, dag ins,
@@ -47,7 +36,8 @@ class RVInst16CR<bits<4> funct4, bits<2> opcode, dag outs, dag ins,
 
 // The immediate value encoding differs for each instruction, so each subclass
 // is responsible for setting the appropriate bits in the Inst field.
-// The bits Inst{6-2} must be set for each instruction.
+// The bits Inst{12} and Inst{6-2} may need to be set differently for some
+// instructions.
 class RVInst16CI<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
                  string opcodestr, string argstr>
     : RVInst16<outs, ins, opcodestr, argstr, [], InstFormatCI> {
@@ -57,12 +47,13 @@ class RVInst16CI<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
   let Inst{15-13} = funct3;
   let Inst{12} = imm{5};
   let Inst{11-7} = rd;
+  let Inst{6-2} = imm{4-0};
   let Inst{1-0} = opcode;
 }
 
 // The immediate value encoding differs for each instruction, so each subclass
 // is responsible for setting the appropriate bits in the Inst field.
-// The bits Inst{12-7} must be set for each instruction.
+// The bits Inst{12-7} may need to be set differently for some instructions.
 class RVInst16CSS<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
                   string opcodestr, string argstr>
     : RVInst16<outs, ins, opcodestr, argstr, [], InstFormatCSS> {
@@ -71,6 +62,7 @@ class RVInst16CSS<bits<3> funct3, bits<2> opcode, dag outs, dag ins,
   bits<5> rs1;
 
   let Inst{15-13} = funct3;
+  let Inst{12-7} = imm{5-0};
   let Inst{6-2} = rs2;
   let Inst{1-0} = opcode;
 }

@@ -22,14 +22,14 @@ class StructPackAlignCheck : public ClangTidyCheck {
 public:
   StructPackAlignCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context),
-    MaxConfiguredAlignment(Options.get("MaxConfiguredAlignment", 128)) {}
+        MaxConfiguredAlignment(Options.get("MaxConfiguredAlignment", 128)) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 
 private:
   const unsigned MaxConfiguredAlignment;
-  CharUnits computeRecommendedAlignment(CharUnits MinByteSize);
+  CharUnits computeRecommendedAlignment(CharUnits MinByteSize) const;
 };
 
 } // namespace clang::tidy::altera

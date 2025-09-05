@@ -10,19 +10,13 @@
 
 #pragma once
 
-/// @cond ESIMD_DETAIL
-
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::intel::experimental::esimd::detail {
-
-template <unsigned int N, unsigned int M>
-constexpr unsigned int roundUpNextMultiple() {
-  return ((N + M - 1) / M) * M;
-}
-
+namespace ext::intel::experimental::esimd {
+/// @cond ESIMD_DETAIL
+namespace detail {
 /// Compile-time checks if first template parameter is equal for any other
 template <typename...> struct is_one_of {
   static constexpr bool value = false;
@@ -51,8 +45,8 @@ struct is_one_of_enum<enumClass, Checked, First, Else...> {
 };
 template <typename enumClass, enumClass... T>
 inline constexpr bool is_one_of_enum_v = is_one_of_enum<enumClass, T...>::value;
-
-} // namespace ext::intel::experimental::esimd::detail
+} // namespace detail
+} // namespace ext::intel::experimental::esimd
 } // namespace _V1
 } // namespace sycl
 

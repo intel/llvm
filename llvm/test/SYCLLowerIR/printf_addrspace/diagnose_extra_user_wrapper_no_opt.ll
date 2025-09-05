@@ -25,31 +25,31 @@ target triple = "spir64-unknown-unknown"
 $_ZN2cl4sycl3ext6oneapi12experimental6printfIcJEEEiPKT_DpT0_ = comdat any
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define dso_local spir_func void @_Z14custom_wrapperPKc(i8 addrspace(4)* %S) #0 {
+define dso_local spir_func void @_Z14custom_wrapperPKc(ptr addrspace(4) %S) #0 {
 entry:
-  %S.addr = alloca i8 addrspace(4)*, align 8
-  %S.addr.ascast = addrspacecast i8 addrspace(4)** %S.addr to i8 addrspace(4)* addrspace(4)*
-  store i8 addrspace(4)* %S, i8 addrspace(4)* addrspace(4)* %S.addr.ascast, align 8
-  %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %S.addr.ascast, align 8
-  %call = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJEEEiPKT_DpT0_(i8 addrspace(4)* %0) #9
+  %S.addr = alloca ptr addrspace(4), align 8
+  %S.addr.ascast = addrspacecast ptr %S.addr to ptr addrspace(4)
+  store ptr addrspace(4) %S, ptr addrspace(4) %S.addr.ascast, align 8
+  %0 = load ptr addrspace(4), ptr addrspace(4) %S.addr.ascast, align 8
+  %call = call spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJEEEiPKT_DpT0_(ptr addrspace(4) %0) #9
   ret void
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse optnone
-define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJEEEiPKT_DpT0_(i8 addrspace(4)* %__format) #1 comdat {
+define linkonce_odr dso_local spir_func i32 @_ZN2cl4sycl3ext6oneapi12experimental6printfIcJEEEiPKT_DpT0_(ptr addrspace(4) %__format) #1 comdat {
 entry:
   %retval = alloca i32, align 4
-  %__format.addr = alloca i8 addrspace(4)*, align 8
-  %retval.ascast = addrspacecast i32* %retval to i32 addrspace(4)*
-  %__format.addr.ascast = addrspacecast i8 addrspace(4)** %__format.addr to i8 addrspace(4)* addrspace(4)*
-  store i8 addrspace(4)* %__format, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
-  %0 = load i8 addrspace(4)*, i8 addrspace(4)* addrspace(4)* %__format.addr.ascast, align 8
-  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(i8 addrspace(4)* %0) #9
+  %__format.addr = alloca ptr addrspace(4), align 8
+  %retval.ascast = addrspacecast ptr %retval to ptr addrspace(4)
+  %__format.addr.ascast = addrspacecast ptr %__format.addr to ptr addrspace(4)
+  store ptr addrspace(4) %__format, ptr addrspace(4) %__format.addr.ascast, align 8
+  %0 = load ptr addrspace(4), ptr addrspace(4) %__format.addr.ascast, align 8
+  %call = call spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr addrspace(4) %0) #9
   ret i32 %call
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(i8 addrspace(4)*) #2
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr addrspace(4)) #2
 
 attributes #0 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="experimental-printf-bad-inline-test.cpp" }
 attributes #1 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

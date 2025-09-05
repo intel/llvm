@@ -57,8 +57,7 @@ static inline constexpr bool is_instance_of_tmpl_int_bool_v =
 
 template <class T> class uniform {
   template <class U> static constexpr bool can_be_uniform() {
-    return !detail::is_instance_of_tmpl_int_v<U, sycl::id> &&
-           !detail::is_instance_of_tmpl_int_bool_v<U, sycl::item> &&
+    return !detail::is_instance_of_tmpl_int_bool_v<U, sycl::item> &&
            !detail::is_instance_of_tmpl_int_v<U, sycl::nd_item> &&
            !detail::is_instance_of_tmpl_int_v<U, sycl::h_item> &&
            !detail::is_instance_of_tmpl_int_v<U, sycl::group> &&

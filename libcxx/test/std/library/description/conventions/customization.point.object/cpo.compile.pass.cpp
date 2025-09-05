@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// TODO: make `join_view` non-experimental once D2770 is implemented.
-// UNSUPPORTED: !c++experimental
 
 // [customization.point.object]
 // [range.adaptor.object] "A range adaptor object is a customization point object..."
@@ -25,7 +23,8 @@ template <class CPO, class... Args>
 constexpr bool test(CPO& o, Args&&...) {
   static_assert(std::is_const_v<CPO>);
   static_assert(std::is_class_v<CPO>);
-  static_assert(std::is_trivial_v<CPO>);
+  static_assert(std::is_trivially_copyable_v<CPO>);
+  static_assert(std::is_trivially_default_constructible_v<CPO>);
 
   auto p = o;
   using T = decltype(p);

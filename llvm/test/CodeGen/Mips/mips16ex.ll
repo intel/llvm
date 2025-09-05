@@ -1,8 +1,8 @@
-; RUN: llc  -march=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=16
+; RUN: llc  -mtriple=mipsel -mattr=mips16 -relocation-model=pic -O3 < %s | FileCheck %s -check-prefix=16
 
 ;16: main:
 ;16-NEXT: [[TMP:.*]]:
-;16-NEXT: .set $func_begin0, ([[TMP]])
+;16-NEXT: $func_begin0 = [[TMP]]
 ;16-NEXT: .cfi_startproc
 ;16-NEXT: .cfi_personality
 @.str = private unnamed_addr constant [7 x i8] c"hello\0A\00", align 1

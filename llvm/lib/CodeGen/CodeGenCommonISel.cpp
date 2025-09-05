@@ -173,11 +173,12 @@ llvm::findSplitPointForStackProtector(MachineBasicBlock *BB,
   return SplitPoint;
 }
 
-FPClassTest llvm::getInvertedFPClassTest(FPClassTest Test) {
-  FPClassTest InvertedTest = ~Test & fcAllFlags;
-  switch (InvertedTest) {
-  default:
-    break;
+FPClassTest llvm::invertFPClassTestIfSimpler(FPClassTest Test, bool UseFCmp) {
+  FPClassTest InvertedTest = ~Test;
+
+  // Pick the direction with fewer tests
+  // TODO: Handle more combinations of cases that can be handled together
+  switch (static_cast<unsigned>(InvertedTest)) {
   case fcNan:
   case fcSNan:
   case fcQNan:
@@ -196,9 +197,22 @@ FPClassTest llvm::getInvertedFPClassTest(FPClassTest Test) {
   case fcFinite:
   case fcPosFinite:
   case fcNegFinite:
+  case fcZero | fcNan:
+  case fcSubnormal | fcZero:
+  case fcSubnormal | fcZero | fcNan:
     return InvertedTest;
+  case fcInf | fcNan:
+  case fcPosInf | fcNan:
+  case fcNegInf | fcNan:
+    // If we're trying to use fcmp, we can take advantage of the nan check
+    // behavior of the compare (but this is more instructions in the integer
+    // expansion).
+    return UseFCmp ? InvertedTest : fcNone;
+  default:
+    return fcNone;
   }
-  return fcNone;
+
+  llvm_unreachable("covered FPClassTest");
 }
 
 static MachineOperand *getSalvageOpsForCopy(const MachineRegisterInfo &MRI,
@@ -254,7 +268,8 @@ void llvm::salvageDebugInfoForDbgValue(const MachineRegisterInfo &MRI,
       continue;
     }
 
-    int UseMOIdx = DbgMI->findRegisterUseOperandIdx(DefMO->getReg());
+    int UseMOIdx =
+        DbgMI->findRegisterUseOperandIdx(DefMO->getReg(), /*TRI=*/nullptr);
     assert(UseMOIdx != -1 && DbgMI->hasDebugOperandForReg(DefMO->getReg()) &&
            "Must use salvaged instruction as its location");
 

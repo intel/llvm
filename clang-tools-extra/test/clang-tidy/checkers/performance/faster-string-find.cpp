@@ -1,8 +1,8 @@
 // RUN: %check_clang_tidy %s performance-faster-string-find %t
 // RUN: %check_clang_tidy -check-suffix=CUSTOM %s performance-faster-string-find %t -- \
 // RUN:   -config="{CheckOptions: \
-// RUN:             [{key: performance-faster-string-find.StringLikeClasses, \
-// RUN:               value: '::llvm::StringRef;'}]}"
+// RUN:             {performance-faster-string-find.StringLikeClasses: \
+// RUN:                '::llvm::StringRef;'}}"
 
 namespace std {
 template <typename Char>
@@ -56,12 +56,20 @@ void StringFind() {
   // CHECK-MESSAGES: [[@LINE-1]]:12: warning: 'find' called with a string literal
   // CHECK-FIXES: Str.find('a', 1);
 
-  // Doens't work with strings smaller or larger than 1 char.
+  // Doesn't work with strings smaller or larger than 1 char.
   Str.find("");
   Str.find("ab");
 
   // Doesn't do anything with the 3 argument overload.
   Str.find("a", 1, 1);
+
+  // Single quotes are escaped properly
+  Str.find("'");
+  // CHECK-MESSAGES: [[@LINE-1]]:12: warning: 'find' called with a string literal
+  // CHECK-FIXES: Str.find('\'');
+  Str.find("\'");
+  // CHECK-MESSAGES: [[@LINE-1]]:12: warning: 'find' called with a string literal
+  // CHECK-FIXES: Str.find('\'');
 
   // Other methods that can also be replaced
   Str.rfind("a");
@@ -84,11 +92,11 @@ void StringFind() {
   std::wstring WStr;
   WStr.find(L"n");
   // CHECK-MESSAGES: [[@LINE-1]]:13: warning: 'find' called with a string literal
-  // CHECK-FIXES: Str.find(L'n');
+  // CHECK-FIXES: WStr.find(L'n');
   // Even with unicode that fits in one wide char.
   WStr.find(L"\x3A9");
   // CHECK-MESSAGES: [[@LINE-1]]:13: warning: 'find' called with a string literal
-  // CHECK-FIXES: Str.find(L'\x3A9');
+  // CHECK-FIXES: WStr.find(L'\x3A9');
 
   // std::string_view and std::wstring_view should work.
   std::string_view StrView;

@@ -249,12 +249,61 @@ void check_ast()
   [[intel::numbanks(8)]]
   [[intel::numbanks(16)]] unsigned int nb_nb[64];
 
-  // FIXME: Duplicate attribute should be ignored.
-  // Both are applied at the moment.
+  // Checking of different argument values.
   //CHECK: VarDecl{{.*}}mrg_mrg
-  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"
+  //CHECK-NOT: SYCLIntelMergeAttr
   [[intel::merge("mrg4", "depth")]]
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
+
+  // Checking of duplicate argument values.
+  //CHECK: VarDecl{{.*}}mrg_mrg6
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg6" "depth"
+  //CHECK-NOT: SYCLIntelMergeAttr
+  [[intel::merge("mrg6", "depth")]]
+  [[intel::merge("mrg6", "depth")]] unsigned int mrg_mrg6[4];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_block_ram
+  // CHECK: SYCLIntelMemoryAttr{{.*}}MLAB
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory("MLAB")]]
+  [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_block_ram[32];
+
+  // Check to see if there's a duplicate attribute with same Default values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_memory
+  // CHECK: SYCLIntelMemoryAttr{{.*}}Default
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory]]
+  [[intel::fpga_memory]] unsigned int mem_memory[64];
+
+  // Check to see if there's a duplicate attribute with same values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_memory_block
+  // CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory("BLOCK_RAM")]]
+  [[intel::fpga_memory("BLOCK_RAM")]] unsigned int mem_memory_block[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_mlabs
+  // CHECK: SYCLIntelMemoryAttr{{.*}}Default
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory]]
+  [[intel::fpga_memory("MLAB")]] unsigned int mem_mlabs[64];
+
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration. Drop the duplicate attribute.
+  // CHECK: VarDecl{{.*}}mem_mlabs_block_ram
+  // CHECK: SYCLIntelMemoryAttr{{.*}}BlockRAM
+  // CHECK-NOT: SYCLIntelMemoryAttr
+  [[intel::fpga_memory("BLOCK_RAM")]]
+  [[intel::fpga_memory]] unsigned int mem_mlabs_block_ram[64];
 
   // FIXME: Duplicate attribute should be ignored.
   // Both are applied at the moment.
@@ -278,6 +327,37 @@ void check_ast()
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
   //CHECK-NOT: SYCLIntelForcePow2DepthAttr
   [[intel::force_pow2_depth(1), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
+
+  // Checking of duplicate attributes.
+  //CHECK: VarDecl{{.*}}dual_port1
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSimpleDualPortAttr
+  //CHECK-NOT: SYCLIntelSimpleDualPortAttr
+  [[intel::simple_dual_port]]
+  [[intel::simple_dual_port]] unsigned int dual_port1[64];
+
+  // Checking of duplicate attributes.
+  //CHECK: VarDecl{{.*}}doublepump1
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelDoublePumpAttr
+  //CHECK-NOT: SYCLIntelDoublePumpAttr
+  [[intel::doublepump]]
+  [[intel::doublepump]] unsigned int doublepump1[64];
+
+  // Checking of duplicate attributes.
+  //CHECK: VarDecl{{.*}}singlepump1
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+  //CHECK: SYCLIntelSinglePumpAttr
+  //CHECK-NOT: SYCLIntelSinglePumpAttr
+  [[intel::singlepump]]
+  [[intel::singlepump]] unsigned int singlepump1[64];
+
+  // Checking of duplicate attributes.
+  //CHECK: VarDecl{{.*}}reg1
+  //CHECK: SYCLIntelRegisterAttr
+  //CHECK-NOT: SYCLIntelRegisterAttr
+  [[intel::fpga_register]]
+  [[intel::fpga_register]] unsigned int reg1[64];
 }
 
 struct foo {

@@ -38,7 +38,6 @@
 // propagates the mapping to the uses of the kernel arguments.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "cltytospv"
 
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
@@ -49,6 +48,8 @@
 
 #include <iterator>
 #include <set>
+
+#define DEBUG_TYPE "cltytospv"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -141,7 +142,7 @@ void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
       for (auto &U : I.uses()) {
         if (auto *CI = dyn_cast<CallInst>(U.getUser())) {
           auto ArgIndex = CI->getArgOperandNo(&U);
-          auto CF = CI->getCalledFunction();
+          auto *CF = CI->getCalledFunction();
           if (AdaptedTy.count(CF) == 0) {
             addAdaptedType(CF->getArg(ArgIndex), Ty);
             addWork(CF);
@@ -154,7 +155,7 @@ void OCLTypeToSPIRVBase::adaptFunction(Function *F) {
   if (!Changed)
     return;
 
-  auto FT = F->getFunctionType();
+  auto *FT = F->getFunctionType();
   FT = FunctionType::get(FT->getReturnType(), ArgTys, FT->isVarArg());
   addAdaptedType(F, TypedPointerType::get(FT, 0));
 }
@@ -171,18 +172,18 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
     if (Processed.insert(F).second == false)
       return;
 
-    for (auto U : F->users()) {
+    for (auto *U : F->users()) {
       auto *CI = dyn_cast<CallInst>(U);
       if (!CI)
         continue;
 
-      auto SamplerArg = CI->getArgOperand(Idx);
+      auto *SamplerArg = CI->getArgOperand(Idx);
       if (!isa<Argument>(SamplerArg) ||
           AdaptedTy.count(SamplerArg) != 0) // Already traced this, move on.
         continue;
 
       addAdaptedType(SamplerArg, getSPIRVType(OpTypeSampler));
-      auto Caller = cast<Argument>(SamplerArg)->getParent();
+      auto *Caller = cast<Argument>(SamplerArg)->getParent();
       addWork(Caller);
       TraceArg(Caller, cast<Argument>(SamplerArg)->getArgNo());
     }
@@ -195,7 +196,12 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
     StringRef DemangledName;
     if (!oclIsBuiltin(MangledName, DemangledName, false))
       continue;
-    if (DemangledName.find(kSPIRVName::SampledImage) == std::string::npos)
+    // Note: kSPIRVName::ConvertHandleToSampledImageINTEL contains
+    // kSPIRVName::SampledImage as a substring, but we still want to continue in
+    // this case.
+    if (DemangledName.find(kSPIRVName::SampledImage) == std::string::npos ||
+        DemangledName.find(kSPIRVName::ConvertHandleToSampledImageINTEL) !=
+            std::string::npos)
       continue;
 
     TraceArg(&F, 1);
@@ -203,11 +209,11 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
 }
 
 void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
-  auto TypeMD = F->getMetadata(SPIR_MD_KERNEL_ARG_BASE_TYPE);
+  auto *TypeMD = F->getMetadata(SPIR_MD_KERNEL_ARG_BASE_TYPE);
   if (TypeMD)
     return;
   bool Changed = false;
-  auto Arg = F->arg_begin();
+  auto *Arg = F->arg_begin();
   SmallVector<Type *, 4> ParamTys;
 
   // If we couldn't get any information from demangling, there is nothing that
@@ -223,7 +229,7 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
       auto STName = NewTy->getStructName();
       if (!hasAccessQualifiedName(STName))
         continue;
-      if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
+      if (STName.starts_with(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
         auto Acc = getAccessQualifier(Ty);
         auto Desc = getImageDescriptor(ParamTys[I]);
@@ -241,22 +247,22 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
 /// types and use them to map the function arguments to the SPIR-V type.
 /// ToDo: Map other OpenCL opaque types to SPIR-V types.
 void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
-  auto TypeMD = F->getMetadata(SPIR_MD_KERNEL_ARG_BASE_TYPE);
+  auto *TypeMD = F->getMetadata(SPIR_MD_KERNEL_ARG_BASE_TYPE);
   if (!TypeMD)
     return;
   bool Changed = false;
-  auto Arg = F->arg_begin();
+  auto *Arg = F->arg_begin();
   for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++Arg) {
     auto OCLTyStr = getMDOperandAsString(TypeMD, I);
     if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T) {
       addAdaptedType(&(*Arg), getSPIRVType(OpTypeSampler));
       Changed = true;
-    } else if (OCLTyStr.startswith("image") && OCLTyStr.endswith("_t")) {
+    } else if (OCLTyStr.starts_with("image") && OCLTyStr.ends_with("_t")) {
       auto Ty = (Twine("opencl.") + OCLTyStr).str();
       if (auto *STy = StructType::getTypeByName(F->getContext(), Ty)) {
         auto *ImageTy = TypedPointerType::get(STy, SPIRAS_Global);
         auto Desc = getImageDescriptor(ImageTy);
-        auto AccMD = F->getMetadata(SPIR_MD_KERNEL_ARG_ACCESS_QUAL);
+        auto *AccMD = F->getMetadata(SPIR_MD_KERNEL_ARG_ACCESS_QUAL);
         assert(AccMD && "Invalid access qualifier metadata");
         auto Acc = SPIRSPIRVAccessQualifierMap::map(
             getMDOperandAsString(AccMD, I).str());

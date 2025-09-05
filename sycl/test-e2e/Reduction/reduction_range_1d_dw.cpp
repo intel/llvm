@@ -1,8 +1,5 @@
-// RUN: %{build} -DENABLE_64_BIT=false -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
+// RUN: %{build} -DENABLE_64_BIT=false -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_60 %}
 // RUN: %{run} %t.out
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 
 #include "reduction_utils.hpp"
 #include <iostream>

@@ -10,21 +10,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <sycl/sycl.hpp>
 class kernel_sg;
 using namespace sycl;
 
 int main() {
   queue Queue;
   device Device = Queue.get_device();
-
-  /* Basic sub-group functionality is supported as part of cl_khr_subgroups
-   * extension or as core OpenCL 2.1 feature. */
-  if (!core_sg_supported(Device)) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
-  /* Check info::device parameters. */
   Device.get_info<info::device::sub_group_independent_forward_progress>();
   Device.get_info<info::device::max_num_sub_groups>();
 
@@ -50,30 +41,24 @@ int main() {
     });
     uint32_t Res = 0;
 
-    /* sub_group_sizes can be queried only if cl_intel_required_subgroup_size
-     * extension is supported by device*/
-    auto Vec = Device.get_info<info::device::extensions>();
-    if (std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") !=
-        std::end(Vec)) {
-      auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
+    auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
 
-      // Max sub-group size for a particular kernel might not be the max
-      // supported size on the device in general. Can only check that it is
-      // contained in list of valid sizes.
+    // Max sub-group size for a particular kernel might not be the max
+    // supported size on the device in general. Can only check that it is
+    // contained in list of valid sizes.
+    Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
+        Device);
+    bool Expected =
+        std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
+    exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
+
+    for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
+                   range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
       Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
           Device);
-      bool Expected =
+      Expected =
           std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
       exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
-
-      for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
-                     range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
-        Res = Kernel.get_info<info::kernel_device_specific::max_sub_group_size>(
-            Device);
-        Expected =
-            std::find(sg_sizes.begin(), sg_sizes.end(), Res) != sg_sizes.end();
-        exit_if_not_equal<bool>(Expected, true, "max_sub_group_size");
-      }
     }
 
     Res = Kernel.get_info<info::kernel_device_specific::compile_num_sub_groups>(
@@ -82,21 +67,11 @@ int main() {
     /* Sub-group size is not specified in kernel or IL*/
     exit_if_not_equal<uint32_t>(Res, 0, "compile_num_sub_groups");
 
-    // According to specification, this kernel query requires `cl_khr_subgroups`
-    // or `cl_intel_subgroups`
-    if ((std::find(Vec.begin(), Vec.end(), "cl_khr_subgroups") !=
-         std::end(Vec)) ||
-        std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups") !=
-                std::end(Vec) &&
-            std::find(Vec.begin(), Vec.end(),
-                      "cl_intel_required_subgroup_size") != std::end(Vec)) {
-      Res =
-          Kernel.get_info<info::kernel_device_specific::compile_sub_group_size>(
-              Device);
+    Res = Kernel.get_info<info::kernel_device_specific::compile_sub_group_size>(
+        Device);
 
-      /* Required sub-group size is not specified in kernel or IL*/
-      exit_if_not_equal<uint32_t>(Res, 0, "compile_sub_group_size");
-    }
+    /* Required sub-group size is not specified in kernel or IL*/
+    exit_if_not_equal<uint32_t>(Res, 0, "compile_sub_group_size");
 
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what();

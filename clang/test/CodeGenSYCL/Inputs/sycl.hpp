@@ -2,11 +2,23 @@
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
+#define __SYCL_BUILTIN_ALIAS(X) [[clang::builtin_alias(X)]]
+
+#ifdef SYCL_EXTERNAL
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#else
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
+#else
+#define __DPCPP_SYCL_EXTERNAL
+#define SYCL_EXTERNAL
+#endif
+#endif
 
 extern "C" int printf(const char* fmt, ...);
 
 #ifdef __SYCL_DEVICE_ONLY__
-__attribute__((convergent)) extern SYCL_EXTERNAL void
+__attribute__((convergent)) extern __attribute__((sycl_device)) void
 __spirv_ControlBarrier(int, int, int) noexcept;
 #endif
 
@@ -27,12 +39,19 @@ class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
 
 public:
   void use(void) const {}
+#ifdef __SYCL_DEVICE_ONLY__
+  sampler() = default;
+#endif
 };
 
 template <int dimensions = 1>
 class __SYCL_TYPE(group) group {
 public:
   group() = default; // fake constructor
+  // Dummy parallel_for_work_item function to mimic calls from
+  // parallel_for_work_group.
+  void parallel_for_work_item() {
+  }
 };
 
 namespace access {
@@ -65,7 +84,14 @@ enum class address_space : int {
   private_space = 0,
   global_space,
   constant_space,
-  local_space
+  local_space,
+  generic_space
+};
+
+enum class decorated : int {
+  no = 0,
+  yes,
+  legacy
 };
 } // namespace access
 
@@ -78,6 +104,7 @@ enum class __SYCL_TYPE(aspect) aspect { // #AspectEnum
   custom = 4,
   fp16 = 5,
   fp64 = 6,
+  ext_oneapi_private_alloca = 7,
 };
 
 using access::target;
@@ -127,6 +154,78 @@ struct __SYCL_TYPE(buffer_location) buffer_location {
 } // namespace intel
 } // namespace ext
 
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::private_space> {
+  using type = __attribute__((opencl_private)) ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::global_space> {
+  using type = __attribute__((opencl_global)) ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::constant_space> {
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using type = const __attribute__((opencl_global)) ElementType;
+#else
+  using type = __attribute__((opencl_global)) ElementType;
+#endif
+};
+
+template <typename T, access::address_space AS,
+          access::decorated DecorateAddress = access::decorated::legacy>
+class __SYCL_TYPE(multi_ptr) multi_ptr {
+  using decorated_type = typename DecoratedType<T, AS>::type;
+
+  static_assert(DecorateAddress != access::decorated::legacy);
+  static_assert(AS != access::address_space::constant_space);
+
+public:
+  using pointer = decorated_type *;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer)(Ptr)) {} // #MultiPtrConstructor
+  pointer get() { return m_Pointer; }
+
+ private:
+  pointer m_Pointer;
+};
+
+template <typename ElementType, access::address_space Space>
+struct LegacyPointerType {
+  using pointer_t = typename multi_ptr<ElementType, Space, access::decorated::yes>::pointer;
+};
+
+template <typename ElementType>
+struct LegacyPointerType<ElementType, access::address_space::constant_space> {
+  using decorated_type = typename DecoratedType<ElementType, access::address_space::constant_space>::type;
+  using pointer_t = decorated_type *;
+};
+
+// Legacy specialization
+template <typename T, access::address_space AS>
+class __SYCL_TYPE(multi_ptr) multi_ptr<T, AS, access::decorated::legacy> {
+public:
+  using pointer_t = typename LegacyPointerType<T, AS>::pointer_t;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer_t)(Ptr)) {}
+  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #LegacyMultiPtrConstructor
+  pointer_t get() { return m_Pointer; }
+
+ private:
+  pointer_t m_Pointer;
+};
+         
 namespace ext {
 namespace oneapi {
 namespace property {
@@ -231,6 +330,9 @@ template <typename dataT, int dimensions, access::mode accessmode,
 class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor {
 
 public:
+#ifdef __SYCL_DEVICE_ONLY__               
+  accessor() = default;
+#endif
   void use(void) const {}
   template <typename... T>
   void use(T... args) {}
@@ -324,6 +426,9 @@ local_accessor: public accessor<dataT,
         dimensions, access::mode::read_write,
         access::target::local> {
 public:
+#ifdef __SYCL_DEVICE_ONLY__  
+  local_accessor() = default;
+#endif
   void use(void) const {}
   template <typename... T>
   void use(T... args) {}
@@ -335,6 +440,9 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__attribute__((opencl_local)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+
+template <typename, int>
+  friend class dynamic_local_accessor;
 #endif
 };
 
@@ -377,27 +485,35 @@ namespace experimental {
 #endif
 template <typename... Args>
 int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
 #else
+  return __builtin_printf(__format, args...);
+#endif // (defined(__SPIR__) || defined(__SPIRV__))
+#else
   return ::printf(__format, args...);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#endif // defined(__SYCL_DEVICE_ONLY__) 
 }
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
-  #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
     void __init(T _obj) {}
-  #endif
+public:
+    annotated_arg() = default;
+#endif
 };
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
   T* obj;
-  #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
     void __init(T* _obj) {}
-  #endif
+public:
+    annotated_ptr() = default;
+#endif
 };
 
 } // namespace experimental
@@ -548,6 +664,54 @@ template <typename T>
 const stream& operator<<(const stream &S, T&&) {
   return S;
 }
+
+// Dummy implementation of work_group_memory for use in CodeGenSYCL tests.
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(work_group_memory) work_group_memory {
+public:
+  work_group_memory(handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  work_group_memory() = default;
+#endif
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
+  __attribute((opencl_local)) DataT *operator&() const { return Ptr; }
+
+private:
+  __attribute((opencl_local)) DataT *Ptr;
+};
+
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory {
+public:
+  dynamic_work_group_memory() = default;
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->LocalMem.__init(Ptr); }
+  work_group_memory<DataT> get() const { return LocalMem; }
+
+private:
+  work_group_memory<DataT> LocalMem;
+};
+
+template <typename DataT, int Dimensions>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_local_accessor) dynamic_local_accessor {
+public:
+  dynamic_local_accessor() = default;
+
+void __init(__attribute__((opencl_local)) DataT *Ptr,
+            range<Dimensions> AccessRange, range<Dimensions> range,
+            id<Dimensions> id) {
+  this->LocalMem.__init(Ptr, AccessRange, range, id);
+}
+  local_accessor<DataT, Dimensions> get() const { return LocalMem; }
+
+private:
+  local_accessor<DataT, Dimensions> LocalMem;
+};
 
 template <typename T, int dimensions = 1,
           typename AllocatorT = int /*fake type as AllocatorT is not used*/>

@@ -73,6 +73,6 @@ attributes #2 = { nounwind }
 !opencl.used.optional.core.features = !{!0}
 !opencl.compiler.options = !{!0}
 
-!0 = !{}
+!0 = !{!"foo", !"foo", !"foo", !"foo"}
 !1 = !{i32 1, i32 2}
 !2 = !{i32 2, i32 0}

@@ -2,9 +2,10 @@
 ! Confirm enforcement of constraints and restrictions in 7.8
 ! C7110, C7111, C7112, C7113, C7114, C7115
 
-subroutine arrayconstructorvalues()
+subroutine arrayconstructorvalues(asize)
   integer :: intarray(4)
   integer(KIND=8) :: k8 = 20
+  integer, intent(in) :: asize(*)
 
   TYPE EMPLOYEE
     INTEGER AGE
@@ -35,8 +36,10 @@ subroutine arrayconstructorvalues()
   intarray = [integer:: EMPLOYEE (19, "Jack"), 2, 3, 4, 5]
 
   ! C7112
+  !ERROR: Dimension 1 of left-hand side has extent 3, but right-hand side has extent 2
   !ERROR: Value in array constructor of type 'INTEGER(4)' could not be converted to the type of the array 'employee'
   emparray = (/ EMPLOYEE:: EMPLOYEE(19, "Ganesh"), EMPLOYEE(22, "Omkar"), 19 /)
+  !ERROR: Dimension 1 of left-hand side has extent 3, but right-hand side has extent 2
   !ERROR: Value in array constructor of type 'employeer' could not be converted to the type of the array 'employee'
   emparray = (/ EMPLOYEE:: EMPLOYEE(19, "Ganesh"), EMPLOYEE(22, "Ram"),EMPLOYEER("ShriniwasPvtLtd") /)
 
@@ -44,14 +47,18 @@ subroutine arrayconstructorvalues()
   !ERROR: Cannot have an unlimited polymorphic value in an array constructor
   intarray = (/ unlim_polymorphic, 2, 3, 4, 5/)
 
-  ! C7114
+  ! C7114, F'2023 C7125
   !ERROR: No intrinsic or user-defined ASSIGNMENT(=) matches operand types INTEGER(4) and TYPE(base_type)
   !ERROR: ABSTRACT derived type 'base_type' may not be used in a structure constructor
+  !ERROR: An item whose declared type is ABSTRACT may not appear in an array constructor
   !ERROR: Values in array constructor must have the same declared type when no explicit type appears
   intarray = (/ base_type(10), 2, 3, 4, 5 /)
 
   !ERROR: Item is not suitable for use in an array constructor
   intarray(1:1) = [ arrayconstructorvalues ]
+
+  !ERROR: Whole assumed-size array 'asize' may not appear here without subscripts
+  intarray = [ asize ]
 end subroutine arrayconstructorvalues
 subroutine checkC7115()
   real, dimension(10), parameter :: good1 = [(99.9, i = 1, 10)]

@@ -224,8 +224,8 @@ define i1 @fshl_xor_eq_0(i32 %x, i32 %y) {
 define i1 @fshl_or_sgt_0(i32 %x, i32 %y) {
 ; CHECK-LABEL: fshl_or_sgt_0:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ror w8, w0, #30
-; CHECK-NEXT:    orr w8, w8, w1, lsl #2
+; CHECK-NEXT:    orr w8, w0, w1
+; CHECK-NEXT:    extr w8, w8, w0, #30
 ; CHECK-NEXT:    cmp w8, #0
 ; CHECK-NEXT:    cset w0, gt
 ; CHECK-NEXT:    ret
@@ -238,13 +238,37 @@ define i1 @fshl_or_sgt_0(i32 %x, i32 %y) {
 define i1 @fshl_or_ne_2(i32 %x, i32 %y) {
 ; CHECK-LABEL: fshl_or_ne_2:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ror w8, w0, #30
-; CHECK-NEXT:    orr w8, w8, w1, lsl #2
+; CHECK-NEXT:    orr w8, w0, w1
+; CHECK-NEXT:    extr w8, w8, w0, #30
 ; CHECK-NEXT:    cmp w8, #2
 ; CHECK-NEXT:    cset w0, ne
 ; CHECK-NEXT:    ret
   %or = or i32 %x, %y
   %f = call i32 @llvm.fshl.i32(i32 %or, i32 %x, i32 2)
   %r = icmp ne i32 %f, 2
+  ret i1 %r
+}
+
+define i1 @fshr_0_or_eq_0(i16 %x, i16 %y) {
+; CHECK-LABEL: fshr_0_or_eq_0:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    tst w0, #0xffff
+; CHECK-NEXT:    cset w0, eq
+; CHECK-NEXT:    ret
+  %or = or i16 %x, %y
+  %f = call i16 @llvm.fshr.i16(i16 %or, i16 %x, i16 0)
+  %r = icmp eq i16 %f, 0
+  ret i1 %r
+}
+
+define i1 @fshr_32_or_eq_0(i16 %x, i16 %y) {
+; CHECK-LABEL: fshr_32_or_eq_0:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    tst w0, #0xffff
+; CHECK-NEXT:    cset w0, eq
+; CHECK-NEXT:    ret
+  %or = or i16 %x, %y
+  %f = call i16 @llvm.fshr.i16(i16 %or, i16 %x, i16 32)
+  %r = icmp eq i16 %f, 0
   ret i1 %r
 }

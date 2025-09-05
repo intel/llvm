@@ -142,9 +142,8 @@ static void VisitComponent(const std::string &Name,
   if (AC->Library) {
     if (Missing && GetComponentLibraryPath) {
       std::string path = (*GetComponentLibraryPath)(AC->Library);
-      if (DirSep == "\\") {
-        std::replace(path.begin(), path.end(), '/', '\\');
-      }
+      if (DirSep == "\\")
+        llvm::replace(path, '/', '\\');
       if (!sys::fs::exists(path))
         Missing->push_back(path);
     }
@@ -359,18 +358,18 @@ int main(int argc, char **argv) {
     {
       SmallString<256> Path(LLVM_INSTALL_INCLUDEDIR);
       sys::fs::make_absolute(ActivePrefix, Path);
-      ActiveIncludeDir = std::string(Path.str());
+      ActiveIncludeDir = std::string(Path);
     }
     {
       SmallString<256> Path(LLVM_TOOLS_INSTALL_DIR);
       sys::fs::make_absolute(ActivePrefix, Path);
-      ActiveBinDir = std::string(Path.str());
+      ActiveBinDir = std::string(Path);
     }
     ActiveLibDir = ActivePrefix + "/lib" + LLVM_LIBDIR_SUFFIX;
     {
       SmallString<256> Path(LLVM_INSTALL_PACKAGE_DIR);
       sys::fs::make_absolute(ActivePrefix, Path);
-      ActiveCMakeDir = std::string(Path.str());
+      ActiveCMakeDir = std::string(Path);
     }
     ActiveIncludeOption = "-I" + ActiveIncludeDir;
   }
@@ -390,19 +389,18 @@ int main(int argc, char **argv) {
     SharedExt = "dll";
     SharedVersionedExt = LLVM_DYLIB_VERSION ".dll";
     if (HostTriple.isOSCygMing()) {
-      SharedPrefix = "lib";
+      SharedPrefix = LLVM_SHARED_LIBRARY_PREFIX;
       StaticExt = "a";
       StaticPrefix = "lib";
     } else {
       StaticExt = "lib";
       DirSep = "\\";
-      std::replace(ActiveObjRoot.begin(), ActiveObjRoot.end(), '/', '\\');
-      std::replace(ActivePrefix.begin(), ActivePrefix.end(), '/', '\\');
-      std::replace(ActiveBinDir.begin(), ActiveBinDir.end(), '/', '\\');
-      std::replace(ActiveLibDir.begin(), ActiveLibDir.end(), '/', '\\');
-      std::replace(ActiveCMakeDir.begin(), ActiveCMakeDir.end(), '/', '\\');
-      std::replace(ActiveIncludeOption.begin(), ActiveIncludeOption.end(), '/',
-                   '\\');
+      llvm::replace(ActiveObjRoot, '/', '\\');
+      llvm::replace(ActivePrefix, '/', '\\');
+      llvm::replace(ActiveBinDir, '/', '\\');
+      llvm::replace(ActiveLibDir, '/', '\\');
+      llvm::replace(ActiveCMakeDir, '/', '\\');
+      llvm::replace(ActiveIncludeOption, '/', '\\');
     }
     SharedDir = ActiveBinDir;
     StaticDir = ActiveLibDir;
@@ -437,9 +435,8 @@ int main(int argc, char **argv) {
 
   if (BuiltDyLib) {
     std::string path((SharedDir + DirSep + DyLibName).str());
-    if (DirSep == "\\") {
-      std::replace(path.begin(), path.end(), '/', '\\');
-    }
+    if (DirSep == "\\")
+      llvm::replace(path, '/', '\\');
     DyLibExists = sys::fs::exists(path);
     if (!DyLibExists) {
       // The shared library does not exist: don't error unless the user
@@ -454,18 +451,21 @@ int main(int argc, char **argv) {
   /// extension. Returns true if Lib is in a recognized format.
   auto GetComponentLibraryNameSlice = [&](const StringRef &Lib,
                                           StringRef &Out) {
-    if (Lib.startswith("lib")) {
+    if (Lib.starts_with(StaticPrefix) || Lib.starts_with(SharedPrefix)) {
       unsigned FromEnd;
-      if (Lib.endswith(StaticExt)) {
+      if (Lib.ends_with(StaticExt)) {
         FromEnd = StaticExt.size() + 1;
-      } else if (Lib.endswith(SharedExt)) {
+      } else if (Lib.ends_with(SharedExt)) {
         FromEnd = SharedExt.size() + 1;
       } else {
         FromEnd = 0;
       }
 
       if (FromEnd != 0) {
-        Out = Lib.slice(3, Lib.size() - FromEnd);
+        unsigned FromStart = Lib.starts_with(SharedPrefix)
+                                 ? SharedPrefix.size()
+                                 : StaticPrefix.size();
+        Out = Lib.slice(FromStart, Lib.size() - FromEnd);
         return true;
       }
     }
@@ -481,7 +481,7 @@ int main(int argc, char **argv) {
         // Treat the DyLibName specially. It is not a component library and
         // already has the necessary prefix and suffix (e.g. `.so`) added so
         // just return it unmodified.
-        assert(Lib.endswith(SharedExt) && "DyLib is missing suffix");
+        assert(Lib.ends_with(SharedExt) && "DyLib is missing suffix");
         LibFileName = std::string(Lib);
       } else {
         LibFileName = (SharedPrefix + Lib + "." + SharedExt).str();
@@ -507,7 +507,7 @@ int main(int argc, char **argv) {
   for (int i = 1; i != argc; ++i) {
     StringRef Arg = argv[i];
 
-    if (Arg.startswith("-")) {
+    if (Arg.starts_with("-")) {
       HasAnyOption = true;
       if (Arg == "--version") {
         OS << PACKAGE_VERSION << '\n';
@@ -551,9 +551,8 @@ int main(int argc, char **argv) {
           Components.push_back(AC.Name);
           if (AC.Library && !IsInDevelopmentTree) {
             std::string path(GetComponentLibraryPath(AC.Library, false));
-            if (DirSep == "\\") {
-              std::replace(path.begin(), path.end(), '/', '\\');
-            }
+            if (DirSep == "\\")
+              llvm::replace(path, '/', '\\');
             if (DyLibExists && !sys::fs::exists(path)) {
               Components =
                   GetAllDyLibComponents(IsInDevelopmentTree, true, DirSep);

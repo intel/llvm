@@ -18,7 +18,6 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
-#include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Stmt.h"
@@ -26,18 +25,14 @@
 #include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/ProgramPoint.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
@@ -50,12 +45,7 @@
 using namespace clang;
 using namespace ento;
 
-static StringRef StripTrailingDots(StringRef s) {
-  for (StringRef::size_type i = s.size(); i != 0; --i)
-    if (s[i - 1] != '.')
-      return s.substr(0, i);
-  return {};
-}
+static StringRef StripTrailingDots(StringRef s) { return s.rtrim('.'); }
 
 PathDiagnosticPiece::PathDiagnosticPiece(StringRef s,
                                          Kind k, DisplayHint hint)
@@ -120,14 +110,17 @@ PathDiagnostic::PathDiagnostic(
     StringRef CheckerName, const Decl *declWithIssue, StringRef bugtype,
     StringRef verboseDesc, StringRef shortDesc, StringRef category,
     PathDiagnosticLocation LocationToUnique, const Decl *DeclToUnique,
+    const Decl *AnalysisEntryPoint,
     std::unique_ptr<FilesToLineNumsMap> ExecutedLines)
     : CheckerName(CheckerName), DeclWithIssue(declWithIssue),
       BugType(StripTrailingDots(bugtype)),
       VerboseDesc(StripTrailingDots(verboseDesc)),
       ShortDesc(StripTrailingDots(shortDesc)),
       Category(StripTrailingDots(category)), UniqueingLoc(LocationToUnique),
-      UniqueingDecl(DeclToUnique), ExecutedLines(std::move(ExecutedLines)),
-      path(pathImpl) {}
+      UniqueingDecl(DeclToUnique), AnalysisEntryPoint(AnalysisEntryPoint),
+      ExecutedLines(std::move(ExecutedLines)), path(pathImpl) {
+  assert(AnalysisEntryPoint);
+}
 
 void PathDiagnosticConsumer::anchor() {}
 
@@ -330,14 +323,16 @@ static bool compareCrossTUSourceLocs(FullSourceLoc XL, FullSourceLoc YL) {
     return true;
   if (XL.isValid() && YL.isInvalid())
     return false;
-  std::pair<FileID, unsigned> XOffs = XL.getDecomposedLoc();
-  std::pair<FileID, unsigned> YOffs = YL.getDecomposedLoc();
+  FileIDAndOffset XOffs = XL.getDecomposedLoc();
+  FileIDAndOffset YOffs = YL.getDecomposedLoc();
   const SourceManager &SM = XL.getManager();
   std::pair<bool, bool> InSameTU = SM.isInTheSameTranslationUnit(XOffs, YOffs);
   if (InSameTU.first)
     return XL.isBeforeInTranslationUnitThan(YL);
-  const FileEntry *XFE = SM.getFileEntryForID(XL.getSpellingLoc().getFileID());
-  const FileEntry *YFE = SM.getFileEntryForID(YL.getSpellingLoc().getFileID());
+  OptionalFileEntryRef XFE =
+      SM.getFileEntryRefForID(XL.getSpellingLoc().getFileID());
+  OptionalFileEntryRef YFE =
+      SM.getFileEntryRefForID(YL.getSpellingLoc().getFileID());
   if (!XFE || !YFE)
     return XFE && !YFE;
   int NameCmp = XFE->getName().compare(YFE->getName());
@@ -484,10 +479,10 @@ SourceLocation PathDiagnosticLocation::getValidSourceLocation(
   // source code, so find an enclosing statement and use its location.
   if (!L.isValid()) {
     AnalysisDeclContext *ADC;
-    if (LAC.is<const LocationContext*>())
-      ADC = LAC.get<const LocationContext*>()->getAnalysisDeclContext();
+    if (auto *LC = dyn_cast<const LocationContext *>(LAC))
+      ADC = LC->getAnalysisDeclContext();
     else
-      ADC = LAC.get<AnalysisDeclContext*>();
+      ADC = cast<AnalysisDeclContext *>(LAC);
 
     ParentMap &PM = ADC->getParentMap();
 
@@ -565,6 +560,7 @@ getLocationForCaller(const StackFrameContext *SFC,
   }
   case CFGElement::ScopeBegin:
   case CFGElement::ScopeEnd:
+  case CFGElement::CleanupFunction:
     llvm_unreachable("not yet implemented!");
   case CFGElement::LifetimeEnds:
   case CFGElement::LoopExit:
@@ -584,6 +580,7 @@ PathDiagnosticLocation
 PathDiagnosticLocation::createBegin(const Stmt *S,
                                     const SourceManager &SM,
                                     LocationOrAnalysisDeclContext LAC) {
+  assert(S && "Statement cannot be null");
   return PathDiagnosticLocation(getValidSourceLocation(S, LAC),
                                 SM, SingleLocK);
 }
@@ -1149,9 +1146,9 @@ void PathDiagnostic::FullProfile(llvm::FoldingSetNodeID &ID) const {
 
 LLVM_DUMP_METHOD void PathPieces::dump() const {
   unsigned index = 0;
-  for (PathPieces::const_iterator I = begin(), E = end(); I != E; ++I) {
+  for (const PathDiagnosticPieceRef &Piece : *this) {
     llvm::errs() << "[" << index++ << "]  ";
-    (*I)->dump();
+    Piece->dump();
     llvm::errs() << "\n";
   }
 }

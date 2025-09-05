@@ -20,8 +20,21 @@ using namespace llvm;
 
 namespace clang::tidy::modernize {
 
+static bool isFirstFriendOfSecond(const CXXRecordDecl *Friend,
+                                  const CXXRecordDecl *Class) {
+  return llvm::any_of(
+      Class->friends(), [Friend](FriendDecl *FriendDecl) -> bool {
+        if (TypeSourceInfo *FriendTypeSource = FriendDecl->getFriendType()) {
+          const QualType FriendType = FriendTypeSource->getType();
+          return FriendType->getAsCXXRecordDecl() == Friend;
+        }
+        return false;
+      });
+}
+
 namespace {
-/// Matches move-constructible classes.
+/// Matches move-constructible classes whose constructor can be called inside
+/// a CXXRecordDecl with a bound ID.
 ///
 /// Given
 /// \code
@@ -32,15 +45,33 @@ namespace {
 ///     Bar(Bar &&) = deleted;
 ///     int a;
 ///   };
+///
+///   class Buz {
+///     Buz(Buz &&);
+///     int a;
+///     friend class Outer;
+///   };
+///
+///   class Outer {
+///   };
 /// \endcode
-/// recordDecl(isMoveConstructible())
-///   matches "Foo".
-AST_MATCHER(CXXRecordDecl, isMoveConstructible) {
-  for (const CXXConstructorDecl *Ctor : Node.ctors()) {
-    if (Ctor->isMoveConstructor() && !Ctor->isDeleted())
-      return true;
-  }
-  return false;
+/// recordDecl(isMoveConstructibleInBoundCXXRecordDecl("Outer"))
+///   matches "Foo", "Buz".
+AST_MATCHER_P(CXXRecordDecl, isMoveConstructibleInBoundCXXRecordDecl, StringRef,
+              RecordDeclID) {
+  return Builder->removeBindings(
+      [this,
+       &Node](const ast_matchers::internal::BoundNodesMap &Nodes) -> bool {
+        const auto *BoundClass =
+            Nodes.getNode(this->RecordDeclID).get<CXXRecordDecl>();
+        for (const CXXConstructorDecl *Ctor : Node.ctors()) {
+          if (Ctor->isMoveConstructor() && !Ctor->isDeleted() &&
+              (Ctor->getAccess() == AS_public ||
+               (BoundClass && isFirstFriendOfSecond(BoundClass, &Node))))
+            return false;
+        }
+        return true;
+      });
 }
 } // namespace
 
@@ -75,9 +106,9 @@ static bool paramReferredExactlyOnce(const CXXConstructorDecl *Ctor,
     /// the
     /// given constructor.
     bool hasExactlyOneUsageIn(const CXXConstructorDecl *Ctor) {
-      Count = 0;
+      Count = 0U;
       TraverseDecl(const_cast<CXXConstructorDecl *>(Ctor));
-      return Count == 1;
+      return Count == 1U;
     }
 
   private:
@@ -88,7 +119,7 @@ static bool paramReferredExactlyOnce(const CXXConstructorDecl *Ctor,
       if (const ParmVarDecl *To = dyn_cast<ParmVarDecl>(D->getDecl())) {
         if (To == ParamDecl) {
           ++Count;
-          if (Count > 1) {
+          if (Count > 1U) {
             // No need to look further, used more than once.
             return false;
           }
@@ -98,7 +129,7 @@ static bool paramReferredExactlyOnce(const CXXConstructorDecl *Ctor,
     }
 
     const ParmVarDecl *ParamDecl;
-    unsigned Count;
+    unsigned Count = 0U;
   };
 
   return ExactlyOneUsageVisitor(ParamDecl).hasExactlyOneUsageIn(Ctor);
@@ -166,9 +197,8 @@ static bool hasRValueOverload(const CXXConstructorDecl *Ctor,
   };
 
   for (const auto *Candidate : Record->ctors()) {
-    if (IsRValueOverload(Candidate)) {
+    if (IsRValueOverload(Candidate))
       return true;
-    }
   }
   return false;
 }
@@ -203,6 +233,7 @@ void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
       traverse(
           TK_AsIs,
           cxxConstructorDecl(
+              ofClass(cxxRecordDecl().bind("outer")),
               forEachConstructorInitializer(
                   cxxCtorInitializer(
                       unless(isBaseInitializer()),
@@ -226,8 +257,9 @@ void PassByValueCheck::registerMatchers(MatchFinder *Finder) {
                                   .bind("Param"))))),
                           hasDeclaration(cxxConstructorDecl(
                               isCopyConstructor(), unless(isDeleted()),
-                              hasDeclContext(
-                                  cxxRecordDecl(isMoveConstructible())))))))
+                              hasDeclContext(cxxRecordDecl(
+                                  isMoveConstructibleInBoundCXXRecordDecl(
+                                      "outer"))))))))
                       .bind("Initializer")))
               .bind("Ctor")),
       this);
@@ -269,7 +301,7 @@ void PassByValueCheck::check(const MatchFinder::MatchResult &Result) {
     // Check if we can succesfully rewrite all declarations of the constructor.
     for (const ParmVarDecl *ParmDecl : collectParamDecls(Ctor, ParamDecl)) {
       TypeLoc ParamTL = ParmDecl->getTypeSourceInfo()->getTypeLoc();
-      ReferenceTypeLoc RefTL = ParamTL.getAs<ReferenceTypeLoc>();
+      auto RefTL = ParamTL.getAs<ReferenceTypeLoc>();
       if (RefTL.isNull()) {
         // We cannot rewrite this instance. The type is probably hidden behind
         // some `typedef`. Do not offer a fix-it in this case.
@@ -279,7 +311,7 @@ void PassByValueCheck::check(const MatchFinder::MatchResult &Result) {
     // Rewrite all declarations.
     for (const ParmVarDecl *ParmDecl : collectParamDecls(Ctor, ParamDecl)) {
       TypeLoc ParamTL = ParmDecl->getTypeSourceInfo()->getTypeLoc();
-      ReferenceTypeLoc RefTL = ParamTL.getAs<ReferenceTypeLoc>();
+      auto RefTL = ParamTL.getAs<ReferenceTypeLoc>();
 
       TypeLoc ValueTL = RefTL.getPointeeLoc();
       CharSourceRange TypeRange = CharSourceRange::getTokenRange(

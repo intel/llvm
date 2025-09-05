@@ -4,9 +4,12 @@
 
 // RUN: %{run} %t.out 10
 
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17235
+
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <thread>
 
 using namespace sycl;
@@ -43,7 +46,7 @@ void test(size_t Count) {
     Q.submit([&](handler &CGH) {
       std::cout << "Submit HT-1" << std::endl;
 
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc0 = B0.get_host_access();
 
       CGH.host_task([=] {
         std::this_thread::sleep_for(SleepFor);
@@ -70,7 +73,7 @@ void test(size_t Count) {
     Q.submit([&](handler &CGH) {
       std::cout << "Submit HT-2" << std::endl;
 
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc2 = B2.get_host_access();
 
       CGH.host_task([=] {
         std::this_thread::sleep_for(SleepFor);
@@ -83,9 +86,9 @@ void test(size_t Count) {
     event EHT3 = Q.submit([&](handler &CGH) {
       std::cout << "Submit HT-3" << std::endl;
 
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc0 = B0.get_host_access();
+      auto Acc1 = B1.get_host_access();
+      auto Acc2 = B2.get_host_access();
 
       CGH.host_task([=] {
         std::this_thread::sleep_for(SleepFor);
@@ -103,7 +106,7 @@ void test(size_t Count) {
 
       CGH.depends_on(EHT3);
 
-      auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc5 = B5.get_host_access();
 
       CGH.host_task([=] { Acc5[5] = 1 * Idx; });
     });

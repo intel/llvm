@@ -21,6 +21,7 @@
 #include "llvm/MC/MCSymbolWasm.h"
 
 namespace llvm {
+class WebAssemblyTargetLowering;
 
 struct WasmEHFuncInfo;
 
@@ -118,44 +119,36 @@ public:
   }
   void setBasePointerVreg(unsigned Reg) { BasePtrVreg = Reg; }
 
-  static const unsigned UnusedReg = -1u;
-
-  void stackifyVReg(MachineRegisterInfo &MRI, unsigned VReg) {
+  void stackifyVReg(MachineRegisterInfo &MRI, Register VReg) {
     assert(MRI.getUniqueVRegDef(VReg));
-    auto I = Register::virtReg2Index(VReg);
+    auto I = VReg.virtRegIndex();
     if (I >= VRegStackified.size())
       VRegStackified.resize(I + 1);
     VRegStackified.set(I);
   }
-  void unstackifyVReg(unsigned VReg) {
-    auto I = Register::virtReg2Index(VReg);
+  void unstackifyVReg(Register VReg) {
+    auto I = VReg.virtRegIndex();
     if (I < VRegStackified.size())
       VRegStackified.reset(I);
   }
-  bool isVRegStackified(unsigned VReg) const {
-    auto I = Register::virtReg2Index(VReg);
+  bool isVRegStackified(Register VReg) const {
+    auto I = VReg.virtRegIndex();
     if (I >= VRegStackified.size())
       return false;
     return VRegStackified.test(I);
   }
 
   void initWARegs(MachineRegisterInfo &MRI);
-  void setWAReg(unsigned VReg, unsigned WAReg) {
-    assert(WAReg != UnusedReg);
-    auto I = Register::virtReg2Index(VReg);
+  void setWAReg(Register VReg, unsigned WAReg) {
+    assert(WAReg != WebAssembly::UnusedReg);
+    auto I = VReg.virtRegIndex();
     assert(I < WARegs.size());
     WARegs[I] = WAReg;
   }
-  unsigned getWAReg(unsigned VReg) const {
-    auto I = Register::virtReg2Index(VReg);
+  unsigned getWAReg(Register VReg) const {
+    auto I = VReg.virtRegIndex();
     assert(I < WARegs.size());
     return WARegs[I];
-  }
-
-  // For a given stackified WAReg, return the id number to print with push/pop.
-  static unsigned getWARegStackId(unsigned Reg) {
-    assert(Reg & INT32_MIN);
-    return Reg & INT32_MAX;
   }
 
   bool isCFGStackified() const { return CFGStackified; }
@@ -176,12 +169,11 @@ void computeSignatureVTs(const FunctionType *Ty, const Function *TargetFunc,
                          SmallVectorImpl<MVT> &Params,
                          SmallVectorImpl<MVT> &Results);
 
-void valTypesFromMVTs(const ArrayRef<MVT> &In,
-                      SmallVectorImpl<wasm::ValType> &Out);
+void valTypesFromMVTs(ArrayRef<MVT> In, SmallVectorImpl<wasm::ValType> &Out);
 
-std::unique_ptr<wasm::WasmSignature>
-signatureFromMVTs(const SmallVectorImpl<MVT> &Results,
-                  const SmallVectorImpl<MVT> &Params);
+wasm::WasmSignature *signatureFromMVTs(MCContext &Ctx,
+                                       const SmallVectorImpl<MVT> &Results,
+                                       const SmallVectorImpl<MVT> &Params);
 
 namespace yaml {
 

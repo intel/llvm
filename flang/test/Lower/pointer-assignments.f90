@@ -1,5 +1,5 @@
 ! Test lowering of pointer assignments
-! RUN: bbc --use-desc-for-alloc=false -emit-fir %s -o - | FileCheck %s
+! RUN: bbc --use-desc-for-alloc=false -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 
 ! Note that p => NULL() are tested in pointer-disassociate.f90
@@ -76,7 +76,7 @@ subroutine test_pointer_component(temp, temp_ptr)
   end type mytype
   type(mytype) :: temp
   real, pointer :: temp_ptr(:)
-  ! CHECK: %[[ptr_addr:.*]] = fir.coordinate_of %[[temp]], %{{.*}} : (!fir.ref<!fir.type<_QFtest_pointer_componentTmytype{ptr:!fir.box<!fir.ptr<!fir.array<?xf32>>>}>>, !fir.field) -> !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>>
+  ! CHECK: %[[ptr_addr:.*]] = fir.coordinate_of %[[temp]], ptr : (!fir.ref<!fir.type<_QFtest_pointer_componentTmytype{ptr:!fir.box<!fir.ptr<!fir.array<?xf32>>>}>>) -> !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>>
   ! CHECK: %[[ptr:.*]] = fir.load %[[ptr_addr]] : !fir.ref<!fir.box<!fir.ptr<!fir.array<?xf32>>>>
   ! CHECK: %[[dims:.*]]:3 = fir.box_dims %[[ptr]], %{{.*}} : (!fir.box<!fir.ptr<!fir.array<?xf32>>>, index) -> (index, index, index)
   ! CHECK: %[[shift:.*]] = fir.shift %[[dims]]#0 : (index) -> !fir.shift<1>
@@ -364,7 +364,7 @@ subroutine issue1180(x)
   integer, target :: x
   integer, pointer :: p
   common /some_common/ p
-  ! CHECK: %[[VAL_1:.*]] = fir.address_of(@_QCsome_common) : !fir.ref<!fir.array<24xi8>>
+  ! CHECK: %[[VAL_1:.*]] = fir.address_of(@some_common_) : !fir.ref<!fir.array<24xi8>>
   ! CHECK: %[[VAL_2:.*]] = fir.convert %[[VAL_1]] : (!fir.ref<!fir.array<24xi8>>) -> !fir.ref<!fir.array<?xi8>>
   ! CHECK: %[[VAL_3:.*]] = arith.constant 0 : index
   ! CHECK: %[[VAL_4:.*]] = fir.coordinate_of %[[VAL_2]], %[[VAL_3]] : (!fir.ref<!fir.array<?xi8>>, index) -> !fir.ref<i8>

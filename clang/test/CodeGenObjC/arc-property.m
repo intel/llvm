@@ -1,6 +1,5 @@
 // RUN: %clang_cc1 -triple x86_64-apple-darwin10 -fobjc-arc -emit-llvm %s -o - | FileCheck %s
 
-// rdar://problem/10290317
 @interface Test0
 - (void) setValue: (id) x;
 @end
@@ -23,20 +22,17 @@ struct S1 { Class isa; };
 @end
 //   The getter should be a simple load.
 // CHECK:    define internal ptr @"\01-[Test1 pointer]"(
-// CHECK:      [[OFFSET:%.*]] = load i64, ptr @"OBJC_IVAR_$_Test1.pointer"
-// CHECK-NEXT: [[T1:%.*]] = getelementptr inbounds i8, ptr {{%.*}}, i64 [[OFFSET]]
+// CHECK: [[T1:%.*]] = getelementptr inbounds i8, ptr {{%.*}}, i64 0
 // CHECK-NEXT: [[T3:%.*]] = load ptr, ptr [[T1]], align 8
 // CHECK-NEXT: ret ptr [[T3]]
 
 //   The setter should be using objc_setProperty.
 // CHECK:    define internal void @"\01-[Test1 setPointer:]"(
-// CHECK: [[OFFSET:%.*]] = load i64, ptr @"OBJC_IVAR_$_Test1.pointer"
-// CHECK-NEXT: [[T1:%.*]] = load ptr, ptr {{%.*}}
-// CHECK-NEXT: call void @objc_setProperty(ptr noundef {{%.*}}, ptr noundef {{%.*}}, i64 noundef [[OFFSET]], ptr noundef [[T1]], i1 noundef zeroext false, i1 noundef zeroext false)
+// CHECK: [[T1:%.*]] = load ptr, ptr {{%.*}}
+// CHECK: call void @objc_setProperty(ptr noundef {{%.*}}, ptr noundef {{%.*}}, i64 noundef 0, ptr noundef {{%.*}}, i1 noundef zeroext false, i1 noundef zeroext false)
 // CHECK-NEXT: ret void
 
 
-// rdar://problem/12039404
 @interface Test2 {
 @private
   Class _theClass;
@@ -54,30 +50,25 @@ static Class theGlobalClass;
 // CHECK:    define internal void @"\01-[Test2 test]"(
 // CHECK:      [[T0:%.*]] = load ptr, ptr @theGlobalClass, align 8
 // CHECK-NEXT: [[T1:%.*]] = load ptr, ptr
-// CHECK-NEXT: [[OFFSET:%.*]] = load i64, ptr @"OBJC_IVAR_$_Test2._theClass"
-// CHECK-NEXT: [[T3:%.*]] = getelementptr inbounds i8, ptr [[T1]], i64 [[OFFSET]]
+// CHECK-NEXT: [[T3:%.*]] = getelementptr inbounds i8, ptr [[T1]], i64 0
 // CHECK-NEXT: call void @llvm.objc.storeStrong(ptr [[T3]], ptr [[T0]]) [[NUW:#[0-9]+]]
 // CHECK-NEXT: ret void
 
 // CHECK:    define internal ptr @"\01-[Test2 theClass]"(
-// CHECK:      [[OFFSET:%.*]] = load i64, ptr @"OBJC_IVAR_$_Test2._theClass"
-// CHECK-NEXT: [[T0:%.*]] = tail call ptr @objc_getProperty(ptr noundef {{.*}}, ptr noundef {{.*}}, i64 noundef [[OFFSET]], i1 noundef zeroext true)
+// CHECK: [[T0:%.*]] = tail call ptr @objc_getProperty(ptr noundef {{.*}}, ptr noundef {{.*}}, i64 noundef 0, i1 noundef zeroext true)
 // CHECK-NEXT: ret ptr [[T0]]
 
 // CHECK:    define internal void @"\01-[Test2 setTheClass:]"(
-// CHECK: [[OFFSET:%.*]] = load i64, ptr @"OBJC_IVAR_$_Test2._theClass"
-// CHECK-NEXT: [[T1:%.*]] = load ptr, ptr {{%.*}}
-// CHECK-NEXT: call void @objc_setProperty(ptr noundef {{%.*}}, ptr noundef {{%.*}}, i64 noundef [[OFFSET]], ptr noundef [[T1]], i1 noundef zeroext true, i1 noundef zeroext true)
+// CHECK: [[T1:%.*]] = load ptr, ptr {{%.*}}
+// CHECK: call void @objc_setProperty(ptr noundef {{%.*}}, ptr noundef {{%.*}}, i64 noundef 0, ptr noundef {{%.*}}, i1 noundef zeroext true, i1 noundef zeroext true)
 // CHECK-NEXT: ret void
 
 // CHECK:    define internal void @"\01-[Test2 .cxx_destruct]"(
 // CHECK:      [[T0:%.*]] = load ptr, ptr
-// CHECK-NEXT: [[OFFSET:%.*]] = load i64, ptr @"OBJC_IVAR_$_Test2._theClass"
-// CHECK-NEXT: [[T2:%.*]] = getelementptr inbounds i8, ptr [[T0]], i64 [[OFFSET]]
+// CHECK-NEXT: [[T2:%.*]] = getelementptr inbounds i8, ptr [[T0]], i64 0
 // CHECK-NEXT: call void @llvm.objc.storeStrong(ptr [[T2]], ptr null) [[NUW]]
 // CHECK-NEXT: ret void
 
-// rdar://13115896
 @interface Test3
 @property id copyMachine;
 @end
@@ -119,7 +110,6 @@ void test3(Test3 *t) {
 - (void) setCopyMachine: (id) x {}
 @end
 
-// rdar://31579994
 // When synthesizing a property that's declared in multiple protocols, ensure
 // that the setter is emitted if any of these declarations is readwrite.
 @protocol ABC

@@ -57,7 +57,7 @@ generic char *generic_p_NULL = NULL;
 // CHECK: @fold_generic ={{.*}} local_unnamed_addr addrspace(1) global ptr null, align 8
 generic int *fold_generic = (global int*)(generic float*)(private char*)0;
 
-// CHECK: @fold_priv ={{.*}} local_unnamed_addr addrspace(1) global ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), align 4
+// CHECK: @fold_priv ={{.*}} local_unnamed_addr addrspace(1) global ptr addrspace(5) addrspacecast (ptr addrspace(1) null to ptr addrspace(5)), align 4
 private short *fold_priv = (private short*)(generic int*)(global void*)0;
 
 // CHECK: @fold_priv_arith ={{.*}} local_unnamed_addr addrspace(1) global ptr addrspace(5) inttoptr (i32 9 to ptr addrspace(5)), align 4
@@ -139,12 +139,12 @@ void test_static_var_local(void) {
 
 // Test function-scope variable initialization.
 // NOOPT-LABEL: @test_func_scope_var_private(
-// NOOPT: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) %sp1, align 4
-// NOOPT: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) %sp2, align 4
-// NOOPT: store ptr addrspace(5) null, ptr addrspace(5) %sp3, align 4
-// NOOPT: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) %sp4, align 4
-// NOOPT: call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 8 %SS1, ptr addrspace(4) align 8 @__const.test_func_scope_var_private.SS1, i64 32, i1 false)
-// NOOPT: call void @llvm.memset.p5.i64(ptr addrspace(5) align 8 %SS2, i8 0, i64 24, i1 false)
+// NOOPT: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) %sp1{{.*}}, align 4
+// NOOPT: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) %sp2{{.*}}, align 4
+// NOOPT: store ptr addrspace(5) null, ptr addrspace(5) %sp3{{.*}}, align 4
+// NOOPT: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) %sp4{{.*}}, align 4
+// NOOPT: call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 8 %SS1{{.*}}, ptr addrspace(4) align 8 @__const.test_func_scope_var_private.SS1, i64 32, i1 false)
+// NOOPT: call void @llvm.memset.p5.i64(ptr addrspace(5) align 8 %SS2{{.*}}, i8 0, i64 24, i1 false)
 void test_func_scope_var_private(void) {
   private char *sp1 = 0;
   private char *sp2 = NULL;
@@ -157,12 +157,12 @@ void test_func_scope_var_private(void) {
 
 // Test function-scope variable initialization.
 // NOOPT-LABEL: @test_func_scope_var_local(
-// NOOPT: store ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)), ptr addrspace(5) %sp1, align 4
-// NOOPT: store ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)), ptr addrspace(5) %sp2, align 4
-// NOOPT: store ptr addrspace(3) null, ptr addrspace(5) %sp3, align 4
-// NOOPT: store ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)), ptr addrspace(5) %sp4, align 4
-// NOOPT: call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 8 %SS1, ptr addrspace(4) align 8 @__const.test_func_scope_var_local.SS1, i64 32, i1 false)
-// NOOPT: call void @llvm.memset.p5.i64(ptr addrspace(5) align 8 %SS2, i8 0, i64 24, i1 false)
+// NOOPT: store ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)), ptr addrspace(5) %sp1{{.*}}, align 4
+// NOOPT: store ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)), ptr addrspace(5) %sp2{{.*}}, align 4
+// NOOPT: store ptr addrspace(3) null, ptr addrspace(5) %sp3{{.*}}, align 4
+// NOOPT: store ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)), ptr addrspace(5) %sp4{{.*}}, align 4
+// NOOPT: call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 8 %SS1{{.*}}, ptr addrspace(4) align 8 @__const.test_func_scope_var_local.SS1, i64 32, i1 false)
+// NOOPT: call void @llvm.memset.p5.i64(ptr addrspace(5) align 8 %SS2{{.*}}, i8 0, i64 24, i1 false)
 void test_func_scope_var_local(void) {
   local char *sp1 = 0;
   local char *sp2 = NULL;
@@ -513,9 +513,9 @@ typedef struct {
 
 // CHECK-LABEL: test_memset_private
 // CHECK: call void @llvm.memset.p5.i64(ptr addrspace(5) noundef align 8 {{.*}}, i8 0, i64 32, i1 false)
-// CHECK: [[GEP:%.*]] = getelementptr inbounds i8, ptr addrspace(5) %ptr, i32 32
+// CHECK: [[GEP:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(5) %ptr, i32 32
 // CHECK: store ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)), ptr addrspace(5) [[GEP]]
-// CHECK: [[GEP1:%.*]] = getelementptr inbounds i8, ptr addrspace(5) {{.*}}, i32 36
+// CHECK: [[GEP1:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(5) {{.*}}, i32 36
 // CHECK: store i32 0, ptr addrspace(5) [[GEP1]], align 4
 void test_memset_private(private StructTy3 *ptr) {
   StructTy3 S3 = {0, 0, 0, 0, 0};
@@ -603,10 +603,11 @@ int test_and_ptr(private char* p1, local char* p2) {
 // Test folding of null pointer in function scope.
 // NOOPT-LABEL: test_fold_private
 // NOOPT: call void @test_fold_callee
-// NOOPT: store ptr addrspace(1) null, ptr addrspace(5) %glob, align 8
+// NOOPT: store ptr addrspace(1) null, ptr addrspace(5) %glob{{.*}}, align 8
 // NOOPT: %{{.*}} = sub i64 %{{.*}}, 0
 // NOOPT: call void @test_fold_callee
-// NOOPT: %{{.*}} = add nsw i64 %1, sext (i32 ptrtoint (ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)) to i32) to i64)
+// NOOPT: %[[SEXT:.*]] = sext i32 ptrtoint (ptr addrspace(5) addrspacecast (ptr null to ptr addrspace(5)) to i32) to i64
+// NOOPT: %{{.*}} = add nsw i64 %1, %[[SEXT]]
 // NOOPT: %{{.*}} = sub nsw i64 %{{.*}}, 1
 void test_fold_callee(void);
 void test_fold_private(void) {
@@ -618,10 +619,11 @@ void test_fold_private(void) {
 
 // NOOPT-LABEL: test_fold_local
 // NOOPT: call void @test_fold_callee
-// NOOPT: store ptr addrspace(1) null, ptr addrspace(5) %glob, align 8
+// NOOPT: store ptr addrspace(1) null, ptr addrspace(5) %glob{{.*}}, align 8
 // NOOPT: %{{.*}} = sub i64 %{{.*}}, 0
 // NOOPT: call void @test_fold_callee
-// NOOPT: %{{.*}} = add nsw i64 %{{.*}}, sext (i32 ptrtoint (ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)) to i32) to i64)
+// NOOPT: %[[SEXT:.*]] = sext i32 ptrtoint (ptr addrspace(3) addrspacecast (ptr null to ptr addrspace(3)) to i32) to i64
+// NOOPT: %{{.*}} = add nsw i64 %{{.*}}, %[[SEXT]]
 // NOOPT: %{{.*}} = sub nsw i64 %{{.*}}, 1
 void test_fold_local(void) {
   global int* glob = (test_fold_callee(), (global int*)(generic char*)0);

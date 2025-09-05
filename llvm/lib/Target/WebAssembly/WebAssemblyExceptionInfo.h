@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_WEBASSEMBLY_WEBASSEMBLYEXCEPTIONINFO_H
 
 #include "WebAssembly.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 
 namespace llvm {
@@ -131,9 +132,7 @@ class WebAssemblyExceptionInfo final : public MachineFunctionPass {
 
 public:
   static char ID;
-  WebAssemblyExceptionInfo() : MachineFunctionPass(ID) {
-    initializeWebAssemblyExceptionInfoPass(*PassRegistry::getPassRegistry());
-  }
+  WebAssemblyExceptionInfo() : MachineFunctionPass(ID) {}
   ~WebAssemblyExceptionInfo() override { releaseMemory(); }
   WebAssemblyExceptionInfo(const WebAssemblyExceptionInfo &) = delete;
   WebAssemblyExceptionInfo &

@@ -20,7 +20,7 @@ char stackBased2 (void) {
   return buf[0]; // expected-warning{{Undefined}}
 }
 
-// Exercise the conditional visitor. Radar://10105448
+// Exercise the conditional visitor.
 char stackBased3 (int *x) {
   char buf[2];
   int *y;
@@ -34,7 +34,7 @@ char stackBased3 (int *x) {
 char heapBased1 (void) {
   char *buf = malloc(2);
   buf[0] = 'a';
-  char result = buf[1]; // expected-warning{{undefined}}
+  char result = buf[1]; // expected-warning{{uninitialized}}
   free(buf);
   return result;
 }
@@ -42,7 +42,7 @@ char heapBased1 (void) {
 char heapBased2 (void) {
   char *buf = malloc(2);
   buf[1] = 'a';
-  char result = buf[0]; // expected-warning{{undefined}}
+  char result = buf[0]; // expected-warning{{uninitialized}}
   free(buf);
   return result;
 }

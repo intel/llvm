@@ -592,8 +592,10 @@ define <4 x i32> @reassociate_xors_v4i32(<4 x i32> %x0, <4 x i32> %x1, <4 x i32>
 ; CHECK-LABEL: reassociate_xors_v4i32:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    and v0.16b, v0.16b, v1.16b
-; CHECK-NEXT:    eor v1.16b, v2.16b, v3.16b
-; CHECK-NEXT:    eor v0.16b, v0.16b, v1.16b
+; CHECK-NEXT:    // kill: def $q3 killed $q3 def $z3
+; CHECK-NEXT:    // kill: def $q2 killed $q2 def $z2
+; CHECK-NEXT:    eor3 z0.d, z0.d, z2.d, z3.d
+; CHECK-NEXT:    // kill: def $q0 killed $q0 killed $z0
 ; CHECK-NEXT:    ret
   %t0 = and <4 x i32> %x0, %x1
   %t1 = xor <4 x i32> %t0, %x2
@@ -754,9 +756,9 @@ define double @reassociate_adds_from_calls() {
 ; CHECK-STD-LABEL: reassociate_adds_from_calls:
 ; CHECK-STD:       // %bb.0:
 ; CHECK-STD-NEXT:    str d10, [sp, #-32]! // 8-byte Folded Spill
-; CHECK-STD-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-STD-NEXT:    stp d9, d8, [sp, #8] // 16-byte Folded Spill
 ; CHECK-STD-NEXT:    str x30, [sp, #24] // 8-byte Folded Spill
+; CHECK-STD-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-STD-NEXT:    .cfi_offset w30, -8
 ; CHECK-STD-NEXT:    .cfi_offset b8, -16
 ; CHECK-STD-NEXT:    .cfi_offset b9, -24
@@ -779,9 +781,9 @@ define double @reassociate_adds_from_calls() {
 ; CHECK-UNSAFE-LABEL: reassociate_adds_from_calls:
 ; CHECK-UNSAFE:       // %bb.0:
 ; CHECK-UNSAFE-NEXT:    str d10, [sp, #-32]! // 8-byte Folded Spill
-; CHECK-UNSAFE-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-UNSAFE-NEXT:    stp d9, d8, [sp, #8] // 16-byte Folded Spill
 ; CHECK-UNSAFE-NEXT:    str x30, [sp, #24] // 8-byte Folded Spill
+; CHECK-UNSAFE-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-UNSAFE-NEXT:    .cfi_offset w30, -8
 ; CHECK-UNSAFE-NEXT:    .cfi_offset b8, -16
 ; CHECK-UNSAFE-NEXT:    .cfi_offset b9, -24
@@ -814,9 +816,9 @@ define double @already_reassociated() {
 ; CHECK-LABEL: already_reassociated:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    str d10, [sp, #-32]! // 8-byte Folded Spill
-; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    stp d9, d8, [sp, #8] // 16-byte Folded Spill
 ; CHECK-NEXT:    str x30, [sp, #24] // 8-byte Folded Spill
+; CHECK-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK-NEXT:    .cfi_offset w30, -8
 ; CHECK-NEXT:    .cfi_offset b8, -16
 ; CHECK-NEXT:    .cfi_offset b9, -24
@@ -844,4 +846,3 @@ define double @already_reassociated() {
   %t2 = fadd double %t0, %t1
   ret double %t2
 }
-

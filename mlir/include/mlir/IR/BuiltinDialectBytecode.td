@@ -95,11 +95,26 @@ def CallSiteLoc : DialectAttribute<(attr
   LocationAttr:$caller
 )>;
 
+let cType = "FileLineColRange" in {
+def FileLineColRange : DialectAttribute<(attr
+  StringAttr:$filename,
+  WithBuilder<"$_args",
+    WithType<"SmallVector<uint64_t>",
+    WithParser<"succeeded(readFileLineColRangeLocs($_reader, $_var))",
+    WithPrinter<"writeFileLineColRangeLocs($_writer, $_name)">>>>:$rawLocData
+)> {
+  let cBuilder = "getFileLineColRange(context, filename, rawLocData)";
+  let printerPredicate = "!isStrictFileLineColLoc($_val)";
+}
+
 def FileLineColLoc : DialectAttribute<(attr
   StringAttr:$filename,
-  VarInt:$line,
-  VarInt:$column
-)>;
+  VarInt:$start_line,
+  VarInt:$start_column
+)> {
+  let printerPredicate = "isStrictFileLineColLoc($_val)";
+}
+}
 
 let cType = "FusedLoc",
     cBuilder = "cast<FusedLoc>(get<FusedLoc>(context, $_args))" in {
@@ -179,6 +194,10 @@ def SparseElementsAttr : DialectAttribute<(attr
   ShapedType:$type,
   DenseIntElementsAttr:$indices,
   DenseElementsAttr:$values
+)>;
+
+def DistinctAttr : DialectAttribute<(attr
+  Attribute:$referencedAttr
 )>;
 
 // Types
@@ -275,17 +294,17 @@ def VectorType : DialectType<(type
   Array<SignedVarIntList>:$shape,
   Type:$elementType
 )> {
-  let printerPredicate = "!$_val.getNumScalableDims()";
+  let printerPredicate = "!$_val.isScalable()";
 }
 
 def VectorTypeWithScalableDims : DialectType<(type
-  VarInt:$numScalableDims,
+  Array<BoolList>:$scalableDims,
   Array<SignedVarIntList>:$shape,
   Type:$elementType
 )> {
-  let printerPredicate = "$_val.getNumScalableDims()";
+  let printerPredicate = "$_val.isScalable()";
   // Note: order of serialization does not match order of builder.
-  let cBuilder = "get<$_resultType>(context, shape, elementType, numScalableDims)";
+  let cBuilder = "get<$_resultType>(context, shape, elementType, scalableDims)";
 }
 }
 
@@ -316,7 +335,9 @@ def BuiltinDialectAttributes : DialectAttributes<"Builtin"> {
     DenseArrayAttr,
     DenseIntOrFPElementsAttr,
     DenseStringElementsAttr,
-    SparseElementsAttr
+    SparseElementsAttr,
+    DistinctAttr,
+    FileLineColRange,
   ];
 }
 

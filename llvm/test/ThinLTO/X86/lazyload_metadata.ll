@@ -1,14 +1,14 @@
 ; Do setup work for all below tests: generate bitcode and combined index
 ; RUN: opt -module-summary %s -o %t.bc -bitcode-mdindex-threshold=0
 ; RUN: opt -module-summary %p/Inputs/lazyload_metadata.ll -o %t2.bc -bitcode-mdindex-threshold=0
-; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
 ; REQUIRES: asserts
 
 ; Check that importing @globalfunc1 does not trigger loading all the global
 ; metadata for @globalfunc2 and @globalfunc3
 
-; RUN: llvm-lto -opaque-pointers -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -stats 2> %t4.txt
-; RUN: llvm-lto -opaque-pointers -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -stats -disable-ondemand-mds-loading 2> %t5.txt
+; RUN: llvm-lto -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -stats 2> %t4.txt
+; RUN: llvm-lto -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -stats -disable-ondemand-mds-loading 2> %t5.txt
 ; RUN: cat %t4.txt %t5.txt | FileCheck %s
 
 ; Check llvm-lto call with lazy loading enabled

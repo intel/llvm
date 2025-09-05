@@ -5,22 +5,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: target-spir
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// REQUIRES: aspect-ext_intel_matrix
+
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This tests support of col major layout for matrix B which does transpose and
-// then VNNI transform. This is currently only available on AMX
+// then VNNI transform. This is currently only available on AMX and PVC
 
-// XFAIL: gpu
+// XFAIL: gpu-intel-dg2
+// XFAIL-TRACKER: GSD-5768
 
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-#define SG_SZ 16
+constexpr size_t TN = 16;
 
 #include "joint_matrix_int8_colmajorA_colmajorB_impl.hpp"

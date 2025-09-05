@@ -21,17 +21,17 @@
 
 namespace clang {
 
-/// Defines synch scope values used internally by clang.
+/// Defines sync scope values used internally by clang.
 ///
 /// The enum values start from 0 and are contiguous. They are mainly used for
-/// enumerating all supported synch scope values and mapping them to LLVM
-/// synch scopes. Their numerical values may be different from the corresponding
-/// synch scope enums used in source languages.
+/// enumerating all supported sync scope values and mapping them to LLVM
+/// sync scopes. Their numerical values may be different from the corresponding
+/// sync scope enums used in source languages.
 ///
-/// In atomic builtin and expressions, language-specific synch scope enums are
+/// In atomic builtin and expressions, language-specific sync scope enums are
 /// used. Currently only OpenCL memory scope enums are supported and assumed
 /// to be used by all languages. However, in the future, other languages may
-/// define their own set of synch scope enums. The language-specific synch scope
+/// define their own set of sync scope enums. The language-specific sync scope
 /// values are represented by class AtomicScopeModel and its derived classes.
 ///
 /// To add a new enum value:
@@ -40,6 +40,11 @@ namespace clang {
 ///   Update getAsString.
 ///
 enum class SyncScope {
+  SystemScope,
+  DeviceScope,
+  WorkgroupScope,
+  WavefrontScope,
+  SingleScope,
   HIPSingleThread,
   HIPWavefront,
   HIPWorkgroup,
@@ -54,6 +59,16 @@ enum class SyncScope {
 
 inline llvm::StringRef getAsString(SyncScope S) {
   switch (S) {
+  case SyncScope::SystemScope:
+    return "system_scope";
+  case SyncScope::DeviceScope:
+    return "device_scope";
+  case SyncScope::WorkgroupScope:
+    return "workgroup_scope";
+  case SyncScope::WavefrontScope:
+    return "wavefront_scope";
+  case SyncScope::SingleScope:
+    return "single_scope";
   case SyncScope::HIPSingleThread:
     return "hip_singlethread";
   case SyncScope::HIPWavefront:
@@ -73,31 +88,31 @@ inline llvm::StringRef getAsString(SyncScope S) {
   case SyncScope::OpenCLSubGroup:
     return "opencl_subgroup";
   }
-  llvm_unreachable("Invalid synch scope");
+  llvm_unreachable("Invalid sync scope");
 }
 
 /// Defines the kind of atomic scope models.
-enum class AtomicScopeModelKind { None, OpenCL, HIP };
+enum class AtomicScopeModelKind { None, OpenCL, HIP, Generic };
 
-/// Defines the interface for synch scope model.
+/// Defines the interface for sync scope model.
 class AtomicScopeModel {
 public:
   virtual ~AtomicScopeModel() {}
-  /// Maps language specific synch scope values to internal
+  /// Maps language specific sync scope values to internal
   /// SyncScope enum.
   virtual SyncScope map(unsigned S) const = 0;
 
-  /// Check if the compile-time constant synch scope value
+  /// Check if the compile-time constant sync scope value
   /// is valid.
   virtual bool isValid(unsigned S) const = 0;
 
-  /// Get all possible synch scope values that might be
+  /// Get all possible sync scope values that might be
   /// encountered at runtime for the current language.
   virtual ArrayRef<unsigned> getRuntimeValues() const = 0;
 
   /// If atomic builtin function is called with invalid
-  /// synch scope value at runtime, it will fall back to a valid
-  /// synch scope value returned by this function.
+  /// sync scope value at runtime, it will fall back to a valid
+  /// sync scope value returned by this function.
   virtual unsigned getFallBackValue() const = 0;
 
   /// Create an atomic scope model by AtomicScopeModelKind.
@@ -105,7 +120,7 @@ public:
   static std::unique_ptr<AtomicScopeModel> create(AtomicScopeModelKind K);
 };
 
-/// Defines the synch scope model for OpenCL.
+/// Defines the sync scope model for OpenCL.
 class AtomicScopeOpenCLModel : public AtomicScopeModel {
 public:
   /// The enum values match the pre-defined macros
@@ -132,7 +147,7 @@ public:
     case SubGroup:
       return SyncScope::OpenCLSubGroup;
     }
-    llvm_unreachable("Invalid language synch scope value");
+    llvm_unreachable("Invalid language sync scope value");
   }
 
   bool isValid(unsigned S) const override {
@@ -141,7 +156,7 @@ public:
   }
 
   ArrayRef<unsigned> getRuntimeValues() const override {
-    static_assert(Last == SubGroup, "Does not include all synch scopes");
+    static_assert(Last == SubGroup, "Does not include all sync scopes");
     static const unsigned Scopes[] = {
         static_cast<unsigned>(WorkGroup), static_cast<unsigned>(Device),
         static_cast<unsigned>(AllSVMDevices), static_cast<unsigned>(SubGroup)};
@@ -153,7 +168,7 @@ public:
   }
 };
 
-/// Defines the synch scope model for HIP.
+/// Defines the sync scope model for HIP.
 class AtomicScopeHIPModel : public AtomicScopeModel {
 public:
   /// The enum values match the pre-defined macros
@@ -183,7 +198,7 @@ public:
     case System:
       return SyncScope::HIPSystem;
     }
-    llvm_unreachable("Invalid language synch scope value");
+    llvm_unreachable("Invalid language sync scope value");
   }
 
   bool isValid(unsigned S) const override {
@@ -192,11 +207,60 @@ public:
   }
 
   ArrayRef<unsigned> getRuntimeValues() const override {
-    static_assert(Last == System, "Does not include all synch scopes");
+    static_assert(Last == System, "Does not include all sync scopes");
     static const unsigned Scopes[] = {
         static_cast<unsigned>(SingleThread), static_cast<unsigned>(Wavefront),
         static_cast<unsigned>(Workgroup), static_cast<unsigned>(Agent),
         static_cast<unsigned>(System)};
+    return llvm::ArrayRef(Scopes);
+  }
+
+  unsigned getFallBackValue() const override {
+    return static_cast<unsigned>(System);
+  }
+};
+
+/// Defines the generic atomic scope model.
+class AtomicScopeGenericModel : public AtomicScopeModel {
+public:
+  /// The enum values match predefined built-in macros __ATOMIC_SCOPE_*.
+  enum ID {
+    System = 0,
+    Device = 1,
+    Workgroup = 2,
+    Wavefront = 3,
+    Single = 4,
+    Last = Single
+  };
+
+  AtomicScopeGenericModel() = default;
+
+  SyncScope map(unsigned S) const override {
+    switch (static_cast<ID>(S)) {
+    case Device:
+      return SyncScope::DeviceScope;
+    case System:
+      return SyncScope::SystemScope;
+    case Workgroup:
+      return SyncScope::WorkgroupScope;
+    case Wavefront:
+      return SyncScope::WavefrontScope;
+    case Single:
+      return SyncScope::SingleScope;
+    }
+    llvm_unreachable("Invalid language sync scope value");
+  }
+
+  bool isValid(unsigned S) const override {
+    return S <= static_cast<unsigned>(Last);
+  }
+
+  ArrayRef<unsigned> getRuntimeValues() const override {
+    static_assert(Last == Single, "Does not include all sync scopes");
+    static const unsigned Scopes[] = {
+        static_cast<unsigned>(Device), static_cast<unsigned>(System),
+        static_cast<unsigned>(Workgroup), static_cast<unsigned>(Wavefront),
+        static_cast<unsigned>(Single)};
     return llvm::ArrayRef(Scopes);
   }
 
@@ -214,6 +278,8 @@ AtomicScopeModel::create(AtomicScopeModelKind K) {
     return std::make_unique<AtomicScopeOpenCLModel>();
   case AtomicScopeModelKind::HIP:
     return std::make_unique<AtomicScopeHIPModel>();
+  case AtomicScopeModelKind::Generic:
+    return std::make_unique<AtomicScopeGenericModel>();
   }
   llvm_unreachable("Invalid atomic scope model kind");
 }

@@ -9,6 +9,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -ffast-math %{slpflags} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+
 // This test checks extended math operations. Combinations of
 // - argument type - half, float
 // - math function - sin, cos, ..., div_ieee, pow
@@ -19,6 +21,7 @@
 // The option -fno-slp-vectorize prevents vectorization of code in kernel
 // operator() to avoid the extra difficulties in results verification.
 
+#define SKIP_NEW_GPU_DRIVER_VERSION_CHECK 1
 #define TEST_FAST_MATH 1
 
 #include "ext_math.cpp"

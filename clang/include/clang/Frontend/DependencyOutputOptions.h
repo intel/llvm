@@ -33,15 +33,19 @@ enum ExtraDepKind {
 /// file generation.
 class DependencyOutputOptions {
 public:
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IncludeSystemHeaders : 1; ///< Include system header dependencies.
-  unsigned
-      CanonicalSystemHeaders : 1; ///< canonicalize system header dependencies.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ShowHeaderIncludes : 1;   ///< Show header inclusions (-H).
+  LLVM_PREFERRED_TYPE(bool)
   unsigned UsePhonyTargets : 1;      ///< Include phony targets for each
                                      /// dependency, which can avoid some 'make'
                                      /// problems.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned AddMissingHeaderDeps : 1; ///< Add missing headers to dependency list
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IncludeModuleFiles : 1; ///< Include module file dependencies.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ShowSkippedHeaderIncludes : 1; ///< With ShowHeaderIncludes, show
                                           /// also includes that were skipped
                                           /// due to the "include guard
@@ -76,9 +80,6 @@ public:
   /// target.
   std::vector<std::pair<std::string, ExtraDepKind>> ExtraDeps;
 
-  /// In /showIncludes mode, pretend the main TU is a header with this name.
-  std::string ShowIncludesPretendHeader;
-
   /// The file to write GraphViz-formatted header dependencies to.
   std::string DOTOutputFile;
 
@@ -86,16 +87,15 @@ public:
   std::string ModuleDependencyOutputDir;
 
   /// Dependency output which is prefixed with this string is filtered from
-  /// the dependency output. 
-  std::string DependencyFilter;
+  /// the dependency output.
+  std::vector<std::string> DependencyFilter;
 
 public:
   DependencyOutputOptions()
-      : IncludeSystemHeaders(0), CanonicalSystemHeaders(0),
-        ShowHeaderIncludes(0), UsePhonyTargets(0), AddMissingHeaderDeps(0),
-        IncludeModuleFiles(0), ShowSkippedHeaderIncludes(0),
-        HeaderIncludeFormat(HIFMT_Textual), HeaderIncludeFiltering(HIFIL_None) {
-  }
+      : IncludeSystemHeaders(0), ShowHeaderIncludes(0), UsePhonyTargets(0),
+        AddMissingHeaderDeps(0), IncludeModuleFiles(0),
+        ShowSkippedHeaderIncludes(0), HeaderIncludeFormat(HIFMT_Textual),
+        HeaderIncludeFiltering(HIFIL_None) {}
 };
 
 }  // end namespace clang

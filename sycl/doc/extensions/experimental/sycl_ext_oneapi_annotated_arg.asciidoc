@@ -157,7 +157,7 @@ above example, encapsulating `annotated_arg` within `MyType` is illegal.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template < typename T, typename PropertyListT = properties<>>
+template < typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   ...
 ----
@@ -179,6 +179,13 @@ The properties supported with `annotated_arg` may be defined in
 separate extensions. Please note that there cannot be duplicated property in a 
 properties list. Otherwise, a compiler time error is triggered.
 
+If the type `T` is trivially copyable, then `annotated_arg<T, ...>` is also
+trivially copyable.
+
+If the type `T` is device copyable, then `annotated_arg<T, ...>` is also device
+copyable and the implementation sets the `is_device_copyable_v` trait to `true`
+for this type.
+
 The section below describes the constructors and member functions for
 `annotated_arg`.
 
@@ -189,11 +196,11 @@ must be a legal parameter type as defined by the SYCL specification. Given `anno
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   public:
     annotated_arg() noexcept;
-    annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
+    annotated_arg(const T& v_, const PropertyListT &P = PropertyListT{}) noexcept;
     template<typename... PropertyValueTs>
     annotated_arg(const T& v_, PropertyValueTs... props) noexcept;
 
@@ -210,6 +217,9 @@ class annotated_arg {
     operator T() noexcept;
     operator T() const noexcept;
 
+    // Available if type T is pointer type
+    T operator->() const noexcept;
+
     // Available if the operator[] is valid for objects of type T, return
     // type will match the return type of T::operator[](std::ptrdiff_t)
     /* ... */ operator[](std::ptrdiff_t idx) const noexcept;
@@ -221,6 +231,18 @@ class annotated_arg {
     // instances of propertyT
     template<typename propertyT>
     static constexpr /*unspecified*/ get_property();
+
+    // OP is: +, -, *, /, %, <<, >>, &, |, ^, <, <=, >, >=, ==, ~=, &&, ||
+    template <typename O>
+    auto friend operatorOP(O&& a, const annotated_arg& b) ->
+               decltype(std::forward<O>(a) OP std::declval<T>());
+    template <typename O>         //available only if O is not an annotated_arg type
+    auto friend operatorOP(const annotated_arg& a, O&& b) ->
+               decltype(std::declval<T>() OP std::forward<O>(b));
+
+    // OP is: +, -, !, ~
+    template <typename O=T>
+    auto operatorOP() -> decltype(OP std::declval<O>());
 };
 
 //Deduction guides
@@ -231,8 +253,12 @@ annotated_arg(T, PropertyValueTs... values) ->
 template <typename T, typename PropertiesA, typename PropertiesB>
 annotated_arg(annotated_arg<T, PropertiesA>, PropertiesB>) ->
     annotated_arg<T, /* a type that combines the properties of PropertiesA and PropertiesB */>;
+
+
 } // namespace sycl::ext::oneapi::experimental
 ----
+
+The following table describes the member functions of the `annotated_arg` class:
 
 [frame="topbot",options="header"]
 |===
@@ -251,7 +277,7 @@ Constructs an `annotated_arg` object which is default initialized.
 a|
 [source,c++]
 ----
-annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
+annotated_arg(const T& v_, const PropertyListT &P = PropertyListT{}) noexcept;
 ----
 | Not available in device code.
 Constructs an `annotated_arg` object from the input object `v_`.
@@ -332,6 +358,14 @@ operator const T() const noexcept;
 a|
 [source,c++]
 ----
+T operator->() const noexcept;
+----
+| Member access of type `T` if `T` is a pointer type.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
 /* ... */ operator[](std::ptrdiff_t idx) const noexcept;
 ----
 |
@@ -365,6 +399,57 @@ a compile error if `PropertyListT` does not contain a property with the
 
 Available only if `propertyT` is the property key class of a compile-time
 constant property.
+
+a|
+[source,c++]
+----
+template <typename O>
+auto friend operatorOP(O&& a, const annotated_arg& b) ->
+		   decltype(std::forward<O>(a) OP std::declval<T>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#\|\|#.
+
+Defines a hidden friend operator `OP` overload for type `O` and `annotated_arg`.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(O&&, T&&)` and is available only if `operatorOP(O&&, T&&)` is well formed. The value and result
+is the same as the result of `operatorOP(O&&, T&&)` applied to the objects of
+type `O` and `T`.
+
+a|
+[source,c++]
+----
+template <typename O>
+auto friend operatorOP(const annotated_ref& a, O&& b) ->
+		   decltype(std::declval<T>() OP std::forward<O>(b));
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#\|\|#.
+
+Defines a hidden friend operator `OP` overload for type `annotated_arg` and `O`. `O` cannot be
+a type of `annotated_arg`.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(T&&, O&&)` and is available only if `operatorOP(T&&, O&&)` is well formed. The value and result
+is the same as the result of `operatorOP(T&&, O&&)` applied to the objects of
+type `T` and `O`.
+
+a|
+[source,c++]
+----
+template <typename O=T>
+auto operatorOP() -> decltype(OP std::declval<O>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#, [code]#!#, [code]#~#.
+
+Defines a operator `OP` overload for types `O` where the default type is `T`.
+
+Let `operatorOP` denotes the operator used. The overloaded operator
+`operatorOP` utilizes `operatorOP(O)` and is available only if `operatorOP(O)`
+is well formed. The value and result is the same as the result of `operatorOP(O)`
+applied to the objects of type `O`.
 
 |===
 

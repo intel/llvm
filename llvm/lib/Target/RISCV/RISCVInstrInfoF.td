@@ -29,34 +29,70 @@ def SDT_RISCVFCVT_X
 def SDT_RISCVFROUND
     : SDTypeProfile<1, 3, [SDTCisFP<0>, SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>,
                            SDTCisVT<3, XLenVT>]>;
-def SDT_RISCVFPCLASS
+def SDT_RISCVFCLASS
     : SDTypeProfile<1, 1, [SDTCisVT<0, XLenVT>, SDTCisFP<1>]>;
+def SDT_RISCVFSGNJX
+    : SDTypeProfile<1, 2, [SDTCisFP<0>, SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>]>;
 
-def riscv_fpclass
-    : SDNode<"RISCVISD::FPCLASS", SDT_RISCVFPCLASS>;
+def riscv_fclass
+    : RVSDNode<"FCLASS", SDT_RISCVFCLASS>;
 
+// Rounds an FP value to its corresponding integer in the same FP format.
+// First operand is the value to round, the second operand is the largest
+// integer that can be represented exactly in the FP format. This will be
+// expanded into multiple instructions and basic blocks with a custom
+// inserter.
 def riscv_fround
-    : SDNode<"RISCVISD::FROUND", SDT_RISCVFROUND>;
+    : RVSDNode<"FROUND", SDT_RISCVFROUND>;
 
+def riscv_fsgnjx
+    : RVSDNode<"FSGNJX", SDT_RISCVFSGNJX>;
+
+// FPR<->GPR transfer operations when the FPR is smaller than XLEN, needed as
+// XLEN is the only legal integer width.
+//
+// FMV_W_X_RV64 matches the semantics of the FMV.W.X.
+// FMV_X_ANYEXTW_RV64 is similar to FMV.X.W but has an any-extended result.
+//
+// This is a more convenient semantic for producing dagcombines that remove
+// unnecessary GPR->FPR->GPR moves.
 def riscv_fmv_w_x_rv64
-    : SDNode<"RISCVISD::FMV_W_X_RV64", SDT_RISCVFMV_W_X_RV64>;
+    : RVSDNode<"FMV_W_X_RV64", SDT_RISCVFMV_W_X_RV64>;
 def riscv_fmv_x_anyextw_rv64
-    : SDNode<"RISCVISD::FMV_X_ANYEXTW_RV64", SDT_RISCVFMV_X_ANYEXTW_RV64>;
-def riscv_fcvt_w_rv64
-    : SDNode<"RISCVISD::FCVT_W_RV64", SDT_RISCVFCVT_W_RV64>;
-def riscv_fcvt_wu_rv64
-    : SDNode<"RISCVISD::FCVT_WU_RV64", SDT_RISCVFCVT_W_RV64>;
-def riscv_fcvt_x
-    : SDNode<"RISCVISD::FCVT_X", SDT_RISCVFCVT_X>;
-def riscv_fcvt_xu
-    : SDNode<"RISCVISD::FCVT_XU", SDT_RISCVFCVT_X>;
+    : RVSDNode<"FMV_X_ANYEXTW_RV64", SDT_RISCVFMV_X_ANYEXTW_RV64>;
 
-def riscv_strict_fcvt_w_rv64
-    : SDNode<"RISCVISD::STRICT_FCVT_W_RV64", SDT_RISCVFCVT_W_RV64,
-             [SDNPHasChain]>;
-def riscv_strict_fcvt_wu_rv64
-    : SDNode<"RISCVISD::STRICT_FCVT_WU_RV64", SDT_RISCVFCVT_W_RV64,
-             [SDNPHasChain]>;
+// FP to 32 bit int conversions for RV64. These are used to keep track of the
+// result being sign extended to 64 bit. These saturate out of range inputs.
+// Used for FP_TO_S/UINT and FP_TO_S/UINT_SAT lowering. Rounding mode
+// is passed as a TargetConstant operand using the RISCVFPRndMode enum.
+def riscv_fcvt_w_rv64
+    : RVSDNode<"FCVT_W_RV64", SDT_RISCVFCVT_W_RV64>;
+def riscv_fcvt_wu_rv64
+    : RVSDNode<"FCVT_WU_RV64", SDT_RISCVFCVT_W_RV64>;
+
+// FP to XLen int conversions. Corresponds to fcvt.l(u).s/d/h on RV64 and
+// fcvt.w(u).s/d/h on RV32. Unlike FP_TO_S/UINT these saturate out of
+// range inputs. These are used for FP_TO_S/UINT_SAT lowering. Rounding mode
+// is passed as a TargetConstant operand using the RISCVFPRndMode enum.
+def riscv_fcvt_x
+    : RVSDNode<"FCVT_X", SDT_RISCVFCVT_X>;
+def riscv_fcvt_xu
+    : RVSDNode<"FCVT_XU", SDT_RISCVFCVT_X>;
+
+// Floating point fmax and fmin matching the RISC-V instruction semantics.
+def riscv_fmin : RVSDNode<"FMIN", SDTFPBinOp>;
+def riscv_fmax : RVSDNode<"FMAX", SDTFPBinOp>;
+
+let IsStrictFP = true in {
+  // FP to 32 bit int conversions for RV64. These are used to keep track of the
+  // result being sign extended to 64 bit. These saturate out of range inputs.
+  def riscv_strict_fcvt_w_rv64
+      : RVSDNode<"STRICT_FCVT_W_RV64", SDT_RISCVFCVT_W_RV64,
+              [SDNPHasChain]>;
+  def riscv_strict_fcvt_wu_rv64
+      : RVSDNode<"STRICT_FCVT_WU_RV64", SDT_RISCVFCVT_W_RV64,
+              [SDNPHasChain]>;
+}
 
 def riscv_any_fcvt_w_rv64 : PatFrags<(ops node:$src, node:$frm),
                                      [(riscv_strict_fcvt_w_rv64 node:$src, node:$frm),
@@ -75,18 +111,17 @@ def any_fma_nsz : PatFrag<(ops node:$rs1, node:$rs2, node:$rs3),
 
 // Zfinx
 
-def GPRAsFPR : AsmOperandClass {
-  let Name = "GPRAsFPR";
+def GPRAsFPR32 : AsmOperandClass {
+  let Name = "GPRAsFPR32";
   let ParserMethod = "parseGPRAsFPR";
   let RenderMethod = "addRegOperands";
 }
 
 def FPR32INX : RegisterOperand<GPRF32> {
-  let ParserMatchClass = GPRAsFPR;
-  let DecoderMethod = "DecodeGPRRegisterClass";
+  let ParserMatchClass = GPRAsFPR32;
 }
 
-// Describes a combination of predicates from F/D/Zfh/Zfhmin or
+// Describes a combination of predicates from F/D/Q/Zfh/Zfhmin or
 // Zfinx/Zdinx/Zhinx/Zhinxmin that are applied to scalar FP instruction.
 // Contains the DAGOperand for the primary type for the predicates. The primary
 // type may be unset for combinations of predicates like Zfh+D.
@@ -95,8 +130,8 @@ def FPR32INX : RegisterOperand<GPRF32> {
 //
 // The DAGOperand can be unset if the predicates are not enough to define it.
 class ExtInfo<string suffix, string space, list<Predicate> predicates,
-              DAGOperand primaryty, DAGOperand f32ty, DAGOperand f64ty,
-              DAGOperand f16ty> {
+              ValueType primaryvt, DAGOperand primaryty, DAGOperand f32ty,
+              DAGOperand f64ty, DAGOperand f16ty> {
   list<Predicate> Predicates = predicates;
   string Suffix = suffix;
   string Space = space;
@@ -104,11 +139,12 @@ class ExtInfo<string suffix, string space, list<Predicate> predicates,
   DAGOperand F16Ty = f16ty;
   DAGOperand F32Ty = f32ty;
   DAGOperand F64Ty = f64ty;
+  ValueType PrimaryVT = primaryvt;
 }
 
-def FExt       : ExtInfo<"", "", [HasStdExtF], FPR32, FPR32, ?, ?>;
+def FExt       : ExtInfo<"", "", [HasStdExtF], f32, FPR32, FPR32, ?, ?>;
 
-def ZfinxExt   : ExtInfo<"_INX", "RVZfinx", [HasStdExtZfinx], FPR32INX, FPR32INX, ?, ?>;
+def ZfinxExt   : ExtInfo<"_INX", "Zfinx", [HasStdExtZfinx], f32, FPR32INX, FPR32INX, ?, ?>;
 
 defvar FExts   = [FExt, ZfinxExt];
 
@@ -126,6 +162,30 @@ def frmarg : Operand<XLenVT> {
   let ParserMatchClass = FRMArg;
   let PrintMethod = "printFRMArg";
   let DecoderMethod = "decodeFRMArg";
+  let OperandType = "OPERAND_FRMARG";
+  let OperandNamespace = "RISCVOp";
+}
+
+// Variants of the rounding mode operand that default to 'rne'. This is used
+// for historical/legacy reasons. fcvt functions where the rounding mode
+// doesn't affect the output originally always set it to 0b000 ('rne'). As old
+// versions of LLVM and GCC will fail to decode versions of these instructions
+// with the rounding mode set to something other than 'rne', we retain this
+// default.
+def FRMArgLegacy : AsmOperandClass {
+  let Name = "FRMArgLegacy";
+  let RenderMethod = "addFRMArgOperands";
+  let ParserMethod = "parseFRMArg";
+  let IsOptional = 1;
+  let DefaultMethod = "defaultFRMArgLegacyOp";
+}
+
+def frmarglegacy : Operand<XLenVT> {
+  let ParserMatchClass = FRMArgLegacy;
+  let PrintMethod = "printFRMArgLegacy";
+  let DecoderMethod = "decodeFRMArg";
+  let OperandType = "OPERAND_FRMARG";
+  let OperandNamespace = "RISCVOp";
 }
 
 //===----------------------------------------------------------------------===//
@@ -223,6 +283,24 @@ multiclass FPUnaryOp_r_frm_m<bits<7> funct7, bits<5> rs2val,
 }
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1,
+    UseNamedOperandTable = 1, hasPostISelHook = 1 in
+class FPUnaryOp_r_frmlegacy<bits<7> funct7, bits<5> rs2val, DAGOperand rdty,
+                            DAGOperand rs1ty, string opcodestr>
+    : RVInstRFrm<funct7, OPC_OP_FP, (outs rdty:$rd),
+                 (ins rs1ty:$rs1, frmarglegacy:$frm), opcodestr,
+                  "$rd, $rs1$frm"> {
+  let rs2 = rs2val;
+}
+multiclass FPUnaryOp_r_frmlegacy_m<bits<7> funct7, bits<5> rs2val,
+                                   ExtInfo Ext, DAGOperand rdty, DAGOperand rs1ty,
+                                   string opcodestr, list<Predicate> ExtraPreds = []> {
+  let Predicates = !listconcat(Ext.Predicates, ExtraPreds),
+      DecoderNamespace = Ext.Space in
+  def Ext.Suffix : FPUnaryOp_r_frmlegacy<funct7, rs2val, rdty, rs1ty,
+                                         opcodestr>;
+}
+
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, mayRaiseFPException = 1,
     IsSignExtendingOpW = 1 in
 class FPCmp_rr<bits<7> funct7, bits<3> funct3, string opcodestr,
                DAGOperand rty, bit Commutable = 0>
@@ -236,9 +314,9 @@ multiclass FPCmp_rr_m<bits<7> funct7, bits<3> funct3, string opcodestr,
   def Ext.Suffix : FPCmp_rr<funct7, funct3, opcodestr, Ext.PrimaryTy, Commutable>;
 }
 
-class PseudoFROUND<DAGOperand Ty>
+class PseudoFROUND<DAGOperand Ty, ValueType vt>
     : Pseudo<(outs Ty:$rd), (ins Ty:$rs1, Ty:$rs2, ixlenimm:$rm),
-      [(set Ty:$rd, (riscv_fround Ty:$rs1, Ty:$rs2, timm:$rm))]> {
+      [(set Ty:$rd, (vt (riscv_fround Ty:$rs1, Ty:$rs2, timm:$rm)))]> {
   let hasSideEffects = 0;
   let mayLoad = 0;
   let mayStore = 0;
@@ -259,8 +337,21 @@ def FLW : FPLoad_r<0b010, "flw", FPR32, WriteFLD32>;
 def FSW : FPStore_r<0b010, "fsw", FPR32, WriteFST32>;
 } // Predicates = [HasStdExtF]
 
+let Predicates = [HasStdExtZfinx], isCodeGenOnly = 1 in {
+def LW_INX : Load_ri<0b010, "lw", GPRF32>, Sched<[WriteLDW, ReadMemBase]>;
+def SW_INX : Store_rri<0b010, "sw", GPRF32>,
+             Sched<[WriteSTW, ReadStoreData, ReadMemBase]>;
+
+// ADDI with GPRF32 register class to use for copy. This should not be used as
+// general ADDI, so the immediate should always be zero.
+let isReMaterializable = 1, isAsCheapAsAMove = 1, isMoveReg = 1,
+    hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def PseudoMV_FPR32INX : Pseudo<(outs GPRF32:$rd), (ins GPRF32:$rs), []>,
+                        Sched<[WriteIALU, ReadIALU]>;
+}
+
 foreach Ext = FExts in {
-  let SchedRW = [WriteFMA32, ReadFMA32, ReadFMA32, ReadFMA32] in {
+  let SchedRW = [WriteFMA32, ReadFMA32, ReadFMA32, ReadFMA32Addend] in {
     defm FMADD_S  : FPFMA_rrr_frm_m<OPC_MADD,  0b00, "fmadd.s",  Ext>;
     defm FMSUB_S  : FPFMA_rrr_frm_m<OPC_MSUB,  0b00, "fmsub.s",  Ext>;
     defm FNMSUB_S : FPFMA_rrr_frm_m<OPC_NMSUB, 0b00, "fnmsub.s", Ext>;
@@ -268,12 +359,12 @@ foreach Ext = FExts in {
   }
 
   let SchedRW = [WriteFAdd32, ReadFAdd32, ReadFAdd32] in {
-    defm FADD_S : FPALU_rr_frm_m<0b0000000, "fadd.s", Ext, /*Commutable*/1>;
+    defm FADD_S : FPALU_rr_frm_m<0b0000000, "fadd.s", Ext, Commutable=1>;
     defm FSUB_S : FPALU_rr_frm_m<0b0000100, "fsub.s", Ext>;
   }
 
   let SchedRW = [WriteFMul32, ReadFMul32, ReadFMul32] in
-  defm FMUL_S : FPALU_rr_frm_m<0b0001000, "fmul.s", Ext, /*Commutable*/1>;
+  defm FMUL_S : FPALU_rr_frm_m<0b0001000, "fmul.s", Ext, Commutable=1>;
 
   let SchedRW = [WriteFDiv32, ReadFDiv32, ReadFDiv32] in
   defm FDIV_S : FPALU_rr_frm_m<0b0001100, "fdiv.s", Ext>;
@@ -290,8 +381,8 @@ foreach Ext = FExts in {
   }
 
   let SchedRW = [WriteFMinMax32, ReadFMinMax32, ReadFMinMax32] in {
-    defm FMIN_S   : FPALU_rr_m<0b0010100, 0b000, "fmin.s", Ext, /*Commutable*/1>;
-    defm FMAX_S   : FPALU_rr_m<0b0010100, 0b001, "fmax.s", Ext, /*Commutable*/1>;
+    defm FMIN_S   : FPALU_rr_m<0b0010100, 0b000, "fmin.s", Ext, Commutable=1>;
+    defm FMAX_S   : FPALU_rr_m<0b0010100, 0b001, "fmax.s", Ext, Commutable=1>;
   }
 
   let IsSignExtendingOpW = 1 in
@@ -305,7 +396,7 @@ foreach Ext = FExts in {
                    Sched<[WriteFCvtF32ToI32, ReadFCvtF32ToI32]>;
 
   let SchedRW = [WriteFCmp32, ReadFCmp32, ReadFCmp32] in {
-  defm FEQ_S : FPCmp_rr_m<0b1010000, 0b010, "feq.s", Ext, /*Commutable*/1>;
+  defm FEQ_S : FPCmp_rr_m<0b1010000, 0b010, "feq.s", Ext, Commutable=1>;
   defm FLT_S : FPCmp_rr_m<0b1010000, 0b001, "flt.s", Ext>;
   defm FLE_S : FPCmp_rr_m<0b1010000, 0b000, "fle.s", Ext>;
   }
@@ -353,6 +444,32 @@ def FMV_W_X : FPUnaryOp_r<0b1111000, 0b00000, 0b000, FPR32, GPR, "fmv.w.x">,
 // Assembler Pseudo Instructions (User-Level ISA, Version 2.2, Chapter 20)
 //===----------------------------------------------------------------------===//
 
+let Predicates = [HasStdExtFOrZfinx] in {
+// The following csr instructions actually alias instructions from the base ISA.
+// However, it only makes sense to support them when the F or Zfinx extension is
+// enabled.
+// NOTE: "frcsr", "frrm", and "frflags" are more specialized version of "csrr".
+def : InstAlias<"frcsr $rd",      (CSRRS GPR:$rd, SysRegFCSR.Encoding, X0), 2>;
+def : InstAlias<"fscsr $rd, $rs", (CSRRW GPR:$rd, SysRegFCSR.Encoding, GPR:$rs)>;
+def : InstAlias<"fscsr $rs",      (CSRRW      X0, SysRegFCSR.Encoding, GPR:$rs), 2>;
+
+// frsr, fssr are obsolete aliases replaced by frcsr, fscsr.
+def : MnemonicAlias<"frsr", "frcsr">;
+def : MnemonicAlias<"fssr", "fscsr">;
+
+def : InstAlias<"frrm $rd",        (CSRRS  GPR:$rd, SysRegFRM.Encoding, X0), 2>;
+def : InstAlias<"fsrm $rd, $rs",   (CSRRW  GPR:$rd, SysRegFRM.Encoding, GPR:$rs)>;
+def : InstAlias<"fsrm $rs",        (CSRRW       X0, SysRegFRM.Encoding, GPR:$rs), 2>;
+def : InstAlias<"fsrmi $rd, $imm", (CSRRWI GPR:$rd, SysRegFRM.Encoding, uimm5:$imm)>;
+def : InstAlias<"fsrmi $imm",      (CSRRWI      X0, SysRegFRM.Encoding, uimm5:$imm), 2>;
+
+def : InstAlias<"frflags $rd",        (CSRRS  GPR:$rd, SysRegFFLAGS.Encoding, X0), 2>;
+def : InstAlias<"fsflags $rd, $rs",   (CSRRW  GPR:$rd, SysRegFFLAGS.Encoding, GPR:$rs)>;
+def : InstAlias<"fsflags $rs",        (CSRRW       X0, SysRegFFLAGS.Encoding, GPR:$rs), 2>;
+def : InstAlias<"fsflagsi $rd, $imm", (CSRRWI GPR:$rd, SysRegFFLAGS.Encoding, uimm5:$imm)>;
+def : InstAlias<"fsflagsi $imm",      (CSRRWI      X0, SysRegFFLAGS.Encoding, uimm5:$imm), 2>;
+} // Predicates = [HasStdExtFOrZfinx]
+
 let Predicates = [HasStdExtF] in {
 def : InstAlias<"flw $rd, (${rs1})",  (FLW FPR32:$rd,  GPR:$rs1, 0), 0>;
 def : InstAlias<"fsw $rs2, (${rs1})", (FSW FPR32:$rs2, GPR:$rs1, 0), 0>;
@@ -368,31 +485,6 @@ def : InstAlias<"fgt.s $rd, $rs, $rt",
 def : InstAlias<"fge.s $rd, $rs, $rt",
                 (FLE_S GPR:$rd, FPR32:$rt, FPR32:$rs), 0>;
 
-// The following csr instructions actually alias instructions from the base ISA.
-// However, it only makes sense to support them when the F extension is enabled.
-// NOTE: "frcsr", "frrm", and "frflags" are more specialized version of "csrr".
-def : InstAlias<"frcsr $rd",      (CSRRS GPR:$rd, SysRegFCSR.Encoding, X0), 2>;
-def : InstAlias<"fscsr $rd, $rs", (CSRRW GPR:$rd, SysRegFCSR.Encoding, GPR:$rs)>;
-def : InstAlias<"fscsr $rs",      (CSRRW      X0, SysRegFCSR.Encoding, GPR:$rs), 2>;
-
-// frsr, fssr are obsolete aliases replaced by frcsr, fscsr, so give them
-// zero weight.
-def : InstAlias<"frsr $rd",       (CSRRS GPR:$rd, SysRegFCSR.Encoding, X0), 0>;
-def : InstAlias<"fssr $rd, $rs",  (CSRRW GPR:$rd, SysRegFCSR.Encoding, GPR:$rs), 0>;
-def : InstAlias<"fssr $rs",       (CSRRW      X0, SysRegFCSR.Encoding, GPR:$rs), 0>;
-
-def : InstAlias<"frrm $rd",        (CSRRS  GPR:$rd, SysRegFRM.Encoding, X0), 2>;
-def : InstAlias<"fsrm $rd, $rs",   (CSRRW  GPR:$rd, SysRegFRM.Encoding, GPR:$rs)>;
-def : InstAlias<"fsrm $rs",        (CSRRW       X0, SysRegFRM.Encoding, GPR:$rs), 2>;
-def : InstAlias<"fsrmi $rd, $imm", (CSRRWI GPR:$rd, SysRegFRM.Encoding, uimm5:$imm)>;
-def : InstAlias<"fsrmi $imm",      (CSRRWI      X0, SysRegFRM.Encoding, uimm5:$imm), 2>;
-
-def : InstAlias<"frflags $rd",        (CSRRS  GPR:$rd, SysRegFFLAGS.Encoding, X0), 2>;
-def : InstAlias<"fsflags $rd, $rs",   (CSRRW  GPR:$rd, SysRegFFLAGS.Encoding, GPR:$rs)>;
-def : InstAlias<"fsflags $rs",        (CSRRW       X0, SysRegFFLAGS.Encoding, GPR:$rs), 2>;
-def : InstAlias<"fsflagsi $rd, $imm", (CSRRWI GPR:$rd, SysRegFFLAGS.Encoding, uimm5:$imm)>;
-def : InstAlias<"fsflagsi $imm",      (CSRRWI      X0, SysRegFFLAGS.Encoding, uimm5:$imm), 2>;
-
 // fmv.w.x and fmv.x.w were previously known as fmv.s.x and fmv.x.s. Both
 // spellings should be supported by standard tools.
 def : MnemonicAlias<"fmv.s.x", "fmv.w.x">;
@@ -407,6 +499,7 @@ def PseudoQuietFLT_S : PseudoQuietFCMP<FPR32>;
 } // Predicates = [HasStdExtF]
 
 let Predicates = [HasStdExtZfinx] in {
+def : InstAlias<"fmv.s $rd, $rs",  (FSGNJ_S_INX  FPR32INX:$rd, FPR32INX:$rs, FPR32INX:$rs)>;
 def : InstAlias<"fabs.s $rd, $rs", (FSGNJX_S_INX FPR32INX:$rd, FPR32INX:$rs, FPR32INX:$rs)>;
 def : InstAlias<"fneg.s $rd, $rs", (FSGNJN_S_INX FPR32INX:$rd, FPR32INX:$rs, FPR32INX:$rs)>;
 
@@ -436,34 +529,34 @@ def fpimm0    : PatLeaf<(fpimm), [{ return N->isExactlyValue(+0.0); }]>;
 
 /// Generic pattern classes
 class PatSetCC<DAGOperand Ty, SDPatternOperator OpNode, CondCode Cond,
-               RVInst Inst>
-    : Pat<(OpNode Ty:$rs1, Ty:$rs2, Cond), (Inst $rs1, $rs2)>;
+               RVInstCommon Inst, ValueType vt>
+    : Pat<(XLenVT (OpNode (vt Ty:$rs1), Ty:$rs2, Cond)), (Inst $rs1, $rs2)>;
 multiclass PatSetCC_m<SDPatternOperator OpNode, CondCode Cond,
-                      RVInst Inst, ExtInfo Ext> {
+                      RVInstCommon Inst, ExtInfo Ext> {
   let Predicates = Ext.Predicates in
   def Ext.Suffix : PatSetCC<Ext.PrimaryTy, OpNode, Cond,
-                            !cast<RVInst>(Inst#Ext.Suffix)>;
+                            !cast<RVInstCommon>(Inst#Ext.Suffix), Ext.PrimaryVT>;
 }
 
 class PatFprFpr<SDPatternOperator OpNode, RVInstR Inst,
-                DAGOperand RegTy>
-    : Pat<(OpNode RegTy:$rs1, RegTy:$rs2), (Inst $rs1, $rs2)>;
+                DAGOperand RegTy, ValueType vt>
+    : Pat<(OpNode (vt RegTy:$rs1), (vt RegTy:$rs2)), (Inst $rs1, $rs2)>;
 multiclass PatFprFpr_m<SDPatternOperator OpNode, RVInstR Inst,
                        ExtInfo Ext> {
   let Predicates = Ext.Predicates in
   def Ext.Suffix : PatFprFpr<OpNode, !cast<RVInstR>(Inst#Ext.Suffix),
-                             Ext.PrimaryTy>;
+                             Ext.PrimaryTy, Ext.PrimaryVT>;
 }
 
 class PatFprFprDynFrm<SDPatternOperator OpNode, RVInstRFrm Inst,
-                      DAGOperand RegTy>
-    : Pat<(OpNode RegTy:$rs1, RegTy:$rs2), (Inst $rs1, $rs2, FRM_DYN)>;
+                      DAGOperand RegTy, ValueType vt>
+    : Pat<(OpNode (vt RegTy:$rs1), (vt RegTy:$rs2)), (Inst $rs1, $rs2, FRM_DYN)>;
 multiclass PatFprFprDynFrm_m<SDPatternOperator OpNode, RVInstRFrm Inst,
                              ExtInfo Ext> {
   let Predicates = Ext.Predicates in
   def Ext.Suffix : PatFprFprDynFrm<OpNode,
                                    !cast<RVInstRFrm>(Inst#Ext.Suffix),
-                                   Ext.PrimaryTy>;
+                                   Ext.PrimaryTy, Ext.PrimaryVT>;
 }
 
 /// Float conversion operations
@@ -485,7 +578,7 @@ def : Pat<(any_fsqrt FPR32:$rs1), (FSQRT_S FPR32:$rs1, FRM_DYN)>;
 def : Pat<(fneg FPR32:$rs1), (FSGNJN_S $rs1, $rs1)>;
 def : Pat<(fabs FPR32:$rs1), (FSGNJX_S $rs1, $rs1)>;
 
-def : Pat<(riscv_fpclass FPR32:$rs1), (FCLASS_S $rs1)>;
+def : Pat<(riscv_fclass FPR32:$rs1), (FCLASS_S $rs1)>;
 } // Predicates = [HasStdExtF]
 
 let Predicates = [HasStdExtZfinx] in {
@@ -494,14 +587,17 @@ def : Pat<(any_fsqrt FPR32INX:$rs1), (FSQRT_S_INX FPR32INX:$rs1, FRM_DYN)>;
 def : Pat<(fneg FPR32INX:$rs1), (FSGNJN_S_INX $rs1, $rs1)>;
 def : Pat<(fabs FPR32INX:$rs1), (FSGNJX_S_INX $rs1, $rs1)>;
 
-def : Pat<(riscv_fpclass FPR32INX:$rs1), (FCLASS_S_INX $rs1)>;
+def : Pat<(riscv_fclass FPR32INX:$rs1), (FCLASS_S_INX $rs1)>;
 } // Predicates = [HasStdExtZfinx]
 
-foreach Ext = FExts in
+foreach Ext = FExts in {
 defm : PatFprFpr_m<fcopysign, FSGNJ_S, Ext>;
+defm : PatFprFpr_m<riscv_fsgnjx, FSGNJX_S, Ext>;
+}
 
 let Predicates = [HasStdExtF] in {
-def : Pat<(fcopysign FPR32:$rs1, (fneg FPR32:$rs2)), (FSGNJN_S $rs1, $rs2)>;
+def : Pat<(fcopysign FPR32:$rs1, (fneg FPR32:$rs2)),
+          (FSGNJN_S FPR32:$rs1, FPR32:$rs2)>;
 
 // fmadd: rs1 * rs2 + rs3
 def : Pat<(any_fma FPR32:$rs1, FPR32:$rs2, FPR32:$rs3),
@@ -525,7 +621,8 @@ def : Pat<(fneg (any_fma_nsz FPR32:$rs1, FPR32:$rs2, FPR32:$rs3)),
 } // Predicates = [HasStdExtF]
 
 let Predicates = [HasStdExtZfinx] in {
-def : Pat<(fcopysign FPR32INX:$rs1, (fneg FPR32INX:$rs2)), (FSGNJN_S_INX $rs1, $rs2)>;
+def : Pat<(fcopysign FPR32INX:$rs1, (fneg FPR32INX:$rs2)),
+          (FSGNJN_S_INX FPR32INX:$rs1, FPR32INX:$rs2)>;
 
 // fmadd: rs1 * rs2 + rs3
 def : Pat<(any_fma FPR32INX:$rs1, FPR32INX:$rs2, FPR32INX:$rs3),
@@ -554,6 +651,11 @@ def : Pat<(fneg (any_fma_nsz FPR32INX:$rs1, FPR32INX:$rs2, FPR32INX:$rs3)),
 foreach Ext = FExts in {
   defm : PatFprFpr_m<fminnum, FMIN_S, Ext>;
   defm : PatFprFpr_m<fmaxnum, FMAX_S, Ext>;
+  defm : PatFprFpr_m<fminimumnum, FMIN_S, Ext>;
+  defm : PatFprFpr_m<fmaximumnum, FMAX_S, Ext>;
+  defm : PatFprFpr_m<riscv_fmin, FMIN_S, Ext>;
+  defm : PatFprFpr_m<riscv_fmax, FMAX_S, Ext>;
+  def : Pat<(f32 (fcanonicalize FPR32:$rs1)), (FMIN_S $rs1, $rs1)>;
 }
 
 /// Setcc
@@ -572,31 +674,31 @@ foreach Ext = FExts in {
 
 let Predicates = [HasStdExtF] in {
 // Match signaling FEQ_S
-def : Pat<(strict_fsetccs FPR32:$rs1, FPR32:$rs2, SETEQ),
-          (AND (FLE_S $rs1, $rs2),
-               (FLE_S $rs2, $rs1))>;
-def : Pat<(strict_fsetccs FPR32:$rs1, FPR32:$rs2, SETOEQ),
-          (AND (FLE_S $rs1, $rs2),
-               (FLE_S $rs2, $rs1))>;
+def : Pat<(XLenVT (strict_fsetccs FPR32:$rs1, FPR32:$rs2, SETEQ)),
+          (AND (XLenVT (FLE_S $rs1, $rs2)),
+               (XLenVT (FLE_S $rs2, $rs1)))>;
+def : Pat<(XLenVT (strict_fsetccs FPR32:$rs1, FPR32:$rs2, SETOEQ)),
+          (AND (XLenVT (FLE_S $rs1, $rs2)),
+               (XLenVT (FLE_S $rs2, $rs1)))>;
 // If both operands are the same, use a single FLE.
-def : Pat<(strict_fsetccs FPR32:$rs1, FPR32:$rs1, SETEQ),
+def : Pat<(XLenVT (strict_fsetccs FPR32:$rs1, FPR32:$rs1, SETEQ)),
           (FLE_S $rs1, $rs1)>;
-def : Pat<(strict_fsetccs FPR32:$rs1, FPR32:$rs1, SETOEQ),
+def : Pat<(XLenVT (strict_fsetccs FPR32:$rs1, FPR32:$rs1, SETOEQ)),
           (FLE_S $rs1, $rs1)>;
 } // Predicates = [HasStdExtF]
 
 let Predicates = [HasStdExtZfinx] in {
 // Match signaling FEQ_S
-def : Pat<(strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs2, SETEQ),
-          (AND (FLE_S_INX $rs1, $rs2),
-               (FLE_S_INX $rs2, $rs1))>;
-def : Pat<(strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs2, SETOEQ),
-          (AND (FLE_S_INX $rs1, $rs2),
-               (FLE_S_INX $rs2, $rs1))>;
+def : Pat<(XLenVT (strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs2, SETEQ)),
+          (AND (XLenVT (FLE_S_INX $rs1, $rs2)),
+               (XLenVT (FLE_S_INX $rs2, $rs1)))>;
+def : Pat<(XLenVT (strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs2, SETOEQ)),
+          (AND (XLenVT (FLE_S_INX $rs1, $rs2)),
+               (XLenVT (FLE_S_INX $rs2, $rs1)))>;
 // If both operands are the same, use a single FLE.
-def : Pat<(strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs1, SETEQ),
+def : Pat<(XLenVT (strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs1, SETEQ)),
           (FLE_S_INX $rs1, $rs1)>;
-def : Pat<(strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs1, SETOEQ),
+def : Pat<(XLenVT (strict_fsetccs FPR32INX:$rs1, FPR32INX:$rs1, SETOEQ)),
           (FLE_S_INX $rs1, $rs1)>;
 } // Predicates = [HasStdExtZfinx]
 
@@ -608,9 +710,9 @@ foreach Ext = FExts in {
 }
 
 let Predicates = [HasStdExtF] in {
-defm Select_FPR32 : SelectCC_GPR_rrirr<FPR32>;
+defm Select_FPR32 : SelectCC_GPR_rrirr<FPR32, f32>;
 
-def PseudoFROUND_S : PseudoFROUND<FPR32>;
+def PseudoFROUND_S : PseudoFROUND<FPR32, f32>;
 
 /// Loads
 
@@ -623,30 +725,28 @@ def : StPat<store, FSW, FPR32, f32>;
 } // Predicates = [HasStdExtF]
 
 let Predicates = [HasStdExtZfinx] in {
-defm Select_FPR32INX : SelectCC_GPR_rrirr<FPR32INX>;
+defm Select_FPR32INX : SelectCC_GPR_rrirr<FPR32INX, f32>;
 
-def PseudoFROUND_S_INX : PseudoFROUND<FPR32INX>;
+def PseudoFROUND_S_INX : PseudoFROUND<FPR32INX, f32>;
 
 /// Loads
-def : Pat<(f32 (load (AddrRegImm GPR:$rs1, simm12:$imm12))),
-          (COPY_TO_REGCLASS (LW GPR:$rs1, simm12:$imm12), GPRF32)>;
+def : LdPat<load, LW_INX, f32>;
 
 /// Stores
-def : Pat<(store (f32 FPR32INX:$rs2), (AddrRegImm GPR:$rs1, simm12:$imm12)),
-          (SW (COPY_TO_REGCLASS FPR32INX:$rs2, GPR), GPR:$rs1, simm12:$imm12)>;
+def : StPat<store, SW_INX, GPRF32, f32>;
 } // Predicates = [HasStdExtZfinx]
 
 let Predicates = [HasStdExtF, IsRV32] in {
 // Moves (no conversion)
 def : Pat<(bitconvert (i32 GPR:$rs1)), (FMV_W_X GPR:$rs1)>;
 def : Pat<(i32 (bitconvert FPR32:$rs1)), (FMV_X_W FPR32:$rs1)>;
-} // Predicates = [HasStdExtF, IsRV32]
+} // Predicates = [HasStdExtF]
 
 let Predicates = [HasStdExtZfinx, IsRV32] in {
 // Moves (no conversion)
-def : Pat<(f32 (bitconvert (i32 GPR:$rs1))), (COPY_TO_REGCLASS GPR:$rs1, GPRF32)>;
-def : Pat<(i32 (bitconvert FPR32INX:$rs1)), (COPY_TO_REGCLASS FPR32INX:$rs1, GPR)>;
-} // Predicates = [HasStdExtZfinx, IsRV32]
+def : Pat<(f32 (bitconvert (i32 GPR:$rs1))), (EXTRACT_SUBREG GPR:$rs1, sub_32)>;
+def : Pat<(i32 (bitconvert FPR32INX:$rs1)), (INSERT_SUBREG (XLenVT (IMPLICIT_DEF)), FPR32INX:$rs1, sub_32)>;
+} // Predicates = [HasStdExtZfinx]
 
 let Predicates = [HasStdExtF, IsRV32] in {
 // float->[u]int. Round-to-zero must be used.
@@ -724,8 +824,8 @@ def : Pat<(any_uint_to_fp (i64 GPR:$rs1)), (FCVT_S_LU $rs1, FRM_DYN)>;
 
 let Predicates = [HasStdExtZfinx, IsRV64] in {
 // Moves (no conversion)
-def : Pat<(riscv_fmv_w_x_rv64 GPR:$src), (COPY_TO_REGCLASS GPR:$src, GPRF32)>;
-def : Pat<(riscv_fmv_x_anyextw_rv64 GPRF32:$src), (COPY_TO_REGCLASS GPRF32:$src, GPR)>;
+def : Pat<(riscv_fmv_w_x_rv64 GPR:$src), (EXTRACT_SUBREG GPR:$src, sub_32)>;
+def : Pat<(riscv_fmv_x_anyextw_rv64 GPRF32:$src), (INSERT_SUBREG (XLenVT (IMPLICIT_DEF)), FPR32INX:$src, sub_32)>;
 
 // Use target specific isd nodes to help us remember the result is sign
 // extended. Matching sext_inreg+fptoui/fptosi may cause the conversion to be
@@ -746,8 +846,8 @@ def : Pat<(i64 (any_lrint FPR32INX:$rs1)), (FCVT_L_S_INX $rs1, FRM_DYN)>;
 def : Pat<(i64 (any_llrint FPR32INX:$rs1)), (FCVT_L_S_INX $rs1, FRM_DYN)>;
 
 // float->int64 rounded to neartest with ties rounded away from zero.
-def : Pat<(i64 (any_lround FPR32INX:$rs1)), (FCVT_L_S_INX $rs1, FRM_DYN)>;
-def : Pat<(i64 (any_llround FPR32INX:$rs1)), (FCVT_L_S_INX $rs1, FRM_DYN)>;
+def : Pat<(i64 (any_lround FPR32INX:$rs1)), (FCVT_L_S_INX $rs1, FRM_RMM)>;
+def : Pat<(i64 (any_llround FPR32INX:$rs1)), (FCVT_L_S_INX $rs1, FRM_RMM)>;
 
 // [u]int->fp. Match GCC and default to using dynamic rounding mode.
 def : Pat<(any_sint_to_fp (i64 (sexti32 (i64 GPR:$rs1)))), (FCVT_S_W_INX $rs1, FRM_DYN)>;

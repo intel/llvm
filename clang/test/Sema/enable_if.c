@@ -52,7 +52,7 @@ size_t strnlen(const char *s, size_t maxlen) // expected-note {{'strnlen' has be
 
 void test2(const char *s, int i) {
 // CHECK: define {{.*}}void @test2
-  const char c[123];
+  const char c[123] = { 0 };
   strnlen(s, i);
 // CHECK: call {{.*}}strnlen_real1
   strnlen(s, 999);
@@ -105,7 +105,7 @@ __attribute__((enable_if(n == 0, "chosen when 'n' is zero"))) void f1(int n); //
 
 int n __attribute__((enable_if(1, "always chosen"))); // expected-warning{{'enable_if' attribute only applies to functions}}
 
-void f(int n) __attribute__((enable_if("chosen when 'n' is zero", n == 0)));  // expected-error{{'enable_if' attribute requires a string}}
+void f(int n) __attribute__((enable_if("chosen when 'n' is zero", n == 0)));  // expected-error{{expected string literal as argument of 'enable_if' attribute}}
 
 void f(int n) __attribute__((enable_if()));  // expected-error{{'enable_if' attribute requires exactly 2 arguments}}
 

@@ -20,7 +20,7 @@ namespace HIPSPV {
 
 // Runs llvm-link/opt/llc/lld, which links multiple LLVM bitcode, together with
 // device library, then compiles it to SPIR-V in a shared object.
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("HIPSPV::Linker", "hipspv-link", TC) {}
 
@@ -68,9 +68,9 @@ public:
                            llvm::opt::ArgStringList &CC1Args) const override;
   void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args) const override;
-  llvm::SmallVector<BitCodeLibraryInfo, 12> getDeviceLibs(
-      const llvm::opt::ArgList &Args,
-      const Action::OffloadKind DeviceOffloadingKind) const override;
+  llvm::SmallVector<BitCodeLibraryInfo, 12>
+  getDeviceLibs(const llvm::opt::ArgList &Args,
+                const Action::OffloadKind DeviceOffloadKind) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 
@@ -80,7 +80,6 @@ public:
 
   void adjustDebugInfoKind(llvm::codegenoptions::DebugInfoKind &DebugInfoKind,
                            const llvm::opt::ArgList &Args) const override;
-  bool IsIntegratedAssemblerDefault() const override { return true; }
   bool IsMathErrnoDefault() const override { return false; }
   bool useIntegratedAs() const override { return true; }
   bool isCrossCompiling() const override { return true; }

@@ -1,10 +1,8 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -73,7 +71,7 @@ void test_rw(image_channel_order ChanOrder, image_channel_type ChanType) {
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read four pixels, no sampler" << std::endl;
     check_pixels(test_acc, ref, offset);
   } // ~image / ~buffer

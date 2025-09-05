@@ -5,11 +5,12 @@
 // by the reduce functions in SYCL 2020, but the standard C++ syntax is used for
 // forward compatibility with future SYCL versions.
 //
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 
 #include "helper.hpp"
 #include <complex>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 
 using namespace sycl;
 

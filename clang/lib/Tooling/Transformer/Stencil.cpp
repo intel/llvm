@@ -19,7 +19,6 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
-#include <atomic>
 #include <memory>
 #include <string>
 
@@ -50,8 +49,14 @@ static Error printNode(StringRef Id, const MatchFinder::MatchResult &Match,
   auto NodeOrErr = getNode(Match.Nodes, Id);
   if (auto Err = NodeOrErr.takeError())
     return Err;
-  NodeOrErr->print(Os, PrintingPolicy(Match.Context->getLangOpts()));
-  *Result += Os.str();
+  const PrintingPolicy PP(Match.Context->getLangOpts());
+  if (const auto *ND = NodeOrErr->get<NamedDecl>()) {
+    // For NamedDecls, we can do a better job than printing the whole thing.
+    ND->getNameForDiagnostic(Os, PP, false);
+  } else {
+    NodeOrErr->print(Os, PP);
+  }
+  *Result += Output;
   return Error::success();
 }
 
@@ -69,7 +74,6 @@ public:
     OS << "\"";
     OS.write_escaped(Text);
     OS << "\"";
-    OS.flush();
     return Result;
   }
 
@@ -229,8 +233,8 @@ public:
       // Validate the original range to attempt to get a meaningful error
       // message. If it's valid, then something else is the cause and we just
       // return the generic failure message.
-      if (auto Err =
-              tooling::validateEditRange(*RawRange, *Match.SourceManager))
+      if (auto Err = tooling::validateRange(*RawRange, *Match.SourceManager,
+                                            /*AllowSystemHeaders=*/true))
         return handleErrors(std::move(Err), [](std::unique_ptr<StringError> E) {
           assert(E->convertToErrorCode() ==
                      llvm::make_error_code(errc::invalid_argument) &&
@@ -245,8 +249,9 @@ public:
           "selected range could not be resolved to a valid source range");
     }
     // Validate `Range`, because `makeFileCharRange` accepts some ranges that
-    // `validateEditRange` rejects.
-    if (auto Err = tooling::validateEditRange(Range, *Match.SourceManager))
+    // `validateRange` rejects.
+    if (auto Err = tooling::validateRange(Range, *Match.SourceManager,
+                                          /*AllowSystemHeaders=*/true))
       return joinErrors(
           llvm::createStringError(errc::invalid_argument,
                                   "selected range is not valid for editing"),
@@ -370,7 +375,7 @@ public:
       Stream << ", " << DefaultStencil->toString();
     }
     Stream << ")";
-    return Stream.str();
+    return Buffer;
   }
 
 private:

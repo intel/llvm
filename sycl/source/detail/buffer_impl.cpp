@@ -12,26 +12,24 @@
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/ur.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GBufferStreamID;
-#endif
-void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
+void *buffer_impl::allocateMem(context_impl *Context, bool InitFromUserData,
                                void *HostPtr,
-                               sycl::detail::pi::PiEvent &OutEventToWait) {
+                               ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
-
-  assert(!(nullptr == HostPtr && BaseT::useHostPtr() && Context->is_host()) &&
+  assert(!(nullptr == HostPtr && BaseT::useHostPtr() && !Context) &&
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), this, HostPtr, HostPtrReadOnly,
-      BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,
-      MProps, OutEventToWait);
+      Context, this, HostPtr, HostPtrReadOnly, BaseT::getSizeInBytes(),
+      BaseT::MInteropEvent, BaseT::MInteropContext.get(), MProps,
+      OutEventToWait);
 }
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,
@@ -46,52 +44,87 @@ void buffer_impl::destructorNotification(void *UserObj) {
 }
 
 void buffer_impl::addInteropObject(
-    std::vector<pi_native_handle> &Handles) const {
+    std::vector<ur_native_handle_t> &Handles) const {
   if (MOpenCLInterop) {
     if (std::find(Handles.begin(), Handles.end(),
-                  pi::cast<pi_native_handle>(MInteropMemObject)) ==
+                  ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
         Handles.end()) {
-      const PluginPtr &Plugin = getPlugin();
-      Plugin->call<PiApiKind::piMemRetain>(
-          pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
-      Handles.push_back(pi::cast<pi_native_handle>(MInteropMemObject));
+      adapter_impl &Adapter = getAdapter();
+      Adapter.call<UrApiKind::urMemRetain>(
+          ur::cast<ur_mem_handle_t>(MInteropMemObject));
+      ur_native_handle_t NativeHandle = 0;
+      Adapter.call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
+                                                    &NativeHandle);
+      Handles.push_back(NativeHandle);
     }
   }
 }
 
-std::vector<pi_native_handle>
+std::vector<ur_native_handle_t>
 buffer_impl::getNativeVector(backend BackendName) const {
-  std::vector<pi_native_handle> Handles{};
+  std::vector<ur_native_handle_t> Handles{};
   if (!MRecord) {
     addInteropObject(Handles);
     return Handles;
   }
 
   for (auto &Cmd : MRecord->MAllocaCommands) {
-    sycl::detail::pi::PiMem NativeMem =
-        pi::cast<sycl::detail::pi::PiMem>(Cmd->getMemAllocation());
+    ur_mem_handle_t NativeMem =
+        ur::cast<ur_mem_handle_t>(Cmd->getMemAllocation());
     auto Ctx = Cmd->getWorkerContext();
-    auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that
-    // doesn't have platform
-    if (!Platform)
+    // doesn't have context and platform
+    if (!Ctx)
       continue;
-    auto Plugin = Platform->getPlugin();
-
-    if (Platform->getBackend() != BackendName)
+    const platform_impl &Platform = Ctx->getPlatformImpl();
+    if (Platform.getBackend() != BackendName)
       continue;
-    if (Platform->getBackend() == backend::opencl) {
-      Plugin->call<PiApiKind::piMemRetain>(NativeMem);
-    }
 
-    pi_native_handle Handle;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    adapter_impl &Adapter = Platform.getAdapter();
+    ur_native_handle_t Handle = 0;
+    // When doing buffer interop we don't know what device the memory should be
+    // resident on, so pass nullptr for Device param. Buffer interop may not be
+    // supported by all backends.
+    Adapter.call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
+                                                  &Handle);
     Handles.push_back(Handle);
+
+    if (Platform.getBackend() == backend::opencl) {
+      __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(Handle));
+    }
   }
 
   addInteropObject(Handles);
   return Handles;
 }
+
+void buffer_impl::verifyProps(const property_list &Props) const {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/buffer_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/properties/buffer_properties.def>
+    default:
+      return false;
+    }
+  };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                CheckPropertiesWithData);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

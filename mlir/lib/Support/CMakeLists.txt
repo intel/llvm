@@ -10,6 +10,8 @@ set(LLVM_OPTIONAL_SOURCES
 add_mlir_library(MLIRSupport
   FileUtilities.cpp
   InterfaceSupport.cpp
+  RawOstreamExtras.cpp
+  StateStack.cpp
   StorageUniquer.cpp
   Timing.cpp
   ToolUtilities.cpp

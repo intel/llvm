@@ -189,7 +189,7 @@ static inline bool isImmHF(uint64_t Val) {
 } // end namespace SystemZ
 
 FunctionPass *createSystemZISelDag(SystemZTargetMachine &TM,
-                                   CodeGenOpt::Level OptLevel);
+                                   CodeGenOptLevel OptLevel);
 FunctionPass *createSystemZElimComparePass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZShortenInstPass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZLongBranchPass(SystemZTargetMachine &TM);
@@ -198,14 +198,19 @@ FunctionPass *createSystemZCopyPhysRegsPass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZPostRewritePass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZTDCPass();
 
+void initializeSystemZAsmPrinterPass(PassRegistry &);
 void initializeSystemZCopyPhysRegsPass(PassRegistry &);
-void initializeSystemZDAGToDAGISelPass(PassRegistry &);
+void initializeSystemZDAGToDAGISelLegacyPass(PassRegistry &);
 void initializeSystemZElimComparePass(PassRegistry &);
 void initializeSystemZLDCleanupPass(PassRegistry &);
 void initializeSystemZLongBranchPass(PassRegistry &);
 void initializeSystemZPostRewritePass(PassRegistry &);
 void initializeSystemZShortenInstPass(PassRegistry &);
 void initializeSystemZTDCPassPass(PassRegistry &);
+
+namespace SYSTEMZAS {
+enum : unsigned { PTR32 = 1 };
+} // namespace SYSTEMZAS
 
 } // end namespace llvm
 

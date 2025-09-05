@@ -1,9 +1,6 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
-//
-// Missing __spirv_SubgroupBlockReadINTEL, __spirv_SubgroupBlockWriteINTEL on
-// AMD
-// XFAIL: hip_amd
+
 //
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //
@@ -14,7 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <sycl/sycl.hpp>
+
+#include <sycl/platform.hpp>
 
 #include <algorithm>
 
@@ -248,6 +246,16 @@ int main() {
       check<aligned_half, 4>(Queue);
       check<aligned_half, 8>(Queue);
       check<aligned_half, 16>(Queue);
+
+      typedef sycl::ext::oneapi::bfloat16 aligned_bfloat16
+          __attribute__((aligned(16)));
+      check<aligned_bfloat16>(Queue);
+      check<aligned_bfloat16, 1>(Queue);
+      check<aligned_bfloat16, 2>(Queue);
+      check<aligned_bfloat16, 3>(Queue);
+      check<aligned_bfloat16, 4>(Queue);
+      check<aligned_bfloat16, 8>(Queue);
+      check<aligned_bfloat16, 16>(Queue);
     }
   }
   if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups_long") !=

@@ -1,13 +1,10 @@
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.5382
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Disabled for HIP (https://github.com/intel/llvm/issues/10358) and CUDA
-// (https://github.com/intel/llvm/issues/10360)
-// UNSUPPORTED: cuda || hip
-
 // Tests the size and iterator members of an empty zero-dimensional accessor.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

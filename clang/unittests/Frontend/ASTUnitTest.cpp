@@ -17,6 +17,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -29,6 +30,8 @@ protected:
   int FD;
   llvm::SmallString<256> InputFileName;
   std::unique_ptr<ToolOutputFile> input_file;
+  std::shared_ptr<DiagnosticOptions> DiagOpts =
+      std::make_shared<DiagnosticOptions>();
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags;
   std::shared_ptr<CompilerInvocation> CInvok;
   std::shared_ptr<PCHContainerOperations> PCHContainerOps;
@@ -41,22 +44,23 @@ protected:
 
     const char *Args[] = {"clang", "-xc++", InputFileName.c_str()};
 
-    Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions());
+    auto VFS = llvm::vfs::getRealFileSystem();
+    Diags = CompilerInstance::createDiagnostics(*VFS, *DiagOpts);
 
     CreateInvocationOptions CIOpts;
     CIOpts.Diags = Diags;
+    CIOpts.VFS = VFS;
     CInvok = createInvocation(Args, std::move(CIOpts));
 
     if (!CInvok)
       return nullptr;
 
-    FileManager *FileMgr =
-        new FileManager(FileSystemOptions(), vfs::getRealFileSystem());
+    FileManager *FileMgr = new FileManager(FileSystemOptions(), VFS);
     PCHContainerOps = std::make_shared<PCHContainerOperations>();
 
     return ASTUnit::LoadFromCompilerInvocation(
-        CInvok, PCHContainerOps, Diags, FileMgr, false, CaptureDiagsKind::None,
-        0, TU_Complete, false, false, isVolatile);
+        CInvok, PCHContainerOps, DiagOpts, Diags, FileMgr, false,
+        CaptureDiagsKind::None, 0, TU_Complete, false, false, isVolatile);
   }
 };
 
@@ -89,12 +93,11 @@ TEST_F(ASTUnitTest, SaveLoadPreservesLangOptionsInPrintingPolicy) {
   AST->Save(ASTFileName.str());
 
   EXPECT_TRUE(llvm::sys::fs::exists(ASTFileName));
-  auto HSOpts = std::make_shared<HeaderSearchOptions>();
+  HeaderSearchOptions HSOpts;
 
   std::unique_ptr<ASTUnit> AU = ASTUnit::LoadFromASTFile(
-      std::string(ASTFileName.str()), PCHContainerOps->getRawReader(),
-      ASTUnit::LoadEverything, Diags, FileSystemOptions(), HSOpts,
-      /*UseDebugInfo=*/false);
+      ASTFileName, PCHContainerOps->getRawReader(), ASTUnit::LoadEverything,
+      DiagOpts, Diags, FileSystemOptions(), HSOpts);
 
   if (!AU)
     FAIL() << "failed to load ASTUnit";
@@ -135,7 +138,7 @@ TEST_F(ASTUnitTest, ModuleTextualHeader) {
 
   const char *Args[] = {"clang", "test.cpp", "-fmodule-map-file=m.modulemap",
                         "-fmodule-name=M"};
-  Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions());
+  Diags = CompilerInstance::createDiagnostics(*InMemoryFs, *DiagOpts);
   CreateInvocationOptions CIOpts;
   CIOpts.Diags = Diags;
   CInvok = createInvocation(Args, std::move(CIOpts));
@@ -145,14 +148,14 @@ TEST_F(ASTUnitTest, ModuleTextualHeader) {
   PCHContainerOps = std::make_shared<PCHContainerOperations>();
 
   auto AU = ASTUnit::LoadFromCompilerInvocation(
-      CInvok, PCHContainerOps, Diags, FileMgr, false, CaptureDiagsKind::None, 1,
-      TU_Complete, false, false, false);
+      CInvok, PCHContainerOps, DiagOpts, Diags, FileMgr, false,
+      CaptureDiagsKind::None, 1, TU_Complete, false, false, false);
   ASSERT_TRUE(AU);
   auto File = AU->getFileManager().getFileRef("Textual.h", false, false);
   ASSERT_TRUE(bool(File));
   // Verify that we do not crash here.
-  EXPECT_TRUE(AU->getPreprocessor().getHeaderSearchInfo().getExistingFileInfo(
-      &File->getFileEntry()));
+  EXPECT_TRUE(
+      AU->getPreprocessor().getHeaderSearchInfo().getExistingFileInfo(*File));
 }
 
 TEST_F(ASTUnitTest, LoadFromCommandLineEarlyError) {
@@ -163,13 +166,14 @@ TEST_F(ASTUnitTest, LoadFromCommandLineEarlyError) {
 
   const char *Args[] = {"clang", "-target", "foobar", InputFileName.c_str()};
 
-  auto Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions());
+  auto Diags = CompilerInstance::createDiagnostics(
+      *llvm::vfs::getRealFileSystem(), *DiagOpts);
   auto PCHContainerOps = std::make_shared<PCHContainerOperations>();
   std::unique_ptr<clang::ASTUnit> ErrUnit;
 
-  ASTUnit *AST = ASTUnit::LoadFromCommandLine(
-      &Args[0], &Args[4], PCHContainerOps, Diags, "", false, "", false,
-      CaptureDiagsKind::All, std::nullopt, true, 0, TU_Complete, false, false,
+  std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromCommandLine(
+      &Args[0], &Args[4], PCHContainerOps, DiagOpts, Diags, "", false, "",
+      false, CaptureDiagsKind::All, {}, true, 0, TU_Complete, false, false,
       false, SkipFunctionBodiesScope::None, false, true, false, false,
       std::nullopt, &ErrUnit, nullptr);
 
@@ -177,6 +181,39 @@ TEST_F(ASTUnitTest, LoadFromCommandLineEarlyError) {
   ASSERT_NE(ErrUnit, nullptr);
   ASSERT_TRUE(Diags->hasErrorOccurred());
   ASSERT_NE(ErrUnit->stored_diag_size(), 0U);
+}
+
+TEST_F(ASTUnitTest, LoadFromCommandLineWorkingDirectory) {
+  EXPECT_FALSE(
+      llvm::sys::fs::createTemporaryFile("bar", "c", FD, InputFileName));
+  auto Input = std::make_unique<ToolOutputFile>(InputFileName, FD);
+  Input->os() << "";
+
+  SmallString<128> WorkingDir;
+  ASSERT_FALSE(sys::fs::createUniqueDirectory("foo", WorkingDir));
+  const char *Args[] = {"clang", "-working-directory", WorkingDir.c_str(),
+                        InputFileName.c_str()};
+
+  auto Diags = CompilerInstance::createDiagnostics(
+      *llvm::vfs::getRealFileSystem(), *DiagOpts);
+  auto PCHContainerOps = std::make_shared<PCHContainerOperations>();
+  std::unique_ptr<clang::ASTUnit> ErrUnit;
+
+  std::unique_ptr<ASTUnit> AST = ASTUnit::LoadFromCommandLine(
+      &Args[0], &Args[4], PCHContainerOps, DiagOpts, Diags, "", false, "",
+      false, CaptureDiagsKind::All, {}, true, 0, TU_Complete, false, false,
+      false, SkipFunctionBodiesScope::None, false, true, false, false,
+      std::nullopt, &ErrUnit, nullptr);
+
+  ASSERT_NE(AST, nullptr);
+  ASSERT_FALSE(Diags->hasErrorOccurred());
+
+  // Make sure '-working-directory' sets both the FileSystemOpts and underlying
+  // VFS working directory.
+  const auto &FM = AST->getFileManager();
+  const auto &VFS = FM.getVirtualFileSystem();
+  ASSERT_EQ(*VFS.getCurrentWorkingDirectory(), WorkingDir.str());
+  ASSERT_EQ(FM.getFileSystemOpts().WorkingDir, WorkingDir.str());
 }
 
 } // anonymous namespace

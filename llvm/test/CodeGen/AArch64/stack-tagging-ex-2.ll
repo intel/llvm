@@ -1,4 +1,4 @@
-; clang -target aarch64-eabi -O2 -march=armv8.5-a+memtag -fsanitize=memtag -S -emit-llvm test.cc
+; clang -target aarch64-eabi -O2 -fsanitize=memtag -S -emit-llvm test.cc
 ; void bar() {
 ;   throw 42;
 ; }
@@ -27,7 +27,7 @@
 ; RUN: opt -S -aarch64-stack-tagging %s -o - | FileCheck %s
 
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
-target triple = "aarch64-unknown-unknown-eabi"
+target triple = "aarch64"
 
 @_ZTIi = external dso_local constant ptr
 

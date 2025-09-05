@@ -87,13 +87,25 @@ LANGSTANDARD(gnu17, "gnu17",
              LineComment | C99 | C11 | C17 | Digraphs | GNUMode | HexFloat)
 LANGSTANDARD_ALIAS(gnu17, "gnu18")
 
-// C2x modes
-LANGSTANDARD(c2x, "c2x",
-             C, "Working Draft for ISO C2x",
-             LineComment | C99 | C11 | C17 | C2x | Digraphs | HexFloat)
-LANGSTANDARD(gnu2x, "gnu2x",
-             C, "Working Draft for ISO C2x with GNU extensions",
-             LineComment | C99 | C11 | C17 | C2x | Digraphs | GNUMode | HexFloat)
+// C23 modes
+LANGSTANDARD(c23, "c23",
+             C, "ISO C 2023",
+             LineComment | C99 | C11 | C17 | C23 | Digraphs | HexFloat)
+LANGSTANDARD_ALIAS(c23, "iso9899:2024")
+LANGSTANDARD_ALIAS_DEPR(c23, "c2x")
+LANGSTANDARD(gnu23, "gnu23",
+             C, "ISO C 2023 with GNU extensions",
+             LineComment | C99 | C11 | C17 | C23 | Digraphs | GNUMode | HexFloat)
+LANGSTANDARD_ALIAS_DEPR(gnu23, "gnu2x")
+
+// C2y modes
+LANGSTANDARD(c2y, "c2y",
+             C, "Working Draft for ISO C2y",
+             LineComment | C99 | C11 | C17 | C23 | C2y | Digraphs | HexFloat)
+LANGSTANDARD(gnu2y, "gnu2y",
+             C, "Working Draft for ISO C2y with GNU extensions",
+             LineComment | C99 | C11 | C17 | C23 | C2y | Digraphs | GNUMode | HexFloat)
+// TODO: Add the iso9899:202y alias once ISO publishes the standard.
 
 // C++ modes
 LANGSTANDARD(cxx98, "c++98",
@@ -214,41 +226,37 @@ LANGSTANDARD_ALIAS_DEPR(openclcpp10, "CLC++")
 LANGSTANDARD_ALIAS_DEPR(openclcpp10, "CLC++1.0")
 LANGSTANDARD_ALIAS_DEPR(openclcpp2021, "CLC++2021")
 
-// CUDA
-LANGSTANDARD(cuda, "cuda", CUDA, "NVIDIA CUDA(tm)",
-             LineComment | CPlusPlus | CPlusPlus11 | CPlusPlus14 | Digraphs)
-
-// HIP
-LANGSTANDARD(hip, "hip", HIP, "HIP",
-             LineComment | CPlusPlus | CPlusPlus11 | CPlusPlus14 | Digraphs)
-
 // HLSL
 LANGSTANDARD(hlsl, "hlsl",
              HLSL, "High Level Shader Language",
-             LineComment | HLSL | CPlusPlus )
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 LANGSTANDARD(hlsl2015, "hlsl2015",
              HLSL, "High Level Shader Language 2015",
-             LineComment | HLSL | CPlusPlus )
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 LANGSTANDARD(hlsl2016, "hlsl2016",
              HLSL, "High Level Shader Language 2016",
-             LineComment | HLSL | CPlusPlus )
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 LANGSTANDARD(hlsl2017, "hlsl2017",
              HLSL, "High Level Shader Language 2017",
-             LineComment | HLSL | CPlusPlus )
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 LANGSTANDARD(hlsl2018, "hlsl2018",
              HLSL, "High Level Shader Language 2018",
-             LineComment | HLSL | CPlusPlus )
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 LANGSTANDARD(hlsl2021, "hlsl2021",
              HLSL, "High Level Shader Language 2021",
-             LineComment | HLSL | CPlusPlus )
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 LANGSTANDARD(hlsl202x, "hlsl202x",
              HLSL, "High Level Shader Language 202x",
+             LineComment | HLSL | CPlusPlus | CPlusPlus11)
+
+LANGSTANDARD(hlsl202y, "hlsl202y",
+             HLSL, "High Level Shader Language 202y",
              LineComment | HLSL | CPlusPlus | CPlusPlus11)
 
 

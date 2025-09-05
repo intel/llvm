@@ -1,6 +1,7 @@
 import("//llvm/tools/binutils_symlinks.gni")
 import("//llvm/tools/cctools_symlinks.gni")
 import("//llvm/utils/TableGen/tablegen.gni")
+import("//llvm/utils/gn/build/driver_executable.gni")
 import("//llvm/utils/gn/build/symlink_or_copy.gni")
 
 tablegen("ObjdumpOpts") {
@@ -37,13 +38,14 @@ group("symlinks") {
   }
 }
 
-executable("llvm-objdump") {
+driver_executable("llvm-objdump") {
   deps = [
     ":ObjdumpOpts",
     ":OtoolOpts",
     "//llvm/include/llvm/Config:config",
     "//llvm/lib/CodeGen",
     "//llvm/lib/DebugInfo/DWARF",
+    "//llvm/lib/DebugInfo/DWARF/LowLevel",
     "//llvm/lib/DebugInfo/PDB",
     "//llvm/lib/DebugInfo/Symbolize",
     "//llvm/lib/Debuginfod",

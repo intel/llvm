@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -331,6 +331,8 @@ int main() {
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
       assert(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
     }
+
+    delete subbuf_copy;
   }
 
   return Failed;

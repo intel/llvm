@@ -16,6 +16,8 @@ struct A {
   bool operator<(const A&) const;
   bool operator<=(const A&) const = default;
   bool operator==(const A&) const && = default; // expected-error {{ref-qualifier '&&' is not allowed on a defaulted comparison operator}}
+  bool operator<=(const A&&) const = default; // expected-error {{invalid parameter type for defaulted relational comparison operator; found 'const A &&', expected 'const A &'}}
+  bool operator<=(const int&) const = default; // expected-error {{invalid parameter type for defaulted relational comparison operator; found 'const int &', expected 'const A &'}}
   bool operator>=(const A&) const volatile = default; // expected-error {{defaulted comparison function must not be volatile}}
   bool operator<=>(const A&) = default; // expected-error {{defaulted member three-way comparison operator must be const-qualified}}
   bool operator>=(const B&) const = default; // expected-error-re {{invalid parameter type for defaulted relational comparison operator; found 'const B &', expected 'const A &'{{$}}}}
@@ -153,7 +155,7 @@ namespace P1946 {
     friend bool operator==(A &, A &); // expected-note {{would lose const qualifier}}
   };
   struct B {
-    A a; // expected-note {{no viable three-way comparison}}
+    A a; // expected-note {{no viable 'operator=='}}
     friend bool operator==(B, B) = default; // ok
     friend bool operator==(const B&, const B&) = default; // expected-warning {{deleted}} expected-note{{replace 'default'}}
   };
@@ -209,10 +211,10 @@ bool operator==(e *, int *) = default; // expected-error{{must have at least one
 
 namespace p2085_2 {
 template <class T> struct S6 {
-  // expected-error@+2{{found 'const int &'}}
-  // expected-error@+1{{found 'const float &'}}
   bool operator==(T const &) const;
 };
+// expected-error@+2{{found 'const int &'}}
+// expected-error@+1{{found 'const float &'}}
 template <class T> bool S6<T>::operator==(T const &) const = default;
 
 template struct S6<int>; // expected-note{{S6<int>::operator==' requested}}
@@ -264,4 +266,34 @@ void f2() {
     bool c = (a == b); // no diagnostic nor crash during codegen attempting to
                        // access info for unnamed bit-field
 }
+}
+
+namespace GH96043 {
+template <typename> class a {};
+template <typename b> b c(a<b>);
+template <typename d> class e {
+public:
+  typedef a<d *> f;
+  f begin();
+};
+template <typename d, typename g> constexpr bool operator==(d h, g i) {
+  return *c(h.begin()) == *c(i.begin());
+}
+struct j {
+  e<j> bar;
+  bool operator==(const j &) const;
+};
+bool j::operator==(const j &) const = default;
+}
+
+namespace evil2 {
+  struct k {
+  };
+  
+  struct l {
+      friend bool operator==(const l& a, const l& b);
+      friend class k;
+  };
+  
+  bool operator==(const l& a, const l& b) = default;
 }

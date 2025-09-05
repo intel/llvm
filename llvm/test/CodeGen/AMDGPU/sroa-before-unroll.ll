@@ -3,15 +3,13 @@
 ; RUN: opt -mtriple=amdgcn-- -O1 -S -disable-promote-alloca-to-vector < %s | FileCheck %s --check-prefixes=FUNC,FULL-UNROLL
 ; RUN: opt -mtriple=amdgcn-- -passes='default<O1>' -S -disable-promote-alloca-to-vector < %s | FileCheck %s --check-prefixes=FUNC,FULL-UNROLL
 
-target datalayout = "A5"
-
 ; This test contains a simple loop that initializes an array declared in
 ; private memory. This loop would be fully unrolled if we could not SROA
 ; the alloca. Check that we successfully eliminate it before the unroll,
 ; so that we do not need to fully unroll it.
 
 ; FUNC-LABEL: @private_memory
-; LOOP-NOT: alloca
+; LOOP-NOT: = alloca
 ; LOOP: loop.header:
 ; LOOP: br i1 %{{[^,]+}}, label %exit, label %loop.header
 

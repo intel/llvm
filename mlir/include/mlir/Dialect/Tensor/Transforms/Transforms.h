@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 
 namespace mlir {
 
@@ -22,7 +23,7 @@ namespace tensor {
 // Patterns
 //===----------------------------------------------------------------------===//
 
-/// Pattern to swap an `tensor.extract_slice` with its producer when the
+/// Method to swap an `tensor.extract_slice` with its producer when the
 /// producer implements the `TilingInterface`. The pattern itself does not
 /// provide a mechanism to control where the application happens. With use of
 /// transform dialect that control is done within the transform dialect. Other
@@ -30,13 +31,29 @@ namespace tensor {
 FailureOr<TilingResult> replaceExtractSliceWithTiledProducer(
     OpBuilder &builder, tensor::ExtractSliceOp sliceOp, OpResult producerOp);
 
+/// Method to swap `tensor.insert_slice`s with their consumers when the
+/// consumer implements the `TilingInterface`. The size of `sliceOps` and
+/// `consumerOperands` is expected to be the same. Every entry in
+/// `consumerOperands` represents a use of the the corresponding
+/// entry in `sliceOps` in the consumer. All entries of `consumerOperands` is
+/// expected to be uses in the same consumer.
+FailureOr<TilingResult>
+replaceInsertSlicesWithTiledConsumer(OpBuilder &builder,
+                                     ArrayRef<tensor::InsertSliceOp> sliceOps,
+                                     ArrayRef<OpOperand *> consumerOperands);
+
 //===----------------------------------------------------------------------===//
 // Populate functions.
 //===----------------------------------------------------------------------===//
 
-/// Appends patterns for folding tensor aliasing ops into consumer load/store
-/// ops into `patterns`.
+/// Appends patterns for folding tensor subset ops into consumer load/store
+/// ops into `patterns`. (This includes patterns for folding tensor subset ops
+/// into vector transfer ops.)
 void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
+
+/// Appends patterns for folding tensor subset ops into vector transfer ops.
+void populateFoldTensorSubsetIntoVectorTransferPatterns(
+    RewritePatternSet &patterns);
 
 /// Collects patterns to merge consecutive tensor.insert_slice/extract_slice
 /// into one. These patterns are in this separate entry point because the
@@ -44,6 +61,12 @@ void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
 /// tensor.extract_slice and tensor.insert_slice ops for creating the slices.
 void populateMergeConsecutiveInsertExtractSlicePatterns(
     RewritePatternSet &patterns);
+
+/// Appends patterns that are used to bubble up tensor.extract slice op above
+/// its producer. When used as cleanup patterns of tile and fuse, enables fusing
+/// the producer with the consumer even if the producer does not implement the
+/// tiling interface.
+void populateBubbleUpExtractSliceOpPatterns(RewritePatternSet &patterns);
 
 /// Populates `patterns` with patterns that drop redundant tensor.insert_slice
 /// rank expansions.
@@ -54,22 +77,31 @@ void populateDropRedundantInsertSliceRankExpansionPatterns(
 /// `tensor.collapse_shape` into other ops.
 void populateReassociativeReshapeFoldingPatterns(RewritePatternSet &patterns);
 
-/// Populates `patterns` with patterns that fold tensor.empty with
-/// tensor.[extract_slice|expand_shape|collapse_shape].
+/// Populates `patterns` with patterns that bubble up `tensor.expand_shape`
+/// through `tensor.collapse_shape` ops.
+void populateBubbleUpExpandShapePatterns(RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that fold tensor.empty with its
+/// consumers.
 ///
 /// If `singleUseOnly` is set to "true", only tensor.empty ops with a single
 /// use are folded.
 void populateFoldTensorEmptyPatterns(RewritePatternSet &patterns,
                                      bool foldSingleUseOnly = false);
 
-/// Populates `patterns` with patterns that fold operations like `tensor.pad`
-/// and `tensor.extract_slice` into `tensor.pack` and `tensor.unpack` operations
-/// respectively.
-void populateFoldIntoPackAndUnpackPatterns(RewritePatternSet &patterns);
+/// Populates `patterns` with patterns that decompose `tensor.concat` into
+/// `tensor.empty` of a tensor of the concatenated size, followed by a chain
+/// of `tensor.insert_slice` operations on the inputs. This is intended to be
+/// used as a fallback tensor -> tensor lowering that decomposes concat such
+/// that it can be bufferized into a sequence of copies.
+void populateDecomposeTensorConcatPatterns(RewritePatternSet &patterns);
+
+using ControlFoldFn = std::function<bool(OpOperand *)>;
 
 /// Populates `patterns` with patterns that replace tensor ops (such as
 /// tensor.generate) with constants when possible.
-void populateRewriteAsConstantPatterns(RewritePatternSet &patterns);
+void populateRewriteAsConstantPatterns(RewritePatternSet &patterns,
+                                       const ControlFoldFn &controlFn);
 
 //===----------------------------------------------------------------------===//
 // Transform helpers

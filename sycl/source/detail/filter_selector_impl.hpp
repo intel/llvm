@@ -23,7 +23,7 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 
-typedef struct sycl::detail::device_filter filter;
+using filter = sycl::detail::ods_target;
 
 class filter_selector_impl {
 public:

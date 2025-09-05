@@ -25,6 +25,7 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -240,6 +241,10 @@ Type *getPointedToTypeIfOptimizeable(const Argument &FormalParam) {
     // Handler for the case when non-memory access use instruction is met.
     NonMemUseHandlerT NonMemUseMetF = [&](const Use *AUse) {
       if (auto CI = dyn_cast<CallInst>(AUse->getUser())) {
+        auto IntrinsicI = dyn_cast<IntrinsicInst>(CI);
+        // Ignore annotation intrinsics.
+        if (IntrinsicI && IntrinsicI->isAssumeLikeIntrinsic())
+          return true;
         // if not equal, alloca escapes to some other function
         return CI->getCalledFunction() == F;
       }
@@ -349,9 +354,8 @@ optimizeFunction(Function *OldF,
       // preserve data flow equality to the original.
       unsigned OldArgNo = PI.getFormalParam().getArgNo();
       unsigned NewArgNo = oldArgNo2NewArgNo(OldArgNo, SretInd);
-      Instruction *At = nullptr;
       Value *Val = NewF->getArg(NewArgNo);
-      StoreInst *St = new StoreInst(Val, Alloca, false, Al, At);
+      StoreInst *St = new StoreInst(Val, Alloca, false, Al);
       NewInsts.push_back(St);
     }
   }

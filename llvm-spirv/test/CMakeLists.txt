@@ -1,5 +1,7 @@
 llvm_canonicalize_cmake_booleans(SPIRV_SKIP_CLANG_BUILD)
 llvm_canonicalize_cmake_booleans(SPIRV_SKIP_DEBUG_INFO_TESTS)
+llvm_canonicalize_cmake_booleans(LLVM_BUILD_SHARED_LIBS)
+llvm_canonicalize_cmake_booleans(LLVM_SPIRV_BUILD_EXTERNAL)
 
 # required by lit.site.cfg.py.in
 get_target_property(LLVM_SPIRV_DIR llvm-spirv BINARY_DIR)
@@ -13,6 +15,11 @@ if(SPIRV_TOOLS_FOUND AND NOT SPIRV-Tools-tools_FOUND)
     set(SPIRV_TOOLS_SPIRV_AS_FOUND True)
   endif()
 
+  find_program(SPIRV_TOOLS_SPIRV_DIS NAMES spirv-dis PATHS ${SPIRV_TOOLS_PREFIX}/bin)
+  if(SPIRV_TOOLS_SPIRV_DIS)
+    set(SPIRV_TOOLS_SPIRV_DIS_FOUND True)
+  endif()
+
   find_program(SPIRV_TOOLS_SPIRV_LINK NAMES spirv-link PATHS ${SPIRV_TOOLS_PREFIX}/bin)
   if(SPIRV_TOOLS_SPIRV_LINK)
     set(SPIRV_TOOLS_SPIRV_LINK_FOUND True)
@@ -24,11 +31,18 @@ if(SPIRV_TOOLS_FOUND AND NOT SPIRV-Tools-tools_FOUND)
   endif()
 
   set(SPIRV_TOOLS_BINDIR "${SPIRV_TOOLS_PREFIX}/bin")
+  if (LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
+    set(SPIRV_ENABLE_LIBSPIRV_DIS ON)
+  endif()
 elseif(SPIRV-Tools-tools_FOUND)
   # we found SPIRV-Tools via cmake targets
 
   if(TARGET spirv-as)
     set(SPIRV_TOOLS_SPIRV_AS_FOUND True)
+  endif()
+
+  if(TARGET spirv-dis)
+    set(SPIRV_TOOLS_SPIRV_DIS_FOUND True)
   endif()
 
   if(TARGET spirv-link)
@@ -54,6 +68,11 @@ endif()
 if(NOT SPIRV_TOOLS_SPIRV_AS_FOUND)
   message(WARNING "spirv-as not found! SPIR-V assembly tests will not be run.")
   set(SPIRV_TOOLS_SPIRV_AS_FOUND False)
+endif()
+
+if(NOT SPIRV_TOOLS_SPIRV_DIS_FOUND)
+  message(WARNING "spirv-dis not found! SPIR-V disassembly tests will not be run.")
+  set(SPIRV_TOOLS_SPIRV_DIS_FOUND False)
 endif()
 
 if(NOT SPIRV_TOOLS_SPIRV_LINK_FOUND)
@@ -96,6 +115,11 @@ if(NOT LLVM_SPIRV_BUILD_EXTERNAL)
       llvm-readobj
     )
   endif(NOT SPIRV_SKIP_DEBUG_INFO_TESTS)
+  if(LLVM_BUILD_SHARED_LIBS)
+    list(APPEND LLVM_SPIRV_TEST_DEPS
+      opt
+    )
+  endif()
 endif(NOT LLVM_SPIRV_BUILD_EXTERNAL)
 
 

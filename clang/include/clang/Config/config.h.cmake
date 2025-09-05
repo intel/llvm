@@ -57,6 +57,12 @@
 /* Define if we have sys/resource.h (rlimits) */
 #cmakedefine CLANG_HAVE_RLIMITS ${CLANG_HAVE_RLIMITS}
 
+/* Define if we have dlfcn.h */
+#cmakedefine CLANG_HAVE_DLFCN_H ${CLANG_HAVE_DLFCN_H}
+
+/* Define if dladdr() is available on this platform. */
+#cmakedefine CLANG_HAVE_DLADDR ${CLANG_HAVE_DLADDR}
+
 /* Linker version detected at compile time. */
 #cmakedefine HOST_LINK_VERSION "${HOST_LINK_VERSION}"
 
@@ -70,17 +76,13 @@
 #cmakedefine01 PPC_LINUX_DEFAULT_IEEELONGDOUBLE
 
 /* Enable each functionality of modules */
-#cmakedefine01 CLANG_ENABLE_ARCMT
 #cmakedefine01 CLANG_ENABLE_OBJC_REWRITER
 #cmakedefine01 CLANG_ENABLE_STATIC_ANALYZER
 
 /* Spawn a new process clang.exe for the CC1 tool invocation, when necessary */
 #cmakedefine01 CLANG_SPAWN_CC1
 
-/* Whether to enable opaque pointers by default */
-#cmakedefine01 CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
-
-/* Whether to enable opaque pointers for SPIR-V by default */
-#cmakedefine01 SPIRV_ENABLE_OPAQUE_POINTERS
+/* Whether CIR is built into Clang */
+#cmakedefine01 CLANG_ENABLE_CIR
 
 #endif

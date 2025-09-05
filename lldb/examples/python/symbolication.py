@@ -177,9 +177,9 @@ class Section:
     """Class that represents an load address range"""
 
     sect_info_regex = re.compile("(?P<name>[^=]+)=(?P<range>.*)")
-    addr_regex = re.compile("^\s*(?P<start>0x[0-9A-Fa-f]+)\s*$")
+    addr_regex = re.compile(r"^\s*(?P<start>0x[0-9A-Fa-f]+)\s*$")
     range_regex = re.compile(
-        "^\s*(?P<start>0x[0-9A-Fa-f]+)\s*(?P<op>[-+])\s*(?P<end>0x[0-9A-Fa-f]+)\s*$"
+        r"^\s*(?P<start>0x[0-9A-Fa-f]+)\s*(?P<op>[-+])\s*(?P<end>0x[0-9A-Fa-f]+)\s*$"
     )
 
     def __init__(self, start_addr=None, end_addr=None, name=None):
@@ -396,6 +396,9 @@ class Image:
 
     def add_module(self, target, obj_dir=None):
         """Add the Image described in this object to "target" and load the sections if "load" is True."""
+        if not self.path and self.uuid == uuid.UUID(int=0):
+            return "error: invalid image"
+
         if target:
             # Try and find using UUID only first so that paths need not match
             # up
@@ -501,7 +504,7 @@ class Image:
 
 
 class Symbolicator:
-    def __init__(self, debugger=None, target=None, images=list()):
+    def __init__(self, debugger=None, target=None, images=None):
         """A class the represents the information needed to symbolicate
         addresses in a program.
 
@@ -510,7 +513,8 @@ class Symbolicator:
         """
         self.debugger = debugger
         self.target = target
-        self.images = images  # a list of images to be used when symbolicating
+        # a list of images to be used when symbolicating
+        self.images = images if images else list()
         self.addr_mask = 0xFFFFFFFFFFFFFFFF
 
     @classmethod
@@ -553,7 +557,7 @@ class Symbolicator:
             if image.identifier == identifier:
                 images.append(image)
         if len(images) == 0:
-            regex_text = "^.*\.%s$" % (re.escape(identifier))
+            regex_text = r"^.*\.%s$" % (re.escape(identifier))
             regex = re.compile(regex_text)
             for image in self.images:
                 if regex.match(image.identifier):

@@ -1,10 +1,13 @@
 // RUN: %clang_cc1 -triple amdgcn-amd-amdhsa \
-// RUN:     -fcuda-is-device -emit-llvm -o - -x hip %s \
+// RUN:     -fcuda-is-device -mcode-object-version=4 -emit-llvm -o - -x hip %s \
 // RUN:     | FileCheck -check-prefix=PRECOV5 %s
 
+// RUN: %clang_cc1 -triple amdgcn-amd-amdhsa \
+// RUN:     -fcuda-is-device -emit-llvm -o - -x hip %s \
+// RUN:     | FileCheck -check-prefix=COV5 %s
 
 // RUN: %clang_cc1 -triple amdgcn-amd-amdhsa \
-// RUN:     -fcuda-is-device -mcode-object-version=5 -emit-llvm -o - -x hip %s \
+// RUN:     -fcuda-is-device -mcode-object-version=6 -emit-llvm -o - -x hip %s \
 // RUN:     | FileCheck -check-prefix=COV5 %s
 
 #include "Inputs/cuda.h"
@@ -26,6 +29,7 @@
 // COV5: load i16, ptr addrspace(4) %{{.*}}, align 2, !range [[$WS_RANGE:![0-9]*]], !invariant.load{{.*}}, !noundef
 // COV5: getelementptr i8, ptr addrspace(4) %{{.*}}, i32 16
 // COV5: load i16, ptr addrspace(4) %{{.*}}, align 2, !range [[$WS_RANGE:![0-9]*]], !invariant.load{{.*}}, !noundef
+
 __device__ void test_get_workgroup_size(int d, int *out)
 {
   switch (d) {

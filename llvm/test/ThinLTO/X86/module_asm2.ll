@@ -4,11 +4,11 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/module_asm2.ll -o %t2.bc
 
-; RUN: llvm-lto -thinlto-action=run -exported-symbol=main -exported-symbol=func1 -exported-symbol=func2 -exported-symbol=func3 -exported-symbol=callglobalfunc -exported-symbol=callweakfunc -opaque-pointers %t1.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=run -exported-symbol=main -exported-symbol=func1 -exported-symbol=func2 -exported-symbol=func3 -exported-symbol=callglobalfunc -exported-symbol=callweakfunc %t1.bc %t2.bc
 ; RUN:  llvm-nm %t1.bc.thinlto.o | FileCheck  %s --check-prefix=NM0
 ; RUN:  llvm-nm %t2.bc.thinlto.o | FileCheck  %s --check-prefix=NM1
 
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -r=%t1.bc,foo,plx \
 ; RUN:     -r=%t1.bc,globalfunc,plx \
 ; RUN:     -r=%t1.bc,globalfunc,lx \

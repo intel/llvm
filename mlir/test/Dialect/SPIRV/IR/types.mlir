@@ -15,6 +15,9 @@ func.func private @vector_array_type(!spirv.array< 32 x vector<4xf32> >) -> ()
 // CHECK: func private @array_type_stride(!spirv.array<4 x !spirv.array<4 x f32, stride=4>, stride=128>)
 func.func private @array_type_stride(!spirv.array< 4 x !spirv.array<4 x f32, stride=4>, stride = 128>) -> ()
 
+// CHECK: func private @vector_array_type_bf16(!spirv.array<32 x vector<4xbf16>>)
+func.func private @vector_array_type_bf16(!spirv.array<32 x vector<4xbf16> >) -> ()
+
 // -----
 
 // expected-error @+1 {{expected '<'}}
@@ -54,11 +57,6 @@ func.func private @non_1D_vector(!spirv.array<4xvector<4x3xf32>>) -> ()
 
 // expected-error @+1 {{cannot use 'tensor<4xf32>' to compose SPIR-V types}}
 func.func private @tensor_type(!spirv.array<4xtensor<4xf32>>) -> ()
-
-// -----
-
-// expected-error @+1 {{cannot use 'bf16' to compose SPIR-V types}}
-func.func private @bf16_type(!spirv.array<4xbf16>) -> ()
 
 // -----
 
@@ -436,21 +434,46 @@ func.func private @id_struct_recursive(!spirv.struct<a10, (!spirv.ptr<!spirv.str
 // -----
 
 //===----------------------------------------------------------------------===//
-// CooperativeMatrix
+// CooperativeMatrix (KHR)
 //===----------------------------------------------------------------------===//
 
-// CHECK: func private @coop_matrix_type(!spirv.coopmatrix<8x16xi32, Subgroup>, !spirv.coopmatrix<8x8xf32, Workgroup>)
-func.func private @coop_matrix_type(!spirv.coopmatrix<8x16xi32, Subgroup>, !spirv.coopmatrix<8x8xf32, Workgroup>) -> ()
+// CHECK-LABEL: func private @coop_matrix_types
+// CHECK-SAME:    !spirv.coopmatrix<8x16xi32, Subgroup, MatrixA>
+// CHECK-SAME:    !spirv.coopmatrix<8x8xf32, Workgroup, MatrixB>
+// CHECK-SAME:    !spirv.coopmatrix<4x8xf32, Workgroup, MatrixAcc>
+func.func private @coop_matrix_types(!spirv.coopmatrix<8x16xi32, Subgroup, MatrixA>,
+                                     !spirv.coopmatrix<8x8xf32, Workgroup, MatrixB>,
+                                     !spirv.coopmatrix<4x8xf32, Workgroup, MatrixAcc>) -> ()
+
+// -----
+
+// expected-error @+1 {{expected valid keyword}}
+func.func private @missing_scope(!spirv.coopmatrix<8x8xi32, >) -> ()
 
 // -----
 
 // expected-error @+1 {{expected ','}}
-func.func private @missing_scope(!spirv.coopmatrix<8x16xi32>) -> ()
+func.func private @missing_use(!spirv.coopmatrix<8x16xi32, Subgroup>) -> ()
 
 // -----
 
-// expected-error @+1 {{expected rows and columns size}}
-func.func private @missing_count(!spirv.coopmatrix<8xi32, Subgroup>) -> ()
+// expected-error @+1 {{expected valid keyword}}
+func.func private @missing_use2(!spirv.coopmatrix<8x8xi32, Subgroup,>) -> ()
+
+// -----
+
+// expected-error @+1 {{expected row and column count}}
+func.func private @missing_count(!spirv.coopmatrix<8xi32, Subgroup, MatrixA>) -> ()
+
+// -----
+
+// expected-error @+1 {{expected row and column count}}
+func.func private @too_many_dims(!spirv.coopmatrix<8x16x32xi32, Subgroup, MatrixB>) -> ()
+
+// -----
+
+// expected-error @+1 {{invalid use <id> attribute specification: Subgroup}}
+func.func private @use_not_integer(!spirv.coopmatrix<8x8xi32, Subgroup, Subgroup>) -> ()
 
 // -----
 
@@ -469,6 +492,11 @@ func.func private @matrix_type(!spirv.matrix<3 x vector<3xf32>>) -> ()
 
 // CHECK: func private @matrix_type(!spirv.matrix<4 x vector<4xf16>>)
 func.func private @matrix_type(!spirv.matrix<4 x vector<4xf16>>) -> ()
+
+// -----
+
+// CHECK: func private @matrix_type(!spirv.struct<(!spirv.matrix<3 x vector<3xf32>> [0])>)
+func.func private @matrix_type(!spirv.struct<(!spirv.matrix<3 x vector<3xf32>> [0])>) -> ()
 
 // -----
 
@@ -536,3 +564,54 @@ func.func private @matrix_size_type(!spirv.matrix< x vector<3xi32>>) -> ()
 func.func private @matrix_size_type(!spirv.matrix<2.0 x vector<3xi32>>) -> ()
 
 // -----
+
+//===----------------------------------------------------------------------===//
+// TensorArm
+//===----------------------------------------------------------------------===//
+
+// CHECK: func private @arm_tensor_type_single_dim_i32(!spirv.arm.tensor<1xi32>)
+func.func private @arm_tensor_type_single_dim_i32(!spirv.arm.tensor<1xi32>) -> ()
+
+// -----
+
+// CHECK: func private @arm_tensor_type_multi_dim_i32(!spirv.arm.tensor<1x2x3xi32>)
+func.func private @arm_tensor_type_multi_dim_i32(!spirv.arm.tensor<1x2x3xi32>) -> ()
+
+// -----
+
+// CHECK: func private @arm_tensor_type_single_dim_f16(!spirv.arm.tensor<1xf16>)
+func.func private @arm_tensor_type_single_dim_f16(!spirv.arm.tensor<1xf16>) -> ()
+
+// -----
+
+// CHECK: func private @arm_tensor_type_multi_dim_f16(!spirv.arm.tensor<1x2x3xf16>)
+func.func private @arm_tensor_type_multi_dim_f16(!spirv.arm.tensor<1x2x3xf16>) -> ()
+
+// -----
+
+// CHECK: func private @arm_tensor_type_dynamic_dim(!spirv.arm.tensor<?xi32>)
+func.func private @arm_tensor_type_dynamic_dim(!spirv.arm.tensor<?xi32>) -> ()
+
+// -----
+
+// CHECK: func private @arm_tensor_type_dynamic_dim_2(!spirv.arm.tensor<?x?xi32>)
+func.func private @arm_tensor_type_dynamic_dim_2(!spirv.arm.tensor<?x?xi32>) -> ()
+// -----
+
+// expected-error @+1 {{arm.tensor shape dimensions must be either fully dynamic or completed shaped}}
+func.func private @arm_tensor_type_dynamic_dim(!spirv.arm.tensor<1x?xi32>) -> ()
+
+// -----
+
+// expected-error @+1 {{arm.tensors do not support rank zero}}
+func.func private @arm_tensor_rank_zero(!spirv.arm.tensor<i32>) -> ()
+
+// -----
+
+// CHECK: func private @arm_tensor_type_unranked(!spirv.arm.tensor<*xi32>)
+func.func private @arm_tensor_type_unranked(!spirv.arm.tensor<*xi32>) -> ()
+
+// -----
+
+// expected-error @+1 {{arm.tensors do not support zero dimensions}}
+func.func private @arm_tensor_type_zero_dim(!spirv.arm.tensor<0xi32>) -> ()

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "GlobalVariableDeclarationCheck.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -26,7 +25,7 @@ FixItHint generateFixItHint(const VarDecl *Decl, bool IsConst) {
   if (IsConst && (Decl->getStorageClass() != SC_Static)) {
     // No fix available if it is not a static constant, since it is difficult
     // to determine the proper fix in this case.
-    return FixItHint();
+    return {};
   }
 
   char FC = Decl->getName()[0];
@@ -35,14 +34,14 @@ FixItHint generateFixItHint(const VarDecl *Decl, bool IsConst) {
     // is a single-character variable, since it is difficult to determine the
     // proper fix in this case. Users should create a proper variable name by
     // their own.
-    return FixItHint();
+    return {};
   }
   char SC = Decl->getName()[1];
   if ((FC == 'k' || FC == 'g') && !llvm::isAlpha(SC)) {
     // No fix available if the prefix is correct but the second character is
     // not alphabetical, since it is difficult to determine the proper fix in
     // this case.
-    return FixItHint();
+    return {};
   }
 
   auto NewName = (IsConst ? "k" : "g") +
@@ -53,7 +52,7 @@ FixItHint generateFixItHint(const VarDecl *Decl, bool IsConst) {
       CharSourceRange::getTokenRange(SourceRange(Decl->getLocation())),
       llvm::StringRef(NewName));
 }
-}  // namespace
+} // namespace
 
 void GlobalVariableDeclarationCheck::registerMatchers(MatchFinder *Finder) {
   // need to add two matchers since we need to bind different ids to distinguish

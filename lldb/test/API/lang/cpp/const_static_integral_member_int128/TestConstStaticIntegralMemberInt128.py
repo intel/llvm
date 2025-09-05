@@ -11,7 +11,7 @@ from lldbsuite.test import lldbutil
 
 class TestCase(TestBase):
     # int128 is not available on 32-bit ARM.
-    @skipIf(archs=["arm"])
+    @skipIf(archs=["arm$"])
     def test_int128(self):
         self.build()
         lldbutil.run_to_source_breakpoint(
@@ -23,14 +23,14 @@ class TestCase(TestBase):
         # for them and just treats them as normal variables (which will lead
         # to linker errors as they are not defined anywhere).
         self.expect(
-            "expr A::int128_max", error=True, substrs=["Couldn't lookup symbols:"]
+            "expr A::int128_max", error=True, substrs=["Couldn't look up symbols:"]
         )
         self.expect(
-            "expr A::uint128_max", error=True, substrs=["Couldn't lookup symbols:"]
+            "expr A::uint128_max", error=True, substrs=["Couldn't look up symbols:"]
         )
         self.expect(
-            "expr A::int128_min", error=True, substrs=["Couldn't lookup symbols:"]
+            "expr A::int128_min", error=True, substrs=["Couldn't look up symbols:"]
         )
         self.expect(
-            "expr A::uint128_min", error=True, substrs=["Couldn't lookup symbols:"]
+            "expr A::uint128_min", error=True, substrs=["Couldn't look up symbols:"]
         )

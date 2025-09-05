@@ -1,4 +1,4 @@
-// REQUIRES: cuda || hip_be
+// REQUIRES: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple,spir64 %s -o -
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,%sycl_triple %s -o -
 //

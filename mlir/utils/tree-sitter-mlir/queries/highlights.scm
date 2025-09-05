@@ -99,8 +99,8 @@
   "arith.addui_extended"
   "arith.addf"
   "arith.divf"
-  "arith.maxf"
-  "arith.minf"
+  "arith.maximumf"
+  "arith.minimumf"
   "arith.mulf"
   "arith.remf"
   "arith.subf"
@@ -209,7 +209,7 @@
   "tensor.yield"
 
   "bufferization.alloc_tensor"
-  "bufferization.to_memref"
+  "bufferization.to_buffer"
   "bufferization.to_tensor"
 
   "linalg.batch_matmul"

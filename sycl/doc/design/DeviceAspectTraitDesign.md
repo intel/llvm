@@ -112,7 +112,7 @@ to generate test cases, ensuring that specializations exist for all aspects:
 
 ```c++
 #define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                          \
-  constexpr bool CheckAnyDeviceHas##ASPECT = any_devices_has_v<aspect::ASPECT>;    \
+  constexpr bool CheckAnyDeviceHas##ASPECT = any_device_has_v<aspect::ASPECT>;     \
   constexpr bool CheckAllDevicesHave##ASPECT = all_devices_have_v<aspect::ASPECT>;
 
 #include <sycl/info/aspects.def>
@@ -125,6 +125,6 @@ This relies on the fact that unspecialized variants of `any_device_has` and
 
 [1]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:device-aspects>
 [2]: <../extensions/proposed/sycl_ext_oneapi_device_if.asciidoc>
-[3]: <../extensions/proposed/sycl_ext_oneapi_device_architecture.asciidoc>
+[3]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 [4]: <DeviceIf.md>
 [5]: <OptionalDeviceFeatures.md>

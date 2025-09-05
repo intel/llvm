@@ -13,7 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 #include <iostream>
 #include <regex>
@@ -26,10 +27,6 @@ using namespace sycl;
 #endif
 
 int main(int argc, char **argv) {
-  // Must be enabled at the beginning of the application
-  // to obtain the PCI address
-  setenv("SYCL_ENABLE_PCI", "1", 0);
-
   // Expected format is "{domain}:{bus}:{device}.{function} where:
   // * {domain} is a 4 character hexadecimal value.
   // * {bus} is a 2 character hexadecimal value.
@@ -44,7 +41,7 @@ int main(int argc, char **argv) {
         continue;
 
       std::string PCIAddress =
-          dev.get_info<info::device::ext_intel_pci_address>();
+          dev.get_info<ext::intel::info::device::pci_address>();
       std::cout << "PCI address = " << PCIAddress << std::endl;
       assert(std::regex_match(PCIAddress, ExpectedBDFFormat));
     }

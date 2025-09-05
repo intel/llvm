@@ -56,7 +56,7 @@ AliasResult ScopedNoAliasAAResult::alias(const MemoryLocation &LocA,
                                          AAQueryInfo &AAQI,
                                          const Instruction *) {
   if (!EnableScopedNoAlias)
-    return AAResultBase::alias(LocA, LocB, AAQI, nullptr);
+    return AliasResult::MayAlias;
 
   // Get the attached MDNodes.
   const MDNode *AScopes = LocA.AATags.Scope, *BScopes = LocB.AATags.Scope;
@@ -69,15 +69,14 @@ AliasResult ScopedNoAliasAAResult::alias(const MemoryLocation &LocA,
   if (!mayAliasInScopes(BScopes, ANoAlias))
     return AliasResult::NoAlias;
 
-  // If they may alias, chain to the next AliasAnalysis.
-  return AAResultBase::alias(LocA, LocB, AAQI, nullptr);
+  return AliasResult::MayAlias;
 }
 
 ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call,
                                                 const MemoryLocation &Loc,
                                                 AAQueryInfo &AAQI) {
   if (!EnableScopedNoAlias)
-    return AAResultBase::getModRefInfo(Call, Loc, AAQI);
+    return ModRefInfo::ModRef;
 
   if (!mayAliasInScopes(Loc.AATags.Scope,
                         Call->getMetadata(LLVMContext::MD_noalias)))
@@ -87,14 +86,14 @@ ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call,
                         Loc.AATags.NoAlias))
     return ModRefInfo::NoModRef;
 
-  return AAResultBase::getModRefInfo(Call, Loc, AAQI);
+  return ModRefInfo::ModRef;
 }
 
 ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call1,
                                                 const CallBase *Call2,
                                                 AAQueryInfo &AAQI) {
   if (!EnableScopedNoAlias)
-    return AAResultBase::getModRefInfo(Call1, Call2, AAQI);
+    return ModRefInfo::ModRef;
 
   if (!mayAliasInScopes(Call1->getMetadata(LLVMContext::MD_alias_scope),
                         Call2->getMetadata(LLVMContext::MD_noalias)))
@@ -104,7 +103,7 @@ ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call1,
                         Call1->getMetadata(LLVMContext::MD_noalias)))
     return ModRefInfo::NoModRef;
 
-  return AAResultBase::getModRefInfo(Call1, Call2, AAQI);
+  return ModRefInfo::ModRef;
 }
 
 static void collectMDInDomain(const MDNode *List, const MDNode *Domain,
@@ -115,6 +114,18 @@ static void collectMDInDomain(const MDNode *List, const MDNode *Domain,
         Nodes.insert(MD);
 }
 
+/// Collect the set of scoped domains relevant to the noalias scopes.
+void ScopedNoAliasAAResult::collectScopedDomains(
+    const MDNode *NoAlias, SmallPtrSetImpl<const MDNode *> &Domains) const {
+  if (!NoAlias)
+    return;
+  assert(Domains.empty() && "Domains should be empty");
+  for (const MDOperand &MDOp : NoAlias->operands())
+    if (const MDNode *NAMD = dyn_cast<MDNode>(MDOp))
+      if (const MDNode *Domain = AliasScopeNode(NAMD).getDomain())
+        Domains.insert(Domain);
+}
+
 bool ScopedNoAliasAAResult::mayAliasInScopes(const MDNode *Scopes,
                                              const MDNode *NoAlias) const {
   if (!Scopes || !NoAlias)
@@ -122,10 +133,7 @@ bool ScopedNoAliasAAResult::mayAliasInScopes(const MDNode *Scopes,
 
   // Collect the set of scope domains relevant to the noalias scopes.
   SmallPtrSet<const MDNode *, 16> Domains;
-  for (const MDOperand &MDOp : NoAlias->operands())
-    if (const MDNode *NAMD = dyn_cast<MDNode>(MDOp))
-      if (const MDNode *Domain = AliasScopeNode(NAMD).getDomain())
-        Domains.insert(Domain);
+  collectScopedDomains(NoAlias, Domains);
 
   // We alias unless, for some domain, the set of noalias scopes in that domain
   // is a superset of the set of alias scopes in that domain.
@@ -162,9 +170,7 @@ ImmutablePass *llvm::createScopedNoAliasAAWrapperPass() {
   return new ScopedNoAliasAAWrapperPass();
 }
 
-ScopedNoAliasAAWrapperPass::ScopedNoAliasAAWrapperPass() : ImmutablePass(ID) {
-  initializeScopedNoAliasAAWrapperPassPass(*PassRegistry::getPassRegistry());
-}
+ScopedNoAliasAAWrapperPass::ScopedNoAliasAAWrapperPass() : ImmutablePass(ID) {}
 
 bool ScopedNoAliasAAWrapperPass::doInitialization(Module &M) {
   Result.reset(new ScopedNoAliasAAResult());

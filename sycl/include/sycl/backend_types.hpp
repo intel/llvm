@@ -21,9 +21,11 @@ enum class backend : char {
   ext_oneapi_level_zero = 2,
   ext_oneapi_cuda = 3,
   all = 4,
-  ext_intel_esimd_emulator = 5,
+  // No support anymore:
+  // ext_intel_esimd_emulator  = 5,
   ext_oneapi_hip = 6,
-  ext_native_cpu = 7,
+  ext_oneapi_native_cpu = 7,
+  ext_oneapi_offload = 8,
 };
 
 template <backend Backend> class backend_traits;
@@ -49,20 +51,45 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::ext_oneapi_cuda:
     Out << "ext_oneapi_cuda";
     break;
-  case backend::ext_intel_esimd_emulator:
-    Out << "ext_intel_esimd_emulator";
-    break;
   case backend::ext_oneapi_hip:
     Out << "ext_oneapi_hip";
     break;
-  case backend::ext_native_cpu:
-    Out << "ext_native_cpu";
+  case backend::ext_oneapi_native_cpu:
+    Out << "ext_oneapi_native_cpu";
+    break;
+  case backend::ext_oneapi_offload:
+    Out << "ext_oneapi_offload";
     break;
   case backend::all:
     Out << "all";
   }
   return Out;
 }
+
+namespace detail {
+inline std::string_view get_backend_name_no_vendor(backend Backend) {
+  switch (Backend) {
+  case backend::host:
+    return "host";
+  case backend::opencl:
+    return "opencl";
+  case backend::ext_oneapi_level_zero:
+    return "level_zero";
+  case backend::ext_oneapi_cuda:
+    return "cuda";
+  case backend::ext_oneapi_hip:
+    return "hip";
+  case backend::ext_oneapi_native_cpu:
+    return "native_cpu";
+  case backend::ext_oneapi_offload:
+    return "offload";
+  case backend::all:
+    return "all";
+  }
+
+  return "";
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

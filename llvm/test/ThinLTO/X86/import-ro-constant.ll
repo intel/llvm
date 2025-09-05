@@ -3,8 +3,7 @@
 ; RUN: opt -thinlto-bc %s -o %t-main
 ; RUN: opt -thinlto-bc %p/Inputs/import-ro-constant-foo.ll -o %t-foo
 ; RUN: opt -thinlto-bc %p/Inputs/import-ro-constant-bar.ll -o %t-bar
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t-out %t-main %t-foo %t-bar \
-; RUN:      -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps -o %t-out %t-main %t-foo %t-bar \
 ; RUN:      -r=%t-foo,foo,pl \
 ; RUN:      -r=%t-main,main,plx \
 ; RUN:      -r=%t-main,_Z3barv,l \

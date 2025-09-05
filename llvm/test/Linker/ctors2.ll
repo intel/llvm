@@ -1,4 +1,4 @@
-; RUN: llvm-link -opaque-pointers -S %s %p/Inputs/ctors2.ll -o - | FileCheck %s
+; RUN: llvm-link -S %s %p/Inputs/ctors2.ll -o - | FileCheck %s
 
 $foo = comdat any
 @foo = global i8 0, comdat

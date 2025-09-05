@@ -24,6 +24,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MCA/SourceMgr.h"
 #include "llvm/MCA/View.h"
+#include "llvm/Support/Compiler.h"
 
 namespace llvm {
 namespace mca {
@@ -63,7 +64,7 @@ public:
 /// them properly.
 /// If you implement this class for your target, make sure to also implement
 /// a target specific InstrPostProcess class as well.
-class CustomBehaviour {
+class LLVM_ABI CustomBehaviour {
 protected:
   const MCSubtargetInfo &STI;
   const mca::SourceMgr &SrcMgr;
@@ -138,7 +139,7 @@ using UniqueInstrument = std::unique_ptr<Instrument>;
 /// This class allows targets to optionally customize the logic that resolves
 /// scheduling class IDs. Targets can use information encoded in Instrument
 /// objects to make more informed scheduling decisions.
-class InstrumentManager {
+class LLVM_ABI InstrumentManager {
 protected:
   const MCSubtargetInfo &STI;
   const MCInstrInfo &MCII;
@@ -156,8 +157,15 @@ public:
   // Instrument.Desc equal to Type
   virtual bool supportsInstrumentType(StringRef Type) const { return false; }
 
-  /// Allocate an Instrument, and return a unique pointer to it.
+  /// Allocate an Instrument, and return a unique pointer to it. This function
+  /// may be useful to create instruments coming from comments in the assembly.
+  /// See createInstruments to create Instruments from MCInst
   virtual UniqueInstrument createInstrument(StringRef Desc, StringRef Data);
+
+  /// Return a list of unique pointers to Instruments, where each Instrument
+  /// is allocated by this function. See createInstrument to create Instrument
+  /// from a description and data.
+  virtual SmallVector<UniqueInstrument> createInstruments(const MCInst &Inst);
 
   /// Given an MCInst and a vector of Instrument, a target can
   /// return a SchedClassID. This can be used by a subtarget to return a

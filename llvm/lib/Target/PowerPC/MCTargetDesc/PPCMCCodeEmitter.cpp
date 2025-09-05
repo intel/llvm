@@ -12,17 +12,18 @@
 
 #include "PPCMCCodeEmitter.h"
 #include "MCTargetDesc/PPCFixupKinds.h"
-#include "PPCInstrInfo.h"
+#include "PPCMCAsmInfo.h"
+#include "PPCMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/Support/Endian.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <cstdint>
@@ -38,6 +39,19 @@ MCCodeEmitter *llvm::createPPCMCCodeEmitter(const MCInstrInfo &MCII,
   return new PPCMCCodeEmitter(MCII, Ctx);
 }
 
+static void addFixup(SmallVectorImpl<MCFixup> &Fixups, uint32_t Offset,
+                     const MCExpr *Value, uint16_t Kind) {
+  bool PCRel = false;
+  switch (Kind) {
+  case PPC::fixup_ppc_br24:
+  case PPC::fixup_ppc_br24_notoc:
+  case PPC::fixup_ppc_brcond14:
+  case PPC::fixup_ppc_pcrel34:
+    PCRel = true;
+  }
+  Fixups.push_back(MCFixup::create(Offset, Value, Kind, PCRel));
+}
+
 unsigned PPCMCCodeEmitter::
 getDirectBrEncoding(const MCInst &MI, unsigned OpNo,
                     SmallVectorImpl<MCFixup> &Fixups,
@@ -47,14 +61,105 @@ getDirectBrEncoding(const MCInst &MI, unsigned OpNo,
   if (MO.isReg() || MO.isImm())
     return getMachineOpValue(MI, MO, Fixups, STI);
 
-  const PPCInstrInfo *InstrInfo = static_cast<const PPCInstrInfo *>(&MCII);
-  unsigned Opcode = MI.getOpcode();
   // Add a fixup for the branch target.
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                                   (InstrInfo->isNoTOCCallInstr(Opcode)
-                                        ? (MCFixupKind)PPC::fixup_ppc_br24_notoc
-                                        : (MCFixupKind)PPC::fixup_ppc_br24)));
+  addFixup(
+      Fixups, 0, MO.getExpr(),
+      (isNoTOCCallInstr(MI) ? PPC::fixup_ppc_br24_notoc : PPC::fixup_ppc_br24));
   return 0;
+}
+
+/// Check if Opcode corresponds to a call instruction that should be marked
+/// with the NOTOC relocation.
+bool PPCMCCodeEmitter::isNoTOCCallInstr(const MCInst &MI) const {
+  unsigned Opcode = MI.getOpcode();
+  if (!MCII.get(Opcode).isCall())
+    return false;
+
+  switch (Opcode) {
+  default:
+#ifndef NDEBUG
+    llvm_unreachable("Unknown call opcode");
+#endif
+    return false;
+  case PPC::BL8_NOTOC:
+  case PPC::BL8_NOTOC_TLS:
+  case PPC::BL8_NOTOC_RM:
+    return true;
+#ifndef NDEBUG
+  case PPC::BL8:
+  case PPC::BL:
+  case PPC::BL8_TLS:
+  case PPC::BL_TLS:
+  case PPC::BLA8:
+  case PPC::BLA:
+  case PPC::BCCL:
+  case PPC::BCCLA:
+  case PPC::BCL:
+  case PPC::BCLn:
+  case PPC::BL8_NOP:
+  case PPC::BL_NOP:
+  case PPC::BL8_NOP_TLS:
+  case PPC::BLA8_NOP:
+  case PPC::BCTRL8:
+  case PPC::BCTRL:
+  case PPC::BCCCTRL8:
+  case PPC::BCCCTRL:
+  case PPC::BCCTRL8:
+  case PPC::BCCTRL:
+  case PPC::BCCTRL8n:
+  case PPC::BCCTRLn:
+  case PPC::BL8_RM:
+  case PPC::BLA8_RM:
+  case PPC::BL8_NOP_RM:
+  case PPC::BLA8_NOP_RM:
+  case PPC::BCTRL8_RM:
+  case PPC::BCTRL8_LDinto_toc:
+  case PPC::BCTRL8_LDinto_toc_RM:
+  case PPC::BL8_TLS_:
+  case PPC::TCRETURNdi8:
+  case PPC::TCRETURNai8:
+  case PPC::TCRETURNri8:
+  case PPC::TAILBCTR8:
+  case PPC::TAILB8:
+  case PPC::TAILBA8:
+  case PPC::BCLalways:
+  case PPC::BLRL:
+  case PPC::BCCLRL:
+  case PPC::BCLRL:
+  case PPC::BCLRLn:
+  case PPC::BDZL:
+  case PPC::BDNZL:
+  case PPC::BDZLA:
+  case PPC::BDNZLA:
+  case PPC::BDZLp:
+  case PPC::BDNZLp:
+  case PPC::BDZLAp:
+  case PPC::BDNZLAp:
+  case PPC::BDZLm:
+  case PPC::BDNZLm:
+  case PPC::BDZLAm:
+  case PPC::BDNZLAm:
+  case PPC::BDZLRL:
+  case PPC::BDNZLRL:
+  case PPC::BDZLRLp:
+  case PPC::BDNZLRLp:
+  case PPC::BDZLRLm:
+  case PPC::BDNZLRLm:
+  case PPC::BL_RM:
+  case PPC::BLA_RM:
+  case PPC::BL_NOP_RM:
+  case PPC::BCTRL_RM:
+  case PPC::TCRETURNdi:
+  case PPC::TCRETURNai:
+  case PPC::TCRETURNri:
+  case PPC::BCTRL_LWZinto_toc:
+  case PPC::BCTRL_LWZinto_toc_RM:
+  case PPC::TAILBCTR:
+  case PPC::TAILB:
+  case PPC::TAILBA:
+    return false;
+#endif
+  }
 }
 
 unsigned PPCMCCodeEmitter::getCondBrEncoding(const MCInst &MI, unsigned OpNo,
@@ -64,8 +169,7 @@ unsigned PPCMCCodeEmitter::getCondBrEncoding(const MCInst &MI, unsigned OpNo,
   if (MO.isReg() || MO.isImm()) return getMachineOpValue(MI, MO, Fixups, STI);
 
   // Add a fixup for the branch target.
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_brcond14));
+  addFixup(Fixups, 0, MO.getExpr(), PPC::fixup_ppc_brcond14);
   return 0;
 }
 
@@ -77,8 +181,7 @@ getAbsDirectBrEncoding(const MCInst &MI, unsigned OpNo,
   if (MO.isReg() || MO.isImm()) return getMachineOpValue(MI, MO, Fixups, STI);
 
   // Add a fixup for the branch target.
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_br24abs));
+  addFixup(Fixups, 0, MO.getExpr(), PPC::fixup_ppc_br24abs);
   return 0;
 }
 
@@ -90,8 +193,7 @@ getAbsCondBrEncoding(const MCInst &MI, unsigned OpNo,
   if (MO.isReg() || MO.isImm()) return getMachineOpValue(MI, MO, Fixups, STI);
 
   // Add a fixup for the branch target.
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_brcond14abs));
+  addFixup(Fixups, 0, MO.getExpr(), PPC::fixup_ppc_brcond14abs);
   return 0;
 }
 
@@ -112,8 +214,7 @@ unsigned PPCMCCodeEmitter::getImm16Encoding(const MCInst &MI, unsigned OpNo,
   if (MO.isReg() || MO.isImm()) return getMachineOpValue(MI, MO, Fixups, STI);
 
   // Add a fixup for the immediate field.
-  Fixups.push_back(MCFixup::create(IsLittleEndian? 0 : 2, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_half16));
+  addFixup(Fixups, IsLittleEndian ? 0 : 2, MO.getExpr(), PPC::fixup_ppc_half16);
   return 0;
 }
 
@@ -127,7 +228,7 @@ uint64_t PPCMCCodeEmitter::getImm34Encoding(const MCInst &MI, unsigned OpNo,
     return getMachineOpValue(MI, MO, Fixups, STI);
 
   // Add a fixup for the immediate field.
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(), Fixup));
+  addFixup(Fixups, 0, MO.getExpr(), Fixup);
   return 0;
 }
 
@@ -135,16 +236,14 @@ uint64_t
 PPCMCCodeEmitter::getImm34EncodingNoPCRel(const MCInst &MI, unsigned OpNo,
                                           SmallVectorImpl<MCFixup> &Fixups,
                                           const MCSubtargetInfo &STI) const {
-  return getImm34Encoding(MI, OpNo, Fixups, STI,
-                          (MCFixupKind)PPC::fixup_ppc_imm34);
+  return getImm34Encoding(MI, OpNo, Fixups, STI, PPC::fixup_ppc_imm34);
 }
 
 uint64_t
 PPCMCCodeEmitter::getImm34EncodingPCRel(const MCInst &MI, unsigned OpNo,
                                         SmallVectorImpl<MCFixup> &Fixups,
                                         const MCSubtargetInfo &STI) const {
-  return getImm34Encoding(MI, OpNo, Fixups, STI,
-                          (MCFixupKind)PPC::fixup_ppc_pcrel34);
+  return getImm34Encoding(MI, OpNo, Fixups, STI, PPC::fixup_ppc_pcrel34);
 }
 
 unsigned PPCMCCodeEmitter::getDispRIEncoding(const MCInst &MI, unsigned OpNo,
@@ -155,8 +254,7 @@ unsigned PPCMCCodeEmitter::getDispRIEncoding(const MCInst &MI, unsigned OpNo,
     return getMachineOpValue(MI, MO, Fixups, STI) & 0xFFFF;
 
   // Add a fixup for the displacement field.
-  Fixups.push_back(MCFixup::create(IsLittleEndian? 0 : 2, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_half16));
+  addFixup(Fixups, IsLittleEndian ? 0 : 2, MO.getExpr(), PPC::fixup_ppc_half16);
   return 0;
 }
 
@@ -169,8 +267,8 @@ PPCMCCodeEmitter::getDispRIXEncoding(const MCInst &MI, unsigned OpNo,
     return ((getMachineOpValue(MI, MO, Fixups, STI) >> 2) & 0x3FFF);
 
   // Add a fixup for the displacement field.
-  Fixups.push_back(MCFixup::create(IsLittleEndian? 0 : 2, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_half16ds));
+  addFixup(Fixups, IsLittleEndian ? 0 : 2, MO.getExpr(),
+           PPC::fixup_ppc_half16ds);
   return 0;
 }
 
@@ -186,8 +284,8 @@ PPCMCCodeEmitter::getDispRIX16Encoding(const MCInst &MI, unsigned OpNo,
   }
 
   // Otherwise add a fixup for the displacement field.
-  Fixups.push_back(MCFixup::create(IsLittleEndian ? 0 : 2, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_half16dq));
+  addFixup(Fixups, IsLittleEndian ? 0 : 2, MO.getExpr(),
+           PPC::fixup_ppc_half16dq);
   return 0;
 }
 
@@ -236,18 +334,13 @@ PPCMCCodeEmitter::getDispRI34PCRelEncoding(const MCInst &MI, unsigned OpNo,
     const MCSymbolRefExpr *SRE = cast<MCSymbolRefExpr>(Expr);
     (void)SRE;
     // Currently these are the only valid PCRelative Relocations.
-    assert((SRE->getKind() == MCSymbolRefExpr::VK_PCREL ||
-            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_PCREL ||
-            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_TLSGD_PCREL ||
-            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_TLSLD_PCREL ||
-            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_TPREL_PCREL) &&
-           "VariantKind must be VK_PCREL or VK_PPC_GOT_PCREL or "
-           "VK_PPC_GOT_TLSGD_PCREL or VK_PPC_GOT_TLSLD_PCREL or "
-           "VK_PPC_GOT_TPREL_PCREL.");
+    assert(is_contained({PPC::S_PCREL, PPC::S_GOT_PCREL, PPC::S_GOT_TLSGD_PCREL,
+                         PPC::S_GOT_TLSLD_PCREL, PPC::S_GOT_TPREL_PCREL},
+                        SRE->getSpecifier()) &&
+           "specifier must be S_PCREL, S_GOT_PCREL, S_GOT_TLSGD_PCREL, "
+           "S_GOT_TLSLD_PCREL, or S_GOT_TPREL_PCREL");
     // Generate the fixup for the relocation.
-    Fixups.push_back(
-        MCFixup::create(0, Expr,
-                        static_cast<MCFixupKind>(PPC::fixup_ppc_pcrel34)));
+    addFixup(Fixups, 0, Expr, PPC::fixup_ppc_pcrel34);
     // Put zero in the location of the immediate. The linker will fill in the
     // correct value based on the relocation.
     return 0;
@@ -275,13 +368,11 @@ PPCMCCodeEmitter::getDispRI34PCRelEncoding(const MCInst &MI, unsigned OpNo,
            "Value must fit in 34 bits.");
 
     // Currently these are the only valid PCRelative Relocations.
-    assert((SRE->getKind() == MCSymbolRefExpr::VK_PCREL ||
-            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_PCREL) &&
-           "VariantKind must be VK_PCREL or VK_PPC_GOT_PCREL");
+    assert((getSpecifier(SRE) == PPC::S_PCREL ||
+            getSpecifier(SRE) == PPC::S_GOT_PCREL) &&
+           "VariantKind must be VK_PCREL or VK_GOT_PCREL");
     // Generate the fixup for the relocation.
-    Fixups.push_back(
-        MCFixup::create(0, Expr,
-                        static_cast<MCFixupKind>(PPC::fixup_ppc_pcrel34)));
+    addFixup(Fixups, 0, Expr, PPC::fixup_ppc_pcrel34);
     // Put zero in the location of the immediate. The linker will fill in the
     // correct value based on the relocation.
     return 0;
@@ -340,9 +431,8 @@ unsigned PPCMCCodeEmitter::getTLSRegEncoding(const MCInst &MI, unsigned OpNo,
   // if using PC relative memops.
   const MCExpr *Expr = MO.getExpr();
   const MCSymbolRefExpr *SRE = cast<MCSymbolRefExpr>(Expr);
-  bool IsPCRel = SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS_PCREL;
-  Fixups.push_back(MCFixup::create(IsPCRel ? 1 : 0, Expr,
-                                   (MCFixupKind)PPC::fixup_ppc_nofixup));
+  bool IsPCRel = getSpecifier(SRE) == PPC::S_TLS_PCREL;
+  addFixup(Fixups, IsPCRel ? 1 : 0, Expr, PPC::fixup_ppc_nofixup);
   const Triple &TT = STI.getTargetTriple();
   bool isPPC64 = TT.isPPC64();
   return CTX.getRegisterInfo()->getEncodingValue(isPPC64 ? PPC::X13 : PPC::R2);
@@ -355,8 +445,7 @@ unsigned PPCMCCodeEmitter::getTLSCallEncoding(const MCInst &MI, unsigned OpNo,
   // (__tls_get_addr), which we create via getDirectBrEncoding as usual,
   // and one for the TLSGD or TLSLD symbol, which is emitted here.
   const MCOperand &MO = MI.getOperand(OpNo+1);
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                                   (MCFixupKind)PPC::fixup_ppc_nofixup));
+  addFixup(Fixups, 0, MO.getExpr(), PPC::fixup_ppc_nofixup);
   return getDirectBrEncoding(MI, OpNo, Fixups, STI);
 }
 
@@ -372,7 +461,7 @@ get_crbitm_encoding(const MCInst &MI, unsigned OpNo,
 }
 
 // Get the index for this operand in this instruction. This is needed for
-// computing the register number in PPCInstrInfo::getRegNumForOperand() for
+// computing the register number in PPC::getRegNumForOperand() for
 // any instructions that use a different numbering scheme for registers in
 // different operands.
 static unsigned getOpIdxForMO(const MCInst &MI, const MCOperand &MO) {
@@ -396,9 +485,8 @@ getMachineOpValue(const MCInst &MI, const MCOperand &MO,
             MI.getOpcode() != PPC::MFOCRF && MI.getOpcode() != PPC::MFOCRF8) ||
            MO.getReg() < PPC::CR0 || MO.getReg() > PPC::CR7);
     unsigned OpNo = getOpIdxForMO(MI, MO);
-    unsigned Reg =
-      PPCInstrInfo::getRegNumForOperand(MCII.get(MI.getOpcode()),
-                                        MO.getReg(), OpNo);
+    MCRegister Reg =
+        PPC::getRegNumForOperand(MCII.get(MI.getOpcode()), MO.getReg(), OpNo);
     return CTX.getRegisterInfo()->getEncodingValue(Reg);
   }
 
@@ -415,7 +503,8 @@ void PPCMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
   // Output the constant in big/little endian byte order.
   unsigned Size = getInstSizeInBytes(MI);
-  support::endianness E = IsLittleEndian ? support::little : support::big;
+  llvm::endianness E =
+      IsLittleEndian ? llvm::endianness::little : llvm::endianness::big;
   switch (Size) {
   case 0:
     break;
@@ -443,9 +532,7 @@ unsigned PPCMCCodeEmitter::getInstSizeInBytes(const MCInst &MI) const {
 }
 
 bool PPCMCCodeEmitter::isPrefixedInstruction(const MCInst &MI) const {
-  unsigned Opcode = MI.getOpcode();
-  const PPCInstrInfo *InstrInfo = static_cast<const PPCInstrInfo*>(&MCII);
-  return InstrInfo->isPrefixed(Opcode);
+  return MCII.get(MI.getOpcode()).TSFlags & PPCII::Prefixed;
 }
 
 #include "PPCGenMCCodeEmitter.inc"

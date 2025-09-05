@@ -60,9 +60,31 @@ protected:
   SDValue LowerFROUNDEVEN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFFLOOR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerFLOG(SDValue Op, SelectionDAG &DAG,
-                    double Log2BaseInverted) const;
+
+  static bool allowApproxFunc(const SelectionDAG &DAG, SDNodeFlags Flags);
+  static bool needsDenormHandlingF32(const SelectionDAG &DAG, SDValue Src,
+                                     SDNodeFlags Flags);
+  SDValue getIsLtSmallestNormal(SelectionDAG &DAG, SDValue Op,
+                                SDNodeFlags Flags) const;
+  SDValue getIsFinite(SelectionDAG &DAG, SDValue Op, SDNodeFlags Flags) const;
+  std::pair<SDValue, SDValue> getScaledLogInput(SelectionDAG &DAG,
+                                                const SDLoc SL, SDValue Op,
+                                                SDNodeFlags Flags) const;
+
+  SDValue LowerFLOG2(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOGCommon(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOG10(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOGUnsafe(SDValue Op, const SDLoc &SL, SelectionDAG &DAG,
+                          bool IsLog10, SDNodeFlags Flags) const;
+  SDValue lowerFEXP2(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue lowerFEXPUnsafe(SDValue Op, const SDLoc &SL, SelectionDAG &DAG,
+                          SDNodeFlags Flags) const;
+  SDValue lowerFEXP10Unsafe(SDValue Op, const SDLoc &SL, SelectionDAG &DAG,
+                            SDNodeFlags Flags) const;
   SDValue lowerFEXP(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue lowerCTLZResults(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerCTLZ_CTTZ(SDValue Op, SelectionDAG &DAG) const;
 
@@ -74,6 +96,9 @@ protected:
   SDValue LowerFP_TO_INT64(SDValue Op, SelectionDAG &DAG, bool Signed) const;
   SDValue LowerFP_TO_FP16(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerF64ToF16Safe(SDValue Src, const SDLoc &DL,
+                            SelectionDAG &DAG) const;
 
   SDValue LowerSIGN_EXTEND_INREG(SDValue Op, SelectionDAG &DAG) const;
 
@@ -179,7 +204,7 @@ public:
                                NegatibleCost &Cost,
                                unsigned Depth) const override;
 
-  bool isNarrowingProfitable(EVT SrcVT, EVT DestVT) const override;
+  bool isNarrowingProfitable(SDNode *N, EVT SrcVT, EVT DestVT) const override;
 
   bool isDesirableToCommuteWithShift(const SDNode *N,
                                      CombineLevel Level) const override;
@@ -187,15 +212,14 @@ public:
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
 
-  MVT getVectorIdxTy(const DataLayout &) const override;
+  unsigned getVectorIdxWidth(const DataLayout &) const override;
   bool isSelectSupported(SelectSupportKind) const override;
 
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
   bool ShouldShrinkFPConstant(EVT VT) const override;
-  bool shouldReduceLoadWidth(SDNode *Load,
-                             ISD::LoadExtType ExtType,
-                             EVT ExtVT) const override;
+  bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtType, EVT ExtVT,
+                             std::optional<unsigned> ByteOffset) const override;
 
   bool isLoadBitCastBeneficial(EVT, EVT, const SelectionDAG &DAG,
                                const MachineMemOperand &MMO) const final;
@@ -208,6 +232,20 @@ public:
   bool isCheapToSpeculateCtlz(Type *Ty) const override;
 
   bool isSDNodeAlwaysUniform(const SDNode *N) const override;
+
+  // FIXME: This hook should not exist
+  AtomicExpansionKind shouldCastAtomicLoadInIR(LoadInst *LI) const override {
+    return AtomicExpansionKind::None;
+  }
+
+  AtomicExpansionKind shouldCastAtomicStoreInIR(StoreInst *SI) const override {
+    return AtomicExpansionKind::None;
+  }
+
+  AtomicExpansionKind shouldCastAtomicRMWIInIR(AtomicRMWInst *) const override {
+    return AtomicExpansionKind::None;
+  }
+
   static CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg);
   static CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg);
 
@@ -227,9 +265,7 @@ public:
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
 
-  SDValue LowerDYNAMIC_STACKALLOC(SDValue Op,
-                                  SelectionDAG &DAG) const;
-
+  SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
   void ReplaceNodeResults(SDNode * N,
@@ -281,15 +317,14 @@ public:
                                            const SelectionDAG &DAG,
                                            unsigned Depth = 0) const override;
 
-  unsigned computeNumSignBitsForTargetInstr(GISelKnownBits &Analysis,
+  unsigned computeNumSignBitsForTargetInstr(GISelValueTracking &Analysis,
                                             Register R,
                                             const APInt &DemandedElts,
                                             const MachineRegisterInfo &MRI,
                                             unsigned Depth = 0) const override;
 
-  bool isKnownNeverNaNForTargetNode(SDValue Op,
-                                    const SelectionDAG &DAG,
-                                    bool SNaN = false,
+  bool isKnownNeverNaNForTargetNode(SDValue Op, const APInt &DemandedElts,
+                                    const SelectionDAG &DAG, bool SNaN = false,
                                     unsigned Depth = 0) const override;
 
   bool isReassocProfitable(MachineRegisterInfo &MRI, Register N0,
@@ -353,14 +388,6 @@ public:
   MVT getFenceOperandTy(const DataLayout &DL) const override {
     return MVT::i32;
   }
-
-  AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
-
-  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
-                                              LLT Ty2) const override;
-
-  bool shouldSinkOperands(Instruction *I,
-                          SmallVectorImpl<Use *> &Ops) const override;
 };
 
 namespace AMDGPUISD {
@@ -368,7 +395,6 @@ namespace AMDGPUISD {
 enum NodeType : unsigned {
   // AMDIL ISD Opcodes
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  UMUL, // 32bit unsigned multiplication
   BRANCH_COND,
   // End AMDIL ISD Opcodes
 
@@ -376,6 +402,8 @@ enum NodeType : unsigned {
   CALL,
   TC_RETURN,
   TC_RETURN_GFX,
+  TC_RETURN_CHAIN,
+  TC_RETURN_CHAIN_DVGPR,
   TRAP,
 
   // Masked control flow nodes.
@@ -389,11 +417,18 @@ enum NodeType : unsigned {
   // s_endpgm, but we may want to insert it in the middle of the block.
   ENDPGM_TRAP,
 
+  // "s_trap 2" equivalent on hardware that does not support it.
+  SIMULATED_TRAP,
+
   // Return to a shader part's epilog code.
   RETURN_TO_EPILOG,
 
   // Return with values from a non-entry function.
   RET_GLUE,
+
+  // Convert a unswizzled wave uniform stack address to an address compatible
+  // with a vector offset for use in stack access.
+  WAVE_ADDRESS,
 
   DWORDADDR,
   FRACT,
@@ -405,7 +440,6 @@ enum NodeType : unsigned {
   // This is SETCC with the full mask result which is used for a compare with a
   // result bit per item in the wavefront.
   SETCC,
-  SETREG,
 
   DENORM_MODE,
 
@@ -429,6 +463,8 @@ enum NodeType : unsigned {
   FMED3,
   SMED3,
   UMED3,
+  FMAXIMUM3,
+  FMINIMUM3,
   FDOT2,
   URECIP,
   DIV_SCALE,
@@ -478,10 +514,6 @@ enum NodeType : unsigned {
   CONST_ADDRESS,
   REGISTER_LOAD,
   REGISTER_STORE,
-  SAMPLE,
-  SAMPLEB,
-  SAMPLED,
-  SAMPLEL,
 
   // These cvt_f32_ubyte* nodes need to remain consecutive and in order.
   CVT_F32_UBYTE0,
@@ -514,12 +546,11 @@ enum NodeType : unsigned {
   CONST_DATA_PTR,
   PC_ADD_REL_OFFSET,
   LDS,
-  FPTRUNC_ROUND_UPWARD,
-  FPTRUNC_ROUND_DOWNWARD,
 
   DUMMY_CHAIN,
-  FIRST_MEM_OPCODE_NUMBER = ISD::FIRST_TARGET_MEMORY_OPCODE,
-  LOAD_D16_HI,
+
+  FIRST_MEMORY_OPCODE,
+  LOAD_D16_HI = FIRST_MEMORY_OPCODE,
   LOAD_D16_LO,
   LOAD_D16_HI_I8,
   LOAD_D16_HI_U8,
@@ -527,24 +558,31 @@ enum NodeType : unsigned {
   LOAD_D16_LO_U8,
 
   STORE_MSKOR,
-  LOAD_CONSTANT,
   TBUFFER_STORE_FORMAT,
   TBUFFER_STORE_FORMAT_D16,
   TBUFFER_LOAD_FORMAT,
   TBUFFER_LOAD_FORMAT_D16,
   DS_ORDERED_COUNT,
   ATOMIC_CMP_SWAP,
-  ATOMIC_LOAD_FMIN,
-  ATOMIC_LOAD_FMAX,
   BUFFER_LOAD,
   BUFFER_LOAD_UBYTE,
   BUFFER_LOAD_USHORT,
   BUFFER_LOAD_BYTE,
   BUFFER_LOAD_SHORT,
+  BUFFER_LOAD_TFE,
+  BUFFER_LOAD_UBYTE_TFE,
+  BUFFER_LOAD_USHORT_TFE,
+  BUFFER_LOAD_BYTE_TFE,
+  BUFFER_LOAD_SHORT_TFE,
   BUFFER_LOAD_FORMAT,
   BUFFER_LOAD_FORMAT_TFE,
   BUFFER_LOAD_FORMAT_D16,
   SBUFFER_LOAD,
+  SBUFFER_LOAD_BYTE,
+  SBUFFER_LOAD_UBYTE,
+  SBUFFER_LOAD_SHORT,
+  SBUFFER_LOAD_USHORT,
+  SBUFFER_PREFETCH_DATA,
   BUFFER_STORE,
   BUFFER_STORE_BYTE,
   BUFFER_STORE_SHORT,
@@ -567,8 +605,8 @@ enum NodeType : unsigned {
   BUFFER_ATOMIC_FADD,
   BUFFER_ATOMIC_FMIN,
   BUFFER_ATOMIC_FMAX,
-
-  LAST_AMDGPU_ISD_NUMBER
+  BUFFER_ATOMIC_COND_SUB_U32,
+  LAST_MEMORY_OPCODE = BUFFER_ATOMIC_COND_SUB_U32,
 };
 
 } // End namespace AMDGPUISD
