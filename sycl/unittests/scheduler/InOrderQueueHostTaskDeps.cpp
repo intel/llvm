@@ -56,7 +56,7 @@ std::vector<std::tuple<CommandType, size_t, size_t>> ExecutedCommands;
 inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
   auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
   ExecutedCommands.push_back({CommandType::KERNEL, *params.pnumEventsInWaitList,
-                              *params.ppGlobalWorkSize[0]});
+                              **params.ppGlobalWorkSize});
   return UR_RESULT_SUCCESS;
 }
 
