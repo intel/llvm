@@ -46,6 +46,7 @@ private:
   std::mutex MInitEventMutex;
   ur_event_handle_t MInitEvent = nullptr;
 
+  std::weak_ptr<context_impl> MAllocatingContext;
   friend struct DeviceGlobalMapEntry;
 };
 
