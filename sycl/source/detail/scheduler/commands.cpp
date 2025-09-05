@@ -2052,13 +2052,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti_tracepoint_t *Event;
   void *AddressToUse = const_cast<void *>(Address);
   if (HasSourceInfo) {
-    if (!FuncName.empty()) {
-      Event = xptiCreateTracepoint(FuncName.c_str(), FileName.c_str(), Line,
-                                  Column, AddressToUse);
-    } else {
-      Event = xptiCreateTracepoint(KernelName.c_str(), FileName.c_str(), Line,
-                                  Column, AddressToUse);
-    }
+    const auto &Name = FuncName.empty() ? KernelName : FuncName;
+    Event = xptiCreateTracepoint(Name.c_str(), FileName.c_str(), Line, Column,
+                                 AddressToUse);
   } else {
     Event =
         xptiCreateTracepoint(KernelName.data(), nullptr, 0, 0, AddressToUse);
