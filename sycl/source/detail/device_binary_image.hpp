@@ -322,7 +322,7 @@ public:
     return m_ImageSize;
   }
 
-  bool IsCompressed() const { return m_IsCompressed; }
+  bool IsCompressed() const { return m_IsCompressed.load(); }
 
   void print() const override {
     RTDeviceBinaryImage::print();
@@ -335,7 +335,7 @@ private:
 
   // Flag to ensure decompression happens only once.
   std::once_flag m_InitFlag;
-  bool m_IsCompressed = true;
+  std::atomic<bool> m_IsCompressed{true};
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 
