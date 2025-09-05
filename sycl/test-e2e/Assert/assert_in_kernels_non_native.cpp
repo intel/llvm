@@ -1,7 +1,7 @@
 // REQUIRES: linux && !aspect-ext_oneapi_native_assert
 //
-// Intel OpenCL GPU drivers do not currently report cl_intel_devicelib_assert despite
-// supporting assertions.
+// Intel OpenCL GPU drivers do not currently report cl_intel_devicelib_assert
+// despite supporting assertions.
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-11496
 //
