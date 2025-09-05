@@ -30,7 +30,7 @@ namespace llvm {
 class BasicBlock;
 class Module;
 class Value;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -85,7 +85,7 @@ void buildThreadCheck(llvm::BasicBlock *entryBlock, llvm::BasicBlock *trueBlock,
 llvm::StructType *getOrCreateMuxDMAEventType(llvm::Module &m);
 
 /// @}
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_DMA_H_INCLUDED
+#endif // COMPILER_UTILS_DMA_H_INCLUDED

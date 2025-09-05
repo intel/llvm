@@ -111,7 +111,7 @@ bool isTrueUniformInternal(const Value *V, unsigned Depth) {
   return false;
 }
 
-}  // namespace
+} // namespace
 
 UniformValueResult::UniformValueResult(Function &F, VectorizationUnit &vu)
     : F(F), VU(vu), Ctx(VU.context()), dimension(VU.dimension()) {}
@@ -161,8 +161,9 @@ bool UniformValueResult::isTrueUniform(const Value *V) {
 /// @param[in] BI BuiltinInfo for platform-specific builtin IDs
 /// @return true if the instruction is a call to a reduction or broadcast
 /// builtin.
-static bool isGroupBroadcastOrReduction(
-    const Instruction &I, const compiler::utils::BuiltinInfo &BI) {
+static bool
+isGroupBroadcastOrReduction(const Instruction &I,
+                            const compiler::utils::BuiltinInfo &BI) {
   if (!isa<CallInst>(&I)) {
     return false;
   }
@@ -491,8 +492,9 @@ Value *UniformValueResult::extractMemBase(Value *Address) {
 
 llvm::AnalysisKey UniformValueAnalysis::Key;
 
-UniformValueResult UniformValueAnalysis::run(
-    llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
+UniformValueResult
+UniformValueAnalysis::run(llvm::Function &F,
+                          llvm::FunctionAnalysisManager &AM) {
   VectorizationUnit &VU = AM.getResult<VectorizationUnitAnalysis>(F).getVU();
   UniformValueResult Res(F, VU);
   std::vector<Value *> Roots;

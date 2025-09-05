@@ -75,7 +75,7 @@ bool AreUsersDead(Instruction *I,
   return true;
 }
 
-}  // namespace
+} // namespace
 
 void IRCleanup::deleteInstructionLater(llvm::Instruction *I) {
   if (InstructionsToDelete.insert(I).second) {

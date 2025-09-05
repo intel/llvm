@@ -101,8 +101,8 @@ bool GlobalSubgroupInfo::usesSubgroups(const llvm::Function &F) const {
   return !I->second->UsedSubgroupBuiltins.empty();
 }
 
-std::optional<Builtin> GlobalSubgroupInfo::isMuxSubgroupBuiltin(
-    const Function *F) const {
+std::optional<Builtin>
+GlobalSubgroupInfo::isMuxSubgroupBuiltin(const Function *F) const {
   if (!F) {
     return std::nullopt;
   }
@@ -112,15 +112,15 @@ std::optional<Builtin> GlobalSubgroupInfo::isMuxSubgroupBuiltin(
   }
 
   switch (SGBuiltin->ID) {
-    default:
-      break;
-    case eMuxBuiltinSubGroupBarrier:
-    case eMuxBuiltinGetSubGroupSize:
-    case eMuxBuiltinGetMaxSubGroupSize:
-    case eMuxBuiltinGetNumSubGroups:
-    case eMuxBuiltinGetSubGroupId:
-    case eMuxBuiltinGetSubGroupLocalId:
-      return SGBuiltin;
+  default:
+    break;
+  case eMuxBuiltinSubGroupBarrier:
+  case eMuxBuiltinGetSubGroupSize:
+  case eMuxBuiltinGetMaxSubGroupSize:
+  case eMuxBuiltinGetNumSubGroups:
+  case eMuxBuiltinGetSubGroupId:
+  case eMuxBuiltinGetSubGroupLocalId:
+    return SGBuiltin;
   }
 
   if (auto GroupOp = BI.isMuxGroupCollective(SGBuiltin->ID);
@@ -168,5 +168,5 @@ PreservedAnalyses SubgroupAnalysisPrinterPass::run(Module &M,
 
   return PreservedAnalyses::all();
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

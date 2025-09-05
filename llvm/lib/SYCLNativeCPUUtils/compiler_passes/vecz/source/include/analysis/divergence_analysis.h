@@ -35,7 +35,7 @@
 namespace llvm {
 class BasicBlock;
 class Loop;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 struct BasicBlockTag;
@@ -208,7 +208,7 @@ using DivergenceInfo = llvm::DenseSet<llvm::BasicBlock *>;
 
 /// @brief Holds the result of Divergence Analysis for a given function.
 class DivergenceResult {
- public:
+public:
   /// @brief Create a new DA result for the given unit.
   /// @param[in] AM FunctionAnalysisManager providing analyses.
   DivergenceResult(llvm::Function &F, llvm::FunctionAnalysisManager &AM);
@@ -379,7 +379,7 @@ class DivergenceResult {
     return divCausingBlocks;
   }
 
- private:
+private:
   friend class DivergenceAnalysis;
 
   /// @brief Mark a block div causing and mark blocks that are control dependent
@@ -452,7 +452,7 @@ class DivergenceResult {
 class DivergenceAnalysis : public llvm::AnalysisInfoMixin<DivergenceAnalysis> {
   friend llvm::AnalysisInfoMixin<DivergenceAnalysis>;
 
- public:
+public:
   /// @brief Create a new analysis object.
   DivergenceAnalysis() = default;
 
@@ -471,10 +471,10 @@ class DivergenceAnalysis : public llvm::AnalysisInfoMixin<DivergenceAnalysis> {
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "Divergence analysis"; }
 
- private:
+private:
   /// @brief Unique identifier for the pass.
   static llvm::AnalysisKey Key;
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_DIVERGENCE_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_DIVERGENCE_ANALYSIS_H_INCLUDED

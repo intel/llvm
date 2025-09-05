@@ -29,7 +29,7 @@ namespace vecz {
 /// @brief This pass tries to transform selects with pointer operands,
 /// transforms to individual GEPs followed by masked memory operations.
 class TernaryTransformPass : public llvm::PassInfoMixin<TernaryTransformPass> {
- public:
+public:
   TernaryTransformPass() = default;
 
   /// @brief The entry point to the pass.
@@ -44,6 +44,6 @@ class TernaryTransformPass : public llvm::PassInfoMixin<TernaryTransformPass> {
   // @brief Pass name.
   static llvm::StringRef name() { return "Ternary transform pass"; }
 };
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_TERNARY_TRANSFORM_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_TERNARY_TRANSFORM_PASS_H_INCLUDED

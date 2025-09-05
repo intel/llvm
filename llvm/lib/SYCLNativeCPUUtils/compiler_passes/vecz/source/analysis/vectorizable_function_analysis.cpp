@@ -51,14 +51,14 @@ namespace {
 bool canVectorize(const Instruction &I, const VectorizationContext &Ctx) {
   // Certain instructions just cannot appear.
   switch (I.getOpcode()) {
-    default:
-      break;
-    case Instruction::IndirectBr:
-    case Instruction::VAArg:
-    case Instruction::Invoke:
-    case Instruction::Resume:
-    case Instruction::LandingPad:
-      return false;
+  default:
+    break;
+  case Instruction::IndirectBr:
+  case Instruction::VAArg:
+  case Instruction::Invoke:
+  case Instruction::Resume:
+  case Instruction::LandingPad:
+    return false;
   }
 
   // User function calls.
@@ -120,10 +120,11 @@ bool canVectorize(const Function &F, const VectorizationContext &Ctx) {
   return true;
 }
 
-}  // namespace
+} // namespace
 
-VectorizableFunctionAnalysis::Result VectorizableFunctionAnalysis::run(
-    llvm::Function &F, llvm::FunctionAnalysisManager &AM) {
+VectorizableFunctionAnalysis::Result
+VectorizableFunctionAnalysis::run(llvm::Function &F,
+                                  llvm::FunctionAnalysisManager &AM) {
   Result res;
   auto &Ctx = AM.getResult<VectorizationContextAnalysis>(F).getContext();
 

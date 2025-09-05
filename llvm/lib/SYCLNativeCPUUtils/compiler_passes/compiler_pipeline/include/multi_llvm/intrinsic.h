@@ -34,7 +34,7 @@ auto getAttributes(T... args, llvm::FunctionType *)
     -> decltype(llvm::Intrinsic::getAttributes(args...)) {
   return llvm::Intrinsic::getAttributes(args...);
 }
-}  // namespace detail
+} // namespace detail
 
 namespace Intrinsic {
 static inline auto getAttributes(llvm::LLVMContext &C, llvm::Intrinsic::ID ID,
@@ -42,8 +42,8 @@ static inline auto getAttributes(llvm::LLVMContext &C, llvm::Intrinsic::ID ID,
   return detail::getAttributes<llvm::LLVMContext &, llvm::Intrinsic::ID>(C, ID,
                                                                          FT);
 }
-}  // namespace Intrinsic
+} // namespace Intrinsic
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_MULTI_INTRINSIC_H_INCLUDED
+#endif // MULTI_LLVM_MULTI_INTRINSIC_H_INCLUDED

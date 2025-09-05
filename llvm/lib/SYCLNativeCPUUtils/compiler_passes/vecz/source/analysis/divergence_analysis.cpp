@@ -38,7 +38,7 @@ using namespace llvm;
 
 namespace {
 using RPOT = ReversePostOrderTraversal<Function *>;
-}  // namespace
+} // namespace
 
 BlockQueue::BlockQueue(const DivergenceResult &dr,
                        const DenseSet<BasicBlock *> &blocks)
@@ -427,9 +427,11 @@ void DivergenceResult::markByAll(BasicBlock &src) {
           // If we are not in a loop, or the loop we live in does not diverge
           // nor does the one englobing us if it exists, then mark by_all.
           if (DLoopTag) {
-            if (DLoopTag->isLoopDivergent()) continue;
+            if (DLoopTag->isLoopDivergent())
+              continue;
             Loop *parentLoop = DLoopTag->loop->getParentLoop();
-            if (parentLoop && !isByAll(*parentLoop->getHeader())) continue;
+            if (parentLoop && !isByAll(*parentLoop->getHeader()))
+              continue;
           }
           queue.push(DIndex);
         }

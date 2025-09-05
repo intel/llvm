@@ -28,7 +28,7 @@ namespace llvm {
 class CallInst;
 class Value;
 class Type;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -144,7 +144,7 @@ struct OffsetInfo {
   /// @return Reference to the current object for chaining.
   OffsetInfo &manifest(llvm::IRBuilder<> &B, StrideAnalysisResult &SAR);
 
- private:
+private:
   /// @brief Mark this offset with the given flag.
   /// @return Reference to the current object for chaining.
   OffsetInfo &setKind(OffsetKind Kind);
@@ -263,6 +263,6 @@ struct OffsetInfo {
   OffsetInfo &copyStrideAndBitMaskFrom(const OffsetInfo &Other);
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // #define VECZ_OFFSET_INFO_H_INCLUDED
+#endif // #define VECZ_OFFSET_INFO_H_INCLUDED

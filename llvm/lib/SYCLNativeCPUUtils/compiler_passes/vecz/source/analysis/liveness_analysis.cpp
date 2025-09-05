@@ -69,15 +69,15 @@ inline bool pushOnce(BlockLivenessInfo::LiveSet &s, Value *V) {
   return true;
 }
 
-}  // namespace
+} // namespace
 
 class LivenessResult::Impl {
- public:
+public:
   Impl(LivenessResult &lr) : LR(lr) {}
 
   void recalculate();
 
- private:
+private:
   LivenessResult &LR;
 
   void computeByVar(const BasicBlock &BB);
@@ -107,8 +107,8 @@ size_t LivenessResult::getMaxLiveVirtualRegisters() const {
   return maxNumberOfLiveValues;
 }
 
-const BlockLivenessInfo &LivenessResult::getBlockInfo(
-    const BasicBlock *BB) const {
+const BlockLivenessInfo &
+LivenessResult::getBlockInfo(const BasicBlock *BB) const {
   auto found = BlockInfos.find(BB);
   assert(found != BlockInfos.end() && "No liveness information for BasicBlock");
   return found->second;

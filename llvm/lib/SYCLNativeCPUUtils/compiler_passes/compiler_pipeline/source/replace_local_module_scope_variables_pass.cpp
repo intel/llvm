@@ -223,7 +223,7 @@ bool addParamToAllRequiredFunctions(llvm::Module &module,
       nullptr /*updateMetaDataCallback*/);
 }
 
-}  // namespace
+} // namespace
 
 PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
     Module &M, ModuleAnalysisManager &) {

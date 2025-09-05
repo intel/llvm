@@ -46,23 +46,13 @@ struct VeczFailResult {
   /// @brief For functions that return a boolean value
   operator bool() const { return false; }
   /// @brief For functions that return a pointer
-  template <typename T>
-  operator T *() const {
-    return nullptr;
-  }
+  template <typename T> operator T *() const { return nullptr; }
   /// @brief For functions that return an std::shared_ptr
-  template <typename T>
-  operator std::shared_ptr<T>() const {
-    return nullptr;
-  }
+  template <typename T> operator std::shared_ptr<T>() const { return nullptr; }
   /// @brief For functions that return an std::unique_ptr
-  template <typename T>
-  operator std::unique_ptr<T>() const {
-    return nullptr;
-  }
+  template <typename T> operator std::unique_ptr<T>() const { return nullptr; }
   /// @brief For functions that return an llvm::Optional
-  template <typename T>
-  operator std::optional<T>() const {
+  template <typename T> operator std::optional<T>() const {
     return std::nullopt;
   }
 
@@ -111,36 +101,36 @@ struct AnalysisFailResult : public internal::VeczFailResult {
 
 #define VECZ_FAIL() return vecz::internal::VeczFailResult()
 
-#define VECZ_FAIL_IF(cond) \
-  do {                     \
-    if (cond) {            \
-      VECZ_FAIL();         \
-    }                      \
+#define VECZ_FAIL_IF(cond)                                                     \
+  do {                                                                         \
+    if (cond) {                                                                \
+      VECZ_FAIL();                                                             \
+    }                                                                          \
   } while (false)
 
-#define VECZ_STAT_FAIL_IF(cond, stat) \
-  do {                                \
-    if (cond) {                       \
-      ++stat;                         \
-      VECZ_FAIL();                    \
-    }                                 \
+#define VECZ_STAT_FAIL_IF(cond, stat)                                          \
+  do {                                                                         \
+    if (cond) {                                                                \
+      ++stat;                                                                  \
+      VECZ_FAIL();                                                             \
+    }                                                                          \
   } while (false)
 
-#define VECZ_ERROR_IF(cond, message) \
-  do {                               \
-    if (cond) {                      \
-      VECZ_ERROR(message);           \
-    }                                \
+#define VECZ_ERROR_IF(cond, message)                                           \
+  do {                                                                         \
+    if (cond) {                                                                \
+      VECZ_ERROR(message);                                                     \
+    }                                                                          \
   } while (false)
 
 #ifdef NDEBUG
 
-#define VECZ_ERROR(message)                                             \
-  do {                                                                  \
-    llvm::errs() << "!! Vecz: ERROR in " << __FILE__ << ":" << __LINE__ \
-                 << "\n";                                               \
-    llvm::errs() << "!! Reason: " << message << "\n";                   \
-    VECZ_FAIL();                                                        \
+#define VECZ_ERROR(message)                                                    \
+  do {                                                                         \
+    llvm::errs() << "!! Vecz: ERROR in " << __FILE__ << ":" << __LINE__        \
+                 << "\n";                                                      \
+    llvm::errs() << "!! Reason: " << message << "\n";                          \
+    VECZ_FAIL();                                                               \
   } while (false)
 
 #define VECZ_WARN_IF(cond, message) /* Nothing */
@@ -148,32 +138,32 @@ struct AnalysisFailResult : public internal::VeczFailResult {
 
 #else /* !NDEBUG */
 
-#define VECZ_ERROR(message)                                             \
-  do {                                                                  \
-    llvm::errs() << "!! Vecz: ERROR in " << __FILE__ << ":" << __LINE__ \
-                 << "\n";                                               \
-    llvm::errs() << "!! Reason: " << (message) << "\n";                 \
-    std::abort();                                                       \
+#define VECZ_ERROR(message)                                                    \
+  do {                                                                         \
+    llvm::errs() << "!! Vecz: ERROR in " << __FILE__ << ":" << __LINE__        \
+                 << "\n";                                                      \
+    llvm::errs() << "!! Reason: " << (message) << "\n";                        \
+    std::abort();                                                              \
   } while (false)
 
-#define VECZ_WARN_IF(cond, message)                                         \
-  do {                                                                      \
-    if (cond) {                                                             \
-      llvm::errs() << "!! Vecz: WARNING in " << __FILE__ << ":" << __LINE__ \
-                   << "\n";                                                 \
-      llvm::errs() << "!! Reason: " << (message) << "\n";                   \
-    }                                                                       \
+#define VECZ_WARN_IF(cond, message)                                            \
+  do {                                                                         \
+    if (cond) {                                                                \
+      llvm::errs() << "!! Vecz: WARNING in " << __FILE__ << ":" << __LINE__    \
+                   << "\n";                                                    \
+      llvm::errs() << "!! Reason: " << (message) << "\n";                      \
+    }                                                                          \
   } while (false)
 
-#define VECZ_UNREACHABLE(message)                                         \
-  do {                                                                    \
-    llvm::errs() << "!! Vecz: UNREACHABLE reached in " << __FILE__ << ":" \
-                 << __LINE__ << "\n";                                     \
-    llvm::errs() << "!! Message: " << (message) << "\n";                  \
-    std::abort();                                                         \
+#define VECZ_UNREACHABLE(message)                                              \
+  do {                                                                         \
+    llvm::errs() << "!! Vecz: UNREACHABLE reached in " << __FILE__ << ":"      \
+                 << __LINE__ << "\n";                                          \
+    llvm::errs() << "!! Message: " << (message) << "\n";                       \
+    std::abort();                                                              \
   } while (false)
 #endif /* NDEBUG */
-}  // namespace internal
+} // namespace internal
 
 #define VECZ_UNUSED(x) ((void)(x))
 
@@ -205,6 +195,6 @@ void emitVeczRemark(const llvm::Function *F, const llvm::Value *V,
 /// @param[in] Msg The main remark message text
 void emitVeczRemark(const llvm::Function *F, llvm::StringRef Msg);
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_DEBUGGING_H_INCLUDED
+#endif // VECZ_DEBUGGING_H_INCLUDED

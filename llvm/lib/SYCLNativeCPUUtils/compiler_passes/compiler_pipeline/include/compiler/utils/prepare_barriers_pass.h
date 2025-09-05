@@ -36,10 +36,10 @@ namespace utils {
 /// Runs over all kernels with "kernel entry point" metadata.
 class PrepareBarriersPass final
     : public llvm::PassInfoMixin<PrepareBarriersPass> {
- public:
+public:
   llvm::PreservedAnalyses run(llvm::Module &, llvm::ModuleAnalysisManager &);
 };
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_PREPARE_BARRIERS_PASS_H_INCLUDED
+#endif // COMPILER_UTILS_PREPARE_BARRIERS_PASS_H_INCLUDED

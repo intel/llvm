@@ -57,7 +57,7 @@ auto isLegalMaskedStoreImpl(const TargetTransformInfo &TTI, llvm::Type *Ty,
 }
 #endif
 
-}  // namespace detail
+} // namespace detail
 
 bool isLegalMaskedLoad(const llvm::TargetTransformInfo &TTI, llvm::Type *Ty,
                        llvm::Align Alignment, unsigned AddrSpace) {
@@ -69,6 +69,6 @@ bool isLegalMaskedStore(const llvm::TargetTransformInfo &TTI, llvm::Type *Ty,
   return detail::isLegalMaskedStoreImpl(TTI, Ty, Alignment, AddrSpace);
 }
 
-}  // namespace multi_llvm
+} // namespace multi_llvm
 
-#endif  // MULTI_LLVM_TARGET_TRANSFORM_INFO_H_INCLUDED
+#endif // MULTI_LLVM_TARGET_TRANSFORM_INFO_H_INCLUDED

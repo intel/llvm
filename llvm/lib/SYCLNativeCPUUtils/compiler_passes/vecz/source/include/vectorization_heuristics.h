@@ -21,7 +21,7 @@
 
 namespace llvm {
 class Function;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 class VectorizationContext;
@@ -38,6 +38,6 @@ class VectorizationContext;
 bool shouldVectorize(llvm::Function &F, VectorizationContext &Ctx,
                      llvm::ElementCount VF, unsigned SimdDimIdx);
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_VECTORIZATION_HEURISTICS_H_INCLUDED
+#endif // VECZ_VECTORIZATION_HEURISTICS_H_INCLUDED

@@ -24,9 +24,10 @@
 
 using namespace llvm;
 
-PreservedAnalyses vecz::SimplifyInfiniteLoopPass::run(
-    Loop &L, LoopAnalysisManager &, LoopStandardAnalysisResults &AR,
-    LPMUpdater &) {
+PreservedAnalyses
+vecz::SimplifyInfiniteLoopPass::run(Loop &L, LoopAnalysisManager &,
+                                    LoopStandardAnalysisResults &AR,
+                                    LPMUpdater &) {
   bool modified = false;
 
   SmallVector<BasicBlock *, 1> loopExitBlocks;

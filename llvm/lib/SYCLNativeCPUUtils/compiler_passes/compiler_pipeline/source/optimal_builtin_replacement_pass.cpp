@@ -46,7 +46,7 @@ void removeCallSite(CallBase &CB, LazyCallGraph &CG) {
   }
 }
 
-}  // namespace
+} // namespace
 
 namespace compiler {
 namespace utils {
@@ -187,8 +187,8 @@ OptimalBuiltinReplacementPass::OptimalBuiltinReplacementPass() {
   replacements.emplace_back(replaceAbacusFMinFMax);
 }
 
-Value *OptimalBuiltinReplacementPass::replaceBuiltinWithInlineIR(
-    CallBase &CB) const {
+Value *
+OptimalBuiltinReplacementPass::replaceBuiltinWithInlineIR(CallBase &CB) const {
   auto *M = CB.getModule();
   NameMangler mangler(&M->getContext());
 
@@ -315,5 +315,5 @@ PreservedAnalyses OptimalBuiltinReplacementPass::run(LazyCallGraph::SCC &C,
 
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

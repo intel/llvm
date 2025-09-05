@@ -50,11 +50,11 @@ class VectorizationChoices;
 
 /// @brief The implementation of the packetization process
 class Packetizer {
- public:
+public:
   class Result {
     friend class Packetizer;
 
-   public:
+  public:
     Result() = delete;
     Result(const Result &) = default;
     constexpr Result(Result &&) = default;
@@ -97,7 +97,7 @@ class Packetizer {
     void getPacketValues(unsigned width,
                          llvm::SmallVectorImpl<llvm::Value *> &vals) const;
 
-   private:
+  private:
     Packetizer &packetizer;
     llvm::Value *const scalar;
     PacketInfo *const info;
@@ -170,7 +170,7 @@ class Packetizer {
     IC.deleteInstructionLater(I);
   }
 
- private:
+private:
   Packetizer(llvm::Function &, llvm::FunctionAnalysisManager &AM,
              llvm::ElementCount Width, unsigned Dim);
   Packetizer() = delete;
@@ -229,6 +229,6 @@ class Packetizer {
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_PACKETIZER_H_INCLUDED
+#endif // VECZ_TRANSFORM_PACKETIZER_H_INCLUDED

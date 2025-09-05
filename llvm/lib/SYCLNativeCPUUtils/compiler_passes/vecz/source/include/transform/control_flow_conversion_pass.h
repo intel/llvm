@@ -35,7 +35,7 @@ class DominatorTree;
 class PostDominatorTree;
 class PreservedAnalyses;
 class LoopInfo;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 struct BasicBlockTag;
@@ -54,7 +54,7 @@ class Reachability;
 /// a function.
 class ControlFlowConversionPass
     : public llvm::PassInfoMixin<ControlFlowConversionPass> {
- public:
+public:
   /// @brief Unique identifier for the pass.
   static void *ID() { return (void *)&PassID; }
 
@@ -72,17 +72,17 @@ class ControlFlowConversionPass
     return "Control flow to data flow conversion";
   }
 
- private:
+private:
   /// @brief Unique identifier for the pass.
   static char PassID;
 };
 
 class ControlFlowConversionState {
- public:
+public:
   /// @brief The actual implementation of this pass
   class Impl;
 
- protected:
+protected:
   ControlFlowConversionState(llvm::Function &,
                              llvm::FunctionAnalysisManager &AM);
 
@@ -107,7 +107,7 @@ class ControlFlowConversionState {
   std::unique_ptr<BOSCCGadget> BOSCC;
   std::unique_ptr<Reachability> RC;
 
- private:
+private:
   struct MaskInfo {
     /// @brief Mask that describes which lanes have exited the block.
     llvm::SmallDenseMap<llvm::BasicBlock *, llvm::Value *, 4> exitMasks;
@@ -150,6 +150,6 @@ class ControlFlowConversionState {
 };
 
 /// @}
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_CONTROL_FLOW_CONVERSION_PASS_H_INCLUDED
+#endif // VECZ_TRANSFORM_CONTROL_FLOW_CONVERSION_PASS_H_INCLUDED

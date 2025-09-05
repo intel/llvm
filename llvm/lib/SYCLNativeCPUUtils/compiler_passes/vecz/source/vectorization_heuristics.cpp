@@ -33,7 +33,7 @@ namespace {
 class Heuristics {
   enum class BrClauseKind { None = 0, True, False };
 
- public:
+public:
   Heuristics(llvm::Function &F, VectorizationContext &Ctx, ElementCount VF,
              unsigned SimdDimIdx)
       : F(F), Ctx(Ctx), SimdWidth(VF), SimdDimIdx(SimdDimIdx) {}
@@ -49,7 +49,7 @@ class Heuristics {
   /// @return Whether we should vectorize the function or not.
   bool shouldVectorize();
 
- private:
+private:
   /// @brief Passthrough to CmpInst.
   ///
   /// @param[in] Comp The instruction to inspect.
@@ -81,8 +81,9 @@ class Heuristics {
   /// @param[in] Pred The kind of comparison.
   ///
   /// @return The branch's path not to vectorize, if any.
-  BrClauseKind shouldVectorizeVisitCmpOperands(
-      const llvm::Value *RHS, llvm::CmpInst::Predicate Pred) const;
+  BrClauseKind
+  shouldVectorizeVisitCmpOperands(const llvm::Value *RHS,
+                                  llvm::CmpInst::Predicate Pred) const;
 
   /// @brief The function to analyze.
   llvm::Function &F;
@@ -97,8 +98,9 @@ class Heuristics {
   unsigned SimdDimIdx;
 };
 
-Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmpOperands(
-    const Value *RHS, CmpInst::Predicate Pred) const {
+Heuristics::BrClauseKind
+Heuristics::shouldVectorizeVisitCmpOperands(const Value *RHS,
+                                            CmpInst::Predicate Pred) const {
   // If we have an `EQ` comparison, the single lane computation happens on
   // the true successor.
   if (Pred == CmpInst::Predicate::ICMP_EQ) {
@@ -122,38 +124,38 @@ Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmpOperands(
     // If we have a branch whose condition only applies for at most half of the
     // simd width, it is not worth vectorizing it.
     switch (Pred) {
-      default:
-        break;
-      // If we have a `GT` or `GE` comparison, if the constant we compare the
-      // opencl builtin against is greater than half of the simd width, we will
-      // not take the true branch as often as the false branch.
-      case CmpInst::Predicate::ICMP_UGT:
-      case CmpInst::Predicate::ICMP_UGE:
-      case CmpInst::Predicate::ICMP_SGT:
-      case CmpInst::Predicate::ICMP_SGE:
-        if (SimdWidth.isScalable()) {
-          return BrClauseKind::True;
-        } else if (Val->getValue().sgt(SimdWidth.getFixedValue() / 2)) {
-          return BrClauseKind::True;
-        } else if (Val->getValue().slt(SimdWidth.getFixedValue() / 2)) {
-          return BrClauseKind::False;
-        }
-        break;
-      // If we have an `LT` or `LE` comparison, if the constant we compare the
-      // opencl builtin against is smaller than half of the simd width, we will
-      // not take the true branch as often as the false branch.
-      case CmpInst::Predicate::ICMP_ULT:
-      case CmpInst::Predicate::ICMP_ULE:
-      case CmpInst::Predicate::ICMP_SLT:
-      case CmpInst::Predicate::ICMP_SLE:
-        if (SimdWidth.isScalable()) {
-          return BrClauseKind::False;
-        } else if (Val->getValue().slt(SimdWidth.getFixedValue() / 2)) {
-          return BrClauseKind::True;
-        } else if (Val->getValue().sgt(SimdWidth.getFixedValue() / 2)) {
-          return BrClauseKind::False;
-        }
-        break;
+    default:
+      break;
+    // If we have a `GT` or `GE` comparison, if the constant we compare the
+    // opencl builtin against is greater than half of the simd width, we will
+    // not take the true branch as often as the false branch.
+    case CmpInst::Predicate::ICMP_UGT:
+    case CmpInst::Predicate::ICMP_UGE:
+    case CmpInst::Predicate::ICMP_SGT:
+    case CmpInst::Predicate::ICMP_SGE:
+      if (SimdWidth.isScalable()) {
+        return BrClauseKind::True;
+      } else if (Val->getValue().sgt(SimdWidth.getFixedValue() / 2)) {
+        return BrClauseKind::True;
+      } else if (Val->getValue().slt(SimdWidth.getFixedValue() / 2)) {
+        return BrClauseKind::False;
+      }
+      break;
+    // If we have an `LT` or `LE` comparison, if the constant we compare the
+    // opencl builtin against is smaller than half of the simd width, we will
+    // not take the true branch as often as the false branch.
+    case CmpInst::Predicate::ICMP_ULT:
+    case CmpInst::Predicate::ICMP_ULE:
+    case CmpInst::Predicate::ICMP_SLT:
+    case CmpInst::Predicate::ICMP_SLE:
+      if (SimdWidth.isScalable()) {
+        return BrClauseKind::False;
+      } else if (Val->getValue().slt(SimdWidth.getFixedValue() / 2)) {
+        return BrClauseKind::True;
+      } else if (Val->getValue().sgt(SimdWidth.getFixedValue() / 2)) {
+        return BrClauseKind::False;
+      }
+      break;
     }
   }
 
@@ -225,8 +227,8 @@ const Value *Heuristics::shouldVectorizeVisitCmpOperand(
   return (Cache[Val] = nullptr);
 }
 
-Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmp(
-    const CmpInst *Cmp) const {
+Heuristics::BrClauseKind
+Heuristics::shouldVectorizeVisitCmp(const CmpInst *Cmp) const {
   // The following two calls return either a CallInst, a ConstantInt, or
   // nullptr otherwise. If it returns a CallInst, it necessarily is a call to
   // get_{global|local}_id, because otherwise we don't care.
@@ -256,8 +258,8 @@ Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitCmp(
   return vectorize;
 }
 
-Heuristics::BrClauseKind Heuristics::shouldVectorizeVisitBr(
-    const Value *Comp) const {
+Heuristics::BrClauseKind
+Heuristics::shouldVectorizeVisitBr(const Value *Comp) const {
   // If we are visiting a binary operator, inspect both its operands to
   // perhaps find CmpInsts.
   // E.g.: %and = and ...
@@ -381,7 +383,7 @@ bool Heuristics::shouldVectorize() {
 
   return true;
 }
-}  // namespace
+} // namespace
 
 namespace vecz {
 bool shouldVectorize(llvm::Function &F, VectorizationContext &Ctx,
@@ -389,4 +391,4 @@ bool shouldVectorize(llvm::Function &F, VectorizationContext &Ctx,
   Heuristics VH(F, Ctx, VF, SimdDimIdx);
   return VH.shouldVectorize();
 }
-}  // namespace vecz
+} // namespace vecz

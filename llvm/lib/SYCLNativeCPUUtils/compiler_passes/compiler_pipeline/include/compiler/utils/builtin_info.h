@@ -294,7 +294,7 @@ constexpr const char set_local_id[] = "__mux_set_local_id";
 constexpr const char set_sub_group_id[] = "__mux_set_sub_group_id";
 constexpr const char set_num_sub_groups[] = "__mux_set_num_sub_groups";
 constexpr const char set_max_sub_group_size[] = "__mux_set_max_sub_group_size";
-}  // namespace MuxBuiltins
+} // namespace MuxBuiltins
 
 static inline llvm::Type *getPointerReturnPointeeTy(const llvm::Function &F,
                                                     BuiltinProperties Props) {
@@ -336,7 +336,7 @@ class BILangInfoConcept;
 /// It contains an optional BILangInfoConcept implementation to provide builtin
 /// information on a target-by-target basis.
 class BuiltinInfo {
- public:
+public:
   // Default-construct a BuiltinInfo without a concrete set of language-level
   // builtins.
   BuiltinInfo() : MuxImpl(std::make_unique<BIMuxInfoConcept>()) {}
@@ -398,9 +398,10 @@ class BuiltinInfo {
   /// the 3 dimensions that this target supports.
   /// @param[in] MaxGlobalSizes The maximum global work-group sizes in each of
   /// the 3 dimensions that this target supports.
-  std::optional<llvm::ConstantRange> getBuiltinRange(
-      llvm::CallInst &CI, std::array<std::optional<uint64_t>, 3> MaxLocalSizes,
-      std::array<std::optional<uint64_t>, 3> MaxGlobalSizes) const;
+  std::optional<llvm::ConstantRange>
+  getBuiltinRange(llvm::CallInst &CI,
+                  std::array<std::optional<uint64_t>, 3> MaxLocalSizes,
+                  std::array<std::optional<uint64_t>, 3> MaxGlobalSizes) const;
 
   /// @brief Lowers a call to a language-level builtin to an instruction
   /// sequences calling a mux builtin.
@@ -447,8 +448,8 @@ class BuiltinInfo {
 
   /// @brief Returns the mux builtin ID matching the group collective, or
   /// eBuiltinInvalid.
-  static std::optional<BuiltinID> getMuxGroupCollective(
-      const GroupCollective &Group);
+  static std::optional<BuiltinID>
+  getMuxGroupCollective(const GroupCollective &Group);
 
   /// @brief Returns true if the mux builtin has a barrier ID as its first
   /// operand.
@@ -474,8 +475,9 @@ class BuiltinInfo {
   ///
   /// @param OverloadInfo An array of types required to resolve certain
   /// overloadable builtins, e.g., group builtins.
-  static std::string getMuxBuiltinName(
-      BuiltinID ID, llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
+  static std::string
+  getMuxBuiltinName(BuiltinID ID,
+                    llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
 
   /// @brief Mangles a type using the LLVM intrinsic scheme
   ///
@@ -495,8 +497,8 @@ class BuiltinInfo {
   /// if it was unable to demangle a type.
   ///
   /// @see getMangledTypeStr
-  static std::pair<llvm::Type *, llvm::StringRef> getDemangledTypeFromStr(
-      llvm::StringRef TyStr, llvm::LLVMContext &Ctx);
+  static std::pair<llvm::Type *, llvm::StringRef>
+  getDemangledTypeFromStr(llvm::StringRef TyStr, llvm::LLVMContext &Ctx);
 
   /// @brief Defines the body of a ComputeMux builtin declaration
   ///
@@ -507,17 +509,17 @@ class BuiltinInfo {
   ///
   /// @param OverloadInfo An array of types required to resolve certain
   /// overloadable builtins, e.g., group builtins.
-  llvm::Function *defineMuxBuiltin(
-      BuiltinID, llvm::Module &M,
-      llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
+  llvm::Function *
+  defineMuxBuiltin(BuiltinID, llvm::Module &M,
+                   llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
 
   /// @brief Gets a ComputeMux builtin from the module, or declares it
   ///
   /// @param OverloadInfo An array of types required to resolve certain
   /// overloadable builtins, e.g., group builtins.
-  llvm::Function *getOrDeclareMuxBuiltin(
-      BuiltinID, llvm::Module &M,
-      llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
+  llvm::Function *
+  getOrDeclareMuxBuiltin(BuiltinID, llvm::Module &M,
+                         llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
 
   struct SchedParamInfo {
     /// @brief An identifier providing resolution for targets to identify
@@ -564,8 +566,8 @@ class BuiltinInfo {
   ///
   /// This function does not have to fill in SchedParamInfo::ArgVal, as this
   /// query is not specific to one function.
-  llvm::SmallVector<SchedParamInfo, 4> getMuxSchedulingParameters(
-      llvm::Module &);
+  llvm::SmallVector<SchedParamInfo, 4>
+  getMuxSchedulingParameters(llvm::Module &);
 
   /// @brief Returns target-specific scheduling parameters from a concrete
   /// function.
@@ -582,8 +584,8 @@ class BuiltinInfo {
   /// parameters.
   ///
   /// If not set, this function returns an empty list.
-  llvm::SmallVector<SchedParamInfo, 4> getFunctionSchedulingParameters(
-      llvm::Function &);
+  llvm::SmallVector<SchedParamInfo, 4>
+  getFunctionSchedulingParameters(llvm::Function &);
 
   /// @brief Responsible for initializing a scheduling parameter for which
   /// PassedExternally is 'false'.
@@ -641,7 +643,7 @@ class BuiltinInfo {
     return false;
   }
 
- private:
+private:
   /// @brief Try to identify a builtin function.
   /// @param[in] F The function to identify.
   /// @return Valid builtin ID if the name was identified, as well as any types
@@ -666,18 +668,18 @@ class BuiltinInfo {
 /// information and transformations to an instance of BuiltinInfo. All methods
 /// are to be called through from the equivalent methods in BuiltinInfo.
 class BIMuxInfoConcept {
- public:
+public:
   virtual ~BIMuxInfoConcept() = default;
 
   /// @brief See BuiltinInfo::defineMuxBuiltin.
-  virtual llvm::Function *defineMuxBuiltin(
-      BuiltinID, llvm::Module &M,
-      llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
+  virtual llvm::Function *
+  defineMuxBuiltin(BuiltinID, llvm::Module &M,
+                   llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
 
   /// @brief See BuiltinInfo::getOrDeclareMuxBuiltin.
-  virtual llvm::Function *getOrDeclareMuxBuiltin(
-      BuiltinID, llvm::Module &M,
-      llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
+  virtual llvm::Function *
+  getOrDeclareMuxBuiltin(BuiltinID, llvm::Module &M,
+                         llvm::ArrayRef<llvm::Type *> OverloadInfo = {});
 
   /// @brief See BuiltinInfo::getMuxSchedulingParameters
   virtual llvm::SmallVector<BuiltinInfo::SchedParamInfo, 4>
@@ -710,9 +712,10 @@ class BIMuxInfoConcept {
   virtual llvm::Type *getRemappedTargetExtTy(llvm::Type *Ty, llvm::Module &M);
 
   /// @see BuiltinInfo::getBuiltinRange
-  virtual std::optional<llvm::ConstantRange> getBuiltinRange(
-      llvm::CallInst &, BuiltinID ID, std::array<std::optional<uint64_t>, 3>,
-      std::array<std::optional<uint64_t>, 3>) const;
+  virtual std::optional<llvm::ConstantRange>
+  getBuiltinRange(llvm::CallInst &, BuiltinID ID,
+                  std::array<std::optional<uint64_t>, 3>,
+                  std::array<std::optional<uint64_t>, 3>) const;
 
   enum MemScope : uint32_t {
     MemScopeCrossDevice = 0,
@@ -736,7 +739,7 @@ class BIMuxInfoConcept {
     MemSemanticsCrossWorkGroupMemory = 0x200,
   };
 
- protected:
+protected:
   llvm::Function *defineGetGlobalId(llvm::Module &M);
   llvm::Function *defineGetGlobalSize(llvm::Module &M);
   llvm::Function *defineGetLocalLinearId(llvm::Module &M);
@@ -783,14 +786,14 @@ class BIMuxInfoConcept {
 /// transformations to an instance of BuiltinInfo. All methods are to be called
 /// through from the equivalent methods in BuiltinInfo.
 class BILangInfoConcept {
- public:
+public:
   virtual ~BILangInfoConcept() = default;
 
   /// @see BuiltinInfo::getBuiltinsModule
   virtual llvm::Module *getBuiltinsModule() { return nullptr; }
   /// @see BuiltinInfo::analyzeBuiltin
-  virtual std::optional<Builtin> analyzeBuiltin(
-      const llvm::Function &F) const = 0;
+  virtual std::optional<Builtin>
+  analyzeBuiltin(const llvm::Function &F) const = 0;
   /// @see BuiltinInfo::isBuiltinUniform
   virtual BuiltinUniformity isBuiltinUniform(const Builtin &B,
                                              const llvm::CallInst *,
@@ -802,13 +805,13 @@ class BILangInfoConcept {
   virtual llvm::Function *getScalarEquivalent(const Builtin &B,
                                               llvm::Module *M) = 0;
   /// @see BuiltinInfo::emitBuiltinInline
-  virtual llvm::Value *emitBuiltinInline(
-      llvm::Function *Builtin, llvm::IRBuilder<> &B,
-      llvm::ArrayRef<llvm::Value *> Args) = 0;
+  virtual llvm::Value *
+  emitBuiltinInline(llvm::Function *Builtin, llvm::IRBuilder<> &B,
+                    llvm::ArrayRef<llvm::Value *> Args) = 0;
   /// @see BuiltinInfo::getBuiltinRange
-  virtual std::optional<llvm::ConstantRange> getBuiltinRange(
-      llvm::CallInst &, std::array<std::optional<uint64_t>, 3>,
-      std::array<std::optional<uint64_t>, 3>) const {
+  virtual std::optional<llvm::ConstantRange>
+  getBuiltinRange(llvm::CallInst &, std::array<std::optional<uint64_t>, 3>,
+                  std::array<std::optional<uint64_t>, 3>) const {
     return std::nullopt;
   }
 
@@ -826,7 +829,7 @@ class BuiltinInfoAnalysis
     : public llvm::AnalysisInfoMixin<BuiltinInfoAnalysis> {
   friend AnalysisInfoMixin<BuiltinInfoAnalysis>;
 
- public:
+public:
   using Result = BuiltinInfo;
   using CallbackFn = std::function<Result(const llvm::Module &)>;
 
@@ -842,7 +845,7 @@ class BuiltinInfoAnalysis
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "BuiltinInfo analysis"; }
 
- private:
+private:
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
 
@@ -851,7 +854,7 @@ class BuiltinInfoAnalysis
 };
 
 /// @}
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_BUILTIN_INFO_H_INCLUDED
+#endif // COMPILER_UTILS_BUILTIN_INFO_H_INCLUDED

@@ -96,8 +96,8 @@ static bool shouldClone(compiler::utils::StructTypeRemapper &StructTypeRemapper,
 /// @param module Module referencing the types in the context.
 ///
 /// @return The map of suffixed structures to the unsuffixed structures.
-static compiler::utils::StructMap uniqueOpaqueSuffixedStructs(
-    llvm::Module &module) {
+static compiler::utils::StructMap
+uniqueOpaqueSuffixedStructs(llvm::Module &module) {
   StructMap map;
   for (auto *structTy : module.getIdentifiedStructTypes()) {
     if (!structTy->isOpaque()) {
@@ -133,9 +133,10 @@ static compiler::utils::StructMap uniqueOpaqueSuffixedStructs(
 /// @param[in] StructTypeRemapper Map from suffixed opaque structs to
 /// unsuffixed opaque structs.
 /// @param[out] WorkList vector of functions that need to be processed.
-static void populateWorkList(
-    Module &Module, compiler::utils::StructTypeRemapper &StructTypeRemapper,
-    SmallVectorImpl<Function *> &WorkList) {
+static void
+populateWorkList(Module &Module,
+                 compiler::utils::StructTypeRemapper &StructTypeRemapper,
+                 SmallVectorImpl<Function *> &WorkList) {
   for (auto &Function : Module) {
     // We don't need to touch intrinsics.
     if (Function.isIntrinsic()) {
@@ -172,9 +173,9 @@ static void removeOldFunctions(const SmallVectorImpl<Function *> &OldFuncs) {
 /// @param[in] StructTypeRemapper Map from suffixed opaque structs to
 /// unsuffixed opaque structs.
 /// @param[in] OldFuncs list of functions to clone and update.
-static void replaceRemappedTypeRefs(
-    compiler::utils::StructTypeRemapper &StructTypeRemapper,
-    const SmallVectorImpl<Function *> &OldFuncs) {
+static void
+replaceRemappedTypeRefs(compiler::utils::StructTypeRemapper &StructTypeRemapper,
+                        const SmallVectorImpl<Function *> &OldFuncs) {
   // Maps the old functions to their new versions with updated types.
   // Note: it is important we do this before cloning to catch the case that
   // functions A and B both need updating, but function A calls function B and
@@ -279,5 +280,5 @@ PreservedAnalyses UniqueOpaqueStructsPass::run(Module &Module,
   // modified.
   return PreservedAnalyses::none();
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler

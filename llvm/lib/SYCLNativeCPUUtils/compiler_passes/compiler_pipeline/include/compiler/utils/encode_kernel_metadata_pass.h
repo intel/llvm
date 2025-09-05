@@ -50,11 +50,11 @@ struct EncodeKernelMetadataPass
 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
 
- private:
+private:
   std::string KernelName;
   std::optional<std::array<uint64_t, 3>> LocalSizes;
 };
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_ENCODE_KERNEL_METADATA_PASS_H_INCLUDED
+#endif // COMPILER_UTILS_ENCODE_KERNEL_METADATA_PASS_H_INCLUDED

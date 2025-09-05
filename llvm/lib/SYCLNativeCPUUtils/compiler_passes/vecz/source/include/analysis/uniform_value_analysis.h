@@ -31,7 +31,7 @@
 namespace llvm {
 class Value;
 class Instruction;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -171,7 +171,7 @@ class UniformValueAnalysis
     : public llvm::AnalysisInfoMixin<UniformValueAnalysis> {
   friend AnalysisInfoMixin<UniformValueAnalysis>;
 
- public:
+public:
   /// @brief Create a new analysis object.
   UniformValueAnalysis() {}
 
@@ -190,11 +190,11 @@ class UniformValueAnalysis
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "Uniform value analysis"; }
 
- private:
+private:
   /// @brief Unique identifier for the pass.
   static llvm::AnalysisKey Key;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_UNIFORM_VALUE_RANGE_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_UNIFORM_VALUE_RANGE_ANALYSIS_H_INCLUDED

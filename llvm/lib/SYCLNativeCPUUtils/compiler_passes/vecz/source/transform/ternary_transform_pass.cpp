@@ -206,7 +206,7 @@ void Transform(SelectInst *Select, VectorizationContext &Ctx) {
 
   IRCleanup::deleteInstructionNow(Select);
 }
-}  // namespace
+} // namespace
 
 PreservedAnalyses TernaryTransformPass::run(llvm::Function &F,
                                             llvm::FunctionAnalysisManager &AM) {

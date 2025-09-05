@@ -45,7 +45,7 @@ class Module;
 class StructType;
 class Type;
 class Value;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -84,17 +84,14 @@ struct BarrierRegion {
 };
 
 class Barrier {
- public:
+public:
   /// @brief Type for ids of new kernel functions
   using kernel_id_map_t = std::map<unsigned, llvm::Function *>;
 
   Barrier(llvm::Module &m, llvm::Function &f, bool IsDebug)
       : live_var_mem_ty_(nullptr),
-        size_t_bytes(compiler::utils::getSizeTypeBytes(m)),
-        module_(m),
-        func_(f),
-        is_debug_(IsDebug),
-        max_live_var_alignment(0) {}
+        size_t_bytes(compiler::utils::getSizeTypeBytes(m)), module_(m),
+        func_(f), is_debug_(IsDebug), max_live_var_alignment(0) {}
 
   /// @brief perform the Barrier Region analysis and kernel splitting
   void Run(llvm::ModuleAnalysisManager &mam);
@@ -204,7 +201,7 @@ class Barrier {
                            const char *name, bool reuse = false);
   };
 
- private:
+private:
   /// @brief The first is set for livein and the second is set for liveout
   using live_in_out_t =
       std::pair<llvm::DenseSet<llvm::Value *>, llvm::DenseSet<llvm::Value *>>;
@@ -362,7 +359,7 @@ class Barrier {
   void SeperateKernelWithBarrier();
 };
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_BARRIER_REGIONS_H_INCLUDED
+#endif // COMPILER_UTILS_BARRIER_REGIONS_H_INCLUDED

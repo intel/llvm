@@ -76,10 +76,10 @@ Value *processCallSite(CallInst *CI, bool &NeedLLVMInline,
   return CI;
 }
 
-}  // namespace
+} // namespace
 
-PreservedAnalyses InlinePostVectorizationPass::run(
-    Function &F, FunctionAnalysisManager &AM) {
+PreservedAnalyses
+InlinePostVectorizationPass::run(Function &F, FunctionAnalysisManager &AM) {
   bool modified = false;
   bool needToRunInliner = false;
   auto &BI =

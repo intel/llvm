@@ -44,15 +44,9 @@ VectorizationUnit::VectorizationUnit(Function &F, ElementCount Width,
                                      unsigned Dimension,
                                      VectorizationContext &Ctx,
                                      const VectorizationChoices &Ch)
-    : Ctx(Ctx),
-      Choices(Ch),
-      ScalarFn(&F),
-      VectorizedFn(nullptr),
-      SimdWidth(ElementCount()),
-      LocalSize(0),
-      AutoSimdWidth(false),
-      SimdDimIdx(Dimension),
-      FnFlags(eFunctionNoFlag) {
+    : Ctx(Ctx), Choices(Ch), ScalarFn(&F), VectorizedFn(nullptr),
+      SimdWidth(ElementCount()), LocalSize(0), AutoSimdWidth(false),
+      SimdDimIdx(Dimension), FnFlags(eFunctionNoFlag) {
   // Gather information about the function's arguments.
   for (Argument &Arg : F.args()) {
     VectorizerTargetArgument TargetArg;
@@ -148,8 +142,9 @@ void VectorizationUnit::setVectorizedFunction(llvm::Function *NewFunction) {
   }
 }
 
-vecz::internal::AnalysisFailResult VectorizationUnit::setFailed(
-    const char *remark, const llvm::Function *F, const llvm::Value *V) {
+vecz::internal::AnalysisFailResult
+VectorizationUnit::setFailed(const char *remark, const llvm::Function *F,
+                             const llvm::Value *V) {
   setFlag(eFunctionVectorizationFailed);
   emitVeczRemarkMissed(F ? F : &function(), V, remark);
   return vecz::internal::AnalysisFailResult();

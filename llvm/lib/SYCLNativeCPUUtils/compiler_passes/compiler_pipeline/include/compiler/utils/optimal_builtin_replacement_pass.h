@@ -50,7 +50,7 @@ namespace utils {
 /// * Invoking emitBuiltinInline from BuiltinInfo analysis
 class OptimalBuiltinReplacementPass
     : public llvm::PassInfoMixin<OptimalBuiltinReplacementPass> {
- public:
+public:
   using ReplacementFnTy = std::function<llvm::Value *(
       llvm::CallBase &, llvm::StringRef,
       const llvm::SmallVectorImpl<llvm::Type *> &,
@@ -103,13 +103,13 @@ class OptimalBuiltinReplacementPass
       const llvm::SmallVectorImpl<llvm::Type *> &,
       const llvm::SmallVectorImpl<compiler::utils::TypeQualifiers> &);
 
- private:
+private:
   std::vector<ReplacementFnTy> replacements;
 
   llvm::Value *replaceBuiltinWithInlineIR(llvm::CallBase &CB) const;
 };
 
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_OPTIMAL_BUILTIN_REPLACEMENT_PASS_H_INCLUDED
+#endif // COMPILER_UTILS_OPTIMAL_BUILTIN_REPLACEMENT_PASS_H_INCLUDED

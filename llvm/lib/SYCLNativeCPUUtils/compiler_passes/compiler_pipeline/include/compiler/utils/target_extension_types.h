@@ -20,7 +20,7 @@
 namespace llvm {
 class Type;
 class LLVMContext;
-}  // namespace llvm
+} // namespace llvm
 
 namespace compiler {
 namespace utils {
@@ -53,10 +53,10 @@ enum ImageTyDimensionalityParam {
 
 /// @brief Values the 'depth' parameter of a "spirv.Image" type may hold.
 enum ImageTyDepthParam {
-  ImageDepthNone = 0,  // Not a depth image
-  ImageDepth,          // A depth image
-  ImageDepthUnknown,   // No indication as to whether this is a depth or
-                       // non-depth image
+  ImageDepthNone = 0, // Not a depth image
+  ImageDepth,         // A depth image
+  ImageDepthUnknown,  // No indication as to whether this is a depth or
+                      // non-depth image
 };
 
 /// @brief Values the 'arrayed' parameter of a "spirv.Image" type may hold.
@@ -73,10 +73,10 @@ enum ImageTyMSParam {
 
 /// @brief Values the 'Sampled' parameter of a "spirv.Image" type may hold.
 enum ImageTySampledParam {
-  ImageSampledRuntime = 0,      // only known at run time
-  ImageSampledCompat,           // compatible with sampling operations
-  ImageSampledReadWriteCompat,  // compatiable with read/write operations (a
-                                // storage or subpass data image)
+  ImageSampledRuntime = 0,     // only known at run time
+  ImageSampledCompat,          // compatible with sampling operations
+  ImageSampledReadWriteCompat, // compatiable with read/write operations (a
+                               // storage or subpass data image)
 };
 
 enum ImageTyAccessQualParam {
@@ -98,47 +98,47 @@ llvm::Type *getSamplerTy(llvm::LLVMContext &Ctx);
 /// @brief Returns the TargetExtType representing an 'image1d_t' type.
 ///
 /// Note: Only intended for use LLVM 17+ - throws 'unreachable' otherwise.
-llvm::Type *getImage1DTy(
-    llvm::LLVMContext &Ctx,
-    ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
+llvm::Type *
+getImage1DTy(llvm::LLVMContext &Ctx,
+             ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
 
 /// @brief Returns the TargetExtType representing an 'image1d_array_t' type.
 ///
 /// Note: Only intended for use LLVM 17+ - throws 'unreachable' otherwise.
-llvm::Type *getImage1DArrayTy(
-    llvm::LLVMContext &Ctx,
-    ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
+llvm::Type *
+getImage1DArrayTy(llvm::LLVMContext &Ctx,
+                  ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
 
 /// @brief Returns the TargetExtType representing an 'image1d_buffer_t' type.
 ///
 /// Note: Only intended for use LLVM 17+ - throws 'unreachable' otherwise.
-llvm::Type *getImage1DBufferTy(
-    llvm::LLVMContext &Ctx,
-    ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
+llvm::Type *
+getImage1DBufferTy(llvm::LLVMContext &Ctx,
+                   ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
 
 /// @brief Returns the TargetExtType representing an 'image2d_t' type.
 ///
 /// Note: Only intended for use LLVM 17+ - throws 'unreachable' otherwise.
-llvm::Type *getImage2DTy(
-    llvm::LLVMContext &Ctx, bool Depth = false, bool MS = false,
-    ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
+llvm::Type *
+getImage2DTy(llvm::LLVMContext &Ctx, bool Depth = false, bool MS = false,
+             ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
 
 /// @brief Returns the TargetExtType representing an 'image2d_array_t' type.
 ///
 /// Note: Only intended for use LLVM 17+ - throws 'unreachable' otherwise.
-llvm::Type *getImage2DArrayTy(
-    llvm::LLVMContext &Ctx, bool Depth = false, bool MS = false,
-    ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
+llvm::Type *
+getImage2DArrayTy(llvm::LLVMContext &Ctx, bool Depth = false, bool MS = false,
+                  ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
 
 /// @brief Returns the TargetExtType representing an 'image3d_t' type.
 ///
 /// Note: Only intended for use LLVM 17+ - throws 'unreachable' otherwise.
-llvm::Type *getImage3DTy(
-    llvm::LLVMContext &Ctx,
-    ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
+llvm::Type *
+getImage3DTy(llvm::LLVMContext &Ctx,
+             ImageTyAccessQualParam AccessQual = ImageAccessQualReadOnly);
 
-}  // namespace tgtext
-}  // namespace utils
-}  // namespace compiler
+} // namespace tgtext
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_TARGET_EXTENSION_TYPES_H_INCLUDED
+#endif // COMPILER_UTILS_TARGET_EXTENSION_TYPES_H_INCLUDED

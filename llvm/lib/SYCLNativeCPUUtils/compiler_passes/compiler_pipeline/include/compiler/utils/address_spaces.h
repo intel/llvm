@@ -32,7 +32,7 @@ enum {
   Generic = 4,
 };
 }
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_ADDRESS_SPACES_H_INCLUDED
+#endif // COMPILER_UTILS_ADDRESS_SPACES_H_INCLUDED

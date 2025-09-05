@@ -35,7 +35,7 @@ class VectorizableFunctionAnalysis
     : public llvm::AnalysisInfoMixin<VectorizableFunctionAnalysis> {
   friend AnalysisInfoMixin<VectorizableFunctionAnalysis>;
 
- public:
+public:
   /// @brief Create a new instance of the pass.
   VectorizableFunctionAnalysis() = default;
 
@@ -61,11 +61,11 @@ class VectorizableFunctionAnalysis
   /// @brief Return the name of the pass.
   static llvm::StringRef name() { return "Vectorizable Function analysis"; }
 
- private:
+private:
   /// @brief Unique pass identifier.
   static llvm::AnalysisKey Key;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_VECTORIZABLE_FUNCTION_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_VECTORIZABLE_FUNCTION_ANALYSIS_H_INCLUDED

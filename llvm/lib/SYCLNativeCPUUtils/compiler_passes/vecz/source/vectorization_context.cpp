@@ -65,8 +65,8 @@ VectorizationContext::VectorizationContext(llvm::Module &target,
                                            compiler::utils::BuiltinInfo &bi)
     : VTI(vti), Module(target), BI(bi), DL(&Module.getDataLayout()) {}
 
-TargetTransformInfo VectorizationContext::getTargetTransformInfo(
-    Function &F) const {
+TargetTransformInfo
+VectorizationContext::getTargetTransformInfo(Function &F) const {
   auto *const TM = targetInfo().getTargetMachine();
   if (TM) {
     return TM->getTargetTransformInfo(F);
@@ -125,8 +125,9 @@ bool VectorizationContext::canExpandBuiltin(const Function *ScalarFn) const {
   return true;
 }
 
-VectorizationResult &VectorizationContext::getOrCreateBuiltin(
-    llvm::Function &F, unsigned SimdWidth) {
+VectorizationResult &
+VectorizationContext::getOrCreateBuiltin(llvm::Function &F,
+                                         unsigned SimdWidth) {
   compiler::utils::BuiltinInfo &BI = builtins();
   const auto Cached = VectorizedBuiltins.find(&F);
   if (Cached != VectorizedBuiltins.end()) {
@@ -178,8 +179,9 @@ VectorizationResult &VectorizationContext::getOrCreateBuiltin(
   return result;
 }
 
-VectorizationResult VectorizationContext::getVectorizedFunction(
-    Function &callee, ElementCount factor) {
+VectorizationResult
+VectorizationContext::getVectorizedFunction(Function &callee,
+                                            ElementCount factor) {
   VectorizationResult result;
   if (factor.isScalable()) {
     // We can't vectorize builtins by a scalable factor yet.
@@ -233,7 +235,7 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
   if (!F) {
     F = dyn_cast<Function>(CI->getCalledOperand()->stripPointerCasts());
   }
-  VECZ_FAIL_IF(!F);  // TODO: Support indirect function calls.
+  VECZ_FAIL_IF(!F); // TODO: Support indirect function calls.
   LLVMContext &ctx = F->getContext();
 
   // We will handle printf statements, but handling every possible vararg
@@ -542,27 +544,27 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
   // Mangle ordering
   auto mangleOrdering = [&O](AtomicOrdering Ordering) {
     switch (Ordering) {
-      case AtomicOrdering::Acquire:
-        O << "acquire";
-        return;
-      case AtomicOrdering::AcquireRelease:
-        O << "acqrel";
-        return;
-      case AtomicOrdering::Monotonic:
-        O << "monotonic";
-        return;
-      case AtomicOrdering::NotAtomic:
-        O << "notatomic";
-        return;
-      case AtomicOrdering::Release:
-        O << "release";
-        return;
-      case AtomicOrdering::SequentiallyConsistent:
-        O << "seqcst";
-        return;
-      case AtomicOrdering::Unordered:
-        O << "unordered";
-        return;
+    case AtomicOrdering::Acquire:
+      O << "acquire";
+      return;
+    case AtomicOrdering::AcquireRelease:
+      O << "acqrel";
+      return;
+    case AtomicOrdering::Monotonic:
+      O << "monotonic";
+      return;
+    case AtomicOrdering::NotAtomic:
+      O << "notatomic";
+      return;
+    case AtomicOrdering::Release:
+      O << "release";
+      return;
+    case AtomicOrdering::SequentiallyConsistent:
+      O << "seqcst";
+      return;
+    case AtomicOrdering::Unordered:
+      O << "unordered";
+      return;
     }
 
     O << static_cast<unsigned>(Ordering);
@@ -599,8 +601,8 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
 }
 
 namespace {
-std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
-    StringRef fnName, Type *const ty) {
+std::optional<std::tuple<bool, RecurKind, bool>>
+isSubgroupScan(StringRef fnName, Type *const ty) {
   compiler::utils::Lexer L(fnName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
     return std::nullopt;
@@ -650,7 +652,7 @@ std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
   }
   return std::nullopt;
 }
-}  // namespace
+} // namespace
 
 bool VectorizationContext::defineInternalBuiltin(Function *F) {
   assert(F->isDeclaration() && "builtin is already defined");
@@ -1056,9 +1058,9 @@ bool VectorizationContext::emitMaskedAtomicBody(
   Value *RetVal = nullptr;
   Value *RetSuccessVal = nullptr;
 
-  auto CreateLoopBody = [&MA, &F, &ExitBB, PtrArg, ValArg, MaskArg, &RetVal,
-                         &RetSuccessVal, IsVector, IsCmpXchg](
-                            BasicBlock *BB, Value *Idx, ArrayRef<Value *> IVs,
+  auto CreateLoopBody =
+      [&MA, &F, &ExitBB, PtrArg, ValArg, MaskArg, &RetVal, &RetSuccessVal,
+       IsVector, IsCmpXchg](BasicBlock *BB, Value *Idx, ArrayRef<Value *> IVs,
                             MutableArrayRef<Value *> IVsNext) -> BasicBlock * {
     IRBuilder<> IRB(BB);
 
@@ -1169,8 +1171,9 @@ bool VectorizationContext::emitMaskedAtomicBody(
   return true;
 }
 
-Function *VectorizationContext::getInternalVectorEquivalent(
-    Function *ScalarFn, unsigned SimdWidth) {
+Function *
+VectorizationContext::getInternalVectorEquivalent(Function *ScalarFn,
+                                                  unsigned SimdWidth) {
   // Handle masked memory loads and stores.
   if (!ScalarFn) {
     return nullptr;
@@ -1195,8 +1198,8 @@ bool VectorizationContext::insertMaskedFunction(llvm::Function *F,
   return result.second;
 }
 
-llvm::Function *VectorizationContext::getOriginalMaskedFunction(
-    llvm::Function *F) {
+llvm::Function *
+VectorizationContext::getOriginalMaskedFunction(llvm::Function *F) {
   auto Iter = MaskedFunctionsMap.find(F);
   if (Iter != MaskedFunctionsMap.end()) {
     return dyn_cast_or_null<llvm::Function>(Iter->second);

@@ -36,7 +36,7 @@ namespace llvm {
 class Value;
 class ShuffleVectorInst;
 class Twine;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 class TargetInfo;
@@ -133,7 +133,7 @@ llvm::Value *createIndexSequence(llvm::IRBuilder<> &Builder,
 /// The range is represented by its integer starting index and length, so that
 /// it remains valid if the vector re-allocates its storage.
 class PacketRange {
- public:
+public:
   using value_type = llvm::Value *;
   using iterator = value_type *;
   using const_iterator = const value_type *;
@@ -185,7 +185,7 @@ class PacketRange {
   /// @returns false if length is zero, true otherwise
   operator bool() const { return length != 0; }
 
- private:
+private:
   std::vector<llvm::Value *> &data;
   const size_t start;
   const size_t length;
@@ -256,6 +256,6 @@ inline llvm::Type *getWideType(llvm::Type *ty, llvm::ElementCount factor) {
   ty = vecTy->getElementType();
   return llvm::VectorType::get(ty, factor * elts);
 }
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_PACKETIZATION_HELPERS_H_INCLUDED
+#endif // VECZ_TRANSFORM_PACKETIZATION_HELPERS_H_INCLUDED

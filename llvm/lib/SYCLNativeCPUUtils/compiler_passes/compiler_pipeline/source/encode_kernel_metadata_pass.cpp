@@ -21,8 +21,9 @@
 
 using namespace llvm;
 
-PreservedAnalyses compiler::utils::TransferKernelMetadataPass::run(
-    Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses
+compiler::utils::TransferKernelMetadataPass::run(Module &M,
+                                                 ModuleAnalysisManager &) {
   SmallVector<KernelInfo, 4> Kernels;
   populateKernelList(M, Kernels);
 
@@ -39,8 +40,9 @@ PreservedAnalyses compiler::utils::TransferKernelMetadataPass::run(
   return PreservedAnalyses::all();
 }
 
-PreservedAnalyses compiler::utils::EncodeKernelMetadataPass::run(
-    Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses
+compiler::utils::EncodeKernelMetadataPass::run(Module &M,
+                                               ModuleAnalysisManager &) {
   if (auto *F = M.getFunction(KernelName)) {
     setOrigFnName(*F);
     setIsKernelEntryPt(*F);

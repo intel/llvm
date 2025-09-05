@@ -25,12 +25,11 @@ namespace llvm {
 class Module;
 class User;
 class Instruction;
-template <typename T, unsigned N>
-class SmallVector;
+template <typename T, unsigned N> class SmallVector;
 class GlobalVariable;
 class Value;
 class CallInst;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -66,9 +65,10 @@ std::string GetFormatStringAsString(llvm::Value *op);
 /// @param[in]  new_format_string The scalarized format string to create a
 /// global variable from.
 /// @return The newly created global variable for the format string.
-llvm::GlobalVariable *GetNewFormatStringAsGlobalVar(
-    llvm::Module &module, llvm::GlobalVariable *const string_value,
-    const std::string &new_format_string);
+llvm::GlobalVariable *
+GetNewFormatStringAsGlobalVar(llvm::Module &module,
+                              llvm::GlobalVariable *const string_value,
+                              const std::string &new_format_string);
 
 /// @brief This function transforms an OpenCL printf format string into a
 /// C99-conformant one.
@@ -109,9 +109,9 @@ EnumPrintfError ScalarizeAndCheckFormatString(const std::string &str,
 /// @param[in] new_format_string_gvar The module-level global variable for the
 /// new format string.
 /// @return A new call instruction to the new printf function.
-llvm::Instruction *BuildNewPrintfCall(
-    llvm::Module &module, llvm::CallInst *const old_inst,
-    llvm::GlobalVariable *const new_format_string_gvar);
-}  // namespace vecz
+llvm::Instruction *
+BuildNewPrintfCall(llvm::Module &module, llvm::CallInst *const old_inst,
+                   llvm::GlobalVariable *const new_format_string_gvar);
+} // namespace vecz
 
-#endif  // VECZ_TRANSFORM_PRINTF_SCALARIZER_H_INCLUDED
+#endif // VECZ_TRANSFORM_PRINTF_SCALARIZER_H_INCLUDED

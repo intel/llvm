@@ -36,10 +36,10 @@ std::unique_ptr<BILangInfoConcept> createCLBuiltinInfo(llvm::Module *builtins);
 
 /// @brief Builtin loader base class.
 class CLBuiltinLoader {
- protected:
+protected:
   CLBuiltinLoader() = default;
 
- public:
+public:
   virtual ~CLBuiltinLoader() = default;
 
   /// @brief Load a builtin function.
@@ -59,7 +59,7 @@ class CLBuiltinLoader {
 
 /// @brief Simple Builtin loader wrapping a given builtins module.
 class SimpleCLBuiltinLoader final : public CLBuiltinLoader {
- public:
+public:
   SimpleCLBuiltinLoader(llvm::Module *builtins) : BuiltinModule(builtins) {}
 
   ~SimpleCLBuiltinLoader() = default;
@@ -67,7 +67,7 @@ class SimpleCLBuiltinLoader final : public CLBuiltinLoader {
   /// @brief Expose any builtins Module
   virtual llvm::Module *getBuiltinsModule() override { return BuiltinModule; }
 
- private:
+private:
   /// @brief Loaded builtins module.
   llvm::Module *BuiltinModule;
 };
@@ -75,7 +75,7 @@ class SimpleCLBuiltinLoader final : public CLBuiltinLoader {
 ///  @brief A class that encapsulates information and transformations concerning
 /// compiler OpenCL builtin functions.
 class CLBuiltinInfo : public BILangInfoConcept {
- public:
+public:
   /// @brief Constructs a CLBuiltinInfo from a given Builtins module
   CLBuiltinInfo(llvm::Module *Builtins);
 
@@ -108,12 +108,12 @@ class CLBuiltinInfo : public BILangInfoConcept {
   /// @see BuiltinInfo::getPrintfBuiltin
   std::optional<BuiltinID> getPrintfBuiltin() const override;
 
- private:
+private:
   std::optional<BuiltinID> identifyBuiltin(const llvm::Function &) const;
 
-  llvm::Function *materializeBuiltin(
-      llvm::StringRef BuiltinName, llvm::Module *DestM = nullptr,
-      BuiltinMatFlags Flags = eBuiltinMatDefault);
+  llvm::Function *
+  materializeBuiltin(llvm::StringRef BuiltinName, llvm::Module *DestM = nullptr,
+                     BuiltinMatFlags Flags = eBuiltinMatDefault);
 
   llvm::Instruction *lowerGroupBuiltinToMuxBuiltin(llvm::CallInst &CI,
                                                    BuiltinID ID,
@@ -210,7 +210,7 @@ class CLBuiltinInfo : public BILangInfoConcept {
 };
 
 /// @}
-}  // namespace utils
-}  // namespace compiler
+} // namespace utils
+} // namespace compiler
 
-#endif  // COMPILER_UTILS_CL_BUILTIN_INFO_H_INCLUDED
+#endif // COMPILER_UTILS_CL_BUILTIN_INFO_H_INCLUDED

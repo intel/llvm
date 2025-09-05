@@ -23,7 +23,7 @@
 
 namespace llvm {
 class BasicBlock;
-}  // namespace llvm
+} // namespace llvm
 
 namespace vecz {
 
@@ -68,7 +68,7 @@ struct CFGResult {
 /// @brief Analysis that determines whether a function can have divergent
 /// control flow and so whether CFG conversion is needed or not.
 class CFGAnalysis : public llvm::AnalysisInfoMixin<CFGAnalysis> {
- public:
+public:
   /// @brief Create a new CFG analysis object.
   CFGAnalysis() = default;
 
@@ -87,12 +87,12 @@ class CFGAnalysis : public llvm::AnalysisInfoMixin<CFGAnalysis> {
   /// @brief Analysis name.
   static llvm::StringRef name() { return "CFG analysis"; }
 
- private:
+private:
   friend llvm::AnalysisInfoMixin<CFGAnalysis>;
   /// @brief Unique identifier for the analysis.
   static llvm::AnalysisKey Key;
 };
 
-}  // namespace vecz
+} // namespace vecz
 
-#endif  // VECZ_ANALYSIS_CONTROL_FLOW_ANALYSIS_H_INCLUDED
+#endif // VECZ_ANALYSIS_CONTROL_FLOW_ANALYSIS_H_INCLUDED
