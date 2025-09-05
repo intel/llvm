@@ -21,6 +21,8 @@
 
 using namespace sycl;
 
+namespace oneapiext = ext::oneapi::experimental;
+
 size_t GEventsWaitCounter = 0;
 
 inline ur_result_t redefinedEventsWaitWithBarrier(void *pParams) {
@@ -49,19 +51,19 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
 }
 
 enum class CommandType { KERNEL = 1, MEMSET = 2 };
-std::vector<std::pair<CommandType, size_t>> ExecutedCommands;
+std::vector<std::tuple<CommandType, size_t, size_t>> ExecutedCommands;
 
 inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
   auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
-  ExecutedCommands.push_back(
-      {CommandType::KERNEL, *params.pnumEventsInWaitList});
+  ExecutedCommands.push_back({CommandType::KERNEL, *params.pnumEventsInWaitList,
+                              *params.ppGlobalWorkSize[0]});
   return UR_RESULT_SUCCESS;
 }
 
 inline ur_result_t customEnqueueUSMFill(void *pParams) {
   auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
   ExecutedCommands.push_back(
-      {CommandType::MEMSET, *params.pnumEventsInWaitList});
+      {CommandType::MEMSET, *params.pnumEventsInWaitList, 0});
   return UR_RESULT_SUCCESS;
 }
 
@@ -112,10 +114,12 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   InOrderQueue.wait();
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::MEMSET);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
@@ -157,8 +161,57 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   InOrderQueue.wait();
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::MEMSET);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
+  ExecutedCommands.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  oneapiext::nd_launch<TestKernel>(
+      InOrderQueue, nd_range<1>{range<1>{32}, range<1>{32}}, [](nd_item<1>) {});
+
+  oneapiext::nd_launch<TestKernel>(
+      InOrderQueue, nd_range<1>{range<1>{64}, range<1>{32}}, [](nd_item<1>) {});
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<2>(ExecutedCommands[0]) /*GlobalWorkSize*/, 32u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<2>(ExecutedCommands[1]) /*GlobalWorkSize*/, 64u);
 }
