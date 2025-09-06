@@ -10,6 +10,7 @@
 #include "ur_api.h"
 #include <algorithm>
 
+#include <detail/arg_extraction.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -1052,76 +1053,7 @@ void handler::associateWithHandler(
                              static_cast<int>(AccTarget));
 }
 
-static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
-                                     size_t &IndexShift, int Size,
-                                     bool IsKernelCreatedFromSource,
-                                     size_t GlobalSize,
-                                     std::vector<detail::ArgDesc> &Args,
-                                     bool isESIMD) {
-  using detail::kernel_param_kind_t;
-  if (AccImpl->PerWI)
-    AccImpl->resize(GlobalSize);
-
-  Args.emplace_back(kernel_param_kind_t::kind_accessor, AccImpl, Size,
-                    Index + IndexShift);
-
-  // TODO ESIMD currently does not suport offset, memory and access ranges -
-  // accessor::init for ESIMD-mode accessor has a single field, translated
-  // to a single kernel argument set above.
-  if (!isESIMD && !IsKernelCreatedFromSource) {
-    // Dimensionality of the buffer is 1 when dimensionality of the
-    // accessor is 0.
-    const size_t SizeAccField =
-        sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MAccessRange[0], SizeAccField,
-                      Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MMemoryRange[0], SizeAccField,
-                      Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MOffset[0], SizeAccField, Index + IndexShift);
-  }
-}
-
-static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
-                                    size_t Index, size_t &IndexShift,
-                                    bool IsKernelCreatedFromSource,
-                                    std::vector<detail::ArgDesc> &Args,
-                                    bool IsESIMD) {
-  using detail::kernel_param_kind_t;
-
-  range<3> &LAccSize = LAcc->MSize;
-  const int Dims = LAcc->MDims;
-  int SizeInBytes = LAcc->MElemSize;
-  for (int I = 0; I < Dims; ++I)
-    SizeInBytes *= LAccSize[I];
-
-  // Some backends do not accept zero-sized local memory arguments, so we
-  // make it a minimum allocation of 1 byte.
-  SizeInBytes = std::max(SizeInBytes, 1);
-  Args.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
-                    Index + IndexShift);
-  // TODO ESIMD currently does not suport MSize field passing yet
-  // accessor::init for ESIMD-mode accessor has a single field, translated
-  // to a single kernel argument set above.
-  if (!IsESIMD && !IsKernelCreatedFromSource) {
-    ++IndexShift;
-    const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(LAccSize[0]);
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-  }
-}
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
@@ -1144,16 +1076,16 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     detail::AccessorBaseHost *GBufBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
     detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
-    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
+    detail::addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
+                                     IsKernelCreatedFromSource, GlobalSize,
+                                     impl->MArgs, IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
     detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
-    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
+    detail::addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
+                                     IsKernelCreatedFromSource, GlobalSize,
+                                     impl->MArgs, IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
@@ -1170,9 +1102,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
       }
     }
-    addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
+    detail::addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
+                                     IsKernelCreatedFromSource, GlobalSize,
+                                     impl->MArgs, IsESIMD);
     ++IndexShift;
     addArg(kernel_param_kind_t::kind_std_layout, &S->FlushBufferSize,
            sizeof(S->FlushBufferSize), Index + IndexShift);
@@ -1188,17 +1120,18 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
-                               IsKernelCreatedFromSource, GlobalSize,
-                               impl->MArgs, IsESIMD);
+      detail::addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
+                                       IsKernelCreatedFromSource, GlobalSize,
+                                       impl->MArgs, IsESIMD);
       break;
     }
     case access::target::local: {
       detail::LocalAccessorImplHost *LAccImpl =
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
 
-      addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
-                              IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
+      detail::addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
+                                      IsKernelCreatedFromSource, impl->MArgs,
+                                      IsESIMD);
       break;
     }
     case access::target::image:
@@ -1239,9 +1172,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
           ext::oneapi::experimental::detail::dynamic_local_accessor_impl *>(
           DynParamImpl);
 
-      addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
-                              IndexShift, IsKernelCreatedFromSource,
-                              impl->MArgs, IsESIMD);
+      detail::addArgsForLocalAccessor(
+          &DynLocalAccessorImpl->LAccImplHost, Index, IndexShift,
+          IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
       break;
     }
     default: {
@@ -1290,6 +1223,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
 }
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
   impl->MWorkGroupMemoryObjects.push_back(
@@ -1304,16 +1238,6 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
          ArgIndex);
 }
 
-// The argument can take up more space to store additional information about
-// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
-// We use the worst-case estimate because the lifetime of the vector is short.
-// In processArg the kind_stream case introduces the maximum number of
-// additional arguments. The case adds additional 12 arguments to the currently
-// processed argument, hence worst-case estimate is 12+1=13.
-// TODO: the constant can be removed if the size of MArgs will be calculated at
-// compile time.
-inline constexpr size_t MaxNumAdditionalArgs = 13;
-
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
@@ -1326,72 +1250,36 @@ void handler::extractArgsAndReqs() {
       });
 
   const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
-  impl->MArgs.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
 
-  size_t IndexShift = 0;
-  for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
-    void *Ptr = UnPreparedArgs[I].MPtr;
-    const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
-    const int &Size = UnPreparedArgs[I].MSize;
-    const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
-               false);
-  }
+  detail::extractArgsAndReqs(IsKernelCreatedFromSource, impl->MNDRDesc,
+                             impl->MDynamicParameters, UnPreparedArgs,
+                             impl->MArgs);
 }
 
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams, bool IsESIMD) {
-  size_t IndexShift = 0;
-  impl->MArgs.reserve(MaxNumAdditionalArgs * NumKernelParams);
+  detail::queue_impl *Queue = impl->get_queue_or_null();
+  bool QueueHasCommandGraph = Queue && Queue->hasCommandGraph();
+  bool IsGraphSubmission = impl->get_graph_or_null() != nullptr;
 
-  for (size_t I = 0; I < NumKernelParams; ++I) {
-    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
-    void *Ptr = LambdaPtr + ParamDesc.offset;
-    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
-    const int &Size = ParamDesc.info;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
-      if ((AccTarget == access::target::device ||
-           AccTarget == access::target::constant_buffer) ||
-          (AccTarget == access::target::image ||
-           AccTarget == access::target::image_array)) {
-        detail::AccessorBaseHost *AccBase =
-            static_cast<detail::AccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*AccBase).get();
-      } else if (AccTarget == access::target::local) {
-        detail::LocalAccessorBaseHost *LocalAccBase =
-            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
-      }
-    } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      // Only local targets are supported for dynamic accessors.
-      assert(static_cast<access::target>(Size & AccessTargetMask) ==
-             access::target::local);
-
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          *DynamicParamBase = static_cast<
-              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
-    } else if (Kind ==
-               detail::kernel_param_kind_t::kind_dynamic_work_group_memory) {
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          *DynamicParamBase = static_cast<
-              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
-    }
-
-    processArg(Ptr, Kind, Size, I, IndexShift,
-               /*IsKernelCreatedFromSource=*/false, IsESIMD);
-  }
+  detail::extractArgsAndReqsFromLambda(
+      LambdaPtr, ParamDescGetter, NumKernelParams, IsESIMD,
+      QueueHasCommandGraph, IsGraphSubmission, impl->MNDRDesc,
+      impl->MDynamicParameters, impl->MArgs);
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// We use the worst-case estimate because the lifetime of the vector is short.
+// In processArg the kind_stream case introduces the maximum number of
+// additional arguments. The case adds additional 12 arguments to the currently
+// processed argument, hence worst-case estimate is 12+1=13.
+// TODO: the constant can be removed if the size of MArgs will be calculated at
+// compile time.
+inline constexpr size_t MaxNumAdditionalArgs = 13;
+
 // TODO: Those functions are not used anymore, remove it in the next
 // ABI-breaking window.
 void handler::extractArgsAndReqsFromLambda(
