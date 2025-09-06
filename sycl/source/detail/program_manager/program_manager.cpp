@@ -1524,25 +1524,22 @@ ProgramManager::getDeviceImage(KernelNameStrRefT KernelName,
         KernelId != m_KernelName2KernelIDs.end()) {
       Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
                                     ContextImpl, DeviceImpl);
-    } else {
-      Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, ContextImpl,
-                                    DeviceImpl);
     }
   }
 
   // Decompress the image if it is compressed.
   CheckAndDecompressImage(Img);
 
-  if (Img) {
-    if constexpr (DbgProgMgr > 0) {
-      std::cerr << "selected device image: " << &Img->getRawData() << "\n";
-      Img->print();
-    }
-    return *Img;
-  }
+  if (!Img)
+    throw exception(make_error_code(errc::runtime),
+                    "No kernel named " + std::string(KernelName) +
+                        " was found");
 
-  throw exception(make_error_code(errc::runtime),
-                  "No kernel named " + std::string(KernelName) + " was found");
+  if constexpr (DbgProgMgr > 0) {
+    std::cerr << "selected device image: " << &Img->getRawData() << "\n";
+    Img->print();
+  }
+  return *Img;
 }
 
 const RTDeviceBinaryImage &ProgramManager::getDeviceImage(
@@ -2018,15 +2015,6 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
 
     auto name = EntriesIt->GetName();
 
-    // Skip creating unique kernel ID if it is a service kernel.
-    // SYCL service kernels are identified by having
-    // __sycl_service_kernel__ in the mangled name, primarily as part of
-    // the namespace of the name type.
-    if (std::strstr(name, "__sycl_service_kernel__")) {
-      m_ServiceKernels.insert(std::make_pair(name, Img.get()));
-      continue;
-    }
-
     // Skip creating unique kernel ID if it is an exported device
     // function. Exported device functions appear in the offload entries
     // among kernels, but are identifiable by being listed in properties.
@@ -2219,12 +2207,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          EntriesIt = EntriesIt->Increment()) {
       detail::KernelNameStrT Name = EntriesIt->GetName();
-      // Drop entry for service kernel
-      if (Name.find("__sycl_service_kernel__") != std::string::npos) {
-        removeFromMultimapByVal(m_ServiceKernels, Name, Img);
-        continue;
-      }
-
       // Exported device functions won't have a kernel ID
       if (m_ExportedSymbolImages.find(std::string(Name)) !=
           m_ExportedSymbolImages.end()) {
@@ -2619,7 +2601,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           ImgInfo.KernelIDs;
       int &ImgRequirementCounter = ImgInfo.RequirementCounter;
 
-      // If the image does not contain any non-service kernels we can skip it.
+      // If the image does not contain any kernels we can skip it.
       if (!ImageKernelIDs || ImageKernelIDs->empty())
         continue;
 
