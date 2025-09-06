@@ -501,23 +501,21 @@ private:
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
-#endif
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams, bool IsESIMD);
-
+#endif
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  // TODO: processArg need not to be public
-  __SYCL_DLL_LOCAL
-#endif
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window.
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
+#endif
 
   /// \return a string containing name of SYCL kernel.
   detail::ABINeutralKernelNameStrT getKernelName();
@@ -851,13 +849,10 @@ private:
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      // Force hasSpecialCaptures to be evaluated at compile-time.
-      setKernelInfo((void *)MHostKernel->getPtr(), Info.NumParams,
-                    Info.ParamDescGetter, Info.IsESIMD,
-                    Info.HasSpecialCaptures);
+      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
+      setKernelInfo((void *)MHostKernel->getPtr());
 
       MKernelName = Info.Name;
-      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -1354,9 +1349,11 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     processLaunchProperties<PropertiesT>(Props);
-    setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
     MKernelName = getKernelName();
+    setType(detail::CGType::Kernel);
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{MKernelName}));
+    extractArgsAndReqs();
 #endif
   }
 
@@ -1379,9 +1376,11 @@ private:
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     processLaunchProperties(Props);
-    setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
     MKernelName = getKernelName();
+    setType(detail::CGType::Kernel);
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{MKernelName}));
+    extractArgsAndReqs();
 #endif
   }
 
@@ -1851,8 +1850,10 @@ public:
     setNDRangeDescriptor(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
-    extractArgsAndReqs();
     MKernelName = getKernelName();
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo(
+        detail::CompileTimeKernelInfoTy{MKernelName}));
+    extractArgsAndReqs();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -3608,7 +3609,10 @@ private:
 
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window
   void clearArgs();
+#endif
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
@@ -3655,10 +3659,12 @@ private:
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                             sycl::range<1> LocalSize, sycl::id<1> Offset);
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+#endif
+  void setKernelInfo(void *KernelFuncPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
