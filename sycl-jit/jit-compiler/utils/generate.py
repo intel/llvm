@@ -1,5 +1,6 @@
 import os
 import argparse
+import glob
 
 
 def main():
@@ -31,12 +32,9 @@ namespace jit_compiler {
 const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
         )
 
-        def process_dir(dir):
-            for root, _, files in os.walk(dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    out.write(
-                        f"""
+        def process_file(file_path):
+            out.write(
+                f"""
 {{
     {{"{args.prefix}{os.path.relpath(file_path, toolchain_dir).replace(os.sep, "/")}"}} ,
     []() {{
@@ -46,11 +44,23 @@ const std::pair<std::string_view, std::string_view> ToolchainFiles[] = {"""
     return std::string_view(data, std::size(data) - 1);
     }}()
 }},"""
-                    )
+            )
+
+        def process_dir(dir):
+            for root, _, files in os.walk(dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    process_file(file_path)
 
         process_dir(os.path.join(args.toolchain_dir, "include/"))
         process_dir(os.path.join(args.toolchain_dir, "lib/clang/"))
         process_dir(os.path.join(args.toolchain_dir, "lib/clc/"))
+
+        for file in glob.iglob(
+            "*.bc", root_dir=os.path.join(args.toolchain_dir, "lib")
+        ):
+            file_path = os.path.join(args.toolchain_dir, "lib", file)
+            process_file(file_path)
 
         out.write(
             f"""
