@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -321,7 +322,8 @@ public:
     return m_ImageSize;
   }
 
-  bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
+  bool IsCompressed() const { return m_IsCompressed.load(); }
+
   void print() const override {
     RTDeviceBinaryImage::print();
     std::cerr << "    COMPRESSED\n";
@@ -330,6 +332,10 @@ public:
 private:
   std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize = 0;
+
+  // Flag to ensure decompression happens only once.
+  std::once_flag m_InitFlag;
+  std::atomic<bool> m_IsCompressed{true};
 };
 #endif // SYCL_RT_ZSTD_AVAILABLE
 

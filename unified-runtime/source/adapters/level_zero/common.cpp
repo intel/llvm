@@ -327,8 +327,8 @@ ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 template <>
-ze_structure_type_t
-getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
+ze_structure_type_ext_t
+getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
   return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME

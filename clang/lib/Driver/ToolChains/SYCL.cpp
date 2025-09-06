@@ -13,6 +13,7 @@
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
 
 using namespace clang::driver;
@@ -55,7 +56,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // If -fsycl-libspirv-path= is specified, try to use that path directly.
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_libspirv_path_EQ)) {
-    if (llvm::sys::fs::exists(A->getValue()))
+    if (D.getVFS().exists(A->getValue()))
       return A->getValue();
 
     return nullptr;
@@ -68,7 +69,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     SmallString<128> LibraryPath(Path);
     llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
-    if (llvm::sys::fs::exists(LibraryPath))
+    if (D.getVFS().exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;

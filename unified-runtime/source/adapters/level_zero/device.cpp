@@ -1964,7 +1964,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
       [ZeDevice](
-          ZeStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;

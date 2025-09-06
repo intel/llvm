@@ -14,8 +14,8 @@
 #include "../device.hpp"
 
 template <>
-ze_structure_type_t
-getZeStructureType<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
+ze_structure_type_ext_t
+getZexStructureType<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
   return ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
 }
 
@@ -61,7 +61,8 @@ static bool ForceDisableCopyOffload = [] {
 
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
-  ZeStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t> offloadDesc;
+  ZexStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>
+      offloadDesc;
   auto requestedCopyOffload =
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
 
