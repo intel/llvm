@@ -25,9 +25,10 @@ using __nativecpu_state = native_cpu::state;
 
 #undef DEVICE_EXTERNAL
 #undef DEVICE_EXTERN_C
-#define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
+#define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL __attribute__((libclc_call))
 #define DEVICE_EXTERNAL_C DEVICE_EXTERN_C __attribute__((always_inline))
-#define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
+#define DEVICE_EXTERNAL                                                        \
+  SYCL_EXTERNAL __attribute__((always_inline, libclc_call))
 
 // Several functions are used implicitly by WorkItemLoopsPass and
 // PrepareSYCLNativeCPUPass and need to be marked as used to prevent them being

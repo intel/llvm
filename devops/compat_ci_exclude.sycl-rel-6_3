@@ -22,3 +22,9 @@ NonUniformGroups/opportunistic_group.cpp
 # toolchain used to build the test, not the toolchain we're using SYCL RT from
 # to run against pre-built E2E binaries.
 Basic/device_config_file_consistency.cpp
+
+# The ABI compatibility is unimportant to device sanitizer since the user must
+# re-build their code if they want to test their code with device sanitizer.
+AddressSanitizer/*
+MemorySanitizer/*
+ThreadSanitizer/*

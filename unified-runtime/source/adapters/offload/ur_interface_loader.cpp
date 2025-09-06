@@ -74,7 +74,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   pDdiTable->pfnGetProfilingInfo = urEventGetProfilingInfo;
   pDdiTable->pfnRelease = urEventRelease;
   pDdiTable->pfnRetain = urEventRetain;
-  pDdiTable->pfnSetCallback = nullptr;
+  pDdiTable->pfnSetCallback = urEventSetCallback;
   pDdiTable->pfnWait = urEventWait;
   return UR_RESULT_SUCCESS;
 }
@@ -118,7 +118,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
   pDdiTable->pfnSetArgLocal = nullptr;
-  pDdiTable->pfnSetArgMemObj = nullptr;
+  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = nullptr;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
@@ -150,7 +150,7 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
     return result;
   }
   pDdiTable->pfnBufferCreate = urMemBufferCreate;
-  pDdiTable->pfnBufferPartition = nullptr;
+  pDdiTable->pfnBufferPartition = urMemBufferPartition;
   pDdiTable->pfnBufferCreateWithNativeHandle = nullptr;
   pDdiTable->pfnImageCreateWithNativeHandle = nullptr;
   pDdiTable->pfnGetInfo = urMemGetInfo;
@@ -172,10 +172,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
   pDdiTable->pfnEventsWait = urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
+  pDdiTable->pfnEventsWaitWithBarrierExt = urEnqueueEventsWaitWithBarrierExt;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
-  pDdiTable->pfnMemBufferCopy = nullptr;
+  pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
-  pDdiTable->pfnMemBufferFill = nullptr;
+  pDdiTable->pfnMemBufferFill = urEnqueueMemBufferFill;
   pDdiTable->pfnMemBufferMap = urEnqueueMemBufferMap;
   pDdiTable->pfnMemBufferRead = urEnqueueMemBufferRead;
   pDdiTable->pfnMemBufferReadRect = nullptr;
@@ -186,11 +187,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemImageWrite = nullptr;
   pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
-  pDdiTable->pfnUSMFill = nullptr;
-  pDdiTable->pfnUSMAdvise = nullptr;
+  pDdiTable->pfnUSMFill = urEnqueueUSMFill;
+  pDdiTable->pfnUSMAdvise = urEnqueueUSMAdvise;
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
-  pDdiTable->pfnUSMMemcpy = nullptr;
-  pDdiTable->pfnUSMPrefetch = nullptr;
+  pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
+  pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
   pDdiTable->pfnReadHostPipe = nullptr;
   pDdiTable->pfnWriteHostPipe = nullptr;
   return UR_RESULT_SUCCESS;
@@ -221,7 +222,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
   pDdiTable->pfnCreate = urQueueCreate;
   pDdiTable->pfnCreateWithNativeHandle = urQueueCreateWithNativeHandle;
   pDdiTable->pfnFinish = urQueueFinish;
-  pDdiTable->pfnFlush = nullptr;
+  pDdiTable->pfnFlush = urQueueFlush;
   pDdiTable->pfnGetInfo = urQueueGetInfo;
   pDdiTable->pfnGetNativeHandle = urQueueGetNativeHandle;
   pDdiTable->pfnRelease = urQueueRelease;
@@ -237,7 +238,7 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   }
   pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
   pDdiTable->pfnFree = urUSMFree;
-  pDdiTable->pfnGetMemAllocInfo = nullptr;
+  pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
   pDdiTable->pfnPoolCreate = nullptr;
   pDdiTable->pfnPoolRetain = nullptr;

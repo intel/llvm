@@ -821,7 +821,6 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 # Tools for which we add a corresponding feature when available.
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
-    ToolSubst("llvm-link", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
 ]
@@ -834,6 +833,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("llvm-link", unresolved="fatal"),
     ToolSubst("syclbin-dump", unresolved="fatal"),
     ToolSubst("llvm-ar", unresolved="fatal"),
     ToolSubst("clang-offload-bundler", unresolved="fatal"),

@@ -108,6 +108,8 @@ etors:
       desc: "Memory Copy Accelerator"
     - name: VPU
       desc: "Vision Processing Unit"
+    - name: CUSTOM
+      desc: "Generic custom device type"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves devices within a platform"
