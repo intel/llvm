@@ -984,15 +984,15 @@ event handler::finalize() {
 #endif
   }
 
-  bool DiscardEvent = !impl->MEventNeeded && Queue &&
-                      Queue->supportsDiscardingPiEvents() &&
-                      CommandGroup->getRequirements().size() == 0;
-
+  // Regardless of whether an event has been requested, the scheduler
+  // needs to generate an event so the commands are properly ordered
+  // (for in-order queue) and synchronized with a barrier (for out-of-order
+  // queue)
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
-      std::move(CommandGroup), *Queue, !DiscardEvent);
+      std::move(CommandGroup), *Queue, true);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  return DiscardEvent ? nullptr : Event;
+  return Event;
 #else
   return detail::createSyclObjFromImpl<event>(Event);
 #endif
