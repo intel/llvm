@@ -1,0 +1,2598 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1000" height="966" onload="init(evt)" viewBox="0 0 1000 966" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+		if (currentSearchTerm === null) return;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1000.0" height="966.0" fill="url(#background)"  />
+<text id="title" x="500.00" y="24" >TestFG_PVC_L0 - api_overhead_benchmark_l0 SubmitKernel out of order not using events</text>
+<text id="details" x="10.00" y="949" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="890.00" y="24" >Search</text>
+<text id="ignorecase" x="974.00" y="24" >ic</text>
+<text id="matched" x="890.00" y="949" > </text>
+<g id="frames">
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="309" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="319.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="277" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="287.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="741" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="751.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="341" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="351.5" >[u..</text>
+</g>
+<g >
+<title>loader::context_t::init_driver (3,940,821 samples, 3.26%)</title><rect x="213.8" y="693" width="32.0" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="216.80" y="703.5" >lo..</text>
+</g>
+<g >
+<title>___dlopen (3,939,873 samples, 3.26%)</title><rect x="149.9" y="405" width="32.0" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="152.90" y="415.5" >__..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,911,303 samples, 3.24%)</title><rect x="759.4" y="389" width="31.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="399.5" >[l..</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,939,873 samples, 3.26%)</title><rect x="149.9" y="341" width="32.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="152.90" y="351.5" >__..</text>
+</g>
+<g >
+<title>std::once_flag::_Prepare_execution::_Prepare_execution&lt;std::call_once&lt;zeInit::{lambda (49,224,909 samples, 40.76%)</title><rect x="407.5" y="677" width="399.5" height="15.0" fill="rgb(254,225,54)" rx="2" ry="2" />
+<text  x="410.50" y="687.5" >std::once_flag::_Prepare_execution::_Prepare_execution..</text>
+</g>
+<g >
+<title>elf_dynamic_do_Rela (3,939,873 samples, 3.26%)</title><rect x="149.9" y="197" width="32.0" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="152.90" y="207.5" >el..</text>
+</g>
+<g >
+<title>_dl_relocate_object (3,939,873 samples, 3.26%)</title><rect x="149.9" y="213" width="32.0" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="152.90" y="223.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="373" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="383.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="741" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="751.5" ></text>
+</g>
+<g >
+<title>start_thread (2,994,598 samples, 2.48%)</title><rect x="963.8" y="869" width="24.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="879.5" >s..</text>
+</g>
+<g >
+<title>__glibc_morecore (1,941,664 samples, 1.61%)</title><rect x="695.5" y="309" width="15.8" height="15.0" fill="rgb(253,221,52)" rx="2" ry="2" />
+<text  x="698.50" y="319.5" ></text>
+</g>
+<g >
+<title>__GI___sbrk (1,941,664 samples, 1.61%)</title><rect x="695.5" y="293" width="15.8" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="698.50" y="303.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="373" width="15.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="383.5" ></text>
+</g>
+<g >
+<title>dlopen_doit (41,411,987 samples, 34.29%)</title><rect x="407.5" y="549" width="336.1" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="410.50" y="559.5" >dlopen_doit</text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="69" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="79.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,939,873 samples, 3.26%)</title><rect x="149.9" y="293" width="32.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="152.90" y="303.5" >__..</text>
+</g>
+<g >
+<title>[unknown] (1,995,535 samples, 1.65%)</title><rect x="325.5" y="565" width="16.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="328.55" y="575.5" ></text>
+</g>
+<g >
+<title>_dl_fini (1,952,763 samples, 1.62%)</title><rect x="375.9" y="805" width="15.8" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="378.86" y="815.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="181" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="191.5" ></text>
+</g>
+<g >
+<title>_dl_call_fini (1,952,763 samples, 1.62%)</title><rect x="375.9" y="789" width="15.8" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="378.86" y="799.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="421" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="431.5" ></text>
+</g>
+<g >
+<title>___dlopen (41,411,987 samples, 34.29%)</title><rect x="407.5" y="629" width="336.1" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="410.50" y="639.5" >___dlopen</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="757" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="767.5" ></text>
+</g>
+<g >
+<title>_dlerror_run (3,935,038 samples, 3.26%)</title><rect x="181.9" y="405" width="31.9" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="184.87" y="415.5" >_d..</text>
+</g>
+<g >
+<title>_dl_map_object (1,965,296 samples, 1.63%)</title><rect x="181.9" y="261" width="15.9" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="184.87" y="271.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (7,812,922 samples, 6.47%)</title><rect x="743.6" y="501" width="63.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="746.56" y="511.5" >[libze..</text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="693" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="703.5" >[unknown]</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (1,965,296 samples, 1.63%)</title><rect x="181.9" y="293" width="15.9" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="184.87" y="303.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="533" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="543.5" >[l..</text>
+</g>
+<g >
+<title>dl_open_worker (3,940,821 samples, 3.26%)</title><rect x="213.8" y="277" width="32.0" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="216.80" y="287.5" >dl..</text>
+</g>
+<g >
+<title>__pthread_once_slow (3,940,821 samples, 3.26%)</title><rect x="213.8" y="773" width="32.0" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="216.80" y="783.5" >__..</text>
+</g>
+<g >
+<title>_dl_catch_error (41,411,987 samples, 34.29%)</title><rect x="407.5" y="581" width="336.1" height="15.0" fill="rgb(223,83,20)" rx="2" ry="2" />
+<text  x="410.50" y="591.5" >_dl_catch_error</text>
+</g>
+<g >
+<title>[unknown] (1,936,863 samples, 1.60%)</title><rect x="679.8" y="213" width="15.7" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="682.78" y="223.5" ></text>
+</g>
+<g >
+<title>checked_request2size (1,973,510 samples, 1.63%)</title><rect x="229.8" y="37" width="16.0" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="232.77" y="47.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="565" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="575.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (7,910,042 samples, 6.55%)</title><rect x="277.5" y="853" width="64.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="863.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="725" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="735.5" ></text>
+</g>
+<g >
+<title>loader::context_t::init_driver (7,812,922 samples, 6.47%)</title><rect x="743.6" y="613" width="63.4" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="746.56" y="623.5" >loader..</text>
+</g>
+<g >
+<title>[unknown] (5,884,616 samples, 4.87%)</title><rect x="600.1" y="181" width="47.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="603.14" y="191.5" >[unk..</text>
+</g>
+<g >
+<title>_dlerror_run (3,940,821 samples, 3.26%)</title><rect x="213.8" y="389" width="32.0" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="216.80" y="399.5" >_d..</text>
+</g>
+<g >
+<title>testing::TestSuite::~TestSuite (1,945,865 samples, 1.61%)</title><rect x="391.7" y="757" width="15.8" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="394.71" y="767.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="533" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="543.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (1,945,865 samples, 1.61%)</title><rect x="391.7" y="709" width="15.8" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="394.71" y="719.5" ></text>
+</g>
+<g >
+<title>__pthread_cond_wait_common (40,361 samples, 0.03%)</title><rect x="969.3" y="789" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.26" y="799.5" ></text>
+</g>
+<g >
+<title>_dl_open_relocate_one_object (2,046,673 samples, 1.69%)</title><rect x="407.5" y="453" width="16.6" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="410.50" y="463.5" ></text>
+</g>
+<g >
+<title>__vsnprintf_internal (2,434,617 samples, 2.02%)</title><rect x="827.4" y="693" width="19.8" height="15.0" fill="rgb(237,150,35)" rx="2" ry="2" />
+<text  x="830.41" y="703.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="629" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="639.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="613" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="623.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="85" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="95.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,935,038 samples, 3.26%)</title><rect x="181.9" y="325" width="31.9" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="184.87" y="335.5" >__..</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (41,411,987 samples, 34.29%)</title><rect x="407.5" y="517" width="336.1" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="410.50" y="527.5" >__GI__dl_catch_exception</text>
+</g>
+<g >
+<title>loader::context_t::init_driver (3,935,038 samples, 3.26%)</title><rect x="181.9" y="709" width="31.9" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="184.87" y="719.5" >lo..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="693" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="703.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="645" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="655.5" >[l..</text>
+</g>
+<g >
+<title>testing::internal::PrintBytesInObjectTo (2,323,421 samples, 1.92%)</title><rect x="893.5" y="709" width="18.8" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="896.49" y="719.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="613" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="623.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="645" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="655.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="389" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="399.5" ></text>
+</g>
+<g >
+<title>L0::LevelZero::LevelZero (49,224,909 samples, 40.76%)</title><rect x="407.5" y="725" width="399.5" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="410.50" y="735.5" >L0::LevelZero::LevelZero</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="437" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="447.5" >[l..</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runFromCommandLine (3,939,873 samples, 3.26%)</title><rect x="149.9" y="853" width="32.0" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="152.90" y="863.5" >Te..</text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="277" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="287.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="517" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="527.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,042 samples, 6.55%)</title><rect x="277.5" y="821" width="64.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="831.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="709" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="719.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="453" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="463.5" >[l..</text>
+</g>
+<g >
+<title>_int_free (1,931,035 samples, 1.60%)</title><rect x="360.2" y="773" width="15.7" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="363.19" y="783.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="661" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="671.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,911,303 samples, 3.24%)</title><rect x="759.4" y="405" width="31.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="415.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="325" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="335.5" ></text>
+</g>
+<g >
+<title>dl_open_worker (3,939,873 samples, 3.26%)</title><rect x="149.9" y="277" width="32.0" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="152.90" y="287.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="613" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="623.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,042 samples, 6.55%)</title><rect x="277.5" y="837" width="64.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="847.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (40,361 samples, 0.03%)</title><rect x="969.3" y="837" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="972.26" y="847.5" ></text>
+</g>
+<g >
+<title>__memcpy_avx512_unaligned_erms (677,379 samples, 0.56%)</title><rect x="963.8" y="677" width="5.5" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="966.76" y="687.5" ></text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="565" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="575.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="501" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="511.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,936,863 samples, 1.60%)</title><rect x="679.8" y="197" width="15.7" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="682.78" y="207.5" ></text>
+</g>
+<g >
+<title>__GI___open64_nocancel (1,965,296 samples, 1.63%)</title><rect x="181.9" y="213" width="15.9" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="184.87" y="223.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="773" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="783.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="149" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="159.5" ></text>
+</g>
+<g >
+<title>zeInit (49,224,909 samples, 40.76%)</title><rect x="407.5" y="709" width="399.5" height="15.0" fill="rgb(213,37,9)" rx="2" ry="2" />
+<text  x="410.50" y="719.5" >zeInit</text>
+</g>
+<g >
+<title>L0::LevelZero::LevelZero (3,935,038 samples, 3.26%)</title><rect x="181.9" y="821" width="31.9" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="184.87" y="831.5" >L0..</text>
+</g>
+<g >
+<title>testing::internal::UnitTestImpl::~UnitTestImpl (1,945,865 samples, 1.61%)</title><rect x="391.7" y="789" width="15.8" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="394.71" y="799.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="261" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="271.5" ></text>
+</g>
+<g >
+<title>[unknown] (40,361 samples, 0.03%)</title><rect x="969.3" y="693" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.26" y="703.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (2,046,673 samples, 1.69%)</title><rect x="407.5" y="485" width="16.6" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="410.50" y="495.5" ></text>
+</g>
+<g >
+<title>dl_open_worker_begin (2,046,673 samples, 1.69%)</title><rect x="407.5" y="469" width="16.6" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="410.50" y="479.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="741" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="751.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="581" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="591.5" >[l..</text>
+</g>
+<g >
+<title>Argument::parse (3,183,131 samples, 2.64%)</title><rect x="10.0" y="869" width="25.8" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="13.00" y="879.5" >A..</text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="229" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="239.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="661" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="671.5" >[l..</text>
+</g>
+<g >
+<title>std::ostream::put (2,323,421 samples, 1.92%)</title><rect x="893.5" y="677" width="18.8" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="896.49" y="687.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="677" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="687.5" ></text>
+</g>
+<g >
+<title>void testing::internal::InitGoogleTestImpl&lt;char&gt; (19,316,559 samples, 16.00%)</title><rect x="807.0" y="805" width="156.7" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="809.96" y="815.5" >void testing::intern..</text>
+</g>
+<g >
+<title>__GI___libc_malloc (2,520,521 samples, 2.09%)</title><rect x="807.0" y="741" width="20.4" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="809.96" y="751.5" ></text>
+</g>
+<g >
+<title>BenchmarkMain::main (68,541,468 samples, 56.76%)</title><rect x="407.5" y="821" width="556.2" height="15.0" fill="rgb(222,80,19)" rx="2" ry="2" />
+<text  x="410.50" y="831.5" >BenchmarkMain::main</text>
+</g>
+<g >
+<title>_dl_open_relocate_one_object (3,939,873 samples, 3.26%)</title><rect x="149.9" y="229" width="32.0" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="152.90" y="239.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="309" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="319.5" >[u..</text>
+</g>
+<g >
+<title>std::ostream::sentry::sentry (2,323,421 samples, 1.92%)</title><rect x="893.5" y="661" width="18.8" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="896.49" y="671.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (2,730,012 samples, 2.26%)</title><rect x="847.2" y="709" width="22.1" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="850.17" y="719.5" >_..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="773" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="783.5" ></text>
+</g>
+<g >
+<title>malloc_consolidate (1,931,035 samples, 1.60%)</title><rect x="360.2" y="741" width="15.7" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="363.19" y="751.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="357" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="367.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="629" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="639.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (7,910,042 samples, 6.55%)</title><rect x="277.5" y="805" width="64.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="815.5" >[unknown]</text>
+</g>
+<g >
+<title>_int_malloc (2,730,012 samples, 2.26%)</title><rect x="847.2" y="693" width="22.1" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="850.17" y="703.5" >_..</text>
+</g>
+<g >
+<title>[unknown] (15,814,857 samples, 13.10%)</title><rect x="519.6" y="245" width="128.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="522.56" y="255.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,911,303 samples, 3.24%)</title><rect x="759.4" y="421" width="31.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="431.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="437" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="447.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="661" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="671.5" ></text>
+</g>
+<g >
+<title>run (49,224,909 samples, 40.76%)</title><rect x="407.5" y="741" width="399.5" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="410.50" y="751.5" >run</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,940,821 samples, 3.26%)</title><rect x="213.8" y="309" width="32.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="216.80" y="319.5" >__..</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="741" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="751.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="645" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="655.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="549" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="559.5" ></text>
+</g>
+<g >
+<title>call_init (1,969,742 samples, 1.63%)</title><rect x="197.8" y="229" width="16.0" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="200.82" y="239.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="261" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="271.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="693" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="703.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,966,503 samples, 1.63%)</title><rect x="631.9" y="149" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="634.94" y="159.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="677" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="687.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (5,865,937 samples, 4.86%)</title><rect x="647.9" y="293" width="47.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="650.90" y="303.5" >[unk..</text>
+</g>
+<g >
+<title>BenchmarkMain::executeSingleTest (3,939,873 samples, 3.26%)</title><rect x="149.9" y="869" width="32.0" height="15.0" fill="rgb(237,147,35)" rx="2" ry="2" />
+<text  x="152.90" y="879.5" >Be..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="709" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="719.5" ></text>
+</g>
+<g >
+<title>testing::internal::ParameterizedTestSuiteInfo&lt;ExecuteCommandListImmediateTest&gt;::RegisterTests (2,977,528 samples, 2.47%)</title><rect x="869.3" y="773" width="24.2" height="15.0" fill="rgb(250,211,50)" rx="2" ry="2" />
+<text  x="872.32" y="783.5" >t..</text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="757" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="767.5" ></text>
+</g>
+<g >
+<title>[libstdc++.so.6.0.33] (37,411 samples, 0.03%)</title><rect x="359.9" y="853" width="0.3" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="362.89" y="863.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="517" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="527.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="229" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="239.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="885" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="895.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="325" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="335.5" ></text>
+</g>
+<g >
+<title>[unknown] (5,938,360 samples, 4.92%)</title><rect x="293.6" y="597" width="48.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="296.55" y="607.5" >[unk..</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,935,038 samples, 3.26%)</title><rect x="181.9" y="373" width="31.9" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="184.87" y="383.5" >__..</text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="293" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="303.5" >[u..</text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="533" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="543.5" ></text>
+</g>
+<g >
+<title>[unknown] (15,814,857 samples, 13.10%)</title><rect x="519.6" y="261" width="128.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="522.56" y="271.5" >[unknown]</text>
+</g>
+<g >
+<title>std::ostream::put (2,118,558 samples, 1.75%)</title><rect x="946.5" y="709" width="17.2" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="949.52" y="719.5" ></text>
+</g>
+<g >
+<title>operator new (2,730,012 samples, 2.26%)</title><rect x="847.2" y="725" width="22.1" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="850.17" y="735.5" >o..</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runImpl (49,224,909 samples, 40.76%)</title><rect x="407.5" y="757" width="399.5" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="410.50" y="767.5" >TestCase&lt;SubmitKernelArguments&gt;::runImpl</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="437" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="447.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="709" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="719.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="725" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="735.5" ></text>
+</g>
+<g >
+<title>zelLoaderDriverCheck (3,940,821 samples, 3.26%)</title><rect x="213.8" y="725" width="32.0" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="216.80" y="735.5" >ze..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="677" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="687.5" ></text>
+</g>
+<g >
+<title>clone3 (3,000,285 samples, 2.48%)</title><rect x="963.7" y="885" width="24.4" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="966.71" y="895.5" >c..</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,939,873 samples, 3.26%)</title><rect x="149.9" y="261" width="32.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="152.90" y="271.5" >__..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="469" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="479.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="37" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="47.5" ></text>
+</g>
+<g >
+<title>[unknown] (19,753,834 samples, 16.36%)</title><rect x="487.6" y="325" width="160.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="490.59" y="335.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="213" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="223.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (7,807,601 samples, 6.47%)</title><rect x="647.9" y="357" width="63.4" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="650.90" y="367.5" >__GI__..</text>
+</g>
+<g >
+<title>std::once_flag::_Prepare_execution::_Prepare_execution&lt;std::call_once&lt;zeInit::{lambda (3,940,821 samples, 3.26%)</title><rect x="213.8" y="757" width="32.0" height="15.0" fill="rgb(254,225,54)" rx="2" ry="2" />
+<text  x="216.80" y="767.5" >st..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="837" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="847.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="133" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="143.5" ></text>
+</g>
+<g >
+<title>[unknown] (23,658,484 samples, 19.59%)</title><rect x="455.9" y="357" width="192.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="458.91" y="367.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="245" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="255.5" ></text>
+</g>
+<g >
+<title>elf_machine_rela_relative (2,046,673 samples, 1.69%)</title><rect x="407.5" y="405" width="16.6" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="410.50" y="415.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="821" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="831.5" ></text>
+</g>
+<g >
+<title>testing::internal::PrintBytesInObjectTo (2,434,617 samples, 2.02%)</title><rect x="827.4" y="741" width="19.8" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="830.41" y="751.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="565" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="575.5" >[l..</text>
+</g>
+<g >
+<title>testing::internal::UnitTestImpl::PostFlagParsingInit (19,316,559 samples, 16.00%)</title><rect x="807.0" y="789" width="156.7" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="809.96" y="799.5" >testing::internal::U..</text>
+</g>
+<g >
+<title>[unknown] (238,933 samples, 0.20%)</title><rect x="988.1" y="629" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="639.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="357" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="367.5" ></text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="581" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="591.5" ></text>
+</g>
+<g >
+<title>std::once_flag::_Prepare_execution::_Prepare_execution&lt;std::call_once&lt;zeInit::{lambda (3,939,873 samples, 3.26%)</title><rect x="149.9" y="741" width="32.0" height="15.0" fill="rgb(254,225,54)" rx="2" ry="2" />
+<text  x="152.90" y="751.5" >st..</text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="213" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="223.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (39,365,314 samples, 32.60%)</title><rect x="424.1" y="469" width="319.5" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="427.11" y="479.5" >__GI__dl_catch_exception</text>
+</g>
+<g >
+<title>__GI_madvise (2,276,858 samples, 1.89%)</title><rect x="969.6" y="837" width="18.5" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="972.58" y="847.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="117" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="127.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="725" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="735.5" ></text>
+</g>
+<g >
+<title>loader::context_t::init (41,411,987 samples, 34.29%)</title><rect x="407.5" y="645" width="336.1" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="410.50" y="655.5" >loader::context_t::init</text>
+</g>
+<g >
+<title>[unknown] (1,966,503 samples, 1.63%)</title><rect x="631.9" y="133" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="634.94" y="143.5" ></text>
+</g>
+<g >
+<title>operator new (2,144,549 samples, 1.78%)</title><rect x="912.3" y="757" width="17.4" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="915.34" y="767.5" ></text>
+</g>
+<g >
+<title>__memcpy_avx512_unaligned_erms (2,977,528 samples, 2.47%)</title><rect x="869.3" y="757" width="24.2" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="872.32" y="767.5" >_..</text>
+</g>
+<g >
+<title>_dl_open (3,935,038 samples, 3.26%)</title><rect x="181.9" y="341" width="31.9" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="184.87" y="351.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (5,865,937 samples, 4.86%)</title><rect x="647.9" y="309" width="47.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="650.90" y="319.5" >[unk..</text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="245" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="255.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="661" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="671.5" ></text>
+</g>
+<g >
+<title>__memcpy_avx512_unaligned_erms (25,622,673 samples, 21.22%)</title><rect x="440.0" y="373" width="207.9" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="442.97" y="383.5" >__memcpy_avx512_unaligned_e..</text>
+</g>
+<g >
+<title>___pthread_cond_clockwait64 (40,361 samples, 0.03%)</title><rect x="969.3" y="805" width="0.3" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="972.26" y="815.5" ></text>
+</g>
+<g >
+<title>dl_open_worker_begin (3,939,873 samples, 3.26%)</title><rect x="149.9" y="245" width="32.0" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="152.90" y="255.5" >dl..</text>
+</g>
+<g >
+<title>run (3,939,873 samples, 3.26%)</title><rect x="149.9" y="805" width="32.0" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="152.90" y="815.5" >run</text>
+</g>
+<g >
+<title>testing::internal::ParameterizedTestSuiteInfo&lt;UsmMemoryAllocationTest&gt;::RegisterTests (2,144,549 samples, 1.78%)</title><rect x="912.3" y="773" width="17.4" height="15.0" fill="rgb(220,70,16)" rx="2" ry="2" />
+<text  x="915.34" y="783.5" ></text>
+</g>
+<g >
+<title>open_verify (1,965,296 samples, 1.63%)</title><rect x="181.9" y="229" width="15.9" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="184.87" y="239.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="661" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="671.5" ></text>
+</g>
+<g >
+<title>operator new (1,952,916 samples, 1.62%)</title><rect x="775.3" y="373" width="15.9" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="778.30" y="383.5" ></text>
+</g>
+<g >
+<title>dlopen_doit (3,940,821 samples, 3.26%)</title><rect x="213.8" y="341" width="32.0" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="216.80" y="351.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="341" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="351.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (1,956,366 samples, 1.62%)</title><rect x="261.7" y="821" width="15.8" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="264.67" y="831.5" ></text>
+</g>
+<g >
+<title>ze_lib::context_t::Init (3,940,821 samples, 3.26%)</title><rect x="213.8" y="741" width="32.0" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="216.80" y="751.5" >ze..</text>
+</g>
+<g >
+<title>testing::TestInfo::~TestInfo (1,945,865 samples, 1.61%)</title><rect x="391.7" y="725" width="15.8" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="394.71" y="735.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="853" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="863.5" ></text>
+</g>
+<g >
+<title>loader::context_t::init_driver (3,939,873 samples, 3.26%)</title><rect x="149.9" y="677" width="32.0" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="152.90" y="687.5" >lo..</text>
+</g>
+<g >
+<title>run (3,935,038 samples, 3.26%)</title><rect x="181.9" y="837" width="31.9" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="184.87" y="847.5" >run</text>
+</g>
+<g >
+<title>[unknown] (40,361 samples, 0.03%)</title><rect x="969.3" y="709" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.26" y="719.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="325" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="335.5" ></text>
+</g>
+<g >
+<title>advise_stack_range (2,276,858 samples, 1.89%)</title><rect x="969.6" y="853" width="18.5" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="972.58" y="863.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="453" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="463.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,931,035 samples, 1.60%)</title><rect x="360.2" y="805" width="15.7" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="363.19" y="815.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,933 samples, 0.20%)</title><rect x="988.1" y="661" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="671.5" ></text>
+</g>
+<g >
+<title>__futex_abstimed_wait_common64 (40,361 samples, 0.03%)</title><rect x="969.3" y="741" width="0.3" height="15.0" fill="rgb(220,71,17)" rx="2" ry="2" />
+<text  x="972.26" y="751.5" ></text>
+</g>
+<g >
+<title>ze_lib::context_t::Init (3,939,873 samples, 3.26%)</title><rect x="149.9" y="725" width="32.0" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="152.90" y="735.5" >ze..</text>
+</g>
+<g >
+<title>std::basic_streambuf&lt;char, std::char_traits&lt;char&gt; &gt;::xsputn (2,196,299 samples, 1.82%)</title><rect x="35.8" y="869" width="17.9" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="38.83" y="879.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="597" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="607.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="277" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="287.5" ></text>
+</g>
+<g >
+<title>L0::LevelZero::LevelZero (3,940,821 samples, 3.26%)</title><rect x="213.8" y="805" width="32.0" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="216.80" y="815.5" >L0..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="469" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="479.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (40,361 samples, 0.03%)</title><rect x="969.3" y="853" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="972.26" y="863.5" ></text>
+</g>
+<g >
+<title>BenchmarkMain::executeSingleTest (49,224,909 samples, 40.76%)</title><rect x="407.5" y="805" width="399.5" height="15.0" fill="rgb(237,147,35)" rx="2" ry="2" />
+<text  x="410.50" y="815.5" >BenchmarkMain::executeSingleTest</text>
+</g>
+<g >
+<title>_int_malloc (1,956,366 samples, 1.62%)</title><rect x="261.7" y="805" width="15.8" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="264.67" y="815.5" ></text>
+</g>
+<g >
+<title>void testing::internal::PrintTo&lt;Api, unsigned long, bool, bool, unsigned long, bool, unsigned long, unsigned long&gt; (2,323,421 samples, 1.92%)</title><rect x="893.5" y="741" width="18.8" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="896.49" y="751.5" ></text>
+</g>
+<g >
+<title>_int_free_maybe_consolidate (1,931,035 samples, 1.60%)</title><rect x="360.2" y="757" width="15.7" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="363.19" y="767.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="197" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="207.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="597" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="607.5" ></text>
+</g>
+<g >
+<title>ze_lib::context_t::Init (3,935,038 samples, 3.26%)</title><rect x="181.9" y="757" width="31.9" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="184.87" y="767.5" >ze..</text>
+</g>
+<g >
+<title>zeInit (3,940,821 samples, 3.26%)</title><rect x="213.8" y="789" width="32.0" height="15.0" fill="rgb(213,37,9)" rx="2" ry="2" />
+<text  x="216.80" y="799.5" >ze..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="773" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="783.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="725" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="735.5" ></text>
+</g>
+<g >
+<title>testing::TestInfo::TestInfo (2,730,012 samples, 2.26%)</title><rect x="847.2" y="741" width="22.1" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="850.17" y="751.5" >t..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="517" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="527.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="373" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="383.5" ></text>
+</g>
+<g >
+<title>main (68,541,468 samples, 56.76%)</title><rect x="407.5" y="837" width="556.2" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
+<text  x="410.50" y="847.5" >main</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="357" width="15.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="367.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="821" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="831.5" ></text>
+</g>
+<g >
+<title>[[heap]] (3,183,131 samples, 2.64%)</title><rect x="10.0" y="885" width="25.8" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="13.00" y="895.5" >[..</text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,940,821 samples, 3.26%)</title><rect x="213.8" y="357" width="32.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="216.80" y="367.5" >__..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="485" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="495.5" ></text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="597" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="607.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="165" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="175.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,881,792 samples, 3.21%)</title><rect x="664.0" y="229" width="31.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="667.00" y="239.5" >[u..</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="837" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="847.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="101" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="111.5" ></text>
+</g>
+<g >
+<title>__GI___snprintf (2,434,617 samples, 2.02%)</title><rect x="827.4" y="709" width="19.8" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="830.41" y="719.5" ></text>
+</g>
+<g >
+<title>__GI___futex_abstimed_wait_cancelable64 (40,361 samples, 0.03%)</title><rect x="969.3" y="773" width="0.3" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="972.26" y="783.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="789" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="799.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="293" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="303.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="549" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="559.5" ></text>
+</g>
+<g >
+<title>operator new (2,520,521 samples, 2.09%)</title><rect x="807.0" y="757" width="20.4" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="809.96" y="767.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="485" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="495.5" >[l..</text>
+</g>
+<g >
+<title>__pthread_once_slow (3,939,873 samples, 3.26%)</title><rect x="149.9" y="757" width="32.0" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="152.90" y="767.5" >__..</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::run (3,935,038 samples, 3.26%)</title><rect x="181.9" y="869" width="31.9" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="184.87" y="879.5" >Te..</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,973,510 samples, 1.63%)</title><rect x="229.8" y="117" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="232.77" y="127.5" ></text>
+</g>
+<g >
+<title>_dl_catch_error (3,939,873 samples, 3.26%)</title><rect x="149.9" y="357" width="32.0" height="15.0" fill="rgb(223,83,20)" rx="2" ry="2" />
+<text  x="152.90" y="367.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="197" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="207.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="53" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="63.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="725" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="735.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="181" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="191.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (41,411,987 samples, 34.29%)</title><rect x="407.5" y="565" width="336.1" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="410.50" y="575.5" >__GI__dl_catch_exception</text>
+</g>
+<g >
+<title>[[stack]] (2,196,299 samples, 1.82%)</title><rect x="35.8" y="885" width="17.9" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="38.83" y="895.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="741" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="751.5" ></text>
+</g>
+<g >
+<title>_dl_catch_error (3,935,038 samples, 3.26%)</title><rect x="181.9" y="389" width="31.9" height="15.0" fill="rgb(223,83,20)" rx="2" ry="2" />
+<text  x="184.87" y="399.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="613" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="623.5" ></text>
+</g>
+<g >
+<title>testing::(anonymous namespace)::PrintByteSegmentInObjectTo (2,323,421 samples, 1.92%)</title><rect x="893.5" y="693" width="18.8" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="896.49" y="703.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="629" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="639.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (7,812,922 samples, 6.47%)</title><rect x="743.6" y="549" width="63.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="746.56" y="559.5" >[libze..</text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="517" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="527.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="709" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="719.5" >[unknown]</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::run (3,939,873 samples, 3.26%)</title><rect x="149.9" y="837" width="32.0" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="152.90" y="847.5" >Te..</text>
+</g>
+<g >
+<title>elf_machine_rela_relative (3,939,873 samples, 3.26%)</title><rect x="149.9" y="181" width="32.0" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="152.90" y="191.5" >el..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="549" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="559.5" >[l..</text>
+</g>
+<g >
+<title>dlopen_doit (3,935,038 samples, 3.26%)</title><rect x="181.9" y="357" width="31.9" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="184.87" y="367.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (15,814,857 samples, 13.10%)</title><rect x="519.6" y="277" width="128.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="522.56" y="287.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (7,812,922 samples, 6.47%)</title><rect x="743.6" y="565" width="63.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="746.56" y="575.5" >[libze..</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="805" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="815.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,995,535 samples, 1.65%)</title><rect x="325.5" y="581" width="16.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="328.55" y="591.5" ></text>
+</g>
+<g >
+<title>_int_free (1,945,865 samples, 1.61%)</title><rect x="391.7" y="693" width="15.8" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="394.71" y="703.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; testing::PrintToString&lt;std::tuple&lt;Api, UsmRuntimeMemoryPlacement, unsigned long, unsigned long, unsigned long, DistributionKind&gt; &gt; (2,118,558 samples, 1.75%)</title><rect x="946.5" y="757" width="17.2" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="949.52" y="767.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="533" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="543.5" >[l..</text>
+</g>
+<g >
+<title>___dlopen (3,940,821 samples, 3.26%)</title><rect x="213.8" y="421" width="32.0" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="216.80" y="431.5" >__..</text>
+</g>
+<g >
+<title>_int_malloc (1,952,916 samples, 1.62%)</title><rect x="775.3" y="341" width="15.9" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="778.30" y="351.5" ></text>
+</g>
+<g >
+<title>std::once_flag::_Prepare_execution::_Prepare_execution&lt;std::call_once&lt;zeInit::{lambda (3,935,038 samples, 3.26%)</title><rect x="181.9" y="773" width="31.9" height="15.0" fill="rgb(254,225,54)" rx="2" ry="2" />
+<text  x="184.87" y="783.5" >st..</text>
+</g>
+<g >
+<title>[unknown] (37,774,059 samples, 31.28%)</title><rect x="53.7" y="885" width="306.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="56.65" y="895.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="597" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="607.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="389" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="399.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="165" width="32.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="152.90" y="175.5" >[u..</text>
+</g>
+<g >
+<title>__pthread_once_slow (3,935,038 samples, 3.26%)</title><rect x="181.9" y="677" width="31.9" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="184.87" y="687.5" >__..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="405" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="415.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="725" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="735.5" >[unknown]</text>
+</g>
+<g >
+<title>loader::context_t::check_drivers (3,939,873 samples, 3.26%)</title><rect x="149.9" y="693" width="32.0" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="152.90" y="703.5" >lo..</text>
+</g>
+<g >
+<title>zeInit (3,939,873 samples, 3.26%)</title><rect x="149.9" y="773" width="32.0" height="15.0" fill="rgb(213,37,9)" rx="2" ry="2" />
+<text  x="152.90" y="783.5" >ze..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="421" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="431.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="277" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="287.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="309" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="319.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,936,840 samples, 3.26%)</title><rect x="615.9" y="165" width="32.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="618.95" y="175.5" >[u..</text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="597" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="607.5" ></text>
+</g>
+<g >
+<title>__run_exit_handlers (5,829,663 samples, 4.83%)</title><rect x="360.2" y="821" width="47.3" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="363.19" y="831.5" >__ru..</text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="709" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="719.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="581" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="591.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="645" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="655.5" >[l..</text>
+</g>
+<g >
+<title>_start (74,371,131 samples, 61.58%)</title><rect x="360.2" y="885" width="603.5" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="363.19" y="895.5" >_start</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="389" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="399.5" ></text>
+</g>
+<g >
+<title>void testing::internal::PrintTupleTo&lt;std::tuple&lt;Api, unsigned long, bool, bool, unsigned long, bool, unsigned long, unsigned long&gt;, 5ul&gt; (2,323,421 samples, 1.92%)</title><rect x="893.5" y="725" width="18.8" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="896.49" y="735.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="709" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="719.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="805" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="815.5" ></text>
+</g>
+<g >
+<title>_dl_open (41,411,987 samples, 34.29%)</title><rect x="407.5" y="533" width="336.1" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="410.50" y="543.5" >_dl_open</text>
+</g>
+<g >
+<title>[unknown] (7,851,181 samples, 6.50%)</title><rect x="584.2" y="197" width="63.7" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="587.18" y="207.5" >[unkno..</text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="629" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="639.5" >[unknown]</text>
+</g>
+<g >
+<title>dl_open_worker (1,969,742 samples, 1.63%)</title><rect x="197.8" y="293" width="16.0" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="200.82" y="303.5" ></text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="661" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="671.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="101" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="111.5" ></text>
+</g>
+<g >
+<title>_int_free_merge_chunk (1,945,865 samples, 1.61%)</title><rect x="391.7" y="677" width="15.8" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="394.71" y="687.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (3,940,821 samples, 3.26%)</title><rect x="213.8" y="261" width="32.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="216.80" y="271.5" >__..</text>
+</g>
+<g >
+<title>testing::(anonymous namespace)::PrintByteSegmentInObjectTo (2,434,617 samples, 2.02%)</title><rect x="827.4" y="725" width="19.8" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="830.41" y="735.5" ></text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::run (3,940,821 samples, 3.26%)</title><rect x="213.8" y="853" width="32.0" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="216.80" y="863.5" >Te..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="549" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="559.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="293" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="303.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,958,481 samples, 1.62%)</title><rect x="245.8" y="821" width="15.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="248.78" y="831.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="325" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="335.5" >[u..</text>
+</g>
+<g >
+<title>__futex_abstimed_wait_common (40,361 samples, 0.03%)</title><rect x="969.3" y="757" width="0.3" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="972.26" y="767.5" ></text>
+</g>
+<g >
+<title>call_init (39,365,314 samples, 32.60%)</title><rect x="424.1" y="437" width="319.5" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="427.11" y="447.5" >call_init</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (33,430,274 samples, 27.68%)</title><rect x="440.0" y="389" width="271.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="442.97" y="399.5" >[libze_intel_gpu.so.1.6.34666.3]</text>
+</g>
+<g >
+<title>testing::internal::ParameterizedTestSuiteInfo&lt;MultiArgumentKernelTest&gt;::RegisterTests (2,323,421 samples, 1.92%)</title><rect x="893.5" y="773" width="18.8" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="896.49" y="783.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="805" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="815.5" ></text>
+</g>
+<g >
+<title>api_overhead_be (120,524,905 samples, 99.80%)</title><rect x="10.0" y="901" width="978.1" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="13.00" y="911.5" >api_overhead_be</text>
+</g>
+<g >
+<title>dlopen_implementation (3,939,873 samples, 3.26%)</title><rect x="149.9" y="389" width="32.0" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="152.90" y="399.5" >dl..</text>
+</g>
+<g >
+<title>[libstdc++.so.6.0.33] (677,379 samples, 0.56%)</title><rect x="963.8" y="853" width="5.5" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="966.76" y="863.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="53" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="63.5" ></text>
+</g>
+<g >
+<title>__GI__dl_catch_exception (1,969,742 samples, 1.63%)</title><rect x="197.8" y="277" width="16.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="200.82" y="287.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="197" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="207.5" ></text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runImpl (3,935,038 samples, 3.26%)</title><rect x="181.9" y="853" width="31.9" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="184.87" y="863.5" >Te..</text>
+</g>
+<g >
+<title>[unknown] (19,753,834 samples, 16.36%)</title><rect x="487.6" y="293" width="160.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="490.59" y="303.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="261" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="271.5" >[u..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="757" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="767.5" ></text>
+</g>
+<g >
+<title>all (120,763,850 samples, 100%)</title><rect x="10.0" y="917" width="980.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="927.5" ></text>
+</g>
+<g >
+<title>ze_lib::context_t::Init (49,224,909 samples, 40.76%)</title><rect x="407.5" y="661" width="399.5" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="410.50" y="671.5" >ze_lib::context_t::Init</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="533" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="543.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="165" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="175.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="565" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="575.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (5,859,176 samples, 4.85%)</title><rect x="759.4" y="437" width="47.6" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="447.5" >[lib..</text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="821" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="831.5" ></text>
+</g>
+<g >
+<title>operator new (1,973,510 samples, 1.63%)</title><rect x="229.8" y="69" width="16.0" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="232.77" y="79.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,881,792 samples, 3.21%)</title><rect x="664.0" y="245" width="31.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="667.00" y="255.5" >[u..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="613" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="623.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="309" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="319.5" ></text>
+</g>
+<g >
+<title>testing::UnitTest::~UnitTest (1,945,865 samples, 1.61%)</title><rect x="391.7" y="805" width="15.8" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="394.71" y="815.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="581" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="591.5" ></text>
+</g>
+<g >
+<title>testing::TestSuite::~TestSuite (1,945,865 samples, 1.61%)</title><rect x="391.7" y="741" width="15.8" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="394.71" y="751.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="629" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="639.5" >[l..</text>
+</g>
+<g >
+<title>__libc_start_main_impl (74,371,131 samples, 61.58%)</title><rect x="360.2" y="869" width="603.5" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="363.19" y="879.5" >__libc_start_main_impl</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="869" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="879.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="789" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="799.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="773" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="783.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="357" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="367.5" >[u..</text>
+</g>
+<g >
+<title>dl_open_worker (3,940,821 samples, 3.26%)</title><rect x="213.8" y="293" width="32.0" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="216.80" y="303.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="37" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="47.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="117" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="127.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="229" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="239.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="837" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="847.5" ></text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="629" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="639.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="757" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="767.5" ></text>
+</g>
+<g >
+<title>_dl_init (39,365,314 samples, 32.60%)</title><rect x="424.1" y="453" width="319.5" height="15.0" fill="rgb(225,96,23)" rx="2" ry="2" />
+<text  x="427.11" y="463.5" >_dl_init</text>
+</g>
+<g >
+<title>zelLoaderDriverCheck (3,939,873 samples, 3.26%)</title><rect x="149.9" y="709" width="32.0" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="152.90" y="719.5" >ze..</text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="645" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="655.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="661" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="671.5" >[unknown]</text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; testing::PrintToString&lt;std::tuple&lt;Api, unsigned long, bool, bool, unsigned long, bool, unsigned long, unsigned long&gt; &gt; (2,323,421 samples, 1.92%)</title><rect x="893.5" y="757" width="18.8" height="15.0" fill="rgb(207,13,3)" rx="2" ry="2" />
+<text  x="896.49" y="767.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="757" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="767.5" ></text>
+</g>
+<g >
+<title>[unknown] (40,361 samples, 0.03%)</title><rect x="969.3" y="725" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.26" y="735.5" ></text>
+</g>
+<g >
+<title>call_init (39,365,314 samples, 32.60%)</title><rect x="424.1" y="421" width="319.5" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="427.11" y="431.5" >call_init</text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="373" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="383.5" >[u..</text>
+</g>
+<g >
+<title>__memcmp_evex_movbe (2,236,275 samples, 1.85%)</title><rect x="341.7" y="869" width="18.2" height="15.0" fill="rgb(219,67,16)" rx="2" ry="2" />
+<text  x="344.74" y="879.5" ></text>
+</g>
+<g >
+<title>testing::(anonymous namespace)::PrintByteSegmentInObjectTo (2,118,558 samples, 1.75%)</title><rect x="946.5" y="725" width="17.2" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="949.52" y="735.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="805" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="815.5" ></text>
+</g>
+<g >
+<title>dl_open_worker (39,365,314 samples, 32.60%)</title><rect x="424.1" y="485" width="319.5" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="427.11" y="495.5" >dl_open_worker</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="485" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="495.5" >[l..</text>
+</g>
+<g >
+<title>_dlerror_run (3,939,873 samples, 3.26%)</title><rect x="149.9" y="373" width="32.0" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="152.90" y="383.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="341" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="351.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="133" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="143.5" ></text>
+</g>
+<g >
+<title>perf-exec (238,945 samples, 0.20%)</title><rect x="988.1" y="901" width="1.9" height="15.0" fill="rgb(231,123,29)" rx="2" ry="2" />
+<text  x="991.06" y="911.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="277" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="287.5" >[u..</text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="261" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="271.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="581" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="591.5" >[l..</text>
+</g>
+<g >
+<title>_int_malloc (2,144,549 samples, 1.78%)</title><rect x="912.3" y="725" width="17.4" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="915.34" y="735.5" ></text>
+</g>
+<g >
+<title>testing::internal::ParameterizedTestSuiteInfo&lt;UsmRandomMemoryAllocationTest&gt;::RegisterTests (4,185,911 samples, 3.47%)</title><rect x="929.7" y="773" width="34.0" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="932.74" y="783.5" >te..</text>
+</g>
+<g >
+<title>zelLoaderDriverCheck (7,812,922 samples, 6.47%)</title><rect x="743.6" y="645" width="63.4" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="746.56" y="655.5" >zelLoa..</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runFromCommandLine (49,224,909 samples, 40.76%)</title><rect x="407.5" y="789" width="399.5" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="410.50" y="799.5" >TestCase&lt;SubmitKernelArguments&gt;::runFromCommandLine</text>
+</g>
+<g >
+<title>operator new (7,807,601 samples, 6.47%)</title><rect x="647.9" y="373" width="63.4" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="650.90" y="383.5" >operat..</text>
+</g>
+<g >
+<title>loader::context_t::check_drivers (3,940,821 samples, 3.26%)</title><rect x="213.8" y="709" width="32.0" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="216.80" y="719.5" >lo..</text>
+</g>
+<g >
+<title>___dlopen (3,935,038 samples, 3.26%)</title><rect x="181.9" y="437" width="31.9" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="184.87" y="447.5" >__..</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,973,510 samples, 1.63%)</title><rect x="229.8" y="101" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="232.77" y="111.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="693" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="703.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="709" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="719.5" ></text>
+</g>
+<g >
+<title>operator new (1,956,366 samples, 1.62%)</title><rect x="261.7" y="837" width="15.8" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="264.67" y="847.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="117" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="127.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="645" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="655.5" ></text>
+</g>
+<g >
+<title>run (3,940,821 samples, 3.26%)</title><rect x="213.8" y="821" width="32.0" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="216.80" y="831.5" >run</text>
+</g>
+<g >
+<title>call_init (3,940,821 samples, 3.26%)</title><rect x="213.8" y="213" width="32.0" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="216.80" y="223.5" >ca..</text>
+</g>
+<g >
+<title>__GI___ioctl (1,952,763 samples, 1.62%)</title><rect x="375.9" y="533" width="15.8" height="15.0" fill="rgb(232,128,30)" rx="2" ry="2" />
+<text  x="378.86" y="543.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="821" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="831.5" ></text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,973,510 samples, 1.63%)</title><rect x="229.8" y="165" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="232.77" y="175.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="453" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="463.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="133" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="143.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="261" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="271.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="773" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="783.5" ></text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="581" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="591.5" ></text>
+</g>
+<g >
+<title>[unknown] (9,870,749 samples, 8.17%)</title><rect x="567.8" y="213" width="80.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="570.80" y="223.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="229" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="239.5" ></text>
+</g>
+<g >
+<title>_int_malloc (7,807,601 samples, 6.47%)</title><rect x="647.9" y="341" width="63.4" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="650.90" y="351.5" >_int_m..</text>
+</g>
+<g >
+<title>__GI_exit (5,829,663 samples, 4.83%)</title><rect x="360.2" y="837" width="47.3" height="15.0" fill="rgb(236,147,35)" rx="2" ry="2" />
+<text  x="363.19" y="847.5" >__GI..</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,973,510 samples, 1.63%)</title><rect x="229.8" y="149" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="232.77" y="159.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="325" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="335.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="501" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="511.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,958,481 samples, 1.62%)</title><rect x="245.8" y="837" width="15.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="248.78" y="847.5" ></text>
+</g>
+<g >
+<title>_dl_relocate_object (2,046,673 samples, 1.69%)</title><rect x="407.5" y="437" width="16.6" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="410.50" y="447.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="597" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="607.5" ></text>
+</g>
+<g >
+<title>testing::internal::MakeAndRegisterTestInfo (2,730,012 samples, 2.26%)</title><rect x="847.2" y="757" width="22.1" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="850.17" y="767.5" >t..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (5,859,176 samples, 4.85%)</title><rect x="759.4" y="453" width="47.6" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="463.5" >[lib..</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::run (49,224,909 samples, 40.76%)</title><rect x="407.5" y="773" width="399.5" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="410.50" y="783.5" >TestCase&lt;SubmitKernelArguments&gt;::run</text>
+</g>
+<g >
+<title>sysmalloc (1,941,664 samples, 1.61%)</title><rect x="695.5" y="325" width="15.8" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="698.50" y="335.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,914,847 samples, 3.24%)</title><rect x="245.8" y="869" width="31.7" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="248.78" y="879.5" >[l..</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,969,742 samples, 1.63%)</title><rect x="197.8" y="213" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="200.82" y="223.5" ></text>
+</g>
+<g >
+<title>_dl_init (3,940,821 samples, 3.26%)</title><rect x="213.8" y="245" width="32.0" height="15.0" fill="rgb(225,96,23)" rx="2" ry="2" />
+<text  x="216.80" y="255.5" >_d..</text>
+</g>
+<g >
+<title>__libc_start_call_main (74,371,131 samples, 61.58%)</title><rect x="360.2" y="853" width="603.5" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="363.19" y="863.5" >__libc_start_call_main</text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="149" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="159.5" ></text>
+</g>
+<g >
+<title>dlopen_implementation (41,411,987 samples, 34.29%)</title><rect x="407.5" y="613" width="336.1" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="410.50" y="623.5" >dlopen_implementation</text>
+</g>
+<g >
+<title>loader::context_t::check_drivers (3,935,038 samples, 3.26%)</title><rect x="181.9" y="725" width="31.9" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="184.87" y="735.5" >lo..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="565" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="575.5" ></text>
+</g>
+<g >
+<title>[unknown] (11,900,981 samples, 9.85%)</title><rect x="551.3" y="229" width="96.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="554.32" y="239.5" >[unknown]</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="453" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="463.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (7,812,922 samples, 6.47%)</title><rect x="743.6" y="533" width="63.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="746.56" y="543.5" >[libze..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="357" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="367.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="677" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="687.5" ></text>
+</g>
+<g >
+<title>testing::internal::UnitTestImpl::~UnitTestImpl (1,945,865 samples, 1.61%)</title><rect x="391.7" y="773" width="15.8" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="394.71" y="783.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="677" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="687.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="645" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="655.5" ></text>
+</g>
+<g >
+<title>dlopen_implementation (3,935,038 samples, 3.26%)</title><rect x="181.9" y="421" width="31.9" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="184.87" y="431.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="245" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="255.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="677" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="687.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (5,859,176 samples, 4.85%)</title><rect x="759.4" y="485" width="47.6" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="495.5" >[lib..</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="325" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="335.5" ></text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="693" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="703.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="501" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="511.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="757" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="767.5" >[unknown]</text>
+</g>
+<g >
+<title>__pthread_once_slow (49,224,909 samples, 40.76%)</title><rect x="407.5" y="693" width="399.5" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="410.50" y="703.5" >__pthread_once_slow</text>
+</g>
+<g >
+<title>__GI___libc_malloc (2,144,549 samples, 1.78%)</title><rect x="912.3" y="741" width="17.4" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="915.34" y="751.5" ></text>
+</g>
+<g >
+<title>dl_open_worker_begin (1,965,296 samples, 1.63%)</title><rect x="181.9" y="277" width="15.9" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="184.87" y="287.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="469" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="479.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="517" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="527.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="341" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="351.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="597" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="607.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (677,379 samples, 0.56%)</title><rect x="963.8" y="613" width="5.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="966.76" y="623.5" ></text>
+</g>
+<g >
+<title>zeInit (3,935,038 samples, 3.26%)</title><rect x="181.9" y="805" width="31.9" height="15.0" fill="rgb(213,37,9)" rx="2" ry="2" />
+<text  x="184.87" y="815.5" >ze..</text>
+</g>
+<g >
+<title>__pthread_once_slow (7,812,922 samples, 6.47%)</title><rect x="743.6" y="581" width="63.4" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="746.56" y="591.5" >__pthr..</text>
+</g>
+<g >
+<title>testing::internal::ParameterizedTestSuiteInfo&lt;ExecuteCommandListImmediateCopyQueueTest&gt;::RegisterTests (7,685,150 samples, 6.36%)</title><rect x="807.0" y="773" width="62.3" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="809.96" y="783.5" >testin..</text>
+</g>
+<g >
+<title>_dl_open (3,939,873 samples, 3.26%)</title><rect x="149.9" y="309" width="32.0" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="152.90" y="319.5" >_d..</text>
+</g>
+<g >
+<title>[unknown] (12,628 samples, 0.01%)</title><rect x="989.9" y="565" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="992.90" y="575.5" ></text>
+</g>
+<g >
+<title>call_init (3,940,821 samples, 3.26%)</title><rect x="213.8" y="229" width="32.0" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="216.80" y="239.5" >ca..</text>
+</g>
+<g >
+<title>call_init (1,969,742 samples, 1.63%)</title><rect x="197.8" y="245" width="16.0" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="200.82" y="255.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (37,411 samples, 0.03%)</title><rect x="359.9" y="789" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="799.5" ></text>
+</g>
+<g >
+<title>testing::internal::PrintBytesInObjectTo (2,118,558 samples, 1.75%)</title><rect x="946.5" y="741" width="17.2" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="949.52" y="751.5" ></text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="389" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="399.5" >[u..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (39,365,314 samples, 32.60%)</title><rect x="424.1" y="405" width="319.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="427.11" y="415.5" >[libze_intel_gpu.so.1.6.34666.3]</text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="597" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="607.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="469" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="479.5" ></text>
+</g>
+<g >
+<title>[unknown] (19,753,834 samples, 16.36%)</title><rect x="487.6" y="341" width="160.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="490.59" y="351.5" >[unknown]</text>
+</g>
+<g >
+<title>__pthread_once_slow (3,939,873 samples, 3.26%)</title><rect x="149.9" y="645" width="32.0" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="152.90" y="655.5" >__..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="613" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="623.5" >[l..</text>
+</g>
+<g >
+<title>zelLoaderDriverCheck (3,935,038 samples, 3.26%)</title><rect x="181.9" y="741" width="31.9" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="184.87" y="751.5" >ze..</text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="149" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="159.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="565" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="575.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (5,865,937 samples, 4.86%)</title><rect x="647.9" y="277" width="47.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="650.90" y="287.5" >[unk..</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="773" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="783.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,042 samples, 6.55%)</title><rect x="277.5" y="869" width="64.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="879.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="789" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="799.5" >[unknown]</text>
+</g>
+<g >
+<title>__memcpy_avx512_unaligned_erms (2,067,353 samples, 1.71%)</title><rect x="929.7" y="757" width="16.8" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="932.74" y="767.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="581" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="591.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (7,812,922 samples, 6.47%)</title><rect x="743.6" y="517" width="63.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="746.56" y="527.5" >[libze..</text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="213" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="223.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (1,931,035 samples, 1.60%)</title><rect x="360.2" y="789" width="15.7" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="363.19" y="799.5" ></text>
+</g>
+<g >
+<title>__pthread_once_slow (3,940,821 samples, 3.26%)</title><rect x="213.8" y="661" width="32.0" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="216.80" y="671.5" >__..</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,973,510 samples, 1.63%)</title><rect x="229.8" y="133" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="232.77" y="143.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="245" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="255.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; testing::PrintToString&lt;std::tuple&lt;Api, bool, bool, UsmMemoryPlacement, UsmMemoryPlacement, unsigned long, bool, bool, TestType&gt; &gt; (2,434,617 samples, 2.02%)</title><rect x="827.4" y="757" width="19.8" height="15.0" fill="rgb(223,83,19)" rx="2" ry="2" />
+<text  x="830.41" y="767.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="693" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="703.5" ></text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runFromCommandLine (3,940,821 samples, 3.26%)</title><rect x="213.8" y="869" width="32.0" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="216.80" y="879.5" >Te..</text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runImpl (3,940,821 samples, 3.26%)</title><rect x="213.8" y="837" width="32.0" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="216.80" y="847.5" >Te..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="661" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="671.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="629" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="639.5" >[l..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,939,873 samples, 3.26%)</title><rect x="149.9" y="549" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="152.90" y="559.5" >[l..</text>
+</g>
+<g >
+<title>__GI___libc_malloc (1,973,510 samples, 1.63%)</title><rect x="229.8" y="53" width="16.0" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="232.77" y="63.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="309" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="319.5" ></text>
+</g>
+<g >
+<title>_dl_catch_error (3,940,821 samples, 3.26%)</title><rect x="213.8" y="373" width="32.0" height="15.0" fill="rgb(223,83,20)" rx="2" ry="2" />
+<text  x="216.80" y="383.5" >_d..</text>
+</g>
+<g >
+<title>__GI___ioctl (1,958,387 samples, 1.62%)</title><rect x="759.4" y="341" width="15.9" height="15.0" fill="rgb(232,128,30)" rx="2" ry="2" />
+<text  x="762.41" y="351.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (5,859,176 samples, 4.85%)</title><rect x="759.4" y="469" width="47.6" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="762.41" y="479.5" >[lib..</text>
+</g>
+<g >
+<title>dl_open_worker (3,935,038 samples, 3.26%)</title><rect x="181.9" y="309" width="31.9" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="184.87" y="319.5" >dl..</text>
+</g>
+<g >
+<title>dlopen_doit (3,939,873 samples, 3.26%)</title><rect x="149.9" y="325" width="32.0" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="152.90" y="335.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (3,980,570 samples, 3.30%)</title><rect x="711.3" y="245" width="32.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="714.26" y="255.5" >[u..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,914,847 samples, 3.24%)</title><rect x="245.8" y="853" width="31.7" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="248.78" y="863.5" >[l..</text>
+</g>
+<g >
+<title>L0::LevelZero::LevelZero (3,939,873 samples, 3.26%)</title><rect x="149.9" y="789" width="32.0" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="152.90" y="799.5" >L0..</text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="501" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="511.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="613" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="623.5" >[unknown]</text>
+</g>
+<g >
+<title>__pthread_once_slow (3,935,038 samples, 3.26%)</title><rect x="181.9" y="789" width="31.9" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="184.87" y="799.5" >__..</text>
+</g>
+<g >
+<title>[unknown] (5,865,937 samples, 4.86%)</title><rect x="647.9" y="325" width="47.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="650.90" y="335.5" >[unk..</text>
+</g>
+<g >
+<title>[unknown] (1,947,873 samples, 1.61%)</title><rect x="791.2" y="405" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="794.15" y="415.5" ></text>
+</g>
+<g >
+<title>open_path (1,965,296 samples, 1.63%)</title><rect x="181.9" y="245" width="15.9" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="184.87" y="255.5" ></text>
+</g>
+<g >
+<title>[unknown] (37,411 samples, 0.03%)</title><rect x="359.9" y="581" width="0.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="362.89" y="591.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,935,038 samples, 3.26%)</title><rect x="181.9" y="613" width="31.9" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="184.87" y="623.5" >[l..</text>
+</g>
+<g >
+<title>std::ostream::sentry::sentry (2,118,558 samples, 1.75%)</title><rect x="946.5" y="693" width="17.2" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="949.52" y="703.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (1,952,916 samples, 1.62%)</title><rect x="775.3" y="357" width="15.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="778.30" y="367.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (7,812,922 samples, 6.47%)</title><rect x="743.6" y="597" width="63.4" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="746.56" y="607.5" >[libze..</text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="197" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="207.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,958,387 samples, 1.62%)</title><rect x="759.4" y="181" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="762.41" y="191.5" ></text>
+</g>
+<g >
+<title>TestCase&lt;SubmitKernelArguments&gt;::runImpl (3,939,873 samples, 3.26%)</title><rect x="149.9" y="821" width="32.0" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="152.90" y="831.5" >Te..</text>
+</g>
+<g >
+<title>[unknown] (5,865,937 samples, 4.86%)</title><rect x="647.9" y="261" width="47.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="650.90" y="271.5" >[unk..</text>
+</g>
+<g >
+<title>[unknown] (1,965,296 samples, 1.63%)</title><rect x="181.9" y="69" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="184.87" y="79.5" ></text>
+</g>
+<g >
+<title>dlopen_implementation (3,940,821 samples, 3.26%)</title><rect x="213.8" y="405" width="32.0" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="216.80" y="415.5" >dl..</text>
+</g>
+<g >
+<title>[unknown] (2,046,673 samples, 1.69%)</title><rect x="407.5" y="293" width="16.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="410.50" y="303.5" ></text>
+</g>
+<g >
+<title>loader::context_t::check_drivers (7,812,922 samples, 6.47%)</title><rect x="743.6" y="629" width="63.4" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="746.56" y="639.5" >loader..</text>
+</g>
+<g >
+<title>[unknown] (2,144,549 samples, 1.78%)</title><rect x="912.3" y="693" width="17.4" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="915.34" y="703.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,916 samples, 1.62%)</title><rect x="775.3" y="293" width="15.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="778.30" y="303.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="373" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="383.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="517" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="527.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (238,933 samples, 0.20%)</title><rect x="988.1" y="645" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="655.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,910,030 samples, 6.55%)</title><rect x="277.6" y="741" width="64.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="280.55" y="751.5" >[unknown]</text>
+</g>
+<g >
+<title>_dlerror_run (41,411,987 samples, 34.29%)</title><rect x="407.5" y="597" width="336.1" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="410.50" y="607.5" >_dlerror_run</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,969,742 samples, 1.63%)</title><rect x="197.8" y="197" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="200.82" y="207.5" ></text>
+</g>
+<g >
+<title>_dl_init (1,969,742 samples, 1.63%)</title><rect x="197.8" y="261" width="16.0" height="15.0" fill="rgb(225,96,23)" rx="2" ry="2" />
+<text  x="200.82" y="271.5" ></text>
+</g>
+<g >
+<title>dl_open_worker (41,411,987 samples, 34.29%)</title><rect x="407.5" y="501" width="336.1" height="15.0" fill="rgb(236,145,34)" rx="2" ry="2" />
+<text  x="410.50" y="511.5" >dl_open_worker</text>
+</g>
+<g >
+<title>[unknown] (1,941,664 samples, 1.61%)</title><rect x="695.5" y="181" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="698.50" y="191.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (677,379 samples, 0.56%)</title><rect x="963.8" y="789" width="5.5" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="966.76" y="799.5" ></text>
+</g>
+<g >
+<title>__readlink (1,947,873 samples, 1.61%)</title><rect x="791.2" y="421" width="15.8" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="794.15" y="431.5" ></text>
+</g>
+<g >
+<title>_dl_open (3,940,821 samples, 3.26%)</title><rect x="213.8" y="325" width="32.0" height="15.0" fill="rgb(238,156,37)" rx="2" ry="2" />
+<text  x="216.80" y="335.5" >_d..</text>
+</g>
+<g >
+<title>___pthread_cond_clockwait64 (40,361 samples, 0.03%)</title><rect x="969.3" y="821" width="0.3" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="972.26" y="831.5" ></text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="197" width="32.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="216.80" y="207.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (19,753,834 samples, 16.36%)</title><rect x="487.6" y="309" width="160.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="490.59" y="319.5" >[unknown]</text>
+</g>
+<g >
+<title>[unknown] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="501" width="15.8" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="378.86" y="511.5" ></text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (1,973,510 samples, 1.63%)</title><rect x="229.8" y="85" width="16.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="232.77" y="95.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="629" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="639.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="485" width="32.0" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="216.80" y="495.5" >[l..</text>
+</g>
+<g >
+<title>[libigc.so.2.16.0+1753355367] (3,940,821 samples, 3.26%)</title><rect x="213.8" y="181" width="32.0" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="216.80" y="191.5" >[l..</text>
+</g>
+<g >
+<title>[unknown] (238,945 samples, 0.20%)</title><rect x="988.1" y="677" width="1.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="991.06" y="687.5" ></text>
+</g>
+<g >
+<title>[unknown] (1,971,123 samples, 1.63%)</title><rect x="165.9" y="85" width="16.0" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="168.87" y="95.5" ></text>
+</g>
+<g >
+<title>[unknown] (2,276,858 samples, 1.89%)</title><rect x="969.6" y="693" width="18.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="972.58" y="703.5" ></text>
+</g>
+<g >
+<title>start_thread (37,411 samples, 0.03%)</title><rect x="359.9" y="869" width="0.3" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="362.89" y="879.5" ></text>
+</g>
+<g >
+<title>elf_dynamic_do_Rela (2,046,673 samples, 1.69%)</title><rect x="407.5" y="421" width="16.6" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="410.50" y="431.5" ></text>
+</g>
+<g >
+<title>__brk (1,941,664 samples, 1.61%)</title><rect x="695.5" y="277" width="15.8" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="698.50" y="287.5" ></text>
+</g>
+<g >
+<title>[libze_intel_gpu.so.1.6.34666.3] (1,952,763 samples, 1.62%)</title><rect x="375.9" y="549" width="15.8" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="378.86" y="559.5" ></text>
+</g>
+</g>
+</svg>
