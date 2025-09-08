@@ -32,9 +32,13 @@ void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-void DeviceKernelInfo::initIfNeeded(KernelNameStrRefT KernelName) {
-  if (!MInitialized.load())
-    init(KernelName);
+void DeviceKernelInfo::initIfEmpty(const CompileTimeKernelInfoTy &Info) {
+  if (MInitialized.load())
+    return;
+
+  CompileTimeKernelInfoTy::operator=(Info);
+  Name = Info.Name.data();
+  init(Name.data());
 }
 #endif
 
