@@ -2718,6 +2718,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    (void)Properties;
     return submit_kernel_direct_with_event<detail::WrapAs::single_task,
                                            KernelName>(
         ext::oneapi::experimental::empty_properties_t{}, nd_range<1>{1, 1},
