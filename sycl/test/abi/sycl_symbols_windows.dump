@@ -4488,6 +4488,7 @@
 ?supports_importing_handle_type@experimental@oneapi@ext@_V1@sycl@@YA_NW4external_mem_handle_type@12345@AEBVdevice@45@@Z
 ?sycl_category@_V1@sycl@@YAAEBVerror_category@std@@XZ
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
+?throwOnKernelParameterMisuse@handler@_V1@sycl@@AEBAXAEBUCompileTimeKernelInfoTy@compile_time_kernel_info_v1@detail@23@@Z
 ?throwOnKernelParameterMisuseHelper@handler@_V1@sycl@@AEBAXHP6A?AUkernel_param_desc_t@detail@23@H@Z@Z
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
