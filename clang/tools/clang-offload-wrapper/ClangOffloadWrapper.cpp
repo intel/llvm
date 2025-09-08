@@ -1303,7 +1303,7 @@ private:
 
     // Declaration for __sycl_unregister_lib(void*).
     auto *UnregTargetTy =
-        FunctionType::get(Type::getVoidTy(C), getPtrTy(), false);
+        FunctionType::get(Type::getVoidTy(C), getPtrTy(), /*isVarArg=*/false);
     FunctionCallee UnregTargetC =
         M.getOrInsertFunction("__sycl_unregister_lib", UnregTargetTy);
 
@@ -1321,8 +1321,7 @@ private:
     FunctionCallee RegTargetC =
         M.getOrInsertFunction("__sycl_register_lib", RegTargetTy);
 
-    // `atexit` takes a `void(*)()` function pointer. In LLVM IR, this is
-    // typically represented as `i32 (ptr)`.
+    // `atexit` takes a `void(*)()` function pointer arg and returns an i32.
     FunctionType *AtExitTy =
         FunctionType::get(Type::getInt32Ty(C), getPtrTy(), false);
     FunctionCallee AtExitC = M.getOrInsertFunction("atexit", AtExitTy);

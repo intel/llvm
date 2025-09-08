@@ -765,8 +765,7 @@ struct Wrapper {
     FunctionCallee RegTargetC =
         M.getOrInsertFunction("__sycl_register_lib", RegTargetTy);
 
-    // `atexit` takes a `void(*)()` function pointer. In LLVM IR, this is
-    // typically represented as `i32 (ptr)`.
+    // `atexit` takes a `void(*)()` function pointer arg and returns an i32.
     FunctionType *AtExitTy = FunctionType::get(
         Type::getInt32Ty(C), PointerType::getUnqual(C), false);
     FunctionCallee AtExitC = M.getOrInsertFunction("atexit", AtExitTy);
