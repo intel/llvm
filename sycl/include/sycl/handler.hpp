@@ -835,7 +835,7 @@ private:
     // disable such checks when this macro is defined. Note that the unittests
     // don't actually execute those operation, that's why disabling
     // unconditional `static_asserts`s is enough for now.
-#ifndef __SYCL_UNITTESTS
+#ifndef __SYCL_UNITTESTS_BYPASS_KERNEL_NAME_CHECK
     static_assert(Info.Name != std::string_view{}, "Kernel must have a name!");
 
     // Some host compilers may have different captures from Clang. Currently

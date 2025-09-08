@@ -126,7 +126,7 @@ config.substitutions.append(("%test_include_path", config.test_include_path))
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, "llvm-symbolizer")
 llvm_config.with_environment("LLVM_SYMBOLIZER_PATH", llvm_symbolizer)
 
-sycl_host_only_options = "-std=c++17 -Xclang -fsycl-is-host"
+sycl_host_only_options = "-std=c++17 -Xclang -fsycl-is-host -D__SYCL_UNITTESTS_BYPASS_KERNEL_NAME_CHECK=1"
 for include_dir in [
     config.sycl_include,
     config.level_zero_include_dir,
