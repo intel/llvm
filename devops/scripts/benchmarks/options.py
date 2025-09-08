@@ -43,6 +43,7 @@ class DetectVersionsOptions:
 
 @dataclass
 class Options:
+    TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
     ur: str = None
@@ -71,8 +72,8 @@ class Options:
     preset: str = "Full"
     build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
+    flamegraph: bool = False
     unitrace: bool = False
-    TIMESTAMP_FORMAT = "%Y%m%d_%H%M%S"  # Format for timestamps in filenames and logs, including Unitrace traces.
 
     # Options intended for CI:
 
@@ -92,6 +93,8 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+    # Filename used to store Github summary files:
+    github_summary_filename: str = "github_summary.md"
     # Archiving settings
     # Archived runs are stored separately from the main dataset but are still accessible
     # via the HTML UI when "Include archived runs" is enabled.

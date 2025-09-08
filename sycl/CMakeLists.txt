@@ -83,7 +83,7 @@ if(MSVC)
 endif()
 
 include(FetchEmhash)
-include(FetchUnifiedRuntime)
+include(BuildUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -530,6 +530,15 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
+endif()
+
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  if(NOT TARGET lld)
+    message(FATAL_ERROR
+      "Offload support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+  add_dependencies(sycl-toolchain ur_adapter_offload)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_offload)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
