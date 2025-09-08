@@ -19,7 +19,7 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
-#include <emhash/hash_table7.hpp>
+#include <hash_table7.hpp>
 
 #include <algorithm>
 #include <array>
@@ -1767,6 +1767,7 @@ public:
       // value
       if (StreamFlags.count(TraceType) == 0)
         return false;
+      // Otherwise, it is success
       return StreamFlags[TraceType];
     }
   }

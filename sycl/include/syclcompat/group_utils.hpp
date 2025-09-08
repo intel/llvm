@@ -38,7 +38,7 @@
 #include <syclcompat/defs.hpp>
 #include <syclcompat/math.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 namespace group {
 namespace detail {
 

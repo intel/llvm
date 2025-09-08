@@ -166,6 +166,7 @@ private:
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
   mutable std::unique_ptr<Tool> OffloadPackager;
+  mutable std::unique_ptr<Tool> OffloadPackagerExtract;
   mutable std::unique_ptr<Tool> OffloadDeps;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SYCLPostLink;
@@ -185,6 +186,7 @@ private:
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
   Tool *getOffloadPackager() const;
+  Tool *getOffloadPackagerExtract() const;
   Tool *getOffloadDeps() const;
   Tool *getSPIRVTranslator() const;
   Tool *getSYCLPostLink() const;
