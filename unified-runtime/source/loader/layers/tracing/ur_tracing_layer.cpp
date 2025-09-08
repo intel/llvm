@@ -75,9 +75,8 @@ void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
                           activeEvent, instance, &payload);
   } else {
     // Use global event for all UR API calls
-    if (xptiCheckTraceEnabled(call_stream_id))
-      xptiNotifySubscribers(call_stream_id, trace_type, nullptr, activeEvent,
-                            instance, &payload);
+    xptiNotifySubscribers(call_stream_id, trace_type, nullptr, activeEvent,
+                          instance, &payload);
   }
 }
 
