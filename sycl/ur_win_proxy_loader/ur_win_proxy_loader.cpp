@@ -109,6 +109,8 @@ void *&getDllHandle() {
 
 /// Load the adapter libraries
 void preloadLibraries() {
+        std::cout << "---> one\n"
+                << std::endl;
   // Suppress system errors.
   // Tells the system to not display the critical-error-handler message box.
   // Instead, the system sends the error to the calling process.
@@ -119,14 +121,18 @@ void preloadLibraries() {
   // NOTE: we restore the old mode to not affect user app behavior.
   //
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+          std::cout << "---> one point five \n"
+                << std::endl;
   // Exclude current directory from DLL search path
   if (!SetDllDirectory(L"")) {
     assert(false && "Failed to update DLL search path");
   }
-
+        std::cout << "---> two\n"
+                << std::endl;
   // this path duplicates sycl/detail/ur.cpp:initializeAdapters
   std::filesystem::path LibSYCLDir(getCurrentDSODir());
-
+        std::cout << "---> three\n"
+                << std::endl;
   // When searching for dependencies of the adapters limit the
   // list of directories to %windows%\system32 and the directory that contains
   // the loaded DLL (the adapter). This is necessary to avoid loading dlls from
@@ -134,29 +140,51 @@ void preloadLibraries() {
   auto loadAdapter = [&](auto adapterName,
                          DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
                                        LOAD_LIBRARY_SEARCH_SYSTEM32) {
+
     auto path = LibSYCLDir / adapterName;
+    std::wcout << "---> NAME " << path.wstring() << "\n"
+              << std::endl;
     return LoadLibraryEx(path.wstring().c_str(), NULL, flags);
   };
   // We keep the UR Loader handle so it can be fetched by the runtime, but the
   // adapter libraries themselves won't be used.
   getDllHandle() = loadAdapter(UR_LIBRARY_NAME(loader));
+          std::cout << "---> four\n"
+                << std::endl;
   loadAdapter(UR_LIBRARY_NAME(adapter_opencl));
+          std::cout << "---> five\n"
+                << std::endl;
   loadAdapter(UR_LIBRARY_NAME(adapter_level_zero));
+          std::cout << "---> six\n"
+                << std::endl;
   loadAdapter(UR_LIBRARY_NAME(adapter_level_zero_v2));
+          std::cout << "---> seven\n"
+                << std::endl;
   loadAdapter(UR_LIBRARY_NAME(adapter_cuda));
+          std::cout << "---> eight\n"
+                << std::endl;
   loadAdapter(UR_LIBRARY_NAME(adapter_hip));
+          std::cout << "---> nine\n"
+                << std::endl;
   loadAdapter(UR_LIBRARY_NAME(adapter_native_cpu));
+          std::cout << "---> ten\n"
+                << std::endl;
   // Load the Level Zero loader dynamic library to ensure it is loaded during
   // the runtime. This is necessary to avoid the level zero loader from being
   // unloaded prematurely. the Only trusted loader is the one that is loaded
   // from the system32 directory.
   LoadLibraryExW(L"ze_loader.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
-
+        std::cout << "---> eleven\n"
+                << std::endl;
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
+          std::cout << "---> twelve\n"
+                << std::endl;
   if (!SetDllDirectory(nullptr)) {
     assert(false && "Failed to restore DLL search path");
   }
+          std::cout << "---> thirteen\n"
+                << std::endl;
 }
 
 /// windows_ur.cpp:getURLoaderLibrary() calls this to get the DLL loaded
