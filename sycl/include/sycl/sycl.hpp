@@ -32,6 +32,8 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_TOSTRING
 #undef __SYCL_STRINGIFY
 
+#define __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>
