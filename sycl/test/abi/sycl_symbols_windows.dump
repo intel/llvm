@@ -4409,6 +4409,7 @@
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
 ?setDevice@HostProfilingInfo@detail@_V1@sycl@@QEAAXPEAVdevice_impl@234@@Z
+?setDeviceKernelInfo@handler@_V1@sycl@@AEAAX$$QEAVkernel@23@@Z
 ?setDeviceKernelInfoPtr@handler@_V1@sycl@@AEAAXPEAVDeviceKernelInfo@detail@23@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXVkernel@23@@Z
