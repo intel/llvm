@@ -32,7 +32,9 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_TOSTRING
 #undef __SYCL_STRINGIFY
 
+#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 #define __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+#endif
 
 #include <sycl/detail/core.hpp>
 
