@@ -57,7 +57,7 @@ inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
 
 void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
     const CompileTimeKernelInfoTy &Info) {
-  if (isCompileTimeInfoSet())
+  if (!isCompileTimeInfoSet())
     CompileTimeKernelInfoTy::operator=(Info);
   assert(isCompileTimeInfoSet());
   assert(Info == *this);
