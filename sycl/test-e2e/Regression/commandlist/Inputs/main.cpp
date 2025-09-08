@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   bool lock{true};
   bool sharedQueue{true};
   // int nthreadsGPU = 1;
-  int nthreadsGPU = 8;
+  constexpr int nthreadsGPU = 8;
   int arr_size = 20;
   int iter_gpu = 200;
   unsigned int nitems = 0;

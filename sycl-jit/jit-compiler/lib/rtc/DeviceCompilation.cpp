@@ -9,6 +9,7 @@
 #include "DeviceCompilation.h"
 #include "ESIMD.h"
 #include "JITBinaryInfo.h"
+#include "Resource.h"
 #include "translation/Translation.h"
 
 #include <clang/Basic/DiagnosticDriver.h>
@@ -178,7 +179,12 @@ private:
 };
 
 class SYCLToolchain {
-  SYCLToolchain() {}
+  SYCLToolchain() {
+    for (size_t i = 0; i < NumToolchainFiles; ++i) {
+      auto [Path, Content] = ToolchainFiles[i];
+      ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
+    }
+  }
 
   // Similar to FrontendActionFactory, but we don't take ownership of
   // `FrontendAction`, nor do we create copies of it as we only perform a single
@@ -231,6 +237,7 @@ public:
            DiagnosticConsumer *DiagConsumer = nullptr) {
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
+    FS->pushOverlay(ToolchainFS);
     if (FSOverlay)
       FS->pushOverlay(FSOverlay);
 
@@ -245,8 +252,14 @@ public:
     return TI.run();
   }
 
+  std::string_view getClangXXExe() const { return ClangXXExe; }
+
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
+  std::string ClangXXExe =
+      (jit_compiler::ToolchainPrefix + "/bin/clang++").str();
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
 };
 
 class ClangDiagnosticWrapper {
@@ -296,14 +309,11 @@ public:
 } // anonymous namespace
 
 static std::vector<std::string>
-createCommandLine(const InputArgList &UserArgList, std::string_view DPCPPRoot,
-                  BinaryFormat Format, std::string_view SourceFilePath) {
+createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
+                  std::string_view SourceFilePath) {
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  DAL.AddJoinedArg(
-      nullptr, OptTable.getOption(OPT_resource_dir_EQ),
-      (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
   // User args may contain options not intended for the frontend, but we can't
   // claim them here to tell the driver they're used later. Hence, suppress the
   // unused argument warning.
@@ -327,7 +337,7 @@ createCommandLine(const InputArgList &UserArgList, std::string_view DPCPPRoot,
 
   std::vector<std::string> CommandLine;
   CommandLine.reserve(ASL.size() + 2);
-  CommandLine.emplace_back((DPCPPRoot + "/bin/clang++").str());
+  CommandLine.emplace_back(SYCLToolchain::instance().getClangXXExe());
   transform(ASL, std::back_inserter(CommandLine),
             [](const char *AS) { return std::string{AS}; });
   CommandLine.emplace_back(SourceFilePath);
@@ -355,13 +365,8 @@ Expected<std::string> jit_compiler::calculateHash(
     const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
-
   std::vector<std::string> CommandLine =
-      createCommandLine(UserArgList, DPCPPRoot, Format, SourceFile.Path);
+      createCommandLine(UserArgList, Format, SourceFile.Path);
 
   HashPreprocessedAction HashAction;
 
@@ -372,8 +377,7 @@ Expected<std::string> jit_compiler::calculateHash(
     // unique for each query, so drop it:
     CommandLine.pop_back();
 
-    // The command line contains the DPCPP root and clang major version in
-    // "-resource-dir=<...>" argument.
+    // TODO: Include hash of the current libsycl-jit.so/.dll somehow...
     BLAKE3Result<> CommandLineHash =
         BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
 
@@ -394,18 +398,13 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
     LLVMContext &Context, BinaryFormat Format) {
   TimeTraceScope TTS{"compileDeviceCode"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
-
   EmitLLVMOnlyAction ELOA{&Context};
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
   if (SYCLToolchain::instance().run(
-          createCommandLine(UserArgList, DPCPPRoot, Format, SourceFile.Path),
-          ELOA, getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
+          createCommandLine(UserArgList, Format, SourceFile.Path), ELOA,
+          getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
     return ELOA.takeModule();
   } else {
     return createStringError(BuildLog);
