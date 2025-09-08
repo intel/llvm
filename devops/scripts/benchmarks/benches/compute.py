@@ -7,11 +7,14 @@ import os
 import csv
 import io
 import copy
-from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite
-from utils.result import BenchmarkMetadata, Result
-from options import options
+import math
 from enum import Enum
+
+from utils.utils import run, git_clone, create_build_path
+from .base import Benchmark, Suite, TracingType
+from utils.result import BenchmarkMetadata, Result
+from .base import Benchmark, Suite
+from options import options
 
 
 class RUNTIMES(Enum):
@@ -51,7 +54,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "83b9ae3ebb3563552409f3a317cdc1cf3d3ca6bd"
+        return "c9e135d4f26dd6badd83009f92f25d6285fc1e21"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -73,6 +76,8 @@ class ComputeBench(Suite):
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
+            f"-DCMAKE_CXX_COMPILER=clang++",
+            f"-DCMAKE_C_COMPILER=clang",
         ]
 
         if options.ur_adapter == "cuda":
@@ -90,7 +95,10 @@ class ComputeBench(Suite):
 
         run(configure_command, add_sycl=True)
 
-        run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
+        run(
+            f"cmake --build {build_path} -j {options.build_jobs}",
+            add_sycl=True,
+        )
 
         self.built = True
 
@@ -204,6 +212,17 @@ class ComputeBench(Suite):
 
             # Add GraphApiSubmitGraph benchmarks
             for in_order_queue in [0, 1]:
+                benches.append(
+                    GraphApiSubmitGraph(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        self.submit_graph_num_kernels[-1],
+                        0,
+                        useEvents=0,
+                        useHostTasks=1,
+                    )
+                )
                 for num_kernels in self.submit_graph_num_kernels:
                     for measure_completion_time in [0, 1]:
                         for use_events in [0, 1]:
@@ -215,6 +234,7 @@ class ComputeBench(Suite):
                                     num_kernels,
                                     measure_completion_time,
                                     use_events,
+                                    useHostTasks=0,
                                 )
                             )
 
@@ -285,6 +305,21 @@ class ComputeBenchmark(Benchmark):
         self.bench_name = name
         self.test = test
         self.runtime = runtime
+        # Mandatory per-benchmark iteration counts.
+        # Subclasses MUST set both `self.iterations_regular` and
+        # `self.iterations_trace` (positive ints) in their __init__ before
+        # calling super().__init__(). The base class enforces this.
+
+        self._validate_attr("iterations_regular")
+        self._validate_attr("iterations_trace")
+
+    def get_iters(self, run_trace: TracingType):
+        """Returns the number of iterations to run for the given tracing type."""
+        return (
+            self.iterations_trace
+            if run_trace != TracingType.NONE
+            else self.iterations_regular
+        )
 
     def supported_runtimes(self) -> list[RUNTIMES]:
         """Base runtimes supported by this benchmark, can be overridden."""
@@ -322,7 +357,10 @@ class ComputeBenchmark(Benchmark):
         """Returns the name of the benchmark, can be overridden."""
         return self.bench_name
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        # Subclasses must implement this and include all flags except --iterations;
+        # the base `run()` will prepend the proper --iterations value based on
+        # `run_trace` and the subclass's `iterations_regular`/`iterations_trace`.
         return []
 
     def extra_env_vars(self) -> dict:
@@ -339,21 +377,26 @@ class ComputeBenchmark(Benchmark):
     def description(self) -> str:
         return ""
 
-    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
             "--csv",
             "--noHeaders",
         ]
-
-        command += self.bin_args()
+        # Let subclass provide remaining args; bin_args(run_trace) must
+        # include the proper --iterations token computed from this class's
+        # iteration fields.
+        command += self.bin_args(run_trace)
         env_vars.update(self.extra_env_vars())
 
         result = self.run_bench(
-            command,
-            env_vars,
-            run_unitrace=run_unitrace,
+            command, env_vars, run_trace=run_trace, force_trace=force_trace
         )
         parsed_results = self.parse_output(result)
         ret = []
@@ -388,6 +431,9 @@ class ComputeBenchmark(Benchmark):
                 median = float(data_row[2])
                 # compute benchmarks report stddev as %
                 stddev = mean * (float(data_row[3].strip("%")) / 100.0)
+                if not math.isfinite(stddev):
+                    stddev = 0.0  # Default to 0.0 if stddev is invalid
+
                 unit = data_row[7]
                 results.append((label, median, stddev, unit))
             except (ValueError, IndexError) as e:
@@ -398,6 +444,16 @@ class ComputeBenchmark(Benchmark):
 
     def teardown(self):
         return
+
+    def _validate_attr(self, attr_name: str):
+        if (
+            not hasattr(self, attr_name)
+            or not isinstance(getattr(self, attr_name, None), int)
+            or getattr(self, attr_name, 0) <= 0
+        ):
+            raise ValueError(
+                f"{self.bench_name}: subclasses must set `{attr_name}` (positive int) before calling super().__init__"
+            )
 
 
 class SubmitKernel(ComputeBenchmark):
@@ -415,6 +471,9 @@ class SubmitKernel(ComputeBenchmark):
         self.UseEvents = UseEvents
         self.KernelExecTime = KernelExecTime
         self.NumKernels = 10
+        # iterations set per existing bin_args: --iterations=100000
+        self.iterations_regular = 100000
+        self.iterations_trace = 10
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel", runtime
         )
@@ -484,11 +543,12 @@ class SubmitKernel(ComputeBenchmark):
     def range(self) -> tuple[float, float]:
         return (0.0, None)
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
+            f"--iterations={iters}",
             f"--Ioq={self.ioq}",
             f"--MeasureCompletion={self.MeasureCompletion}",
-            "--iterations=100000",
             "--Profiling=0",
             f"--NumKernels={self.NumKernels}",
             f"--KernelExecTime={self.KernelExecTime}",
@@ -519,6 +579,9 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         self.source = source
         self.destination = destination
         self.size = size
+        # iterations per bin_args: --iterations=100000
+        self.iterations_regular = 100000
+        self.iterations_trace = 10
         super().__init__(bench, "api_overhead_benchmark_sycl", "ExecImmediateCopyQueue")
 
     def name(self):
@@ -540,9 +603,10 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "submit", "latency", "SYCL", "micro"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=100000",
+            f"--iterations={iters}",
             f"--ioq={self.ioq}",
             f"--IsCopyOnly={self.isCopyOnly}",
             "--MeasureCompletionTime=0",
@@ -559,6 +623,9 @@ class QueueInOrderMemcpy(ComputeBenchmark):
         self.source = source
         self.destination = destination
         self.size = size
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(bench, "memory_benchmark_sycl", "QueueInOrderMemcpy")
 
     def name(self):
@@ -577,9 +644,10 @@ class QueueInOrderMemcpy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", "SYCL", "micro"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=10000",
+            f"--iterations={iters}",
             f"--IsCopyOnly={self.isCopyOnly}",
             f"--sourcePlacement={self.source}",
             f"--destinationPlacement={self.destination}",
@@ -594,6 +662,9 @@ class QueueMemcpy(ComputeBenchmark):
         self.source = source
         self.destination = destination
         self.size = size
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(bench, "memory_benchmark_sycl", "QueueMemcpy")
 
     def name(self):
@@ -611,9 +682,10 @@ class QueueMemcpy(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", "SYCL", "micro"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=10000",
+            f"--iterations={iters}",
             f"--sourcePlacement={self.source}",
             f"--destinationPlacement={self.destination}",
             f"--size={self.size}",
@@ -625,6 +697,9 @@ class StreamMemory(ComputeBenchmark):
         self.type = type
         self.size = size
         self.placement = placement
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(bench, "memory_benchmark_sycl", "StreamMemory")
 
     def name(self):
@@ -646,9 +721,10 @@ class StreamMemory(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "throughput", "SYCL", "micro"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=10000",
+            f"--iterations={iters}",
             f"--type={self.type}",
             f"--size={self.size}",
             f"--memoryPlacement={self.placement}",
@@ -661,6 +737,9 @@ class StreamMemory(ComputeBenchmark):
 
 class VectorSum(ComputeBenchmark):
     def __init__(self, bench):
+        # iterations per bin_args: --iterations=1000
+        self.iterations_regular = 1000
+        self.iterations_trace = 10
         super().__init__(bench, "miscellaneous_benchmark_sycl", "VectorSum")
 
     def name(self):
@@ -678,9 +757,10 @@ class VectorSum(ComputeBenchmark):
     def get_tags(self):
         return ["math", "throughput", "SYCL", "micro"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=1000",
+            f"--iterations={iters}",
             "--numberOfElementsX=512",
             "--numberOfElementsY=256",
             "--numberOfElementsZ=256",
@@ -705,7 +785,10 @@ class MemcpyExecute(ComputeBenchmark):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
-        self.iterations = iterations
+        # preserve provided iterations value
+        # self.iterations = iterations
+        self.iterations_regular = iterations
+        self.iterations_trace = min(iterations, 10)
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
         self.useEvents = useEvent
@@ -768,8 +851,10 @@ class MemcpyExecute(ComputeBenchmark):
     def get_tags(self):
         return ["memory", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
+            f"--iterations={iters}",
             "--Ioq=1",
             f"--UseEvents={self.useEvents}",
             "--MeasureCompletion=1",
@@ -777,7 +862,6 @@ class MemcpyExecute(ComputeBenchmark):
             f"--AllocSize={self.allocSize}",
             f"--NumThreads={self.numThreads}",
             f"--NumOpsPerThread={self.numOpsPerThread}",
-            f"--iterations={self.iterations}",
             f"--SrcUSM={self.srcUSM}",
             f"--DstUSM={self.dstUSM}",
             f"--UseBarrier={self.useBarrier}",
@@ -788,6 +872,9 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
     def __init__(self, bench, runtime: RUNTIMES, withGraphs, numKernels):
         self.withGraphs = withGraphs
         self.numKernels = numKernels
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(
             bench, f"graph_api_benchmark_{runtime.value}", "SinKernelGraph", runtime
         )
@@ -821,9 +908,10 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=10000",
+            f"--iterations={iters}",
             f"--numKernels={self.numKernels}",
             f"--withGraphs={self.withGraphs}",
             "--withCopyOffload=1",
@@ -840,22 +928,28 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         numKernels,
         measureCompletionTime,
         useEvents,
+        useHostTasks,
     ):
         self.inOrderQueue = inOrderQueue
         self.numKernels = numKernels
         self.measureCompletionTime = measureCompletionTime
         self.useEvents = useEvents
+        self.useHostTasks = useHostTasks
         self.ioq_str = "in order" if self.inOrderQueue else "out of order"
         self.measure_str = (
             " with measure completion" if self.measureCompletionTime else ""
         )
         self.use_events_str = f" with events" if self.useEvents else ""
+        self.host_tasks_str = f" use host tasks" if self.useHostTasks else ""
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(
             bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph", runtime
         )
 
     def explicit_group(self):
-        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}, {self.numKernels} kernels"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
 
     def description(self) -> str:
         return (
@@ -864,10 +958,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}, {self.numKernels} kernels"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
 
     def get_tags(self):
         return [
@@ -878,9 +972,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=10000",
+            f"--iterations={iters}",
             f"--NumKernels={self.numKernels}",
             f"--MeasureCompletionTime={self.measureCompletionTime}",
             f"--InOrderQueue={self.inOrderQueue}",
@@ -888,6 +983,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             "--KernelExecutionTime=1",
             f"--UseEvents={self.useEvents}",
             "--UseExplicit=0",
+            f"--UseHostTasks={self.useHostTasks}",
         ]
 
 
@@ -895,6 +991,9 @@ class UllsEmptyKernel(ComputeBenchmark):
     def __init__(self, bench, runtime: RUNTIMES, wgc, wgs):
         self.wgc = wgc
         self.wgs = wgs
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(
             bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel", runtime
         )
@@ -919,9 +1018,10 @@ class UllsEmptyKernel(ComputeBenchmark):
     def get_tags(self):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=10000",
+            f"--iterations={iters}",
             f"--wgs={self.wgs}",
             f"--wgc={self.wgc}",
         ]
@@ -945,6 +1045,9 @@ class UllsKernelSwitch(ComputeBenchmark):
         self.hostVisible = hostVisible
         self.ctrBasedEvents = ctrBasedEvents
         self.ioq = ioq
+        # iterations per bin_args: --iterations=1000
+        self.iterations_regular = 1000
+        self.iterations_trace = 10
         super().__init__(
             bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch", runtime
         )
@@ -967,9 +1070,10 @@ class UllsKernelSwitch(ComputeBenchmark):
     def get_tags(self):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            "--iterations=1000",
+            f"--iterations={iters}",
             f"--count={self.count}",
             f"--kernelTime={self.kernelTime}",
             f"--barrier={self.barrier}",
@@ -986,6 +1090,9 @@ class UsmMemoryAllocation(ComputeBenchmark):
         self.usm_memory_placement = usm_memory_placement
         self.size = size
         self.measure_mode = measure_mode
+        # iterations per bin_args: --iterations=10000
+        self.iterations_regular = 10000
+        self.iterations_trace = 10
         super().__init__(
             bench,
             f"api_overhead_benchmark_{runtime.value}",
@@ -1023,12 +1130,13 @@ class UsmMemoryAllocation(ComputeBenchmark):
             f"{what_is_measured}. "
         )
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
+            f"--iterations={iters}",
             f"--type={self.usm_memory_placement}",
             f"--size={self.size}",
             f"--measureMode={self.measure_mode}",
-            "--iterations=10000",
         ]
 
 
@@ -1046,6 +1154,9 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
         self.allocation_count = allocation_count
         self.size = size
         self.measure_mode = measure_mode
+        # iterations per bin_args: --iterations=1000
+        self.iterations_regular = 1000
+        self.iterations_trace = 10
         super().__init__(
             bench,
             f"api_overhead_benchmark_{runtime.value}",
@@ -1083,13 +1194,14 @@ class UsmBatchMemoryAllocation(ComputeBenchmark):
             f"{what_is_measured}. "
         )
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
+            f"--iterations={iters}",
             f"--type={self.usm_memory_placement}",
             f"--allocationCount={self.allocation_count}",
             f"--size={self.size}",
             f"--measureMode={self.measure_mode}",
-            "--iterations=1000",
         ]
 
 
@@ -1103,11 +1215,12 @@ class GraphApiFinalizeGraph(ComputeBenchmark):
     ):
         self.rebuild_graph_every_iteration = rebuild_graph_every_iteration
         self.graph_structure = graph_structure
-        self.iterations = 10000
-        # LLama graph is about 10X the size of Gromacs, so reduce the
-        # iterations to avoid excessive benchmark time.
+        # base iterations value mirrors previous behaviour
+        base_iters = 10000
         if graph_structure == "Llama":
-            self.iterations /= 10
+            base_iters = base_iters // 10
+        self.iterations_regular = base_iters
+        self.iterations_trace = min(base_iters, 10)
 
         super().__init__(
             bench,
@@ -1153,9 +1266,10 @@ class GraphApiFinalizeGraph(ComputeBenchmark):
             "latency",
         ]
 
-    def bin_args(self) -> list[str]:
+    def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
+        iters = self.get_iters(run_trace)
         return [
-            f"--iterations={self.iterations}",
+            f"--iterations={iters}",
             f"--rebuildGraphEveryIter={self.rebuild_graph_every_iteration}",
             f"--graphStructure={self.graph_structure}",
         ]

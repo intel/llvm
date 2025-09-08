@@ -863,12 +863,7 @@ buffer(const T *, const range<dimensions> &,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <typename T, int dimensions, typename AllocatorT>
-struct hash<sycl::buffer<T, dimensions, AllocatorT>> {
-  size_t operator()(const sycl::buffer<T, dimensions, AllocatorT> &b) const {
-    return hash<std::shared_ptr<sycl::detail::buffer_impl>>()(
-        sycl::detail::getSyclObjImpl(b));
-  }
-};
-} // namespace std
+struct std::hash<sycl::buffer<T, dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::buffer<T, dimensions, AllocatorT>> {};

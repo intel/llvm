@@ -44,7 +44,7 @@ public:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   virtual sycl::detail::EventImplPtr finalize() {
-    return std::make_shared<detail::event_impl>();
+    return detail::event_impl::create_default_event();
   }
 #else
   virtual event finalize() {

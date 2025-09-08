@@ -112,13 +112,9 @@ class Compare:
         def validate_benchmark_result(result: BenchmarkRun) -> bool:
             """
             Returns True if result file:
-            - Was ran on the target machine/hostname specified
-            - Sanity check: ensure metadata are all expected values:
               - Date is truly before cutoff timestamp
               - Name truly matches up with specified result_name
             """
-            if result.hostname != hostname:
-                return False
             if result.name != result_name:
                 log.warning(
                     f"Result file {result_path} does not match specified result name {result.name}."
@@ -344,13 +340,24 @@ if __name__ == "__main__":
     parser_avg.add_argument(
         "--regression-filter",
         type=str,
-        help="If provided, only regressions matching provided regex will cause exit status 1.",
+        help="If provided, only regressions in tests matching provided regex will cause exit status 1.",
         default=None,
+    )
+    parser_avg.add_argument(
+        "--regression-filter-type",
+        type=str,
+        help="Name to use in logging for tests that fall within the filter defined by --regression-filter; i.e. if --regression-filter filters for SYCL benchmarks, --regression-filter-type could be 'SYCL'.",
+        default="filtered",
     )
     parser_avg.add_argument(
         "--dry-run",
         action="store_true",
         help="Do not return error upon regressions.",
+    )
+    parser_avg.add_argument(
+        "--produce-github-summary",
+        action="store_true",
+        help=f"Create a summary file '{options.github_summary_filename}' for Github workflow summaries.",
     )
 
     args = parser.parse_args()
@@ -369,6 +376,14 @@ if __name__ == "__main__":
             args.avg_type, args.name, args.compare_file, args.results_dir, args.cutoff
         )
 
+        # Initialize Github summary variables:
+        if args.produce_github_summary:
+            gh_summary = []
+
+            filter_type_capitalized = (
+                args.regression_filter_type[0].upper() + args.regression_filter_type[1:]
+            )
+
         # Not all regressions are of concern: if a filter is provided, filter
         # regressions using filter
         regressions_ignored = []
@@ -382,7 +397,7 @@ if __name__ == "__main__":
                     regressions_ignored.append(test)
 
         def print_regression(entry: dict, is_warning: bool = False):
-            """Print an entry outputted from Compare.to_hist
+            """Print an entry outputted from Compare.to_hist()
 
             Args:
                 entry (dict): The entry to print
@@ -394,28 +409,80 @@ if __name__ == "__main__":
             log_func(f"-- Run result: {entry['value']}")
             log_func(f"-- Delta: {entry['delta']}")
             log_func("")
+            if args.produce_github_summary:
+                gh_summary.append(f"#### {entry['name']}:")
+                gh_summary.append(
+                    f"- Historic {entry['avg_type']}: {entry['hist_avg']}"
+                )
+                gh_summary.append(f"- Run result: {entry['value']}")
+                gh_summary.append(
+                    # Since we are dealing with floats, our deltas have a lot
+                    # of decimal places. For easier readability, we round our
+                    # deltas and format our Github summary output as:
+                    #
+                    # Delta: <rounded number>% (<full number>)
+                    #
+                    f"- Delta: {round(entry['delta']*100, 2)}% ({entry['delta']})"
+                )
+                gh_summary.append("")
 
         if improvements:
             log.info("#")
             log.info("# Improvements:")
             log.info("#")
+            if args.produce_github_summary:
+                gh_summary.append(f"### Improvements")
+                gh_summary.append(
+                    f"<details><summary>{len(improvements)} improved tests:</summary>"
+                )
+                gh_summary.append("")
             for test in improvements:
                 print_regression(test)
+            if args.produce_github_summary:
+                gh_summary.append("</details>")
+                gh_summary.append("")
         if regressions_ignored:
             log.info("#")
-            log.info("# Regressions (filtered out by regression-filter):")
+            log.info("# Regressions (filtered out by --regression-filter):")
             log.info("#")
+            if args.produce_github_summary:
+                gh_summary.append(f"### Non-{filter_type_capitalized} Regressions")
+                gh_summary.append(
+                    f"<details><summary>{len(regressions_ignored)} non-{args.regression_filter_type} regressions:</summary>"
+                )
+                gh_summary.append("")
             for test in regressions_ignored:
                 print_regression(test)
+            if args.produce_github_summary:
+                gh_summary.append("</details>")
+                gh_summary.append("")
         if regressions_of_concern:
             log.warning("#")
             log.warning("# Regressions:")
             log.warning("#")
+            if args.produce_github_summary:
+                gh_summary.append(f"### {filter_type_capitalized} Regressions")
+                gh_summary.append(
+                    f"{len(regressions_of_concern)} {args.regression_filter_type} regressions. These regressions warrant a CI failure:"
+                )
+                gh_summary.append("")
             for test in regressions_of_concern:
                 print_regression(test, is_warning=True)
+            if args.produce_github_summary:
+                gh_summary.append("")
+
             if not args.dry_run:
-                exit(1)  # Exit 1 to trigger github test failure
+                if args.produce_github_summary:
+                    with open(options.github_summary_filename, "w") as f:
+                        f.write("\n".join(gh_summary))
+                exit(1)  # Exit 1 to trigger Github test failure
+
         log.info("No unexpected regressions found!")
+        if args.produce_github_summary:
+            gh_summary.append("No unexpected regressions found!")
+            with open(options.github_summary_filename, "w") as f:
+                f.write("\n".join(gh_summary))
+
     else:
         log.error("Unsupported operation: exiting.")
         exit(1)

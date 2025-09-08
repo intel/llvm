@@ -224,24 +224,24 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void iota(float start, float *ptr) {
-  size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
   ptr[id] = start + static_cast<float>(id);
 }
 
-void main() {
+int main() {
   sycl::device d;
   sycl::queue q{d};
   sycl::context ctxt = q.get_context();
 
   // Get a kernel bundle that contains the kernel "iota".
-  sycl::kernel_id iota = syclexp::get_kernel_id<iota>();
+  sycl::kernel_id iota_id = syclexp::get_kernel_id<iota>();
   auto exe_bndl =
-    sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {iota});
+    sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt, {iota_id});
 
   std::vector<std::byte> bytes;
-  for (auto& img: bundle) {
+  for (auto& img: exe_bndl) {
     // Search for the device image that contains "iota" for this device.
-    if (img.has_kernel(iota, dev)) {
+    if (img.has_kernel(iota_id, d)) {
       bytes = img.ext_oneapi_get_backend_content();
       break;
     }

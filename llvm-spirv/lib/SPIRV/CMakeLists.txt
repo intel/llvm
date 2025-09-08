@@ -39,6 +39,7 @@ set(SRC_LIST
   libSPIRV/SPIRVType.cpp
   libSPIRV/SPIRVValue.cpp
   libSPIRV/SPIRVError.cpp
+  libSPIRV/SPIRVFnVar.cpp
 )
 
 set(SPIRVLIB_LINK_COMPONENTS
@@ -59,7 +60,7 @@ if(SPIRV_BACKEND_FOUND)
   list(APPEND SPIRVLIB_LINK_COMPONENTS "SPIRVCodeGen")
 endif()
 
-  add_llvm_library(LLVMSPIRVLib
+add_llvm_library(LLVMSPIRVLib
   ${SRC_LIST}
   LINK_COMPONENTS
     ${SPIRVLIB_LINK_COMPONENTS}

@@ -1,0 +1,74 @@
+# Known OK:
+
+# https://github.com/intel/llvm/pull/18059 made property a no-op, so `FileCheck`
+# fails, but that isn't an actual ABI break.
+DiscardEvents/discard_events_accessors.cpp
+DiscardEvents/discard_events_using_assert_ndebug.cpp
+DiscardEvents/discard_events_usm.cpp
+DiscardEvents/invalid_event.cpp
+DiscardEvents/invalid_event_exceptions.cpp
+
+# https://github.com/intel/llvm/pull/18287
+# Throw exception instead of returning garbage
+Basic/info.cpp
+
+# https://github.com/intel/llvm/pull/19238 removed the device aspect
+# corresponding to the opportunistic_group support, in favor of it being merged
+# into the fragment_group aspect. Since this was a full refactoring and renaming
+# of an experimental extension, we accept the breaking change.
+NonUniformGroups/opportunistic_group.cpp
+
+# https://github.com/intel/llvm/pull/17442 changed the behavior of
+# ext_oneapi_can_compile to refer to whether a source-based kernel_bundle can
+# be used with compile rather than build. This makes the OpenCL kernel compiler
+# tests from the previous release fail as they expect that it returns true for
+# OpenCL-based kernel_bundles. The APIs are experimental, so this change in
+# behavior is allowed and is not considered an API/ABI break.
+KernelCompiler/opencl.cpp
+KernelCompiler/opencl_cache_eviction.cpp
+KernelCompiler/opencl_queries.cpp
+
+# Likely OK, but need author to provide justification, get approval/confirmation
+# from someone:
+
+# https://github.com/intel/llvm/pull/18565
+# This one should have probably be done in multiple PRs, first improving the
+# test's CHECKs and then making an actual functional change.
+#
+# Based on the title, I'd expect to see reduction in number of ur*retain/release
+# calls, but it only moves a few ur*release CHECKs, so I'll let the author
+# update this explanation.
+KernelAndProgram/disable-caching.cpp
+
+# https://github.com/intel/llvm/pull/18253 broke at least some of the pre-built
+# E2E binaries, but do we really need to provide backward compatibility for
+# binaries built with sanitizers?
+Sanitizer
+
+# https://github.com/intel/llvm/pull/17955, experimental extension
+AsyncAlloc/device/async_alloc_from_pool.cpp
+AsyncAlloc/device/async_alloc_zero_init.cpp
+AsyncAlloc/device/ooo_queue_async_alloc_from_pool.cpp
+
+# Need more investigation by the author:
+
+# https://github.com/intel/llvm/pull/18403 (pulldown, so probably offload-tools
+# team should be looking into this)
+DeviceImageDependencies/NewOffloadDriver/dynamic.cpp
+DeviceImageDependencies/NewOffloadDriver/free_function_kernels.cpp
+DeviceImageDependencies/NewOffloadDriver/math_device_lib.cpp
+DeviceImageDependencies/NewOffloadDriver/objects.cpp
+DeviceImageDependencies/NewOffloadDriver/singleDynamicLibrary.cpp
+NewOffloadDriver/aot-gpu.cpp
+NewOffloadDriver/buffer.cpp
+NewOffloadDriver/multisource.cpp
+NewOffloadDriver/spirv_device_obj_smoke.cpp
+NewOffloadDriver/split-per-source-main.cpp
+NewOffloadDriver/sycl-external-with-optional-features.cpp
+
+# https://github.com/intel/llvm/pull/18277
+InOrderEventsExt/get_last_event.cpp
+InorderQueue/in_order_ext_oneapi_submit_barrier.cpp
+
+# https://github.com/intel/llvm/pull/19328
+Adapters/interop-level-zero-buffer-ownership.cpp

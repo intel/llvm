@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cassert>     // for assert
+#include <functional>  // for hash
 #include <type_traits> // for add_pointer_t
 #include <utility>     // for forward
 
@@ -57,6 +58,23 @@ T createSyclObjFromImpl(
         ImplRef) {
   return createSyclObjFromImpl<T>(ImplRef.shared_from_this());
 }
+
+template <typename T, bool SupportedOnDevice = true> struct sycl_obj_hash {
+  size_t operator()(const T &Obj) const {
+    if constexpr (SupportedOnDevice) {
+      auto &Impl = sycl::detail::getSyclObjImpl(Obj);
+      return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
+    } else {
+#ifdef __SYCL_DEVICE_ONLY__
+      (void)Obj;
+      return 0;
+#else
+      auto &Impl = sycl::detail::getSyclObjImpl(Obj);
+      return std::hash<std::decay_t<decltype(Impl)>>{}(Impl);
+#endif
+    }
+  }
+};
 
 } // namespace detail
 } // namespace _V1

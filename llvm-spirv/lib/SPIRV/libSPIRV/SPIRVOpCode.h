@@ -245,15 +245,24 @@ inline bool isTypeOpCode(Op OpCode) {
          OC == OpTypeUntypedPointerKHR;
 }
 
+inline bool isFnVarSpecConstINTEL(Op OpCode) {
+  unsigned OC = OpCode;
+  return OC == OpSpecConstantArchitectureINTEL ||
+         OC == OpSpecConstantTargetINTEL ||
+         OC == OpSpecConstantCapabilitiesINTEL;
+}
+
 inline bool isSpecConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
-  return OpSpecConstantTrue <= OC && OC <= OpSpecConstantOp;
+  return (OpSpecConstantTrue <= OC && OC <= OpSpecConstantOp) ||
+         isFnVarSpecConstINTEL(OpCode);
 }
 
 inline bool isConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpConstantTrue <= OC && OC <= OpSpecConstantOp) || OC == OpUndef ||
-         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL;
+         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL ||
+         isSpecConstantOpCode(OpCode);
 }
 
 inline bool isModuleScopeAllowedOpCode(Op OpCode) {

@@ -189,6 +189,28 @@
 // RUN:   | FileCheck -check-prefix COMMA_FILE %s
 // COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
 
+/// Verify the arch value for the packager is populated with different
+/// scenarios for spir64_gen
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clangxx -fsycl -### -fsycl-targets=intel_gpu_bdw \
+// RUN: --offload-new-driver %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clang_cl -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clang_cl -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clang_cl -fsycl -### -fsycl-targets=intel_gpu_bdw \
+// RUN: --offload-new-driver %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// ARCH_CHECK: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
+
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          --cuda-gpu-arch=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s \

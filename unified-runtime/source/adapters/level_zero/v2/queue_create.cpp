@@ -94,6 +94,7 @@ ur_result_t urQueueCreateWithNativeHandle(
 
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
   ur_queue_flags_t flags = 0;
+  bool isNativeHandleImmediate = true;
 
   if (pProperties) {
     void *pNext = pProperties->pNext;
@@ -104,9 +105,28 @@ ur_result_t urQueueCreateWithNativeHandle(
         const ur_queue_properties_t *pUrProperties =
             reinterpret_cast<const ur_queue_properties_t *>(extendedProperties);
         flags = pUrProperties->flags;
+      } else if (extendedProperties->stype ==
+                 UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC) {
+        const ur_queue_native_desc_t *pUrNativeDesc =
+            reinterpret_cast<const ur_queue_native_desc_t *>(
+                extendedProperties);
+        if (pUrNativeDesc->pNativeData) {
+          // The pNativeData has value if if the native handle is an immediate
+          // command list.
+          isNativeHandleImmediate =
+              *(reinterpret_cast<int32_t *>((pUrNativeDesc->pNativeData))) == 1;
+        }
       }
       pNext = extendedProperties->pNext;
     }
+  }
+
+  if (!isNativeHandleImmediate) {
+    UR_LOG(ERR, "urQueueCreateWithNativeHandle: "
+                "Native handle is not an immediate command "
+                "list; only immediate command lists are "
+                "supported.");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   ze_bool_t isImmediate = false;

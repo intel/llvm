@@ -25,6 +25,7 @@ on:
     - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
+    - 'devops/compat_ci_exclude.sycl-rel-6_2'
     - 'unified-runtime/examples/**'
     - 'unified-runtime/scripts/**'
     - 'unified-runtime/test/**'

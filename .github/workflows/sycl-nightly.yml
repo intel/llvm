@@ -8,6 +8,21 @@ on:
 permissions: read-all
 
 jobs:
+  check_abi_symbols:
+    name: Check ABI symbols tests match release branch
+    runs-on: [Linux, build]
+    if: github.repository == 'intel/llvm'
+    container: ghcr.io/intel/llvm/ubuntu2404_build
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          sycl/test/abi
+    - run: |
+        git fetch --depth=1 origin sycl-rel-6_3
+        git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_linux.dump sycl/test/abi/sycl_symbols_linux-sycl-rel-6_3.dump
+        git diff --exit-code -I "^# RUN" origin/sycl-rel-6_3:sycl/test/abi/sycl_symbols_windows.dump sycl/test/abi/sycl_symbols_windows-sycl-rel-6_3.dump
+
   ubuntu2204_build:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
@@ -77,34 +92,46 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
 
+          - name: Preview mode on AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            extra_lit_opts: --param test-preview-mode=True
+
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
 
+          - name: Preview mode on NVIDIA/CUDA
+            runner: '["Linux", "cuda"]'
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: cuda:gpu
+            extra_lit_opts: --param test-preview-mode=True
+
           - name: Intel L0 Gen12 GPU
             runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
 
           - name: Intel L0 Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
 
           - name: Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
+
+          - name: Preview mode on Intel L0 Battlemage GPU
+            runner: '["Linux", "bmg"]'
+            target_devices: level_zero:gpu
+            extra_lit_opts: --param test-preview-mode=True
 
           - name: Intel L0 Arc A-Series GPU
             runner: '["Linux", "arc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
 
           - name: Intel OCL Gen12 GPU
             runner: '["Linux", "gen12"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
 
           - name: OCL CPU (AMD)
@@ -124,7 +151,6 @@ jobs:
 
           - name: Preview mode on SPR/PVC
             runner: '["Linux", "pvc"]'
-            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
             extra_lit_opts: --param test-preview-mode=True
 
@@ -132,7 +158,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
-      image_options: ${{ matrix.image_options }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
       extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"

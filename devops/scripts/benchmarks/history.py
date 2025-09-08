@@ -9,6 +9,7 @@ from pathlib import Path
 import socket
 
 from utils.result import Result, BenchmarkRun
+from utils.platform import get_platform_info
 from options import Compare, options
 from datetime import datetime, timezone, timedelta
 from utils.utils import run
@@ -182,6 +183,9 @@ class BenchmarkHistory:
         else:
             compute_runtime = "unknown"
 
+        # Get platform information
+        platform_info = get_platform_info()
+
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
@@ -190,6 +194,7 @@ class BenchmarkHistory:
             results=results,
             hostname=hostname,
             compute_runtime=compute_runtime,
+            platform=platform_info,
         )
 
     def save(self, save_name, results: list[Result]):
@@ -209,7 +214,7 @@ class BenchmarkHistory:
             timestamp = options.timestamp_override
         else:
             timestamp = (
-                datetime.now(tz=timezone.utc).strftime(self.TIMESTAMP_FORMAT)
+                datetime.now(tz=timezone.utc).strftime(options.TIMESTAMP_FORMAT)
                 if options.timestamp_override is None
                 else options.timestamp_override
             )
@@ -246,6 +251,7 @@ class BenchmarkHistory:
             git_hash="average",
             date=first_run.date,  # should this be different?
             hostname=first_run.hostname,
+            platform=first_run.platform,
         )
 
         return average_benchmark_run

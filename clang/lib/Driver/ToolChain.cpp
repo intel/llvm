@@ -617,6 +617,12 @@ Tool *ToolChain::getOffloadPackager() const {
   return OffloadPackager.get();
 }
 
+Tool *ToolChain::getOffloadPackagerExtract() const {
+  if (!OffloadPackagerExtract)
+    OffloadPackagerExtract.reset(new tools::OffloadPackagerExtract(*this));
+  return OffloadPackagerExtract.get();
+}
+
 Tool *ToolChain::getOffloadDeps() const {
   if (!OffloadDeps)
     OffloadDeps.reset(new tools::OffloadDeps(*this));
@@ -707,6 +713,8 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
     return getOffloadWrapper();
   case Action::OffloadPackagerJobClass:
     return getOffloadPackager();
+  case Action::OffloadPackagerExtractJobClass:
+    return getOffloadPackagerExtract();
 
   case Action::OffloadDepsJobClass:
     return getOffloadDeps();
@@ -1692,9 +1700,8 @@ void ToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-ToolChain::getDeviceLibs(
-    const ArgList &DriverArgs,
-    const Action::OffloadKind DeviceOffloadingKind) const {
+ToolChain::getDeviceLibs(const ArgList &DriverArgs,
+                         const Action::OffloadKind DeviceOffloadingKind) const {
   return {};
 }
 
@@ -1869,7 +1876,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         return false;
       };
       if (DeviceOffloadKind == Action::OFK_OpenMP &&
-          !SingleTargetTripleCount(options::OPT_fopenmp_targets_EQ)) {
+          !SingleTargetTripleCount(options::OPT_offload_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       }

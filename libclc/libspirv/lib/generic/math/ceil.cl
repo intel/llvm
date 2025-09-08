@@ -7,10 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/math/clc_ceil.h>
-#include <clc/opencl/clc.h>
 
 #define FUNCTION __spirv_ocl_ceil
-#define __CLC_FUNCTION(x) __clc_ceil
+#define __IMPL_FUNCTION(x) __clc_ceil
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/math/gentype.inc>

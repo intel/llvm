@@ -807,9 +807,6 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "202207L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
-
-  // TODO: Final number?
-  Builder.defineMacro("__cpp_type_aware_allocators", "202500L");
 }
 
 /// InitializeOpenCLFeatureTestMacros - Define OpenCL macros based on target
@@ -1548,10 +1545,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     // with TI set to the device TargetInfo.
     const llvm::Triple &Triple = TI.getTriple();
     const llvm::Triple::SubArchType SubArch = Triple.getSubArch();
-    if (Triple.isNVPTX() || Triple.isAMDGPU() ||
-        (Triple.isSPIR() && SubArch != llvm::Triple::SPIRSubArch_fpga) ||
-        Triple.isNativeCPU())
-      Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+
     // Enable generation of USM address spaces for FPGA.
     if (SubArch == llvm::Triple::SPIRSubArch_fpga) {
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");

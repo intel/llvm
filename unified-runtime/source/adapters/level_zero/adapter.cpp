@@ -506,72 +506,71 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   bool forceLoadedAdapter = ur_getenv("UR_ADAPTERS_FORCE_LOAD").has_value();
   if (!forceLoadedAdapter) {
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-        auto [useV2, reason] = shouldUseV2Adapter();
-        if (!useV2) {
-          UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
-          return;
-        }
+    auto [useV2, reason] = shouldUseV2Adapter();
+    if (!useV2) {
+      UR_LOG(INFO, "Skipping L0 V2 adapter: {}", reason);
+      return;
+    }
 #else
-        auto [useV1, reason] = shouldUseV1Adapter();
-        if (!useV1) {
-          UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
-          return;
-        }
+    auto [useV1, reason] = shouldUseV1Adapter();
+    if (!useV1) {
+      UR_LOG(INFO, "Skipping L0 V1 adapter: {}", reason);
+      return;
+    }
 #endif
   }
 
-      // Check if the user has enabled the default L0 SysMan initialization.
-      const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
-        const char *UrRet = std::getenv("UR_L0_ENABLE_ZESINIT_DEFAULT");
-        if (!UrRet)
-          return 0;
-        UserForcedSysManInit &= 2;
-        return std::atoi(UrRet);
-      }();
+  // Check if the user has enabled the default L0 SysMan initialization.
+  const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
+    const char *UrRet = std::getenv("UR_L0_ENABLE_ZESINIT_DEFAULT");
+    if (!UrRet)
+      return 0;
+    UserForcedSysManInit &= 2;
+    return std::atoi(UrRet);
+  }();
 
-      bool ZesInitNeeded = UrSysmanZesinitEnable && !UrSysManEnvInitEnabled;
-      // Unless the user has forced the SysMan init, we will check the device
-      // version to see if the zesInit is needed.
-      if (UserForcedSysManInit == 0 && checkDeviceIntelGPUIpVersionOrNewer(
-                                           0x05004000) == UR_RESULT_SUCCESS) {
-        if (UrSysManEnvInitEnabled) {
-          setEnvVar("ZES_ENABLE_SYSMAN", "0");
-        }
-        ZesInitNeeded = true;
-      }
-      if (ZesInitNeeded) {
+  bool ZesInitNeeded = UrSysmanZesinitEnable && !UrSysManEnvInitEnabled;
+  // Unless the user has forced the SysMan init, we will check the device
+  // version to see if the zesInit is needed.
+  if (UserForcedSysManInit == 0 &&
+      checkDeviceIntelGPUIpVersionOrNewer(0x05004000) == UR_RESULT_SUCCESS) {
+    if (UrSysManEnvInitEnabled) {
+      setEnvVar("ZES_ENABLE_SYSMAN", "0");
+    }
+    ZesInitNeeded = true;
+  }
+  if (ZesInitNeeded) {
 #ifdef UR_STATIC_LEVEL_ZERO
-        getDeviceByUUIdFunctionPtr = zesDriverGetDeviceByUuidExp;
-        getSysManDriversFunctionPtr = zesDriverGet;
-        sysManInitFunctionPtr = zesInit;
+    getDeviceByUUIdFunctionPtr = zesDriverGetDeviceByUuidExp;
+    getSysManDriversFunctionPtr = zesDriverGet;
+    sysManInitFunctionPtr = zesInit;
 #else
-        getDeviceByUUIdFunctionPtr = (zes_pfnDriverGetDeviceByUuidExp_t)
-            ur_loader::LibLoader::getFunctionPtr(processHandle,
-                                                 "zesDriverGetDeviceByUuidExp");
-        getSysManDriversFunctionPtr =
-            (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
-                processHandle, "zesDriverGet");
-        sysManInitFunctionPtr =
-            (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(processHandle,
-                                                                "zesInit");
+    getDeviceByUUIdFunctionPtr =
+        (zes_pfnDriverGetDeviceByUuidExp_t)ur_loader::LibLoader::getFunctionPtr(
+            processHandle, "zesDriverGetDeviceByUuidExp");
+    getSysManDriversFunctionPtr =
+        (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
+            processHandle, "zesDriverGet");
+    sysManInitFunctionPtr = (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
+        processHandle, "zesInit");
 #endif
-      }
-      if (getDeviceByUUIdFunctionPtr && getSysManDriversFunctionPtr &&
-          sysManInitFunctionPtr) {
-        ze_init_flags_t L0ZesInitFlags = 0;
-        UR_LOG(DEBUG, "\nzesInit with flags value of {}\n",
-               static_cast<int>(L0ZesInitFlags));
-        ZesResult = ZE_CALL_NOCHECK(sysManInitFunctionPtr, (L0ZesInitFlags));
-      } else {
-        ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
-      }
+  }
+  if (getDeviceByUUIdFunctionPtr && getSysManDriversFunctionPtr &&
+      sysManInitFunctionPtr) {
+    ze_init_flags_t L0ZesInitFlags = 0;
+    UR_LOG(DEBUG, "\nzesInit with flags value of {}\n",
+           static_cast<int>(L0ZesInitFlags));
+    ZesResult = ZE_CALL_NOCHECK(sysManInitFunctionPtr, (L0ZesInitFlags));
+  } else {
+    ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
+  }
 
-      ur_result_t err = initPlatforms(this, platforms, ZesResult);
-      if (err == UR_RESULT_SUCCESS) {
-        Platforms = std::move(platforms);
-      } else {
-        throw err;
-      }
+  ur_result_t err = initPlatforms(this, platforms, ZesResult);
+  if (err == UR_RESULT_SUCCESS) {
+    Platforms = std::move(platforms);
+  } else {
+    throw err;
+  }
 }
 
 void globalAdapterOnDemandCleanup() {

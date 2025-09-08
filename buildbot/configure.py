@@ -66,7 +66,6 @@ def do_configure(args, passthrough_args):
     xpti_enable_werror = "OFF"
     llvm_enable_zstd = "OFF"
     spirv_enable_dis = "OFF"
-    sycl_install_device_config_file = "OFF"
 
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
@@ -82,6 +81,11 @@ def do_configure(args, passthrough_args):
     libclc_enabled = args.cuda or args.hip or args.native_cpu
     if libclc_enabled:
         llvm_enable_projects += ";libclc"
+
+    # DeviceRTL uses -fuse-ld=lld, so enable lld.
+    if args.offload:
+        llvm_enable_projects += ";lld"
+        sycl_enabled_backends.append("offload")
 
     if args.cuda:
         llvm_targets_to_build += ";NVPTX"
@@ -137,9 +141,10 @@ def do_configure(args, passthrough_args):
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
     if args.ci_defaults:
-        print("#############################################")
-        print("# Default CI configuration will be applied. #")
-        print("#############################################")
+        if not args.print_cmake_flags:
+            print("#############################################")
+            print("# Default CI configuration will be applied. #")
+            print("#############################################")
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
@@ -161,7 +166,6 @@ def do_configure(args, passthrough_args):
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
             spirv_enable_dis = "ON"
-            sycl_install_device_config_file = "ON"
 
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
@@ -210,8 +214,13 @@ def do_configure(args, passthrough_args):
         "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
-        "-DSYCL_INSTALL_DEVICE_CONFIG_FILE={}".format(sycl_install_device_config_file),
     ]
+    if args.offload:
+        cmake_cmd.extend(
+            [
+                "-DUR_BUILD_ADAPTER_OFFLOAD=ON",
+            ]
+        )
 
     if libclc_enabled:
         cmake_cmd.extend(
@@ -255,20 +264,24 @@ def do_configure(args, passthrough_args):
         )
 
     cmake_cmd += passthrough_args
-    print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
-    try:
-        subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
-    except subprocess.CalledProcessError:
-        cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
-        if os.path.isfile(cmake_cache):
-            print(
-                "There is CMakeCache.txt at "
-                + cmake_cache
-                + " ... you can try to remove it and rerun."
-            )
-            print("Configure failed!")
-        return False
+    if args.print_cmake_flags:
+        print(" ".join(map(shlex.quote, cmake_cmd[1:])))
+    else:
+        print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
+
+        try:
+            subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
+        except subprocess.CalledProcessError:
+            cmake_cache = os.path.join(abs_obj_dir, "CMakeCache.txt")
+            if os.path.isfile(cmake_cache):
+                print(
+                    "There is CMakeCache.txt at "
+                    + cmake_cache
+                    + " ... you can try to remove it and rerun."
+                )
+                print("Configure failed!")
+            return False
 
     return True
 
@@ -337,6 +350,11 @@ def main():
         choices=["AMD", "NVIDIA"],
         default="AMD",
         help="choose hardware platform for HIP backend",
+    )
+    parser.add_argument(
+        "--offload",
+        action="store_true",
+        help="Enable UR liboffload adapter (experimental)",
     )
     parser.add_argument(
         "--level_zero_adapter_version",
@@ -411,9 +429,15 @@ def main():
     parser.add_argument(
         "--use-zstd", action="store_true", help="Force zstd linkage while building."
     )
+    parser.add_argument(
+        "--print-cmake-flags",
+        action="store_true",
+        help="Print the generated CMake flags to a single line on standard output and exit. Suppresses all other output and does not run the cmake command.",
+    )
     args, passthrough_args = parser.parse_known_intermixed_args()
 
-    print("args:{}".format(args))
+    if not args.print_cmake_flags:
+        print("args:{}".format(args))
 
     return do_configure(args, passthrough_args)
 

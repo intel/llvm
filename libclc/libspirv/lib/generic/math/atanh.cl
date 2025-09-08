@@ -10,6 +10,6 @@
 #include <libspirv/spirv.h>
 
 #define FUNCTION __spirv_ocl_atanh
-#define __CLC_FUNCTION(x) __clc_atanh
+#define __IMPL_FUNCTION(x) __clc_atanh
 #define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

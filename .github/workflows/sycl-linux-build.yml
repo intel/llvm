@@ -202,8 +202,7 @@ jobs:
           --ci-defaults ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DLLVM_INSTALL_UTILS=ON \
-          -DNATIVECPU_USE_OCK=Off
+          -DLLVM_INSTALL_UTILS=ON
     - name: Compile
       id: build
       # Emulate default value for manual dispatch as we've run out of available arguments.
@@ -296,6 +295,9 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
+        # This is required to perform the DeviceConfigFile consistency test, see
+        # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
+        cmake --install $GITHUB_WORKSPACE/build --component DeviceConfigFile
     - name: Additional Install for "--shared-libs" build
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}
       run: |

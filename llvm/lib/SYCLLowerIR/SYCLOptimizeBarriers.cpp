@@ -24,11 +24,6 @@
 //      loads from __spirv_BuiltIn GVs)
 //      – Unknown  : any other mayReadOrWriteMemory() (intrinsics, calls,
 //      generic addrspace)
-//    * At the same time, build a per-basic block summary of memory accesses:
-//      - None   : only private/constant or no accesses
-//      - Local  : at least one addrspace(3) access
-//      - Global : at least one addrspace(1/5/6) access (except loads from
-//      __spirv_BuiltIn globals)
 //      - Unknown: any other mayReadOrWriteMemory() instruction
 //
 // 2) **At Entry and At Exit Elimination**
@@ -45,10 +40,6 @@
 //         – Find the single barrier with the *widest* (ExecScope, MemScope)
 //         (ignore Unknown).
 //         – Erase all other barriers (they synchronize nothing).
-//       If BB summary == None (no local, global or unknown accesses):
-//         - Find the single barrier with the widest (ExecScope, MemScope)
-//           ignoring Unknown scopes.
-//         - Erase all other barriers since they synchronize nothing.
 //    b) *General Redundancy Check*
 //       Otherwise we walk the barriers in source order and compare each new
 //       barrier to the most recent one that is still alive:
@@ -1000,6 +991,11 @@ PreservedAnalyses SYCLOptimizeBarriersPass::run(Function &F,
     Changed |= eliminateBackToBackInBB(BarrierBBPair.first,
                                        BarrierBBPair.second, BBMemInfo);
 
+  // Refresh the list of barriers after back-to-back elimination.
+  BarrierPtrs.clear();
+  for (auto &Pair : BarriersByBB)
+    for (auto &BD : Pair.second)
+      BarrierPtrs.push_back(&BD);
   // TODO: hoist 2 barriers with the same predecessor BBs.
 
   // In the end eliminate or narrow barriers depending on DT and PDT analyses.

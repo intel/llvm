@@ -31,6 +31,9 @@
 // ===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+//
+// UNSUPPORTED: linux && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19662
 
 #include <sycl/detail/core.hpp>
 

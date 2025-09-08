@@ -1397,10 +1397,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   // Add vscale_range attribute if appropriate.
   llvm::StringMap<bool> FeatureMap;
-  bool IsArmStreaming = false;
+  auto IsArmStreaming = TargetInfo::ArmStreamingKind::NotStreaming;
   if (FD) {
     getContext().getFunctionFeatureMap(FeatureMap, FD);
-    IsArmStreaming = IsArmStreamingFunction(FD, true);
+    if (const auto *T = FD->getType()->getAs<FunctionProtoType>())
+      if (T->getAArch64SMEAttributes() &
+          FunctionType::SME_PStateSMCompatibleMask)
+        IsArmStreaming = TargetInfo::ArmStreamingKind::StreamingCompatible;
+
+    if (IsArmStreamingFunction(FD, true))
+      IsArmStreaming = TargetInfo::ArmStreamingKind::Streaming;
   }
   std::optional<std::pair<unsigned, unsigned>> VScaleRange =
       getContext().getTargetInfo().getVScaleRange(getLangOpts(), IsArmStreaming,
@@ -1934,7 +1940,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // Implicit copy-assignment gets the same special treatment as implicit
     // copy-constructors.
     emitImplicitAssignmentOperatorBody(Args);
-  } else if (getLangOpts().OpenCL && DeviceKernelAttr::isOpenCLSpelling(
+  } else if (getLangOpts().OpenCL &&
+             DeviceKernelAttr::isOpenCLSpelling(
                  FD->getAttr<DeviceKernelAttr>()) &&
              GD.getKernelReferenceKind() == KernelReferenceKind::Kernel) {
     CallArgList CallArgs;

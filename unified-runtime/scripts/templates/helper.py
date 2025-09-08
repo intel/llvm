@@ -987,17 +987,12 @@ def make_param_lines(
 
         words = []
         if "type*" in format:
-            ptname = tname + "*"
-            if type_traits.is_array(item["type"]):
-                ptname += "*"
-            words.append(ptname)
+            words.append(tname + "*")
             name = "p" + name
         elif "type" in format:
             words.append(tname)
         if "name" in format:
             words.append(name)
-        if type_traits.is_array(item["type"]) and "type" in format:
-            words.append(f"[{type_traits.get_array_length(item['type'])}]")
 
         prologue = " ".join(words)
         if "delim" in format:

@@ -136,7 +136,8 @@ public:
   using sycl::handler::impl;
 
   MockHandler(sycl::detail::queue_impl &Queue)
-      : sycl::handler(Queue.shared_from_this(), /*CallerNeedsEvent*/ true) {}
+      : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
+            Queue, /*CallerNeedsEvent*/ true)) {}
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
@@ -147,7 +148,7 @@ public:
           std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(impl->MKernelBundle),
           std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.data(), impl->MKernelNameBasedCachePtr,
+          CGH->MKernelName.data(), *impl->MDeviceKernelInfoPtr,
           std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
           impl->MCGType, {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
