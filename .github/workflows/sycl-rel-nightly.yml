@@ -180,3 +180,9 @@ jobs:
 
       sycl_windows_artifact: sycl_windows_release
       sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+
+  sign-release-builds:
+    needs: [ubuntu2204_build, build-win]
+    uses: ./.github/workflows/sycl-sign-release-builds.yml
+    permissions:
+      id-token: write

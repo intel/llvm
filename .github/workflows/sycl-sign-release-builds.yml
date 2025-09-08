@@ -1,0 +1,29 @@
+name: Sign Release Artifacts
+
+on:
+  workflow_call:
+
+permissions:
+  id-token: write
+
+jobs:
+  sign-artifact:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download artifact
+        run: |
+          gh run download ${{ github.run_id }} -R ${{ github.repository }} -n sycl_linux_release
+          gh run download ${{ github.run_id }} -R ${{ github.repository }} -n sycl_windows_release
+
+      - name: Sign with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v3.0.1
+        with:
+          inputs: sycl_linux.tar.gz sycl_windows.tar.gz
+
+      - name: Upload signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: sigstore_signatures
+          path: "*.sigstore.json"
