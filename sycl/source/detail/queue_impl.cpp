@@ -313,7 +313,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 #else
   handler Handler(shared_from_this(), SecondaryQueue, CallerNeedsEvent);
 #endif
-  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -325,6 +324,10 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     NestedCallsTracker tracker;
     CGF(Handler);
   }
+
+  // We might swap handlers as part of the CGH(Handler) call in the reduction
+  // case, so need to retrieve the handler_impl reference after that.
+  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
 
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
