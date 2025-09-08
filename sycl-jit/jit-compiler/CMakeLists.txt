@@ -12,12 +12,15 @@ endif()
 set(SYCL_JIT_RESOURCE_DEPS
   sycl-headers    # include/sycl
   clang           # lib/clang/N/include
-  libsycldevice   # lib/*.bc
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
   list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins) # lib/clc/*.bc
+endif()
+
+if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
 endif()
 
 add_custom_command(
