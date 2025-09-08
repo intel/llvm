@@ -71,56 +71,32 @@ def _write_output_to_file(
     # Define variable configuration based on whether we're archiving or not
     filename = "data_archive" if archive else "data"
 
+    # Emit unified canonical format for both local (JS wrapper) and remote (pure JSON)
+    output_data = json.loads(output.to_json())  # type: ignore
+    output_data["defaultCompareNames"] = output.default_compare_names
+
+    if options.flamegraph:
+        flamegraph_data = _get_flamegraph_data(html_path)
+        if flamegraph_data and flamegraph_data.get("runs"):
+            output_data["flamegraphData"] = flamegraph_data
+            log.debug(
+                f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to {filename}.*"
+            )
+
     if options.output_html == "local":
+        # Single JS assignment for canonical object
         data_path = os.path.join(html_path, f"{filename}.js")
         with open(data_path, "w") as f:
-            # For local format, we need to write JavaScript variable assignments
-            f.write("benchmarkRuns = ")
-            json.dump(json.loads(output.to_json())["runs"], f, indent=2)  # type: ignore
-            f.write(";\n\n")
-
-            f.write(f"benchmarkMetadata = ")
-            json.dump(json.loads(output.to_json())["metadata"], f, indent=2)  # type: ignore
-            f.write(";\n\n")
-
-            f.write(f"benchmarkTags = ")
-            json.dump(json.loads(output.to_json())["tags"], f, indent=2)  # type: ignore
-            f.write(";\n\n")
-
-            f.write(f"defaultCompareNames = ")
-            json.dump(output.default_compare_names, f, indent=2)
-            f.write(";\n\n")
-
-            # Add flamegraph data if it exists
-            if options.flamegraph:
-                flamegraph_data = _get_flamegraph_data(html_path)
-                if flamegraph_data and flamegraph_data.get("runs"):
-                    f.write("flamegraphData = ")
-                    json.dump(flamegraph_data, f, indent=2)
-                    f.write(";\n\n")
-                    log.debug(
-                        f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to data.js"
-                    )
-
-            if not archive:
-                log.info(f"See {html_path}/index.html for the results.")
+            f.write("benchmarkRuns = ")  # kept for backward references, but embed full object under runs
+            # Write one canonical object as benchmarkDataCanonical for clarity, but keep benchmarkRuns for compatibility
+            f.write("undefined; /* placeholder to preserve legacy global; use benchmarkDataCanonical instead */\n")
+            f.write("benchmarkDataCanonical = ")
+            json.dump(output_data, f, indent=2)
+            f.write(";\n")
+        if not archive:
+            log.info(f"See {html_path}/index.html for the results.")
     else:
-        # For remote format, we write a single JSON file
         data_path = os.path.join(html_path, f"{filename}.json")
-        output_data = json.loads(output.to_json())  # type: ignore
-
-        # Add defaultCompareNames to match the expected structure
-        output_data["defaultCompareNames"] = output.default_compare_names
-
-        if options.flamegraph:
-            flamegraph_data = _get_flamegraph_data(html_path)
-            if flamegraph_data and flamegraph_data.get("runs"):
-                # Use "flamegraphData" to match the expected variable name
-                output_data["flamegraphData"] = flamegraph_data
-                log.debug(
-                    f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to {filename}.json"
-                )
-
         with open(data_path, "w") as f:
             json.dump(output_data, f, indent=2)
         log.info(

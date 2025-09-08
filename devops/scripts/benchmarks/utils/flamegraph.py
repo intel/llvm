@@ -114,7 +114,6 @@ class FlameGraph:
             perf_data_path.stem.replace(".perf", "") + ".svg"
         )
         folded_file = perf_data_path.with_suffix(".folded")
-
         try:
             self._convert_perf_to_folded(perf_data_path, folded_file)
             self._generate_svg(folded_file, svg_file, bench_name)
