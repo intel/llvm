@@ -9,7 +9,6 @@
 #pragma once
 
 #include <detail/helpers.hpp>
-#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/aspects.hpp>
