@@ -1020,25 +1020,25 @@ static bool isValidSpecConstantId(const uint8_t *spirvCode, size_t spirvSize,
 
   // Parse instructions looking for OpSpecConstant* instructions
   size_t pos = headerSize;
-  const uint32_t *end = words + (spirvSize / sizeof(uint32_t));
+  const size_t totalWords = spirvSize / sizeof(uint32_t);
 
-  while (pos < (spirvSize / sizeof(uint32_t))) {
-    if (pos >= (end - words))
+  while (pos < totalWords) {
+    if (pos >= totalWords)
       break;
 
     uint32_t instruction = words[pos];
     uint16_t opcode = instruction & 0xFFFF;
     uint16_t length = instruction >> 16;
 
-    if (length == 0 || pos + length > (end - words)) {
+    if (length == 0 || pos + length > totalWords) {
       break; // Invalid instruction
     }
 
     // OpSpecConstantTrue = 48, OpSpecConstantFalse = 49, OpSpecConstant = 50
     // OpSpecConstantComposite = 51, OpSpecConstantOp = 52
     if (opcode >= 48 && opcode <= 52) {
-      if (length >=
-          3) { // All OpSpecConstant* instructions have at least 3 words
+      if (length >= 3) {
+        // All OpSpecConstant* instructions have at least 3 words
         // words[pos + 0] = instruction header
         // words[pos + 1] = result type id
         // words[pos + 2] = result id (this is the specialization constant id)
