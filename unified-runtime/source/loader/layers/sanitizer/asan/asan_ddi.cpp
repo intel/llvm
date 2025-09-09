@@ -520,10 +520,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
+  ur_result_t URes = getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       LaunchInfo.LocalWorkSize.data(), numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent));
+      numEventsInWaitList, phEventWaitList, phEvent);
+  if (URes != UR_RESULT_SUCCESS) {
+    if (URes == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+      UR_LOG_L(getContext()->logger, ERR,
+               "EnqueueKernelLaunch failed due to out of device memory, maybe "
+               "SLM is fully used.");
+    }
+    return URes;
+  }
 
   UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
