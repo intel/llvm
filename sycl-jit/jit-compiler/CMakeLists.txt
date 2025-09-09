@@ -56,7 +56,12 @@ endif()
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
   COMMAND
-  ${clang_exe} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+  # ${clang_exe}'s default target is not necessarily ${LLVM_HOST_TRIPLE}: when
+  # cross compiling, it will be whatever the host tools were configured with,
+  # and when building a cross compiler, it will be
+  # ${LLVM_DEFAULT_TARGET_TRIPLE}. Rather than special casing these, just always
+  # specify --target=${LLVM_HOST_TRIPLE}.
+  ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
   DEPENDS
   ${SYCL_JIT_RESOURCE_CPP}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
