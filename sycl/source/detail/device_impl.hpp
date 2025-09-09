@@ -1580,26 +1580,17 @@ public:
                  UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
-    else if constexpr (Aspect == aspect::ext_oneapi_clock_sub_group ||
-                       Aspect == aspect::ext_oneapi_clock_work_group ||
-                       Aspect == aspect::ext_oneapi_clock_device) {
-      detail::adapter_impl &Adapter = getAdapter();
-      uint32_t ipVersion = 0;
-      auto res = Adapter.call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
-          getHandleRef(), UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-          &ipVersion, nullptr);
-      if (res != UR_RESULT_SUCCESS)
-        return false;
-      std::string Feature;
-      if (Aspect == aspect::ext_oneapi_clock_sub_group) {
-        Feature = "__opencl_c_kernel_clock_scope_sub_group";
-      } else if (Aspect == aspect::ext_oneapi_clock_work_group) {
-        Feature = "__opencl_c_kernel_clock_scope_work_group";
-      } else if (Aspect == aspect::ext_oneapi_clock_device) {
-        Feature = "__opencl_c_kernel_clock_scope_device";
-      }
-      return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
-          std::string(Feature), ipVersion);
+    CASE(ext_oneapi_clock_sub_group) {
+      // Will be updated in a follow-up UR patch.
+      return false;
+    }
+    CASE(ext_oneapi_clock_work_group) {
+      // Will be updated in a follow-up UR patch.
+      return false;
+    }
+    CASE(ext_oneapi_clock_device) {
+      // Will be updated in a follow-up UR patch.
+      return false;
     }
     else {
       return false; // This device aspect has not been implemented yet.
