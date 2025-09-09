@@ -24,13 +24,13 @@ enum class clock_scope : int {
 };
 
 namespace detail {
-inline uint64_t clock_impl([[maybe_unused]] clock_scope scope) {
+template <clock_scope Scope> inline uint64_t clock_impl() {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__) || defined(__AMDGCN__)
   // Currently clock() is not supported on NVPTX and AMDGCN.
   return 0;
 #else
-  return __spirv_ReadClockKHR(static_cast<int>(scope));
+  return __spirv_ReadClockKHR(static_cast<int>(Scope));
 #endif // defined(__NVPTX__) || defined(__AMDGCN__)
 #else
   throw sycl::exception(
@@ -48,7 +48,7 @@ template <>
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_clock_device)]]
 #endif
 inline uint64_t clock<clock_scope::device>() {
-  return detail::clock_impl(clock_scope::device);
+  return detail::clock_impl<clock_scope::device>();
 }
 
 // Specialization for work-group.
@@ -57,7 +57,7 @@ template <>
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_clock_work_group)]]
 #endif
 inline uint64_t clock<clock_scope::work_group>() {
-  return detail::clock_impl(clock_scope::work_group);
+  return detail::clock_impl<clock_scope::work_group>();
 }
 
 // Specialization for sub-group.
@@ -66,7 +66,7 @@ template <>
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_clock_sub_group)]]
 #endif
 inline uint64_t clock<clock_scope::sub_group>() {
-  return detail::clock_impl(clock_scope::sub_group);
+  return detail::clock_impl<clock_scope::sub_group>();
 }
 
 } // namespace ext::oneapi::experimental
