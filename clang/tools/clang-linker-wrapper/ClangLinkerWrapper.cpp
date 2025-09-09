@@ -305,8 +305,9 @@ Expected<StringRef> writeOffloadFile(const OffloadFile &File,
       sys::path::stem(Binary.getMemoryBufferRef().getBufferIdentifier());
   StringRef Suffix = getImageKindName(Binary.getImageKind());
 
+  StringRef BinArch = (Binary.getArch() == "*") ? "any" : Binary.getArch();
   auto TempFileOrErr = createOutputFile(
-      Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch(),
+      Prefix + "-" + Binary.getTriple() + "-" + BinArch,
       HasSYCLOffloadKind ? getImageKindName(Binary.getImageKind()) : "o");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
