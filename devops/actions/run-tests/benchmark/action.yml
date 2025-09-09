@@ -285,7 +285,7 @@ runs:
         cd -
       done
   - name: Archive unitrace results
-    if: inputs.enable_unitrace == 'true'
+    if: inputs.enable_unitrace == 'true' && always()
     uses: actions/upload-artifact@v4
     with:
       name: Unitrace results ${{ github.run_id }} (${{ env.SAVE_NAME }})
