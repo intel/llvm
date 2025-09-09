@@ -208,7 +208,8 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        ${{ inputs.enable_unitrace == 'true' && '--unitrace --flamegraph inclusive' || '' }}
+        --flamegraph inclusive \
+        ${{ inputs.enable_unitrace == 'true' && '--unitrace inclusive' || '' }}
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
@@ -283,6 +284,12 @@ runs:
           --dry-run
         cd -
       done
+  - name: Archive unitrace results
+    if: inputs.enable_unitrace == 'true'
+    uses: actions/upload-artifact@v4
+    with:
+      name: Unitrace results ${{ github.run_id }} (${{ env.SAVE_NAME }})
+      path: ./llvm-ci-perf-results/traces
   - name: Archive benchmark results
     if: always()
     uses: actions/upload-artifact@v4

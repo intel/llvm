@@ -153,8 +153,9 @@ class Benchmark(ABC):
             if extra_trace_opt is None:
                 extra_trace_opt = []
             unitrace_output, command = get_unitrace().setup(
-                self.name(), command, extra_trace_opt
+                self.name().replace(':', '='), command, extra_trace_opt
             )
+            # ':' is a problematic character for Github actions/artifacts
             log.debug(f"Unitrace output: {unitrace_output}")
             log.debug(f"Unitrace command: {' '.join(command)}")
 
