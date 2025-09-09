@@ -19,14 +19,10 @@ DeviceKernelInfo::DeviceKernelInfo(const CompileTimeKernelInfoTy &Info)
       Name(Info.Name.data())
 #endif
 {
-  init(Name.data());
-}
-
-void DeviceKernelInfo::init(KernelNameStrRefT KernelName) {
-  auto &PM = detail::ProgramManager::getInstance();
-  MUsesAssert = PM.kernelUsesAssert(KernelName);
-  MImplicitLocalArgPos = PM.kernelImplicitLocalArgPos(KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Non-legacy implementation either fills out the data during image
+  // registration after this constructor is called, or uses default values
+  // if this instance of DeviceKernelInfo corresponds to an interop kernel.
   MInitialized.store(true);
 #endif
 }
@@ -36,9 +32,19 @@ void DeviceKernelInfo::initIfEmpty(const CompileTimeKernelInfoTy &Info) {
   if (MInitialized.load())
     return;
 
-  CompileTimeKernelInfoTy::operator=(Info);
-  Name = Info.Name.data();
-  init(Name.data());
+  // If this function is called, then this is a default initialized
+  // device kernel info created from older headers and stored in global handler.
+  // In that case, fetch the proper instance from program manager and copy its
+  // values.
+  auto &PM = detail::ProgramManager::getInstance();
+  DeviceKernelInfo &PMDeviceKernelInfo =
+      PM.getDeviceKernelInfo(KernelNameStrRefT(Info.Name));
+
+  PMDeviceKernelInfo.CompileTimeKernelInfoTy::operator=(Info);
+  PMDeviceKernelInfo.Name = Info.Name.data();
+
+  MUsesAssert = PMDeviceKernelInfo.MUsesAssert;
+  MImplicitLocalArgPos = PMDeviceKernelInfo.MImplicitLocalArgPos;
 }
 #endif
 
@@ -78,18 +84,25 @@ FastKernelSubcacheT &DeviceKernelInfo::getKernelSubcache() {
   assertInitialized();
   return MFastKernelSubcache;
 }
-bool DeviceKernelInfo::usesAssert() {
+bool DeviceKernelInfo::usesAssert() const {
   assertInitialized();
   return MUsesAssert;
 }
-const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() {
+const std::optional<int> &DeviceKernelInfo::getImplicitLocalArgPos() const {
   assertInitialized();
   return MImplicitLocalArgPos;
 }
 
+void DeviceKernelInfo::setUsesAssert() { MUsesAssert = true; }
+
+void DeviceKernelInfo::setImplicitLocalArgPos(int Pos) {
+  assert(!MImplicitLocalArgPos.has_value() || MImplicitLocalArgPos == Pos);
+  MImplicitLocalArgPos = Pos;
+}
+
 bool DeviceKernelInfo::isCompileTimeInfoSet() const { return KernelSize != 0; }
 
-void DeviceKernelInfo::assertInitialized() {
+void DeviceKernelInfo::assertInitialized() const {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   assert(MInitialized.load() && "Data needs to be initialized before use");
 #endif

@@ -365,19 +365,13 @@ public:
   ProgramManager();
   ~ProgramManager() = default;
 
-  template <typename NameT>
-  bool kernelUsesAssert(const NameT &KernelName) const {
-    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-  }
-
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
-  std::optional<int>
-  kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const;
+  void cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img);
+  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
-  DeviceKernelInfo &
-  getOrCreateDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
-  DeviceKernelInfo &getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName);
+  DeviceKernelInfo &getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info);
+  DeviceKernelInfo &getDeviceKernelInfo(KernelNameStrRefT KernelName);
 
   std::set<const RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -405,12 +399,6 @@ private:
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
-
-  /// Add info on kernels using assert into cache
-  void cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img);
-
-  /// Add info on kernels using local arg into cache
-  void cacheKernelImplicitLocalArg(const RTDeviceBinaryImage &Img);
 
   std::set<const RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
@@ -517,14 +505,6 @@ protected:
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
   RTDeviceBinaryImageUPtr m_SpvFileImage;
-
-  // std::less<> is a transparent comparator that enabled comparison between
-  // different types without temporary key_type object creation. This includes
-  // standard overloads, such as comparison between std::string and
-  // std::string_view or just char*.
-  using KernelUsesAssertSet = std::set<KernelNameStrT, std::less<>>;
-  KernelUsesAssertSet m_KernelUsesAssert;
-  std::unordered_map<KernelNameStrT, int> m_KernelImplicitLocalArgPos;
 
   // Map for storing device kernel information. Runtime lookup should be avoided
   // by caching the pointers when possible.

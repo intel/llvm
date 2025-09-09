@@ -240,10 +240,9 @@ public:
   std::string_view getName() const;
 
   DeviceKernelInfo &getDeviceKernelInfo() {
-    return MIsInterop
-               ? MInteropDeviceKernelInfo
-               : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-                     KernelNameStrT(getName()));
+    return MIsInterop ? MInteropDeviceKernelInfo
+                      : ProgramManager::getInstance().getDeviceKernelInfo(
+                            KernelNameStrT(getName()));
   }
 
 private:
