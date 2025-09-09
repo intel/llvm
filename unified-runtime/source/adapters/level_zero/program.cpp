@@ -1018,7 +1018,8 @@ static bool isValidSpecConstantId(const uint8_t *spirvCode, size_t spirvSize,
     return false;
   }
 
-  // Parse instructions looking for OpSpecConstant* instructions
+  // Parse instructions looking for OpDecorate instructions with SpecId
+  // decoration
   size_t pos = headerSize;
   const size_t totalWords = spirvSize / sizeof(uint32_t);
 
@@ -1034,16 +1035,14 @@ static bool isValidSpecConstantId(const uint8_t *spirvCode, size_t spirvSize,
       break; // Invalid instruction
     }
 
-    // OpSpecConstantTrue = 48, OpSpecConstantFalse = 49, OpSpecConstant = 50
-    // OpSpecConstantComposite = 51, OpSpecConstantOp = 52
-    if (opcode >= 48 && opcode <= 52) {
-      if (length >= 3) {
-        // All OpSpecConstant* instructions have at least 3 words
-        // words[pos + 0] = instruction header
-        // words[pos + 1] = result type id
-        // words[pos + 2] = result id (this is the specialization constant id)
-        uint32_t resultId = words[pos + 2];
-        if (resultId == specId) {
+    // OpDecorate = 71, and we need decoration SpecId = 1
+    if (opcode == 71 && length >= 4) {
+      // OpDecorate with at least target_id,
+      // decoration, and extra operand
+      uint32_t decoration = words[pos + 2];
+      if (decoration == 1) { // SpecId decoration
+        uint32_t actualSpecId = words[pos + 3];
+        if (actualSpecId == specId) {
           return true;
         }
       }
