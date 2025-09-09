@@ -1831,10 +1831,11 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto Result =
+  auto [Iter, Inserted] =
       m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name.data()}, Info);
-  Result.first->second.setCompileTimeInfoIfNeeded(Info);
-  return Result.first->second;
+  if (!Inserted)
+    Iter->second.setCompileTimeInfoIfNeeded(Info);
+  return Iter->second;
 }
 
 DeviceKernelInfo &
