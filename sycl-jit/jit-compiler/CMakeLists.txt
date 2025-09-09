@@ -36,11 +36,14 @@ add_custom_command(
 if (WIN32)
   set(clang_exe ${CMAKE_BINARY_DIR}/bin/clang-cl.exe)
   set(SYCL_JIT_RESOURCE_CXX_FLAGS /O2 /std:c++17 /W0)
-  if (CMAKE_BUILD_TYPE MATCHES "Debug")
-    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MDd)
-  else()
-    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MD)
+
+  # Determine if we should use static (/MT) or dynamic (/MD) runtime
+  set(USE_STATIC_RUNTIME FALSE)
+  if(CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+    set(USE_STATIC_RUNTIME TRUE)
   endif()
+
+  list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /M$<IF:${USE_STATIC_RUNTIME},T,D>$<$<CONFIG:Debug>:d>)
 else()
   get_host_tool_path( clang CLANG clang_exe clang_target )
   set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
