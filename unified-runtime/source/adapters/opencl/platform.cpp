@@ -30,6 +30,35 @@ static cl_int mapURPlatformInfoToCL(ur_platform_info_t URPropName) {
   }
 }
 
+static bool isBannedOpenCLPlatform(cl_platform_id platform) {
+  size_t nameSize = 0;
+  cl_int res =
+      clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &nameSize);
+  if (res != CL_SUCCESS || nameSize == 0) {
+    return false;
+  }
+
+  std::string name(nameSize, '\0');
+  res = clGetPlatformInfo(platform, CL_PLATFORM_NAME, nameSize, name.data(),
+                          nullptr);
+  if (res != CL_SUCCESS) {
+    return false;
+  }
+
+  // The NVIDIA OpenCL platform is currently not compatible with DPC++
+  // since it is only 1.2 but gets selected by default in many systems.
+  // There is also no support on the PTX backend for OpenCL consumption.
+  //
+  // There is also no support for the AMD HSA backend for OpenCL consumption,
+  // as well as reported problems with device queries, so AMD OpenCL support
+  // is disabled as well.
+  bool isBanned =
+      name.find("NVIDIA CUDA") != std::string::npos ||
+      name.find("AMD Accelerated Parallel Processing") != std::string::npos;
+
+  return isBanned;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
@@ -102,14 +131,21 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
                              CLPlatforms.data(), nullptr);
       CL_RETURN_ON_FAILURE(Res);
 
+      // Filter out banned platforms
+      std::vector<cl_platform_id> FilteredPlatforms;
+      for (uint32_t i = 0; i < NumPlatforms; i++) {
+        if (!isBannedOpenCLPlatform(CLPlatforms[i])) {
+          FilteredPlatforms.push_back(CLPlatforms[i]);
+        }
+      }
+
       try {
-        for (uint32_t i = 0; i < NumPlatforms; i++) {
-          auto URPlatform =
-              std::make_unique<ur_platform_handle_t_>(CLPlatforms[i]);
+        for (auto &Platform : FilteredPlatforms) {
+          auto URPlatform = std::make_unique<ur_platform_handle_t_>(Platform);
           UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
           Adapter->URPlatforms.emplace_back(URPlatform.release());
         }
-        Adapter->NumPlatforms = NumPlatforms;
+        Adapter->NumPlatforms = static_cast<uint32_t>(FilteredPlatforms.size());
       } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
       } catch (...) {
