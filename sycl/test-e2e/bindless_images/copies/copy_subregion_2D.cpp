@@ -5,7 +5,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env SYCL_UR_TRACE=-1 ZE_DEBUG=1 %{run} %t.out
 
 #include <iostream>
 #include <numeric>
