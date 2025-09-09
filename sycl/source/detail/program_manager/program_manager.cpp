@@ -1106,7 +1106,7 @@ FastKernelCacheValPtr ProgramManager::getOrCreateKernel(
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // Simplify this once `DeviceKernelInfo.Name`'s type is known.
-// Using `decltype(auto)` insteado of just `auto` to get reference when
+// Using `decltype(auto)` instead of just `auto` to get reference when
 // possible.
 #endif
   decltype(auto) KernelName = KernelNameStrRefT{DeviceKernelInfo.Name};
