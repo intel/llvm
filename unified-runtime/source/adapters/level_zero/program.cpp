@@ -994,6 +994,67 @@ ur_result_t urProgramCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
+// Helper function to validate if a specialization constant ID exists in SPIR-V
+static bool isValidSpecConstantId(const uint8_t *spirvCode, size_t spirvSize,
+                                  uint32_t specId) {
+  if (!spirvCode || spirvSize < 20) {
+    return false; // Invalid SPIR-V
+  }
+
+  // Check SPIR-V magic number
+  const uint32_t *words = reinterpret_cast<const uint32_t *>(spirvCode);
+  if (words[0] != 0x07230203) {
+    return false; // Invalid SPIR-V magic number
+  }
+
+  // Parse SPIR-V header
+  // words[0] = magic number
+  // words[1] = version
+  // words[2] = generator magic number
+  // words[3] = bound on all ids
+  // words[4] = schema (0)
+  size_t headerSize = 5;
+  if (spirvSize < headerSize * sizeof(uint32_t)) {
+    return false;
+  }
+
+  // Parse instructions looking for OpSpecConstant* instructions
+  size_t pos = headerSize;
+  const uint32_t *end = words + (spirvSize / sizeof(uint32_t));
+
+  while (pos < (spirvSize / sizeof(uint32_t))) {
+    if (pos >= (end - words))
+      break;
+
+    uint32_t instruction = words[pos];
+    uint16_t opcode = instruction & 0xFFFF;
+    uint16_t length = instruction >> 16;
+
+    if (length == 0 || pos + length > (end - words)) {
+      break; // Invalid instruction
+    }
+
+    // OpSpecConstantTrue = 48, OpSpecConstantFalse = 49, OpSpecConstant = 50
+    // OpSpecConstantComposite = 51, OpSpecConstantOp = 52
+    if (opcode >= 48 && opcode <= 52) {
+      if (length >=
+          3) { // All OpSpecConstant* instructions have at least 3 words
+        // words[pos + 0] = instruction header
+        // words[pos + 1] = result type id
+        // words[pos + 2] = result id (this is the specialization constant id)
+        uint32_t resultId = words[pos + 2];
+        if (resultId == specId) {
+          return true;
+        }
+      }
+    }
+
+    pos += length;
+  }
+
+  return false;
+}
+
 ur_result_t urProgramSetSpecializationConstants(
     /// [in] handle of the Program object
     ur_program_handle_t Program,
@@ -1003,6 +1064,17 @@ ur_result_t urProgramSetSpecializationConstants(
     /// descriptions
     const ur_specialization_constant_info_t *SpecConstants) {
   std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
+
+  // Validate each specialization constant ID against the SPIR-V program
+  for (uint32_t SpecIt = 0; SpecIt < Count; SpecIt++) {
+    uint32_t SpecId = SpecConstants[SpecIt].id;
+
+    // Validate the spec constant ID exists in the SPIR-V binary
+    if (!isValidSpecConstantId(Program->getCode(), Program->getCodeSize(),
+                               SpecId)) {
+      return UR_RESULT_ERROR_INVALID_SPEC_ID;
+    }
+  }
 
   // Remember the value of this specialization constant until the program is
   // built.  Note that we only save the pointer to the buffer that contains the
