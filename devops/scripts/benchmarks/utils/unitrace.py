@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import os
 import shutil
-import tarfile
 
 from options import options
 from utils.utils import (
@@ -67,7 +66,9 @@ class Unitrace:
         if options.results_directory_override == None:
             self.traces_dir = os.path.join(options.workdir, "results", "traces")
         else:
-            self.traces_dir = os.path.join(options.results_directory_override, "results", "traces")
+            self.traces_dir = os.path.join(
+                options.results_directory_override, "results", "traces"
+            )
 
     def _prune_unitrace_dirs(self, res_dir: str, FILECNT: int = 10):
         """Keep only the last FILECNT files in the traces directory."""

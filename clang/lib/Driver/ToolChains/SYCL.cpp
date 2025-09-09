@@ -13,6 +13,7 @@
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
 
 using namespace clang::driver;
@@ -55,7 +56,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // If -fsycl-libspirv-path= is specified, try to use that path directly.
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_libspirv_path_EQ)) {
-    if (llvm::sys::fs::exists(A->getValue()))
+    if (D.getVFS().exists(A->getValue()))
       return A->getValue();
 
     return nullptr;
@@ -68,7 +69,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     SmallString<128> LibraryPath(Path);
     llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
-    if (llvm::sys::fs::exists(LibraryPath))
+    if (D.getVFS().exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;
@@ -248,7 +249,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -290,7 +292,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl");
+             Device.starts_with("lnl") || Device.starts_with("ptl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {

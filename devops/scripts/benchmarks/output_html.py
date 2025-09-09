@@ -87,9 +87,11 @@ def _write_output_to_file(
         # Single JS assignment for canonical object
         data_path = os.path.join(html_path, f"{filename}.js")
         with open(data_path, "w") as f:
-            f.write("benchmarkRuns = ")  # kept for backward references, but embed full object under runs
-            # Write one canonical object as benchmarkDataCanonical for clarity, but keep benchmarkRuns for compatibility
-            f.write("undefined; /* placeholder to preserve legacy global; use benchmarkDataCanonical instead */\n")
+            # kept for backward references, but embed full object under runs
+            f.write("benchmarkRuns = ")
+            f.write(
+                "undefined; /* placeholder to preserve legacy global; use benchmarkDataCanonical instead */\n"
+            )
             f.write("benchmarkDataCanonical = ")
             json.dump(output_data, f, indent=2)
             f.write(";\n")

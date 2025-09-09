@@ -1822,6 +1822,7 @@ ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
 
 DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
     const CompileTimeKernelInfoTy &Info) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto Result =
       m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name.data()}, Info);
   Result.first->second.setCompileTimeInfoIfNeeded(Info);
@@ -1830,6 +1831,7 @@ DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
 
 DeviceKernelInfo &
 ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
   auto Result = m_DeviceKernelInfoMap.try_emplace(
       KernelName, CompileTimeKernelInfoTy{std::string_view(KernelName)});
   return Result.first->second;
@@ -2136,6 +2138,9 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     return;
   // Acquire lock to read and modify maps for kernel bundles
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+  // Acquire lock to erase DeviceKernelInfoMap
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
 
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -3888,10 +3893,5 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
-  // Partial cleanup is not necessary at shutdown
-#ifndef _WIN32
-  if (!sycl::detail::GlobalHandler::instance().isOkToDefer())
-    return;
   sycl::detail::ProgramManager::getInstance().removeImages(desc);
-#endif
 }
