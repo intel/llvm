@@ -238,6 +238,10 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
+  DeviceKernelInfo *getDeviceKernelInfoPtr() const {
+    return MDeviceKernelInfo.get();
+  }
+
 private:
   Managed<ur_kernel_handle_t> MKernel;
   const std::shared_ptr<context_impl> MContext;
@@ -250,6 +254,17 @@ private:
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
+
+  using DeviceKernelInfoDeleterTy = void (*)(DeviceKernelInfo *);
+  using DeviceKernelInfoUniquePtr =
+      std::unique_ptr<DeviceKernelInfo, DeviceKernelInfoDeleterTy>;
+  DeviceKernelInfoUniquePtr MDeviceKernelInfo;
+
+  static void DeviceKernelInfoDeleter(DeviceKernelInfo *Ptr) { delete Ptr; }
+
+  static void noopDeviceKernelInfoDeleter(DeviceKernelInfo *) {
+    // do nothing
+  }
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
