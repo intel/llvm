@@ -9,12 +9,18 @@ else()
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
-# TODO: libdevice
-set(SYCL_JIT_RESOURCE_DEPS sycl-headers clang ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
+set(SYCL_JIT_RESOURCE_DEPS
+  sycl-headers    # include/sycl
+  clang           # lib/clang/N/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins)
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins) # lib/clc/*.bc
+endif()
+
+if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
 endif()
 
 add_custom_command(
@@ -30,11 +36,14 @@ add_custom_command(
 if (WIN32)
   set(clang_exe ${CMAKE_BINARY_DIR}/bin/clang-cl.exe)
   set(SYCL_JIT_RESOURCE_CXX_FLAGS /O2 /std:c++17 /W0)
-  if (CMAKE_BUILD_TYPE MATCHES "Debug")
-    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MDd)
-  else()
-    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /MD)
+
+  # Determine if we should use static (/MT) or dynamic (/MD) runtime
+  set(USE_STATIC_RUNTIME 0)
+  if(CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+    set(USE_STATIC_RUNTIME 1)
   endif()
+
+  list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /M$<IF:${USE_STATIC_RUNTIME},T,D>$<$<CONFIG:Debug>:d>)
 else()
   get_host_tool_path( clang CLANG clang_exe clang_target )
   set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
@@ -50,7 +59,12 @@ endif()
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
   COMMAND
-  ${clang_exe} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+  # ${clang_exe}'s default target is not necessarily ${LLVM_HOST_TRIPLE}: when
+  # cross compiling, it will be whatever the host tools were configured with,
+  # and when building a cross compiler, it will be
+  # ${LLVM_DEFAULT_TARGET_TRIPLE}. Rather than special casing these, just always
+  # specify --target=${LLVM_HOST_TRIPLE}.
+  ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
   DEPENDS
   ${SYCL_JIT_RESOURCE_CPP}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
