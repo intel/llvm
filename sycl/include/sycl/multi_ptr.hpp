@@ -12,8 +12,9 @@
 #include <sycl/aliases.hpp>       // for half
 #include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/detail/type_traits.hpp>        // for const_if_const_AS
-#include <sycl/half_type.hpp>                 // for BIsRepresentationT
+#include <sycl/detail/fwd/multi_ptr.hpp>
+#include <sycl/detail/type_traits.hpp> // for const_if_const_AS
+#include <sycl/half_type.hpp>          // for BIsRepresentationT
 
 #include <cstddef>     // for nullptr_t, ptrdiff_t, size_t
 #include <iterator>    // for random_access_iterator_tag
