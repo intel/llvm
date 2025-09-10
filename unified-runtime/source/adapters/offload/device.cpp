@@ -71,6 +71,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PLATFORM:
     return ReturnValue(hDevice->Platform);
     break;
+  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
+    return ReturnValue((std::to_string(OL_VERSION_MAJOR) + "." +
+                       std::to_string(OL_VERSION_MINOR) + "." +
+                       std::to_string(OL_VERSION_PATCH)).c_str());
+  case UR_DEVICE_INFO_PROFILE:
+    // This doesn't make sense for non-opencl devices, copy other backends and just return FULL_PROFILE
+    return ReturnValue("FULL_PROFILE");
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
   case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:
     olInfo = OL_DEVICE_INFO_NUM_COMPUTE_UNITS;
@@ -160,7 +167,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
-    // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
+    // OL dimensions are uint32_t while UR is size_t, so they need to be
+    // mapped
     if (pPropSizeRet) {
       *pPropSizeRet = sizeof(size_t) * 3;
     }
@@ -189,6 +197,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_ESIMD_SUPPORT:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
