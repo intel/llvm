@@ -189,6 +189,7 @@ TEST(SubDevices, BuildProgramForSubSubDevices) {
   buildCallCount = 0;
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
       *sycl::detail::getSyclObjImpl(Ctx), SubSub1,
+      sycl::detail::KernelInfo<TestKernel>::getName());
   sycl::detail::ProgramManager::getInstance().getBuiltURProgram(
       *sycl::detail::getSyclObjImpl(Ctx), SubSub2,
       sycl::detail::KernelInfo<TestKernel>::getName());
