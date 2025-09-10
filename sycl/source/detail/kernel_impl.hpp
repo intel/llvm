@@ -254,8 +254,8 @@ private:
   mutable std::string MName;
 
   // For the interop kernel we create the DeviceKernelInfo
-  // as part of the kernel_impl
-  // For regular kernel we get DeviceKernelInfo from the ProgramManager
+  // as part of the kernel_impl.
+  // For regular kernel we get DeviceKernelInfo from the ProgramManager.
   DeviceKernelInfo MInteropDeviceKernelInfoHolder;
   DeviceKernelInfo &MDeviceKernelInfo;
 
