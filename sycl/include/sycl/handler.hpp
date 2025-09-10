@@ -1460,12 +1460,13 @@ private:
       setNDRangeDescriptor(std::move(params)...);
     }
 
-    setDeviceKernelInfo(std::move(Kernel));
-    if (lambdaAndKernelHaveEqualName<NameT>()) {
-      StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    } else {
-      extractArgsAndReqs();
+    MKernel = detail::getSyclObjImpl(Kernel);
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "the kernel name must match the name of the lambda");
     }
+    StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     processProperties<Info.IsESIMD, PropertiesT>(Props);
 #endif
   }
@@ -1919,12 +1920,15 @@ public:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
-    setDeviceKernelInfo(std::move(Kernel));
-    if (lambdaAndKernelHaveEqualName<NameT>()) {
-      StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
-    } else {
-      extractArgsAndReqs();
+
+    MKernel = detail::getSyclObjImpl(Kernel);
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "the kernel name must match the name of the lambda");
     }
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
+
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
