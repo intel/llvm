@@ -3687,7 +3687,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return Adapter
         .call_nocheck<UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
-            OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
+            OptWaitValue.has_value(), WaitValue, RawEvents.size(),
+            RawEvents.data(), Event);
   }
   case CGType::SemaphoreSignal: {
     assert(MQueue &&
@@ -3700,7 +3701,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return Adapter
         .call_nocheck<UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
-            OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
+            OptSignalValue.has_value(), SignalValue, RawEvents.size(),
+            RawEvents.data(), Event);
   }
   case CGType::AsyncAlloc: {
     // NO-OP. Async alloc calls adapter immediately in order to return a valid

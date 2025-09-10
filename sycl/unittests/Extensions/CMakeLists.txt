@@ -26,6 +26,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   USMPrefetch.cpp
 )
 
+add_subdirectory(BindlessImages)
 add_subdirectory(CommandGraph)
 add_subdirectory(VirtualFunctions)
 add_subdirectory(VirtualMemory)
