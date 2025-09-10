@@ -341,7 +341,7 @@ public:
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+      return ExecKernelA->getKernelName() == ExecKernelB->getKernelName();
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
@@ -543,7 +543,7 @@ private:
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      Stream << "NAME = " << Kernel->getKernelName() << "\\n";
       if (Verbose) {
         Stream << "ARGS = \\n";
         for (size_t i = 0; i < Kernel->MArgs.size(); i++) {

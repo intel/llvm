@@ -200,7 +200,6 @@ public:
 
   FastKernelCacheValPtr getOrCreateKernel(context_impl &ContextImpl,
                                           device_impl &DeviceImpl,
-                                          KernelNameStrRefT KernelName,
                                           DeviceKernelInfo &DeviceKernelInfo,
                                           const NDRDescT &NDRDesc = {});
 
