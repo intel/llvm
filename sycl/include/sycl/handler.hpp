@@ -491,6 +491,25 @@ private:
                             "a single kernel or explicit memory operation.");
   }
 
+  template <class Kernel> void setDeviceKernelInfo(void *KernelFuncPtr) {
+    constexpr auto Info = detail::CompileTimeKernelInfo<Kernel>;
+    MKernelName = Info.Name;
+    // TODO support ESIMD in no-integration-header case too.
+    setKernelInfo(KernelFuncPtr, Info.NumParams, Info.ParamDescGetter,
+                  Info.IsESIMD, Info.HasSpecialCaptures);
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Kernel>());
+    setType(detail::CGType::Kernel);
+  }
+
+  void setDeviceKernelInfo(kernel &&Kernel) {
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    MKernelName = getKernelName();
+    setType(detail::CGType::Kernel);
+
+    // If any extra actions are added here make sure that logic around
+    // `lambdaAndKernelHaveEqualName` calls can handle that.
+  }
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // TODO: Those functions are not used anymore, remove it in the next
   // ABI-breaking window.
@@ -530,7 +549,7 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     constexpr std::string_view LambdaName =
-        detail::getKernelName<LambdaNameT>();
+        detail::CompileTimeKernelInfo<LambdaNameT>.Name;
     detail::ABINeutralKernelNameStrT KernelName = getKernelName();
     return KernelName == LambdaName;
   }
@@ -824,19 +843,26 @@ private:
                                               Dims>());
 #endif
 
-    constexpr bool KernelHasName =
-        detail::getKernelName<KernelName>() != nullptr &&
-        detail::getKernelName<KernelName>()[0] != '\0';
+    // SYCL unittests are built without sycl compiler, so "host" information
+    // about kernels isn't provided (e.g., via integration headers or compiler
+    // builtins).
+    //
+    // However, some copy/fill USM operation are implemented via SYCL kernels
+    // and are instantiated resulting in all the `static_assert` checks being
+    // exercised. Without kernel information that would fail, so we explicitly
+    // disable such checks when this macro is defined. Note that the unittests
+    // don't actually execute those operation, that's why disabling
+    // unconditional `static_asserts`s is enough for now.
+#ifndef __SYCL_UNITTESTS_BYPASS_KERNEL_NAME_CHECK
+    constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
+
+    static_assert(Info.Name != std::string_view{}, "Kernel must have a name!");
 
     // Some host compilers may have different captures from Clang. Currently
-    // there is no stable way of handling this when extracting the captures, so
-    // a static assert is made to fail for incompatible kernel lambdas.
-
-    // TODO remove the ifdef once the kernel size builtin is supported.
-#ifdef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+    // there is no stable way of handling this when extracting the captures,
+    // so a static assert is made to fail for incompatible kernel lambdas.
     static_assert(
-        !KernelHasName ||
-            sizeof(KernelType) == detail::getKernelSize<KernelName>(),
+        sizeof(KernelType) == Info.KernelSize,
         "Unexpected kernel lambda size. This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
@@ -848,29 +874,8 @@ private:
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
 #endif
-    // Empty name indicates that the compilation happens without integration
-    // header, so don't perform things that require it.
-    if constexpr (KernelHasName) {
-      // TODO support ESIMD in no-integration-header case too.
 
-      // Force hasSpecialCaptures to be evaluated at compile-time.
-      constexpr bool HasSpecialCapt = detail::hasSpecialCaptures<KernelName>();
-      setKernelInfo((void *)MHostKernel->getPtr(),
-                    detail::getKernelNumParams<KernelName>(),
-                    &(detail::getKernelParamDesc<KernelName>),
-                    detail::isKernelESIMD<KernelName>(), HasSpecialCapt);
-
-      constexpr std::string_view KernelNameStr =
-          detail::getKernelName<KernelName>();
-      MKernelName = KernelNameStr;
-      setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<KernelName>());
-    } else {
-      // In case w/o the integration header it is necessary to process
-      // accessors from the list(which are associated with this handler) as
-      // arguments. We must copy the associated accessors as they are checked
-      // later during finalize.
-      setArgsToAssociatedAccessors();
-    }
+    setDeviceKernelInfo<KernelName>((void *)MHostKernel->getPtr());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -1240,9 +1245,15 @@ private:
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 const KernelType &KernelFunc) {
+    // TODO: Properties may change the kernel function, so in order to avoid
+    //       conflicts they should be included in the name.
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnKernelParameterMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse(Info);
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
@@ -1275,11 +1286,6 @@ private:
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
 
-    // TODO: Properties may change the kernel function, so in order to avoid
-    //       conflicts they should be included in the name.
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-
     // Range rounding can be disabled by the user.
     // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
@@ -1301,8 +1307,7 @@ private:
       detail::KernelLaunchPropertyWrapper::parseProperties<KName>(this,
                                                                   Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
-      verifyUsedKernelBundleInternal(Name);
+      verifyUsedKernelBundleInternal(Info.Name);
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
@@ -1312,7 +1317,6 @@ private:
       setNDRangeDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      setType(detail::CGType::Kernel);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
@@ -1328,15 +1332,12 @@ private:
       detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
                                                                   KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      constexpr detail::string_view Name{detail::getKernelName<NameT>()};
-
-      verifyUsedKernelBundleInternal(Name);
-      processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+      verifyUsedKernelBundleInternal(Info.Name);
+      processProperties<Info.IsESIMD, PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
-      setType(detail::CGType::Kernel);
 #endif
 #else
       (void)KernelFunc;
@@ -1358,13 +1359,11 @@ private:
                          [[maybe_unused]] kernel Kernel) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     processLaunchProperties<PropertiesT>(Props);
-    setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
 #endif
   }
 
@@ -1383,13 +1382,11 @@ private:
                          [[maybe_unused]] kernel Kernel) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     processLaunchProperties(Props);
-    setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
 #endif
   }
 
@@ -1410,13 +1407,12 @@ private:
     detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
                                                                 KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
-      throwOnKernelParameterMisuse<KernelName, KernelType>();
+      throwOnKernelParameterMisuse(Info);
     }
     throwIfActionIsCreated();
-    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
-    verifyUsedKernelBundleInternal(Name);
-    setType(detail::CGType::Kernel);
+    verifyUsedKernelBundleInternal(Info.Name);
 
     detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
@@ -1427,7 +1423,7 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+    processProperties<Info.IsESIMD, PropertiesT>(Props);
 #endif
   }
 
@@ -1453,16 +1449,15 @@ private:
     detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
                                                                 KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     if constexpr (WrapAsVal == detail::WrapAs::single_task) {
-      throwOnKernelParameterMisuse<KernelName, KernelType>();
+      throwOnKernelParameterMisuse(Info);
     }
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the
     // kernel.
     setHandlerKernelBundle(Kernel);
-    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
-    verifyUsedKernelBundleInternal(Name);
-    setType(detail::CGType::Kernel);
+    verifyUsedKernelBundleInternal(Info.Name);
 
     detail::checkValueRange<Dims>(params...);
     if constexpr (SetNumWorkGroups) {
@@ -1472,14 +1467,13 @@ private:
       setNDRangeDescriptor(std::move(params)...);
     }
 
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    if (!lambdaAndKernelHaveEqualName<NameT>()) {
-      extractArgsAndReqs();
-      MKernelName = getKernelName();
-    } else {
+    setDeviceKernelInfo(std::move(Kernel));
+    if (lambdaAndKernelHaveEqualName<NameT>()) {
       StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
+    } else {
+      extractArgsAndReqs();
     }
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+    processProperties<Info.IsESIMD, PropertiesT>(Props);
 #endif
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -1857,10 +1851,8 @@ public:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
+    setDeviceKernelInfo(std::move(Kernel));
     extractArgsAndReqs();
-    MKernelName = getKernelName();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -1893,12 +1885,10 @@ public:
                     [[maybe_unused]] kernel Kernel) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
-    setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
 #endif
   }
 
@@ -1931,18 +1921,17 @@ public:
     detail::KernelWrapperHelperFuncs::kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    constexpr detail::string_view Name{detail::getKernelName<NameT>()};
-    verifyUsedKernelBundleInternal(Name);
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+    verifyUsedKernelBundleInternal(Info.Name);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
-    if (!lambdaAndKernelHaveEqualName<NameT>()) {
-      extractArgsAndReqs();
-      MKernelName = getKernelName();
-    } else
+    setDeviceKernelInfo(std::move(Kernel));
+    if (lambdaAndKernelHaveEqualName<NameT>()) {
       StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
+    } else {
+      extractArgsAndReqs();
+    }
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
@@ -3533,10 +3522,10 @@ private:
   //
   // Exception handling generates lots of code, outline it out of template
   // method to improve compilation times.
-  void throwOnKernelParameterMisuseHelper(
-      int N, detail::kernel_param_desc_t (*f)(int)) const {
-    for (int I = 0; I < N; ++I) {
-      detail::kernel_param_desc_t ParamDesc = (*f)(I);
+  void throwOnKernelParameterMisuse(
+      const detail::CompileTimeKernelInfoTy &Info) const {
+    for (size_t I = 0; I < Info.NumParams; ++I) {
+      detail::kernel_param_desc_t ParamDesc = (*Info.ParamDescGetter)(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
@@ -3556,13 +3545,18 @@ private:
             "of parallel_for that takes a range parameter.");
     }
   }
-  template <typename KernelName, typename KernelType>
-  void throwOnKernelParameterMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    throwOnKernelParameterMisuseHelper(detail::getKernelNumParams<NameT>(),
-                                       &detail::getKernelParamDesc<NameT>);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Exported on Windows for some reason, have to keep for backward ABI
+  // compatibility, at least formally.
+  void throwOnKernelParameterMisuseHelper(
+      int N, detail::kernel_param_desc_t (*f)(int)) const {
+    detail::CompileTimeKernelInfoTy Info{};
+    Info.NumParams = N;
+    Info.ParamDescGetter = f;
+    throwOnKernelParameterMisuse(Info);
   }
+#endif
 
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,

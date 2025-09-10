@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 178
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 153
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -122,33 +122,8 @@
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
 // CHECK-NEXT: ESIMD/slm_init_no_inline.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_host2target.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_2d.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_offset.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_target2host.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_2d.cpp
-// CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_offset.cpp
-// CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/Explicit/memadvise.cpp
-// CHECK-NEXT: Graph/Explicit/prefetch.cpp
-// CHECK-NEXT: Graph/Explicit/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/Explicit/work_group_size_prop.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_2d.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_offset.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_2d.cpp
-// CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_offset.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
-// CHECK-NEXT: Graph/RecordReplay/memadvise.cpp
-// CHECK-NEXT: Graph/RecordReplay/prefetch.cpp
-// CHECK-NEXT: Graph/RecordReplay/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
-// CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp

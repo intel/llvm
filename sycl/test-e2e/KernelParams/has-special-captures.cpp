@@ -18,7 +18,7 @@ int main() {
   Queue.parallel_for<A>(nd_range<1>{1, 1},
                         [=](nd_item<1> Item) { *Pointer += Value; });
 #ifndef __SYCL_DEVICE_ONLY__
-  static_assert(!detail::hasSpecialCaptures<A>());
+  static_assert(!detail::CompileTimeKernelInfo<A>.HasSpecialCaptures);
 #endif
 
   // An accessor is a special capture.
@@ -28,6 +28,6 @@ int main() {
     Accessor[0] += Value;
   });
 #ifndef __SYCL_DEVICE_ONLY__
-  static_assert(detail::hasSpecialCaptures<B>());
+  static_assert(detail::CompileTimeKernelInfo<B>.HasSpecialCaptures);
 #endif
 }
