@@ -1841,8 +1841,9 @@ DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
 DeviceKernelInfo &
 ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto Result = m_DeviceKernelInfoMap.try_emplace(
-      KernelName, CompileTimeKernelInfoTy{std::string_view(KernelName)});
+  CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(KernelName)};
+  auto Result =
+      m_DeviceKernelInfoMap.try_emplace(KernelName, DefaultCompileTimeInfo);
   return Result.first->second;
 }
 
