@@ -1094,9 +1094,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(createModuleToFunctionPassAdaptor(
                 InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
             if (Level != OptimizationLevel::O0)
-              MPM.addPass(
-                  createModuleToFunctionPassAdaptor(
-                    SYCLOptimizeBarriersPass()));
+              MPM.addPass(createModuleToFunctionPassAdaptor(
+                  SYCLOptimizeBarriersPass()));
           });
     }
 
