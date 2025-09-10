@@ -843,40 +843,36 @@ static void setSpecializationConstants(device_image_impl &InputImpl,
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     context_impl &ContextImpl, device_impl &DeviceImpl,
     KernelNameStrRefT KernelName, const NDRDescT &NDRDesc) {
-  device_impl *RootDevImpl;
-  ur_bool_t MustBuildOnSubdevice = true;
-
+  device_impl *BuildDev = &DeviceImpl;
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
-  if (!DeviceImpl.isRootDevice()) {
-    RootDevImpl = &DeviceImpl;
-    while (!RootDevImpl->isRootDevice()) {
-      device_impl &ParentDev = *detail::getSyclObjImpl(
-          RootDevImpl->get_info<info::device::parent_device>());
-      // Sharing is allowed within a single context only
-      if (!ContextImpl.hasDevice(ParentDev))
-        break;
-      RootDevImpl = &ParentDev;
-    }
+  if (!BuildDev->isRootDevice()) {
+    device_impl *CandidateRoot = BuildDev;
+    while (!CandidateRoot->isRootDevice())
+      CandidateRoot = &*detail::getSyclObjImpl(
+          CandidateRoot->get_info<info::device::parent_device>());
 
+    bool MustBuildOnSubdevice = true;
     ContextImpl.getAdapter().call<UrApiKind::urDeviceGetInfo>(
-        RootDevImpl->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
+        CandidateRoot->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
         sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
+
+    // Sharing is allowed within a single context if and only if backend
+    // supports sharing.
+    if (!MustBuildOnSubdevice && ContextImpl.hasDevice(*CandidateRoot))
+      BuildDev = CandidateRoot;
   }
 
-  device_impl &RootOrSubDevImpl =
-      MustBuildOnSubdevice == true ? DeviceImpl : *RootDevImpl;
-
   const RTDeviceBinaryImage &Img =
-      getDeviceImage(KernelName, ContextImpl, RootOrSubDevImpl);
+      getDeviceImage(KernelName, ContextImpl, *BuildDev);
 
   // Check that device supports all aspects used by the kernel
   if (auto exception =
-          checkDevSupportDeviceRequirements(RootOrSubDevImpl, Img, NDRDesc))
+          checkDevSupportDeviceRequirements(*BuildDev, Img, NDRDesc))
     throw *exception;
 
   std::set<const RTDeviceBinaryImage *> DeviceImagesToLink =
-      collectDeviceImageDeps(Img, {RootOrSubDevImpl});
+      collectDeviceImageDeps(Img, {*BuildDev});
 
   // Decompress all DeviceImagesToLink
   for (const RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
@@ -888,8 +884,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::copy(DeviceImagesToLink.begin(), DeviceImagesToLink.end(),
             std::back_inserter(AllImages));
 
-  return getBuiltURProgram(std::move(AllImages), ContextImpl,
-                           {RootOrSubDevImpl});
+  return getBuiltURProgram(std::move(AllImages), ContextImpl, {*BuildDev});
 }
 
 ur_program_handle_t
