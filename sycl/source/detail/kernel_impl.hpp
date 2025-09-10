@@ -238,9 +238,7 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
-  DeviceKernelInfo *getDeviceKernelInfoPtr() const {
-    return MDeviceKernelInfo.get();
-  }
+  DeviceKernelInfo &getDeviceKernelInfo() const { return MDeviceKernelInfo; }
 
 private:
   Managed<ur_kernel_handle_t> MKernel;
@@ -255,16 +253,11 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
 
-  using DeviceKernelInfoDeleterTy = void (*)(DeviceKernelInfo *);
-  using DeviceKernelInfoUniquePtr =
-      std::unique_ptr<DeviceKernelInfo, DeviceKernelInfoDeleterTy>;
-  DeviceKernelInfoUniquePtr MDeviceKernelInfo;
-
-  static void DeviceKernelInfoDeleter(DeviceKernelInfo *Ptr) { delete Ptr; }
-
-  static void noopDeviceKernelInfoDeleter(DeviceKernelInfo *) {
-    // do nothing
-  }
+  // For the interop kernel we create the DeviceKernelInfo
+  // as part of the kernel_impl
+  // For regular kernel we get DeviceKernelInfo from the ProgramManager
+  DeviceKernelInfo MInteropDeviceKernelInfoHolder;
+  DeviceKernelInfo &MDeviceKernelInfo;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;

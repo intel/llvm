@@ -27,16 +27,12 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
                                          : nullptr),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask},
+      MInteropDeviceKernelInfoHolder(CompileTimeKernelInfoTy{getName()}),
       MDeviceKernelInfo(
           MIsInterop
-              ? DeviceKernelInfoUniquePtr(
-                    new DeviceKernelInfo(
-                        CompileTimeKernelInfoTy{std::string_view(getName())}),
-                    DeviceKernelInfoDeleter)
-              : DeviceKernelInfoUniquePtr(
-                    &ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-                        KernelNameStrT(getName())),
-                    noopDeviceKernelInfoDeleter)) {
+              ? MInteropDeviceKernelInfoHolder
+              : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+                    KernelNameStrT(getName()))) {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
   getAdapter().call<UrApiKind::urKernelGetInfo>(
@@ -63,16 +59,12 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
+      MInteropDeviceKernelInfoHolder(CompileTimeKernelInfoTy{getName()}),
       MDeviceKernelInfo(
           MIsInterop
-              ? DeviceKernelInfoUniquePtr(
-                    new DeviceKernelInfo(
-                        CompileTimeKernelInfoTy{std::string_view(getName())}),
-                    DeviceKernelInfoDeleter)
-              : DeviceKernelInfoUniquePtr(
-                    &ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-                        KernelNameStrT(getName())),
-                    noopDeviceKernelInfoDeleter)) {
+              ? MInteropDeviceKernelInfoHolder
+              : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+                    KernelNameStrT(getName()))) {
   // Enable USM indirect access for interop and non-sycl-jit source kernels.
   // sycl-jit kernels will enable this if needed through the regular kernel
   // path.

@@ -2538,7 +2538,7 @@ sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 void handler::setDeviceKernelInfo(kernel &&Kernel) {
   MKernel = detail::getSyclObjImpl(std::move(Kernel));
   MKernelName = getKernelName();
-  setDeviceKernelInfoPtr(MKernel->getDeviceKernelInfoPtr());
+  setDeviceKernelInfoPtr(&MKernel->getDeviceKernelInfo());
   setType(detail::CGType::Kernel);
 
   // If any extra actions are added here make sure that logic around
