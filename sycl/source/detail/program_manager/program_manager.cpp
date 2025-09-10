@@ -857,7 +857,7 @@ Managed<ur_program_handle_t> ProgramManager::getBuiltURProgram(
         CandidateRoot->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
         sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
 
-    // Sharing is allowed within a single context only and only if backend
+    // Sharing is allowed within a single context if and only if backend
     // supports sharing.
     if (!MustBuildOnSubdevice && ContextImpl.hasDevice(*CandidateRoot))
       BuildDev = CandidateRoot;
