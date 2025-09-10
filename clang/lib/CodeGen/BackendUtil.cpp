@@ -1093,8 +1093,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
              ThinOrFullLTOPhase) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
                 InferAddressSpacesPass(clang::targets::SPIR_GENERIC_AS)));
-            MPM.addPass(
-                createModuleToFunctionPassAdaptor(SYCLOptimizeBarriersPass()));
+            if (Level != OptimizationLevel::O0)
+              MPM.addPass(
+                  createModuleToFunctionPassAdaptor(
+                    SYCLOptimizeBarriersPass()));
           });
     }
 
