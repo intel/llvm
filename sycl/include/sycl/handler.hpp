@@ -1928,7 +1928,7 @@ public:
     // known constant
     setNDRangeDescriptor(range<1>{1});
 
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    MKernel = detail::getSyclObjImpl(Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       throw sycl::exception(
           make_error_code(errc::invalid),
