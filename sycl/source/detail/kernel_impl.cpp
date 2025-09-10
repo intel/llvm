@@ -59,7 +59,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
-      MInteropDeviceKernelInfoHolder(CompileTimeKernelInfoTy{getName()}),
+      MInteropDeviceKernelInfoHolder(
+          CompileTimeKernelInfoTy{MIsInterop ? getName() : std::string_view{}}),
       MDeviceKernelInfo(
           MIsInterop
               ? MInteropDeviceKernelInfoHolder
