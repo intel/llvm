@@ -27,7 +27,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
                                          : nullptr),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask},
-      MInteropDeviceKernelInfoHolder(CompileTimeKernelInfoTy{getName()}),
+      MInteropDeviceKernelInfoHolder(
+          CompileTimeKernelInfoTy{MIsInterop ? getName() : std::string_view{}}),
       MDeviceKernelInfo(
           MIsInterop
               ? MInteropDeviceKernelInfoHolder
