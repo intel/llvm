@@ -1904,7 +1904,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
     UR_CALL(EventCreate(
         Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
         Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
-        Queue->InterruptBasedEventsEnabled));
+        Queue->InterruptBasedEventsEnabled, IsInternal));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;
