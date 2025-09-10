@@ -583,11 +583,11 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName))) {
+          !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                toKernelNameStrT(MKernelName));
+                impl->getKernelName());
         bool KernelInserted = KernelBundleImpPtr->add_kernel(
             KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
@@ -668,9 +668,8 @@ event handler::finalize() {
         if (xptiEnabled) {
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               detail::GSYCLStreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), *impl->MDeviceKernelInfoPtr,
-              impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
-              impl->MArgs);
+              *impl->MDeviceKernelInfoPtr, impl->get_queue_or_null(),
+              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
           detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -678,18 +677,16 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          BinImage = detail::retrieveKernelBinary(
-              impl->get_queue(), toKernelNameStrT(MKernelName));
+          BinImage = detail::retrieveKernelBinary(impl->get_queue(),
+                                                  impl->getKernelName());
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), toKernelNameStrT(MKernelName),
-            *impl->MDeviceKernelInfoPtr, RawEvents, ResultEvent.get(), nullptr,
-            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-            BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
-            impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
+            MKernel.get(), *impl->MDeviceKernelInfoPtr, RawEvents,
+            ResultEvent.get(), nullptr, impl->MKernelCacheConfig,
+            impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
+            impl->MKernelWorkGroupMemorySize, BinImage, impl->MKernelFuncPtr);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         if (xptiEnabled) {
           // Emit signal only when event is created
@@ -746,10 +743,9 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        *impl->MDeviceKernelInfoPtr, std::move(MStreamStorage),
-        std::move(impl->MAuxiliaryResources), getType(),
-        impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+        std::move(impl->MArgs), *impl->MDeviceKernelInfoPtr,
+        std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
+        getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
         MCodeLoc));
     break;
