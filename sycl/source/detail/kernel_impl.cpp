@@ -27,14 +27,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
                                          : nullptr),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask},
-      MInteropDeviceKernelInfoHolder(MIsInterop
-                                         ? CompileTimeKernelInfoTy{getName()}
-                                         : CompileTimeKernelInfoTy{}),
-      MDeviceKernelInfo(
-          MIsInterop
-              ? MInteropDeviceKernelInfoHolder
-              : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-                    KernelNameStrT(getName()))) {
+      MInteropDeviceKernelInfoHolder(CompileTimeKernelInfoTy{getName()}),
+      MDeviceKernelInfo(MInteropDeviceKernelInfoHolder) {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
   getAdapter().call<UrApiKind::urKernelGetInfo>(
