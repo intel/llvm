@@ -86,7 +86,6 @@
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: queue.hpp
-// CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp
 // CHECK-NEXT: detail/item_base.hpp
