@@ -647,14 +647,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_COMMAND_USM_MEMCPY_2D, hQueue, numEventsInWaitList, phEventWaitList,
       phEvent,
       [width, height, srcPitch, dstPitch, pDst, pSrc]() {
-        for (size_t w = 0; w < width; w++)
-          for (size_t h = 0; h < height; h++) {
-            size_t Src_ind = h * srcPitch + w;
-            size_t Dst_ind = h * dstPitch + w;
-            int8_t &d_mem = ur_cast<int8_t *>(pDst)[Dst_ind];
-            const int8_t &s_mem = ur_cast<const int8_t *>(pSrc)[Src_ind];
-            d_mem = s_mem;
-          }
+        for (size_t h = 0, Src_ind = 0, Dst_ind = 0; h < height;
+             h++, Src_ind += srcPitch, Dst_ind += dstPitch) {
+          int8_t &d_mem = ur_cast<int8_t *>(pDst)[Dst_ind];
+          const int8_t &s_mem = ur_cast<const int8_t *>(pSrc)[Src_ind];
+          std::memcpy(&d_mem, &s_mem, width);
+        }
         return UR_RESULT_SUCCESS;
       },
       blocking);
