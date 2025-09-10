@@ -32,14 +32,17 @@ struct GroupBarrierKernel {
       local[i] = i;
     }
 
-    sycl::group_barrier(it.get_group());
+    __spirv_ControlBarrier(/*WG scope*/ 2, /*WG scope*/ 2,
+                           /*global + local*/ 912);
     for (int offset = 1; offset < item_range; offset *= 2) {
       local[item_id] += local[item_id + offset];
-      __spirv_ControlBarrier(2, 2, 912);
+      __spirv_ControlBarrier(/*WG scope*/ 2, /*WG scope*/ 2,
+                             /*global + local*/ 912);
     }
 
     if (it.get_group().leader()) {
-      __spirv_ControlBarrier(2, 2, 912);
+      __spirv_ControlBarrier(/*WG scope*/ 2, /*WG scope*/ 2,
+                             /*global + local*/ 912);
       sum[group_id] = local[0];
     }
   }
