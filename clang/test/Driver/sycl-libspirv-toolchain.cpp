@@ -1,4 +1,5 @@
 // Test the search logic for the libspirv bitcode library in the offloading toolchains that need it.
+// REQUIRES: libclc
 
 // DEFINE: %{install_dir}  = %/S/Inputs/SYCL/bin
 // DEFINE: %{resource_dir} = %/S/Inputs/SYCL/lib/clang/resource_dir

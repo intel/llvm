@@ -13,7 +13,7 @@
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=spir64_gen 2>&1  %s | FileCheck %s -check-prefix=CHECK-AOT
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=spir64_x86_64 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=intel_gpu_pvc 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
-// RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=nvidia_gpu_sm_90 -nocudalib 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
+// RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=nvidia_gpu_sm_90 -fno-sycl-libspirv -nocudalib 2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
 // RUN: %clang -### -fsycl --no-offload-new-driver -fsycl-add-default-spec-consts-image -fsycl-targets=amd_gpu_gfx1034 -fno-sycl-libspirv -nogpulib  2>&1 %s | FileCheck %s -check-prefix=CHECK-AOT
 // CHECK-AOT-NOT: warning: -fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT)
 // CHECK-AOT: {{.*}}sycl-post-link{{.*}} "-generate-device-image-default-spec-consts"
