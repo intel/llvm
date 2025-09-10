@@ -37,9 +37,19 @@
 // RUN:   -fsycl-device-code-split-esimd \
 // RUN:   -fsycl-add-default-spec-consts-image \
 // RUN:   2>&1 | FileCheck --check-prefix=OPTIONS_FORWARD %s
+// RUN: %clang_cl %s -### -fsycl --offload-new-driver \
+// RUN:   -fsycl-remove-unused-external-funcs \
+// RUN:   -fsycl-device-code-split-esimd \
+// RUN:   -fsycl-add-default-spec-consts-image \
+// RUN:   2>&1 | FileCheck --check-prefix=OPTIONS_FORWARD %s
 // OPTIONS_FORWARD: clang-linker-wrapper{{.*}} "-sycl-remove-unused-external-funcs" "-sycl-device-code-split-esimd" "-sycl-add-default-spec-consts-image"
 //
 // RUN: %clangxx %s -### -fsycl --offload-new-driver \
+// RUN:   -fno-sycl-remove-unused-external-funcs \
+// RUN:   -fno-sycl-device-code-split-esimd \
+// RUN:   -fno-sycl-add-default-spec-consts-image \
+// RUN:   2>&1 | FileCheck --check-prefix=OPTIONS_FORWARD_NO %s
+// RUN: %clang_cl %s -### -fsycl --offload-new-driver \
 // RUN:   -fno-sycl-remove-unused-external-funcs \
 // RUN:   -fno-sycl-device-code-split-esimd \
 // RUN:   -fno-sycl-add-default-spec-consts-image \
