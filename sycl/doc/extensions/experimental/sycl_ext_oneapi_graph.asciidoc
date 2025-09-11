@@ -1278,9 +1278,8 @@ _Constraints:_ This constructor is only available when the `command_graph` state
 _Preconditions:_ Valid `command_graph` constructor properties are listed in
 Section <<graph-properties, Graph Properties>>.
 
-_Throws:_ Synchronously `exception` with error code `invalid` if the device
-associated with
-`syclQueue` <<device-info-query, reports this extension as unsupported>>.
+_Throws:_ Synchronously `exception` with error code `invalid` if `syclDevice`
+  <<device-info-query, reports this extension as unsupported>>.
 
 ===== Member functions of the `command_graph` class
 
