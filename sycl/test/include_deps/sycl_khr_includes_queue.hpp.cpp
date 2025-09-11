@@ -1,28 +1,28 @@
 // Use update_test.sh to (re-)generate the checks
 // REQUIRES: linux
-// RUN: bash %S/deps_known.sh sycl/detail/core.hpp | FileCheck %s
+// RUN: bash %S/deps_known.sh sycl/khr/includes/queue.hpp | FileCheck %s
 
-// CHECK-LABEL: Dependencies for <sycl/detail/core.hpp>:
+// CHECK-LABEL: Dependencies for <sycl/khr/includes/queue.hpp>:
 // CHECK-NEXT: /dev/null: /dev/null
-// CHECK-NEXT: detail/core.hpp
-// CHECK-NEXT: accessor.hpp
+// CHECK-NEXT: khr/includes/queue.hpp
+// CHECK-NEXT: queue.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
+// CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
-// CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: detail/fwd/accessor.hpp
-// CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
+// CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
@@ -44,14 +44,17 @@
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
-// CHECK-NEXT: bit_cast.hpp
-// CHECK-NEXT: detail/fwd/half.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
-// CHECK-NEXT: detail/fwd/multi_ptr.hpp
-// CHECK-NEXT: detail/handler_proxy.hpp
+// CHECK-NEXT: half_type.hpp
+// CHECK-NEXT: bit_cast.hpp
+// CHECK-NEXT: aspects.hpp
+// CHECK-NEXT: info/aspects.def
+// CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
+// CHECK-NEXT: ext/oneapi/bfloat16.hpp
+// CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/runtime_accessor_properties.def
@@ -59,16 +62,11 @@
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
-// CHECK-NEXT: aspects.hpp
-// CHECK-NEXT: info/aspects.def
-// CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
-// CHECK-NEXT: ext/oneapi/bfloat16.hpp
-// CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
@@ -88,7 +86,6 @@
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
-// CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp
 // CHECK-NEXT: detail/item_base.hpp
@@ -154,5 +151,6 @@
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
-// CHECK-NEXT: feature_test.hpp
+// CHECK-NEXT: properties/queue_properties.hpp
+// CHECK-NEXT: properties/queue_properties.def
 // CHECK-EMPTY:
