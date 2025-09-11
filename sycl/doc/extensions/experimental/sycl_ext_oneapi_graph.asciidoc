@@ -1265,7 +1265,7 @@ command_graph(const device& syclDevice,
 ----
 
 _Effects:_ Simplified constructor form where only device `syclDevice` is provided
-without exlicitly passing a context. The graph uses the platform's default context.
+without explicitly passing a context. The graph uses the platform's default context.
 Zero or more properties can be provided to the constructed SYCL `command_graph`
 via an instance of `property_list`. All other properties of the queue are
 ignored for the purposes of graph creation. See the
