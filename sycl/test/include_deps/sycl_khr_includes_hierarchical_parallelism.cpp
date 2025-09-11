@@ -11,7 +11,6 @@
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: access/access.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: __spirv/spirv_vars.hpp
@@ -20,6 +19,7 @@
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
@@ -37,6 +37,7 @@
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: multi_ptr.hpp
+// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: device_event.hpp
 // CHECK-NEXT: pointers.hpp

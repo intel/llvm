@@ -9,6 +9,7 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: exception_list.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-EMPTY:

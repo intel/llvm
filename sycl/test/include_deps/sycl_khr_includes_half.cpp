@@ -9,6 +9,7 @@
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
