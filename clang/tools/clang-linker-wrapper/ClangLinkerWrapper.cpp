@@ -121,6 +121,11 @@ static cl::opt<std::string> PassPipeline(
 static cl::alias PassPipeline2("p", cl::aliasopt(PassPipeline),
                                cl::desc("Alias for -passes"));
 
+static cl::opt<bool>
+    PreviewBreakingChanges("fpreview-breaking-changes",
+                           cl::desc("Enable preview breaking changes"),
+                           cl::init(false), cl::Hidden);
+
 /// Path of the current binary.
 static const char *LinkerExecutable;
 
@@ -303,7 +308,6 @@ Expected<StringRef> writeOffloadFile(const OffloadFile &File,
 
   StringRef Prefix =
       sys::path::stem(Binary.getMemoryBufferRef().getBufferIdentifier());
-  StringRef Suffix = getImageKindName(Binary.getImageKind());
 
   StringRef BinArch = (Binary.getArch() == "*") ? "any" : Binary.getArch();
   auto TempFileOrErr = createOutputFile(
@@ -1129,7 +1133,8 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
                       CompileOptions, LinkOptions);
   }
-  if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
+  if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions,
+                                             PreviewBreakingChanges))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
