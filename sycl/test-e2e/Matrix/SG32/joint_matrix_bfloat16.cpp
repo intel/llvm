@@ -10,9 +10,6 @@
 // UNSUPPORTED-INTENDED: SG size = 32 is not supported for SYCL Joint Matrix on
 // DG2
 
-// XFAIL: linux && run-mode && (arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21)
-// XFAIL-TRACKER: CMPLRLLVM-69742
-
 // REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
@@ -50,8 +47,14 @@ int main() {
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16,
-           layout::row_major, 1>();
+      // The failure is sporadic across runs on PVC/BMG
+      // SG32 is not well tested for VNNI transform when
+      // IGC_JointMatrixLoadStoreOpt is used (naive and 1d load)
+      // thus commenting the row_major case instead of marking the whole test as
+      // XFAIL. Trackers: CMPLRLLVM-69742, GSD-4181
+
+      // test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16,
+      //      layout::row_major, 1>();
       test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16,
            layout::ext_intel_packed, 2>();
       break;

@@ -200,6 +200,7 @@ static void printDeviceInfo(const device &Device, bool Verbose,
   if (Device.has(aspect::ASPECT))                                              \
     std::cout << " " << #ASPECT;
 #include <sycl/info/aspects.def>
+#undef __SYCL_ASPECT
     std::cout << std::endl;
     auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
     std::cout << Prepend << "info::device::sub_group_sizes:";

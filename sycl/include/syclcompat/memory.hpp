@@ -66,7 +66,7 @@
 #error "Only support Windows and Linux."
 #endif
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 template <typename AllocT>
 #ifdef __SYCL_DEVICE_ONLY__

@@ -250,7 +250,15 @@ device_family_arch_map = {
         "intel_gpu_dg2_g10",
     },
     # Gen12
-    "gpu-intel-gen12": {"intel_gpu_tgllp", "intel_gpu_tgl"},
+    "gpu-intel-gen12": {
+        "intel_gpu_tgllp",
+        "intel_gpu_tgl",
+        "intel_gpu_rkl",
+        "intel_gpu_adl_s",
+        "intel_gpu_rpl_s",
+        "intel_gpu_adl_p",
+        "intel_gpu_adl_n",
+    },
     # Gen11
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
 }
@@ -821,7 +829,6 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 # Tools for which we add a corresponding feature when available.
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
-    ToolSubst("llvm-link", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
 ]
@@ -834,6 +841,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("llvm-link", unresolved="fatal"),
     ToolSubst("syclbin-dump", unresolved="fatal"),
     ToolSubst("llvm-ar", unresolved="fatal"),
     ToolSubst("clang-offload-bundler", unresolved="fatal"),
@@ -1139,7 +1147,7 @@ if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
-    clangxx = " " + config.dpcpp_compiler + " "
+    clangxx = " " + config.dpcpp_compiler + " -Werror "
     if "preview-mode" in config.available_features:
         # Technically, `-fpreview-breaking-changes` is reported as unused option
         # if used without `-fsycl`. However, we have far less tests compiling

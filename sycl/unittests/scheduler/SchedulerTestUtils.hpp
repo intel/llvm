@@ -253,9 +253,7 @@ public:
     return impl->CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
-  sycl::detail::KernelNameStrT getKernelName() {
-    return toKernelNameStrT(MKernelName);
-  }
+  std::string_view getKernelName() { return impl->MDeviceKernelInfoPtr->Name; }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
@@ -303,7 +301,7 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
+          *impl->MDeviceKernelInfoPtr, getStreamStorage(),
           impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
           getCodeLoc()));

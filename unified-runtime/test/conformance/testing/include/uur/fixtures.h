@@ -1472,7 +1472,9 @@ struct KernelLaunchHelper {
     ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_BACKEND_HIP) {
+    std::string target_name;
+    ASSERT_SUCCESS(GetPlatformTriple(platform, target_name));
+    if (target_name == "amdgcn-amd-amdhsa") {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,

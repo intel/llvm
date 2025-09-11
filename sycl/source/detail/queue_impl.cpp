@@ -333,7 +333,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 #else
   handler Handler(shared_from_this(), CallerNeedsEvent);
 #endif
-  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -345,6 +344,10 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     NestedCallsTracker tracker;
     CGF(Handler);
   }
+
+  // We might swap handlers as part of the CGH(Handler) call in the reduction
+  // case, so need to retrieve the handler_impl reference after that.
+  detail::handler_impl &HandlerImpl = *detail::getSyclObjImpl(Handler);
 
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
@@ -360,10 +363,9 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     (Type == CGType::ExecCommandBuffer &&
                      HandlerImpl.MExecGraph->containsHostTask());
 
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
-                         !requiresPostProcess;
+                         !Streams.size();
 
   if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
@@ -392,14 +394,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
     }
-  }
-
-  if (SubmitInfo.PostProcessorFunc()) {
-    // All the submission functions using post processing are event based
-    // functions
-    assert(EventImpl);
-    event Event = createSyclObjFromImpl<event>(EventImpl);
-    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
   }
 
   for (auto &Stream : Streams) {

@@ -13,6 +13,7 @@
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
 
 using namespace clang::driver;
@@ -55,7 +56,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // If -fsycl-libspirv-path= is specified, try to use that path directly.
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_libspirv_path_EQ)) {
-    if (llvm::sys::fs::exists(A->getValue()))
+    if (D.getVFS().exists(A->getValue()))
       return A->getValue();
 
     return nullptr;
@@ -68,8 +69,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     SmallString<128> LibraryPath(Path);
     llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
-    if (Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH) ||
-        llvm::sys::fs::exists(LibraryPath))
+    if (D.getVFS().exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;
@@ -249,7 +249,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -291,7 +292,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl");
+             Device.starts_with("lnl") || Device.starts_with("ptl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
@@ -434,9 +435,7 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
   const llvm::opt::ArgList &Args = C.getArgs();
   enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
   auto addSingleLibrary = [&](StringRef DeviceLibName) {
-    SmallString<128> LibName(DeviceLibName);
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
-    LibraryList.push_back(Args.MakeArgString(LibName));
+    LibraryList.push_back(Args.MakeArgString(Twine(DeviceLibName) + LibSuffix));
   };
 
   // This function is used to check whether there is only one GPU device
@@ -561,8 +560,13 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
 }
 #endif
 
-SmallVector<std::string, 8>
-SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+// Get the list of SYCL device libraries to link with user's device image if
+// some deprecated options are used including: -f[no-]sycl-device-lib=xxx,
+// -f[no-]sycl-device-lib-jit-link.
+// TODO: remove getDeviceLibrariesLegacy when we remove deprecated options
+// related to sycl device library link.
+static SmallVector<std::string, 8>
+getDeviceLibrariesLegacy(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
@@ -736,6 +740,111 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   if (TargetTriple.isNativeCPU())
     addLibraries(SYCLNativeCpuDeviceLibs);
+
+  return LibraryList;
+}
+
+// Get the list of SYCL device libraries to link with user's device image.
+SmallVector<std::string, 8>
+SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
+                         bool IsSpirvAOT) {
+  SmallVector<std::string, 8> LibraryList;
+  const llvm::opt::ArgList &Args = C.getArgs();
+  if (Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                      options::OPT_fno_sycl_device_lib_EQ) ||
+      Args.getLastArg(options::OPT_fsycl_device_lib_jit_link,
+                      options::OPT_fno_sycl_device_lib_jit_link))
+    return getDeviceLibrariesLegacy(C, TargetTriple, IsSpirvAOT);
+
+  bool NoOffloadLib =
+      !Args.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib, true);
+  if (TargetTriple.isNVPTX()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    return LibraryList;
+  }
+
+  if (TargetTriple.isAMDGCN()) {
+    if (!NoOffloadLib)
+      LibraryList.push_back(
+          Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+    return LibraryList;
+  }
+
+  // Ignore no-offloadlib for NativeCPU device library, it provides some
+  // critical builtins which must be linked with user's device image.
+  if (TargetTriple.isNativeCPU()) {
+    LibraryList.push_back(Args.MakeArgString("libsycl-nativecpu_utils.bc"));
+    return LibraryList;
+  }
+
+  using SYCLDeviceLibsList = SmallVector<StringRef>;
+  const SYCLDeviceLibsList SYCLDeviceLibs = {"libsycl-crt",
+                                             "libsycl-complex",
+                                             "libsycl-complex-fp64",
+                                             "libsycl-cmath",
+                                             "libsycl-cmath-fp64",
+#if defined(_WIN32)
+                                             "libsycl-msvc-math",
+#endif
+                                             "libsycl-imf",
+                                             "libsycl-imf-fp64",
+                                             "libsycl-imf-bf16",
+                                             "libsycl-fallback-cassert",
+                                             "libsycl-fallback-cstring",
+                                             "libsycl-fallback-complex",
+                                             "libsycl-fallback-complex-fp64",
+                                             "libsycl-fallback-cmath",
+                                             "libsycl-fallback-cmath-fp64",
+                                             "libsycl-fallback-imf",
+                                             "libsycl-fallback-imf-fp64",
+                                             "libsycl-fallback-imf-bf16"};
+  bool IsWindowsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
+  StringRef LibSuffix = ".bc";
+  if (IsNewOffload)
+    // For new offload model, we use packaged .bc files.
+    LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
+  auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+    for (const StringRef &Lib : LibsList) {
+      LibraryList.push_back(Args.MakeArgString(Twine(Lib) + LibSuffix));
+    }
+  };
+
+  if (!NoOffloadLib)
+    addLibraries(SYCLDeviceLibs);
+
+  // ITT annotation libraries are linked in separately whenever the device
+  // code instrumentation is enabled.
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+  const SYCLDeviceLibsList SYCLDeviceBfloat16FallbackLib = {
+      "libsycl-fallback-bfloat16"};
+  const SYCLDeviceLibsList SYCLDeviceBfloat16NativeLib = {
+      "libsycl-native-bfloat16"};
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs && !NoOffloadLib) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
+  // Currently, device sanitizer support is required by some developers on
+  // Linux platform only, so compiler only provides device sanitizer libraries
+  // on Linux platform.
+#if !defined(_WIN32)
+  addSYCLDeviceSanitizerLibs(C, IsSpirvAOT, LibSuffix, LibraryList);
+#endif
 
   return LibraryList;
 }
