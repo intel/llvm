@@ -70,7 +70,9 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreWait) {
   urBindlessImagesWaitExternalSemaphoreExp_counter = 0;
 
   sycl::queue Q;
+  int DummyInt = 0;
   syclexp::external_semaphore DummySemaphore{};
+  DummySemaphore.raw_handle = &DummyInt;
 
   urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue = false;
   Q.ext_oneapi_wait_external_semaphore(DummySemaphore);
@@ -89,7 +91,9 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   urBindlessImagesSignalExternalSemaphoreExp_counter = 0;
 
   sycl::queue Q;
+  int DummyInt = 0;
   syclexp::external_semaphore DummySemaphore{};
+  DummySemaphore.raw_handle = &DummyInt;
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
