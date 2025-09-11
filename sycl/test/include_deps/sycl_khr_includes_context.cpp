@@ -9,6 +9,7 @@
 // CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
 // CHECK-NEXT: aspects.hpp
@@ -23,11 +24,10 @@
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: range.hpp
 // CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: access/access.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ur_api.h

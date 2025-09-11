@@ -12,5 +12,6 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-EMPTY:

@@ -8,21 +8,21 @@
 // CHECK-NEXT: image.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
-// CHECK-NEXT: __spirv/spirv_types.hpp
-// CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
+// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: __spirv/spirv_types.hpp
+// CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
@@ -78,12 +78,12 @@
 // CHECK-NEXT: vector.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: multi_ptr.hpp
+// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: detail/named_swizzles_mixin.hpp
 // CHECK-NEXT: detail/vector_arith.hpp
 // CHECK-NEXT: accessor_image.hpp
 // CHECK-NEXT: accessor.hpp
-// CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
@@ -101,6 +101,7 @@
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: detail/image_ocl_types.hpp
+// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: properties/image_properties.hpp
 // CHECK-NEXT: properties/image_properties.def
 // CHECK-EMPTY:

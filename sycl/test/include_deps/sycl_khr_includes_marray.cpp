@@ -9,19 +9,19 @@
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: __spirv/spirv_types.hpp
-// CHECK-NEXT: detail/defines.hpp
-// CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: aspects.hpp
+// CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-EMPTY:

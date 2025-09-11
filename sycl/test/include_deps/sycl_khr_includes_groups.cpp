@@ -6,18 +6,18 @@
 // CHECK-NEXT: /dev/null: /dev/null
 // CHECK-NEXT: khr/includes/groups
 // CHECK-NEXT: group.hpp
-// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: exception.hpp
+// CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: detail/helpers.hpp
@@ -31,6 +31,7 @@
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: multi_ptr.hpp
+// CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: detail/item_base.hpp
 // CHECK-NEXT: id.hpp
@@ -41,6 +42,7 @@
 // CHECK-NEXT: item.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: sub_group.hpp
+// CHECK-NEXT: __spirv/spirv_ops.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: group_algorithm.hpp
@@ -56,17 +58,6 @@
 // CHECK-NEXT: detail/spirv.hpp
 // CHECK-NEXT: ext/oneapi/experimental/non_uniform_groups.hpp
 // CHECK-NEXT: ext/oneapi/sub_group_mask.hpp
-// CHECK-NEXT: builtins.hpp
-// CHECK-NEXT: detail/builtins/builtins.hpp
-// CHECK-NEXT: detail/vector_convert.hpp
-// CHECK-NEXT: detail/builtins/common_functions.inc
-// CHECK-NEXT: detail/builtins/helper_macros.hpp
-// CHECK-NEXT: detail/builtins/geometric_functions.inc
-// CHECK-NEXT: detail/builtins/half_precision_math_functions.inc
-// CHECK-NEXT: detail/builtins/integer_functions.inc
-// CHECK-NEXT: detail/builtins/math_functions.inc
-// CHECK-NEXT: detail/builtins/native_math_functions.inc
-// CHECK-NEXT: detail/builtins/relational_functions.inc
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: group_barrier.hpp
 // CHECK-EMPTY:
