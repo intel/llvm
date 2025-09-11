@@ -30,6 +30,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LineIterator.h"
@@ -218,67 +219,22 @@ struct Wrapper {
         "__sycl.tgt_bin_desc");
   }
 
-  Function *addDeclarationForNativeCPU(StringRef Name) {
-    FunctionType *NativeCPUFuncTy = FunctionType::get(
-        Type::getVoidTy(C),
-        {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
-    FunctionType *NativeCPUBuiltinTy = FunctionType::get(
-        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
-    FunctionType *FTy;
-    if (Name.starts_with("__dpcpp_nativecpu"))
-      FTy = NativeCPUBuiltinTy;
-    else
-      FTy = NativeCPUFuncTy;
-    auto FCalle = M.getOrInsertFunction(
-        sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
-    Function *F = dyn_cast<Function>(FCalle.getCallee());
-    if (F == nullptr)
-      report_fatal_error("Unexpected callee");
-    return F;
-  }
-
-  std::pair<Constant *, Constant *>
-  addDeclarationsForNativeCPU(std::string Entries) {
-    auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
-    if (Entries.empty())
+  /// Adds declarations of NativeCPU kernels to the binary in a format so that
+  /// the NativeCPU UR adapter can extract the pointers and invoke the kernels.
+  std::pair<Constant *, Constant *> addDeclarationsForNativeCPU(
+      std::string Entries,
+      const std::optional<util::PropertySet> &NativeCPUProps) {
+    if (Entries.empty()) {
+      auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
       return {NullPtr, NullPtr};
-
-    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
-    // the Native CPU PI Plug-in expects the BinaryStart field to point to an
-    // array of struct nativecpu_entry {
-    //   char *kernelname;
-    //   unsigned char *kernel_ptr;
-    // };
-    StructType *NCPUEntryT = StructType::create(
-        {PointerType::getUnqual(C), PointerType::getUnqual(C)},
-        "__nativecpu_entry");
-    SmallVector<Constant *, 5> NativeCPUEntries;
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
-      auto *NewDecl = addDeclarationForNativeCPU(*LI);
-      NativeCPUEntries.push_back(ConstantStruct::get(
-          NCPUEntryT,
-          {addStringToModule(*LI, "__ncpu_function_name"), NewDecl}));
     }
-
-    // Add an empty entry that we use as end iterator
-    auto *NativeCPUEndStr =
-        addStringToModule("__nativecpu_end", "__ncpu_end_str");
-    NativeCPUEntries.push_back(
-        ConstantStruct::get(NCPUEntryT, {NativeCPUEndStr, NullPtr}));
-
-    // Create the constant array containing the {kernel name, function pointers}
-    // pairs
-    ArrayType *ATy = ArrayType::get(NCPUEntryT, NativeCPUEntries.size());
-    Constant *CA = ConstantArray::get(ATy, NativeCPUEntries);
-    auto *GVar = new GlobalVariable(M, CA->getType(), true,
-                                    GlobalVariable::InternalLinkage, CA,
-                                    "__sycl_native_cpu_decls");
-    auto *Begin = ConstantExpr::getGetElementPtr(GVar->getValueType(), GVar,
-                                                 getSizetConstPair(0, 0));
-    auto *End = ConstantExpr::getGetElementPtr(
-        GVar->getValueType(), GVar,
-        getSizetConstPair(0, NativeCPUEntries.size()));
-    return std::make_pair(Begin, End);
+    std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
+    auto addPropertySetToModule_ = [this](auto p) {
+      return this->addPropertySetToModule(p);
+    };
+    return sycl::utils::addDeclarationsForNativeCPU(
+        *this, NativeCPUProps, &*MB, C, M, addPropertySetToModule_,
+        this->SyclPropSetTy);
   }
 
   /// Adds a global readonly variable that is initialized by given
@@ -499,13 +455,20 @@ struct Wrapper {
   ///
   /// \returns Pair of pointers to the beginning and end of the property set
   /// array, or a pair of nullptrs in case the properties file wasn't specified.
-  std::pair<Constant *, Constant *>
-  addPropertySetRegistry(const PropertySetRegistry &PropRegistry) {
+  std::pair<Constant *, Constant *> addPropertySetRegistry(
+      const PropertySetRegistry &PropRegistry,
+      std::optional<util::PropertySet> &SYCLNativeCPUPropSet) {
     // transform all property sets to IR and get the middle column image into
     // the PropSetsInits
     SmallVector<Constant *> PropSetsInits;
     for (const auto &PropSet : PropRegistry) {
       // create content in the rightmost column and get begin/end pointers
+      if (PropSet.first == sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS) {
+        // We don't emit Native CPU specific properties in this section, but
+        // instead we emit them in the native_cpu_entry struct directly.
+        SYCLNativeCPUPropSet = PropSet.second;
+        continue;
+      }
       std::pair<Constant *, Constant *> Props =
           addPropertySetToModule(PropSet.second);
       // get the next the middle column element
@@ -560,12 +523,13 @@ struct Wrapper {
     auto *LinkOptions = addStringToModule(
         Options.LinkOptions, Twine(OffloadKindTag) + "opts.link." + ImageID);
 
+    std::optional<util::PropertySet> SYCLNativeCPUPropSet;
     std::pair<Constant *, Constant *> PropSets =
-        addPropertySetRegistry(Image.PropertyRegistry);
+        addPropertySetRegistry(Image.PropertyRegistry, SYCLNativeCPUPropSet);
 
     std::pair<Constant *, Constant *> Binary;
     if (Image.Target == "native_cpu")
-      Binary = addDeclarationsForNativeCPU(Image.Entries);
+      Binary = addDeclarationsForNativeCPU(Image.Entries, SYCLNativeCPUPropSet);
     else {
       auto &MB = *Image.Image;
       Binary = addDeviceImageToModule(
