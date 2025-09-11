@@ -231,6 +231,10 @@ struct ur_command_list_manager {
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t phEvent);
 
+  v2::raii::command_list_unique_handle &&releaseCommandList();
+
+  void replaceCommandList(v2::raii::command_list_unique_handle &&cmdlist);
+
 private:
   ur_result_t appendGenericCommandListsExp(
       uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
