@@ -158,11 +158,6 @@ public:
 
   KernelRuntimeInfo &operator=(KernelRuntimeInfo &&rhs) = delete;
 
-  detail::ABINeutralKernelNameStrT &KernelName() { return MKernelName; }
-  const detail::ABINeutralKernelNameStrT &KernelName() const {
-    return MKernelName;
-  }
-
   std::shared_ptr<detail::HostKernelBase> &HostKernel() { return MHostKernel; }
   const std::shared_ptr<detail::HostKernelBase> &HostKernel() const {
     return MHostKernel;
@@ -3716,7 +3711,6 @@ private:
         new detail::HostKernel<KernelType, TransformedArgType, Dims>(
             KernelFunc));
 
-    KRInfo.KernelName() = detail::getKernelName<KernelName>();
     KRInfo.DeviceKernelInfoPtr() = &detail::getDeviceKernelInfo<KernelName>();
   }
 
