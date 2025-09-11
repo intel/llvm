@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "include/tsan_rtl.hpp"
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
 
 DeviceGlobal<void *> __TsanLaunchInfo;
 
@@ -70,7 +67,7 @@ inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
     // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
     // but this can really simplify the generic pointer conversion logic
     as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
+    addr = (uptr)ToGlobal((void *)old);
   }
   TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_generic_to, old, addr, as));
 }
@@ -130,13 +127,13 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_PVC__)
   shadow_ptr = MemToShadow_PVC(addr, as);
 #else
-  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
+  if (GetDeviceTy() == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr, as);
-  } else if (TsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
   } else {
     TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_unsupport_device_type,
-                                  (int)TsanLaunchInfo->DeviceTy));
+                                  (int)GetDeviceTy()));
     return nullptr;
   }
 #endif
@@ -144,9 +141,21 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
   return shadow_ptr;
 }
 
-inline Sid GetCurrentSid() {
-  const auto lid = __spirv_BuiltInGlobalLinearId;
-  return lid % kThreadSlotCount;
+// We selected up to 4 work items in each work group to do detection, the whole
+// number of selected work items no more than kThreadSlotCount. This may cause
+// some false negtive cases in non-uniform memory access which has data race.
+// Since the cases are very rare and the change will greatly reduce runtime
+// overhead, it should be worthwhile.
+inline int GetCurrentSid() {
+  const size_t lid = LocalLinearId();
+  const size_t ThreadPerWorkGroup =
+      Min(4, __spirv_BuiltInWorkgroupSize(0) * __spirv_BuiltInWorkgroupSize(1) *
+                 __spirv_BuiltInWorkgroupSize(2));
+  if (lid >= ThreadPerWorkGroup)
+    return -1;
+
+  const size_t Id = lid + WorkGroupLinearId() * ThreadPerWorkGroup;
+  return Id < kThreadSlotCount ? Id : -1;
 }
 
 inline RawShadow LoadShadow(const __SYCL_GLOBAL__ RawShadow *p) {
@@ -177,10 +186,16 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
         return;
       }
 
-      if (as == ADDRESS_SPACE_GENERIC &&
-          TsanLaunchInfo->DeviceTy != DeviceType::CPU) {
+#if defined(__LIBDEVICE_CPU__)
+#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
+      if (as == ADDRESS_SPACE_GENERIC) {
         ConvertGenericPointer(addr, as);
       }
+#else
+      if (as == ADDRESS_SPACE_GENERIC && GetDeviceTy() != DeviceType::CPU) {
+        ConvertGenericPointer(addr, as);
+      }
+#endif
 
       // Check if current address already being recorded before.
       for (uint32_t i = 0; i < TsanLaunchInfo->RecordedReportCount; i++) {
@@ -226,12 +241,12 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
       SanitizerReport.Func[MaxFuncIdx] = '\0';
 
       SanitizerReport.Line = line;
-      SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-      SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-      SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-      SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-      SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-      SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+      SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+      SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+      SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+      SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+      SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+      SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
       atomicStore(&TsanLaunchInfo->Lock, 0);
       break;
@@ -308,14 +323,16 @@ inline bool ContainsSameAccess(__SYCL_GLOBAL__ RawShadow *s, Shadow cur,
 
 } // namespace
 
-#define TSAN_CHECK(type, is_write, size)                                       \
-  DEVICE_EXTERN_C_NOINLINE void __tsan_##type##size(                           \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+#define TSAN_CHECK_BASE(type, is_write, size, as)                              \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_##type##size##_p##as(                   \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
     __SYCL_GLOBAL__ RawShadow *shadow_mem = MemToShadow(addr, as);             \
     if (!shadow_mem)                                                           \
       return;                                                                  \
-    Sid sid = GetCurrentSid();                                                 \
+    int sid = GetCurrentSid();                                                 \
+    if (sid == -1)                                                             \
+      return;                                                                  \
     uint16_t current_clock = IncrementEpoch(sid) + 1;                          \
     TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_raw_shadow, (void *)addr, as,   \
                                   (void *)shadow_mem, shadow_mem[0],           \
@@ -330,6 +347,11 @@ inline bool ContainsSameAccess(__SYCL_GLOBAL__ RawShadow *s, Shadow cur,
     CheckRace(shadow_mem, cur, type, addr, size, as, file, line, func);        \
   }
 
+#define TSAN_CHECK(type, is_write, size)                                       \
+  TSAN_CHECK_BASE(type, is_write, size, 1)                                     \
+  TSAN_CHECK_BASE(type, is_write, size, 3)                                     \
+  TSAN_CHECK_BASE(type, is_write, size, 4)
+
 TSAN_CHECK(read, false, 1)
 TSAN_CHECK(read, false, 2)
 TSAN_CHECK(read, false, 4)
@@ -339,28 +361,32 @@ TSAN_CHECK(write, true, 2)
 TSAN_CHECK(write, true, 4)
 TSAN_CHECK(write, true, 8)
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_write16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
-               uint32_t line, const char __SYCL_CONSTANT__ *func) {
-  __tsan_write8(addr, as, file, line, func);
-  __tsan_write8(addr + 8, as, file, line, func);
-}
+#define TSAN_CHECK16_BASE(type, as)                                            \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_##type##16_p##as(                       \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
+    __tsan_##type##8_p##as(addr, file, line, func);                            \
+    __tsan_##type##8_p##as(addr + 8, file, line, func);                        \
+  }
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_read16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
-              uint32_t line, const char __SYCL_CONSTANT__ *func) {
-  __tsan_read8(addr, as, file, line, func);
-  __tsan_read8(addr + 8, as, file, line, func);
-}
+#define TSAN_CHECK16(type)                                                     \
+  TSAN_CHECK16_BASE(type, 1)                                                   \
+  TSAN_CHECK16_BASE(type, 3)                                                   \
+  TSAN_CHECK16_BASE(type, 4)
 
-#define TSAN_UNALIGNED_CHECK(type, is_write, size)                             \
-  DEVICE_EXTERN_C_NOINLINE void __tsan_unaligned_##type##size(                 \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+TSAN_CHECK16(read)
+TSAN_CHECK16(write)
+
+#define TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, as)                    \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_unaligned_##type##size##_p##as(         \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
     __SYCL_GLOBAL__ RawShadow *shadow_mem = MemToShadow(addr, as);             \
     if (!shadow_mem)                                                           \
       return;                                                                  \
-    Sid sid = GetCurrentSid();                                                 \
+    int sid = GetCurrentSid();                                                 \
+    if (sid == -1)                                                             \
+      return;                                                                  \
     uint16_t current_clock = IncrementEpoch(sid) + 1;                          \
     AccessType type = is_write ? kAccessWrite : kAccessRead;                   \
     uptr size1 = Min(size, RoundUpTo(addr + 1, kShadowCell) - addr);           \
@@ -397,6 +423,11 @@ __tsan_read16(uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,
     }                                                                          \
   }
 
+#define TSAN_UNALIGNED_CHECK(type, is_write, size)                             \
+  TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, 1)                           \
+  TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, 3)                           \
+  TSAN_UNALIGNED_CHECK_BASE(type, is_write, size, 4)
+
 TSAN_UNALIGNED_CHECK(read, false, 1)
 TSAN_UNALIGNED_CHECK(read, false, 2)
 TSAN_UNALIGNED_CHECK(read, false, 4)
@@ -406,21 +437,21 @@ TSAN_UNALIGNED_CHECK(write, true, 2)
 TSAN_UNALIGNED_CHECK(write, true, 4)
 TSAN_UNALIGNED_CHECK(write, true, 8)
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_unaligned_write16(uptr addr, uint32_t as,
-                         const char __SYCL_CONSTANT__ *file, uint32_t line,
-                         const char __SYCL_CONSTANT__ *func) {
-  __tsan_unaligned_write8(addr, as, file, line, func);
-  __tsan_unaligned_write8(addr + 8, as, file, line, func);
-}
+#define TSAN_UNALIGNED_CHECK16_BASE(type, as)                                  \
+  DEVICE_EXTERN_C_NOINLINE void __tsan_unaligned_##type##16_p##as(             \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
+    __tsan_unaligned_##type##8_p##as(addr, file, line, func);                  \
+    __tsan_unaligned_##type##8_p##as(addr + 8, file, line, func);              \
+  }
 
-DEVICE_EXTERN_C_NOINLINE void
-__tsan_unaligned_read16(uptr addr, uint32_t as,
-                        const char __SYCL_CONSTANT__ *file, uint32_t line,
-                        const char __SYCL_CONSTANT__ *func) {
-  __tsan_unaligned_read8(addr, as, file, line, func);
-  __tsan_unaligned_read8(addr + 8, as, file, line, func);
-}
+#define TSAN_UNALIGNED_CHECK16(type)                                           \
+  TSAN_UNALIGNED_CHECK16_BASE(type, 1)                                         \
+  TSAN_UNALIGNED_CHECK16_BASE(type, 3)                                         \
+  TSAN_UNALIGNED_CHECK16_BASE(type, 4)
+
+TSAN_UNALIGNED_CHECK16(read)
+TSAN_UNALIGNED_CHECK16(write)
 
 static inline void __tsan_cleanup_private_cpu_impl(uptr addr, uint32_t size) {
   if (size) {
@@ -442,7 +473,7 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, size_t size) {
 #elif defined(__LIBDEVICE_PVC__)
   return;
 #else
-  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
+  if (GetDeviceTy() != DeviceType::CPU)
     return;
 
   __tsan_cleanup_private_cpu_impl(addr, size);
@@ -454,9 +485,13 @@ static __SYCL_CONSTANT__ const char __tsan_print_cleanup_local[] =
 
 DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_static_local(uptr addr,
                                                           size_t size) {
+  if (GetCurrentSid() == -1)
+    return;
+
   // Update shadow memory of local memory only on first work-item
-  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-          __spirv_LocalInvocationId_z() ==
+  if (__spirv_BuiltInLocalInvocationId(0) +
+          __spirv_BuiltInLocalInvocationId(1) +
+          __spirv_BuiltInLocalInvocationId(2) ==
       0) {
     if (TsanLaunchInfo->LocalShadowOffset == 0)
       return;
@@ -480,7 +515,7 @@ static __SYCL_CONSTANT__ const char __tsan_print_report_arg_count_incorrect[] =
 
 DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_dynamic_local(uptr ptr,
                                                            uint32_t num_args) {
-  if (!TsanLaunchInfo->LocalShadowOffset)
+  if (!TsanLaunchInfo->LocalShadowOffset || GetCurrentSid() == -1)
     return;
 
   if (num_args != TsanLaunchInfo->NumLocalArgs) {
@@ -499,39 +534,47 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_dynamic_local(uptr ptr,
 }
 
 DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
-  Sid sid = GetCurrentSid();
+  int sid = GetCurrentSid();
 
-  // sync current thread clock to global state
-  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
-      TsanLaunchInfo->Clock[sid].clk_[sid];
+  if (sid != -1) {
+    // sync current thread clock to global state
+    TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+        TsanLaunchInfo->Clock[sid].clk_[sid];
+  }
 
   __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 
-  // sync global state back
-  for (uptr i = 0; i < kThreadSlotCount; i++)
-    TsanLaunchInfo->Clock[sid].clk_[i] =
-        TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  if (sid != -1) {
+    // sync global state back
+    for (uptr i = 0; i < kThreadSlotCount; i++)
+      TsanLaunchInfo->Clock[sid].clk_[i] =
+          TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  }
 }
 
 DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
-  Sid sid = GetCurrentSid();
+  int sid = GetCurrentSid();
 
-  // sync current thread clock to global state
-  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
-      TsanLaunchInfo->Clock[sid].clk_[sid];
+  if (sid != -1) {
+    // sync current thread clock to global state
+    TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+        TsanLaunchInfo->Clock[sid].clk_[sid];
+  }
 
   __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 
-  // sync global state back
-  for (uptr i = 0; i < kThreadSlotCount; i++)
-    TsanLaunchInfo->Clock[sid].clk_[i] =
-        TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  if (sid != -1) {
+    // sync global state back
+    for (uptr i = 0; i < kThreadSlotCount; i++)
+      TsanLaunchInfo->Clock[sid].clk_[i] =
+          TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+  }
 }
 
 #endif // __SPIR__ || __SPIRV__

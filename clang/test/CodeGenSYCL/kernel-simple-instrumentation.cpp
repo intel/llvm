@@ -3,7 +3,7 @@
 
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 
-// CHECK: kernel_function
+// CHECK: define {{.*}}kernel_function
 // CHECK-NEXT: entry:
 // CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
 // CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()

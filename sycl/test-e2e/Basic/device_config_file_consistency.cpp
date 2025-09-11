@@ -46,6 +46,8 @@ std::string_view getAspectName(aspect Asp) {
     return #ASPECT;
 #include <sycl/info/aspects.def>
 #undef __SYCL_ASPECT
+  default:
+    return "unknown";
   }
   return "unknown";
 }

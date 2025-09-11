@@ -29,4 +29,4 @@
   ALL_ID(TYPE##8) { return _CLC_ALL8(v); }                                     \
   ALL_ID(TYPE##16) { return _CLC_ALL16(v); }
 
-ALL_VECTORIZE(schar)
+ALL_VECTORIZE(char)

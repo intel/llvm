@@ -1,6 +1,4 @@
 //
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 // REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
 //
 // RUN: %{build} -o %t.1.out

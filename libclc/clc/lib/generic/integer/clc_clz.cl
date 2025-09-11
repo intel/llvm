@@ -14,10 +14,6 @@ _CLC_OVERLOAD _CLC_DEF char __clc_clz(char x) {
   return __clc_clz((ushort)(uchar)x) - 8;
 }
 
-_CLC_OVERLOAD _CLC_DEF schar __clc_clz(schar x) {
-  return __clc_clz((ushort)(uchar)x) - 8;
-}
-
 _CLC_OVERLOAD _CLC_DEF uchar __clc_clz(uchar x) {
   return __clc_clz((ushort)x) - 8;
 }
@@ -46,12 +42,6 @@ _CLC_OVERLOAD _CLC_DEF ulong __clc_clz(ulong x) {
   return x ? __builtin_clzl(x) : 64;
 }
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, char, __clc_clz, char)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, schar, __clc_clz, schar)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uchar, __clc_clz, uchar)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, short, __clc_clz, short)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_clz, ushort)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __clc_clz, int)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_clz, uint)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, long, __clc_clz, long)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ulong, __clc_clz, ulong)
+#define FUNCTION __clc_clz
+#define __CLC_BODY <clc/shared/unary_def_scalarize.inc>
+#include <clc/integer/gentype.inc>

@@ -71,12 +71,7 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::physical_mem> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::physical_mem &PhysicalMem) const {
-    return hash<std::shared_ptr<sycl::detail::physical_mem_impl>>()(
-        sycl::detail::getSyclObjImpl(PhysicalMem));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::physical_mem>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::physical_mem> {};

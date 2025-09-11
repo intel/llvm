@@ -35,13 +35,38 @@ filterP2PDevices(ur_device_handle_t hSourceDevice,
 }
 
 static std::vector<std::vector<ur_device_handle_t>>
-populateP2PDevices(size_t maxDevices,
-                   const std::vector<ur_device_handle_t> &devices) {
-  std::vector<std::vector<ur_device_handle_t>> p2pDevices(maxDevices);
+populateP2PDevices(const std::vector<ur_device_handle_t> &devices) {
+  std::vector<ur_device_handle_t> allDevices;
+  std::function<void(ur_device_handle_t)> collectDeviceAndSubdevices =
+      [&allDevices, &collectDeviceAndSubdevices](ur_device_handle_t device) {
+        allDevices.push_back(device);
+        for (auto &subDevice : device->SubDevices) {
+          collectDeviceAndSubdevices(subDevice);
+        }
+      };
+
   for (auto &device : devices) {
-    p2pDevices[device->Id.value()] = filterP2PDevices(device, devices);
+    collectDeviceAndSubdevices(device);
+  }
+
+  uint64_t maxDeviceId = 0;
+  for (auto &device : allDevices) {
+    maxDeviceId = std::max(maxDeviceId, device->Id.value());
+  }
+
+  std::vector<std::vector<ur_device_handle_t>> p2pDevices(maxDeviceId + 1);
+  for (auto &device : allDevices) {
+    p2pDevices[device->Id.value()] = filterP2PDevices(device, allDevices);
   }
   return p2pDevices;
+}
+
+static std::vector<ur_device_handle_t>
+uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
+  std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
+  std::sort(devices.begin(), devices.end());
+  devices.erase(std::unique(devices.begin(), devices.end()), devices.end());
+  return devices;
 }
 
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
@@ -49,7 +74,7 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices),
+      hDevices(uniqueDevices(numDevices, phDevices)),
       commandListCache(hContext,
                        {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
                         phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
@@ -75,17 +100,16 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
-      p2pAccessDevices(populateP2PDevices(
-          phDevices[0]->Platform->getNumDevices(), this->hDevices)),
+      p2pAccessDevices(populateP2PDevices(this->hDevices)),
       defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
-  RefCount.increment();
+  RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_context_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete this;
@@ -201,7 +225,7 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hContext->RefCount.load()});
+    return ReturnValue(uint32_t{hContext->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // TODO: this is currently not implemented
     return ReturnValue(uint8_t{false});

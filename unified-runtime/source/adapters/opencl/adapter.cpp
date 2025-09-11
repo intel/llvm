@@ -26,17 +26,15 @@ static ur_adapter_handle_t liveAdapter = nullptr;
 ur_adapter_handle_t_::ur_adapter_handle_t_() : handle_base() {
 #ifdef _MSC_VER
 
-  // Loading OpenCL.dll increments the libraries internal reference count.
-  auto handle = LoadLibraryA("OpenCL.dll");
+  // Retrieving handle of an already linked OpenCL.dll library doesn't increase
+  // the reference count.
+  auto handle = GetModuleHandleA("OpenCL.dll");
+  assert(handle);
 
 #define CL_CORE_FUNCTION(FUNC)                                                 \
   FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
-
-  // So we can safely decrement it here wihtout actually unloading OpenCL.dll.
-  FreeLibrary(handle);
-
 #else // _MSC_VER
 
   // Use the default shared object search order (RTLD_DEFAULT) since the
@@ -78,7 +76,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     }
 
     auto &adapter = *phAdapters;
-    adapter->RefCount++;
+    adapter->RefCount.retain();
   }
 
   if (pNumAdapters) {
@@ -90,13 +88,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRetain(ur_adapter_handle_t hAdapter) {
-  ++hAdapter->RefCount;
+  hAdapter->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterRelease(ur_adapter_handle_t hAdapter) {
-  if (--hAdapter->RefCount == 0) {
+  if (hAdapter->RefCount.release()) {
     delete hAdapter;
   }
   return UR_RESULT_SUCCESS;
@@ -119,7 +117,7 @@ urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OPENCL);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hAdapter->RefCount.load());
+    return ReturnValue(hAdapter->RefCount.getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:

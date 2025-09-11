@@ -761,6 +761,22 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
   return Mutator;
 }
 
+static bool isOCLDepthImage(Type *Ty) {
+  if (auto *TET = dyn_cast<TargetExtType>(Ty)) {
+    if (TET->getName() != "spirv.Image")
+      return false;
+    assert(TET->getNumIntParameters() > 2 &&
+           "unexpected image TargetExtType parameter count");
+    return TET->getIntParameter(1);
+  }
+
+  StringRef ImageTypeName;
+  if (isOCLImageType(Ty, &ImageTypeName))
+    return ImageTypeName.contains("_depth_");
+
+  return false;
+}
+
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
                                                                  Op OC) {
   Type *T = CI->getType();
@@ -772,12 +788,8 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
   auto Img = getCallValue(CallSampledImg, 0);
   auto Sampler = getCallValue(CallSampledImg, 1);
-  bool IsDepthImage = false;
+  const bool IsDepthImage = isOCLDepthImage(Img.second);
   Mutator.mapArg(0, [&](Value *SampledImg) {
-    StringRef ImageTypeName;
-    if (isOCLImageType(Img.second, &ImageTypeName))
-      IsDepthImage = ImageTypeName.contains("_depth_");
-
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           PoisonValue::get(CallSampledImg->getType()));

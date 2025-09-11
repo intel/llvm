@@ -6,19 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/adapter.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-const AdapterPtr &KernelProgramCache::getAdapter() {
-  return MParentContext->getAdapter();
+adapter_impl &KernelProgramCache::getAdapter() {
+  return MParentContext.getAdapter();
 }
 
 ur_context_handle_t KernelProgramCache::getURContext() const {
-  return MParentContext->getHandleRef();
+  return MParentContext.getHandleRef();
 }
 
 } // namespace detail

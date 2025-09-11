@@ -32,7 +32,7 @@ namespace detail {
 
 platform_impl &
 platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                                     const AdapterPtr &Adapter) {
+                                     adapter_impl &Adapter) {
   std::shared_ptr<platform_impl> Result;
   {
     const std::lock_guard<std::mutex> Guard(
@@ -50,7 +50,7 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
     // Otherwise make the impl. Our ctor/dtor are private, so std::make_shared
     // needs a bit of help...
     struct creator : platform_impl {
-      creator(ur_platform_handle_t APlatform, const AdapterPtr &AAdapter)
+      creator(ur_platform_handle_t APlatform, adapter_impl &AAdapter)
           : platform_impl(APlatform, AAdapter) {}
     };
     Result = std::make_shared<creator>(UrPlatform, Adapter);
@@ -62,13 +62,30 @@ platform_impl::getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
 
 platform_impl &
 platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                                       const AdapterPtr &Adapter) {
+                                       adapter_impl &Adapter) {
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Adapter->call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
-                                            sizeof(Plt), &Plt, nullptr);
+  Adapter.call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
+                                           sizeof(Plt), &Plt, nullptr);
   return getOrMakePlatformImpl(Plt, Adapter);
+}
+
+context_impl &platform_impl::khr_get_default_context() {
+  GlobalHandler &GH = GlobalHandler::instance();
+  // Keeping the default context for platforms in the global cache to avoid
+  // shared_ptr based circular dependency between platform and context classes
+  std::unordered_map<platform_impl *, std::shared_ptr<context_impl>>
+      &PlatformToDefaultContextCache = GH.getPlatformToDefaultContextCache();
+
+  std::lock_guard<std::mutex> Lock{GH.getPlatformToDefaultContextCacheMutex()};
+
+  auto It = PlatformToDefaultContextCache.find(this);
+  if (PlatformToDefaultContextCache.end() == It)
+    std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
+        {this, detail::getSyclObjImpl(context{get_devices()})});
+
+  return *It->second;
 }
 
 static bool IsBannedPlatform(platform Platform) {
@@ -102,11 +119,11 @@ static bool IsBannedPlatform(platform Platform) {
 // replace uses of this with a helper in adapter object, the adapter
 // objects will own the ur adapter handles and they'll need to pass them to
 // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
+std::vector<platform> platform_impl::getAdapterPlatforms(adapter_impl &Adapter,
                                                          bool Supported) {
   std::vector<platform> Platforms;
 
-  auto UrPlatforms = Adapter->getUrPlatforms();
+  auto UrPlatforms = Adapter.getUrPlatforms();
 
   if (UrPlatforms.empty()) {
     return Platforms;
@@ -126,7 +143,7 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
 
     if (!Supported) {
       if (IsBanned || !HasAnyDevices) {
-        Platforms.push_back(Platform);
+        Platforms.push_back(std::move(Platform));
       }
     } else {
       if (IsBanned) {
@@ -138,7 +155,7 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
       if (HasAnyDevices) {
-        Platforms.push_back(Platform);
+        Platforms.push_back(std::move(Platform));
       }
     }
   }
@@ -151,12 +168,12 @@ std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which adapter.
   // There should be just one adapter serving each backend.
-  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
-  std::vector<std::pair<platform, AdapterPtr>> PlatformsWithAdapter;
+  std::vector<adapter_impl *> &Adapters = ur::initializeUr();
+  std::vector<std::pair<platform, adapter_impl *>> PlatformsWithAdapter;
 
   // Then check backend-specific adapters
   for (auto &Adapter : Adapters) {
-    const auto &AdapterPlatforms = getAdapterPlatforms(Adapter);
+    const auto &AdapterPlatforms = getAdapterPlatforms(*Adapter);
     for (const auto &P : AdapterPlatforms) {
       PlatformsWithAdapter.push_back({P, Adapter});
     }
@@ -231,24 +248,7 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
     MAdapter->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_TYPE,
                                                sizeof(ur_device_type_t),
                                                &UrDevType, nullptr);
-    // Assumption here is that there is 1-to-1 mapping between UrDevType and
-    // Sycl device type for GPU, CPU, and ACC.
-    info::device_type DeviceType = info::device_type::all;
-    switch (UrDevType) {
-    default:
-    case UR_DEVICE_TYPE_ALL:
-      DeviceType = info::device_type::all;
-      break;
-    case UR_DEVICE_TYPE_GPU:
-      DeviceType = info::device_type::gpu;
-      break;
-    case UR_DEVICE_TYPE_CPU:
-      DeviceType = info::device_type::cpu;
-      break;
-    case UR_DEVICE_TYPE_FPGA:
-      DeviceType = info::device_type::accelerator;
-      break;
-    }
+    info::device_type DeviceType = detail::ConvertDeviceType(UrDevType);
 
     for (const FilterT &Filter : FilterList->get()) {
       backend FilterBackend = Filter.Backend.value_or(backend::all);
@@ -452,34 +452,56 @@ static std::vector<device> amendDeviceAndSubDevices(
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
-
-  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  // Host is no longer supported, so it returns an empty vector.
   if (DeviceType == info::device_type::host)
+    return std::vector<device>{};
+
+  // For custom devices, UR has additional type enums.
+  if (DeviceType == info::device_type::custom) {
+    getDevicesImplHelper(UR_DEVICE_TYPE_CUSTOM, Res);
+    getDevicesImplHelper(UR_DEVICE_TYPE_MCA, Res);
+    getDevicesImplHelper(UR_DEVICE_TYPE_VPU, Res);
+    // Some backends may return the MCA and VPU types as part of custom, so
+    // remove duplicates.
+    std::sort(Res.begin(), Res.end(),
+              [](const sycl::device &D1, const sycl::device &D2) {
+                std::hash<sycl::device> Hasher;
+                return Hasher(D1) < Hasher(D2);
+              });
+    auto NewEnd = std::unique(Res.begin(), Res.end());
+    Res.erase(NewEnd, Res.end());
     return Res;
-
-  ur_device_type_t UrDeviceType = UR_DEVICE_TYPE_ALL;
-
-  switch (DeviceType) {
-  default:
-  case info::device_type::all:
-    UrDeviceType = UR_DEVICE_TYPE_ALL;
-    break;
-  case info::device_type::gpu:
-    UrDeviceType = UR_DEVICE_TYPE_GPU;
-    break;
-  case info::device_type::cpu:
-    UrDeviceType = UR_DEVICE_TYPE_CPU;
-    break;
-  case info::device_type::accelerator:
-    UrDeviceType = UR_DEVICE_TYPE_FPGA;
-    break;
   }
+
+  ur_device_type_t UrDeviceType = [DeviceType]() {
+    switch (DeviceType) {
+    case info::device_type::all:
+      return UR_DEVICE_TYPE_ALL;
+    case info::device_type::gpu:
+      return UR_DEVICE_TYPE_GPU;
+    case info::device_type::cpu:
+      return UR_DEVICE_TYPE_CPU;
+    case info::device_type::accelerator:
+      return UR_DEVICE_TYPE_FPGA;
+    case info::device_type::automatic:
+      return UR_DEVICE_TYPE_DEFAULT;
+    default:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Unknown device type.");
+    }
+  }();
+  getDevicesImplHelper(UrDeviceType, Res);
+  return Res;
+}
+
+void platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
+                                         std::vector<device> &OutVec) const {
+  size_t InitialOutVecSize = OutVec.size();
 
   uint32_t NumDevices = 0;
   MAdapter->call<UrApiKind::urDeviceGet>(MPlatform, UrDeviceType,
-                                         0, // CP info::device_type::all
+                                         0u, // CP info::device_type::all
                                          nullptr, &NumDevices);
-  const backend Backend = getBackend();
 
   if (NumDevices == 0) {
     // If platform doesn't have devices (even without filter)
@@ -487,17 +509,17 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     // analysis. Doing adjustment by simple copy of last device num from
     // previous platform.
     // Needs non const adapter reference.
-    std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
+    std::vector<adapter_impl *> &Adapters = ur::initializeUr();
     auto It = std::find_if(Adapters.begin(), Adapters.end(),
-                           [&Platform = MPlatform](AdapterPtr &Adapter) {
+                           [&Platform = MPlatform](adapter_impl *&Adapter) {
                              return Adapter->containsUrPlatform(Platform);
                            });
     if (It != Adapters.end()) {
-      AdapterPtr &Adapter = *It;
+      adapter_impl *&Adapter = *It;
       std::lock_guard<std::mutex> Guard(*Adapter->getAdapterMutex());
       Adapter->adjustLastDeviceId(MPlatform);
     }
-    return Res;
+    return;
   }
 
   std::vector<ur_device_handle_t> UrDevices(NumDevices);
@@ -513,7 +535,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(UrDevices, MPlatform, MAdapter);
+    applyAllowList(UrDevices, MPlatform, *MAdapter);
+
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
 
   // The first step is to filter out devices that are not compatible with
   // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
@@ -526,8 +550,8 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // The next step is to inflate the filtered UrDevices into SYCL Device
   // objects.
-  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, MAdapter);
-  std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(Res),
+  platform_impl &PlatformImpl = getOrMakePlatformImpl(MPlatform, *MAdapter);
+  std::transform(UrDevices.begin(), UrDevices.end(), std::back_inserter(OutVec),
                  [&PlatformImpl](const ur_device_handle_t UrDevice) -> device {
                    return detail::createSyclObjFromImpl<device>(
                        PlatformImpl.getOrMakeDeviceImpl(UrDevice));
@@ -539,15 +563,15 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     MAdapter->call<UrApiKind::urDeviceRelease>(UrDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
-  // and if there are no devices so far, there won't be any need to replace them
+  // and if there are no new devices, there won't be any need to replace them
   // with subdevices.
-  if (!OdsTargetList || Res.size() == 0)
-    return Res;
+  if (!OdsTargetList || OutVec.size() == InitialOutVecSize)
+    return;
 
   // Otherwise, our last step is to revisit the devices, possibly replacing
   // them with subdevices (which have been ignored until now)
-  return amendDeviceAndSubDevices(Backend, Res, OdsTargetList,
-                                  PlatformDeviceIndices, PlatformImpl);
+  OutVec = amendDeviceAndSubDevices(getBackend(), OutVec, OdsTargetList,
+                                    PlatformDeviceIndices, PlatformImpl);
 }
 
 bool platform_impl::has_extension(const std::string &ExtensionName) const {
@@ -563,9 +587,9 @@ bool platform_impl::supports_usm() const {
 }
 
 ur_native_handle_t platform_impl::getNative() const {
-  const auto &Adapter = getAdapter();
+  adapter_impl &Adapter = getAdapter();
   ur_native_handle_t Handle = 0;
-  Adapter->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
+  Adapter.call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 

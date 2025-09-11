@@ -311,8 +311,8 @@ TEST(GetProfilingInfo,
   queue Queue{Ctx, Dev};
   DeviceTimerCalled = false;
 
-  event E = Queue.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  event E =
+      Queue.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   EXPECT_FALSE(DeviceTimerCalled);
 }
 
@@ -340,8 +340,39 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   event E = Queue.submit([&](handler &cgh) {
     accessor writeRes{Buf, cgh, read_write};
 
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 
   EXPECT_TRUE(DeviceTimerCalled);
+}
+
+// Check that query fails for host task if queue doesn't have profiling
+// enabled.
+TEST(GetProfilingInfo, check_host_task_profiling_info) {
+  using namespace sycl;
+  [[maybe_unused]] unittest::UrMock<> Mock;
+  queue Queue;
+  event E = Queue.submit([&](handler &cgh) { cgh.host_task([]() {}); });
+
+  auto expect_profiling_exception = [&](auto profiling_query) {
+    try {
+      std::ignore = profiling_query();
+      FAIL();
+    } catch (sycl::exception const &e) {
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated "
+          "with the event does not have the 'enable_profiling' property.");
+    }
+  };
+
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_submit>();
+  });
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_start>();
+  });
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_end>();
+  });
 }

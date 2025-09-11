@@ -9,16 +9,16 @@
 
 // Check the basics.
 #ifdef TRIGGER_ERROR
-[[sycl::work_group_size_hint]] void f0();                 // expected-error {{'work_group_size_hint' attribute takes at least 1 argument}}
-[[sycl::work_group_size_hint(12, 12, 12, 12)]] void f1(); // expected-error {{'work_group_size_hint' attribute takes no more than 3 arguments}}
+[[sycl::work_group_size_hint]] void f0();                 // expected-error {{'sycl::work_group_size_hint' attribute takes at least 1 argument}}
+[[sycl::work_group_size_hint(12, 12, 12, 12)]] void f1(); // expected-error {{'sycl::work_group_size_hint' attribute takes no more than 3 arguments}}
 [[sycl::work_group_size_hint("derp", 1, 2)]] void f2();   // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
-[[sycl::work_group_size_hint(1, 1, 1)]] int i;            // expected-error {{'work_group_size_hint' attribute only applies to functions}}
+[[sycl::work_group_size_hint(1, 1, 1)]] int i;            // expected-error {{'sycl::work_group_size_hint' attribute only applies to functions}}
 #endif
 
 // Produce a conflicting attribute warning when the args are different.
 [[sycl::work_group_size_hint(4, 1, 1)]] void f3();    // expected-note {{previous attribute is here}}
-[[sycl::work_group_size_hint(1, 1, 32)]] void f3() {} // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}} \
-// expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+[[sycl::work_group_size_hint(1, 1, 32)]] void f3() {} // expected-warning {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}} \
+// expected-warning {{'sycl::work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
 
 // 1 and 2 dim versions
 [[sycl::work_group_size_hint(2)]] void f4();    // ok
@@ -26,18 +26,18 @@
 
 // Redefinitions with different dimensionality.
 [[sycl::work_group_size_hint(2, 1)]] void f6();    // expected-note {{previous attribute is here}}
-[[sycl::work_group_size_hint(2)]] void f6();       // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[sycl::work_group_size_hint(2, 1, 1)]] void f6(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
+[[sycl::work_group_size_hint(2)]] void f6();       // expected-warning {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::work_group_size_hint(2, 1, 1)]] void f6(); // expected-warning {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}}
 
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
-[[sycl::work_group_size_hint(4, 1, 1), sycl::work_group_size_hint(32, 1, 1)]] void f7(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
+[[sycl::work_group_size_hint(4, 1, 1), sycl::work_group_size_hint(32, 1, 1)]] void f7(); // expected-warning {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
 
 // Show that the attribute works on member functions.
 class Functor_1 {
 public:
   [[sycl::work_group_size_hint(16, 1, 1)]] [[sycl::work_group_size_hint(16, 1, 1)]] void operator()() const;
-  [[sycl::work_group_size_hint(16, 1, 1)]] [[sycl::work_group_size_hint(32, 1, 1)]] void operator()(int) const; // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
+  [[sycl::work_group_size_hint(16, 1, 1)]] [[sycl::work_group_size_hint(32, 1, 1)]] void operator()(int) const; // expected-warning {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
 };
 
 // Ensure that template arguments behave appropriately based on instantiations.
@@ -56,27 +56,27 @@ template <int X, int Y, int Z>
 template <int X, int Y, int Z>
 [[sycl::work_group_size_hint(X, 1, Z)]] void f10(); // expected-note {{previous attribute is here}}
 template <int X, int Y, int Z>
-[[sycl::work_group_size_hint(X, 2, Z)]] void f10(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
+[[sycl::work_group_size_hint(X, 2, Z)]] void f10(); // expected-warning {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}}
 
 #ifdef TRIGGER_ERROR
-[[sycl::work_group_size_hint(1, 2, 0)]] void f11(); // expected-error {{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
+[[sycl::work_group_size_hint(1, 2, 0)]] void f11(); // expected-error {{'sycl::work_group_size_hint' attribute requires a positive integral compile time constant expression}}
 #endif
 
 void instantiate() {
   f8<1>(); // OK
 #ifdef TRIGGER_ERROR
-  // expected-error@#f8 {{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
+  // expected-error@#f8 {{'sycl::work_group_size_hint' attribute requires a positive integral compile time constant expression}}
   f8<-1>(); // expected-note {{in instantiation}}
-  // expected-error@#f8 {{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
+  // expected-error@#f8 {{'sycl::work_group_size_hint' attribute requires a positive integral compile time constant expression}}
   f8<0>(); // expected-note {{in instantiation}}
 #endif
 
-  // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+  // expected-warning@#f9prev {{'sycl::work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
   f9<1, 1, 1>(); // OK, args are the same on the redecl.
 
-  // expected-warning@#f9 {{attribute 'work_group_size_hint' is already applied with different arguments}}
+  // expected-warning@#f9 {{attribute 'sycl::work_group_size_hint' is already applied with different arguments}}
   // expected-note@#f9prev {{previous attribute is here}}
-  // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+  // expected-warning@#f9prev {{'sycl::work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
 
   f9<1, 2, 3>(); // expected-note {{in instantiation}}
 }
@@ -101,14 +101,14 @@ public:
 
 class Functor4x4x4 {
 public:
-  [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {}; // expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+  [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {}; // expected-warning {{'sycl::work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
 };
 
 // Checking whether propagation of the attribute happens or not, according to the SYCL version.
 #if defined(EXPECT_PROP) // if attribute is propagated, then we expect errors here
 void f8x8x8(){};
 #else // otherwise no error
-[[sycl::work_group_size_hint(8, 8, 8)]] void f8x8x8(){}; // expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+[[sycl::work_group_size_hint(8, 8, 8)]] void f8x8x8(){}; // expected-warning {{'sycl::work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
 #endif
 class FunctorNoProp {
 public:

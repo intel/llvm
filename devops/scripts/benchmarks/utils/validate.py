@@ -1,5 +1,6 @@
 import re
 
+
 class Validate:
     """Static class containing methods for validating various fields"""
 

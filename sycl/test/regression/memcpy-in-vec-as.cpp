@@ -1,4 +1,6 @@
 // RUN: %clangxx -fsycl -D_FORTIFY_SOURCE=2 %s -o %t.out
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 #include <iostream>
 #include <sycl/sycl.hpp>
 

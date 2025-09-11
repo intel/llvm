@@ -976,9 +976,12 @@ struct urVirtualMemGranularityTest : urContextTest {
       GTEST_SKIP() << "Virtual memory is not supported.";
     }
 
+    const size_t allocationSize =
+        1; // assuming allocations in test are small enough and minimal granularity is used
     ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-        context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
-        sizeof(granularity), &granularity, nullptr));
+        context, device, allocationSize,
+        UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
+        &granularity, nullptr));
   }
   size_t granularity;
 };
@@ -995,10 +998,12 @@ struct urVirtualMemGranularityTestWithParam : urContextTestWithParam<T> {
     if (!virtual_memory_support) {
       GTEST_SKIP() << "Virtual memory is not supported.";
     }
-
+    const size_t allocationSize =
+        1; // assuming allocations in test are small and use smallest granularity
     ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
-        this->context, this->device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
-        sizeof(granularity), &granularity, nullptr));
+        this->context, this->device, allocationSize,
+        UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
+        &granularity, nullptr));
     ASSERT_NE(granularity, 0);
   }
 
@@ -1467,7 +1472,9 @@ struct KernelLaunchHelper {
     ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_BACKEND_HIP) {
+    std::string target_name;
+    ASSERT_SUCCESS(GetPlatformTriple(platform, target_name));
+    if (target_name == "amdgcn-amd-amdhsa") {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,

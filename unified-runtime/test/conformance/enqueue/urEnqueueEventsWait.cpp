@@ -92,9 +92,9 @@ TEST_P(urEnqueueEventsWaitTest, Success) {
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queue2, dst_buffer, true, 0, size,
                                         output.data(), 0, nullptr, nullptr));
   ASSERT_EQ(input, output);
-  EXPECT_SUCCESS(urEventRelease(event1));
-  EXPECT_SUCCESS(urEventRelease(waitEvent));
-  EXPECT_SUCCESS(urEventRelease(event2));
+  ASSERT_SUCCESS(urEventRelease(event1));
+  ASSERT_SUCCESS(urEventRelease(waitEvent));
+  ASSERT_SUCCESS(urEventRelease(event2));
 }
 
 TEST_P(urEnqueueEventsWaitTest, InvalidNullHandleQueue) {

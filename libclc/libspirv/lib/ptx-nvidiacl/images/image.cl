@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/opencl/clc.h>
 #include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp16

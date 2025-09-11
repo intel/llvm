@@ -78,6 +78,9 @@ struct urCommandBufferUSMCopyInOrderTest
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferUSMCopyInOrderTest);
 TEST_P(urCommandBufferUSMCopyInOrderTest, Success) {
+  // https://github.com/intel/llvm/issues/19604
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
   // Do an eager kernel enqueue without wait on completion
   // D[0] = A * D[1] + D[2]
   // D[0] = 42 * 1 + 2

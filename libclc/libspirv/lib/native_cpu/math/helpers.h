@@ -15,12 +15,12 @@
 // __builtin_elementwise_##NAME
 #ifndef IS_FABS
 #define GEN_UNARY_VECTOR_BUILTIN(NAME, TYPE, NUM)                              \
-  _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n) {                         \
+  _CLC_DEF _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n) {                \
     return __builtin_elementwise_##NAME(n);                                    \
   }
 #else
 #define GEN_UNARY_VECTOR_BUILTIN(NAME, TYPE, NUM)                              \
-  _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n) {                         \
+  _CLC_DEF _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n) {                \
     return __builtin_elementwise_abs(n);                                       \
   }
 #endif
@@ -33,7 +33,9 @@
   GEN_UNARY_VECTOR_BUILTIN(NAME, TYPE, 16)
 
 #define GEN_UNARY_BUILTIN_T(NAME, TYPE)                                        \
-  _CLC_OVERLOAD TYPE GETNAME(NAME)(TYPE n) { return __builtin_##NAME(n); }
+  _CLC_DEF _CLC_OVERLOAD TYPE GETNAME(NAME)(TYPE n) {                          \
+    return __builtin_##NAME(n);                                                \
+  }
 
 #if defined(cl_khr_fp16)
 #define GEN_UNARY_FP16(NAME)                                                   \
@@ -58,8 +60,8 @@
   GEN_UNARY_FP64(NAME)
 
 #define GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, NUM)                            \
-  _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n1, TYPE##NUM n2,            \
-                                        TYPE##NUM n3) {                        \
+  _CLC_DEF _CLC_OVERLOAD TYPE##NUM GETNAME(NAME)(TYPE##NUM n1, TYPE##NUM n2,   \
+                                                 TYPE##NUM n3) {               \
     return __builtin_elementwise_##NAME(n1, n2, n3);                           \
   }
 
@@ -71,7 +73,7 @@
   GEN_TERNARY_VECTOR_BUILTIN(NAME, TYPE, 16)
 
 #define GEN_TERNARY_BUILTIN_T(NAME, TYPE)                                      \
-  _CLC_OVERLOAD TYPE GETNAME(NAME)(TYPE n1, TYPE n2, TYPE n3) {                \
+  _CLC_DEF _CLC_OVERLOAD TYPE GETNAME(NAME)(TYPE n1, TYPE n2, TYPE n3) {       \
     return __builtin_##NAME(n1, n2, n3);                                       \
   }
 

@@ -3,6 +3,9 @@
 // RUN: %clangxx -D__SYCL_DISABLE_ID_TO_INT_CONV__ -fsycl %s -o %t_dis.out
 // RUN: %t_dis.out
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 //==--------------- id.cpp - SYCL id test ----------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

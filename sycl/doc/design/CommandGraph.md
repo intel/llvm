@@ -609,6 +609,22 @@ The `urCommandBufferAppendUSMPrefetchExp` and
 adapter as empty nodes enforcing the node dependencies. As such the
 optimization hints are a no-op.
 
+#### Native Command
+
+CUDA child graphs are used to implement the `urCommandBufferAppendNativeCommandExp`
+entry-point for `sycl_ext_codeplay_enqueue_native_command` SYCL-Graph support.
+The SYCL native-command node exposes a CUDA-Graph object to the user, which is
+then added as a child graph of the parent graph from the SYCL-graph. Therefore
+any CUDA limitations that apply to the usage of child nodes in a graph, apply
+to native-command nodes.
+
+Using CUDA asynchronous allocation/free nodes in child graphs is only supported
+[from CUDA 12.9](https://docs.nvidia.com/cuda/cuda-c-programming-guide/#memory-nodes-in-child-graphs).
+As a result adding these async alloc & free nodes to the CUDA-Graph handle
+given to a user inside a native-command is only supported in DPC++ builds
+against CUDA 12.9 and later when the SYCL-RT can take advantage of this CUDA
+functionality in the backend.
+
 ### HIP
 
 The HIP backend offers a graph management API very similar to CUDA Graph
@@ -638,6 +654,20 @@ The `urCommandBufferAppendUSMPrefetchExp` and
 `handler::prefetch` and `handler::mem_advise` are implemented in the HIP UR
 adapter as empty nodes enforcing the node dependencies. As such the
 optimization hints are a no-op.
+
+#### Native Command
+
+HIP child graphs are used to implement the `urCommandBufferAppendNativeCommandExp`
+entry-point for `sycl_ext_codeplay_enqueue_native_command` SYCL-Graph support.
+The SYCL native-command node exposes a HIP-Graph object to the user, which is
+then added as a child graph of the parent graph from the SYCL-graph. Therefore
+any CUDA limitations that apply to the usage of child nodes in a graph, apply
+to native-command nodes.
+
+Using HIP-Graph asynchronous allocation/free nodes in child graphs is not
+supported, and as a result adding async alloc & free nodes to the native
+HIP-Graph handle exposed to the user in a native-command will result in an
+exception when the graph is finalized.
 
 ### OpenCL
 
@@ -679,6 +709,7 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
 | urCommandBufferAppendUSMPrefetchExp |  | No |
 | urCommandBufferAppendUSMAdviseExp |  | No |
+| urCommandBufferAppendNativeCommandExp| | Yes |
 | urEnqueueCommandBufferExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |

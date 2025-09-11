@@ -9,6 +9,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include <umf_helpers.hpp>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
@@ -16,7 +17,7 @@
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
 struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
-  std::atomic_uint32_t RefCount = 1;
+  ur::RefCount RefCount;
 
   ur_context_handle_t Context = nullptr;
 
@@ -29,12 +30,6 @@ struct ur_usm_pool_handle_t_ : ur::hip::handle_base {
 
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc);
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   bool hasUMFPool(umf_memory_pool_t *umf_pool);
 };
@@ -61,24 +56,19 @@ public:
   umf_result_t initialize(ur_context_handle_t Ctx, ur_device_handle_t Dev);
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr);
   umf_result_t free(void *Ptr, size_t Size);
-  void get_last_native_error(const char **ErrMsg, int32_t *ErrCode);
+  umf_result_t get_last_native_error(const char **ErrMsg, int32_t *ErrCode);
   umf_result_t get_min_page_size(const void *, size_t *);
   umf_result_t get_recommended_page_size(size_t, size_t *) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  umf_result_t purge_lazy(void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  };
-  umf_result_t purge_force(void *, size_t) {
-    return UMF_RESULT_ERROR_NOT_SUPPORTED;
-  };
-  umf_result_t allocation_merge(void *, void *, size_t) {
-    return UMF_RESULT_ERROR_UNKNOWN;
+  umf_result_t get_name(const char **Name) {
+    if (!Name) {
+      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    *Name = "HIP";
+    return UMF_RESULT_SUCCESS;
   }
-  umf_result_t allocation_split(void *, size_t, size_t) {
-    return UMF_RESULT_ERROR_UNKNOWN;
-  }
-  const char *get_name() { return "HIP"; }
 
   virtual ~USMMemoryProvider() = default;
 };

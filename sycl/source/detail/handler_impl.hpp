@@ -10,19 +10,18 @@
 
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
-#include <detail/graph_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
-#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental::detail {
+class graph_impl;
+class exec_graph_impl;
 class dynamic_parameter_impl;
-}
+} // namespace ext::oneapi::experimental::detail
 namespace detail {
-
-using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
 
 enum class HandlerSubmissionState : std::uint8_t {
   NO_STATE = 0,
@@ -32,10 +31,8 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
-               bool EventNeeded)
-      : MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
-        MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
+  handler_impl(queue_impl &Queue, bool EventNeeded)
+      : MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
 
   handler_impl(ext::oneapi::experimental::detail::graph_impl &Graph)
       : MQueueOrGraph{Graph} {}
@@ -63,12 +60,13 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
+  KernelNameStrRefT getKernelName() const {
+    assert(MDeviceKernelInfoPtr);
+    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+  }
+
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
-
-  /// Pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission.
-  queue_impl *MSubmissionSecondaryQueue = nullptr;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.
@@ -92,6 +90,10 @@ public:
   /// Boolean flag for whether the device_global had the device_image_scope
   /// property.
   bool MIsDeviceImageScoped = false;
+
+  /// Direction of USM prefetch / destination device.
+  sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
+      sycl::ext::oneapi::experimental::prefetch_type::device;
 
   // Program scope pipe information.
 
@@ -199,9 +201,9 @@ public:
   template <typename Self = handler_impl> context_impl &get_context() {
     Self *self = this;
     if (auto *Queue = self->get_queue_or_null())
-      return *Queue->getContextImplPtr();
+      return Queue->getContextImpl();
     else
-      return *self->get_graph().getContextImplPtr();
+      return self->get_graph().getContextImpl();
   }
 
   /// If we are submitting a graph using ext_oneapi_graph this will be the graph
@@ -246,8 +248,9 @@ public:
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
 
-  // A pointer to a kernel name based cache retrieved on the application side.
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+  // A pointer to device kernel information. Cached on the application side in
+  // headers or retrieved from program manager.
+  DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
 };
 
 } // namespace detail

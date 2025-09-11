@@ -106,13 +106,13 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   std::iota(std::begin(input), std::end(input), 0x0);
 
   // Enqueue the rectangular write from that host buffer.
-  EXPECT_SUCCESS(urEnqueueMemBufferWriteRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferWriteRect(
       queue, buffer, /* isBlocking */ true, buffer_origin, host_origin, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       input.data(), 0, nullptr, nullptr));
 
   std::vector<uint8_t> output(buffer_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, /* is_blocking */ true,
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, /* is_blocking */ true,
                                         0, buffer_size, output.data(), 0,
                                         nullptr, nullptr));
 
@@ -126,7 +126,7 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   EXPECT_EQ(expected, output);
 
   // Cleanup.
-  EXPECT_SUCCESS(urMemRelease(buffer));
+  ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
 struct urEnqueueMemBufferWriteRectTest : public uur::urMemBufferQueueTest {

@@ -10,18 +10,25 @@
 
 #include <sycl/bit_cast.hpp>              // for bit_cast
 #include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
-#include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>
 #endif
 
-#include <cstddef>     // for size_t
-#include <cstdint>     // for uint16_t, uint32_t, uint8_t
-#include <functional>  // for hash
+#include <cstddef>
+#include <cstdint>
 #include <limits>      // for float_denorm_style, float_r...
-#include <string_view> // for hash
-#include <type_traits> // for enable_if_t
+#include <type_traits>
+
+// For std::hash, seems to be the most lightweight header provide it under
+// C++17:
+#include <optional>
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <iosfwd>
+#else
+#include <sycl/detail/iostream_proxy.hpp>
+#endif
 
 #if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
@@ -70,9 +77,9 @@ inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
     Exp16 = 0x1f;
   } else if (__builtin_expect(Exp32Diff > -14, 0)) {
     // normal range for half type
-    Exp16 = Exp32Diff + 15;
+    Exp16 = static_cast<uint16_t>(Exp32Diff) + 15;
     // convert 23-bit mantissa to 10-bit mantissa.
-    Frac16 = Frac32 >> 13;
+    Frac16 = static_cast<uint16_t>(Frac32 >> 13);
     // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half
     // data type.
     // Round to nearest.
@@ -85,7 +92,8 @@ inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
       Frac16 += Frac16 & 1;
   } else if (__builtin_expect(Exp32Diff > -25, 0)) {
     // subnormals
-    Frac16 = (Frac32 | (uint32_t(1) << 23)) >> (-Exp32Diff - 1);
+    Frac16 = static_cast<uint16_t>((Frac32 | (uint32_t(1) << 23)) >>
+                                   (-Exp32Diff - 1));
   }
 
   if (__builtin_expect(Exp32 == 0xff && Frac32 != 0, 0)) {
@@ -133,7 +141,7 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
     Exp32 = 113 - OffSet;
   }
 
-  uint32_t Frac32 = Frac16 << 13;
+  uint32_t Frac32 = static_cast<uint32_t>(Frac16 << 13);
 
   uint32_t Bits = 0;
   Bits |= Sign;
@@ -312,72 +320,72 @@ public:
   __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
                                                 const int rhs) {               \
     half rtn = lhs;                                                            \
-    rtn op_eq rhs;                                                             \
+    rtn op_eq half(static_cast<float>(rhs));                                   \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const int lhs,                 \
                                                 const half rhs) {              \
-    half rtn = lhs;                                                            \
+    half rtn(static_cast<float>(lhs));                                         \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
                                                 const long rhs) {              \
     half rtn = lhs;                                                            \
-    rtn op_eq rhs;                                                             \
+    rtn op_eq half(static_cast<float>(rhs));                                   \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const long lhs,                \
                                                 const half rhs) {              \
-    half rtn = lhs;                                                            \
+    half rtn(static_cast<float>(lhs));                                         \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half lhs,                \
                                                 const long long rhs) {         \
     half rtn = lhs;                                                            \
-    rtn op_eq rhs;                                                             \
+    rtn op_eq half(static_cast<float>(rhs));                                   \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const long long lhs,           \
                                                 const half rhs) {              \
-    half rtn = lhs;                                                            \
+    half rtn(static_cast<float>(lhs));                                         \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
                                                 const unsigned int &rhs) {     \
     half rtn = lhs;                                                            \
-    rtn op_eq rhs;                                                             \
+    rtn op_eq half(static_cast<float>(rhs));                                   \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const unsigned int &lhs,       \
                                                 const half &rhs) {             \
-    half rtn = lhs;                                                            \
+    half rtn(static_cast<float>(lhs));                                         \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const half &lhs,               \
                                                 const unsigned long &rhs) {    \
     half rtn = lhs;                                                            \
-    rtn op_eq rhs;                                                             \
+    rtn op_eq half(static_cast<float>(rhs));                                   \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const unsigned long &lhs,      \
                                                 const half &rhs) {             \
-    half rtn = lhs;                                                            \
+    half rtn(static_cast<float>(lhs));                                         \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(                               \
       const half &lhs, const unsigned long long &rhs) {                        \
     half rtn = lhs;                                                            \
-    rtn op_eq rhs;                                                             \
+    rtn op_eq half(static_cast<float>(rhs));                                   \
     return rtn;                                                                \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend half operator op(const unsigned long long &lhs, \
                                                 const half &rhs) {             \
-    half rtn = lhs;                                                            \
+    half rtn(static_cast<float>(lhs));                                         \
     rtn op_eq rhs;                                                             \
     return rtn;                                                                \
   }
@@ -412,51 +420,51 @@ public:
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const int &rhs) {              \
-    return lhs.getFPRep() op rhs;                                              \
+    return lhs.getFPRep() op static_cast<float>(rhs);                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const int &lhs,                \
                                                 const half &rhs) {             \
-    return lhs op rhs.getFPRep();                                              \
+    return static_cast<float>(lhs) op rhs.getFPRep();                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const long &rhs) {             \
-    return lhs.getFPRep() op rhs;                                              \
+    return lhs.getFPRep() op static_cast<float>(rhs);                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const long &lhs,               \
                                                 const half &rhs) {             \
-    return lhs op rhs.getFPRep();                                              \
+    return static_cast<float>(lhs) op rhs.getFPRep();                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const long long &rhs) {        \
-    return lhs.getFPRep() op rhs;                                              \
+    return lhs.getFPRep() op static_cast<float>(rhs);                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const long long &lhs,          \
                                                 const half &rhs) {             \
-    return lhs op rhs.getFPRep();                                              \
+    return static_cast<float>(lhs) op rhs.getFPRep();                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const unsigned int &rhs) {     \
-    return lhs.getFPRep() op rhs;                                              \
+    return lhs.getFPRep() op static_cast<float>(rhs);                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned int &lhs,       \
                                                 const half &rhs) {             \
-    return lhs op rhs.getFPRep();                                              \
+    return static_cast<float>(lhs) op rhs.getFPRep();                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const half &lhs,               \
                                                 const unsigned long &rhs) {    \
-    return lhs.getFPRep() op rhs;                                              \
+    return lhs.getFPRep() op static_cast<float>(rhs);                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned long &lhs,      \
                                                 const half &rhs) {             \
-    return lhs op rhs.getFPRep();                                              \
+    return static_cast<float>(lhs) op rhs.getFPRep();                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(                               \
       const half &lhs, const unsigned long long &rhs) {                        \
-    return lhs.getFPRep() op rhs;                                              \
+    return lhs.getFPRep() op static_cast<float>(rhs);                          \
   }                                                                            \
   __SYCL_CONSTEXPR_HALF friend bool operator op(const unsigned long long &lhs, \
                                                 const half &rhs) {             \
-    return lhs op rhs.getFPRep();                                              \
+    return static_cast<float>(lhs) op rhs.getFPRep();                          \
   }
   OP(==)
   OP(!=)
@@ -477,6 +485,13 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
   // Operator << and >>
+#ifdef __SYCL_DEVICE_ONLY__
+  // std::istream/std::ostream aren't usable on device, so don't provide a
+  // definition to save compile time by using lightweight `<iosfwd>`.
+  inline friend std::ostream &operator<<(std::ostream &O,
+                                         sycl::half const &rhs);
+  inline friend std::istream &operator>>(std::istream &I, sycl::half &rhs);
+#else
   inline friend std::ostream &operator<<(std::ostream &O,
                                          sycl::half const &rhs) {
     O << static_cast<float>(rhs);
@@ -489,6 +504,7 @@ public:
     rhs = ValFloat;
     return I;
   }
+#endif
 
   template <typename Key> friend struct std::hash;
 

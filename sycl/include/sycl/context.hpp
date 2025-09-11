@@ -256,12 +256,6 @@ public:
   ext_oneapi_get_default_memory_pool(const device &dev,
                                      sycl::usm::alloc kind) const;
 
-  /// Gets default memory pool associated with the context and allocation kind.
-  ///
-  /// \return a memory pool associated with this context.
-  sycl::ext::oneapi::experimental::memory_pool
-  ext_oneapi_get_default_memory_pool(sycl::usm::alloc kind) const;
-
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(std::shared_ptr<detail::context_impl> Impl);
@@ -317,11 +311,6 @@ inline exception::exception(context Ctx, int EV,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::context> {
-  size_t operator()(const sycl::context &Context) const {
-    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
-        sycl::detail::getSyclObjImpl(Context));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::context>
+    : public sycl::detail::sycl_obj_hash<sycl::context> {};

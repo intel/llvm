@@ -8,12 +8,20 @@
 
 #include "DeviceCompilation.h"
 #include "ESIMD.h"
+#include "JITBinaryInfo.h"
+#include "Resource.h"
+#include "translation/Translation.h"
 
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
+#include <clang/Driver/CudaInstallationDetector.h>
+#include <clang/Driver/Driver.h>
+#include <clang/Driver/LazyDetector.h>
 #include <clang/Driver/Options.h>
+#include <clang/Driver/RocmInstallationDetector.h>
+#include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
@@ -38,6 +46,7 @@
 #include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
+#include <llvm/TargetParser/TargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -52,87 +61,8 @@ using namespace llvm::opt;
 using namespace llvm::sycl;
 using namespace llvm::module_split;
 using namespace llvm::util;
+using namespace llvm::vfs;
 using namespace jit_compiler;
-
-#ifdef _GNU_SOURCE
-#include <dlfcn.h>
-static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
-#endif
-
-#ifdef _WIN32
-#include <filesystem> // For std::filesystem::path ( C++17 only )
-#include <shlwapi.h>  // For PathRemoveFileSpec
-#include <windows.h>  // For GetModuleFileName, HMODULE, DWORD, MAX_PATH
-
-// cribbed from sycl/source/detail/os_util.cpp
-using OSModuleHandle = intptr_t;
-static constexpr OSModuleHandle ExeModuleHandle = -1;
-static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
-  HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
-  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-    // Expect the caller to check for zero and take
-    // necessary action
-    return 0;
-  }
-  if (PhModule == GetModuleHandleA(nullptr))
-    return ExeModuleHandle;
-  return reinterpret_cast<OSModuleHandle>(PhModule);
-}
-
-// cribbed from sycl/source/detail/os_util.cpp
-/// Returns an absolute path where the object was found.
-std::wstring getCurrentDSODir() {
-  wchar_t Path[MAX_PATH];
-  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
-  DWORD Ret = GetModuleFileName(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
-      MAX_PATH);
-  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
-  assert(Ret > 0 && "GetModuleFileName failed");
-  (void)Ret;
-
-  BOOL RetCode = PathRemoveFileSpec(Path);
-  assert(RetCode && "PathRemoveFileSpec failed");
-  (void)RetCode;
-
-  return Path;
-}
-#endif // _WIN32
-
-static constexpr auto InvalidDPCPPRoot = "<invalid>";
-
-static const std::string &getDPCPPRoot() {
-  thread_local std::string DPCPPRoot;
-
-  if (!DPCPPRoot.empty()) {
-    return DPCPPRoot;
-  }
-  DPCPPRoot = InvalidDPCPPRoot;
-
-#ifdef _GNU_SOURCE
-  static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
-  Dl_info Info;
-  if (dladdr(&X, &Info)) {
-    std::string LoadedLibraryPath = Info.dli_fname;
-    auto Pos = LoadedLibraryPath.rfind(JITLibraryPathSuffix);
-    if (Pos != std::string::npos) {
-      DPCPPRoot = LoadedLibraryPath.substr(0, Pos);
-    }
-  }
-#endif // _GNU_SOURCE
-
-#ifdef _WIN32
-  DPCPPRoot = std::filesystem::path(getCurrentDSODir()).parent_path().string();
-#endif // _WIN32
-
-  // TODO: Implemenent other means of determining the DPCPP root, e.g.
-  //       evaluating the `CMPLR_ROOT` env.
-
-  return DPCPPRoot;
-}
 
 namespace {
 
@@ -168,101 +98,112 @@ private:
   bool Executed = false;
 };
 
-class RTCToolActionBase : public ToolAction {
-public:
-  // Code adapted from `FrontendActionFactory::runInvocation`.
-  bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
-                     FileManager *Files,
-                     std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-                     DiagnosticConsumer *DiagConsumer) override {
-    assert(!hasExecuted() && "Action should only be invoked on a single file");
-
-    // Create a compiler instance to handle the actual work.
-    CompilerInstance Compiler(std::move(Invocation), std::move(PCHContainerOps));
-    Compiler.setFileManager(Files);
-    // Suppress summary with number of warnings and errors being printed to
-    // stdout.
-    Compiler.setVerboseOutputStream(std::make_unique<llvm::raw_null_ostream>());
-
-    // Create the compiler's actual diagnostics engine.
-    Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                               /*ShouldOwnClient=*/false);
-    if (!Compiler.hasDiagnostics()) {
-      return false;
+class SYCLToolchain {
+  SYCLToolchain() {
+    for (size_t i = 0; i < NumToolchainFiles; ++i) {
+      auto [Path, Content] = ToolchainFiles[i];
+      ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
     }
-
-    Compiler.createSourceManager(*Files);
-
-    return executeAction(Compiler, Files);
   }
 
-  virtual ~RTCToolActionBase() = default;
+  // Similar to FrontendActionFactory, but we don't take ownership of
+  // `FrontendAction`, nor do we create copies of it as we only perform a single
+  // `ToolInvocation`.
+  class Action : public ToolAction {
+    FrontendAction &FEAction;
 
-protected:
-  virtual bool hasExecuted() = 0;
-  virtual bool executeAction(CompilerInstance &, FileManager *) = 0;
-};
+  public:
+    Action(FrontendAction &FEAction) : FEAction(FEAction) {}
+    ~Action() override = default;
 
-class GetSourceHashAction : public RTCToolActionBase {
-protected:
-  bool executeAction(CompilerInstance &CI, FileManager *Files) override {
-    HashPreprocessedAction HPA;
-    const bool Success = CI.ExecuteAction(HPA);
-    Files->clearStatCache();
-    if (!Success) {
-      return false;
+    // Code adapted from `FrontendActionFactory::runInvocation`:
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      // Create a compiler instance to handle the actual work.
+      CompilerInstance Compiler(std::move(Invocation),
+                                std::move(PCHContainerOps));
+      Compiler.setFileManager(Files);
+      // Suppress summary with number of warnings and errors being printed to
+      // stdout.
+      Compiler.setVerboseOutputStream(
+          std::make_unique<llvm::raw_null_ostream>());
+
+      // Create the compiler's actual diagnostics engine.
+      Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
+                                 /*ShouldOwnClient=*/false);
+      if (!Compiler.hasDiagnostics())
+        return false;
+
+      Compiler.createSourceManager(*Files);
+
+      const bool Success = Compiler.ExecuteAction(FEAction);
+
+      Files->clearStatCache();
+      return Success;
     }
-
-    Hash = HPA.takeHash();
-    Executed = true;
-    return true;
-  }
-
-  bool hasExecuted() override { return Executed; }
+  };
 
 public:
-  BLAKE3Result<> takeHash() {
-    assert(Executed);
-    Executed = false;
-    return std::move(Hash);
+  static SYCLToolchain &instance() {
+    static SYCLToolchain Instance;
+    return Instance;
   }
+
+  bool run(const std::vector<std::string> &CommandLine,
+           FrontendAction &FEAction,
+           IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
+           DiagnosticConsumer *DiagConsumer = nullptr) {
+    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+        llvm::vfs::getRealFileSystem());
+    FS->pushOverlay(ToolchainFS);
+    if (FSOverlay)
+      FS->pushOverlay(FSOverlay);
+
+    auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
+        clang::FileSystemOptions{"." /* WorkingDir */}, FS);
+
+    Action A{FEAction};
+    ToolInvocation TI{CommandLine, &A, Files.get(),
+                      std::make_shared<PCHContainerOperations>()};
+    TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
+
+    return TI.run();
+  }
+
+  Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
+                                          LLVMContext &Context) {
+    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+        llvm::vfs::getRealFileSystem());
+    FS->pushOverlay(ToolchainFS);
+
+    auto MemBuf = FS->getBufferForFile(LibPath, /*FileSize*/ -1,
+                                       /*RequiresNullTerminator*/ false);
+    if (!MemBuf) {
+      return createStringError("Error opening file %s: %s", LibPath.data(),
+                               MemBuf.getError().message().c_str());
+    }
+
+    SMDiagnostic Diag;
+    ModuleUPtr Lib = parseIR(*MemBuf->get(), Diag, Context);
+    if (!Lib) {
+      std::string DiagMsg;
+      raw_string_ostream SOS(DiagMsg);
+      Diag.print(/*ProgName=*/nullptr, SOS);
+      return createStringError(DiagMsg);
+    }
+    return std::move(Lib);
+  }
+
+  std::string_view getClangXXExe() const { return ClangXXExe; }
 
 private:
-  BLAKE3Result<> Hash;
-  bool Executed = false;
-};
-
-struct GetLLVMModuleAction : public RTCToolActionBase {
-protected:
-  bool executeAction(CompilerInstance &CI, FileManager *Files) override {
-    // Ignore `Compiler.getFrontendOpts().ProgramAction` (would be `EmitBC`) and
-    // create/execute an `EmitLLVMOnlyAction` (= codegen to LLVM module without
-    // emitting anything) instead.
-    EmitLLVMOnlyAction ELOA{&Context};
-    const bool Success = CI.ExecuteAction(ELOA);
-    Files->clearStatCache();
-    if (!Success) {
-      return false;
-    }
-
-    // Take the module to extend its lifetime.
-    Module = ELOA.takeModule();
-
-    return true;
-  }
-
-  bool hasExecuted() override { return static_cast<bool>(Module); }
-
-public:
-  GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
-  ModuleUPtr takeModule() {
-    assert(Module);
-    return std::move(Module);
-  }
-
-private:
-  LLVMContext &Context;
-  ModuleUPtr Module;
+  clang::IgnoringDiagConsumer IgnoreDiag;
+  std::string ClangXXExe =
+      (jit_compiler::ToolchainPrefix + "/bin/clang++").str();
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
 };
 
 class ClangDiagnosticWrapper {
@@ -275,7 +216,7 @@ public:
   ClangDiagnosticWrapper(std::string &LogString, DiagnosticOptions *DiagOpts)
       : LogStream(LogString),
         LogPrinter(
-            std::make_unique<TextDiagnosticPrinter>(LogStream, DiagOpts)) {}
+            std::make_unique<TextDiagnosticPrinter>(LogStream, *DiagOpts)) {}
 
   clang::TextDiagnosticPrinter *consumer() { return LogPrinter.get(); }
 
@@ -311,81 +252,76 @@ public:
 
 } // anonymous namespace
 
-static void adjustArgs(const InputArgList &UserArgList,
-                       const std::string &DPCPPRoot,
-                       SmallVectorImpl<std::string> &CommandLine) {
+static std::vector<std::string>
+createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
+                  std::string_view SourceFilePath) {
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  DAL.AddJoinedArg(
-      nullptr, OptTable.getOption(OPT_resource_dir_EQ),
-      (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
   // User args may contain options not intended for the frontend, but we can't
   // claim them here to tell the driver they're used later. Hence, suppress the
   // unused argument warning.
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
 
+  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+    auto [CPU, Features] =
+        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+    (void)Features;
+    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                               : "amdgcn-amd-amdhsa";
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+  }
+
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
   for_each(UserArgList,
            [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
+
+  std::vector<std::string> CommandLine;
+  CommandLine.reserve(ASL.size() + 2);
+  CommandLine.emplace_back(SYCLToolchain::instance().getClangXXExe());
   transform(ASL, std::back_inserter(CommandLine),
             [](const char *AS) { return std::string{AS}; });
+  CommandLine.emplace_back(SourceFilePath);
+  return CommandLine;
 }
 
-static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
-                      InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-                      DiagnosticConsumer *Consumer) {
-  Tool.setDiagnosticConsumer(Consumer);
-  // Suppress message "Error while processing" being printed to stdout.
-  Tool.setPrintErrorMessage(false);
+static llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
+getInMemoryFS(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles) {
+  auto InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
 
-  // Set up in-memory filesystem.
-  Tool.mapVirtualFile(SourceFile.Path, SourceFile.Contents);
-  for (const auto &IF : IncludeFiles) {
-    Tool.mapVirtualFile(IF.Path, IF.Contents);
-  }
+  InMemoryFS->setCurrentWorkingDirectory(
+      *llvm::vfs::getRealFileSystem()->getCurrentWorkingDirectory());
 
-  // Reset argument adjusters to drop the `-fsyntax-only` flag which is added by
-  // default by this API.
-  Tool.clearArgumentsAdjusters();
-  // Then, modify argv[0] so that the driver picks up the correct SYCL
-  // environment. We've already set the resource directory above.
-  Tool.appendArgumentsAdjuster(
-      [&DPCPPRoot](const CommandLineArguments &Args,
-                   StringRef Filename) -> CommandLineArguments {
-        (void)Filename;
-        CommandLineArguments NewArgs = Args;
-        NewArgs[0] = (Twine(DPCPPRoot) + "/bin/clang++").str();
-        return NewArgs;
-      });
+  InMemoryFS->addFile(SourceFile.Path, 0,
+                      llvm::MemoryBuffer::getMemBuffer(SourceFile.Contents));
+  for (InMemoryFile F : IncludeFiles)
+    InMemoryFS->addFile(F.Path, 0,
+                        llvm::MemoryBuffer::getMemBuffer(F.Contents));
+
+  return InMemoryFS;
 }
 
-Expected<std::string>
-jit_compiler::calculateHash(InMemoryFile SourceFile,
-                            View<InMemoryFile> IncludeFiles,
-                            const InputArgList &UserArgList) {
+Expected<std::string> jit_compiler::calculateHash(
+    InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+    const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
+  std::vector<std::string> CommandLine =
+      createCommandLine(UserArgList, Format, SourceFile.Path);
 
-  SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+  HashPreprocessedAction HashAction;
 
-  FixedCompilationDatabase DB{".", CommandLine};
-  ClangTool Tool{DB, {SourceFile.Path}};
+  if (SYCLToolchain::instance().run(CommandLine, HashAction,
+                                    getInMemoryFS(SourceFile, IncludeFiles))) {
+    BLAKE3Result<> SourceHash = HashAction.takeHash();
+    // Last argument is the source file in the format `rtc_N.cpp` which is
+    // unique for each query, so drop it:
+    CommandLine.pop_back();
 
-  clang::IgnoringDiagConsumer DiagConsumer;
-  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, &DiagConsumer);
-
-  GetSourceHashAction Action;
-  if (!Tool.run(&Action)) {
-    BLAKE3Result<> SourceHash = Action.takeHash();
-    // The adjusted command line contains the DPCPP root and clang major
-    // version.
+    // TODO: Include hash of the current libsycl-jit.so/.dll somehow...
     BLAKE3Result<> CommandLineHash =
         BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
 
@@ -394,48 +330,47 @@ jit_compiler::calculateHash(InMemoryFile SourceFile,
     // Make the encoding filesystem-friendly.
     std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
     return std::move(EncodedHash);
-  }
 
-  return createStringError("Calculating source hash failed");
+  } else {
+    return createStringError("Calculating source hash failed");
+  }
 }
 
-Expected<ModuleUPtr>
-jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
-                                View<InMemoryFile> IncludeFiles,
-                                const InputArgList &UserArgList,
-                                std::string &BuildLog, LLVMContext &Context) {
+Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
+    InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+    const InputArgList &UserArgList, std::string &BuildLog,
+    LLVMContext &Context, BinaryFormat Format) {
   TimeTraceScope TTS{"compileDeviceCode"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
+  EmitLLVMOnlyAction ELOA{&Context};
+  DiagnosticOptions DiagOpts;
+  ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
+
+  if (SYCLToolchain::instance().run(
+          createCommandLine(UserArgList, Format, SourceFile.Path), ELOA,
+          getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
+    return ELOA.takeModule();
+  } else {
+    return createStringError(BuildLog);
   }
-
-  SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
-
-  FixedCompilationDatabase DB{".", CommandLine};
-  ClangTool Tool{DB, {SourceFile.Path}};
-
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
-
-  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, Wrapper.consumer());
-
-  GetLLVMModuleAction Action{Context};
-  if (!Tool.run(&Action)) {
-    return Action.takeModule();
-  }
-
-  return createStringError(BuildLog);
 }
 
-// This function is a simplified copy of the device library selection process in
-// `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
-// (no AoT, no third-party GPUs, no native CPU). Keep in sync!
+// This function is a simplified copy of the device library selection process
+// in `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V, or
+// GPU targets (no AoT, no native CPU). Keep in sync!
 static bool getDeviceLibraries(const ArgList &Args,
                                SmallVectorImpl<std::string> &LibraryList,
-                               DiagnosticsEngine &Diags) {
+                               DiagnosticsEngine &Diags, BinaryFormat Format) {
+  // For CUDA/HIP we only need devicelib, early exit here.
+  if (Format == BinaryFormat::PTX) {
+    LibraryList.push_back(
+        Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    return false;
+  } else if (Format == BinaryFormat::AMDGCN) {
+    LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
+    return false;
+  }
+
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
     StringRef DeviceLibOption;
@@ -525,48 +460,52 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
-static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
-                                               LLVMContext &Context) {
-  SMDiagnostic Diag;
-  ModuleUPtr Lib = parseIRFile(LibPath, Diag, Context);
-  if (!Lib) {
-    std::string DiagMsg;
-    raw_string_ostream SOS(DiagMsg);
-    Diag.print(/*ProgName=*/nullptr, SOS);
-    return createStringError(DiagMsg);
-  }
-  return std::move(Lib);
-}
-
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
-                                        std::string &BuildLog) {
+                                        std::string &BuildLog,
+                                        BinaryFormat Format) {
   TimeTraceScope TTS{"linkDeviceLibraries"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
-
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID{new DiagnosticIDs};
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
+  DiagnosticOptions DiagOpts;
+  ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
   DiagnosticsEngine Diags(DiagID, DiagOpts, Wrapper.consumer(),
                           /* ShouldOwnClient=*/false);
 
   SmallVector<std::string> LibNames;
-  bool FoundUnknownLib = getDeviceLibraries(UserArgList, LibNames, Diags);
+  const bool FoundUnknownLib =
+      getDeviceLibraries(UserArgList, LibNames, Diags, Format);
   if (FoundUnknownLib) {
     return createStringError("Could not determine list of device libraries: %s",
                              BuildLog.c_str());
   }
+  const bool IsCudaHIP =
+      Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
+  if (IsCudaHIP) {
+    // Based on the OS and the format decide on the version of libspirv.
+    // NOTE: this will be problematic if cross-compiling between OSes.
+    std::string Libclc{"clc/"};
+    Libclc.append(
+#ifdef _WIN32
+        "remangled-l32-signed_char.libspirv-"
+#else
+        "remangled-l64-signed_char.libspirv-"
+#endif
+    );
+    Libclc.append(Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda.bc"
+                                              : "amdgcn-amd-amdhsa.bc");
+    LibNames.push_back(Libclc);
+  }
 
   LLVMContext &Context = Module.getContext();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+    std::string LibPath =
+        (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
-    if (auto Error = loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
+    if (auto Error = SYCLToolchain::instance()
+                         .loadBitcodeLibrary(LibPath, Context)
+                         .moveInto(LibModule)) {
       return Error;
     }
 
@@ -574,6 +513,64 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
                                LibPath.c_str(), BuildLog.c_str());
+    }
+  }
+
+  // For GPU targets we need to link against vendor provided libdevice.
+  if (IsCudaHIP) {
+    Triple T{Module.getTargetTriple()};
+    Driver D{(jit_compiler::ToolchainPrefix + "/bin/clang++").str(),
+             T.getTriple(), Diags};
+    auto [CPU, Features] =
+        Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
+    (void)Features;
+    // Helper lambda to link modules.
+    auto LinkInLib = [&](const StringRef LibDevice) -> Error {
+      ModuleUPtr LibDeviceModule;
+      if (auto Error = SYCLToolchain::instance()
+                           .loadBitcodeLibrary(LibDevice, Context)
+                           .moveInto(LibDeviceModule)) {
+        return Error;
+      }
+      if (Linker::linkModules(Module, std::move(LibDeviceModule),
+                              Linker::LinkOnlyNeeded)) {
+        return createStringError("Unable to link libdevice: %s",
+                                 BuildLog.c_str());
+      }
+      return Error::success();
+    };
+    SmallVector<std::string, 12> LibDeviceFiles;
+    if (Format == BinaryFormat::PTX) {
+      // For NVPTX we can get away with CudaInstallationDetector.
+      LazyDetector<CudaInstallationDetector> CudaInstallation{D, T,
+                                                              UserArgList};
+      auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
+      if (LibDevice.empty()) {
+        return createStringError("Unable to find Cuda libdevice");
+      }
+      LibDeviceFiles.push_back(LibDevice);
+    } else {
+      LazyDetector<RocmInstallationDetector> RocmInstallation{D, T,
+                                                              UserArgList};
+      RocmInstallation->detectDeviceLibrary();
+      StringRef CanonArch =
+          llvm::AMDGPU::getArchNameAMDGCN(llvm::AMDGPU::parseArchAMDGCN(CPU));
+      StringRef LibDeviceFile = RocmInstallation->getLibDeviceFile(CanonArch);
+      auto CommonBCLibs = RocmInstallation->getCommonBitcodeLibs(
+          UserArgList, LibDeviceFile, CPU, Action::OFK_SYCL,
+          /*NeedsASanRT=*/false);
+      if (CommonBCLibs.empty()) {
+        return createStringError("Unable to find ROCm bitcode libraries");
+      }
+      for (auto &Lib : CommonBCLibs) {
+        LibDeviceFiles.push_back(Lib.Path);
+      }
+    }
+    for (auto &LibDeviceFile : LibDeviceFiles) {
+      // llvm::Error converts to false on success.
+      if (auto Error = LinkInLib(LibDeviceFile)) {
+        return Error;
+      }
     }
   }
 
@@ -734,10 +731,12 @@ jit_compiler::performPostLink(ModuleUPtr Module,
                 [](Function *F) { return F->getName(); });
 
       // TODO: Determine what is requested.
-      GlobalBinImageProps PropReq{
-          /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
-          /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-          /*DeviceGlobals=*/true};
+      GlobalBinImageProps PropReq{/*EmitKernelParamInfo=*/true,
+                                  /*EmitProgramMetadata=*/true,
+                                  /*EmitKernelNames=*/true,
+                                  /*EmitExportedSymbols=*/true,
+                                  /*EmitImportedSymbols=*/true,
+                                  /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
                                   AllowDeviceImageDependencies);
@@ -763,16 +762,14 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   }
 
   if (IsBF16DeviceLibUsed) {
-    const std::string &DPCPPRoot = getDPCPPRoot();
-    if (DPCPPRoot == InvalidDPCPPRoot) {
-      return createStringError("Could not locate DPCPP root directory");
-    }
-
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
-      std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+      std::string LibPath =
+          (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
       ModuleUPtr LibModule;
-      if (auto Error = loadBitcodeLibrary(LibPath, Ctx).moveInto(LibModule)) {
+      if (auto Error = SYCLToolchain::instance()
+                           .loadBitcodeLibrary(LibPath, Ctx)
+                           .moveInto(LibModule)) {
         return Error;
       }
 

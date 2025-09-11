@@ -331,6 +331,9 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, UpdateAgain) {
 /* Test that it is possible to change the kernel handle in a command and later
  * restore it to the original handle */
 TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
+  // https://github.com/intel/llvm/issues/19605
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   std::vector<ur_kernel_handle_t> KernelAlternatives = {
       FillUSM2DKernel->Kernel};

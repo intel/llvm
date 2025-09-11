@@ -3,15 +3,27 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
 import os
 import shutil
 import subprocess
 from pathlib import Path
+from enum import Enum
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
+from utils.unitrace import get_unitrace
+from utils.flamegraph import get_flamegraph
+from utils.logger import log
+
+
+class TracingType(Enum):
+    """Enumeration of available tracing types."""
+
+    NONE = ""
+    UNITRACE = "unitrace"
+    FLAMEGRAPH = "flamegraph"
+
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -61,6 +73,17 @@ class Benchmark(ABC):
         By default, it returns True, but can be overridden to disable a benchmark."""
         return True
 
+    def traceable(self, tracing_type: TracingType) -> bool:
+        """Returns whether this benchmark should be traced by the specified tracing method.
+        By default, it returns True for all tracing types, but can be overridden
+        to disable specific tracing methods for a benchmark.
+        """
+        return True
+
+    def tracing_enabled(self, run_trace, force_trace, tr_type: TracingType):
+        """Returns whether tracing is enabled for the given type."""
+        return (self.traceable(tr_type) or force_trace) and run_trace == tr_type
+
     @abstractmethod
     def setup(self):
         pass
@@ -70,7 +93,25 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
+        """Execute the benchmark with the given environment variables.
+
+        Args:
+            env_vars: Environment variables to use when running the benchmark.
+            run_trace: The type of tracing to run (NONE, UNITRACE, or FLAMEGRAPH).
+            force_trace: If True, ignore the traceable() method and force tracing.
+
+        Returns:
+            A list of Result objects with the benchmark results.
+
+        Raises:
+            Exception: If the benchmark fails for any reason.
+        """
         pass
 
     @staticmethod
@@ -86,7 +127,15 @@ class Benchmark(ABC):
         ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(
-        self, command, env_vars, ld_library=[], add_sycl=True, use_stdout=True
+        self,
+        command,
+        env_vars,
+        ld_library=[],
+        add_sycl=True,
+        use_stdout=True,
+        run_trace: TracingType = TracingType.NONE,
+        extra_trace_opt=None,
+        force_trace: bool = False,
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -99,13 +148,55 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        result = run(
-            command=command,
-            env_vars=env_vars,
-            add_sycl=add_sycl,
-            cwd=options.benchmark_cwd,
-            ld_library=ld_libraries,
-        )
+        unitrace_output = None
+        if self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE):
+            if extra_trace_opt is None:
+                extra_trace_opt = []
+            unitrace_output, command = get_unitrace().setup(
+                self.name(), command, extra_trace_opt
+            )
+            log.debug(f"Unitrace output: {unitrace_output}")
+            log.debug(f"Unitrace command: {' '.join(command)}")
+
+        # flamegraph run
+
+        perf_data_file = None
+        if self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH):
+            perf_data_file, command = get_flamegraph().setup(
+                self.name(), self.get_suite_name(), command
+            )
+            log.debug(f"FlameGraph perf data: {perf_data_file}")
+            log.debug(f"FlameGraph command: {' '.join(command)}")
+
+        try:
+            result = run(
+                command=command,
+                env_vars=env_vars,
+                add_sycl=add_sycl,
+                cwd=options.benchmark_cwd,
+                ld_library=ld_libraries,
+            )
+        except subprocess.CalledProcessError:
+            if run_trace == TracingType.UNITRACE and unitrace_output:
+                get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
+            if run_trace == TracingType.FLAMEGRAPH and perf_data_file:
+                get_flamegraph().cleanup(perf_data_file)
+            raise
+
+        if (
+            self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE)
+            and unitrace_output
+        ):
+            get_unitrace().handle_output(unitrace_output)
+
+        if (
+            self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH)
+            and perf_data_file
+        ):
+            svg_file = get_flamegraph().handle_output(
+                self.name(), perf_data_file, self.get_suite_name()
+            )
+            log.info(f"FlameGraph generated: {svg_file}")
 
         if use_stdout:
             return result.stdout.decode()
@@ -188,7 +279,8 @@ class Suite(ABC):
     def name(self) -> str:
         pass
 
-    def setup(self):
+    @abstractmethod
+    def setup(self) -> None:
         return
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:

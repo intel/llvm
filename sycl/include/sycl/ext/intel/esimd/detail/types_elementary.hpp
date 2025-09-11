@@ -112,7 +112,7 @@ static inline constexpr bool is_clang_vector_type_v =
 
 template <class T> struct vector_element_type;
 
-template <class T, int N> struct vector_element_type<vector_type_t<T, N>> {
+template <class T, int N> struct vector_element_type<raw_vector_type<T, N>> {
   using type = T;
 };
 

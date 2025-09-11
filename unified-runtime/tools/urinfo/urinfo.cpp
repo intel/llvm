@@ -208,6 +208,9 @@ options:
 
   ~app() {
     urLoaderConfigRelease(loaderConfig);
+    for (auto adapter : adapters) {
+      urAdapterRelease(adapter);
+    }
     urLoaderTearDown();
   }
 };

@@ -43,7 +43,7 @@ int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test2>(
         r2, [=](sycl::nd_item<2> ndi) { acc[ndi.get_global_id(1)] = 42; });
-    // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
+    // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) noalias %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
   sycl::nd_range<3> r3({1, 1, 1}, {1, 1, 1});
@@ -51,7 +51,7 @@ int main() {
     h.parallel_for<Test3>(r3, [=](sycl::nd_item<3> ndi) {
       acc[ndi.get_global_id(2)] = ndi.get_global_range(0);
     });
-    // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
+    // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) noalias %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 2, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
@@ -88,6 +88,3 @@ int main() {
     });
   });
 }
-
-// check that the generated module has the is-native-cpu module flag set
-// CHECK: !{{[0-9]*}} = !{i32 1, !"is-native-cpu", i32 1}

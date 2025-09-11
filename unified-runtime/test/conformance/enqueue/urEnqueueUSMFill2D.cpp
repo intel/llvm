@@ -139,14 +139,14 @@ TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size, pattern.data(), width,
                          height, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urQueueFlush(queue));
 
   ASSERT_SUCCESS(urEventWait(1, &event));
   ur_event_status_t event_status;
   ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
       event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
   ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 
   ASSERT_NO_FATAL_FAILURE(verifyData());
 }

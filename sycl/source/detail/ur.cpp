@@ -13,7 +13,7 @@
 /// \ingroup sycl_ur
 
 #include "ur.hpp"
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
@@ -49,20 +49,13 @@ namespace pi {
 void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
-  const auto &impl = getSyclObjImpl(context);
-  const auto &Adapter = impl->getAdapter();
-  Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
-      impl->getHandleRef(),
-      reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
+  context_impl &Ctx = *getSyclObjImpl(context);
+  adapter_impl &Adapter = Ctx.getAdapter();
+  Adapter.call<UrApiKind::urContextSetExtendedDeleter>(
+      Ctx.getHandleRef(), reinterpret_cast<ur_context_extended_deleter_t>(func),
+      user_data);
 }
 } // namespace pi
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-// Global (to the SYCL runtime) graph handle that all command groups are a
-// child of
-/// Event to be used by graph related activities
-xpti_td *GSYCLGraphEvent = nullptr;
-#endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE>
 void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
@@ -90,13 +83,12 @@ bool trace(TraceLevel Level) {
   return (TraceLevelMask & Level) == Level;
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
 
-bool XPTIInitDone = false;
-
 // Initializes all available Adapters.
-std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
+std::vector<adapter_impl *> &
+initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // This uses static variable initialization to work around a gcc bug with
   // std::call_once and exceptions.
   // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
@@ -117,7 +109,7 @@ std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   return GlobalHandler::instance().getAdapters();
 }
 
-static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig) {
 #define CHECK_UR_SUCCESS(Call)                                                 \
   {                                                                            \
@@ -126,6 +118,20 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                 << sycl::detail::codeToString(error) << std::endl;             \
     }                                                                          \
   }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // We want XPTI initialized as early as possible, so we do it here. This
+  // allows XPTI calls in the loader to be pre-initialized.
+  if (xptiTraceEnabled()) {
+    // Initialize the XPTI framework.
+    // Not sure this is the best place to initialize the framework; SYCL runtime
+    // team needs to advise on the right place, until then we piggy-back on the
+    // initialization of the UR layer.
+
+    // This is done only once, even if multiple adapters are initialized.
+    GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+  }
+#endif
 
   UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
   auto loaderConfigCreate =
@@ -207,7 +213,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0u, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
@@ -238,7 +244,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+    Adapters.emplace_back(new adapter_impl(UrAdapter, syclBackend));
 
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
@@ -247,62 +253,28 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
     }
   }
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-
-  if (!(xptiTraceEnabled() && !XPTIInitDone))
-    return;
-  // Not sure this is the best place to initialize the framework; SYCL runtime
-  // team needs to advise on the right place, until then we piggy-back on the
-  // initialization of the UR layer.
-
-  // Initialize the global events just once, in the case ur::initialize() is
-  // called multiple times
-  XPTIInitDone = true;
-  // Registers a new stream for 'sycl' and any application that wants to listen
-  // to this stream will register itself using this string or stream ID for
-  // this string.
-  uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  // Let all tool applications know that a stream by the name of 'sycl' has
-  // been initialized and will be generating the trace stream.
-  GlobalHandler::instance().getXPTIRegistry().initializeStream(
-      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  // Create a tracepoint to indicate the graph creation
-  xpti::payload_t GraphPayload("application_graph");
-  uint64_t GraphInstanceNo;
-  GSYCLGraphEvent =
-      xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
-                    xpti_at::active, &GraphInstanceNo);
-  if (GSYCLGraphEvent) {
-    // The graph event is a global event and will be used as the parent for
-    // all nodes (command groups)
-    xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
-                          GSYCLGraphEvent, GraphInstanceNo, nullptr);
-  }
-#endif
 #undef CHECK_UR_SUCCESS
 }
 
 // Get the adapter serving given backend.
-template <backend BE> const AdapterPtr &getAdapter() {
-  static AdapterPtr *Adapter = nullptr;
+template <backend BE> adapter_impl &getAdapter() {
+  static adapter_impl *Adapter = nullptr;
   if (Adapter)
     return *Adapter;
 
-  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
-  for (auto &P : Adapters)
+  for (auto &P : ur::initializeUr())
     if (P->hasBackend(BE)) {
-      Adapter = &P;
+      Adapter = P;
       return *Adapter;
     }
 
   throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template const AdapterPtr &getAdapter<backend::opencl>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
-template const AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
+template adapter_impl &getAdapter<backend::opencl>();
+template adapter_impl &getAdapter<backend::ext_oneapi_level_zero>();
+template adapter_impl &getAdapter<backend::ext_oneapi_cuda>();
+template adapter_impl &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>

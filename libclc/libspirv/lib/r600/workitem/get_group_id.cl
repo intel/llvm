@@ -8,14 +8,15 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_WorkgroupId_x() {
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInWorkgroupId(int dim) {
+  switch (dim) {
+  case 0:
     return __builtin_r600_read_tgid_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD uint __spirv_WorkgroupId_y() {
+  case 1:
     return __builtin_r600_read_tgid_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD uint __spirv_WorkgroupId_z() {
+  case 2:
     return __builtin_r600_read_tgid_z();
+  default:
+    return 0;
+  }
 }

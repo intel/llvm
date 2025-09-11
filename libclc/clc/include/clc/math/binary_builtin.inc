@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <clc/utils.h>
 
 #ifndef __CLC_BUILTIN
@@ -25,7 +24,15 @@
 #define __CLC_BUILTIN_H __CLC_BUILTIN_F
 #endif
 
-_CLC_DEFINE_BINARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float, float)
+#define __CLC_SCALAR
+#define FUNCTION __CLC_FUNCTION
+#define __CLC_MIN_VECSIZE 1
+
+#define __IMPL_FUNCTION __CLC_BUILTIN_F
+#define __CLC_GENTYPE float
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#undef __IMPL_FUNCTION
 
 #ifndef __FLOAT_ONLY
 
@@ -33,8 +40,11 @@ _CLC_DEFINE_BINARY_BUILTIN(float, __CLC_FUNCTION, __CLC_BUILTIN_F, float, float)
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double,
-                           double)
+#define __IMPL_FUNCTION __CLC_BUILTIN_D
+#define __CLC_GENTYPE double
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#undef __IMPL_FUNCTION
 
 #endif
 
@@ -42,8 +52,16 @@ _CLC_DEFINE_BINARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __CLC_FUNCTION, __CLC_BUILTIN_H, half, half)
+#define __IMPL_FUNCTION __CLC_BUILTIN_H
+#define __CLC_GENTYPE half
+#include <clc/shared/binary_def_scalarize.inc>
+#undef __CLC_GENTYPE
+#undef __IMPL_FUNCTION
 
 #endif
 
 #endif
+
+#undef __CLC_SCALAR
+#undef FUNCTION
+#undef __CLC_MIN_VECSIZE

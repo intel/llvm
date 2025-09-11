@@ -53,7 +53,7 @@ public:
   void emitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
   void emitLabelAtPos(MCSymbol *Symbol, SMLoc Loc, MCDataFragment &F,
                       uint64_t Offset) override;
-  void emitWeakReference(MCSymbol *Alias, const MCSymbol *Symbol) override;
+  void emitWeakReference(MCSymbol *Alias, const MCSymbol *Target) override;
   bool emitSymbolAttribute(MCSymbol *Symbol, MCSymbolAttr Attribute) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                         Align ByteAlignment) override;
@@ -70,7 +70,7 @@ public:
 
   void emitIdent(StringRef IdentString) override;
 
-  void emitValueToAlignment(Align, int64_t, unsigned, unsigned) override;
+  void emitValueToAlignment(Align, int64_t, uint8_t, unsigned) override;
 
   void emitCGProfileEntry(const MCSymbolRefExpr *From,
                           const MCSymbolRefExpr *To, uint64_t Count) override;

@@ -79,9 +79,6 @@ endif()
 
 target_compile_definitions(sycl_ur_trace_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_ur_trace_collector PRIVATE xptifw)
-if (TARGET OpenCL-Headers)
-  target_link_libraries(sycl_ur_trace_collector PRIVATE OpenCL-Headers)
-endif()
 target_link_libraries(sycl_ur_trace_collector PRIVATE UnifiedRuntime-Headers)
 
 target_include_directories(sycl_ur_trace_collector PRIVATE

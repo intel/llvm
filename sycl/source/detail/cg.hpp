@@ -20,6 +20,8 @@
 #include <sycl/kernel.hpp>        // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
 
+#include <detail/device_kernel_info.hpp>
+
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
 #include <stddef.h> // for size_t
@@ -62,99 +64,96 @@ public:
 
 // The structure represents NDRange - global, local sizes, global offset and
 // number of dimensions.
+
+// TODO: A lot of tests rely on particular values to be set for dimensions that
+// are not used. To clarify, for example, if a 2D kernel is invoked, in
+// NDRDescT, the value of index 2 in GlobalSize must be set to either 1 or 0
+// depending on which constructor is used for no clear reason.
+// Instead, only sensible defaults should be used and tests should be updated
+// to reflect this.
 class NDRDescT {
-  // The method initializes all sizes for dimensions greater than the passed one
-  // to the default values, so they will not affect execution.
-  void setNDRangeLeftover() {
-    for (int I = Dims; I < 3; ++I) {
-      GlobalSize[I] = 1;
-      LocalSize[I] = LocalSize[0] ? 1 : 0;
-      GlobalOffset[I] = 0;
-      NumWorkGroups[I] = 0;
-    }
-  }
-
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
-  }
-
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
-  }
 
 public:
   NDRDescT() = default;
   NDRDescT(const NDRDescT &Desc) = default;
   NDRDescT(NDRDescT &&Desc) = default;
 
-  NDRDescT(sycl::range<3> N, bool SetNumWorkGroups, int DimsArg)
-      : GlobalSize{SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N},
-        NumWorkGroups{SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0}},
-        Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();
-  }
+  template <int Dims_>
+  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
+    if (SetNumWorkGroups) {
+      for (size_t I = 0; I < Dims_; ++I) {
+        NumWorkGroups[I] = N[I];
+      }
+    } else {
+      for (size_t I = 0; I < Dims_; ++I) {
+        GlobalSize[I] = N[I];
+      }
 
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
-           sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
-        Dims{size_t(DimsArg)} {
-    setNDRangeLeftover();
+      for (int I = Dims_; I < 3; ++I) {
+        GlobalSize[I] = 1;
+      }
+    }
   }
-
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
 
   template <int Dims_>
-  NDRDescT(sycl::nd_range<Dims_> ExecutionRange, int DimsArg)
-      : NDRDescT(padRange(ExecutionRange.get_global_range()),
-                 padRange(ExecutionRange.get_local_range()),
-                 padId(ExecutionRange.get_offset()), size_t(DimsArg)) {
-    setNDRangeLeftover();
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
+           sycl::id<Dims_> Offset)
+      : Dims{size_t(Dims_)} {
+    for (size_t I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      LocalSize[I] = LocalSizes[I];
+      GlobalOffset[I] = Offset[I];
+    }
+
+    for (int I = Dims_; I < 3; ++I) {
+      LocalSize[I] = LocalSizes[0] ? 1 : 0;
+    }
+
+    for (int I = Dims_; I < 3; ++I) {
+      GlobalSize[I] = 1;
+    }
+  }
+
+  template <int Dims_>
+  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
+      : Dims{size_t(Dims_)} {
+    for (size_t I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      GlobalOffset[I] = Offset[I];
+    }
   }
 
   template <int Dims_>
   NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
-      : NDRDescT(ExecutionRange, Dims_) {}
+      : NDRDescT(ExecutionRange.get_global_range(),
+                 ExecutionRange.get_local_range(),
+                 ExecutionRange.get_offset()) {}
 
   template <int Dims_>
   NDRDescT(sycl::range<Dims_> Range)
-      : NDRDescT(padRange(Range), /*SetNumWorkGroups=*/false, Dims_) {}
+      : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
 
-  void setClusterDimensions(sycl::range<3> N, int Dims) {
-    if (this->Dims != size_t(Dims)) {
+  template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
+    if (this->Dims != size_t(Dims_)) {
       throw std::runtime_error(
           "Dimensionality of cluster, global and local ranges must be same");
     }
 
-    for (int I = 0; I < 3; ++I)
-      ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
+    for (int I = 0; I < Dims_; ++I)
+      ClusterDimensions[I] = N[I];
   }
 
   NDRDescT &operator=(const NDRDescT &Desc) = default;
   NDRDescT &operator=(NDRDescT &&Desc) = default;
 
-  sycl::range<3> GlobalSize{0, 0, 0};
-  sycl::range<3> LocalSize{0, 0, 0};
-  sycl::id<3> GlobalOffset{0, 0, 0};
+  std::array<size_t, 3> GlobalSize{0, 0, 0};
+  std::array<size_t, 3> LocalSize{0, 0, 0};
+  std::array<size_t, 3> GlobalOffset{0, 0, 0};
   /// Number of workgroups, used to record the number of workgroups from the
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
-  sycl::range<3> NumWorkGroups{0, 0, 0};
-  sycl::range<3> ClusterDimensions{1, 1, 1};
+  std::array<size_t, 3> NumWorkGroups{0, 0, 0};
+  std::array<size_t, 3> ClusterDimensions{1, 1, 1};
   size_t Dims = 0;
 };
 
@@ -243,7 +242,7 @@ public:
   // Storage for function name and source file name
   std::string MFunctionName, MFileName;
   // Storage for line and column of code location
-  int32_t MLine, MColumn;
+  uint32_t MLine, MColumn;
   bool MIsTopCodeLoc;
 };
 
@@ -256,8 +255,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  KernelNameStrT MKernelName;
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
+  DeviceKernelInfo &MDeviceKernelInfo;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -268,24 +266,20 @@ public:
   bool MKernelUsesClusterLaunch = false;
   size_t MKernelWorkGroupMemorySize = 0;
 
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
+  CGExecKernel(const NDRDescT &NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               KernelNameStrT KernelName,
-               KernelNameBasedCacheT *KernelNameBasedCachePtr,
+               DeviceKernelInfo &DeviceKernelInfo,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
                size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
+      : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
+        MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)),
-        MKernelNameBasedCachePtr(KernelNameBasedCachePtr),
-        MStreams(std::move(Streams)),
+        MDeviceKernelInfo(DeviceKernelInfo), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
@@ -297,7 +291,9 @@ public:
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
   const std::vector<ArgDesc> &getArguments() const { return MArgs; }
-  KernelNameStrRefT getKernelName() const { return MKernelName; }
+  std::string_view getKernelName() const {
+    return static_cast<std::string_view>(MDeviceKernelInfo.Name);
+  }
   const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
@@ -401,14 +397,19 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
-  void *getDst() { return MDst; }
-  size_t getLength() { return MLength; }
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() const { return MDst; }
+  size_t getLength() const { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() const {
+    return MPrefetchType;
+  }
 };
 
 /// "Advise USM" command group class.
@@ -725,14 +726,10 @@ public:
   std::shared_ptr<detail::context_impl> MContext;
   std::vector<ArgDesc> MArgs;
 
-  CGHostTask(std::shared_ptr<HostTask> HostTask,
-             std::shared_ptr<detail::queue_impl> Queue,
-             std::shared_ptr<detail::context_impl> Context,
-             std::vector<ArgDesc> Args, CG::StorageInitHelper CGData,
-             CGType Type, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
-        MArgs(std::move(Args)) {}
+  CGHostTask(std::shared_ptr<HostTask> HostTask, detail::queue_impl *Queue,
+             detail::context_impl *Context, std::vector<ArgDesc> Args,
+             CG::StorageInitHelper CGData, CGType Type,
+             detail::code_location loc = {});
 };
 
 } // namespace detail

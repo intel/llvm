@@ -136,14 +136,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  if (hEvent->decrementReferenceCount() == 0) {
+  if (hEvent->RefCount.release()) {
     delete hEvent;
   }
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  hEvent->incrementReferenceCount();
+  hEvent->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
@@ -188,7 +188,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
     return ReturnValue(hEvent->Queue);
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hEvent->getReferenceCount());
+    return ReturnValue(hEvent->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;

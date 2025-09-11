@@ -86,9 +86,15 @@
 
 /// test behaviors of fat static lib from source
 // RUN: touch %t_lib.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code \
+// RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fno-sycl-device-lib=all -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=nvptx64-nvidia-cuda -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
+// RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC-CUDA
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
@@ -129,16 +135,19 @@
 // STATIC_LIB_SRC-CUDA: 12: input, "[[INPUTA]]", archive
 // STATIC_LIB_SRC-CUDA: 13: clang-offload-unbundler, {12}, archive
 // STATIC_LIB_SRC-CUDA: 14: linker, {5, 11, 13}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 15: sycl-post-link, {14}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 16: file-table-tform, {15}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 17: backend, {16}, assembler, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 18: assembler, {17}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 19: linker, {17, 18}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 20: foreach, {16, 19}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 21: file-table-tform, {15, 20}, tempfiletable, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 22: clang-offload-wrapper, {21}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 23: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {22}, object
-// STATIC_LIB_SRC-CUDA: 24: linker, {0, 9, 23}, image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 15: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 16: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 17: linker, {14, 15, 16}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 18: sycl-post-link, {17}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 19: file-table-tform, {18}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 20: backend, {19}, assembler, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 21: assembler, {20}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 22: linker, {20, 21}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 23: foreach, {19, 22}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 24: file-table-tform, {18, 23}, tempfiletable, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 25: clang-offload-wrapper, {24}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 26: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {25}, object
+// STATIC_LIB_SRC-CUDA: 27: linker, {0, 9, 26}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -230,13 +239,14 @@
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}spirv-to-ir-wrapper{{.*}} "[[DEVICELIB]]" "-o" "[[DEVICELIST:.+\.txt]]"
 // STATIC_LIB_NOSRC-SPIR: llvm-link{{.*}} "@[[DEVICELIST]]" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC-CUDA: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-input={{.*}}_lib.{{(a|lo)}}" "-output=[[DEVICELIB:.+\.a]]" "-unbundle"
-// STATIC_LIB_NOSRC-CUDA: llvm-link{{.*}} "[[DEVICELIB]]" "-o" "[[BCFILE:.+\.bc]]"
+// STATIC_LIB_NOSRC-CUDA: llvm-link{{.*}} "[[DEVICELIB]]" "-o" "[[BCFILE1:.+\.bc]]"
+// STATIC_LIB_NOSRC-CUDA: llvm-link{{.*}} "[[BCFILE1]]" "{{.*}}" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC: sycl-post-link{{.*}} "-o" "[[TABLE:.+]]" "[[BCFILE]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[LIST:.+]]" "[[TABLE]]"
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}llvm-spirv{{.*}} "-o" "[[OBJLIST:.+\.txt]]"{{.*}} "[[LIST]]"
 // STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}clang{{.*}} "-o" "[[PTXLIST:.+]]" "-x" "ir" "[[LIST]]"
 // STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}ptxas{{.*}} "--output-file" "[[CUBINLIST:.+]]"{{.*}}  "[[PTXLIST]]"
-// STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}fatbin{{.*}} "--create" "[[OBJLIST:.+]]"{{.*}} "--image={{.*}}[[PTXLIST]]" "--image={{.*}}[[CUBINLIST]]"
+// STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}fatbin{{.*}} "--create" "[[OBJLIST:.+]]"{{.*}} "--image3={{.*}}[[PTXLIST]]" "--image3={{.*}}[[CUBINLIST]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[TABLE1:.+\.table]]" "[[TABLE]]" "[[OBJLIST]]"
 // STATIC_LIB_NOSRC: clang-offload-wrapper{{.*}} "-o=[[BCFILE2:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}}"-target=[[TARGET]]" "-kind=sycl" "-batch" "[[TABLE1]]"
 // STATIC_LIB_NOSRC: clang{{.*}} "-c" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"

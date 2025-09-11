@@ -10,6 +10,6 @@
 
 uint __mux_get_sub_group_size();
 
-_CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupSize() {
+_CLC_DEF _CLC_OVERLOAD uint __spirv_BuiltInSubgroupSize() {
   return __mux_get_sub_group_size();
 }

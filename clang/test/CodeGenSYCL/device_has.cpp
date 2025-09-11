@@ -6,7 +6,7 @@
 using namespace sycl;
 queue q;
 
-// CHECK-DAG: define dso_local spir_kernel void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] !srcloc ![[SRCLOC1:[0-9]+]]
+// CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}kernel_name_1{{.*}} !sycl_declared_aspects ![[ASPECTS1:[0-9]+]] !srcloc ![[SRCLOC1:[0-9]+]]
 
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}func1{{.*}} !sycl_declared_aspects ![[ASPECTS1]] !srcloc ![[SRCLOC2:[0-9]+]] {
 [[sycl::device_has(sycl::aspect::cpu)]] void func1() {}
@@ -67,7 +67,7 @@ void foo() {
   q.submit([&](handler &h) {
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
-    // CHECK-DAG: define dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]] !srcloc ![[SRCLOC8:[0-9]+]]
+    // CHECK-DAG: define {{.*}}spir_kernel void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]] !srcloc ![[SRCLOC8:[0-9]+]]
     h.single_task<class kernel_name_2>([]() [[sycl::device_has(sycl::aspect::gpu)]] {});
   });
 }

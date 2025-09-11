@@ -5,6 +5,9 @@
 // all.
 // RUN: %if preview-breaking-changes-supported %{ env ONEAPI_DEVICE_SELECTOR="*:-1" %t.out %}
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 #include <sycl/sycl.hpp>
 using namespace sycl;
 

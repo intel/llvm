@@ -36,6 +36,7 @@ public:
 
   struct SYCLBINModuleDesc {
     std::string ArchString;
+    llvm::Triple TargetTriple;
     std::vector<module_split::SplitModule> SplitModules;
   };
 

@@ -26,6 +26,7 @@
 #include "queue.hpp"
 #include "usm.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 
 struct l0_command_list_cache_info {
@@ -201,13 +202,12 @@ struct ur_context_handle_t_ : ur_object {
   // pool then create new one. The HostVisible parameter tells if we need a
   // slot for a host-visible event. The ProfilingEnabled tells is we need a
   // slot for an event with profiling capabilities.
-  ur_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                             bool HostVisible,
-                                             bool ProfilingEnabled,
-                                             ur_device_handle_t Device,
-                                             bool CounterBasedEventEnabled,
-                                             bool UsingImmCmdList,
-                                             bool InterruptBasedEventEnabled);
+  ur_result_t getFreeSlotInExistingOrNewPool(
+      ze_event_pool_handle_t &, size_t &, bool HostVisible,
+      bool ProfilingEnabled, ur_device_handle_t Device,
+      bool CounterBasedEventEnabled, bool UsingImmCmdList,
+      bool InterruptBasedEventEnabled, ur_queue_handle_t Queue,
+      bool IsInternal);
 
   // Get ur_event_handle_t from cache.
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
@@ -357,6 +357,8 @@ struct ur_context_handle_t_ : ur_object {
 
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
+
+  ur::RefCount RefCount;
 
 private:
   enum EventFlags {

@@ -36,7 +36,7 @@ void AccessorImplHost::resize(size_t GlobalSize) {
 void addHostAccessorAndWait(Requirement *Req) {
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
-  Event->wait(Event);
+  Event->wait();
 }
 
 void addHostUnsampledImageAccessorAndWait(UnsampledImageAccessorImplHost *Req) {

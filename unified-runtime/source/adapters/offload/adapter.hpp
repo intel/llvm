@@ -29,4 +29,4 @@ struct ur_adapter_handle_t_ : ur::offload::handle_base {
   ur_result_t init();
 };
 
-extern ur_adapter_handle_t_ Adapter;
+extern ur_adapter_handle_t Adapter;

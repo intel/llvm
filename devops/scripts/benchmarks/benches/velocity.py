@@ -6,7 +6,7 @@
 import re
 import shutil
 from utils.utils import git_clone
-from .base import Benchmark, Suite
+from .base import Benchmark, Suite, TracingType
 from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
@@ -29,7 +29,7 @@ class VelocityBench(Suite):
     def git_hash(self) -> str:
         return "b22215c16f789100449c34bf4eaa3fb178983d69"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -130,7 +130,12 @@ class VelocityBase(Benchmark):
     def get_tags(self):
         return ["SYCL", "application"]
 
-    def run(self, env_vars) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -138,7 +143,13 @@ class VelocityBase(Benchmark):
         ]
         command += self.bin_args()
 
-        result = self.run_bench(command, env_vars, ld_library=self.ld_libraries())
+        result = self.run_bench(
+            command,
+            env_vars,
+            ld_library=self.ld_libraries(),
+            run_trace=run_trace,
+            force_trace=force_trace,
+        )
 
         return [
             Result(
@@ -146,7 +157,6 @@ class VelocityBase(Benchmark):
                 value=self.parse_output(result),
                 command=command,
                 env=env_vars,
-                stdout=result,
                 unit=self.unit,
                 git_url=self.vb.git_url(),
                 git_hash=self.vb.git_hash(),
@@ -283,7 +293,12 @@ class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
 
-    def run(self, env_vars) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if (
             "UR_L0_USE_IMMEDIATE_COMMANDLISTS" in env_vars
@@ -291,7 +306,7 @@ class QuickSilver(VelocityBase):
         ):
             return None
 
-        return super().run(env_vars)
+        return super().run(env_vars, run_trace, force_trace)
 
     def name(self):
         return "Velocity-Bench QuickSilver"

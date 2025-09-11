@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 
 // This test performs basic checks of parallel_for(nd_range, reduction, lambda)
 

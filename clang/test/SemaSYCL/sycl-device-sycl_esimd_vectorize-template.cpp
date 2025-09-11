@@ -7,7 +7,7 @@
 template <typename Ty>
 // expected-error@+3{{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
 // expected-error@+2{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-// expected-error@+1{{'sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
+// expected-error@+1{{'intel::sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
 [[intel::sycl_esimd_vectorize(Ty{})]] void func() {}
 
 struct S {};
@@ -35,7 +35,7 @@ constexpr int bar() { return 0; }
 template <int SIZE>
 class KernelFunctor {
 public:
-  // expected-error@+1{{'sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
+  // expected-error@+1{{'intel::sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
   [[intel::sycl_esimd_vectorize(SIZE)]] void operator()() {}
 };
 
@@ -57,14 +57,14 @@ int main() {
 
 // Test template parameter support on function.
 template <int N>
-// expected-error@+1{{'sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
+// expected-error@+1{{'intel::sycl_esimd_vectorize' attribute argument must be 8, 16, or 32}}
 [[intel::sycl_esimd_vectorize(N)]] void func3() {}
 
 template <int N>
 [[intel::sycl_esimd_vectorize(32)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>
-[[intel::sycl_esimd_vectorize(N)]] void func4() {} // expected-warning {{attribute 'sycl_esimd_vectorize' is already applied with different arguments}}
+[[intel::sycl_esimd_vectorize(N)]] void func4() {} // expected-warning {{attribute 'intel::sycl_esimd_vectorize' is already applied with different arguments}}
 
 int check() {
   // no error expected.

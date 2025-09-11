@@ -1,8 +1,5 @@
 // Test -fsycl-allow-device-image-dependencies with objects.
 
-// UNSUPPORTED: target-nvidia || target-amd
-// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
-
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/c.cpp -I %S/Inputs -c -o %t_c.o

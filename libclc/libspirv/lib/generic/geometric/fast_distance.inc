@@ -6,7 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_OVERLOAD _CLC_DEF __CLC_FLOAT __spirv_ocl_fast_distance(__CLC_FLOATN p0,
-                                                             __CLC_FLOATN p1) {
-  return __spirv_ocl_fast_length(p0 - p1);
+#if (__CLC_VECSIZE_OR_1 == 1 || __CLC_VECSIZE_OR_1 == 2 ||                     \
+     __CLC_VECSIZE_OR_1 == 3 || __CLC_VECSIZE_OR_1 == 4)
+
+_CLC_OVERLOAD _CLC_DEF __CLC_SCALAR_GENTYPE
+__spirv_ocl_fast_distance(__CLC_GENTYPE p0, __CLC_GENTYPE p1) {
+  return __clc_fast_distance(p0, p1);
 }
+
+#endif

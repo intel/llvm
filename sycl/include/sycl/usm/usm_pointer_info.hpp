@@ -16,12 +16,23 @@ inline namespace _V1 {
 class device;
 class context;
 
+namespace detail {
+class context_impl;
+__SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, context_impl &ctxt);
+} // namespace detail
+
 // Pointer queries
 /// Query the allocation type from a USM pointer
 ///
 /// \param ptr is the USM pointer to query
 /// \param ctxt is the sycl context the ptr was allocated in
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+inline usm::alloc get_pointer_type(const void *ptr, const context &ctxt) {
+  return get_pointer_type(ptr, *getSyclObjImpl(ctxt));
+}
+#else
 __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
+#endif
 
 /// Queries the device against which the pointer was allocated
 /// Throws an exception with errc::invalid error code if ptr is a host

@@ -49,6 +49,10 @@ struct LocalArgsInfo {
   uint64_t SizeWithRedZone = 0;
 };
 
+constexpr uint32_t ASAN_MAX_WG_LOCAL = 8192;
+
+constexpr uint32_t ASAN_MAX_SG_PRIVATE = 256;
+
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct AsanRuntimeData {
@@ -65,7 +69,6 @@ struct AsanRuntimeData {
   LocalArgsInfo *LocalArgs = nullptr; // Ordered by ArgIndex
   uint32_t NumLocalArgs = 0;
 
-  DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
 
   int ReportFlag = 0;

@@ -16,8 +16,8 @@ queue q;
 
 // Tests for incorrect argument values for Intel FPGA use_stall_enable_clusters function attribute.
 #ifdef TRIGGER_ERROR
-[[intel::use_stall_enable_clusters(1)]] void test1() {} // expected-error{{'use_stall_enable_clusters' attribute takes no arguments}}
-[[intel::use_stall_enable_clusters]] int test2;         // expected-error{{'use_stall_enable_clusters' attribute only applies to functions}}
+[[intel::use_stall_enable_clusters(1)]] void test1() {} // expected-error{{'intel::use_stall_enable_clusters' attribute takes no arguments}}
+[[intel::use_stall_enable_clusters]] int test2;         // expected-error{{'intel::use_stall_enable_clusters' attribute only applies to functions}}
 #endif
 
 // Test attribute is presented on function call operator (of a function object).

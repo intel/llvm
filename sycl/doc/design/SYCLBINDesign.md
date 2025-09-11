@@ -225,7 +225,7 @@ clang-offload-packager invocation to clang-linker-wrapper together with the new
 `--syclbin` flag.
 
 Setting this option will override `-fsycl`. Passing`-fsycl-device-only` with
-`-fsyclbin` will cause `-fsycl-device-only` to be considered unused.
+`-fsyclbin` will cause `-fsyclbin` to be considered unused.
 
 The behavior is dependent on using the clang-linker-wrapper. As the current
 default offload compilation behavior is using the old offload model (driver

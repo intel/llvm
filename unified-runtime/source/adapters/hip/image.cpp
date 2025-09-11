@@ -704,7 +704,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
-        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         if (pDstImageDesc->rowPitch == 0) {
           cpy_desc.dstMemoryType = hipMemoryTypeArray;
           cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
@@ -727,7 +727,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeHost;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         cpy_desc.srcHeight = pSrcImageDesc->height;
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
@@ -749,7 +749,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeHost;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcPitch = pSrcImageDesc->width * PixelSizeBytes;
+        cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         cpy_desc.srcHeight = std::max(MinCopyHeight, pSrcImageDesc->height);
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
@@ -824,7 +824,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         }
         cpy_desc.dstMemoryType = hipMemoryTypeHost;
         cpy_desc.dstHost = pDst;
-        cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
+        cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         UR_CHECK_ERROR(hipMemcpyParam2DAsync(&cpy_desc, Stream));
@@ -840,7 +840,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcArray = static_cast<hipArray_t>(const_cast<void *>(pSrc));
         cpy_desc.dstMemoryType = hipMemoryTypeHost;
         cpy_desc.dstHost = pDst;
-        cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
+        cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = pDstImageDesc->height;
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
@@ -863,7 +863,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcArray = static_cast<hipArray_t>(const_cast<void *>(pSrc));
         cpy_desc.dstMemoryType = hipMemoryTypeHost;
         cpy_desc.dstHost = pDst;
-        cpy_desc.dstPitch = pDstImageDesc->width * PixelSizeBytes;
+        cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = std::max(MinCopyHeight, pDstImageDesc->height);
         cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
         cpy_desc.Height =
@@ -1374,7 +1374,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
             static_cast<const ur_exp_file_descriptor_t *>(pNext);
 
         extMemDesc.handle.fd = FileDescriptor->fd;
-        extMemDesc.type = hipExternalMemoryHandleTypeOpaqueFd;
+        switch (memHandleType) {
+        case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+          extMemDesc.type = hipExternalMemoryHandleTypeOpaqueFd;
+          break;
+        case UR_EXP_EXTERNAL_MEM_TYPE_DMA_BUF:
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
         auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
 
@@ -1393,7 +1401,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
           return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
           break;
-        case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
+        case UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE:
+#if HIP_VERSION >= 50600000
+          extMemDesc.type = hipExternalMemoryHandleTypeD3D11Resource;
+          extMemDesc.flags = hipExternalMemoryDedicated;
+#else
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
+          break;
         default:
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
@@ -1495,6 +1510,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesFreeMappedLinearMemoryExp(
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesSupportsImportingHandleTypeExp(
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    ur_exp_external_mem_type_t memHandleType, ur_bool_t *pSupportedRet) {
+#if defined(_WIN32)
+  *pSupportedRet =
+      (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT) ||
+      (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE);
+#else
+  *pSupportedRet = (memHandleType == UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD);
+#endif
   return UR_RESULT_SUCCESS;
 }
 

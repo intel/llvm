@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18488
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/queue_properties.hpp>
@@ -34,8 +31,8 @@ int main() {
   try {
 
     // Create pool with zero_init property
-    syclexp::property::memory_pool::zero_init ZeroInit;
-    syclexp::memory_pool MemPool(Ctx, Dev, sycl::usm::alloc::device, ZeroInit);
+    syclexp::properties PoolProps{syclexp::zero_init{}};
+    syclexp::memory_pool MemPool(Ctx, Dev, sycl::usm::alloc::device, PoolProps);
 
     // <--- First allocation, use, and free --->
 

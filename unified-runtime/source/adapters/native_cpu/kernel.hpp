@@ -42,7 +42,7 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   ~ur_kernel_handle_t_() {
     removeArgReferences();
-    free(_localMemPool);
+    native_cpu::aligned_free(_localMemPool);
   }
 
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
@@ -59,7 +59,6 @@ struct ur_kernel_handle_t_ : RefCounted {
     args_index_t Indices;
     std::vector<size_t> ParamSizes;
     std::vector<bool> OwnsMem;
-    static constexpr size_t MaxAlign = 16 * sizeof(double);
 
     arguments() = default;
 
@@ -109,11 +108,7 @@ struct ur_kernel_handle_t_ : RefCounted {
         }
       }
       if (NeedAlloc) {
-        size_t Align = MaxAlign;
-        while (Align > Size) {
-          Align >>= 1;
-        }
-        Indices[Index] = native_cpu::aligned_malloc(Align, Size);
+        Indices[Index] = native_cpu::aligned_malloc(Size);
         ParamSizes[Index] = Size;
         OwnsMem[Index] = true;
       }
@@ -158,8 +153,8 @@ struct ur_kernel_handle_t_ : RefCounted {
     if (reqSize == 0 || reqSize == _localMemPoolSize) {
       return;
     }
-    // realloc handles nullptr case
-    _localMemPool = (char *)realloc(_localMemPool, reqSize);
+    native_cpu::aligned_free(_localMemPool);
+    _localMemPool = static_cast<char *>(native_cpu::aligned_malloc(reqSize));
     _localMemPoolSize = reqSize;
   }
 

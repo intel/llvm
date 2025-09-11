@@ -33,10 +33,8 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class Adapter;
-using AdapterPtr = std::shared_ptr<Adapter>;
+class adapter_impl;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 // The class serves as a base for all SYCL memory objects.
@@ -91,7 +89,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const AdapterPtr &getAdapter() const;
+  adapter_impl &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -128,7 +126,7 @@ public:
       MAllocator->deallocate(Ptr, size());
   }
 
-  void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
+  void releaseMem(context_impl *Context, void *MemAllocation) override;
 
   void *getUserPtr() const {
     return MOpenCLInterop ? static_cast<void *>(MInteropMemObject) : MUserPtr;
@@ -268,13 +266,10 @@ public:
     MAllocator->setAlignment(RequiredAlign);
   }
 
-  static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     ur_native_handle_t MemObject);
-
   void handleWriteAccessorCreation();
 
-  void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, ur_event_handle_t &InteropEvent) override {
+  void *allocateMem(context_impl *Context, bool InitFromUserData, void *HostPtr,
+                    ur_event_handle_t &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
@@ -284,7 +279,9 @@ public:
 
   MemObjType getType() const override { return MemObjType::Undefined; }
 
-  ContextImplPtr getInteropContext() const override { return MInteropContext; }
+  context_impl *getInteropContext() const override {
+    return MInteropContext.get();
+  }
 
   bool isInterop() const override;
 
@@ -331,7 +328,7 @@ public:
  
 protected:
   // An allocateMem helper that determines which host ptr to use
-  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+  void determineHostPtr(context_impl *Context, bool InitFromUserData,
                         void *&HostPtr, bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.
@@ -342,7 +339,7 @@ protected:
   // Should wait on this event before start working with such memory object.
   EventImplPtr MInteropEvent;
   // Context passed by user to interoperability constructor.
-  ContextImplPtr MInteropContext;
+  std::shared_ptr<context_impl> MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
   ur_mem_handle_t MInteropMemObject;

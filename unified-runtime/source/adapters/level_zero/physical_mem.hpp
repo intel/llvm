@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 struct ur_physical_mem_handle_t_ : ur_object {
   ur_physical_mem_handle_t_(ze_physical_mem_handle_t ZePhysicalMem,
@@ -21,4 +22,6 @@ struct ur_physical_mem_handle_t_ : ur_object {
 
   // Keeps the PI context of this memory handle.
   ur_context_handle_t Context;
+
+  ur::RefCount RefCount;
 };

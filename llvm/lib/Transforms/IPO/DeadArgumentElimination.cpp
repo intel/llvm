@@ -201,7 +201,6 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   NF->setComdat(F.getComdat());
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
   NF->takeName(&F);
-  NF->IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites
   // to pass in a smaller number of arguments into the new function.
@@ -572,6 +571,17 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
       (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
+    markFrozen(F);
+    return;
+  }
+
+  // Do not modify arguments when the SYCL kernel is a free function kernel.
+  // In this case, the user sets the arguments of the kernel by themselves
+  // and dead argument elimination may interfere with their expectations.
+  const bool FuncIsSyclFreeFunctionKernel =
+      F.hasFnAttribute("sycl-single-task-kernel") ||
+      F.hasFnAttribute("sycl-nd-range-kernel");
+  if (FuncIsSyclFreeFunctionKernel) {
     markFrozen(F);
     return;
   }
@@ -972,7 +982,6 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // it again.
   F->getParent()->getFunctionList().insert(F->getIterator(), NF);
   NF->takeName(F);
-  NF->IsNewDbgInfoFormat = F->IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites to
   // pass in a smaller number of arguments into the new function.

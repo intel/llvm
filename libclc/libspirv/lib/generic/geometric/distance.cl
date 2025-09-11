@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/geometric/clc_distance.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <distance.inc>
-#include <libspirv/generic/math/floatn.inc>
+#include <clc/math/gentype.inc>

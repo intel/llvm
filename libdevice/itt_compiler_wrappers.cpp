@@ -14,13 +14,13 @@ SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_start_wrapper() {
   if (!isITTEnabled())
     return;
 
-  size_t GroupID[3] = {__spirv_BuiltInWorkgroupId.x,
-                       __spirv_BuiltInWorkgroupId.y,
-                       __spirv_BuiltInWorkgroupId.z};
-  size_t WIID = __spirv_BuiltInGlobalLinearId;
-  uint32_t WGSize = static_cast<uint32_t>(__spirv_BuiltInWorkgroupSize.x *
-                                          __spirv_BuiltInWorkgroupSize.y *
-                                          __spirv_BuiltInWorkgroupSize.z);
+  size_t GroupID[3] = {__spirv_BuiltInWorkgroupId(0),
+                       __spirv_BuiltInWorkgroupId(1),
+                       __spirv_BuiltInWorkgroupId(2)};
+  size_t WIID = __spirv_BuiltInGlobalLinearId();
+  uint32_t WGSize = static_cast<uint32_t>(__spirv_BuiltInWorkgroupSize(0) *
+                                          __spirv_BuiltInWorkgroupSize(1) *
+                                          __spirv_BuiltInWorkgroupSize(2));
   __itt_offload_wi_start_stub(GroupID, WIID, WGSize);
 }
 
@@ -28,10 +28,10 @@ SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_finish_wrapper() {
   if (!isITTEnabled())
     return;
 
-  size_t GroupID[3] = {__spirv_BuiltInWorkgroupId.x,
-                       __spirv_BuiltInWorkgroupId.y,
-                       __spirv_BuiltInWorkgroupId.z};
-  size_t WIID = __spirv_BuiltInGlobalLinearId;
+  size_t GroupID[3] = {__spirv_BuiltInWorkgroupId(0),
+                       __spirv_BuiltInWorkgroupId(1),
+                       __spirv_BuiltInWorkgroupId(2)};
+  size_t WIID = __spirv_BuiltInGlobalLinearId();
   __itt_offload_wi_finish_stub(GroupID, WIID);
 }
 
@@ -46,10 +46,10 @@ SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_resume_wrapper() {
   if (!isITTEnabled())
     return;
 
-  size_t GroupID[3] = {__spirv_BuiltInWorkgroupId.x,
-                       __spirv_BuiltInWorkgroupId.y,
-                       __spirv_BuiltInWorkgroupId.z};
-  size_t WIID = __spirv_BuiltInGlobalLinearId;
+  size_t GroupID[3] = {__spirv_BuiltInWorkgroupId(0),
+                       __spirv_BuiltInWorkgroupId(1),
+                       __spirv_BuiltInWorkgroupId(2)};
+  size_t WIID = __spirv_BuiltInGlobalLinearId();
   __itt_offload_wi_resume_stub(GroupID, WIID);
 }
 

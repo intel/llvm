@@ -1,50 +1,28 @@
 # Lowering of SYCL ESIMD kernels depends on vc-intrinsics
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
- if(NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR AND NOT LLVMGenXIntrinsics_INCLUDE_DIR)
-   find_package(LLVMGenXIntrinsics QUIET)
- endif()
+  find_package(LLVMGenXIntrinsics QUIET)
 
- if (NOT LLVMGenXIntrinsics_FOUND)
-    if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-      find_path(LLVMGenXIntrinsics_INCLUDE_DIR GenXIntrinsics/include PATHS ${CMAKE_PREFIX_PATH})
+  if (NOT LLVMGenXIntrinsics_FOUND)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-      if (NOT LLVMGenXIntrinsics_INCLUDE_DIR)
-        set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-
-        # Date: Mar 7, 2025
-        # Update Triple usage after 979c275097
-        set(LLVMGenXIntrinsics_GIT_TAG 9e1935aedc2101deaab45b2f69f4b43ccf6f2b52)
-
-        message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
-        include(FetchContent)
-        FetchContent_Declare(vc-intrinsics
-          GIT_REPOSITORY ${LLVMGenXIntrinsics_GIT_REPO}
-          GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
-        )
-        FetchContent_MakeAvailable(vc-intrinsics)
-        FetchContent_GetProperties(vc-intrinsics)
-
-        set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
-        set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
-      else()
-        message(STATUS "vc-intrinsics found in system at ${LLVMGenXIntrinsics_INCLUDE_DIR}")
-        set(LLVMGenXIntrinsics_SOURCE_DIR ${LLVMGenXIntrinsics_INCLUDE_DIR}/..)
-        set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
-        add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
-      endif()
-    else (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-      # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
-      message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
-
-      set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
-      add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
-    endif (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    target_include_directories(LLVMGenXIntrinsics
-      PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
-      PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
-    )
- endif()
+    # Date: May 29, 2025
+    # Use OneNthEltsVecArgument instead of HalfVecArguments to fix build failure.
+    set(LLVMGenXIntrinsics_GIT_TAG 60cea7590bd022d95f5cf336ee765033bd114d69)
+    if(NOT FETCHCONTENT_SOURCE_DIR_VC-INTRINSICS)
+      message(STATUS "vc-intrinsics repo is missing. Will try to download "
+        "${LLVMGenXIntrinsics_GIT_TAG} from ${LLVMGenXIntrinsics_GIT_REPO}")
+    endif()
+    include(FetchContent)
+    FetchContent_Declare(vc-intrinsics
+      GIT_REPOSITORY ${LLVMGenXIntrinsics_GIT_REPO}
+      GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
+      )
+    FetchContent_MakeAvailable(vc-intrinsics)
+    FetchContent_GetProperties(vc-intrinsics)
+  else()
+    message(STATUS "vc-intrinsics found in system at ${LLVMGenXIntrinsics_DIR}")
+  endif()
 endif (NOT TARGET LLVMGenXIntrinsics)
 
 add_llvm_component_library(LLVMSYCLLowerIR
@@ -74,7 +52,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLJointMatrixTransform.cpp
-  SYCLOptimizeBackToBackBarrier.cpp
+  SYCLOptimizeBarriers.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLVirtualFunctionsAnalysis.cpp
@@ -88,8 +66,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
-  ${LLVM_MAIN_SRC_DIR}/projects/vc-intrinsics/GenXIntrinsics/include
-  ${LLVM_BINARY_DIR}/projects/vc-intrinsics/GenXIntrinsics/include
 
   DEPENDS
   intrinsics_gen
@@ -114,10 +90,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ipo
   )
 
-target_include_directories(LLVMSYCLLowerIR
-  PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include/>
-  PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}>
-  )
 target_link_libraries(LLVMSYCLLowerIR
   PUBLIC LLVMGenXIntrinsics
   )

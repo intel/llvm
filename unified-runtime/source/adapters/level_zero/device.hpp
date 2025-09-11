@@ -16,10 +16,12 @@
 #include <stdarg.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
@@ -186,6 +188,18 @@ struct ur_device_handle_t_ : ur_object {
   // Checks if this GPU is an Intel Flex GPU or Intel Arc Alchemist
   bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
 
+  bool isIntelMTL() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x03118000 &&
+            ZeDeviceIpVersionExt->ipVersion <= 0x0311c004);
+  }
+
+  bool isIntelARL() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x03128000 &&
+            ZeDeviceIpVersionExt->ipVersion <= 0x03128004);
+  }
+
   bool isIntelDG2OrNewer() {
     return (ZeDeviceProperties->vendorId == 0x8086 &&
             ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
@@ -223,14 +237,18 @@ struct ur_device_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+  ZeCache<ZeStruct<ze_device_cache_line_size_ext_t>>
+      ZeDeviceCacheLinePropertiesExt;
   ZeCache<ZeStruct<ze_device_ip_version_ext_t>> ZeDeviceIpVersionExt;
   ZeCache<struct ze_global_memsize> ZeGlobalMemSize;
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
-  ZeCache<ZeStruct<ze_intel_device_block_array_exp_properties_t>>
+  ZeCache<ZexStruct<ze_intel_device_block_array_exp_properties_t>>
       ZeDeviceBlockArrayProperties;
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+  ZeCache<ZeStruct<ze_device_vector_width_properties_ext_t>>
+      ZeDeviceVectorWidthPropertiesExt;
 
   // Map device bindless image offset to corresponding host image handle.
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
@@ -238,17 +256,27 @@ struct ur_device_handle_t_ : ur_object {
 
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
+
+  ur::RefCount RefCount;
 };
 
-inline std::vector<ur_device_handle_t>
-CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
+// Collects a flat vector of unique devices for USM memory pool creation.
+// Traverses the input devices and their sub-devices, ensuring each Level Zero
+// device handle appears only once in the result.
+inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
+    const std::vector<ur_device_handle_t> &Devices) {
   std::vector<ur_device_handle_t> DevicesAndSubDevices;
+  std::unordered_set<ze_device_handle_t> Seen;
+
   std::function<void(const std::vector<ur_device_handle_t> &)>
       CollectDevicesAndSubDevicesRec =
           [&](const std::vector<ur_device_handle_t> &Devices) {
             for (auto &Device : Devices) {
-              DevicesAndSubDevices.push_back(Device);
-              CollectDevicesAndSubDevicesRec(Device->SubDevices);
+              // Only add device if ZeDevice has not been seen before.
+              if (Seen.insert(Device->ZeDevice).second) {
+                DevicesAndSubDevices.push_back(Device);
+                CollectDevicesAndSubDevicesRec(Device->SubDevices);
+              }
             }
           };
   CollectDevicesAndSubDevicesRec(Devices);

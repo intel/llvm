@@ -25,9 +25,10 @@ using __nativecpu_state = native_cpu::state;
 
 #undef DEVICE_EXTERNAL
 #undef DEVICE_EXTERN_C
-#define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
+#define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL __attribute__((libclc_call))
 #define DEVICE_EXTERNAL_C DEVICE_EXTERN_C __attribute__((always_inline))
-#define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
+#define DEVICE_EXTERNAL                                                        \
+  SYCL_EXTERNAL __attribute__((always_inline, libclc_call))
 
 // Several functions are used implicitly by WorkItemLoopsPass and
 // PrepareSYCLNativeCPUPass and need to be marked as used to prevent them being
@@ -76,11 +77,11 @@ DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
-    return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
+    return Ptr[__spirv_BuiltInSubgroupLocalInvocationId()];                    \
   }                                                                            \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL void __spirv_SubgroupBlockWriteINTEL(    \
       PType OCL_GLOBAL *ptr, Type v) noexcept {                                \
-    ((Type *)ptr)[__spirv_SubgroupLocalInvocationId()] = v;                    \
+    ((Type *)ptr)[__spirv_BuiltInSubgroupLocalInvocationId()] = v;             \
   }                                                                            \
   static_assert(true)
 
@@ -329,26 +330,21 @@ DefineShuffleVec2to16(float, f32, float);
   DEVICE_EXTERNAL GET_PROPS uint32_t bname() { return muxname(); }             \
   static_assert(true)
 // subgroup
-GEN_u32(__spirv_SubgroupLocalInvocationId, __mux_get_sub_group_local_id);
-GEN_u32(__spirv_SubgroupMaxSize, __mux_get_max_sub_group_size);
-GEN_u32(__spirv_SubgroupId, __mux_get_sub_group_id);
+GEN_u32(__spirv_BuiltInSubgroupLocalInvocationId, __mux_get_sub_group_local_id);
+GEN_u32(__spirv_BuiltInSubgroupMaxSize, __mux_get_max_sub_group_size);
+GEN_u32(__spirv_BuiltInSubgroupId, __mux_get_sub_group_id);
 
 // I64_I32
-#define GEN_p(bname, muxname, arg)                                             \
+#define GEN_xyz(bname, muxname)                                                \
   DEVICE_EXTERN_C GET_PROPS uint64_t muxname(uint32_t);                        \
-  DEVICE_EXTERNAL GET_PROPS uint64_t bname() { return muxname(arg); }          \
+  DEVICE_EXTERNAL GET_PROPS uint64_t bname(int dim) { return muxname(dim); }   \
   static_assert(true)
 
-#define GEN_xyz(bname, ncpu_name)                                              \
-  GEN_p(bname##_x, ncpu_name, 0);                                              \
-  GEN_p(bname##_y, ncpu_name, 1);                                              \
-  GEN_p(bname##_z, ncpu_name, 2)
-
-GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset);
-GEN_xyz(__spirv_LocalInvocationId, __mux_get_local_id);
-GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups);
-GEN_xyz(__spirv_WorkgroupSize, __mux_get_local_size);
-GEN_xyz(__spirv_WorkgroupId, __mux_get_group_id);
+GEN_xyz(__spirv_BuiltInGlobalOffset, __mux_get_global_offset);
+GEN_xyz(__spirv_BuiltInLocalInvocationId, __mux_get_local_id);
+GEN_xyz(__spirv_BuiltInNumWorkgroups, __mux_get_num_groups);
+GEN_xyz(__spirv_BuiltInWorkgroupSize, __mux_get_local_size);
+GEN_xyz(__spirv_BuiltInWorkgroupId, __mux_get_group_id);
 
 template <class T>
 using MakeGlobalType = typename sycl::detail::DecoratedType<

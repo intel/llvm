@@ -174,6 +174,11 @@ template <class KernelNameType> struct KernelInfo {
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 
+template <auto *Func> struct FreeFunctionInfoData {
+  static constexpr unsigned getNumParams() { return 0; }
+  static constexpr const char *getFunctionName() { return ""; }
+};
+
 // Built-ins accept an object due to lacking infrastructure support for
 // accepting types. The kernel name type itself isn't used because it might be
 // incomplete, cv-qualified, or not default constructible. Passing an object
@@ -181,97 +186,6 @@ template <class KernelNameType> struct KernelInfo {
 template <typename KNT> struct KernelIdentity {
   using type = KNT;
 };
-
-template <typename KernelNameType> constexpr unsigned getKernelNumParams() {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  return __builtin_sycl_kernel_param_count(KernelIdentity<KernelNameType>());
-#else
-  return KernelInfo<KernelNameType>::getNumParams();
-#endif
-}
-
-template <typename KernelNameType>
-constexpr kernel_param_desc_t getKernelParamDesc(int Idx) {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  kernel_param_desc_t ParamDesc;
-  ParamDesc.kind =
-      __builtin_sycl_kernel_param_kind(KernelIdentity<KernelNameType>(), Idx);
-  ParamDesc.info = ParamDesc.kind == kernel_param_kind_t::kind_accessor
-                       ? __builtin_sycl_kernel_param_access_target(
-                             KernelIdentity<KernelNameType>(), Idx)
-                       : __builtin_sycl_kernel_param_size(
-                             KernelIdentity<KernelNameType>(), Idx);
-  ParamDesc.offset =
-      __builtin_sycl_kernel_param_offset(KernelIdentity<KernelNameType>(), Idx);
-  return ParamDesc;
-#else
-  return KernelInfo<KernelNameType>::getParamDesc(Idx);
-#endif
-}
-
-template <typename KernelNameType> constexpr const char *getKernelName() {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  return __builtin_sycl_kernel_name(KernelIdentity<KernelNameType>());
-#else
-  return KernelInfo<KernelNameType>::getName();
-#endif
-}
-
-template <typename KernelNameType> constexpr bool isKernelESIMD() {
-  // TODO Needs a builtin counterpart
-  return KernelInfo<KernelNameType>::isESIMD();
-}
-
-template <typename KernelNameType> constexpr const char *getKernelFileName() {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  return __builtin_sycl_kernel_file_name(KernelIdentity<KernelNameType>());
-#else
-  return KernelInfo<KernelNameType>::getFileName();
-#endif
-}
-
-template <typename KernelNameType>
-constexpr const char *getKernelFunctionName() {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  return __builtin_sycl_kernel_function_name(KernelIdentity<KernelNameType>());
-#else
-  return KernelInfo<KernelNameType>::getFunctionName();
-#endif
-}
-
-template <typename KernelNameType> constexpr unsigned getKernelLineNumber() {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  return __builtin_sycl_kernel_line_number(KernelIdentity<KernelNameType>());
-#else
-  return KernelInfo<KernelNameType>::getLineNumber();
-#endif
-}
-
-template <typename KernelNameType> constexpr unsigned getKernelColumnNumber() {
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  return __builtin_sycl_kernel_column_number(KernelIdentity<KernelNameType>());
-#else
-  return KernelInfo<KernelNameType>::getColumnNumber();
-#endif
-}
-
-template <typename KernelNameType> constexpr int64_t getKernelSize() {
-  // TODO needs a builtin counterpart, but is currently only used for checking
-  // cases with external host compiler, which use integration headers.
-  return KernelInfo<KernelNameType>::getKernelSize();
-}
-
-template <typename KernelNameType> constexpr bool hasSpecialCaptures() {
-  bool FoundSpecialCapture = false;
-  for (unsigned I = 0; I < getKernelNumParams<KernelNameType>(); ++I) {
-    auto ParamDesc = getKernelParamDesc<KernelNameType>(I);
-    bool IsSpecialCapture =
-        (ParamDesc.kind != kernel_param_kind_t::kind_std_layout &&
-         ParamDesc.kind != kernel_param_kind_t::kind_pointer);
-    FoundSpecialCapture |= IsSpecialCapture;
-  }
-  return FoundSpecialCapture;
-}
 
 } // namespace detail
 } // namespace _V1
