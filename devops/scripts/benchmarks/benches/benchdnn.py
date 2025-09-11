@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from .base import Suite, Benchmark
+from .base import Suite, Benchmark, TracingType
 from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
@@ -132,7 +132,18 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
+        # Determine extra trace options based on tracing type
+        if run_trace == TracingType.UNITRACE:
+            extra_trace_opt = ["--chrome-dnn-logging"]
+        else:
+            extra_trace_opt = None
+
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -151,8 +162,9 @@ class OneDnnBenchmark(Benchmark):
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
-            run_unitrace=run_unitrace,
-            extra_unitrace_opt=["--chrome-dnn-logging"],
+            run_trace=run_trace,
+            extra_trace_opt=extra_trace_opt,
+            force_trace=force_trace,
         )
         result_value = self._extract_time(output)
 

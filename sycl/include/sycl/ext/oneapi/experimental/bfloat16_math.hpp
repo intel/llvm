@@ -44,7 +44,7 @@ constexpr int num_elements_v = sycl::detail::num_elements<T>::value;
 
 /******************* isnan ********************/
 
-// According to bfloat16 format, NAN value's exponent field is 0xFF and
+// According to bfloat16 format, NaN value's exponent field is 0xFF and
 // significand has non-zero bits.
 template <typename T>
 std::enable_if_t<std::is_same_v<T, bfloat16>, bool> isnan(T x) {

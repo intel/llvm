@@ -9,6 +9,8 @@ endforeach()
 
 add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 
+add_compile_definitions(__SYCL_UNITTESTS_BYPASS_KERNEL_NAME_CHECK)
+
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
