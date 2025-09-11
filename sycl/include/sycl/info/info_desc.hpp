@@ -22,6 +22,7 @@
 
 #include <sycl/range.hpp>
 
+#include <string>
 #include <vector>
 
 // This is used in trait .def files when there isn't a corresponding backend
