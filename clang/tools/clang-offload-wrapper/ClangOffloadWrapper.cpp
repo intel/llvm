@@ -81,7 +81,12 @@ using namespace llvm::object;
 static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+/// TODO: here and below in addition to removing code under macro
+///       #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+///       also remove conditional code under `!PreviewBreakingChanges` option.
 static constexpr char COL_MANIFEST[] = "Manifest";
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
@@ -117,6 +122,10 @@ template <> struct DenseMapInfo<OffloadKind> {
 } // namespace llvm
 
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
+
+static cl::opt<bool> PreviewBreakingChanges(
+    "fpreview-breaking-changes", cl::desc("Enable preview breaking changes"),
+    cl::init(false), cl::Hidden);
 
 // Mark all our options with this category, everything else (except for -version
 // and -help) will be hidden.
@@ -250,8 +259,13 @@ static cl::opt<bool> BatchMode(
              "Table files consist of a table of filenames that provide\n"
              "Code, Symbols, Properties, etc.\n"
              "Example input table file in batch mode:\n"
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+             "  [Code|Symbols|Properties]\n"
+             "  a_0.bc|a_0.sym|a_0.props\n"
+#else
              "  [Code|Symbols|Properties|Manifest]\n"
              "  a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
              "  a_1.bin|||\n"
              "Example usage:\n"
              "  clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu\n"
@@ -315,18 +329,27 @@ public:
   /// Represents a single image to wrap.
   class Image {
   public:
-    Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
+    Image(const llvm::StringRef File_,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+          const llvm::StringRef Manif_,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
           const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
           const llvm::StringRef CompileOpts_, const llvm::StringRef LinkOpts_,
           const llvm::StringRef EntriesFile_, const llvm::StringRef PropsFile_)
-        : File(File_.str()), Manif(Manif_.str()), Tgt(Tgt_.str()), Fmt(Fmt_),
-          CompileOpts(CompileOpts_.str()), LinkOpts(LinkOpts_.str()),
-          EntriesFile(EntriesFile_.str()), PropsFile(PropsFile_.str()) {}
+        : File(File_.str()),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+          Manif(Manif_.str()),
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+          Tgt(Tgt_.str()), Fmt(Fmt_), CompileOpts(CompileOpts_.str()),
+          LinkOpts(LinkOpts_.str()), EntriesFile(EntriesFile_.str()),
+          PropsFile(PropsFile_.str()) {}
 
     /// Name of the file with actual contents
     const std::string File;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     /// Name of the manifest file
     const std::string Manif;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     /// Offload target architecture
     const std::string Tgt;
     /// Format
@@ -369,7 +392,10 @@ private:
 
 public:
   void addImage(const OffloadKind Kind, llvm::StringRef File,
-                llvm::StringRef Manif, llvm::StringRef Tgt,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                llvm::StringRef Manif,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+                llvm::StringRef Tgt,
                 const BinaryImageFormat Fmt, llvm::StringRef CompileOpts,
                 llvm::StringRef LinkOpts, llvm::StringRef EntriesFile,
                 llvm::StringRef PropsFile) {
@@ -377,7 +403,11 @@ public:
     if (!Pack)
       Pack.reset(new SameKindPack());
     Pack->emplace_back(std::make_unique<Image>(
-        File, Manif, Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
+        File,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        Manif,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        Tgt, Fmt, CompileOpts, LinkOpts, EntriesFile, PropsFile));
   }
 
   std::string ToolName;
@@ -476,7 +506,12 @@ private:
 
   // DeviceImageStructVersion change log:
   // -- version 2: updated to PI 1.2 binary image format
+  // -- version 3: removed ManifestStart, ManifestEnd pointers
+  #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const uint16_t DeviceImageStructVersion = 2;
+  #else
+  const uint16_t DeviceImageStructVersion = 3;
+  #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // typedef enum {
   //   PI_PROPERTY_TYPE_INT32,
@@ -542,10 +577,12 @@ private:
   //    /// a null-terminated string; target- and compiler-specific options
   //    /// which are suggested to use to "link" program at runtime
   //    const char *LinkOptions;
+  #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   //    /// Pointer to the manifest data start
   //    const unsigned char *ManifestStart;
   //    /// Pointer to the manifest data end
   //    const unsigned char *ManifestEnd;
+  #endif // __INTEL_PREVIEW_BREAKING_CHANGES
   //    /// Pointer to the device binary image start
   //    void *ImageStart;
   //    /// Pointer to the device binary image end
@@ -560,24 +597,43 @@ private:
 
   StructType *getSyclDeviceImageTy() {
     if (!SyclImageTy) {
-      SyclImageTy = StructType::create(
-          {
-              Type::getInt16Ty(C), // Version
-              Type::getInt8Ty(C),  // OffloadKind
-              Type::getInt8Ty(C),  // Format
-              getPtrTy(),          // DeviceTargetSpec
-              getPtrTy(),          // CompileOptions
-              getPtrTy(),          // LinkOptions
-              getPtrTy(),          // ManifestStart
-              getPtrTy(),          // ManifestEnd
-              getPtrTy(),          // ImageStart
-              getPtrTy(),          // ImageEnd
-              getPtrTy(),          // EntriesBegin
-              getPtrTy(),          // EntriesEnd
-              getPtrTy(),          // PropertySetBegin
-              getPtrTy()           // PropertySetEnd
-          },
-          "__tgt_device_image");
+      if (!PreviewBreakingChanges) {
+        SyclImageTy = StructType::create(
+            {
+                Type::getInt16Ty(C), // Version
+                Type::getInt8Ty(C),  // OffloadKind
+                Type::getInt8Ty(C),  // Format
+                getPtrTy(),          // DeviceTargetSpec
+                getPtrTy(),          // CompileOptions
+                getPtrTy(),          // LinkOptions
+                getPtrTy(),          // ManifestStart
+                getPtrTy(),          // ManifestEnd
+                getPtrTy(),          // ImageStart
+                getPtrTy(),          // ImageEnd
+                getPtrTy(),          // EntriesBegin
+                getPtrTy(),          // EntriesEnd
+                getPtrTy(),          // PropertySetBegin
+                getPtrTy()           // PropertySetEnd
+            },
+            "__tgt_device_image");
+      } else {
+        SyclImageTy = StructType::create(
+            {
+                Type::getInt16Ty(C), // Version
+                Type::getInt8Ty(C),  // OffloadKind
+                Type::getInt8Ty(C),  // Format
+                getPtrTy(),          // DeviceTargetSpec
+                getPtrTy(),          // CompileOptions
+                getPtrTy(),          // LinkOptions
+                getPtrTy(),          // ImageStart
+                getPtrTy(),          // ImageEnd
+                getPtrTy(),          // EntriesBegin
+                getPtrTy(),          // EntriesEnd
+                getPtrTy(),          // PropertySetBegin
+                getPtrTy()           // PropertySetEnd
+            },
+            "__tgt_device_image");
+      }
     }
     return SyclImageTy;
   }
@@ -1030,6 +1086,7 @@ private:
       if (Verbose)
         errs() << "adding image: offload kind=" << offloadKindToString(Kind)
                << Img << "\n";
+// STOPPED HERE
       auto *Fver =
           ConstantInt::get(Type::getInt16Ty(C), DeviceImageStructVersion);
       auto *Fknd = ConstantInt::get(Type::getInt8Ty(C), Kind);
