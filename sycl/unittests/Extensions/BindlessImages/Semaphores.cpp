@@ -49,16 +49,14 @@ urBindlessImagesSignalExternalSemaphoreExp_replace(void *pParams) {
   if (urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue) {
     EXPECT_EQ(*Params.psignalValue, SignalValue);
   }
-  if (urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents) {
-    EXPECT_NE(*Params.pphEvent, nullptr);
-  }
-
-  else {
-    EXPECT_EQ(*Params.pphEvent, nullptr);
-  }
   EXPECT_EQ(*Params.pnumEventsInWaitList,
             urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents);
-  EXPECT_NE(*Params.pphEventWaitList, nullptr);
+  if (urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents) {
+    EXPECT_NE(*Params.pphEventWaitList, nullptr);
+  } else {
+    EXPECT_EQ(*Params.pphEventWaitList, nullptr);
+  }
+  EXPECT_NE(*Params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
@@ -78,9 +76,15 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreWait) {
   DummySemaphore.raw_handle =
       reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt);
 
+  DummySemaphore.handle_type =
+      syclexp::external_semaphore_handle_type::opaque_fd;
+
   urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue = false;
   Q.ext_oneapi_wait_external_semaphore(DummySemaphore);
   EXPECT_EQ(urBindlessImagesWaitExternalSemaphoreExp_counter, 1);
+
+  DummySemaphore.handle_type =
+      syclexp::external_semaphore_handle_type::timeline_fd;
 
   urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue = true;
   Q.ext_oneapi_wait_external_semaphore(DummySemaphore, WaitValue);
@@ -103,32 +107,38 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   DummySemaphore.raw_handle =
       reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt);
 
+  std::vector<sycl::event> DummyEventList(2);
+
+  DummySemaphore.handle_type =
+      syclexp::external_semaphore_handle_type::opaque_fd;
+
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
   Q.ext_oneapi_signal_external_semaphore(DummySemaphore);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 1);
 
-  urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
-  urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
-  Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue);
-  EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 2);
-
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 1;
   Q.ext_oneapi_signal_external_semaphore(DummySemaphore, sycl::event{});
+  EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 2);
+
+  urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
+  urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 2;
+  Q.ext_oneapi_signal_external_semaphore(DummySemaphore, DummyEventList);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 3);
+
+  DummySemaphore.handle_type =
+      syclexp::external_semaphore_handle_type::timeline_fd;
+
+  urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
+  urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
+  Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue);
+  EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 4);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 1;
   Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue,
                                          sycl::event{});
-  EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 4);
-
-  std::vector<sycl::event> DummyEventList(2);
-
-  urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
-  urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 2;
-  Q.ext_oneapi_signal_external_semaphore(DummySemaphore, DummyEventList);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 5);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
