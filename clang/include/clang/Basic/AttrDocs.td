@@ -10104,6 +10104,23 @@ flag.
   }];
 }
 
+def DocHLSLSemantics : DocumentationCategory<"HLSL Semantics"> {
+  let Content = [{
+A semantic is a string attached to a shader input or output that conveys
+information about the intended use of a parameter. Semantics are required on
+all variables passed between shader stages. The syntax for adding a semantic
+to a shader variable is shown here (Variable Syntax (DirectX HLSL)).
+
+In general, data passed between pipeline stages is completely generic and is
+not uniquely interpreted by the system; arbitrary semantics are allowed which
+have no special meaning. Parameters (in Direct3D 10 and later) which contain
+these special semantics are referred to as System-Value Semantics.
+
+More information is available here:
+https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-semantics
+  }];
+}
+
 def WaveSizeDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -10341,7 +10358,7 @@ randomized.
 }
 
 def HLSLSV_GroupThreadIDDocs : Documentation {
-  let Category = DocCatFunction;
+  let Category = DocHLSLSemantics;
   let Content = [{
 The ``SV_GroupThreadID`` semantic, when applied to an input parameter, specifies which
 individual thread within a thread group is executing in. This attribute is
@@ -10352,7 +10369,7 @@ The full documentation is available here: https://docs.microsoft.com/en-us/windo
 }
 
 def HLSLSV_GroupIDDocs : Documentation {
-  let Category = DocCatFunction;
+  let Category = DocHLSLSemantics;
   let Content = [{
 The ``SV_GroupID`` semantic, when applied to an input parameter, specifies which
 thread group a shader is executing in. This attribute is only supported in compute shaders.
@@ -10362,7 +10379,7 @@ The full documentation is available here: https://docs.microsoft.com/en-us/windo
 }
 
 def HLSLSV_GroupIndexDocs : Documentation {
-  let Category = DocCatFunction;
+  let Category = DocHLSLSemantics;
   let Content = [{
 The ``SV_GroupIndex`` semantic, when applied to an input parameter, specifies a
 data binding to map the group index to the specified parameter. This attribute
@@ -10419,7 +10436,7 @@ The full documentation is available here: https://learn.microsoft.com/en-us/wind
 }
 
 def HLSLSV_DispatchThreadIDDocs : Documentation {
-  let Category = DocCatFunction;
+  let Category = DocHLSLSemantics;
   let Content = [{
 The ``SV_DispatchThreadID`` semantic, when applied to an input parameter,
 specifies a data binding to map the global thread offset within the Dispatch
@@ -10434,7 +10451,7 @@ The full documentation is available here: https://docs.microsoft.com/en-us/windo
 }
 
 def HLSLSV_PositionDocs : Documentation {
-  let Category = DocCatFunction;
+  let Category = DocHLSLSemantics;
   let Content = [{
 The ``SV_Position`` semantic, when applied to an input parameter in a pixel
 shader, contains the location of the pixel center (x, y) in screen space.
