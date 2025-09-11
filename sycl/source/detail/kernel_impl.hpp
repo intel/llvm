@@ -238,7 +238,12 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
-  DeviceKernelInfo &getDeviceKernelInfo() const { return MDeviceKernelInfo; }
+  DeviceKernelInfo &getDeviceKernelInfo() {
+    return MIsInterop
+               ? MInteropDeviceKernelInfo
+               : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+                     KernelNameStrT(getName()));
+  }
 
 private:
   Managed<ur_kernel_handle_t> MKernel;
@@ -253,11 +258,9 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
 
-  // For the interop kernel we create the DeviceKernelInfo
-  // as part of the kernel_impl.
+  // It is used for the interop kernels only.
   // For regular kernel we get DeviceKernelInfo from the ProgramManager.
-  DeviceKernelInfo MInteropDeviceKernelInfoHolder;
-  DeviceKernelInfo &MDeviceKernelInfo;
+  DeviceKernelInfo MInteropDeviceKernelInfo;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
