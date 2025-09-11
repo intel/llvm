@@ -70,9 +70,13 @@ public:
 
   void *getKernelFuncPtr() const { return MKernelFuncPtr; }
 
-  size_t getKernelNumArgs() const { return MDeviceKernelInfoPtr->NumParams; }
+  size_t getKernelNumArgs() const {
+    assert(MDeviceKernelInfoPtr);
+    return MDeviceKernelInfoPtr->NumParams;
+  }
 
   KernelParamDescGetterT getKernelParamDescGetter() const {
+    assert(MDeviceKernelInfoPtr);
     return MDeviceKernelInfoPtr->ParamDescGetter;
   }
 
@@ -80,11 +84,18 @@ public:
   // TODO: remove this method in the next ABI-breaking window
   //       it is used by handler code that will be removed in the next
   //       ABI-breaking window
-  void setESIMD(bool IsESIMD) { MDeviceKernelInfoPtr->IsESIMD = IsESIMD; }
+  void setESIMD(bool IsESIMD) {
+    assert(MDeviceKernelInfoPtr);
+    MDeviceKernelInfoPtr->IsESIMD = IsESIMD;
+  }
 #endif
-  bool isESIMD() const { return MDeviceKernelInfoPtr->IsESIMD; }
+  bool isESIMD() const {
+    assert(MDeviceKernelInfoPtr);
+    return MDeviceKernelInfoPtr->IsESIMD;
+  }
 
   bool hasSpecialCaptures() const {
+    assert(MDeviceKernelInfoPtr);
     return MDeviceKernelInfoPtr->HasSpecialCaptures;
   }
 
@@ -117,7 +128,10 @@ public:
 
   void setKernelInfo(void *KernelFuncPtr) { MKernelFuncPtr = KernelFuncPtr; }
 
-  bool usesAssert() const { return MDeviceKernelInfoPtr->usesAssert(); }
+  bool usesAssert() const {
+    assert(MDeviceKernelInfoPtr);
+    return MDeviceKernelInfoPtr->usesAssert();
+  }
 
   ur_kernel_cache_config_t getKernelCacheConfig() const {
     return MKernelCacheConfig;
