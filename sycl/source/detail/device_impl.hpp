@@ -1579,6 +1579,18 @@ public:
                  UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP>()
           .value_or(0);
     }
+    CASE(ext_oneapi_clock_sub_group) {
+      // Will be updated in a follow-up UR patch.
+      return false;
+    }
+    CASE(ext_oneapi_clock_work_group) {
+      // Will be updated in a follow-up UR patch.
+      return false;
+    }
+    CASE(ext_oneapi_clock_device) {
+      // Will be updated in a follow-up UR patch.
+      return false;
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
