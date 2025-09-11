@@ -63,7 +63,6 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
     const CompileTimeKernelInfoTy &Info) {
   if (!isCompileTimeInfoSet())
     CompileTimeKernelInfoTy::operator=(Info);
-  assert(isCompileTimeInfoSet());
   assert(Info == *this);
 }
 

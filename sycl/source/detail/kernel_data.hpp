@@ -169,7 +169,12 @@ public:
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
-                  bool IsKernelCreatedFromSource);
+                  bool IsKernelCreatedFromSource
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                  ,
+                  bool IsESIMD
+#endif
+  );
 
   void extractArgsAndReqs(bool IsKernelCreatedFromSource);
 

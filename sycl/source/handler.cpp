@@ -539,8 +539,14 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
-    assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr &&
-           "DeviceKernelInfo pointer must be set in handler_impl");
+    if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
+      // Fetch the device kernel info pointer if it hasn't been set (e.g.
+      // in kernel bundle or free function cases).
+      impl->MKernelData.setDeviceKernelInfoPtr(
+          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+              toKernelNameStrT(MKernelName)));
+    }
+    assert(impl->MKernelData.getKernelName() == MKernelName);
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
@@ -1049,9 +1055,8 @@ void handler::associateWithHandler(
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
-  (void)IsESIMD;
   impl->MKernelData.processArg(Ptr, Kind, Size, Index, IndexShift,
-                               IsKernelCreatedFromSource);
+                               IsKernelCreatedFromSource, IsESIMD);
 }
 #endif
 
@@ -1070,6 +1075,14 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
+    impl->MKernelData.setDeviceKernelInfoPtr(
+        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+            toKernelNameStrT(getKernelName())));
+  }
+#endif
+  assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
@@ -1082,7 +1095,7 @@ void handler::extractArgsAndReqsFromLambda(
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(MKernelName)));
+            toKernelNameStrT(getKernelName())));
   }
   impl->MKernelData.setKernelInfo(LambdaPtr, NumKernelParams, ParamDescGetter,
                                   IsESIMD, true);
@@ -1094,7 +1107,6 @@ void handler::extractArgsAndReqsFromLambda(
     bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
-  impl->MKernelData.setESIMD(IsESIMD);
 
   for (size_t I = 0; I < ParamDescs.size(); ++I) {
     void *Ptr = LambdaPtr + ParamDescs[I].offset;
@@ -1119,7 +1131,7 @@ void handler::extractArgsAndReqsFromLambda(
       }
     }
     impl->MKernelData.processArg(Ptr, Kind, Size, I, IndexShift,
-                                 IsKernelCreatedFromSource);
+                                 IsKernelCreatedFromSource, IsESIMD);
   }
 }
 
@@ -2314,23 +2326,27 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
+  (void)KernelNameBasedCachePtr;
+  CompileTimeKernelInfoTy HandlerInfo;
+  HandlerInfo.Name = MKernelName;
+  HandlerInfo.NumParams = impl->MKernelNumArgs;
+  HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
+  HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
+  HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
   impl->MKernelData.setDeviceKernelInfoPtr(
-      reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
-          KernelNameBasedCachePtr));
+      &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+          HandlerInfo));
 }
 
 void handler::setKernelInfo(
     void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(MKernelName)));
-  }
-  impl->MKernelData.setKernelInfo(KernelFuncPtr, KernelNumArgs,
-                                  KernelParamDescGetter, KernelIsESIMD,
-                                  KernelHasSpecialCaptures);
+  impl->MKernelData.setKernelInfo(KernelFuncPtr);
+  impl->MKernelNumArgs = KernelNumArgs;
+  impl->MKernelParamDescGetter = KernelParamDescGetter;
+  impl->MKernelIsESIMD = KernelIsESIMD;
+  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
 }
 #endif
 
