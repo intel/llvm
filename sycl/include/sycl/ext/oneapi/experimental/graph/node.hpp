@@ -20,6 +20,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+class event;
 namespace ext {
 namespace oneapi {
 namespace experimental {
