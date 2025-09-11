@@ -503,11 +503,9 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
 
       enqueueImpKernel(
           *this, NDRDesc, Args, nullptr, nullptr,
-          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          *KRInfo.DeviceKernelInfoPtr(),
           RawEvents, ResultEvent.get(), nullptr, UR_KERNEL_CACHE_CONFIG_DEFAULT,
-          false, false, 0, nullptr, KRInfo.GetKernelFuncPtr(),
-          KRInfo.DeviceKernelInfoPtr()->NumParams,
-          KRInfo.DeviceKernelInfoPtr()->ParamDescGetter, false);
+          false, false, 0, nullptr, KRInfo.GetKernelFuncPtr());
 
       if (!DiscardEvent) {
         ResultEvent->setEnqueued();
@@ -537,7 +535,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
           nullptr, // MKernel
           nullptr, // MKernelBundle
           std::move(CGData), std::move(Args),
-          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          *KRInfo.DeviceKernelInfoPtr(),
           std::move(StreamStorage), std::move(AuxiliaryResources),
           detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
           false, // MKernelIsCooperative
