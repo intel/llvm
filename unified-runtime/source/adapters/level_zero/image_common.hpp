@@ -60,6 +60,7 @@ ur_result_t bindlessImagesHandleCopyFlags(
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     ze_command_list_handle_t ZeCommandList, ze_event_handle_t zeSignalEvent,
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
 
