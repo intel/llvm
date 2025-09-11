@@ -1147,7 +1147,7 @@ if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
-    clangxx = " " + config.dpcpp_compiler + " "
+    clangxx = " " + config.dpcpp_compiler + " -Werror "
     if "preview-mode" in config.available_features:
         # Technically, `-fpreview-breaking-changes` is reported as unused option
         # if used without `-fsycl`. However, we have far less tests compiling
