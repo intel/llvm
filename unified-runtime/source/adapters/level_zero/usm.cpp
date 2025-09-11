@@ -1061,7 +1061,8 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
   }
 
-  auto DevicesAndSubDevices = CollectDevicesAndSubDevices(Context->Devices);
+  auto DevicesAndSubDevices =
+      CollectDevicesForUsmPoolCreation(Context->Devices);
   auto Descriptors = usm::pool_descriptor::createFromDevices(
       this, Context, DevicesAndSubDevices);
   for (auto &Desc : Descriptors) {
