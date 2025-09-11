@@ -9,12 +9,11 @@
 
 #include <sycl/detail/helpers.hpp> // for Builder
 #include <sycl/detail/memcpy.hpp>  // detail::memcpy
-#include <sycl/exception.hpp>      // for errc, exception
-#include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
-#include <sycl/id.hpp>             // for id
-#include <sycl/marray.hpp>         // for marray
-#include <sycl/sub_group.hpp>
-#include <sycl/vector.hpp> // for vec
+#include <sycl/detail/spirv.hpp>
+#include <sycl/feature_test.hpp> // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
+#include <sycl/id.hpp>           // for id
+#include <sycl/marray.hpp>       // for marray
+#include <sycl/vector.hpp>       // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -378,19 +377,11 @@ group_ballot([[maybe_unused]] Group g, [[maybe_unused]] bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::commonGroupBallotImpl(g, predicate);
 #else
-  throw exception{errc::feature_not_supported,
-                  "Sub-group mask is not supported on host device"};
+  // Groups are not user-constructible, this call should not be reachable from
+  // host and therefore we do nothing here.
 #endif
 }
 
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
-
-// We have a cyclic dependency with
-//   sub_group_mask.hpp
-//   detail/spirv.hpp
-//   non_uniform_groups.hpp
-// "Break" it by including this at the end (instead of beginning). Ideally, we
-// should refactor this somehow...
-#include <sycl/detail/spirv.hpp>

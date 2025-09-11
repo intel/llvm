@@ -1,4 +1,4 @@
-//==---------- define_vendors.hpp ----- Preprocessor directives ------------==//
+//==------------------ device --- SYCL device class ------------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef __SYCL_KHR_INCLUDES_DEVICE
+#define __SYCL_KHR_INCLUDES_DEVICE
 
-#define SYCL_IMPLEMENTATION_ONEAPI
-#define SYCL_IMPLEMENTATION_INTEL
+#include <sycl/device.hpp>
+#include <sycl/aspects.hpp>
+
+#endif // __SYCL_KHR_INCLUDES_DEVICE
