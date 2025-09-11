@@ -49,18 +49,6 @@ python buildbot/configure.py \
 
 SYCL Native CPU uses [libclc](https://github.com/intel/llvm/tree/sycl/libclc) to implement many SPIRV builtins. When Native CPU is enabled, the default target triple for libclc will be `LLVM_TARGET_TRIPLE` (same as the default target triple used by `clang`). This can be overridden by setting the `--native-cpu-libclc-targets` option in `configure.py`.
 
-### oneAPI Construction Kit
-
-SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances, the OCK is fetched by default when SYCL Native CPU is enabled, and can optionally be disabled using the `NATIVECPU_USE_OCK` CMake variable (please note that disabling the OCK will result in limited functionalities and performances on the SYCL Native CPU backend):
-
-```
-python3 buildbot/configure.py --native_cpu -DNATIVECPU_USE_OCK=Off
-```
-
-By default the oneAPI Construction Kit is pulled at the project's configure time using CMake `FetchContent`. This behaviour can be overridden by setting `NATIVECPU_OCK_USE_FETCHCONTENT=Off` and `OCK_SOURCE_DIR=<path>`
-in order to use a local checkout of the oneAPI Construction Kit. The CMake variables `OCK_GIT_TAG` and `OCK_GIT_REPO` can be used to override the default git tag and repository used by `FetchContent`.
-
-The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
 ### oneTBB integration
 
@@ -96,6 +84,7 @@ cmake \
 ```
 
 Note that a number of `e2e` tests are currently still failing.
+The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`.
 
 # Vectorization
 
@@ -107,7 +96,7 @@ Whole Function Vectorization is enabled by default, and can be controlled throug
 
 The `-march=` option can be used to select specific target cpus which may improve performance of the vectorized code.
 
-For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details](#technical-details) section.
+For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Native CPU Compiler Pipeline](#native-cpu-compiler-pipeline) section.
 
 # Code coverage
 
@@ -130,7 +119,10 @@ llvm-cov show .\vector-add.exe -instr-profile=foo.profdata
 
 ### Please note that Windows is partially supported but temporarily disabled due to some implementation details, it will be re-enabled soon.
 
-# Technical details
+
+# Native CPU compiler pipeline
+
+SYCL Native CPU formerly used uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances in the compiler pipeline. This relevant parts have been brought into DPC++ and the Native CPU compiler pipeline is documented [here](SYCLNativeCPUPipeline.md), with a brief overview below. The OCK related parts are still enabled by using the `NATIVECPU_USE_OCK` CMake variable, but this is enabled by default.
 
 The following section gives a brief overview of how a simple SYCL application is compiled for the SYCL Native CPU target. Consider the following SYCL sample, which performs vector addition using USM:
 
@@ -174,54 +166,12 @@ entry:
 ```
 
 For the SYCL Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLNativeCPUUtils/PrepareSYCLNativeCPU.cpp).
-The PrepareSYCLNativeCPUPass also emits a `subhandler` function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. 
+The PrepareSYCLNativeCPUPass also emits a `subhandler` wrapper function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. 
 
 
 ## PrepareSYCLNativeCPU Pass
 
-This pass will add a pointer to a `native_cpu::state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `native_cpu::state` struct. The `native_cpu::state` struct is defined in the [native_cpu UR adapter](https://github.com/oneapi-src/unified-runtime/blob/main/source/adapters/native_cpu/nativecpu_state.hpp) and the builtin functions are defined in the [native_cpu device library](https://github.com/intel/llvm/blob/sycl/libdevice/nativecpu_utils.cpp).
-
-
-The resulting IR is:
-
-```llvm
-define weak dso_local void @_Z6Sample.NativeCPUKernel(ptr noundef align 4 %0, ptr noundef align 4 %1, ptr noundef align 4 %2, ptr %3) local_unnamed_addr #3 !srcloc !74 !kernel_arg_buffer_location !75 !kernel_arg_type !76 !sycl_fixed_targets !49 !sycl_kernel_omit_args !77 {
-entry:
-  %ncpu_builtin = call ptr @_Z13get_global_idmP15nativecpu_state(ptr %3)
-  %4 = load i64, ptr %ncpu_builtin, align 32, !noalias !78
-  %arrayidx.i = getelementptr inbounds i32, ptr %1, i64 %4
-  %5 = load i32, ptr %arrayidx.i, align 4, !tbaa !72
-  %arrayidx4.i = getelementptr inbounds i32, ptr %2, i64 %4
-  %6 = load i32, ptr %arrayidx4.i, align 4, !tbaa !72
-  %add.i = add nsw i32 %5, %6
-  %cmp.i8.i = icmp ult i64 %4, 2147483648
-  tail call void @llvm.assume(i1 %cmp.i8.i)
-  %arrayidx6.i = getelementptr inbounds i32, ptr %0, i64 %4
-  store i32 %add.i, ptr %arrayidx6.i, align 4, !tbaa !72
-  ret void
-}
-```
-This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime.
-
-The `subhandler` for the SYCL Native CPU kernel looks like: 
-
-```llvm
-define weak void @_Z6Sample(ptr %0, ptr %1) #4 {
-entry:
-  %2 = getelementptr %0, ptr %0, i64 0
-  %3 = load ptr, ptr %2, align 8
-  %4 = getelementptr %0, ptr %0, i64 3
-  %5 = load ptr, ptr %4, align 8
-  %6 = getelementptr %0, ptr %0, i64 4
-  %7 = load ptr, ptr %6, align 8
-  %8 = getelementptr %0, ptr %0, i64 7
-  %9 = load ptr, ptr %8, align 8
-  call void @_ZTS10SimpleVaddIiE.NativeCPUKernel(ptr %3, ptr %5, ptr %7, ptr %9, ptr %1)
-  ret void
-}
-```
-
-As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `nativecpu::state` struct.
+This pass will add a pointer to a `native_cpu::state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `native_cpu::state` struct. For more information, see [PrepareSYCLNativeCPU Pass](SYCLNativeCPUPipeline.md#preparesyclnativecpu-pass).
 
 ## Handling barriers 
 
@@ -229,7 +179,7 @@ On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `Wor
 
 ## Vectorization
 
-The OneAPI Construction Kit's Whole Function Vectorizer is executed as an LLVM Pass. Considering the following input function:
+The Whole Function Vectorizer is executed as an LLVM Pass. Considering the following input function:
 
 ```llvm
 define void @SimpleVadd(i32*, i32*, i32*) {
@@ -288,4 +238,3 @@ Each entry in the array contains the kernel name as a string, and a pointer to t
 ## Kernel lowering and execution
 
 The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is run using the SYCL Native CPU UR Adapter, defined in [the Unified Runtime repo](https://github.com/oneapi-src/unified-runtime/tree/adapters/source/adapters/native_cpu).
-
