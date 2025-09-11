@@ -21,7 +21,6 @@
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/assert_happened.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
@@ -65,7 +64,6 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
 #endif
@@ -340,13 +338,8 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
-               const detail::code_location &Loc, bool IsTopCodeLoc,
-               const SubmitPostProcessF *PostProcess = nullptr) {
-    event ResEvent;
-    v1::SubmissionInfo SI{};
-    if (PostProcess)
-      SI.PostProcessorFunc() = *PostProcess;
-    return submit_with_event(CGF, SI, Loc, IsTopCodeLoc);
+               const detail::code_location &Loc, bool IsTopCodeLoc) {
+    return submit_with_event(CGF, {}, Loc, IsTopCodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -722,6 +715,7 @@ public:
     getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
                                                       nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
+    ResEvent->setEnqueued();
     return ResEvent;
   }
 
@@ -921,26 +915,10 @@ protected:
     return EventRetImpl;
   }
 
-  template <typename HandlerType = handler>
-  void handlerPostProcess(HandlerType &Handler,
-                          const optional<SubmitPostProcessF> &PostProcessorFunc,
-                          event &Event) {
-    bool IsKernel = Handler.getType() == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert =
-          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          Handler.impl->MDeviceKernelInfoPtr->usesAssert();
-
-    auto &PostProcess = *PostProcessorFunc;
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-  }
-
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
+  /// \param SecondaryQueue is a pointer to the secondary queue.
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)

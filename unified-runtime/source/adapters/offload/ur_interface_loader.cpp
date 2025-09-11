@@ -118,7 +118,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
   pDdiTable->pfnSetArgLocal = nullptr;
-  pDdiTable->pfnSetArgMemObj = nullptr;
+  pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = nullptr;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
@@ -172,6 +172,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnDeviceGlobalVariableWrite = urEnqueueDeviceGlobalVariableWrite;
   pDdiTable->pfnEventsWait = urEnqueueEventsWait;
   pDdiTable->pfnEventsWaitWithBarrier = urEnqueueEventsWaitWithBarrier;
+  pDdiTable->pfnEventsWaitWithBarrierExt = urEnqueueEventsWaitWithBarrierExt;
   pDdiTable->pfnKernelLaunch = urEnqueueKernelLaunch;
   pDdiTable->pfnMemBufferCopy = urEnqueueMemBufferCopy;
   pDdiTable->pfnMemBufferCopyRect = nullptr;
@@ -187,10 +188,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemUnmap = urEnqueueMemUnmap;
   pDdiTable->pfnUSMFill2D = urEnqueueUSMFill2D;
   pDdiTable->pfnUSMFill = urEnqueueUSMFill;
-  pDdiTable->pfnUSMAdvise = nullptr;
+  pDdiTable->pfnUSMAdvise = urEnqueueUSMAdvise;
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
   pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
-  pDdiTable->pfnUSMPrefetch = nullptr;
+  pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
   pDdiTable->pfnReadHostPipe = nullptr;
   pDdiTable->pfnWriteHostPipe = nullptr;
   return UR_RESULT_SUCCESS;
@@ -237,7 +238,7 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   }
   pDdiTable->pfnDeviceAlloc = urUSMDeviceAlloc;
   pDdiTable->pfnFree = urUSMFree;
-  pDdiTable->pfnGetMemAllocInfo = nullptr;
+  pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
   pDdiTable->pfnPoolCreate = nullptr;
   pDdiTable->pfnPoolRetain = nullptr;

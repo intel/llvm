@@ -386,11 +386,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void parallel_for(sycl::queue q, sycl::range<Dimensions> r,
                   const sycl::kernel& k, Args&&... args);
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void parallel_for(sycl::handler &h, sycl::range<Dimensions> r,
                   const sycl::kernel& k, Args&&... args);
 
@@ -409,14 +409,12 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void parallel_for(sycl::queue q,
                   launch_config<sycl::range<Dimensions>, Properties> c,
                   const sycl::kernel& k, Args&& args...);
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void parallel_for(sycl::handler &h,
                   launch_config<sycl::range<Dimensions>, Properties> c,
                   const sycl::kernel& k, Args&& args...);
@@ -503,11 +501,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void nd_launch(sycl::queue q, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, Args&&... args);
 
-template <typename KernelName, int Dimensions, typename... Args>
+template <int Dimensions, typename... Args>
 void nd_launch(sycl::handler &h, sycl::nd_range<Dimensions> r,
                const sycl::kernel& k, Args&&... args);
 
@@ -527,14 +525,12 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::queue q,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
                const sycl::kernel& k, Args&& args...);
 
-template <typename KernelName, int Dimensions,
-          typename Properties, typename... Args>
+template <int Dimensions, typename Properties, typename... Args>
 void nd_launch(sycl::handler &h,
                launch_config<sycl::nd_range<Dimensions>, Properties> c,
                const sycl::kernel& k, Args&& args...);

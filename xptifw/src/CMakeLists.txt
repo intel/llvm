@@ -67,7 +67,7 @@ function(add_xpti_library LIB_NAME)
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
   )
 
-  target_link_libraries(${LIB_NAME} PUBLIC emhash::emhash)
+  target_link_libraries(${LIB_NAME} PUBLIC $<BUILD_INTERFACE:emhash::emhash>)
 
   find_package(Threads REQUIRED)
   target_link_libraries(${LIB_NAME} PUBLIC ${CMAKE_DL_LIBS} Threads::Threads)
