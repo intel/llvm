@@ -13,7 +13,7 @@
 // CHECK: AlwaysInlinerPass
 // CHECK: ModuleInlinerWrapperPass
 // CHECK: ConstantMergePass
-// SYCLOptimizeBarriersPass
+// CHECK: SYCLOptimizeBarriersPass
 // CHECK: SYCLMutatePrintfAddrspacePass
 // CHECK: SYCLPropagateAspectsUsagePass
 // CHECK: SYCLAddOptLevelAttributePass
