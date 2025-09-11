@@ -348,7 +348,7 @@ void GetCapabilitiesIntersectionSet(devices_range Devices,
         CapabilityList.begin(), CapabilityList.end(),
         DeviceCapabilities.begin(), DeviceCapabilities.end(),
         std::inserter(NewCapabilityList, NewCapabilityList.begin()));
-    CapabilityList = NewCapabilityList;
+    CapabilityList = std::move(NewCapabilityList);
   }
   CapabilityList.shrink_to_fit();
 }
