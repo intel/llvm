@@ -1070,6 +1070,14 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
+    impl->MKernelData.setDeviceKernelInfoPtr(
+        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+            toKernelNameStrT(getKernelName())));
+  }
+#endif
+  assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
   impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
@@ -1082,7 +1090,7 @@ void handler::extractArgsAndReqsFromLambda(
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(MKernelName)));
+            toKernelNameStrT(getKernelName())));
   }
   impl->MKernelData.setKernelInfo(LambdaPtr, NumKernelParams, ParamDescGetter,
                                   IsESIMD, true);
