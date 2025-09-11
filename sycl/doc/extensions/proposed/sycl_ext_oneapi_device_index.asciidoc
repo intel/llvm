@@ -100,8 +100,8 @@ a@
 ----
 class device {
   // ...
-  int ext_oneapi_to_index() const;
-  static device ext_oneapi_from_index(int index);
+  size_t ext_oneapi_to_index() const;
+  static device ext_oneapi_from_index(size_t index);
 };
 ----
 |====
@@ -113,7 +113,7 @@ class device {
 a@
 [source,c++]
 ----
-int ext_oneapi_to_index() const;
+size_t ext_oneapi_to_index() const;
 ----
 |====
 
@@ -131,7 +131,7 @@ not a root device.
 a@
 [source,c++]
 ----
-static device ext_oneapi_from_index(int index);
+static device ext_oneapi_from_index(size_t index);
 ----
 |====
 
@@ -155,7 +155,7 @@ int main() {
   sycl::device d1;  // Get the default device.
                     // There is no guarantee this has index 0.
 
-  int index = d1.ext_oneapi_to_index();
+  size_t index = d1.ext_oneapi_to_index();
   sycl::device d2 = sycl::device::ext_oneapi_from_index(index);
   assert(d1 == d2);
 }
