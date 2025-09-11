@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=#warnings -o %t.out
 // RUN: %{run} %t.out
 
 // Device globals aren't supported on opencl:gpu yet.

@@ -62,6 +62,20 @@ in order to use a local checkout of the oneAPI Construction Kit. The CMake varia
 
 The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
+### oneTBB integration
+
+SYCL Native CPU can use oneTBB as an optional backend for task scheduling. oneTBB with SYCL Native CPU is enabled by setting `NATIVECPU_WITH_ONETBB=On` at configure time:
+
+```
+python3 buildbot/configure.py \
+  --native_cpu \
+  --cmake-opt=-DNATIVECPU_WITH_ONETBB=On
+```
+
+This will pull oneTBB into SYCL Native CPU via CMake `FetchContent` and DPC++ can be built as usual.
+
+By default SYCL Native CPU implements its own scheduler whose only dependency is standard C++.
+
 # Supported features and current limitations
 
 The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barriers` are supported only when the oneAPI Construction Kit integration is enabled, several math builtins are not supported and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](https://github.com/intel/llvm/blob/sycl/sycl/test/native_cpu).
@@ -90,6 +104,8 @@ also gained support for Whole Function Vectorization.\\
 Whole Function Vectorization is enabled by default, and can be controlled through these compiler options:
 * `-mllvm -sycl-native-cpu-no-vecz`: disable Whole Function Vectorization.
 * `-mllvm -sycl-native-cpu-vecz-width`: sets the vector width to the specified value, defaults to 8.
+
+The `-march=` option can be used to select specific target cpus which may improve performance of the vectorized code.
 
 For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details](#technical-details) section.
 

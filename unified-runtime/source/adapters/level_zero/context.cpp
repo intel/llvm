@@ -406,7 +406,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
     bool ProfilingEnabled, ur_device_handle_t Device,
     bool CounterBasedEventEnabled, bool UsingImmCmdList,
-    bool InterruptBasedEventEnabled) {
+    bool InterruptBasedEventEnabled, ur_queue_handle_t Queue, bool IsInternal) {
 
   ze_device_handle_t ZeDevice = nullptr;
   if (Device) {
@@ -461,8 +461,25 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
                     });
     }
 
-    ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
-                                   ZeDevices.size(), &ZeDevices[0], &Pool));
+    ze_result_t Result = ZE_CALL_NOCHECK(
+        zeEventPoolCreate,
+        (ZeContext, &ZeEventPoolDesc, ZeDevices.size(), &ZeDevices[0], &Pool));
+    if (IsInternal && ze2urResult(Result) == UR_RESULT_ERROR_OUT_OF_RESOURCES &&
+        Queue) {
+      if (!Queue->isInOrderQueue()) {
+        if (Queue->UsingImmCmdLists) {
+          UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*QueueLocked*/,
+                                             false /*QueueSynced*/,
+                                             nullptr /*CompletedEvent*/));
+        } else {
+          UR_CALL(resetCommandLists(Queue));
+        }
+        ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
+                                       ZeDevices.size(), &ZeDevices[0], &Pool));
+      }
+    } else if (ze2urResult(Result) != UR_RESULT_SUCCESS) {
+      return ze2urResult(Result);
+    }
     Index = 0;
     NumEventsAvailableInEventPool[Pool] = MaxNumEventsPerPool - 1;
     NumEventsUnreleasedInEventPool[Pool] = 1;
@@ -546,8 +563,26 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
                     });
     }
 
-    ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
-                                   ZeDevices.size(), &ZeDevices[0], ZePool));
+    ze_result_t Result = ZE_CALL_NOCHECK(
+        zeEventPoolCreate,
+        (ZeContext, &ZeEventPoolDesc, ZeDevices.size(), &ZeDevices[0], ZePool));
+    if (IsInternal && ze2urResult(Result) == UR_RESULT_ERROR_OUT_OF_RESOURCES &&
+        Queue) {
+      if (!Queue->isInOrderQueue()) {
+        if (Queue->UsingImmCmdLists) {
+          UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*QueueLocked*/,
+                                             false /*QueueSynced*/,
+                                             nullptr /*CompletedEvent*/));
+        } else {
+          UR_CALL(resetCommandLists(Queue));
+        }
+        ZE2UR_CALL(zeEventPoolCreate,
+                   (ZeContext, &ZeEventPoolDesc, ZeDevices.size(),
+                    &ZeDevices[0], ZePool));
+      }
+    } else if (ze2urResult(Result) != UR_RESULT_SUCCESS) {
+      return ze2urResult(Result);
+    }
     NumEventsAvailableInEventPool[*ZePool] = MaxNumEventsPerPool - 1;
     NumEventsUnreleasedInEventPool[*ZePool] = 1;
   } else {

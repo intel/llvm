@@ -14,6 +14,8 @@
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
+#include <functional>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {

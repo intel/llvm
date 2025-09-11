@@ -60,6 +60,11 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
+  KernelNameStrRefT getKernelName() const {
+    assert(MDeviceKernelInfoPtr);
+    return static_cast<KernelNameStrRefT>(MDeviceKernelInfoPtr->Name);
+  }
+
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
 
@@ -243,8 +248,9 @@ public:
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
 
-  // A pointer to a kernel name based cache retrieved on the application side.
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+  // A pointer to device kernel information. Cached on the application side in
+  // headers or retrieved from program manager.
+  DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
 };
 
 } // namespace detail
