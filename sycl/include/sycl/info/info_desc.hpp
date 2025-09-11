@@ -29,6 +29,7 @@
 namespace sycl {
 inline namespace _V1 {
 
+class context;
 class device;
 class platform;
 class kernel_id;
