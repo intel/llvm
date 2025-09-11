@@ -190,7 +190,11 @@ enum sycl_device_binary_type : uint8_t {
 };
 
 // Device binary descriptor version supported by this library.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 static const uint16_t SYCL_DEVICE_BINARY_VERSION = 1;
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+static const uint16_t SYCL_DEVICE_BINARY_VERSION = 3;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // The kind of offload model the binary employs; must be 4 for SYCL
 static const uint8_t SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
@@ -227,10 +231,12 @@ struct sycl_device_binary_struct {
   /// a null-terminated string; target- and compiler-specific options
   /// which are suggested to use to "link" program at runtime
   const char *LinkOptions;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Pointer to the manifest data start
   const char *ManifestStart;
   /// Pointer to the manifest data end
   const char *ManifestEnd;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   /// Pointer to the target code start
   const unsigned char *BinaryStart;
   /// Pointer to the target code end

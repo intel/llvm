@@ -1,3 +1,20 @@
+//===-- clang-offload-wrapper/SymPropReader.cpp -----------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+///
+/// \file
+/// Helper class for reading symbol and property information from SYCL
+/// device image bitcode files in the context of the clang-offload-wrapper tool.
+/// It provides utilities to extract device image initializers, entry names,
+/// and property sets from LLVM IR modules, enabling the wrapper to interpret
+/// and manage offload image metadata, such as kernel entry points and
+/// device-specific properties, for SYCL offloading.
+//===----------------------------------------------------------------------===//
+
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
@@ -57,10 +74,12 @@ auto getInitializerNumElements(const Constant *Initializer) {
 //    /// a null-terminated string; target- and compiler-specific options
 //    /// which are suggested to use to "link" program at runtime
 //    const char *LinkOptions;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 //    /// Pointer to the manifest data start
 //    const unsigned char *ManifestStart;
 //    /// Pointer to the manifest data end
 //    const unsigned char *ManifestEnd;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 //    /// Pointer to the device binary image start
 //    void *ImageStart;
 //    /// Pointer to the device binary image end
