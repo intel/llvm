@@ -536,13 +536,18 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
       std::vector<std::shared_ptr<const void>> AuxiliaryResources;
       bool DiscardEvent = false;
 
+      // At this point, HostKernel points to the lambda function allocated on
+      // stack. To have pointer valid after submission, we need to put it in
+      // dynamic memory.
+      std::shared_ptr<detail::HostKernelBase> HostKernel = KRInfo.CopyHostKernel();
+
       Args = extractArgsAndReqsFromLambda(
-          KRInfo.GetKernelFuncPtr(),
+          HostKernel->getPtr(),
           KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
           KRInfo.DeviceKernelInfoPtr()->NumParams);
 
       CommandGroup.reset(new detail::CGExecKernel(
-          std::move(NDRDesc), KRInfo.HostKernel(),
+          std::move(NDRDesc), std::move(HostKernel),
           nullptr, // MKernel
           nullptr, // MKernelBundle
           std::move(CGData), std::move(Args),
