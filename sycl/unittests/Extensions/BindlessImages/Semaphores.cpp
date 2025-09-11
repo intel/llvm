@@ -70,9 +70,13 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreWait) {
   urBindlessImagesWaitExternalSemaphoreExp_counter = 0;
 
   sycl::queue Q;
+
+  // Create a dummy external semaphore and set the raw handle to some dummy.
+  // The mock implementation should never access the handle, so this is safe.
   int DummyInt = 0;
   syclexp::external_semaphore DummySemaphore{};
-  DummySemaphore.raw_handle = &DummyInt;
+  DummySemaphore.raw_handle =
+      reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt);
 
   urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue = false;
   Q.ext_oneapi_wait_external_semaphore(DummySemaphore);
@@ -91,9 +95,13 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   urBindlessImagesSignalExternalSemaphoreExp_counter = 0;
 
   sycl::queue Q;
+
+  // Create a dummy external semaphore and set the raw handle to some dummy.
+  // The mock implementation should never access the handle, so this is safe.
   int DummyInt = 0;
   syclexp::external_semaphore DummySemaphore{};
-  DummySemaphore.raw_handle = &DummyInt;
+  DummySemaphore.raw_handle =
+      reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 0;
