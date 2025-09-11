@@ -80,7 +80,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     // Subbuffers should not free their parents
     if (!BufferImpl->Parent) {
       // TODO: Handle registered host memory
-      OL_RETURN_ON_ERR(olMemFree(BufferImpl->Ptr));
+      OL_RETURN_ON_ERR(olMemFree(
+          hMem->Context->Device->Platform->OffloadPlatform, BufferImpl->Ptr));
     } else {
       return urMemRelease(BufferImpl->Parent);
     }
