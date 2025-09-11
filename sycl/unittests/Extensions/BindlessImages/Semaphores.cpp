@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <detail/event_impl.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
@@ -26,9 +27,9 @@ urBindlessImagesWaitExternalSemaphoreExp_replace(void *pParams) {
   if (urBindlessImagesWaitExternalSemaphoreExp_expectHasWaitValue) {
     EXPECT_EQ(*Params.pwaitValue, WaitValue);
   }
-  EXPECT_EQ(*Params.pphEvent, nullptr);
   EXPECT_EQ(*Params.pnumEventsInWaitList, uint32_t{0});
-  EXPECT_NE(*Params.pphEventWaitList, nullptr);
+  EXPECT_EQ(*Params.pphEventWaitList, nullptr);
+  EXPECT_NE(*Params.pphEvent, nullptr);
   return UR_RESULT_SUCCESS;
 }
 
@@ -43,7 +44,6 @@ urBindlessImagesSignalExternalSemaphoreExp_replace(void *pParams) {
   ur_bindless_images_signal_external_semaphore_exp_params_t Params =
       *reinterpret_cast<
           ur_bindless_images_signal_external_semaphore_exp_params_t *>(pParams);
-  EXPECT_EQ(*Params.pphEvent, nullptr);
   EXPECT_EQ(*Params.phasSignalValue,
             urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue);
   if (urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue) {
@@ -102,12 +102,24 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
 
   // Create a dummy external semaphore and set the raw handle to some dummy.
   // The mock implementation should never access the handle, so this is safe.
-  int DummyInt = 0;
+  int DummyInt1 = 0, DummyInt2 = 0;
   syclexp::external_semaphore DummySemaphore{};
   DummySemaphore.raw_handle =
-      reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt);
+      reinterpret_cast<ur_exp_external_semaphore_handle_t>(&DummyInt1);
 
-  std::vector<sycl::event> DummyEventList(2);
+  // We create dummy events with dummy UR handles to make the runtime think we
+  // pass actual device events.
+  auto DummyEventImpl1 = sycl::detail::event_impl::create_device_event(
+      *sycl::detail::getSyclObjImpl(Q));
+  auto DummyEventImpl2 = sycl::detail::event_impl::create_device_event(
+      *sycl::detail::getSyclObjImpl(Q));
+  DummyEventImpl1->setHandle(reinterpret_cast<ur_event_handle_t>(&DummyInt1));
+  DummyEventImpl2->setHandle(reinterpret_cast<ur_event_handle_t>(&DummyInt2));
+  sycl::event DummyEvent1 =
+      sycl::detail::createSyclObjFromImpl<sycl::event>(DummyEventImpl1);
+  sycl::event DummyEvent2 =
+      sycl::detail::createSyclObjFromImpl<sycl::event>(DummyEventImpl2);
+  std::vector<sycl::event> DummyEventList{DummyEvent1, DummyEvent2};
 
   DummySemaphore.handle_type =
       syclexp::external_semaphore_handle_type::opaque_fd;
@@ -119,7 +131,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 1;
-  Q.ext_oneapi_signal_external_semaphore(DummySemaphore, sycl::event{});
+  Q.ext_oneapi_signal_external_semaphore(DummySemaphore, DummyEvent1);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 2);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = false;
@@ -138,7 +150,7 @@ TEST(BindlessImagesExtensionTests, ExternalSemaphoreSignal) {
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
   urBindlessImagesSignalExternalSemaphoreExp_expectedNumWaitEvents = 1;
   Q.ext_oneapi_signal_external_semaphore(DummySemaphore, SignalValue,
-                                         sycl::event{});
+                                         DummyEvent1);
   EXPECT_EQ(urBindlessImagesSignalExternalSemaphoreExp_counter, 5);
 
   urBindlessImagesSignalExternalSemaphoreExp_expectHasSignalValue = true;
