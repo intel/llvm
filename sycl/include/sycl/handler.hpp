@@ -501,14 +501,7 @@ private:
     setType(detail::CGType::Kernel);
   }
 
-  void setDeviceKernelInfo(kernel &&Kernel) {
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MKernelName = getKernelName();
-    setType(detail::CGType::Kernel);
-
-    // If any extra actions are added here make sure that logic around
-    // `lambdaAndKernelHaveEqualName` calls can handle that.
-  }
+  void setDeviceKernelInfo(kernel &&Kernel);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // TODO: Those functions are not used anymore, remove it in the next
