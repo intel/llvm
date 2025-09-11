@@ -4873,7 +4873,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
     auto *PtrOp = transValue(LLVMPtrOp, BB);
     if (PtrAS == SPIRAS_Private)
-      return BM->addLifetimeInst(OC, PtrOp, 0, BB);
+      return BM->addLifetimeInst(OC, PtrOp, Size, BB);
     // If pointer address space is Generic - use original allocation.
     BM->getErrorLog().checkError(
         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
@@ -4882,7 +4882,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       auto *UI = static_cast<SPIRVUnary *>(PtrOp);
       PtrOp = UI->getOperand(0);
     }
-    return BM->addLifetimeInst(OC, PtrOp, 0, BB);
+    return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
   // it creates a mess, therefore translation of debug intrinsics is
