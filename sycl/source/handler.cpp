@@ -1100,6 +1100,7 @@ void handler::extractArgsAndReqsFromLambda(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
             toKernelNameStrT(getKernelName())));
   }
+  impl->MKernelData.setESIMD(IsESIMD);
 
   for (size_t I = 0; I < ParamDescs.size(); ++I) {
     void *Ptr = LambdaPtr + ParamDescs[I].offset;
