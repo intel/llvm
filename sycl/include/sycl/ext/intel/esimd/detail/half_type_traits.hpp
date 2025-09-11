@@ -115,19 +115,6 @@ struct is_esimd_arithmetic_type<half_raw_type, void> : std::true_type {};
 template <>
 struct is_esimd_arithmetic_type<sycl::half, void> : std::true_type {};
 
-// Misc
-inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
-
-inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
-  float ValFloat = 0.0f;
-  I >> ValFloat;
-  rhs = ValFloat;
-  return I;
-}
-
 } // namespace ext::intel::esimd::detail
 } // namespace _V1
 } // namespace sycl
