@@ -417,6 +417,209 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   return EventImpl;
 }
 
+std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams) {
+
+  size_t IndexShift = 0;
+  std::vector<ArgDesc> Args;
+
+  Args.reserve(NumKernelParams);
+
+  for (size_t I = 0; I < NumKernelParams; ++I) {
+    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
+    void *Ptr = LambdaPtr + ParamDesc.offset;
+    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+    const int &Size = ParamDesc.info;
+
+    Args.emplace_back(Kind, Ptr, Size, I + IndexShift);
+  }
+
+  return Args;
+}
+
+detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
+    NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
+    bool CallerNeedsEvent, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
+
+  // No special captures supported yet for the no-handler path
+  assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
+
+  SubmitCommandFuncType SubmitKernelFunc =
+      [&](detail::CG::StorageInitHelper &CGData)
+      -> std::pair<EventImplPtr, bool> {
+    std::vector<detail::ArgDesc> Args;
+
+    bool SchedulerBypass = std::all_of(CGData.MEvents.begin(), CGData.MEvents.end(),
+      [&](EventImplPtr &Event) {
+      // Events that don't have an initialized context are throwaway events that
+      // don't represent actual dependencies. Calling getContextImpl() would set
+      // their context, which we wish to avoid as it is expensive.
+      // NOP events also don't represent actual dependencies.
+      if (Event->isDefaultConstructed() || Event->isNOP())
+        return true;
+
+      if (Event->isHost())
+        return Event->isCompleted();
+
+      // Cross-context dependencies can't be passed to the backend directly.
+      if (&Event->getContextImpl() != &getContextImpl())
+        return false;
+
+      // A nullptr here means that the commmand does not produce a UR event or it
+      // hasn't been enqueued yet.
+      return Event->getHandle() != nullptr;
+    });
+
+    if (SchedulerBypass) {
+      std::vector<ur_event_handle_t> RawEvents;
+      bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
+
+      for (EventImplPtr &Event : CGData.MEvents) {
+        auto Handle = Event->getHandle();
+        if (Handle == nullptr)
+          continue;
+
+        // Do not add redundant event dependencies for in-order queues.
+        // At this stage dependency is definitely ur task and need to check if
+        // current one is a host task. In this case we should not skip ur event due
+        // to different sync mechanisms for different task types on in-order queue.
+        if (Event->getWorkerQueue().get() == this && isInOrder())
+          continue;
+
+        RawEvents.push_back(Handle);
+      }
+
+      std::shared_ptr<detail::event_impl> ResultEvent =
+          DiscardEvent ? nullptr
+                       : detail::event_impl::create_device_event(*this);
+
+      if (!DiscardEvent) {
+        ResultEvent->setWorkerQueue(weak_from_this());
+        ResultEvent->setStateIncomplete();
+        ResultEvent->setSubmissionTime();
+      }
+
+      enqueueImpKernel(
+          *this, NDRDesc, Args, nullptr, nullptr,
+          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          RawEvents, ResultEvent.get(), nullptr, UR_KERNEL_CACHE_CONFIG_DEFAULT,
+          false, false, 0, nullptr, KRInfo.GetKernelFuncPtr(),
+          KRInfo.DeviceKernelInfoPtr()->NumParams,
+          KRInfo.DeviceKernelInfoPtr()->ParamDescGetter, false);
+
+      if (!DiscardEvent) {
+        ResultEvent->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          // MEvents is not used anymore, so can move.
+          ResultEvent->getPreparedDepsEvents() = std::move(CGData.MEvents);
+          // ResultEvent is local for current thread, no need to lock.
+          ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
+        }
+      }
+
+      return {ResultEvent, true};
+    } else {
+      std::unique_ptr<detail::CG> CommandGroup;
+      std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+      std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+      bool DiscardEvent = false;
+
+      Args = extractArgsAndReqsFromLambda(
+          KRInfo.GetKernelFuncPtr(),
+          KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
+          KRInfo.DeviceKernelInfoPtr()->NumParams);
+
+      CommandGroup.reset(new detail::CGExecKernel(
+          std::move(NDRDesc), KRInfo.HostKernel(),
+          nullptr, // MKernel
+          nullptr, // MKernelBundle
+          std::move(CGData), std::move(Args),
+          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          std::move(StreamStorage), std::move(AuxiliaryResources),
+          detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
+          false, // MKernelIsCooperative
+          false, // MKernelUsesClusterLaunch
+          0,     // MKernelWorkGroupMemorySize
+          CodeLoc));
+      CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+      // TODO DiscardEvent should include a check for requirements list
+      // once accessors are implemented
+
+      EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
+          std::move(CommandGroup), *this, !DiscardEvent);
+      return {DiscardEvent ? nullptr : EventImpl, false};
+    }
+  };
+
+  return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
+}
+
+detail::EventImplPtr
+queue_impl::submit_direct(bool CallerNeedsEvent,
+                          SubmitCommandFuncType &SubmitCommandFunc) {
+  detail::CG::StorageInitHelper CGData;
+  std::unique_lock<std::mutex> Lock(MMutex);
+
+  // Graphs are not supported yet for the no-handler path
+  assert(!hasCommandGraph());
+
+  // Set the No Last Event Mode to false, since the no-handler path
+  // does not support it yet.
+  MNoLastEventMode.store(false, std::memory_order_relaxed);
+
+  // Used by queue_empty() and getLastEvent()
+  MEmpty.store(false, std::memory_order_release);
+
+  // Sync with an external event
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent) {
+    CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
+  }
+
+  // Sync with the last event for in order queue
+  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+  if (isInOrder() && LastEvent) {
+    CGData.MEvents.push_back(LastEvent);
+  }
+
+  // Barrier and un-enqueued commands synchronization for out or order queue
+  if (!isInOrder()) {
+    MMissedCleanupRequests.unset(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
+
+    if (MDefaultGraphDeps.LastBarrier &&
+        !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
+      CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
+    }
+  }
+
+  auto [EventImpl, SchedulerBypass] = SubmitCommandFunc(CGData);
+
+  // Sync with the last event for in order queue
+  if (isInOrder()) {
+    if (SchedulerBypass) {
+      LastEvent = nullptr;
+    } else {
+      LastEvent = EventImpl;
+    }
+  }
+
+  // Barrier and un-enqueued commands synchronization for out or order queue
+  if (!isInOrder() && EventImpl && !EventImpl->isEnqueued()) {
+    MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
+  }
+
+  return CallerNeedsEvent ? EventImpl : nullptr;
+}
+
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
