@@ -8,17 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp> // for decorated, address_space
+#include <sycl/detail/fwd/multi_ptr.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
-
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
@@ -59,7 +53,6 @@ using decorated_host_ptr =
     multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
               access::decorated::yes>;
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 } // namespace _V1
 } // namespace sycl

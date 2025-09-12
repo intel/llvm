@@ -274,7 +274,7 @@ endif()
 if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
     OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
     OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
-    OR UR_BUILD_ADAPTER_ALL))
+    OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_ALL))
     message(WARNING "No adapters have been enabled; conformance tests will not be ran")
     message(STATUS "Consider setting UR_BUILD_ADAPTER_*")
 endif()

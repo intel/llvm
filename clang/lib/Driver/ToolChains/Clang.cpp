@@ -11347,6 +11347,23 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));
 
+    if (Args.hasArg(options::OPT_fsycl_remove_unused_external_funcs))
+      CmdArgs.push_back(
+          Args.MakeArgString("-sycl-remove-unused-external-funcs"));
+    if (Args.hasArg(options::OPT_fno_sycl_remove_unused_external_funcs))
+      CmdArgs.push_back(
+          Args.MakeArgString("-no-sycl-remove-unused-external-funcs"));
+    if (Args.hasArg(options::OPT_fsycl_device_code_split_esimd))
+      CmdArgs.push_back(Args.MakeArgString("-sycl-device-code-split-esimd"));
+    if (Args.hasArg(options::OPT_fno_sycl_device_code_split_esimd))
+      CmdArgs.push_back(Args.MakeArgString("-no-sycl-device-code-split-esimd"));
+    if (Args.hasArg(options::OPT_fsycl_add_default_spec_consts_image))
+      CmdArgs.push_back(
+          Args.MakeArgString("-sycl-add-default-spec-consts-image"));
+    if (Args.hasArg(options::OPT_fno_sycl_add_default_spec_consts_image))
+      CmdArgs.push_back(
+          Args.MakeArgString("-no-sycl-add-default-spec-consts-image"));
+
     // --llvm-spirv-options="options" provides a string of options to be passed
     // along to the llvm-spirv (translation) step during device link.
     SmallString<128> OptString;

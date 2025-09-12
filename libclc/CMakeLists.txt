@@ -359,6 +359,7 @@ file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_IN
 # Setup the paths where libclc runtimes should be stored.
 # FIXME: Align with upstream
 set( LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
+file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
