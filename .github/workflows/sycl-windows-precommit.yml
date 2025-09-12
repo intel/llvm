@@ -65,7 +65,7 @@ jobs:
       matrix:
         include:
           - name: Intel GEN12 Graphics with Level Zero
-            runner: '["Windows","gen12"]'
+            runner: '["Windows","gen12-test"]'
           - name: Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
