@@ -34,8 +34,8 @@ To contribute:
     integrated into your workflow to ensure formatting and stylistic
     compliance of your changes. To avoid code formatting misalignment with
     the GitHub Actions check we recommend using the same version of clang-format
-    as used in the CI. See `.github/workflows/pr-code-format.yml` for the
-    current version.
+    as used in the CI. See [.github/workflows/pr-code-format.yml](https://github.com/intel/llvm/blob/sycl/.github/workflows/pr-code-format.yml)
+    for the current version.
   - Use
 
     ```bash
