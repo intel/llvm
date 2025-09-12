@@ -1,0 +1,154 @@
+:extension_name: SPV_INTEL_shader_atomic_bfloat16
+:capability_name_add: AtomicBFloat16AddINTEL
+:capability_token_add: 6255
+:capability_name_minmax: AtomicBFloat16MinMaxINTEL
+:capability_token_minmax: 6256
+
+= {extension_name}
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+// TODO: When the extension is published, change this link to the Khronos registry:
+//https://github.com/KhronosGroup/SPIRV-Registry
+
+== Contributors
+
+* Ben Ashbaugh, Intel
+
+== Status
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2025-08-27
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6 Revision 6.
+
+This extension requires SPIR-V 1.0.
+
+This extension extends the *SPV_EXT_shader_atomic_float_add* and
+*SPV_EXT_shader_atomic_float_min_max* extensions, which provide the
+floating-point atomic operations used by this extension.
+
+This extension depends on the *SPV_KHR_bfloat16* extension, which adds the
+`bfloat16` floating-point type used by this extension.
+
+== Overview
+
+This extension extends the floating-point atomic support in SPIR-V to support
+floating-point atomic addition, minimum, and maximum on 16-bit `bfloat16`
+floating-point numbers in memory.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+Modify Section 3.2.30, "Capability", adding to the Capability table:
+
+--
+[cols="1,15,15",options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| {capability_token_add} | *{capability_name_add}* +
+Uses the *OpAtomicFAddEXT* instruction with 16-bit `bfloat16` floating point values. |
+
+| {capability_token_minmax} | *{capability_name_minmax}* +
+Uses the *OpAtomicFMinEXT* or *OpAtomicFMaxEXT* instructions with 16-bit `bfloat16` floating point values. |
+|====
+--
+
+Add the *{capability_name_add}* capability to the *OpAtomicFAddEXT* instruction added by *SPV_EXT_shader_atomic_float_add*:
+
+[width="100%",cols="1,1,6*4"]
+|======
+7+|[[OpAtomicFAddEXT]]*OpAtomicFAddEXT* +
+ +
+(The description of this instruction is unchanged from *SPV_EXT_shader_atomic_float_add*.)
+
+1+|Capability: +
+*AtomicFloat32AddEXT* *AtomicFloat64AddEXT* *{capability_name_add}*
+| 7 | 6035 | _<id> Result type_ | _Result <id>_ | _<id>_ Pointer  | _Scope <id> Memory_ | Memory Semantics <id> Semantics | <id> Value
+|======
+
+Add the *{capability_name_minmax}* capability to the *OpAtomicFMinEXT* and *OpAtomicFMaxEXT* instructions added by *SPV_EXT_shader_atomic_float_min_max*:
+
+[width="100%",cols="1,1,6*4"]
+|======
+7+|[[OpAtomicFMinEXT]]*OpAtomicFMinEXT* +
+ +
+(The description of this instruction is unchanged from *SPV_EXT_shader_atomic_float_min_max*.)
+
+1+|Capability: +
+*AtomicFloat16MinMaxEXT* *AtomicFloat32MinMaxEXT* *AtomicFloat64MinMaxEXT* *{capability_name_minmax}*
+| 7 | 5614 | _<id> Result type_ | _Result <id>_ | _<id>_ Pointer  | _Scope <id> Memory_ | Memory Semantics <id> Semantics | <id> Value
+|======
+
+[width="100%",cols="1,1,6*4"]
+|======
+7+|[[OpAtomicFMaxEXT]]*OpAtomicFMaxEXT* +
+ +
+(The description of this instruction is unchanged from *SPV_EXT_shader_atomic_float_min_max*.)
+1+|Capability: +
+*AtomicFloat16MinMaxEXT* *AtomicFloat32MinMaxEXT* *AtomicFloat64MinMaxEXT* *{capability_name_minmax}*
+| 7 | 5615 | _<id> Result type_ | _Result <id>_ | _<id>_ Pointer  | _Scope <id> Memory_ | Memory Semantics <id> Semantics | <id> Value
+|======
+
+== Validation Rules
+
+* For the instructions *OpAtomicFAddEXT*, *OpAtomicFMinEXT*, or
+*OpAtomicFMaxEXT*, the _Result Type_ may be a 16-bit floating-point type with
+the *BFloat16KHR* encoding.
+* If the _Result Type_ for *OpAtomicFAddEXT* is a 16-bit floating-point type
+with the *BFloat16KHR* encoding, then the *{capability_name_add}* capability
+must be declared.
+* If the _Result Type_ for *OpAtomicFMinEXT* or *OpAtomicFMaxEXT* is a 16-bit
+floating-point type with the *BFloat16KHR* encoding, then the
+*{capability_name_minmax}* capability must be declared.
+
+== Issues
+
+. Do we need to support the case where `bfloat16` values are represented as
+16-bit integers where the bit pattern represents a `bfloat16` value?
++
+--
+*RESOLVED*: No, we will only support the case with a real `bfloat16` type,
+specifically a 16-bit floating-point type with the *BFloat16KHR* encoding. This
+means that this extension has a dependency on *SPV_KHR_bfloat16*.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1  |2025-08-27 |Ben Ashbaugh|Initial revision for public preview
+|========================================
