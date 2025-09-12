@@ -68,115 +68,6 @@ getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
 
 namespace ur::level_zero {
 
-ur_result_t urDeviceGet(
-    /// [in] handle of the platform instance
-    ur_platform_handle_t Platform,
-    /// [in] the type of the devices.
-    ur_device_type_t DeviceType,
-    /// [in] the number of devices to be added to phDevices. If phDevices in not
-    /// NULL then NumEntries should be greater than zero, otherwise
-    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
-    uint32_t NumEntries,
-    /// [out][optional][range(0, NumEntries)] array of handle of devices. If
-    /// NumEntries is less than the number of devices available, then
-    /// platform shall only retrieve that number of devices.
-    ur_device_handle_t *Devices,
-    /// [out][optional] pointer to the number of devices. pNumDevices will be
-    /// updated with the total number of devices available.
-    uint32_t *NumDevices) {
-
-  auto Res = Platform->populateDeviceCacheIfNeeded();
-  if (Res != UR_RESULT_SUCCESS) {
-    return Res;
-  }
-
-  // Filter available devices based on input DeviceType.
-  std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
-  // We need to filter out composite devices when
-  // ZE_FLAT_DEVICE_HIERARCHY=COMBINED. We can know if we are in combined
-  // mode depending on the return value of zeDeviceGetRootDevice:
-  //   - If COMPOSITE, L0 returns cards as devices. Since we filter out
-  //     subdevices early, zeDeviceGetRootDevice must return nullptr, because we
-  //     only query for root-devices and they don't have any device higher up in
-  //     the hierarchy.
-  //   - If FLAT,  according to L0 spec, zeDeviceGetRootDevice always returns
-  //     nullptr in this mode.
-  //   - If COMBINED, L0 returns tiles as devices, and zeDeviceGetRootdevice
-  //     returns the card containing a given tile.
-  bool isCombinedMode =
-      std::any_of(Platform->URDevicesCache.begin(),
-                  Platform->URDevicesCache.end(), [](const auto &D) {
-                    if (D->isSubDevice())
-                      return false;
-                    ze_device_handle_t RootDev = nullptr;
-                    // Query Root Device for root-devices.
-                    // We cannot use ZE2UR_CALL because under some circumstances
-                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
-                    // and ZE2UR_CALL will abort because it's not
-                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
-                    // check manually that the result is either
-                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
-                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
-                                                (D->ZeDevice, &RootDev));
-                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
-                  });
-  for (auto &D : Platform->URDevicesCache) {
-    // Only ever return root-devices from urDeviceGet, but the
-    // devices cache also keeps sub-devices.
-    if (D->isSubDevice())
-      continue;
-
-    bool Matched = false;
-    switch (DeviceType) {
-    case UR_DEVICE_TYPE_ALL:
-      Matched = true;
-      break;
-    case UR_DEVICE_TYPE_GPU:
-    case UR_DEVICE_TYPE_DEFAULT:
-      Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
-      break;
-    case UR_DEVICE_TYPE_CPU:
-      Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_CPU);
-      break;
-    case UR_DEVICE_TYPE_FPGA:
-      Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_FPGA;
-      break;
-    case UR_DEVICE_TYPE_MCA:
-      Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_MCA;
-      break;
-    default:
-      Matched = false;
-      UR_LOG(WARN, "Unknown device type");
-      break;
-    }
-
-    if (Matched) {
-      bool isComposite =
-          isCombinedMode && (D->ZeDeviceProperties->flags &
-                             ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (!isComposite) {
-        MatchedDevices.push_back(D.get());
-        // For UR_DEVICE_TYPE_DEFAULT only a single device should be returned,
-        // so exit the loop after first proper match.
-        if (DeviceType == UR_DEVICE_TYPE_DEFAULT)
-          break;
-      }
-    }
-  }
-
-  uint32_t ZeDeviceCount = MatchedDevices.size();
-
-  auto N = (std::min)(ZeDeviceCount, NumEntries);
-  if (Devices)
-    std::copy_n(MatchedDevices.begin(), N, Devices);
-
-  if (NumDevices)
-    *NumDevices = ZeDeviceCount;
-
-  return UR_RESULT_SUCCESS;
-}
-
 uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   // Cache GlobalMemSize
   Device->ZeGlobalMemSize.Compute =
@@ -1458,6 +1349,143 @@ ur_result_t urDeviceGetInfo(
            logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceGet(
+    /// [in] handle of the platform instance
+    ur_platform_handle_t Platform,
+    /// [in] the type of the devices.
+    ur_device_type_t DeviceType,
+    /// [in] the number of devices to be added to phDevices. If phDevices in not
+    /// NULL then NumEntries should be greater than zero, otherwise
+    /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
+    uint32_t NumEntries,
+    /// [out][optional][range(0, NumEntries)] array of handle of devices. If
+    /// NumEntries is less than the number of devices available, then
+    /// platform shall only retrieve that number of devices.
+    ur_device_handle_t *Devices,
+    /// [out][optional] pointer to the number of devices. pNumDevices will be
+    /// updated with the total number of devices available.
+    uint32_t *NumDevices) {
+
+  auto Res = Platform->populateDeviceCacheIfNeeded();
+  if (Res != UR_RESULT_SUCCESS) {
+    return Res;
+  }
+
+  // Filter available devices based on input DeviceType.
+  std::vector<ur_device_handle_t> MatchedDevices;
+  std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
+  // We need to filter out composite devices when
+  // ZE_FLAT_DEVICE_HIERARCHY=COMBINED. We can know if we are in combined
+  // mode depending on the return value of zeDeviceGetRootDevice:
+  //   - If COMPOSITE, L0 returns cards as devices. Since we filter out
+  //     subdevices early, zeDeviceGetRootDevice must return nullptr, because we
+  //     only query for root-devices and they don't have any device higher up in
+  //     the hierarchy.
+  //   - If FLAT,  according to L0 spec, zeDeviceGetRootDevice always returns
+  //     nullptr in this mode.
+  //   - If COMBINED, L0 returns tiles as devices, and zeDeviceGetRootdevice
+  //     returns the card containing a given tile.
+
+  // Track best discrete and integrated GPU candidates (device, max compute
+  // units)
+  std::pair<ur_device_handle_t, uint32_t> GPUDeviceDiscrete = {nullptr, 0};
+  std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
+  bool Device_Default_GPU = false;
+
+  bool isCombinedMode =
+      std::any_of(Platform->URDevicesCache.begin(),
+                  Platform->URDevicesCache.end(), [](const auto &D) {
+                    if (D->isSubDevice())
+                      return false;
+                    ze_device_handle_t RootDev = nullptr;
+                    // Query Root Device for root-devices.
+                    // We cannot use ZE2UR_CALL because under some circumstances
+                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
+                    // and ZE2UR_CALL will abort because it's not
+                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
+                    // check manually that the result is either
+                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
+                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
+                                                (D->ZeDevice, &RootDev));
+                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
+                  });
+  for (auto &D : Platform->URDevicesCache) {
+    // Only ever return root-devices from urDeviceGet, but the
+    // devices cache also keeps sub-devices.
+    if (D->isSubDevice())
+      continue;
+
+    bool Matched = false;
+    switch (DeviceType) {
+    case UR_DEVICE_TYPE_ALL:
+      Matched = true;
+      break;
+    case UR_DEVICE_TYPE_GPU:
+    case UR_DEVICE_TYPE_DEFAULT:
+      Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
+      Device_Default_GPU = true;
+      break;
+    case UR_DEVICE_TYPE_CPU:
+      Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_CPU);
+      break;
+    case UR_DEVICE_TYPE_FPGA:
+      Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_FPGA;
+      break;
+    case UR_DEVICE_TYPE_MCA:
+      Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_MCA;
+      break;
+    default:
+      Matched = false;
+      UR_LOG(WARN, "Unknown device type");
+      break;
+    }
+
+    if (Matched) {
+      bool isComposite =
+          isCombinedMode && (D->ZeDeviceProperties->flags &
+                             ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
+      if (!isComposite) {
+        // In case of DeviceType is GPU or DEFAULT, pick only the most powerful
+        // device.
+        if (Device_Default_GPU) {
+          uint32_t maxComputeUnits = 0;
+          ur_result_t UrRet = ur::level_zero::urDeviceGetInfo(
+              D.get(), UR_DEVICE_INFO_MAX_COMPUTE_UNITS,
+              sizeof(maxComputeUnits), &maxComputeUnits, nullptr);
+          maxComputeUnits = (UrRet == UR_RESULT_SUCCESS) ? maxComputeUnits : 0;
+          auto &BestGpu =
+              D->isIntegrated() ? GPUDeviceIntegrated : GPUDeviceDiscrete;
+          if (!BestGpu.first || maxComputeUnits > BestGpu.second)
+            BestGpu = std::make_pair(D.get(), maxComputeUnits);
+        } else {
+          MatchedDevices.push_back(D.get());
+        }
+      }
+    }
+  }
+
+  // Handle GPU/DEFAULT device selection outside the loop
+  if (Device_Default_GPU) {
+    // Prefer discrete GPU over integrated GPU
+    if (GPUDeviceDiscrete.first) {
+      MatchedDevices = {GPUDeviceDiscrete.first};
+    } else if (GPUDeviceIntegrated.first) {
+      MatchedDevices = {GPUDeviceIntegrated.first};
+    }
+  }
+
+  uint32_t ZeDeviceCount = MatchedDevices.size();
+
+  auto N = (std::min)(ZeDeviceCount, NumEntries);
+  if (Devices)
+    std::copy_n(MatchedDevices.begin(), N, Devices);
+
+  if (NumDevices)
+    *NumDevices = ZeDeviceCount;
 
   return UR_RESULT_SUCCESS;
 }
