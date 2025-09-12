@@ -1501,11 +1501,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           sizeof(cl_device_kernel_clock_capabilities_khr), &caps, nullptr));
 
       if ((propName == UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP &&
-              (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_SUB_GROUP_KHR)) ||
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_SUB_GROUP_KHR)) ||
           (propName == UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP &&
-              (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_WORK_GROUP_KHR)) ||
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_WORK_GROUP_KHR)) ||
           (propName == UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP &&
-              (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_DEVICE_KHR)))
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_DEVICE_KHR)))
         Supported = true;
     }
     return ReturnValue(Supported);
