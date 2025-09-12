@@ -764,6 +764,27 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   return UR_RESULT_SUCCESS;
 }
 
+// ur_rect_offset_t and ur_rect_region_t describe their first component as
+// bytes, whilst ze_image_region_t uses pixels.
+//
+// However, the getImageRegionHelper above is used for both bindless and regular
+// images and APIs for the latter explicitly document that ur_rect_offset_t and
+// ur_rect_region_t are misused and all their component are treated as pixels.
+//
+// As such, a new helper function for translation between UR and L0 formats is
+// introduced instead of modifying the existing one above.
+static ur_result_t getZeImageRegionHelper(ze_image_desc_t ZeImageDesc,
+                                          size_t PixelSizeInBytes,
+                                          ur_rect_offset_t *Origin,
+                                          ur_rect_region_t *Region,
+                                          ze_image_region_t &ZeRegion) {
+  UR_CALL(getImageRegionHelper(ZeImageDesc, Origin, Region, ZeRegion));
+  ZeRegion.originX /= PixelSizeInBytes;
+  ZeRegion.width /= PixelSizeInBytes;
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t bindlessImagesHandleCopyFlags(
     const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
     const ur_image_desc_t *pDstImageDesc,
@@ -776,6 +797,8 @@ ur_result_t bindlessImagesHandleCopyFlags(
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
+  uint32_t SrcPixelSizeInBytes = getPixelSizeBytes(pSrcImageFormat);
+  uint32_t DstPixelSizeInBytes = getPixelSizeBytes(pDstImageFormat);
 
   switch (imageCopyFlags) {
   case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE: {
@@ -785,15 +808,15 @@ ur_result_t bindlessImagesHandleCopyFlags(
       // Copy to Non-USM memory
 
       ze_image_region_t DstRegion;
-      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
-                                   &pCopyRegion->copyExtent, DstRegion));
+      UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, SrcPixelSizeInBytes,
+                                     &pCopyRegion->dstOffset,
+                                     &pCopyRegion->copyExtent, DstRegion));
       auto *urDstImg = static_cast<ur_bindless_mem_handle_t *>(pDst);
 
-      const char *SrcPtr =
-          static_cast<const char *>(pSrc) +
-          pCopyRegion->srcOffset.z * SrcSlicePitch +
-          pCopyRegion->srcOffset.y * SrcRowPitch +
-          pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
+      const char *SrcPtr = static_cast<const char *>(pSrc) +
+                           pCopyRegion->srcOffset.z * SrcSlicePitch +
+                           pCopyRegion->srcOffset.y * SrcRowPitch +
+                           pCopyRegion->srcOffset.x;
 
       ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
                  (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion,
@@ -828,15 +851,15 @@ ur_result_t bindlessImagesHandleCopyFlags(
     if (pSrcImageDesc->rowPitch == 0) {
       // Copy from Non-USM memory to host
       ze_image_region_t SrcRegion;
-      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
-                                   &pCopyRegion->copyExtent, SrcRegion));
+      UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, SrcPixelSizeInBytes,
+                                     &pCopyRegion->srcOffset,
+                                     &pCopyRegion->copyExtent, SrcRegion));
 
       auto *urSrcImg = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
 
       char *DstPtr =
           static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
-          pCopyRegion->dstOffset.y * DstRowPitch +
-          pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
+          pCopyRegion->dstOffset.y * DstRowPitch + pCopyRegion->dstOffset.x;
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
                  (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion,
                   DstRowPitch, DstSlicePitch, zeSignalEvent, numWaitEvents,
@@ -866,11 +889,13 @@ ur_result_t bindlessImagesHandleCopyFlags(
   };
   case UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE: {
     ze_image_region_t DstRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
-                                 &pCopyRegion->copyExtent, DstRegion));
+    UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, DstPixelSizeInBytes,
+                                   &pCopyRegion->dstOffset,
+                                   &pCopyRegion->copyExtent, DstRegion));
     ze_image_region_t SrcRegion;
-    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
-                                 &pCopyRegion->copyExtent, SrcRegion));
+    UR_CALL(getZeImageRegionHelper(zeSrcImageDesc, SrcPixelSizeInBytes,
+                                   &pCopyRegion->srcOffset,
+                                   &pCopyRegion->copyExtent, SrcRegion));
 
     auto *urImgSrc = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
     auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
