@@ -22,7 +22,7 @@ namespace detail {
 /// Constructs a SYCL device instance using the provided
 /// UR device instance.
 device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                         device_impl::private_tag)
+                         device_impl::private_tag, bool IsSubDevice)
     : MDevice(Device), MPlatform(Platform),
       // No need to set MRootDevice when MAlwaysRootDevice is true
       MRootDevice(Platform.MAlwaysRootDevice
@@ -30,9 +30,11 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
                       : get_info_impl<UR_DEVICE_INFO_PARENT_DEVICE>()),
       // TODO catch an exception and put it to list of asynchronous exceptions:
       MCache{*this} {
-  // Interoperability Constructor already calls DeviceRetain in
-  // urDeviceCreateWithNativeHandle.
-  getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
+  if (!IsSubDevice) {
+    // Interoperability Constructor already calls DeviceRetain in
+    // urDeviceCreateWithNativeHandle.
+    getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
+  }
 }
 
 device_impl::~device_impl() {
@@ -164,7 +166,7 @@ std::vector<device> device_impl::create_sub_devices(
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const ur_device_handle_t &a_ur_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform.getOrMakeDeviceImpl(a_ur_device));
+                      MPlatform.getOrMakeSubDeviceImpl(a_ur_device));
                   res.push_back(sycl_device);
                 });
   return res;
