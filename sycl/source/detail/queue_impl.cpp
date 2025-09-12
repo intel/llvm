@@ -363,10 +363,9 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     (Type == CGType::ExecCommandBuffer &&
                      HandlerImpl.MExecGraph->containsHostTask());
 
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
-                         !requiresPostProcess;
+                         !Streams.size();
 
   if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
@@ -395,14 +394,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
     }
-  }
-
-  if (SubmitInfo.PostProcessorFunc()) {
-    // All the submission functions using post processing are event based
-    // functions
-    assert(EventImpl);
-    event Event = createSyclObjFromImpl<event>(EventImpl);
-    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
   }
 
   for (auto &Stream : Streams) {
@@ -455,7 +446,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   // No special captures supported yet for the no-handler path
   assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
 
-  SubmitCommandFuncType SubmitKernelFunc =
+  auto SubmitKernelFunc =
       [&](detail::CG::StorageInitHelper &CGData)
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::ArgDesc> Args;
@@ -512,11 +503,9 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
 
       enqueueImpKernel(
           *this, NDRDesc, Args, nullptr, nullptr,
-          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          *KRInfo.DeviceKernelInfoPtr(),
           RawEvents, ResultEvent.get(), nullptr, UR_KERNEL_CACHE_CONFIG_DEFAULT,
-          false, false, 0, nullptr, KRInfo.GetKernelFuncPtr(),
-          KRInfo.DeviceKernelInfoPtr()->NumParams,
-          KRInfo.DeviceKernelInfoPtr()->ParamDescGetter, false);
+          false, false, 0, nullptr, KRInfo.GetKernelFuncPtr());
 
       if (!DiscardEvent) {
         ResultEvent->setEnqueued();
@@ -551,7 +540,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
           nullptr, // MKernel
           nullptr, // MKernelBundle
           std::move(CGData), std::move(Args),
-          toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+          *KRInfo.DeviceKernelInfoPtr(),
           std::move(StreamStorage), std::move(AuxiliaryResources),
           detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
           false, // MKernelIsCooperative
@@ -572,6 +561,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
 }
 
+template <typename SubmitCommandFuncType>
 detail::EventImplPtr
 queue_impl::submit_direct(bool CallerNeedsEvent,
                           SubmitCommandFuncType &SubmitCommandFunc) {
