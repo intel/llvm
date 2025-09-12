@@ -23,6 +23,13 @@ let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 // - defaultCompareNames: default run names for comparison
 // - flamegraphData: available flamegraphs data with runs information (if available)
 
+// Helper function to get base URL for remote or local resources
+function getResourceBaseUrl() {
+    return typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '' 
+        ? 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci'
+        : '.';
+}
+
 // Toggle configuration and abstraction
 //
 // HOW TO ADD A NEW TOGGLE:
@@ -102,6 +109,8 @@ const toggleConfigs = {
             // Toggle between flamegraph-only display and normal charts
             updateCharts();
             updateFlameGraphTooltip();
+            // Refresh download buttons to adapt to new mode
+            refreshDownloadButtons();
             updateURL();
         }
     }
@@ -448,6 +457,19 @@ function updateCharts() {
     drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData);
 }
 
+// Function to refresh download buttons when mode changes
+function refreshDownloadButtons() {
+    // Wait a bit for charts to be redrawn
+    setTimeout(() => {
+        document.querySelectorAll('.chart-download-button').forEach(button => {
+            const container = button.closest('.chart-container');
+            if (container && button.updateChartButton) {
+                button.updateChartButton();
+            }
+        });
+    }, 100);
+}
+
 function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData) {
     // Clear existing charts
     document.querySelectorAll('.charts').forEach(container => container.innerHTML = '');
@@ -578,20 +600,17 @@ function createChartContainer(data, canvasId, type) {
         const flamegraphsToShow = getFlameGraphsForBenchmark(data.label, activeRuns);
         
         if (flamegraphsToShow.length > 0) {
-            // Create multiple iframes for each run that has flamegraph data
+            // Add a class to reduce padding for flamegraph containers
+            container.classList.add('flamegraph-chart');
+            // Create individual containers for each flamegraph to give them proper space
             flamegraphsToShow.forEach((flamegraphInfo, index) => {
+                // Create a dedicated container for this flamegraph
+                const flamegraphContainer = document.createElement('div');
+                flamegraphContainer.className = 'flamegraph-container';
+                
                 const iframe = document.createElement('iframe');
                 iframe.src = flamegraphInfo.path;
                 iframe.className = 'flamegraph-iframe';
-                
-                // Calculate dimensions that fit within the existing container constraints
-                // The container has max-width: 1100px with 24px padding on each side
-                const containerMaxWidth = 1100;
-                const containerPadding = 48; // 24px on each side
-                const availableWidth = containerMaxWidth - containerPadding;
-                
-                // Only set max-width dynamically, other styles handled by CSS
-                iframe.style.maxWidth = `${availableWidth}px`;
                 iframe.title = `${flamegraphInfo.runName} - ${data.label}`;
                 
                 // Add error handling for missing flamegraph files
@@ -599,25 +618,15 @@ function createChartContainer(data, canvasId, type) {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'flamegraph-error';
                     errorDiv.textContent = `No flamegraph available for ${flamegraphInfo.runName} - ${data.label}`;
-                    contentSection.replaceChild(errorDiv, iframe);
+                    flamegraphContainer.replaceChild(errorDiv, iframe);
                 };
                 
-                contentSection.appendChild(iframe);
+                flamegraphContainer.appendChild(iframe);
+                contentSection.appendChild(flamegraphContainer);
             });
             
-            // Add resize handling to maintain proper sizing for all iframes
-            const updateIframeSizes = () => {
-                const containerMaxWidth = 1100;
-                const containerPadding = 48;
-                const availableWidth = containerMaxWidth - containerPadding;
-                
-                contentSection.querySelectorAll('iframe[src*="flamegraphs"]').forEach(iframe => {
-                    iframe.style.maxWidth = `${availableWidth}px`;
-                });
-            };
-            
-            // Update size on window resize
-            window.addEventListener('resize', updateIframeSizes);
+            // No need for resize handling since CSS handles all sizing
+            // The flamegraphs will automatically use the full container width
         } else {
             // Show message when no flamegraph is available
             const noFlameGraphDiv = document.createElement('div');
@@ -635,6 +644,50 @@ function createChartContainer(data, canvasId, type) {
 
     container.appendChild(contentSection);
 
+    // Add simple flamegraph links below the chart: left label, inline orange links
+    (function addFlamegraphLinks() {
+        try {
+            const flamegraphs = getFlameGraphsForBenchmark(data.label, activeRuns || new Set());
+            if (!flamegraphs || flamegraphs.length === 0) return;
+
+            const outer = document.createElement('div');
+            outer.className = 'chart-flamegraph-links';
+
+            const label = document.createElement('div');
+            label.className = 'flamegraph-label';
+            label.textContent = 'Flamegraph(s):';
+
+            const links = document.createElement('div');
+            links.className = 'flamegraph-links-inline';
+
+            flamegraphs.forEach(fg => {
+                const a = document.createElement('a');
+                a.className = 'flamegraph-link';
+                a.href = fg.path;
+                a.target = '_blank';
+
+                // flame emoticon before run name
+                const icon = document.createElement('span');
+                icon.className = 'flame-icon';
+                icon.textContent = '🔥';
+
+                const text = document.createElement('span');
+                text.className = 'flame-text';
+                text.textContent = fg.runName ? `${fg.runName}${fg.timestamp ? ' — ' + fg.timestamp : ''}` : (fg.timestamp || 'Flamegraph');
+
+                a.appendChild(icon);
+                a.appendChild(text);
+                links.appendChild(a);
+            });
+
+            outer.appendChild(label);
+            outer.appendChild(links);
+            container.appendChild(outer);
+        } catch (e) {
+            console.error('Error while adding flamegraph links for', data.label, e);
+        }
+    })();
+
     // Create footer section for details
     const footerSection = document.createElement('div');
     footerSection.className = 'chart-footer';
@@ -645,19 +698,116 @@ function createChartContainer(data, canvasId, type) {
     summary.className = 'download-summary';
     summary.textContent = "Details";
 
-    // Add subtle download button to the summary
-    const downloadButton = document.createElement('button');
-    downloadButton.className = 'download-button';
-    downloadButton.textContent = 'Download';
-    downloadButton.onclick = (event) => {
-        event.stopPropagation(); // Prevent details toggle
+    // Helper: format Date to YYYYMMDD_HHMMSS (UTC)
+    function formatTimestampFromDate(d) {
+        if (!d) return null;
+        const date = (d instanceof Date) ? d : new Date(d);
+        if (isNaN(date)) return null;
+        const pad = (n) => n.toString().padStart(2, '0');
+        const Y = date.getUTCFullYear();
+        const M = pad(date.getUTCMonth() + 1);
+        const D = pad(date.getUTCDate());
+        const h = pad(date.getUTCHours());
+        const m = pad(date.getUTCMinutes());
+        const s = pad(date.getUTCSeconds());
+        return `${Y}${M}${D}_${h}${m}${s}`;
+    }
+
+    // Base raw URL for archives (branch-based)
+    const RAW_BASE = getResourceBaseUrl();
+
+    // Helper function to show flamegraph list
+    function showFlameGraphList(flamegraphs, buttonElement) {
+        const existingList = document.querySelector('.download-list');
+        if (existingList) existingList.remove();
+
+        const listContainer = document.createElement('div');
+        listContainer.className = 'download-list';
+        
+        const rect = buttonElement.getBoundingClientRect();
+        listContainer.style.position = 'absolute';
+        listContainer.style.top = `${window.scrollY + rect.bottom + 5}px`;
+        listContainer.style.left = `${window.scrollX + rect.left}px`;
+        listContainer.style.zIndex = '1000';
+        listContainer.style.backgroundColor = 'white';
+        listContainer.style.border = '1px solid #ccc';
+        listContainer.style.borderRadius = '4px';
+        listContainer.style.padding = '4px';
+        listContainer.style.minWidth = '200px';
+        listContainer.style.boxShadow = '0 2px 5px rgba(0,0,0,0.15)';
+
+        flamegraphs.forEach(fg => {
+            const link = document.createElement('a');
+            link.href = fg.path;
+            link.textContent = fg.runName;
+            link.style.display = 'block';
+            link.style.padding = '8px 12px';
+            link.style.textDecoration = 'none';
+            link.style.color = '#333';
+            link.onclick = (e) => {
+                e.preventDefault();
+                window.open(fg.path, '_blank');
+                listContainer.remove();
+            };
+            listContainer.appendChild(link);
+        });
+
+        document.body.appendChild(listContainer);
+        
+        setTimeout(() => {
+            document.addEventListener('click', function closeHandler(event) {
+                if (!listContainer.contains(event.target) && !buttonElement.contains(event.target)) {
+                    listContainer.remove();
+                    document.removeEventListener('click', closeHandler);
+                }
+            });
+        }, 0);
+    }
+
+    // Create Download Chart button (adapts to mode)
+    const chartButton = document.createElement('button');
+    chartButton.className = 'download-button chart-download-button';
+    chartButton.style.marginRight = '8px';
+    
+    // Function to update button based on current mode
+    function updateChartButton() {
         if (isFlameGraphEnabled()) {
-            downloadFlameGraph(data.label, activeRuns, downloadButton);
+            const flamegraphs = getFlameGraphsForBenchmark(data.label, activeRuns);
+            if (flamegraphs.length === 0) {
+                chartButton.textContent = 'No Flamegraph Available';
+                chartButton.disabled = true;
+            } else if (flamegraphs.length === 1) {
+                chartButton.textContent = 'Download Flamegraph';
+                chartButton.disabled = false;
+                chartButton.onclick = (event) => {
+                    event.stopPropagation();
+                    window.open(flamegraphs[0].path, '_blank');
+                };
+            } else {
+                chartButton.textContent = 'Download Flamegraphs';
+                chartButton.disabled = false;
+                chartButton.onclick = (event) => {
+                    event.stopPropagation();
+                    showFlameGraphList(flamegraphs, chartButton);
+                };
+            }
         } else {
-            downloadChart(canvasId, data.label);
+            chartButton.textContent = 'Download Chart';
+            chartButton.disabled = false;
+            chartButton.onclick = (event) => {
+                event.stopPropagation();
+                downloadChart(canvasId, data.label);
+            };
         }
-    };
-    summary.appendChild(downloadButton);
+    }
+    
+    updateChartButton();
+    
+    // Store the update function on the button so it can be called when mode changes
+    chartButton.updateChartButton = updateChartButton;
+
+    // Append the chart download button to the summary
+    summary.appendChild(chartButton);
     details.appendChild(summary);
 
     // Create and append extra info
@@ -1245,20 +1395,43 @@ function validateFlameGraphData() {
     return window.flamegraphData?.runs !== undefined;
 }
 
+function sanitizeFilename(name) {
+    /**
+     * Sanitize a string to be safe for use as a filename or directory name.
+     * Replace invalid characters with underscores.
+     *
+     * Invalid characters: " : < > | * ? \r \n
+     */
+    const invalidChars = /[":;<>|*?\r\n]/g;
+    return name.replace(invalidChars, '_');
+}
+
 function createFlameGraphPath(benchmarkLabel, runName, timestamp) {
     const suiteName = window.flamegraphData?.runs?.[runName]?.suites?.[benchmarkLabel];
 
     if (!suiteName) {
         console.error(`Could not find suite for benchmark '${benchmarkLabel}' in run '${runName}'`);
-        // Fallback to old path for safety, though it's likely to fail.
-        const benchmarkDirName = benchmarkLabel;
+        // Fallback: sanitize benchmark name for directory structure
+        const sanitizedBenchmarkName = sanitizeFilename(benchmarkLabel);
+        const benchmarkDirName = sanitizedBenchmarkName;
         const timestampPrefix = timestamp + '_';
-        return `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+        const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+
+        // For local mode, use relative path; for remote mode, use full URL
+        const baseUrl = getResourceBaseUrl();
+        return baseUrl === '.' ? relativePath : `${baseUrl}/${relativePath}`;
     }
 
-    const benchmarkDirName = `${suiteName}__${benchmarkLabel}`;
+    // Apply sanitization to both suite and benchmark names to match Python implementation
+    const sanitizedSuiteName = sanitizeFilename(suiteName);
+    const sanitizedBenchmarkName = sanitizeFilename(benchmarkLabel);
+    const benchmarkDirName = `${sanitizedSuiteName}__${sanitizedBenchmarkName}`;
     const timestampPrefix = timestamp + '_';
-    return `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+    const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+
+    // For local mode, use relative path; for remote mode, use full URL
+    const baseUrl = getResourceBaseUrl();
+    return baseUrl === '.' ? relativePath : `${baseUrl}/${relativePath}`;
 }
 
 function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
@@ -1421,6 +1594,9 @@ function toggleAllTags(select) {
 
 function initializeCharts() {
     console.log('initializeCharts() started');
+    console.log('loadedBenchmarkRuns:', loadedBenchmarkRuns.length, 'runs');
+    console.log('First run name:', loadedBenchmarkRuns.length > 0 ? loadedBenchmarkRuns[0].name : 'no runs');
+    console.log('defaultCompareNames:', defaultCompareNames);
     
     // Process raw data
     console.log('Processing timeseries data...');
@@ -1436,11 +1612,13 @@ function initializeCharts() {
     console.log('Layer comparisons data processed:', layerComparisonsData.length, 'items');
     
     allRunNames = [...new Set(loadedBenchmarkRuns.map(run => run.name))];
+    console.log('All run names:', allRunNames);
     
     // In flamegraph-only mode, ensure we include runs from flamegraph data
     if (validateFlameGraphData()) {
         const flamegraphRunNames = Object.keys(window.flamegraphData.runs);
         allRunNames = [...new Set([...allRunNames, ...flamegraphRunNames])];
+        console.log('Added flamegraph runs, total run names:', allRunNames);
     }
     
     latestRunsLookup = createLatestRunsLookup();
@@ -1589,22 +1767,29 @@ window.toggleAllTags = toggleAllTags;
 // Helper function to fetch and process benchmark data
 function fetchAndProcessData(url, isArchived = false) {
     const loadingIndicator = document.getElementById('loading-indicator');
-
     return fetch(url)
-        .then(response => {
-            if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
-            return response.json();
-        })
+        .then(resp => { if (!resp.ok) throw new Error(`Got response status ${resp.status}.`); return resp.json(); })
         .then(data => {
-            const newRuns = data.runs || data;
-
+            if (!data || !Array.isArray(data.runs)) {
+                throw new Error('Invalid data format: expected { runs: [] , ... }');
+            }
             if (isArchived) {
-                // Merge with existing data for archived data
-                loadedBenchmarkRuns = loadedBenchmarkRuns.concat(newRuns);
+                loadedBenchmarkRuns = loadedBenchmarkRuns.concat(data.runs);
                 archivedDataLoaded = true;
             } else {
-                // Replace existing data for current data
-                loadedBenchmarkRuns = newRuns;
+                loadedBenchmarkRuns = data.runs;
+                window.benchmarkMetadata = data.metadata || {};
+                window.benchmarkTags = data.tags || {};
+                window.flamegraphData = (data.flamegraphData && data.flamegraphData.runs) ? data.flamegraphData : { runs: {} };
+                if (Array.isArray(data.defaultCompareNames)) {
+                    console.log('defaultCompareNames (remote):', data.defaultCompareNames);
+                }
+                console.log('Remote data loaded (canonical):', {
+                    runs: data.runs.length,
+                    metadata: Object.keys(window.benchmarkMetadata).length,
+                    tags: Object.keys(window.benchmarkTags).length,
+                    flamegraphs: Object.keys(window.flamegraphData.runs).length
+                });
             }
 
             // The following variables have same values regardless of whether
@@ -1614,44 +1799,49 @@ function fetchAndProcessData(url, isArchived = false) {
 
             initializeCharts();
         })
-        .catch(error => {
-            console.error(`Error fetching ${isArchived ? 'archived' : 'remote'} data:`, error);
+        .catch(err => {
+            console.error(`Error fetching ${isArchived ? 'archived' : 'remote'} data:`, err);
             loadingIndicator.textContent = 'Fetching remote data failed.';
         })
-        .finally(() => {
-            loadingIndicator.classList.add('hidden');
-        });
+        .finally(() => loadingIndicator.classList.add('hidden'));
 }
 
 // Load data based on configuration
 function loadData() {
+    console.log('=== loadData() called ===');
     const loadingIndicator = document.getElementById('loading-indicator');
     loadingIndicator.classList.remove('hidden'); // Show loading indicator
 
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
+        console.log('Using remote data URL:', remoteDataUrl);
         // Fetch data from remote URL
-        const url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data.json' : remoteDataUrl + '/data.json';
-        fetchAndProcessData(url);
+        fetchAndProcessData(remoteDataUrl);
     } else {
-        // Use local data
-        loadedBenchmarkRuns = benchmarkRuns;
-        // Assign global metadata from data.js if window.benchmarkMetadata is not set
-        if (!window.benchmarkMetadata) {
-            window.benchmarkMetadata = (typeof benchmarkMetadata !== 'undefined') ? benchmarkMetadata : {};
-        }
-        // Assign global tags from data.js if window.benchmarkTags is not set
-        if (!window.benchmarkTags) {
-            window.benchmarkTags = (typeof benchmarkTags !== 'undefined') ? benchmarkTags : {};
-        }
-        // Assign flamegraph data from data.js if available
-        if (typeof flamegraphData !== 'undefined') {
-            window.flamegraphData = flamegraphData;
-            console.log('Loaded flamegraph data from data.js with', Object.keys(flamegraphData.runs || {}).length, 'runs');
-        } else {
+        console.log('Using local canonical data');
+        if (typeof benchmarkDataCanonical !== 'object' || !Array.isArray(benchmarkDataCanonical.runs)) {
+            console.error('benchmarkDataCanonical missing or invalid');
+            loadedBenchmarkRuns = [];
+            window.benchmarkMetadata = {};
+            window.benchmarkTags = {};
             window.flamegraphData = { runs: {} };
+        } else {
+            loadedBenchmarkRuns = benchmarkDataCanonical.runs;
+            window.benchmarkMetadata = benchmarkDataCanonical.metadata || {};
+            window.benchmarkTags = benchmarkDataCanonical.tags || {};
+            window.flamegraphData = (benchmarkDataCanonical.flamegraphData && benchmarkDataCanonical.flamegraphData.runs) ? benchmarkDataCanonical.flamegraphData : { runs: {} };
+            if (Array.isArray(benchmarkDataCanonical.defaultCompareNames)) {
+                defaultCompareNames = benchmarkDataCanonical.defaultCompareNames; // assume global defined elsewhere
+            }
+            console.log('Local canonical data loaded:', {
+                runs: loadedBenchmarkRuns.length,
+                metadata: Object.keys(window.benchmarkMetadata).length,
+                tags: Object.keys(window.benchmarkTags).length,
+                flamegraphs: Object.keys(window.flamegraphData.runs).length
+            });
         }
         initializeCharts();
-        loadingIndicator.classList.add('hidden'); // Hide loading indicator
+        loadingIndicator.classList.add('hidden');
+        console.log('=== loadData() completed ===');
     }
 }
 
