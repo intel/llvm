@@ -59,6 +59,20 @@ static bool isBannedOpenCLPlatform(cl_platform_id platform) {
   return isBanned;
 }
 
+static bool isBannedOpenCLDevice(cl_device_id device) {
+  cl_device_type deviceType = 0;
+  cl_int res = clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(cl_device_type),
+                               &deviceType, nullptr);
+  if (res != CL_SUCCESS) {
+    return false;
+  }
+
+  // Filter out FPGA accelerator devices as their usage with OpenCL adapter is deprecated
+  bool isBanned = (deviceType & CL_DEVICE_TYPE_ACCELERATOR) != 0;
+
+  return isBanned;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
@@ -143,9 +157,12 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
         for (auto &Platform : FilteredPlatforms) {
           auto URPlatform = std::make_unique<ur_platform_handle_t_>(Platform);
           UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
-          Adapter->URPlatforms.emplace_back(URPlatform.release());
+          // Only add platforms that have devices, especially in case all devices are banned
+          if (!URPlatform->Devices.empty()) {
+            Adapter->URPlatforms.emplace_back(URPlatform.release());
+          }
         }
-        Adapter->NumPlatforms = static_cast<uint32_t>(FilteredPlatforms.size());
+        Adapter->NumPlatforms = static_cast<uint32_t>(Adapter->URPlatforms.size());
       } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
       } catch (...) {
@@ -253,11 +270,19 @@ ur_result_t ur_platform_handle_t_::InitDevices() {
 
     CL_RETURN_ON_FAILURE(Res);
 
+    // Filter out banned devices
+    std::vector<cl_device_id> FilteredDevices;
+    for (uint32_t i = 0; i < DeviceNum; i++) {
+      if (!isBannedOpenCLDevice(CLDevices[i])) {
+        FilteredDevices.push_back(CLDevices[i]);
+      }
+    }
+
     try {
-      Devices.resize(DeviceNum);
-      for (size_t i = 0; i < DeviceNum; i++) {
+      Devices.resize(FilteredDevices.size());
+      for (size_t i = 0; i < FilteredDevices.size(); i++) {
         Devices[i] =
-            std::make_unique<ur_device_handle_t_>(CLDevices[i], this, nullptr);
+            std::make_unique<ur_device_handle_t_>(FilteredDevices[i], this, nullptr);
       }
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
