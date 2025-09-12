@@ -11,10 +11,10 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
+// CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp

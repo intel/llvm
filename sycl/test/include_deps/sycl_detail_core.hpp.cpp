@@ -12,10 +12,10 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
+// CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
@@ -86,7 +86,6 @@
 // CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: queue.hpp
-// CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
 // CHECK-NEXT: detail/host_profiling_info.hpp
 // CHECK-NEXT: detail/item_base.hpp
