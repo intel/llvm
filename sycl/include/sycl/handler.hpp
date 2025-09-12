@@ -848,8 +848,8 @@ private:
     //    run-time assert here doesn't affect them.
     //
     //  * Mixed SYCL/OpenMP compilation, device code generation for OpenMP in
-    //  * particular. For that scenario this code is compiled but never
-    //  * executed.
+    //    particular. For that scenario this code is compiled but never
+    //    executed.
     assert(Info.Name != std::string_view{} && "Kernel must have a name!");
 
     // Some host compilers may have different captures from Clang. Currently
