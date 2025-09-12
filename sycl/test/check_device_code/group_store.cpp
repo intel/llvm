@@ -222,17 +222,17 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, int v,
 // CHECK-GLOBAL-NEXT:    [[V_ADDR:%.*]] = alloca i32, align 4
 // CHECK-GLOBAL-NEXT:    [[V_ADDR_ASCAST:%.*]] = addrspacecast ptr [[V_ADDR]] to ptr addrspace(4)
 // CHECK-GLOBAL-NEXT:    store i32 [[V:%.*]], ptr [[V_ADDR]], align 4, !tbaa [[TBAA7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 80, ptr nonnull [[AGG_TMP14]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-GLOBAL-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 8 dereferenceable(80) [[AGG_TMP14]], ptr addrspace(4) noundef align 8 dereferenceable(80) [[ITER:%.*]], i64 80, i1 false)
 // CHECK-GLOBAL-NEXT:    store ptr addrspace(4) [[V_ADDR_ASCAST]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA16:![0-9]+]]
 // CHECK-GLOBAL-NEXT:    call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEKiLm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSD_INS3_21contiguous_memory_keyEJEEENSD_INS3_14full_group_keyEJEEENSD_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeEST_NS0_4spanISR_XT1_EEESS_SU_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span") align 8 [[AGG_TMP1_I]], ptr noundef nonnull byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[AGG_TMP14]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.7") align 1 [[AGG_TMP3_I]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 80, ptr nonnull [[AGG_TMP14]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-GLOBAL-NEXT:    ret void
 //
 // CHECK-LOCAL-LABEL: @_ZN7blocked34test_accessor_iter_force_optimizedERN4sycl3_V19sub_groupEiRNS1_6detail17accessor_iteratorIiLi1EEE(
@@ -244,17 +244,17 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, int v,
 // CHECK-LOCAL-NEXT:    [[V_ADDR:%.*]] = alloca i32, align 4
 // CHECK-LOCAL-NEXT:    [[V_ADDR_ASCAST:%.*]] = addrspacecast ptr [[V_ADDR]] to ptr addrspace(4)
 // CHECK-LOCAL-NEXT:    store i32 [[V:%.*]], ptr [[V_ADDR]], align 4, !tbaa [[TBAA7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 80, ptr nonnull [[AGG_TMP14]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP14]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-LOCAL-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 8 dereferenceable(80) [[AGG_TMP14]], ptr addrspace(4) noundef align 8 dereferenceable(80) [[ITER:%.*]], i64 80, i1 false)
 // CHECK-LOCAL-NEXT:    store ptr addrspace(4) [[V_ADDR_ASCAST]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA16:![0-9]+]]
 // CHECK-LOCAL-NEXT:    call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEKiLm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSD_INS3_21contiguous_memory_keyEJEEENSD_INS3_14full_group_keyEJEEENSD_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeEST_NS0_4spanISR_XT1_EEESS_SU_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span") align 8 [[AGG_TMP1_I]], ptr noundef nonnull byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[AGG_TMP14]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.7") align 1 [[AGG_TMP3_I]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 80, ptr nonnull [[AGG_TMP14]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP14]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-LOCAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
@@ -298,7 +298,7 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR7]]
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_SS__EXIT:%.*]]
 // CHECK-GLOBAL:       if.end.i.i:
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9:[0-9]+]]
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9:[0-9]+]]
 // CHECK-GLOBAL-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK-GLOBAL:       for.cond.i.i:
 // CHECK-GLOBAL-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_END_I_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -307,7 +307,7 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-GLOBAL:       for.cond.cleanup.i.i:
 // CHECK-GLOBAL-NEXT:    [[TMP4:%.*]] = load i64, ptr [[VALUES_I_I]], align 2, !tbaa [[TBAA24:![0-9]+]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1mm(ptr addrspace(1) noundef nonnull [[P]], i64 noundef [[TMP4]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_SS__EXIT]]
 // CHECK-GLOBAL:       for.body.i.i:
 // CHECK-GLOBAL-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
@@ -354,7 +354,7 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR7]]
 // CHECK-LOCAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS3SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_SS__EXIT:%.*]]
 // CHECK-LOCAL:       if.end.i.i:
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9:[0-9]+]]
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9:[0-9]+]]
 // CHECK-LOCAL-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK-LOCAL:       for.cond.i.i:
 // CHECK-LOCAL-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_END_I_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -363,7 +363,7 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-LOCAL:       for.cond.cleanup.i.i:
 // CHECK-LOCAL-NEXT:    [[TMP4:%.*]] = load i64, ptr [[VALUES_I_I]], align 2, !tbaa [[TBAA24:![0-9]+]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS3mm(ptr addrspace(3) noundef nonnull [[P]], i64 noundef [[TMP4]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
 // CHECK-LOCAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS3SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_SS__EXIT]]
 // CHECK-LOCAL:       for.body.i.i:
 // CHECK-LOCAL-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
@@ -417,7 +417,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR7]]
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_ST__EXIT:%.*]]
 // CHECK-GLOBAL:       if.end.i.i:
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
 // CHECK-GLOBAL-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK-GLOBAL:       for.cond.i.i:
 // CHECK-GLOBAL-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_END_I_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -426,7 +426,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-GLOBAL:       for.cond.cleanup.i.i:
 // CHECK-GLOBAL-NEXT:    [[TMP4:%.*]] = load i64, ptr [[VALUES_I_I]], align 2, !tbaa [[TBAA24]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1mm(ptr addrspace(1) noundef nonnull [[P]], i64 noundef [[TMP4]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
 // CHECK-GLOBAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_ST__EXIT]]
 // CHECK-GLOBAL:       for.body.i.i:
 // CHECK-GLOBAL-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
@@ -473,7 +473,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrieriii(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR7]]
 // CHECK-LOCAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS3SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_ST__EXIT:%.*]]
 // CHECK-LOCAL:       if.end.i.i:
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
 // CHECK-LOCAL-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK-LOCAL:       for.cond.i.i:
 // CHECK-LOCAL-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[IF_END_I_I]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
@@ -482,7 +482,7 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-LOCAL:       for.cond.cleanup.i.i:
 // CHECK-LOCAL-NEXT:    [[TMP4:%.*]] = load i64, ptr [[VALUES_I_I]], align 2, !tbaa [[TBAA24]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS3mm(ptr addrspace(3) noundef nonnull [[P]], i64 noundef [[TMP4]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VALUES_I_I]]) #[[ATTR9]]
 // CHECK-LOCAL-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS3SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_25NATIVE_LOCAL_BLOCK_IO_KEYEJEEEEEEEEEENST9ENABLE_IFIXAAAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_E18IS_PROPERTY_LIST_VIT3_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_ST__EXIT]]
 // CHECK-LOCAL:       for.body.i.i:
 // CHECK-LOCAL-NEXT:    [[CONV_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
@@ -745,14 +745,14 @@ SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.22", align 8
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA11]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA11]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.22") align 8 [[AGG_TMP1_I]], ptr addrspace(1) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    ret void
 //
 // CHECK-LOCAL-LABEL: @_ZN7striped14test_optimizedERN4sycl3_V19sub_groupENS1_4spanIiLm2EEEPU3AS3i(
@@ -761,14 +761,14 @@ SYCL_EXTERNAL void test_naive(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-LOCAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.22", align 8
 // CHECK-LOCAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-LOCAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA11]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA11]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEiLm2EPU3AS3iNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.22") align 8 [[AGG_TMP1_I]], ptr addrspace(3) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, span<int, 2> v,
@@ -783,14 +783,14 @@ SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.22", align 8
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.30", align 1
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA11]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 3, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA11]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.22") align 8 [[AGG_TMP1_I]], ptr addrspace(1) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.30") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 3, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    ret void
 //
 // CHECK-LOCAL-LABEL: @_ZN7striped27test_contiguous_auto_detectERN4sycl3_V19sub_groupENS1_4spanIiLm2EEEPU3AS3i(
@@ -799,14 +799,14 @@ SYCL_EXTERNAL void test_optimized(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-LOCAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.22", align 8
 // CHECK-LOCAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.30", align 1
 // CHECK-LOCAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA11]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 3, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA11]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEiLm2EPU3AS3iNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_SQ_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.22") align 8 [[AGG_TMP1_I]], ptr addrspace(3) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.30") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 3, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_contiguous_auto_detect(sycl::sub_group &sg,
@@ -895,17 +895,17 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP3_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP26:%.*]] = alloca %"class.sycl::_V1::detail::accessor_iterator", align 8
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA11]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 80, ptr nonnull [[AGG_TMP26]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP26]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-GLOBAL-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 8 dereferenceable(80) [[AGG_TMP26]], ptr addrspace(4) noundef align 8 dereferenceable(80) [[ITER:%.*]], i64 80, i1 false)
 // CHECK-GLOBAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA11]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEENSC_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_ST_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.22") align 8 [[AGG_TMP1_I]], ptr noundef nonnull byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[AGG_TMP26]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP3_I]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 80, ptr nonnull [[AGG_TMP26]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP26]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-GLOBAL-NEXT:    ret void
 //
 // CHECK-LOCAL-LABEL: @_ZN7striped34test_accessor_iter_force_optimizedERN4sycl3_V19sub_groupENS1_4spanIiLm2EEERNS1_6detail17accessor_iteratorIiLi1EEE(
@@ -915,17 +915,17 @@ SYCL_EXTERNAL void test_accessor_iter(sycl::sub_group &sg, span<int, 2> v,
 // CHECK-LOCAL-NEXT:    [[AGG_TMP3_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-LOCAL-NEXT:    [[AGG_TMP26:%.*]] = alloca %"class.sycl::_V1::detail::accessor_iterator", align 8
 // CHECK-LOCAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA11]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 80, ptr nonnull [[AGG_TMP26]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP26]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-LOCAL-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 8 dereferenceable(80) [[AGG_TMP26]], ptr addrspace(4) noundef align 8 dereferenceable(80) [[ITER:%.*]], i64 80, i1 false)
 // CHECK-LOCAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA11]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEENSC_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_ST_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.22") align 8 [[AGG_TMP1_I]], ptr noundef nonnull byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[AGG_TMP26]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP3_I]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 80, ptr nonnull [[AGG_TMP26]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP3_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP26]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP3_I]])
 // CHECK-LOCAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
@@ -941,14 +941,14 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.17", align 8
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA18]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA18]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.17") align 8 [[AGG_TMP1_I]], ptr addrspace(1) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    ret void
 //
 // CHECK-LOCAL-LABEL: @_ZN7striped16test_four_shortsERN4sycl3_V19sub_groupENS1_4spanIsLm4EEEPU3AS3s(
@@ -957,14 +957,14 @@ SYCL_EXTERNAL void test_accessor_iter_force_optimized(sycl::sub_group &sg,
 // CHECK-LOCAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.17", align 8
 // CHECK-LOCAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-LOCAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA18]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA18]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEsLm4EPU3AS3sNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.17") align 8 [[AGG_TMP1_I]], ptr addrspace(3) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
@@ -980,14 +980,14 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.32", align 8
 // CHECK-GLOBAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-GLOBAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA18]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA18]]
 // CHECK-GLOBAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEsLm16EPU3AS1sNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.32") align 8 [[AGG_TMP1_I]], ptr addrspace(1) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-GLOBAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-GLOBAL-NEXT:    ret void
 //
 // CHECK-LOCAL-LABEL: @_ZN7striped19test_sixteen_shortsERN4sycl3_V19sub_groupENS1_4spanIsLm16EEEPU3AS3s(
@@ -996,14 +996,14 @@ SYCL_EXTERNAL void test_four_shorts(sycl::sub_group &sg, span<short, 4> v,
 // CHECK-LOCAL-NEXT:    [[AGG_TMP1_I:%.*]] = alloca %"class.sycl::_V1::span.32", align 8
 // CHECK-LOCAL-NEXT:    [[AGG_TMP2_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::experimental::properties.28", align 1
 // CHECK-LOCAL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[V:%.*]], align 8, !tbaa [[TBAA18]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    store i64 [[TMP0]], ptr [[AGG_TMP1_I]], align 8, !tbaa [[TBAA18]]
 // CHECK-LOCAL-NEXT:    tail call spir_func void @_ZN4sycl3_V13ext6oneapi12experimental6detail16group_store_implINS0_9sub_groupEsLm16EPU3AS3sNS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS4_25native_local_block_io_keyEJEEEEEEEEEENSt9enable_ifIXaaaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_E18is_property_list_vIT3_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_SS_(ptr noundef nonnull byval(%"struct.sycl::_V1::sub_group") align 1 [[AGG_TMP_I]], ptr noundef nonnull byval(%"class.sycl::_V1::span.32") align 8 [[AGG_TMP1_I]], ptr addrspace(3) noundef [[P:%.*]], ptr noundef nonnull byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.28") align 1 [[AGG_TMP2_I]]) #[[ATTR7]]
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 1, ptr nonnull [[AGG_TMP_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[AGG_TMP1_I]])
-// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[AGG_TMP2_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP1_I]])
+// CHECK-LOCAL-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[AGG_TMP2_I]])
 // CHECK-LOCAL-NEXT:    ret void
 //
 SYCL_EXTERNAL void test_sixteen_shorts(sycl::sub_group &sg, span<short, 16> v,

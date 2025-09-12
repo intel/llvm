@@ -18,7 +18,17 @@ from lit.llvm.subst import ToolSubst
 config.name = "LLVM"
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+extra_substitutions = extra_substitutions = (
+    [
+        (r"\| not FileCheck .*", "> /dev/null"),
+        (r"\| FileCheck .*", "> /dev/null"),
+    ]
+    if config.enable_profcheck
+    else []
+)
+config.test_format = lit.formats.ShTest(
+    not llvm_config.use_lit_shell, extra_substitutions
+)
 
 # suffixes: A list of file extensions to treat as test files. This is overriden
 # by individual lit.local.cfg files in the test subdirectories.
@@ -63,7 +73,7 @@ llvm_config.with_environment("OCAMLRUNPARAM", "b")
 def get_asan_rtlib():
     if (
         not "Address" in config.llvm_use_sanitizer
-        or not "Darwin" in config.host_os
+        or not "Darwin" in config.target_os
         or not "x86" in config.host_triple
     ):
         return ""
@@ -93,6 +103,13 @@ config.substitutions.append(("%pluginext", config.llvm_plugin_ext))
 config.substitutions.append(("%exeext", config.llvm_exe_ext))
 config.substitutions.append(("%llvm_src_root", config.llvm_src_root))
 
+# Add IR2Vec test vocabulary path substitution
+config.substitutions.append(
+    (
+        "%ir2vec_test_vocab_dir",
+        os.path.join(config.test_source_root, "Analysis", "IR2Vec", "Inputs"),
+    )
+)
 
 lli_args = []
 # The target triple used by default by lli is the process target triple (some
@@ -100,7 +117,12 @@ lli_args = []
 # we don't support COFF in MCJIT well enough for the tests, force ELF format on
 # Windows.  FIXME: the process target triple should be used here, but this is
 # difficult to obtain on Windows.
-if re.search(r"cygwin|windows-gnu|windows-msvc", config.host_triple):
+# Cygwin is excluded from this workaround, even though it is COFF, because this
+# breaks remote tests due to not having a __register_frame function.  The only
+# test that succeeds with cygwin-elf but fails with cygwin is
+# test/ExecutionEngine/MCJIT/stubs-sm-pic.ll so this test is marked as XFAIL
+# for cygwin targets.
+if re.search(r"windows-gnu|windows-msvc", config.host_triple):
     lli_args = ["-mtriple=" + config.host_triple + "-elf"]
 
 llc_args = []
@@ -197,6 +219,7 @@ tools.extend(
         "llvm-dlltool",
         "llvm-exegesis",
         "llvm-extract",
+        "llvm-ir2vec",
         "llvm-isel-fuzzer",
         "llvm-ifs",
         "llvm-install-name-tool",
@@ -272,6 +295,7 @@ tools.extend(
         ToolSubst("dxil-dis", unresolved="ignore"),
     ]
 )
+
 
 # Find (major, minor) version of ptxas
 def ptxas_version(ptxas):
@@ -380,10 +404,11 @@ if config.target_triple:
     else:
         config.available_features.add("target-byteorder-little-endian")
 
-if sys.platform in ["win32"]:
+if sys.platform in ["win32", "cygwin"]:
     # ExecutionEngine, no weak symbols in COFF.
     config.available_features.add("uses_COFF")
-else:
+
+if sys.platform not in ["win32"]:
     # Others/can-execute.txt
     config.available_features.add("can-execute")
 
@@ -446,7 +471,7 @@ if config.link_llvm_dylib:
             "%llvmdylib",
             "{}/libLLVM{}.{}".format(
                 config.llvm_shlib_dir, config.llvm_shlib_ext, config.llvm_dylib_version
-            )
+            ),
         )
     )
 
@@ -577,6 +602,7 @@ def have_ld64_plugin_support():
 if have_ld64_plugin_support():
     config.available_features.add("ld64_plugin")
 
+
 def host_unwind_supports_jit():
     # Do we expect the host machine to support JIT registration of clang's
     # default unwind info format for the host (e.g. eh-frames, compact-unwind,
@@ -584,7 +610,7 @@ def host_unwind_supports_jit():
 
     # Linux and the BSDs use DWARF eh-frames and all known unwinders support
     # register_frame at minimum.
-    if platform.system() in [ "Linux", "FreeBSD", "NetBSD" ]:
+    if platform.system() in ["Linux", "FreeBSD", "NetBSD"]:
         return True
 
     # Windows does not support frame info without the ORC runtime.
@@ -596,11 +622,7 @@ def host_unwind_supports_jit():
     # compact-unwind only, and JIT'd registration is not available before
     # macOS 14.0.
     if platform.system() == "Darwin":
-
-        assert (
-            "arm64" in config.host_triple
-            or "x86_64" in config.host_triple
-        )
+        assert "arm64" in config.host_triple or "x86_64" in config.host_triple
 
         if "x86_64" in config.host_triple:
             return True
@@ -621,6 +643,7 @@ def host_unwind_supports_jit():
         return False
 
     return False
+
 
 if host_unwind_supports_jit():
     config.available_features.add("host-unwind-supports-jit")
@@ -654,7 +677,7 @@ if not hasattr(sys, "getwindowsversion") or sys.getwindowsversion().build >= 170
 
 # .debug_frame is not emitted for targeting Windows x64, aarch64/arm64, AIX, or Apple Silicon Mac.
 if not re.match(
-    r"^(x86_64|aarch64|arm64|powerpc|powerpc64).*-(windows-gnu|windows-msvc|aix)",
+    r"^(x86_64|aarch64|arm64|powerpc|powerpc64).*-(windows-cygnus|windows-gnu|windows-msvc|aix)",
     config.target_triple,
 ) and not re.match(r"^arm64(e)?-apple-(macos|darwin)", config.target_triple):
     config.available_features.add("debug_frame")

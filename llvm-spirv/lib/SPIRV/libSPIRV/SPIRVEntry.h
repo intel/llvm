@@ -919,6 +919,8 @@ public:
     case CapabilityFunctionVariantsINTEL:
     case CapabilitySpecConditionalINTEL:
       return ExtensionID::SPV_INTEL_function_variants;
+    case internal::CapabilityBFloat16ArithmeticINTEL:
+      return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
     default:
       return {};
     }
@@ -1054,7 +1056,6 @@ private:
 _SPIRV_OP(Nop)
 _SPIRV_OP(SourceContinued)
 _SPIRV_OP(TypeRuntimeArray)
-_SPIRV_OP(Image)
 _SPIRV_OP(ImageTexelPointer)
 _SPIRV_OP(ImageSampleDrefImplicitLod)
 _SPIRV_OP(ImageSampleDrefExplicitLod)

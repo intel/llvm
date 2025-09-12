@@ -9,7 +9,7 @@
 #include <clc/math/clc_fract.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_fract
-#define __IMPL_FUNCTION(x) __clc_fract
+#define __CLC_FUNCTION __spirv_ocl_fract
+#define __CLC_IMPL_FUNCTION(x) __clc_fract
 #define __CLC_BODY <clc/math/unary_def_with_ptr.inc>
 #include <clc/math/gentype.inc>

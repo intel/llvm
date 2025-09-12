@@ -10,7 +10,7 @@
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 
-#define FUNCTION __clc_fma_relu
+#define __CLC_FUNCTION __clc_fma_relu
 #define __CLC_SCALAR
 
 extern int __clc_nvvm_reflect_arch();

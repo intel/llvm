@@ -12,8 +12,8 @@
 #include <clc/math/math.h>
 #include <clc/math/clc_ldexp.h>
 
-#define FUNCTION __spirv_ocl_ldexp
-#define __IMPL_FUNCTION __clc_ldexp
+#define __CLC_FUNCTION __spirv_ocl_ldexp
+#define __CLC_IMPL_FUNCTION __clc_ldexp
 
 #define __CLC_ARG2_TYPE int
 #define __CLC_BODY <clc/shared/binary_def_scalarize.inc>

@@ -19,16 +19,16 @@ using bfloat16 = sycl::ext::oneapi::bfloat16;
 // CHECK-NEXT:    [[DST_I_I_I_I:%.*]] = alloca [4 x float], align 4
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META8:![0-9]+]])
 // CHECK-NEXT:    [[LOADVECN_I_I:%.*]] = load <4 x i16>, ptr addrspace(4) [[INP]], align 8, !noalias [[META8]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META8]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[DST_I_I_I_I]]), !noalias [[META8]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META8]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[DST_I_I_I_I]]), !noalias [[META8]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I:%.*]] = shufflevector <4 x i16> [[LOADVECN_I_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC_I_I_I_I]], ptr [[VEC_ADDR_I_I_I_I]], align 8, !tbaa [[TBAA11:![0-9]+]], !noalias [[META8]]
 // CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I]]) #[[ATTR4:[0-9]+]], !noalias [[META8]]
 // CHECK-NEXT:    [[LOADVECN_I_I_I_I_I:%.*]] = load <4 x float>, ptr [[DST_I_I_I_I]], align 4, !noalias [[META8]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META8]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I]]), !noalias [[META8]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META8]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[DST_I_I_I_I]]), !noalias [[META8]]
 // CHECK-NEXT:    [[EXTRACTVEC_I:%.*]] = shufflevector <4 x float> [[LOADVECN_I_I_I_I_I]], <4 x float> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x float> [[EXTRACTVEC_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META8]]
 // CHECK-NEXT:    ret void
@@ -44,16 +44,16 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRNE(vec<bfloat16, 3> &inp) {
 // CHECK-NEXT:    [[DST_I_I_I_I:%.*]] = alloca [4 x float], align 4
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META15:![0-9]+]])
 // CHECK-NEXT:    [[LOADVECN_I_I:%.*]] = load <4 x i16>, ptr addrspace(4) [[INP]], align 8, !noalias [[META15]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META15]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[DST_I_I_I_I]]), !noalias [[META15]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META15]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[DST_I_I_I_I]]), !noalias [[META15]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I:%.*]] = shufflevector <4 x i16> [[LOADVECN_I_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC_I_I_I_I]], ptr [[VEC_ADDR_I_I_I_I]], align 8, !tbaa [[TBAA11]], !noalias [[META15]]
 // CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I]]) #[[ATTR4]], !noalias [[META15]]
 // CHECK-NEXT:    [[LOADVECN_I_I_I_I_I:%.*]] = load <4 x float>, ptr [[DST_I_I_I_I]], align 4, !noalias [[META15]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META15]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I]]), !noalias [[META15]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META15]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[DST_I_I_I_I]]), !noalias [[META15]]
 // CHECK-NEXT:    [[EXTRACTVEC_I:%.*]] = shufflevector <4 x float> [[LOADVECN_I_I_I_I_I]], <4 x float> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x float> [[EXTRACTVEC_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META15]]
 // CHECK-NEXT:    ret void
@@ -109,16 +109,16 @@ SYCL_EXTERNAL auto TestBFtointDeviceRNE(vec<bfloat16, 1> &inp) {
 // CHECK-NEXT:    [[DST_I_I_I_I:%.*]] = alloca [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META29:![0-9]+]])
 // CHECK-NEXT:    [[LOADVECN_I_I:%.*]] = load <4 x float>, ptr addrspace(4) [[INP]], align 16, !noalias [[META29]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META29]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[DST_I_I_I_I]]), !noalias [[META29]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META29]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(ptr nonnull [[DST_I_I_I_I]]), !noalias [[META29]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I:%.*]] = shufflevector <4 x float> [[LOADVECN_I_I]], <4 x float> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x float> [[EXTRACTVEC_I_I_I_I]], ptr [[VEC_ADDR_I_I_I_I]], align 16, !tbaa [[TBAA11]], !noalias [[META29]]
 // CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I]]) #[[ATTR4]], !noalias [[META29]]
 // CHECK-NEXT:    [[LOADVECN_I_I_I_I_I:%.*]] = load <4 x i16>, ptr [[DST_I_I_I_I]], align 2, !noalias [[META29]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META29]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[DST_I_I_I_I]]), !noalias [[META29]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[VEC_ADDR_I_I_I_I]]), !noalias [[META29]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(ptr nonnull [[DST_I_I_I_I]]), !noalias [[META29]]
 // CHECK-NEXT:    [[EXTRACTVEC_I:%.*]] = shufflevector <4 x i16> [[LOADVECN_I_I_I_I_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META29]]
 // CHECK-NEXT:    ret void
