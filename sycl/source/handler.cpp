@@ -539,8 +539,14 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
-    assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr &&
-           "DeviceKernelInfo pointer must be set in handler_impl");
+    if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
+      // Fetch the device kernel info pointer if it hasn't been set (e.g.
+      // in kernel bundle or free function cases).
+      impl->MKernelData.setDeviceKernelInfoPtr(
+          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+              toKernelNameStrT(MKernelName)));
+    }
+    assert(impl->MKernelData.getKernelName() == MKernelName);
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
@@ -1049,9 +1055,8 @@ void handler::associateWithHandler(
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
-  (void)IsESIMD;
   impl->MKernelData.processArg(Ptr, Kind, Size, Index, IndexShift,
-                               IsKernelCreatedFromSource);
+                               IsKernelCreatedFromSource, IsESIMD);
 }
 #endif
 
@@ -1103,13 +1108,6 @@ void handler::extractArgsAndReqsFromLambda(
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
 
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(getKernelName())));
-  }
-  impl->MKernelData.setESIMD(IsESIMD);
-
   for (size_t I = 0; I < ParamDescs.size(); ++I) {
     void *Ptr = LambdaPtr + ParamDescs[I].offset;
     const detail::kernel_param_kind_t &Kind = ParamDescs[I].kind;
@@ -1133,7 +1131,7 @@ void handler::extractArgsAndReqsFromLambda(
       }
     }
     impl->MKernelData.processArg(Ptr, Kind, Size, I, IndexShift,
-                                 IsKernelCreatedFromSource);
+                                 IsKernelCreatedFromSource, IsESIMD);
   }
 }
 

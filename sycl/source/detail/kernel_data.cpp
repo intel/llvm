@@ -103,8 +103,15 @@ static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
 
 void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                             const int Size, const size_t Index,
-                            size_t &IndexShift,
-                            bool IsKernelCreatedFromSource) {
+                            size_t &IndexShift, bool IsKernelCreatedFromSource
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                            ,
+                            bool IsESIMD
+#endif
+) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool IsESIMD = isESIMD();
+#endif
   using detail::kernel_param_kind_t;
   size_t GlobalSize = MNDRDesc.GlobalSize[0];
   for (size_t I = 1; I < MNDRDesc.Dims; ++I) {
@@ -126,14 +133,14 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
     addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, MArgs,
-                             isESIMD());
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GOffsetBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
     detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
     addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, MArgs,
-                             isESIMD());
+                             IsESIMD);
     ++IndexShift;
     detail::AccessorBaseHost *GFlushBase =
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
@@ -152,7 +159,7 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
                              IsKernelCreatedFromSource, GlobalSize, MArgs,
-                             isESIMD());
+                             IsESIMD);
     ++IndexShift;
     addArg(kernel_param_kind_t::kind_std_layout, &S->FlushBufferSize,
            sizeof(S->FlushBufferSize), Index + IndexShift);
@@ -170,7 +177,7 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
       addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
                                IsKernelCreatedFromSource, GlobalSize, MArgs,
-                               isESIMD());
+                               IsESIMD);
       break;
     }
     case access::target::local: {
@@ -178,7 +185,7 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
           static_cast<detail::LocalAccessorImplHost *>(Ptr);
 
       addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
-                              IsKernelCreatedFromSource, MArgs, isESIMD());
+                              IsKernelCreatedFromSource, MArgs, IsESIMD);
       break;
     }
     case access::target::image:
@@ -221,7 +228,7 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 
       addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
                               IndexShift, IsKernelCreatedFromSource, MArgs,
-                              isESIMD());
+                              IsESIMD);
       break;
     }
     default: {
@@ -289,7 +296,12 @@ void KernelData::extractArgsAndReqs(bool IsKernelCreatedFromSource) {
     const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
     const int &Size = UnPreparedArgs[I].MSize;
     const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource);
+    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+               ,
+               isESIMD()
+#endif
+    );
   }
 }
 
@@ -341,7 +353,12 @@ void KernelData::extractArgsAndReqsFromLambda() {
     }
 
     processArg(Ptr, Kind, Size, I, IndexShift,
-               /*IsKernelCreatedFromSource=*/false);
+               /*IsKernelCreatedFromSource=*/false
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+               ,
+               isESIMD()
+#endif
+    );
   }
 }
 
