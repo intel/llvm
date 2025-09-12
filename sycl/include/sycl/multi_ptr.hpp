@@ -12,6 +12,7 @@
 #include <sycl/aliases.hpp>       // for half
 #include <sycl/detail/address_space_cast.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/fwd/multi_ptr.hpp>
 #include <sycl/detail/type_traits.hpp> // for const_if_const_AS
 #include <sycl/half_type.hpp>          // for BIsRepresentationT
@@ -65,13 +66,6 @@ struct LegacyReferenceTypes<ElementType,
   using const_reference_t = decorated_type &;
 };
 } // namespace detail
-
-// Forward declarations
-template <typename dataT, int dimensions, access::mode accessMode,
-          access::target accessTarget, access::placeholder isPlaceholder,
-          typename PropertyListT>
-class accessor;
-template <typename dataT, int dimensions> class local_accessor;
 
 /// Provides constructors for address space qualified and non address space
 /// qualified pointers to allow interoperability between plain C++ and OpenCL C.

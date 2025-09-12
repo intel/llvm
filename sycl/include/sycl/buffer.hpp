@@ -14,6 +14,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
@@ -50,9 +51,6 @@ template <int dimensions> class range;
 
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-class host_accessor;
 
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
