@@ -25,6 +25,7 @@
 #include "program.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
+#include <umf/ipc.h>
 
 struct ur_device_handle_t_;
 
@@ -241,6 +242,13 @@ struct ur_image final : ur_mem_handle_t_ {
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
+};
+
+struct ur_exp_ipc_mem_handle_t_ {
+  umf_memory_pool_handle_t UMFPool;
+  umf_ipc_handle_t UMFHandle = nullptr;
+  size_t HandleSize = 0;
+  bool CreatedFromData = false;
 };
 
 template <typename T>

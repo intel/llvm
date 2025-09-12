@@ -42,6 +42,7 @@ template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_ipc_mem_handle_t> : std::true_type {};
 template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T>
 inline ur_result_t printPtr(std::ostream &os, const T *ptr);
@@ -1273,6 +1274,27 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP:
     os << "UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP";
+    break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP:
+    os << "UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP";
+    break;
+  case UR_FUNCTION_IPC_CREATE_MEM_HANDLE_FROM_DATA_EXP:
+    os << "UR_FUNCTION_IPC_CREATE_MEM_HANDLE_FROM_DATA_EXP";
+    break;
+  case UR_FUNCTION_IPC_DESTROY_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_DESTROY_MEM_HANDLE_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -3115,6 +3137,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
+    break;
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
@@ -5241,6 +5266,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     ur::details::printFlag<ur_exp_device_2d_block_array_capability_flag_t>(
         os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
 
     os << ")";
   } break;
@@ -20259,6 +20297,185 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_get_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_get_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  os << ", ";
+  os << ".phIPCMem = ";
+
+  ur::details::printPtr(os, *(params->pphIPCMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_put_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_put_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hIPCMem = ";
+
+  ur::details::printPtr(os, *(params->phIPCMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_open_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_open_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hIPCMem = ";
+
+  ur::details::printPtr(os, *(params->phIPCMem));
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  os << *(params->pppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_close_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_close_mem_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_get_mem_handle_data_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_get_mem_handle_data_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hIPCMem = ";
+
+  ur::details::printPtr(os, *(params->phIPCMem));
+
+  os << ", ";
+  os << ".ppIPCHandleData = ";
+
+  ur::details::printPtr(os, *(params->pppIPCHandleData));
+
+  os << ", ";
+  os << ".pIPCMemHandleDataSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppIPCMemHandleDataSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_ipc_create_mem_handle_from_data_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_ipc_create_mem_handle_from_data_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".ipcMemHandleData = ";
+
+  os << *(params->pipcMemHandleData);
+
+  os << ", ";
+  os << ".ipcMemHandleDataSize = ";
+
+  os << *(params->pipcMemHandleDataSize);
+
+  os << ", ";
+  os << ".phIPCMem = ";
+
+  ur::details::printPtr(os, *(params->pphIPCMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_destroy_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_destroy_mem_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hIPCMem = ";
+
+  ur::details::printPtr(os, *(params->phIPCMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_memory_export_alloc_exportable_memory_exp_params_t type
 /// @returns
@@ -21721,6 +21938,28 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
     os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
             params;
+  } break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_put_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_open_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_close_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP: {
+    os << (const struct ur_ipc_get_mem_handle_data_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_CREATE_MEM_HANDLE_FROM_DATA_EXP: {
+    os << (const struct ur_ipc_create_mem_handle_from_data_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_IPC_DESTROY_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_destroy_mem_handle_exp_params_t *)params;
   } break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP: {
     os << (const struct ur_memory_export_alloc_exportable_memory_exp_params_t *)

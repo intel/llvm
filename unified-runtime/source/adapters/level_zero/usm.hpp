@@ -84,12 +84,12 @@ struct ur_usm_pool_handle_t_ : ur_object {
   size_t getPeakReservedSize();
   size_t getTotalUsedSize();
   size_t getPeakUsedSize();
+  UsmPool *getPool(const usm::pool_descriptor &Desc);
 
   ur_context_handle_t Context;
   ur::RefCount RefCount;
 
 private:
-  UsmPool *getPool(const usm::pool_descriptor &Desc);
   usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
   AllocationStats AllocStats;
 };

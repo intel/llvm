@@ -670,6 +670,27 @@ etors:
 - name: BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP
   desc: Enumerator for $xBindlessImagesSupportsImportingHandleTypeExp
   value: '288'
+- name: IPC_GET_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCGetMemHandleExp
+  value: '289'
+- name: IPC_PUT_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCPutMemHandleExp
+  value: '290'
+- name: IPC_OPEN_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCOpenMemHandleExp
+  value: '291'
+- name: IPC_CLOSE_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCCloseMemHandleExp
+  value: '292'
+- name: IPC_GET_MEM_HANDLE_DATA_EXP
+  desc: Enumerator for $xIPCGetMemHandleDataExp
+  value: '293'
+- name: IPC_CREATE_MEM_HANDLE_FROM_DATA_EXP
+  desc: Enumerator for $xIPCCreateMemHandleFromDataExp
+  value: '294'
+- name: IPC_DESTROY_MEM_HANDLE_EXP
+  desc: Enumerator for $xIPCDestroyMemHandleExp
+  value: '295'
 ---
 type: enum
 desc: Defines structure types

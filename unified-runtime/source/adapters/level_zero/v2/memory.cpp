@@ -775,4 +775,100 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
+                                 ur_exp_ipc_mem_handle_t *phIPCMem) {
+  auto resHandle = std::make_unique<ur_exp_ipc_mem_handle_t_>();
+  resHandle->CreatedFromData = false;
+
+  auto umfRet = umfPoolByPtr(pMem, &resHandle->UMFPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !resHandle->UMFPool)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  umfRet = umfGetIPCHandle(pMem, &resHandle->UMFHandle, &resHandle->HandleSize);
+  if (umfRet != UMF_RESULT_SUCCESS || !resHandle->UMFHandle ||
+      resHandle->HandleSize == 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  *phIPCMem = resHandle.release();
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t,
+                                 ur_exp_ipc_mem_handle_t hIPCMem) {
+  auto umfRet = umfPutIPCHandle(hIPCMem->UMFHandle);
+  if (umfRet != UMF_RESULT_SUCCESS)
+    return UR_RESULT_ERROR_UNKNOWN;
+  std::free(hIPCMem);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t,
+                                  ur_exp_ipc_mem_handle_t hIPCMem,
+                                  void **ppMem) {
+  umf_ipc_handler_handle_t umfIPCHandler;
+  auto umfRet = umfPoolGetIPCHandler(hIPCMem->UMFPool, &umfIPCHandler);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfIPCHandler)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  umfRet = umfOpenIPCHandle(umfIPCHandler, hIPCMem->UMFHandle, ppMem);
+  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
+                                      : UR_RESULT_ERROR_UNKNOWN;
+}
+
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
+  auto umfRet = umfCloseIPCHandle(pMem);
+  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
+                                      : UR_RESULT_ERROR_UNKNOWN;
+}
+
+ur_result_t urIPCGetMemHandleDataExp(ur_context_handle_t,
+                                     ur_exp_ipc_mem_handle_t hIPCMem,
+                                     const void **ppIPCHandleData,
+                                     size_t *pIPCMemHandleDataSizeRet) {
+  if (ppIPCHandleData)
+    *ppIPCHandleData = hIPCMem->UMFHandle;
+  if (pIPCMemHandleDataSizeRet)
+    *pIPCMemHandleDataSizeRet = hIPCMem->HandleSize;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urIPCCreateMemHandleFromDataExp(ur_context_handle_t hContext,
+                                            ur_device_handle_t hDevice,
+                                            const void *pIPCMemHandleData,
+                                            size_t ipcMemHandleDataSize,
+                                            ur_exp_ipc_mem_handle_t *phIPCMem) {
+  auto *pool = hContext->getDefaultUSMPool()->getPool(
+      usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
+                           UR_USM_TYPE_DEVICE, false});
+  if (!pool)
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  umf_memory_pool_handle_t umfPool = pool->umfPool.get();
+
+  size_t umfHandleSize = 0;
+  auto umfRet = umfPoolGetIPCHandleSize(umfPool, &umfHandleSize);
+  if (umfRet != UMF_RESULT_SUCCESS || umfHandleSize == 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  auto resHandle = std::make_unique<ur_exp_ipc_mem_handle_t_>();
+  resHandle->UMFPool = umfPool;
+  resHandle->UMFHandle =
+      reinterpret_cast<umf_ipc_handle_t>(std::malloc(umfHandleSize));
+  std::memcpy(resHandle->UMFHandle, pIPCMemHandleData, umfHandleSize);
+  resHandle->HandleSize = umfHandleSize;
+  resHandle->CreatedFromData = true;
+  *phIPCMem = resHandle.release();
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urIPCDestroyMemHandleExp(ur_context_handle_t,
+                                     ur_exp_ipc_mem_handle_t hIPCMem) {
+  if (!hIPCMem->CreatedFromData)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  std::free(hIPCMem);
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur::level_zero

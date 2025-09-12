@@ -20,6 +20,7 @@
 #include "command_list_manager.hpp"
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
+#include <umf/ipc.h>
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
@@ -291,4 +292,11 @@ private:
                ur_discrete_buffer_handle_t, ur_shared_buffer_handle_t,
                ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
+};
+
+struct ur_exp_ipc_mem_handle_t_ {
+  umf_memory_pool_handle_t UMFPool;
+  umf_ipc_handle_t UMFHandle = nullptr;
+  size_t HandleSize = 0;
+  bool CreatedFromData = false;
 };

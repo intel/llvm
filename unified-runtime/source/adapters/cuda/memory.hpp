@@ -19,6 +19,7 @@
 #include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "queue.hpp"
+#include <umf/ipc.h>
 
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t,
                                            const ur_device_handle_t);
@@ -438,4 +439,11 @@ struct ur_mem_handle_t_ : ur::cuda::handle_base {
           Device == WritingQueue->getDevice();
     }
   }
+};
+
+struct ur_exp_ipc_mem_handle_t_ {
+  umf_memory_pool_handle_t UMFPool;
+  umf_ipc_handle_t UMFHandle = nullptr;
+  size_t HandleSize = 0;
+  bool CreatedFromData = false;
 };

@@ -142,3 +142,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 
   return urMemRetain(hBuffer);
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCGetMemHandleExp(ur_context_handle_t, void *, ur_exp_ipc_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCPutMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCOpenMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t, void **) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
+                                                           void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t, const void **, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCreateMemHandleFromDataExp(
+    ur_context_handle_t, ur_device_handle_t, const void *, size_t,
+    ur_exp_ipc_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCDestroyMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
