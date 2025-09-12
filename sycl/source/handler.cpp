@@ -2326,7 +2326,7 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
-
+  (void)KernelNameBasedCachePtr;
   CompileTimeKernelInfoTy HandlerInfo;
   HandlerInfo.Name = MKernelName;
   HandlerInfo.NumParams = impl->MKernelNumArgs;
