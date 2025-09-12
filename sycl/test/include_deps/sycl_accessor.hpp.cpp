@@ -51,10 +51,6 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
-// CHECK-NEXT: half_type.hpp
-// CHECK-NEXT: aspects.hpp
-// CHECK-NEXT: info/aspects.def
-// CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
 // CHECK-NEXT: properties/runtime_accessor_properties.def
@@ -62,12 +58,16 @@
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
+// CHECK-NEXT: aspects.hpp
+// CHECK-NEXT: info/aspects.def
+// CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: info/info_desc.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.hpp
 // CHECK-NEXT: ext/oneapi/experimental/device_architecture.def
 // CHECK-NEXT: ext/oneapi/experimental/forward_progress.hpp
 // CHECK-NEXT: ext/oneapi/matrix/query-types.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
+// CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
