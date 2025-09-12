@@ -54,13 +54,10 @@ if(umf_FOUND)
   # Add an alias matching the FetchContent case
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
-  set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
+  set(UMF_REPO "https://github.com/bratpiorka/unified-memory-framework.git")
 
-  # commit 1de269c00e46b7cbdbafa2247812c8c4bb4ed4a5
-  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Mon Jul 21 15:42:59 2025 +0200
-  # 1.0.0 release
-  set(UMF_TAG v1.0.0)
+  # load libcuda.so.1 instead of libcuda.so on linux
+  set(UMF_TAG 532f4c88e9fcdee9a3168efc8da7168252384c61)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
