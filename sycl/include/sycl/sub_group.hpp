@@ -9,15 +9,14 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_ops.hpp>
-#include <sycl/access/access.hpp> // for address_space, decorated
 #include <sycl/detail/address_space_cast.hpp>
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#include <sycl/detail/fwd/multi_ptr.hpp>
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
 #include <sycl/exception.hpp>                  // for exception, make_error...
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
-#include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp> // for range
 
@@ -27,12 +26,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-template <typename T, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
-template <typename Type, int NumElements> class __SYCL_EBO vec;
 namespace detail {
-
 namespace sub_group {
 
 // Selects 8, 16, 32, or 64-bit type depending on size of scalar type T.

@@ -45,6 +45,7 @@
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
+// CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: aspects.hpp
