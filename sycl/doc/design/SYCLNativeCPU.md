@@ -33,7 +33,7 @@ Note that SYCL Native CPU co-exists alongside the other SYCL targets. For exampl
 ```
 clang++ -fsycl -fsycl-targets=native_cpu,spir64 <input> -o <output>
 ```
-The application can then run on either SYCL target by setting the DPC++ `ONEAPI_DEVICE_SELECTOR` environment variable accordingly.
+The application can then run on either SYCL target by setting the DPC++ `ONEAPI_DEVICE_SELECTOR` environment variable to include `native_cpu:cpu` accordingly.
 
 ## Configuring DPC++ with SYCL Native CPU
 
@@ -48,7 +48,6 @@ python buildbot/configure.py \
 ### libclc target triples
 
 SYCL Native CPU uses [libclc](https://github.com/intel/llvm/tree/sycl/libclc) to implement many SPIRV builtins. When Native CPU is enabled, the default target triple for libclc will be `LLVM_TARGET_TRIPLE` (same as the default target triple used by `clang`). This can be overridden by setting the `--native-cpu-libclc-targets` option in `configure.py`.
-
 
 ### oneTBB integration
 
@@ -84,7 +83,6 @@ cmake \
 ```
 
 Note that a number of `e2e` tests are currently still failing.
-The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`.
 
 # Vectorization
 
@@ -119,10 +117,9 @@ llvm-cov show .\vector-add.exe -instr-profile=foo.profdata
 
 ### Please note that Windows is partially supported but temporarily disabled due to some implementation details, it will be re-enabled soon.
 
-
 # Native CPU compiler pipeline
 
-SYCL Native CPU formerly used uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances in the compiler pipeline. This relevant parts have been brought into DPC++ and the Native CPU compiler pipeline is documented [here](SYCLNativeCPUPipeline.md), with a brief overview below. The OCK related parts are still enabled by using the `NATIVECPU_USE_OCK` CMake variable, but this is enabled by default.
+SYCL Native CPU formerly used the [oneAPI Construction Kit](https://github.com/uxlfoundation/oneapi-construction-kit) (OCK) via CMake FetchContent in order to support some core SYCL functionalities and improve performances in the compiler pipeline. The relevant OCK parts have been brought into DPC++ and the Native CPU compiler pipeline is documented [here](SYCLNativeCPUPipeline.md), with a brief overview below. The OCK- related parts are still enabled by using the `NATIVECPU_USE_OCK` CMake variable, but this is enabled by default.
 
 The following section gives a brief overview of how a simple SYCL application is compiled for the SYCL Native CPU target. Consider the following SYCL sample, which performs vector addition using USM:
 
