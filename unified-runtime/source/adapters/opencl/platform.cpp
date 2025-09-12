@@ -67,7 +67,8 @@ static bool isBannedOpenCLDevice(cl_device_id device) {
     return false;
   }
 
-  // Filter out FPGA accelerator devices as their usage with OpenCL adapter is deprecated
+  // Filter out FPGA accelerator devices as their usage with OpenCL adapter is
+  // deprecated
   bool isBanned = (deviceType & CL_DEVICE_TYPE_ACCELERATOR) != 0;
 
   return isBanned;
@@ -157,12 +158,14 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
         for (auto &Platform : FilteredPlatforms) {
           auto URPlatform = std::make_unique<ur_platform_handle_t_>(Platform);
           UR_RETURN_ON_FAILURE(URPlatform->InitDevices());
-          // Only add platforms that have devices, especially in case all devices are banned
+          // Only add platforms that have devices, especially in case all
+          // devices are banned
           if (!URPlatform->Devices.empty()) {
             Adapter->URPlatforms.emplace_back(URPlatform.release());
           }
         }
-        Adapter->NumPlatforms = static_cast<uint32_t>(Adapter->URPlatforms.size());
+        Adapter->NumPlatforms =
+            static_cast<uint32_t>(Adapter->URPlatforms.size());
       } catch (std::bad_alloc &) {
         return UR_RESULT_ERROR_OUT_OF_RESOURCES;
       } catch (...) {
@@ -281,8 +284,8 @@ ur_result_t ur_platform_handle_t_::InitDevices() {
     try {
       Devices.resize(FilteredDevices.size());
       for (size_t i = 0; i < FilteredDevices.size(); i++) {
-        Devices[i] =
-            std::make_unique<ur_device_handle_t_>(FilteredDevices[i], this, nullptr);
+        Devices[i] = std::make_unique<ur_device_handle_t_>(FilteredDevices[i],
+                                                           this, nullptr);
       }
     } catch (std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
