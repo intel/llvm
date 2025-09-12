@@ -2326,23 +2326,27 @@ void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
   assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
+
+  CompileTimeKernelInfoTy HandlerInfo;
+  HandlerInfo.Name = MKernelName;
+  HandlerInfo.NumParams = impl->MKernelNumArgs;
+  HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
+  HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
+  HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
   impl->MKernelData.setDeviceKernelInfoPtr(
-      reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
-          KernelNameBasedCachePtr));
+      &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+          HandlerInfo));
 }
 
 void handler::setKernelInfo(
     void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(MKernelName)));
-  }
-  impl->MKernelData.setKernelInfo(KernelFuncPtr, KernelNumArgs,
-                                  KernelParamDescGetter, KernelIsESIMD,
-                                  KernelHasSpecialCaptures);
+  impl->MKernelData.setKernelInfo(KernelFuncPtr);
+  impl->MKernelNumArgs = KernelNumArgs;
+  impl->MKernelParamDescGetter = KernelParamDescGetter;
+  impl->MKernelIsESIMD = KernelIsESIMD;
+  impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
 }
 #endif
 
