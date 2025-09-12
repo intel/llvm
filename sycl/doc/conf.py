@@ -32,7 +32,7 @@ master_doc = "index"
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["myst_parser"]
+extensions = ["myst_parser", "sphinxcontrib.mermaid"]
 
 # Implicit targets for cross reference
 myst_heading_anchors = 5
@@ -46,6 +46,9 @@ html_theme = "haiku"
 
 # The suffix of source filenames.
 source_suffix = [".rst", ".md"]
+
+# Allow use of mermaid directly to view on github without the {}
+myst_fence_as_directive = ["mermaid"]
 
 exclude_patterns = [
     # Extensions are mostly in asciidoc which has poor support in Sphinx.
