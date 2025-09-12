@@ -21,15 +21,17 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
   
   LINK_COMPONENTS
+  AggressiveInstCombine
   Analysis
   Core
-  Support
+  IPO
   Passes
+  ScalarOpts
+  Support
   SYCLLowerIR
   Target
   TargetParser
   TransformUtils
-  ipo
   ${OCK_LIBS}
 )
 
