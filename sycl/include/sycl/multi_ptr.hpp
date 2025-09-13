@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp> // for address_space, decorated
-#include <sycl/aliases.hpp>       // for half
+#include <sycl/access/access.hpp>
 #include <sycl/detail/address_space_cast.hpp>
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/detail/fwd/half.hpp>
 #include <sycl/detail/fwd/multi_ptr.hpp>
-#include <sycl/detail/type_traits.hpp> // for const_if_const_AS
-#include <sycl/half_type.hpp>          // for BIsRepresentationT
+#include <sycl/detail/type_traits.hpp>
 
-#include <cstddef>     // for nullptr_t, ptrdiff_t, size_t
-#include <iterator>    // for random_access_iterator_tag
-#include <type_traits> // for enable_if_t, add_pointer_t
+#include <cstddef>
+// Compile-time "heavy", but necessary for `for random_access_iterator_tag`:
+#include <iterator>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
