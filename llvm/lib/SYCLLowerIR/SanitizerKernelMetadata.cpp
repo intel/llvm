@@ -23,7 +23,7 @@ using namespace llvm;
 namespace llvm {
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
-constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
+constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6188;
 
 PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
                                                    ModuleAnalysisManager &MAM) {
