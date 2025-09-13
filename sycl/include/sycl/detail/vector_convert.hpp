@@ -58,7 +58,8 @@
 #include <sycl/exception.hpp>                  // for errc
 
 #include <sycl/detail/memcpy.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/vector.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__

@@ -9,7 +9,8 @@
 #pragma once
 
 #include <sycl/access/access.hpp> // for address_space
-#include <sycl/bit_cast.hpp>      // for bit_cast
+#include <sycl/aspects.hpp>
+#include <sycl/bit_cast.hpp>
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
 #include <sycl/memory_enums.hpp> // for getStdMemoryOrder, memory_order
 

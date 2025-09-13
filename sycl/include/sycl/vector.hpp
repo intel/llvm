@@ -31,10 +31,11 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
 
-#include <sycl/access/access.hpp>              // for decorated, address_space
-#include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>              // for ArrayCreator
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/aliases.hpp>                   // for half, cl_char, cl_int
+#include <sycl/detail/common.hpp>             // for ArrayCreator
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/named_swizzles_mixin.hpp>

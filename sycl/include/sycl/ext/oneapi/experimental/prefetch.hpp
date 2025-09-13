@@ -9,7 +9,9 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/detail/address_space_cast.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/id.hpp>
 #include <sycl/vector.hpp>
 
 namespace sycl {
