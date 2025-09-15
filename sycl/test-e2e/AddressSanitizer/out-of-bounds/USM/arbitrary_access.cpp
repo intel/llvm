@@ -11,7 +11,7 @@ void out_of_bounds_function() { *(int *)0xdeadbeef = 42; }
 // CHECK: out-of-bounds-access
 // CHECK-SAME: 0xdeadbeef
 // CHECK: WRITE of size 4 at kernel {{<.*MyKernel>}}
-// CHECK: {{.*arbitary_access.cpp}}:[[@LINE-4]]
+// CHECK: {{.*arbitrary_access.cpp}}:[[@LINE-4]]
 
 int main() {
   sycl::queue Q;
