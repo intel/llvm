@@ -20,6 +20,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/id.hpp>
+#include <sycl/memory_enums.hpp>
 #include <sycl/multi_ptr.hpp>
 
 #if defined(__NVPTX__)

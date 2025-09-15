@@ -10,6 +10,7 @@
 #include "ur_api.h"
 #include <algorithm>
 
+#include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -49,6 +50,10 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+  BufImpl->markAsInternal();
+}
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: Check if two ABI exports below are still necessary.
