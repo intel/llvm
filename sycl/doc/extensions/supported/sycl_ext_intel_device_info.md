@@ -21,7 +21,6 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 6     | Memory clock rate and bus width queries are supported |
 | 7     | Throttle reasons, fan speed and power limits queries are supported |
 | 8     | Device LUID and device node mask is supported |
-| 9     | GPU is integrated or discrete query is supported |
 
 
 
@@ -343,39 +342,6 @@ Then the number of hardware threads per EU can be obtained using the standard ge
 
     if (dev.has(aspect::ext_intel_gpu_hw_threads_per_eu)) {
       auto threadsCount = dev.get_info<ext::intel::info::device::gpu_hw_threads_per_eu>();
-    }
-
-# Intel GPU is integrated or discrete #
-
-A new device descriptor will be added which will provide information if Intel GPU is integrated or discrete.
-
-
-## Version ##
-
-The extension supports this query in version 9 and later.
-
-## Device Information Descriptors ##
-
-| Device Descriptors | Return Type | Description |
-| ------------------ | ----------- | ----------- |
-| ext\:\:intel\:\:info\:\:device\:\:gpu\_is\_integrated | bool | Returns `true` if GPU is integrated. Returns `false` if GPU is discrete. |
-
-
-## Aspects ##
-
-A new aspect, ext\_intel\_gpu\_is\_integrated, will be added.
-
-
-## Error Condition ##
-
-Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_is_integrated`.
-
-## Example Usage ##
-
-Then the information about if GPU is integrated or discrete can be obtained using the standard get\_info() interface.
-
-    if (dev.has(aspect::ext_intel_gpu_is_integrated)) {
-      bool is_gpu_integrated = dev.get_info<ext::intel::info::device::gpu_is_integrated>();
     }
 
 # Maximum Memory Bandwidth #
