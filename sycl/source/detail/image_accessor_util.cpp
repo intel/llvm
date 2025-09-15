@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/accessor.hpp>
-#include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/vector_convert.hpp>
 #include <sycl/image.hpp>
@@ -18,9 +16,9 @@ namespace detail {
 
 // For Nearest Filtering mode, process float4 Coordinates and
 // return the appropriate Pixel Coordinates based on Addressing Mode.
-int4 getPixelCoordNearestFiltMode(float4 Coorduvw,
-                                  const addressing_mode SmplAddrMode,
-                                  const range<3> ImgRange) {
+int4 __SYCL_EXPORT getPixelCoordNearestFiltMode(
+    float4 Coorduvw, const addressing_mode SmplAddrMode,
+    const range<3> ImgRange) {
   int4 Coordijk(0);
   int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   switch (SmplAddrMode) {
@@ -91,9 +89,9 @@ int4 getPixelCoordNearestFiltMode(float4 Coorduvw,
 // Retabc contains the values of (a,b,c,0)
 // The caller of this function should use these values to create the 8 pixel
 // coordinates and multiplication coefficients.
-int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
-                                 const addressing_mode SmplAddrMode,
-                                 const range<3> ImgRange, float4 &Retabc) {
+int8 __SYCL_EXPORT
+getPixelCoordLinearFiltMode(float4 Coorduvw, const addressing_mode SmplAddrMode,
+                            const range<3> ImgRange, float4 &Retabc) {
   int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   int4 Ci0j0k0(0);
   int4 Ci1j1k1(0);
@@ -152,8 +150,9 @@ int8 getPixelCoordLinearFiltMode(float4 Coorduvw,
 // Note: For addressing_mode::none , spec says outofrange access is not defined.
 // This function handles this addressing_mode to avoid accessing out of bound
 // memories on host.
-bool isOutOfRange(const int4 PixelCoord, const addressing_mode SmplAddrMode,
-                  const range<3> ImgRange) {
+bool __SYCL_EXPORT isOutOfRange(const int4 PixelCoord,
+                                const addressing_mode SmplAddrMode,
+                                const range<3> ImgRange) {
 
   if (SmplAddrMode != addressing_mode::clamp &&
       SmplAddrMode != addressing_mode::none)
@@ -170,7 +169,7 @@ bool isOutOfRange(const int4 PixelCoord, const addressing_mode SmplAddrMode,
   return (CheckWidth || CheckHeight || CheckDepth);
 }
 
-float4 getBorderColor(const image_channel_order ImgChannelOrder) {
+float4 __SYCL_EXPORT getBorderColor(const image_channel_order ImgChannelOrder) {
 
   float4 BorderColor(0.0f);
   switch (ImgChannelOrder) {
