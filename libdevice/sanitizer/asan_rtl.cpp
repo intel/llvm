@@ -122,9 +122,9 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
 
     if (shadow_ptr < launch_info->GlobalShadowLowerBound ||
         shadow_ptr > launch_info->GlobalShadowUpperBound) {
-      __spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
-                         launch_info->GlobalShadowLowerBound,
-                         launch_info->GlobalShadowUpperBound);
+      ASAN_DEBUG(__spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
+                                    launch_info->GlobalShadowLowerBound,
+                                    launch_info->GlobalShadowUpperBound));
       SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
       return 0;
     }
@@ -215,9 +215,9 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
 
     if (shadow_ptr < launch_info->GlobalShadowLowerBound ||
         shadow_ptr > launch_info->GlobalShadowUpperBound) {
-      __spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
-                         launch_info->GlobalShadowLowerBound,
-                         launch_info->GlobalShadowUpperBound);
+      ASAN_DEBUG(__spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
+                                    launch_info->GlobalShadowLowerBound,
+                                    launch_info->GlobalShadowUpperBound));
       SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
       return 0;
     }

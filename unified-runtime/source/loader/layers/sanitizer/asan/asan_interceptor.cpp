@@ -267,10 +267,22 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
+  // To get right shadow boundary, shadow memory should be updated before
+  // prepareLaunch
+  {
+    // Force to allocate membuffer before prepareLaunch
+    auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
+      char *ArgPointer = nullptr;
+      UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
+      (void)ArgPointer;
+    }
+  }
+  UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
+
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
                         LaunchInfo));
-
-  UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
 
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
@@ -825,6 +837,10 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // Prepare asan runtime data
   LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+  LaunchInfo.Data.Host.GlobalShadowLowerBound =
+      DeviceInfo->Shadow->ShadowLowerBound;
+  LaunchInfo.Data.Host.GlobalShadowUpperBound =
+      DeviceInfo->Shadow->ShadowUpperBound;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
   // Write shadow memory offset for local memory
@@ -884,16 +900,20 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // sync asan runtime data to device side
   UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-  UR_LOG_L(getContext()->logger, INFO,
-           "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
-           "PrivateShadow={}, LocalArgs={}, NumLocalArgs={}, Debug={})",
-           (void *)LaunchInfo.Data.getDevicePtr(),
-           (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
-           (void *)LaunchInfo.Data.Host.LocalShadowOffset,
-           (void *)LaunchInfo.Data.Host.PrivateBase,
-           (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
-           (void *)LaunchInfo.Data.Host.LocalArgs,
-           LaunchInfo.Data.Host.NumLocalArgs, LaunchInfo.Data.Host.Debug);
+  UR_LOG_L(
+      getContext()->logger, INFO,
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
+      "PrivateShadow={}, GlobalShadowLowerBound={}, GlobalShadowUpperBound={}, "
+      "LocalArgs={}, NumLocalArgs={}, Debug={})",
+      (void *)LaunchInfo.Data.getDevicePtr(),
+      (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
+      (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+      (void *)LaunchInfo.Data.Host.PrivateBase,
+      (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+      (void *)LaunchInfo.Data.Host.GlobalShadowLowerBound,
+      (void *)LaunchInfo.Data.Host.GlobalShadowUpperBound,
+      (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
+      LaunchInfo.Data.Host.Debug);
 
   return UR_RESULT_SUCCESS;
 }

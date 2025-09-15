@@ -69,7 +69,7 @@ inline const char *ToString(ErrorType ErrorType) {
 }
 
 // clang-format off
-enum class MemoryType : int32_t {
+enum MemoryType : uint32_t {
   UNKNOWN       = 0x000000'00,
   GLOBAL        = 0x000001'00,
   USM_DEVICE    = 0x000001'01,
@@ -79,6 +79,8 @@ enum class MemoryType : int32_t {
   DEVICE_GLOBAL = 0x000001'05,
   LOCAL         = 0x000002'00,
   PRIVATE       = 0x000004'00,
+  CONSTANT      = 0x000008'00,
+  GENERIC       = 0x000010'00,
 };
 // clang-format on
 
