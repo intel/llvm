@@ -1,10 +1,11 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: cuda
+// XFAIL: linux && arch-intel_gpu_acm_g10
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20004
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env SYCL_UR_TRACE=-1 ZE_DEBUG=1 %{run} %t.out
 
 #include <iostream>
 #include <numeric>
