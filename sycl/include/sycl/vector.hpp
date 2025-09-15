@@ -112,7 +112,7 @@ public:
 // conversions are needed as in the case below:
 //
 //   sycl::vec<int, 1> v;
-//   std::ignore = static_cast<bool>(v);
+//   (void)static_cast<bool>(v);
 //
 // Make sure the snippet above compiles. That is important because
 //
