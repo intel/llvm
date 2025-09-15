@@ -2610,6 +2610,10 @@ ur_result_t enqueueImpCommandBufferKernel(
   size_t RequiredWGSize[3] = {0, 0, 0};
   size_t *LocalSize = nullptr;
 
+  const bool HasOffset = NDRDesc.GlobalOffset[0] != 0 ||
+                         NDRDesc.GlobalOffset[1] != 0 ||
+                         NDRDesc.GlobalOffset[2] != 0;
+
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
@@ -2637,7 +2641,8 @@ ur_result_t enqueueImpCommandBufferKernel(
 
   ur_result_t Res =
       Adapter.call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
-          CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+          CommandBuffer, UrKernel, NDRDesc.Dims,
+          HasOffset ? &NDRDesc.GlobalOffset[0] : nullptr,
           &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
           AltUrKernels.size() ? AltUrKernels.data() : nullptr,
           SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
