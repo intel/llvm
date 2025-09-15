@@ -637,8 +637,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return lhs.get_group_id() == rhs.get_group_id();
 #else
-    std::ignore = lhs;
-    std::ignore = rhs;
+    (void)lhs;
+    (void)rhs;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
 #endif
@@ -648,8 +648,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
     return !(lhs == rhs);
 #else
-    std::ignore = lhs;
-    std::ignore = rhs;
+    (void)lhs;
+    (void)rhs;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
 #endif
