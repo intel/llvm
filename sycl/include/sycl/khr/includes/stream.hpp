@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_STREAM
 #define __SYCL_KHR_INCLUDES_STREAM
 
+#include "version.hpp"
+
 #include <sycl/stream.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_STREAM

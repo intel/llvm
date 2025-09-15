@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_BUFFER
 #define __SYCL_KHR_INCLUDES_BUFFER
 
+#include "version.hpp"
+
 #include <sycl/buffer.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_BUFFER

@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_VEC
 #define __SYCL_KHR_INCLUDES_VEC
 
+#include "version.hpp"
+
 #include <sycl/vector.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_VEC

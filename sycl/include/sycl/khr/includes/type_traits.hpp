@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_TYPE_TRAITS
 #define __SYCL_KHR_INCLUDES_TYPE_TRAITS
 
+#include "version.hpp"
+
 #include <sycl/device_aspect_traits.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_TYPE_TRAITS

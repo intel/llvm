@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_MARRAY
 #define __SYCL_KHR_INCLUDES_MARRAY
 
+#include "version.hpp"
+
 #include <sycl/marray.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_MARRAY

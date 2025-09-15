@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_EXCEPTION
 #define __SYCL_KHR_INCLUDES_EXCEPTION
 
+#include "version.hpp"
+
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
 

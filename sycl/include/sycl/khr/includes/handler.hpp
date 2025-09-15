@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_HANDLER
 #define __SYCL_KHR_INCLUDES_HANDLER
 
+#include "version.hpp"
+
 #include <sycl/handler.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_HANDLER

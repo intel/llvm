@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_FUNCTIONAL
 #define __SYCL_KHR_INCLUDES_FUNCTIONAL
 
+#include "version.hpp"
+
 #include <sycl/functional.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_FUNCTIONAL

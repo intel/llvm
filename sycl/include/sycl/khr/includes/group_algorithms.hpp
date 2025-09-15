@@ -1,4 +1,4 @@
-//==----------------- event --- SYCL event class ---------------*- C++ -*---==//
+//==--------------------- group_algorithms ---------------------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __SYCL_KHR_INCLUDES_EVENT
-#define __SYCL_KHR_INCLUDES_EVENT
+#ifndef __SYCL_KHR_INCLUDES_GROUP_ALGORITHMS
+#define __SYCL_KHR_INCLUDES_GROUP_ALGORITHMS
 
 #include "version.hpp"
 
-#include <sycl/event.hpp>
+#include <sycl/group_algorithm.hpp>
 
-#endif // __SYCL_KHR_INCLUDES_EVENT
+#endif // __SYCL_KHR_INCLUDES_GROUP_ALGORITHMS

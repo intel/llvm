@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_QUEUE
 #define __SYCL_KHR_INCLUDES_QUEUE
 
+#include "version.hpp"
+
 #include <sycl/queue.hpp>
 #include <sycl/properties/queue_properties.hpp>
 

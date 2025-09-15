@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_ATOMIC
 #define __SYCL_KHR_INCLUDES_ATOMIC
 
+#include "version.hpp"
+
 #include <sycl/atomic_ref.hpp>
 #include <sycl/atomic_fence.hpp>
 

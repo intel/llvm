@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_BIT
 #define __SYCL_KHR_INCLUDES_BIT
 
+#include "version.hpp"
+
 #include <sycl/bit_cast.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_BIT

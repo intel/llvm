@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_MULTI_PTR
 #define __SYCL_KHR_INCLUDES_MULTI_PTR
 
+#include "version.hpp"
+
 #include <sycl/multi_ptr.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_MULTI_PTR

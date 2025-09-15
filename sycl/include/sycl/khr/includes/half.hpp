@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_HALF
 #define __SYCL_KHR_INCLUDES_HALF
 
+#include "version.hpp"
+
 #include <sycl/half_type.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_HALF

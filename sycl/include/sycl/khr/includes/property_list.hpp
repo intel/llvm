@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_PROPERTY_LIST
 #define __SYCL_KHR_INCLUDES_PROPERTY_LIST
 
+#include "version.hpp"
+
 #include <sycl/property_list.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_PROPERTY_LIST

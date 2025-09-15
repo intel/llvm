@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_SPAN
 #define __SYCL_KHR_INCLUDES_SPAN
 
+#include "version.hpp"
+
 #include <sycl/sycl_span.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_SPAN

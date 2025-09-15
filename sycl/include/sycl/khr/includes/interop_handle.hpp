@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_INTEROP_HANDLE
 #define __SYCL_KHR_INCLUDES_INTEROP_HANDLE
 
+#include "version.hpp"
+
 #include <sycl/interop_handle.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_INTEROP_HANDLE

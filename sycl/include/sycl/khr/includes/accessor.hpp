@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_ACCESSOR
 #define __SYCL_KHR_INCLUDES_ACCESSOR
 
+#include "version.hpp"
+
 #include <sycl/accessor.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_ACCESSOR

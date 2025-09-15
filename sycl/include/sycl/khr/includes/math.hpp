@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_MATH
 #define __SYCL_KHR_INCLUDES_MATH
 
+#include "version.hpp"
+
 #include <sycl/builtins.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_MATH

@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_HIERARCHICAL_PARALLELISM
 #define __SYCL_KHR_INCLUDES_HIERARCHICAL_PARALLELISM
 
+#include "version.hpp"
+
 #include <sycl/h_item.hpp>
 // TODO: private_memory should be outlined into its own header
 #include <sycl/group.hpp>

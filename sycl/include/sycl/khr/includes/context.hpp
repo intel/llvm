@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_CONTEXT
 #define __SYCL_KHR_INCLUDES_CONTEXT
 
+#include "version.hpp"
+
 #include <sycl/context.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_CONTEXT

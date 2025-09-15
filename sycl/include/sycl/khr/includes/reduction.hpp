@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_REDUCTION
 #define __SYCL_KHR_INCLUDES_REDUCTION
 
+#include "version.hpp"
+
 #include <sycl/reduction.hpp>
 #include <sycl/properties/reduction_properties.hpp>
 

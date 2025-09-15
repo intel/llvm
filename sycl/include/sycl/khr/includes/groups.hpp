@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_GROUPS
 #define __SYCL_KHR_INCLUDES_GROUPS
 
+#include "version.hpp"
+
 #include <sycl/group.hpp>
 #include <sycl/sub_group.hpp>
 #include <sycl/group_algorithm.hpp>

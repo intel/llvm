@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_INDEX_SPACE
 #define __SYCL_KHR_INCLUDES_INDEX_SPACE
 
+#include "version.hpp"
+
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
 #include <sycl/nd_range.hpp>

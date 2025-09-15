@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_IMAGE
 #define __SYCL_KHR_INCLUDES_IMAGE
 
+#include "version.hpp"
+
 #include <sycl/image.hpp>
 #include <sycl/accessor_image.hpp>
 #include <sycl/properties/image_properties.hpp>

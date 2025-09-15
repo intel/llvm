@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_KERNEL_BUNDLE
 #define __SYCL_KHR_INCLUDES_KERNEL_BUNDLE
 
+#include "version.hpp"
+
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/specialization_id.hpp>

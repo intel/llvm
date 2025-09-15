@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_USM
 #define __SYCL_KHR_INCLUDES_USM
 
+#include "version.hpp"
+
 #include <sycl/usm.hpp>
 #include <sycl/usm/usm_allocator.hpp>
 

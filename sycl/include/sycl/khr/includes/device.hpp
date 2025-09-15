@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_DEVICE
 #define __SYCL_KHR_INCLUDES_DEVICE
 
+#include <sycl/khr/includes/version.hpp>
+
 #include <sycl/device.hpp>
 #include <sycl/aspects.hpp>
 

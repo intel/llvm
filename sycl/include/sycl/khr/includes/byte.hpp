@@ -9,6 +9,8 @@
 #ifndef __SYCL_KHR_INCLUDES_BYTE
 #define __SYCL_KHR_INCLUDES_BYTE
 
+#include "version.hpp"
+
 #include <sycl/aliases.hpp>
 
 #endif // __SYCL_KHR_INCLUDES_BYTE
