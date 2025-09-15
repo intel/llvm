@@ -102,6 +102,11 @@ public:
   // non-standard integer types.
   void cleanupConversionToNonStdIntegers(llvm::Module *M);
 
+  // Move internal constants in the private address space to function-scope
+  // variables. Such globals would otherwise be translated with Function storage
+  // class which is invalid for global variables in SPIR-V.
+  void replacePrivateConstGlobalsWithAllocas(llvm::Module *M);
+
   // According to the specification, the operands of a shift instruction must be
   // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
   // i1 operands, they are treated as a bool. We need to extend them to i32 to
