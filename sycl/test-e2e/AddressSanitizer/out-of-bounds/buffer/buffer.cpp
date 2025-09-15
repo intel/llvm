@@ -6,6 +6,9 @@
 // RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: CMPLRLLVM-64052
+
 #include <sycl/detail/core.hpp>
 
 static const int N = 16;

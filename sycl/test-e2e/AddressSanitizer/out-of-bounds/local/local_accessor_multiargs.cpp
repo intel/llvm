@@ -5,6 +5,10 @@
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -g -O2 -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: CMPLRLLVM-64052
+
 #include <sycl/usm.hpp>
 
 constexpr std::size_t N = 8;
