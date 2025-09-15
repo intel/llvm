@@ -8916,7 +8916,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -8961,9 +8961,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == pGlobalWorkOffset)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
