@@ -68,16 +68,19 @@ inline const char *ToString(ErrorType ErrorType) {
   }
 }
 
+// clang-format off
 enum class MemoryType : int32_t {
-  UNKNOWN,
-  USM_DEVICE,
-  USM_HOST,
-  USM_SHARED,
-  LOCAL,
-  PRIVATE,
-  MEM_BUFFER,
-  DEVICE_GLOBAL,
+  UNKNOWN       = 0x000000'00,
+  GLOBAL        = 0x000001'00,
+  USM_DEVICE    = 0x000001'01,
+  USM_HOST      = 0x000001'02,
+  USM_SHARED    = 0x000001'03,
+  MEM_BUFFER    = 0x000001'04,
+  DEVICE_GLOBAL = 0x000001'05,
+  LOCAL         = 0x000002'00,
+  PRIVATE       = 0x000004'00,
 };
+// clang-format on
 
 inline const char *ToString(MemoryType MemoryType) {
   switch (MemoryType) {

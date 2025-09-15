@@ -40,6 +40,9 @@ static const __SYCL_CONSTANT__ char __asan_print_shadow_value2[] =
 static __SYCL_CONSTANT__ const char __generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
 
+static __SYCL_CONSTANT__ const char __asan_print_shadow_bound[] =
+    "[kernel] addr: %p, shadow: %p, lower: %p, uppper: %p\n";
+
 #define ASAN_REPORT_NONE 0
 #define ASAN_REPORT_START 1
 #define ASAN_REPORT_FINISH 2
@@ -67,6 +70,8 @@ struct DebugInfo {
 
 void ReportUnknownDevice(const DebugInfo *debug);
 void PrintShadowMemory(uptr addr, uptr shadow_address, uint32_t as);
+void SaveReport(ErrorType error_type, MemoryType memory_type, bool is_recover,
+                const DebugInfo *debug);
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
@@ -115,11 +120,22 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
           launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
     }
 
+    if (shadow_ptr < launch_info->GlobalShadowLowerBound ||
+        shadow_ptr > launch_info->GlobalShadowUpperBound) {
+      __spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
+                         launch_info->GlobalShadowLowerBound,
+                         launch_info->GlobalShadowUpperBound);
+      SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
+      return 0;
+    }
+
     ASAN_DEBUG(
         const auto shadow_offset_end = launch_info->GlobalShadowOffsetEnd;
         if (shadow_ptr > shadow_offset_end) {
           __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr,
                              (uptr)launch_info->GlobalShadowOffset);
+          SaveReport(ErrorType::OUT_OF_SHADOW_BOUNDS, MemoryType::GLOBAL, false,
+                     debug);
           return 0;
         });
 
@@ -141,6 +157,8 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
                if (shadow_ptr > shadow_offset_end) {
                  __spirv_ocl_printf(__local_shadow_out_of_bound, addr,
                                     shadow_ptr, wid, (uptr)shadow_offset);
+                 SaveReport(ErrorType::OUT_OF_SHADOW_BOUNDS, MemoryType::LOCAL,
+                            false, debug);
                  return 0;
                });
     return shadow_ptr;
@@ -167,8 +185,10 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
     if (shadow_ptr > shadow_offset_end) {
       __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, sid,
                          private_base);
+      SaveReport(ErrorType::OUT_OF_SHADOW_BOUNDS, MemoryType::PRIVATE, false,
+                 debug);
       return 0;
-    };
+    }
 
     return shadow_ptr;
   }
@@ -193,11 +213,22 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
                    ((addr & 0x7FFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
     }
 
+    if (shadow_ptr < launch_info->GlobalShadowLowerBound ||
+        shadow_ptr > launch_info->GlobalShadowUpperBound) {
+      __spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
+                         launch_info->GlobalShadowLowerBound,
+                         launch_info->GlobalShadowUpperBound);
+      SaveReport(ErrorType::OUT_OF_BOUNDS, MemoryType::GLOBAL, false, debug);
+      return 0;
+    }
+
     ASAN_DEBUG(
         const auto shadow_offset_end = launch_info->GlobalShadowOffsetEnd;
         if (shadow_ptr > shadow_offset_end) {
           __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr,
                              (uptr)launch_info->GlobalShadowOffset);
+          SaveReport(ErrorType::OUT_OF_SHADOW_BOUNDS, MemoryType::GLOBAL, false,
+                     debug);
           return 0;
         });
     return shadow_ptr;
@@ -218,6 +249,8 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
                if (shadow_ptr > shadow_offset_end) {
                  __spirv_ocl_printf(__local_shadow_out_of_bound, addr,
                                     shadow_ptr, wid, (uptr)shadow_offset);
+                 SaveReport(ErrorType::OUT_OF_SHADOW_BOUNDS, MemoryType::LOCAL,
+                            false, debug);
                  return 0;
                });
     return shadow_ptr;
@@ -244,6 +277,8 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
     if (shadow_ptr > shadow_offset_end) {
       __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr, sid,
                          private_base);
+      SaveReport(ErrorType::OUT_OF_SHADOW_BOUNDS, MemoryType::PRIVATE, false,
+                 debug);
       return 0;
     };
 
