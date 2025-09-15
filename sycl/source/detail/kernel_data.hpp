@@ -126,7 +126,7 @@ public:
   }
 #endif
 
-  void setKernelInfo(void *KernelFuncPtr) { MKernelFuncPtr = KernelFuncPtr; }
+  void setKernelFunc(void *KernelFuncPtr) { MKernelFuncPtr = KernelFuncPtr; }
 
   bool usesAssert() const {
     assert(MDeviceKernelInfoPtr);

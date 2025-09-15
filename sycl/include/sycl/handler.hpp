@@ -491,8 +491,7 @@ private:
   template <class Kernel> void setDeviceKernelInfo(void *KernelFuncPtr) {
     constexpr auto Info = detail::CompileTimeKernelInfo<Kernel>;
     MKernelName = Info.Name;
-    // TODO support ESIMD in no-integration-header case too.
-    setKernelInfo(KernelFuncPtr);
+    setKernelFunc(KernelFuncPtr);
     setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Kernel>());
     setType(detail::CGType::Kernel);
   }
@@ -3652,7 +3651,7 @@ private:
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
 #endif
-  void setKernelInfo(void *KernelFuncPtr);
+  void setKernelFunc(void *KernelFuncPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 

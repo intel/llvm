@@ -2342,7 +2342,7 @@ void handler::setKernelInfo(
     void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  impl->MKernelData.setKernelInfo(KernelFuncPtr);
+  impl->MKernelData.setKernelFunc(KernelFuncPtr);
   impl->MKernelNumArgs = KernelNumArgs;
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
@@ -2356,8 +2356,8 @@ void handler::setDeviceKernelInfoPtr(
   impl->MKernelData.setDeviceKernelInfoPtr(DeviceKernelInfoPtr);
 }
 
-void handler::setKernelInfo(void *KernelFuncPtr) {
-  impl->MKernelData.setKernelInfo(KernelFuncPtr);
+void handler::setKernelFunc(void *KernelFuncPtr) {
+  impl->MKernelData.setKernelFunc(KernelFuncPtr);
 }
 
 void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {
