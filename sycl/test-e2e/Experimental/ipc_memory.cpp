@@ -11,6 +11,12 @@
 #include <cstdlib>
 #include <fstream>
 
+#if defined(__linux__)
+#include <linux/prctl.h>
+#include <sys/prctl.h>
+#include <unistd.h>
+#endif // defined(__linux__)
+
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 constexpr size_t N = 32;
@@ -19,6 +25,17 @@ constexpr const char *CommsFile = "ipc_comms.txt";
 int spawner(int argc, char *argv[]) {
   assert(argc == 1);
   sycl::queue Q;
+
+#if defined(__linux__)
+  // UMF currently requires ptrace permissions to be set for the spawner. As
+  // such we need to set it until this limitation has been addressed.
+  // https://github.com/oneapi-src/unified-memory-framework/tree/main?tab=readme-ov-file#level-zero-memory-provider
+  if (Q.get_backend() == sycl::backend::ext_oneapi_level_zero &&
+      prctl(PR_SET_PTRACER, getppid()) == -1) {
+    std::cout << "Failed to set ptracer permissions!" << std::endl;
+    return 1;
+  }
+#endif // defined(__linux__)
 
   int *DataPtr = sycl::malloc_device<int>(N, Q);
   Q.parallel_for(N, [=](sycl::item<1> I) {
