@@ -39,11 +39,13 @@ void addHostAccessorAndWait(Requirement *Req) {
   Event->wait();
 }
 
-void addHostUnsampledImageAccessorAndWait(UnsampledImageAccessorImplHost *Req) {
+void __SYCL_EXPORT
+addHostUnsampledImageAccessorAndWait(UnsampledImageAccessorImplHost *Req) {
   addHostAccessorAndWait(Req);
 }
 
-void addHostSampledImageAccessorAndWait(SampledImageAccessorImplHost *Req) {
+void __SYCL_EXPORT
+addHostSampledImageAccessorAndWait(SampledImageAccessorImplHost *Req) {
   addHostAccessorAndWait(Req);
 }
 
@@ -55,7 +57,7 @@ void constructorNotification(void *BufferObj, void *AccessorObj,
       BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);
 }
 
-void unsampledImageConstructorNotification(
+void __SYCL_EXPORT unsampledImageConstructorNotification(
     void *ImageObj, void *AccessorObj,
     const std::optional<image_target> &Target, access::mode Mode,
     const void *Type, uint32_t ElemSize, const code_location &CodeLoc) {
@@ -68,7 +70,7 @@ void unsampledImageConstructorNotification(
         ImageObj, AccessorObj, (uint32_t)Mode, Type, ElemSize, CodeLoc);
 }
 
-void sampledImageConstructorNotification(
+void __SYCL_EXPORT sampledImageConstructorNotification(
     void *ImageObj, void *AccessorObj,
     const std::optional<image_target> &Target, const void *Type,
     uint32_t ElemSize, const code_location &CodeLoc) {

@@ -27,6 +27,7 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/ur_info_code.hpp>
 #include <detail/usm/usm_impl.hpp>
+#include <sycl/accessor_image_base.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
