@@ -98,7 +98,9 @@ enum class aspect : /*unspecified*/ {
 |Description
 
 |`ext_oneapi_device_is_integrated`
-|Indicates that the device supports the `sycl::device::get_info<sycl::ext::oneapi::info::device::gpu_is_integrated>()` call.
+|Indicates that the device supports the
+ `sycl::device::get_info<sycl::ext::oneapi::info::device::gpu_is_integrated>()`
+ call.
 |===
 
 === New device descriptor
