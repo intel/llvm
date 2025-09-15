@@ -264,7 +264,7 @@ fill_copy_args(detail::handler_impl *impl,
 
   // Copy args computed here are directly passed to UR. Various offsets and
   // extents end up passed as ur_rect_offset_t and ur_rect_region_t. Both those
-  // structs expect theirfirst component to be in bytes, not in pixels
+  // structs expect their first component to be in bytes, not in pixels
   size_t SrcPixelSize = SrcImgDesc.num_channels * get_channel_size(SrcImgDesc);
   size_t DestPixelSize =
       DestImgDesc.num_channels * get_channel_size(DestImgDesc);
