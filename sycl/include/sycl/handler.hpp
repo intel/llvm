@@ -902,7 +902,7 @@ private:
   ///
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
-  void processLaunchProperties(PropertiesT Props) {
+  void processLaunchProperties([[maybe_unused]] PropertiesT Props) {
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -912,8 +912,6 @@ private:
       } else if (Config == sycl::ext::intel::experimental::large_data) {
         setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
-    } else {
-      std::ignore = Props;
     }
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<

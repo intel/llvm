@@ -1036,7 +1036,6 @@ public:
   template <typename KernelName, typename FuncTy,
             bool HasIdentity = has_identity>
   std::enable_if_t<!HasIdentity> withInitializedMem(handler &CGH, FuncTy Func) {
-    std::ignore = CGH;
     assert(!initializeToIdentity() &&
            "Initialize to identity not allowed for identity-less reductions.");
     Func(accessor{MRedOut, CGH});
@@ -1079,7 +1078,6 @@ public:
   bool initializeToIdentity() const { return InitializeToIdentity; }
 
   auto getUserRedVarAccess(handler &CGH) {
-    std::ignore = CGH;
     if constexpr (is_usm)
       return MRedOut;
     else
@@ -1816,7 +1814,6 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     size_t NWorkGroups = NDRange.get_group_range().size();
 
     bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
-    std::ignore = IsUpdateOfUserVar;
 
     // The type of the Out "accessor" differs between scenarios when there is
     // just one WorkGroup and when there are multiple. Use this lambda to write
@@ -2800,9 +2797,8 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
 /// The reduction algorithm may be less efficient if the specified binary
 /// operation does not have a known identity.
 template <typename T, typename AllocatorT, typename BinaryOperation>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &,
                BinaryOperation Combiner, const property_list &PropList = {}) {
-  std::ignore = CGH;
   detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
@@ -2829,9 +2825,8 @@ auto reduction(T *Var, BinaryOperation Combiner,
 /// reduction identity value \p Identity, reduction operation \p Combiner,
 /// and optional reduction properties.
 template <typename T, typename AllocatorT, typename BinaryOperation>
-auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
-  std::ignore = CGH;
   detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();

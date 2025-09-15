@@ -21,7 +21,6 @@
 #include <sycl/range.hpp> // for range
 
 #include <stdint.h>    // for uint32_t
-#include <tuple>       // for _Swallow_assign, ignore
 #include <type_traits> // for enable_if_t, remove_cv_t
 
 namespace sycl {
@@ -633,23 +632,21 @@ struct sub_group {
   }
 
   // Common member functions for by-value semantics
-  friend bool operator==(const sub_group &lhs, const sub_group &rhs) {
+  friend bool operator==([[maybe_unused]] const sub_group &lhs,
+                         [[maybe_unused]] const sub_group &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     return lhs.get_group_id() == rhs.get_group_id();
 #else
-    std::ignore = lhs;
-    std::ignore = rhs;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
 #endif
   }
 
-  friend bool operator!=(const sub_group &lhs, const sub_group &rhs) {
+  friend bool operator!=([[maybe_unused]] const sub_group &lhs,
+                         [[maybe_unused]] const sub_group &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     return !(lhs == rhs);
 #else
-    std::ignore = lhs;
-    std::ignore = rhs;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
                           "Sub-groups are not supported on host.");
 #endif

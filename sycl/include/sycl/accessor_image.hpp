@@ -904,10 +904,9 @@ public:
             typename = std::enable_if_t<AccessMode == access_mode::read &&
                                         detail::IsValidUnsampledCoord2020DataT<
                                             Dimensions, CoordT>::value>>
-  DataT read(const CoordT &Coords) const noexcept {
+  DataT read([[maybe_unused]] const CoordT &Coords) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
     return {0, 0, 0, 0};
 #else
     return host_base_class::read<DataT>(Coords);
@@ -922,23 +921,22 @@ public:
             typename = std::enable_if_t<AccessMode == access_mode::write &&
                                         detail::IsValidUnsampledCoord2020DataT<
                                             Dimensions, CoordT>::value>>
-  void write(const CoordT &Coords, const DataT &Color) const {
+  void write([[maybe_unused]] const CoordT &Coords,
+             [[maybe_unused]] const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
-    std::ignore = Color;
 #else
     host_base_class::write<DataT>(Coords, Color);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
 private:
-  unsampled_image_accessor(const detail::UnsampledImageAccessorImplPtr &Impl)
+  unsampled_image_accessor(
+      [[maybe_unused]] const detail::UnsampledImageAccessorImplPtr &Impl)
 #ifndef __SYCL_DEVICE_ONLY__
       : host_base_class{Impl}
 #endif // __SYCL_DEVICE_ONLY__
   {
-    std::ignore = Impl;
   }
 
   template <class Obj>
@@ -1213,10 +1211,9 @@ public:
   template <typename CoordT,
             typename = std::enable_if_t<detail::IsValidSampledCoord2020DataT<
                 Dimensions, CoordT>::value>>
-  DataT read(const CoordT &Coords) const noexcept {
+  DataT read([[maybe_unused]] const CoordT &Coords) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
     return {0, 0, 0, 0};
 #else
     return host_base_class::read<DataT>(Coords);
@@ -1224,12 +1221,12 @@ public:
   }
 
 private:
-  sampled_image_accessor(const detail::SampledImageAccessorImplPtr &Impl)
+  sampled_image_accessor(
+      [[maybe_unused]] const detail::SampledImageAccessorImplPtr &Impl)
 #ifndef __SYCL_DEVICE_ONLY__
       : host_base_class{Impl}
 #endif // __SYCL_DEVICE_ONLY__
   {
-    std::ignore = Impl;
   }
 
   template <class Obj>
