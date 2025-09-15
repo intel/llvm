@@ -7,7 +7,7 @@ if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
 endif()
 
 if(NATIVECPU_USE_OCK)
-  add_subdirectory(compiler_passes EXCLUDE_FROM_ALL)
+  add_subdirectory(compiler_passes)
   set(OCK_LIBS NativeCPUPipeline NativeCPUVecz)
 endif()
 
