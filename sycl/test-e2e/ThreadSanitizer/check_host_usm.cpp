@@ -2,6 +2,10 @@
 // ALLOW_RETRIES: 10
 // RUN: %{build} %device_tsan_flags -O0 -g -o %t.out
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
+
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160602
+
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"
 
