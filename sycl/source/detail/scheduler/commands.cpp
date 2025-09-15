@@ -3710,11 +3710,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
 
-    return Adapter
-        .call_nocheck<UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
+    if (auto Result = Adapter.call_nocheck<
+                      UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
             OptWaitValue.has_value(), WaitValue, RawEvents.size(),
             RawEvents.data(), Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreSignal: {
     assert(MQueue &&
@@ -3724,11 +3730,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
-    return Adapter
-        .call_nocheck<UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
+    if (auto Result = Adapter.call_nocheck<
+                      UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
             OptSignalValue.has_value(), SignalValue, RawEvents.size(),
             RawEvents.data(), Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
   }
   case CGType::AsyncAlloc: {
     // NO-OP. Async alloc calls adapter immediately in order to return a valid
