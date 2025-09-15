@@ -37,7 +37,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled,
                         bool ForceDisableProfiling,
-                        bool InterruptBasedEventEnabled);
+                        bool InterruptBasedEventEnabled,
+                        std::optional<bool> IsInternal = std::nullopt);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in

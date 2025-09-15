@@ -64,86 +64,6 @@ using namespace llvm::util;
 using namespace llvm::vfs;
 using namespace jit_compiler;
 
-#ifdef _GNU_SOURCE
-#include <dlfcn.h>
-static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
-#endif
-
-#ifdef _WIN32
-#include <filesystem> // For std::filesystem::path ( C++17 only )
-#include <shlwapi.h>  // For PathRemoveFileSpec
-#include <windows.h>  // For GetModuleFileName, HMODULE, DWORD, MAX_PATH
-
-// cribbed from sycl/source/detail/os_util.cpp
-using OSModuleHandle = intptr_t;
-static constexpr OSModuleHandle ExeModuleHandle = -1;
-static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
-  HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
-  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-    // Expect the caller to check for zero and take
-    // necessary action
-    return 0;
-  }
-  if (PhModule == GetModuleHandleA(nullptr))
-    return ExeModuleHandle;
-  return reinterpret_cast<OSModuleHandle>(PhModule);
-}
-
-// cribbed from sycl/source/detail/os_util.cpp
-/// Returns an absolute path where the object was found.
-std::wstring getCurrentDSODir() {
-  wchar_t Path[MAX_PATH];
-  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
-  DWORD Ret = GetModuleFileName(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
-      MAX_PATH);
-  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
-  assert(Ret > 0 && "GetModuleFileName failed");
-  (void)Ret;
-
-  BOOL RetCode = PathRemoveFileSpec(Path);
-  assert(RetCode && "PathRemoveFileSpec failed");
-  (void)RetCode;
-
-  return Path;
-}
-#endif // _WIN32
-
-static constexpr auto InvalidDPCPPRoot = "<invalid>";
-
-static const std::string &getDPCPPRoot() {
-  thread_local std::string DPCPPRoot;
-
-  if (!DPCPPRoot.empty()) {
-    return DPCPPRoot;
-  }
-  DPCPPRoot = InvalidDPCPPRoot;
-
-#ifdef _GNU_SOURCE
-  static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
-  Dl_info Info;
-  if (dladdr(&X, &Info)) {
-    std::string LoadedLibraryPath = Info.dli_fname;
-    auto Pos = LoadedLibraryPath.rfind(JITLibraryPathSuffix);
-    if (Pos != std::string::npos) {
-      DPCPPRoot = LoadedLibraryPath.substr(0, Pos);
-    }
-  }
-#endif // _GNU_SOURCE
-
-#ifdef _WIN32
-  DPCPPRoot = std::filesystem::path(getCurrentDSODir()).parent_path().string();
-#endif // _WIN32
-
-  // TODO: Implemenent other means of determining the DPCPP root, e.g.
-  //       evaluating the `CMPLR_ROOT` env.
-
-  return DPCPPRoot;
-}
-
 namespace {
 
 class HashPreprocessedAction : public PreprocessorFrontendAction {
@@ -250,6 +170,30 @@ public:
     TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
 
     return TI.run();
+  }
+
+  Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
+                                          LLVMContext &Context) {
+    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+        llvm::vfs::getRealFileSystem());
+    FS->pushOverlay(ToolchainFS);
+
+    auto MemBuf = FS->getBufferForFile(LibPath, /*FileSize*/ -1,
+                                       /*RequiresNullTerminator*/ false);
+    if (!MemBuf) {
+      return createStringError("Error opening file %s: %s", LibPath.data(),
+                               MemBuf.getError().message().c_str());
+    }
+
+    SMDiagnostic Diag;
+    ModuleUPtr Lib = parseIR(*MemBuf->get(), Diag, Context);
+    if (!Lib) {
+      std::string DiagMsg;
+      raw_string_ostream SOS(DiagMsg);
+      Diag.print(/*ProgName=*/nullptr, SOS);
+      return createStringError(DiagMsg);
+    }
+    return std::move(Lib);
   }
 
   std::string_view getClangXXExe() const { return ClangXXExe; }
@@ -516,29 +460,11 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
-static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
-                                               LLVMContext &Context) {
-  SMDiagnostic Diag;
-  ModuleUPtr Lib = parseIRFile(LibPath, Diag, Context);
-  if (!Lib) {
-    std::string DiagMsg;
-    raw_string_ostream SOS(DiagMsg);
-    Diag.print(/*ProgName=*/nullptr, SOS);
-    return createStringError(DiagMsg);
-  }
-  return std::move(Lib);
-}
-
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
                                         std::string &BuildLog,
                                         BinaryFormat Format) {
   TimeTraceScope TTS{"linkDeviceLibraries"};
-
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID{new DiagnosticIDs};
   DiagnosticOptions DiagOpts;
@@ -573,10 +499,13 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   LLVMContext &Context = Module.getContext();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+    std::string LibPath =
+        (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
-    if (auto Error = loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
+    if (auto Error = SYCLToolchain::instance()
+                         .loadBitcodeLibrary(LibPath, Context)
+                         .moveInto(LibModule)) {
       return Error;
     }
 
@@ -590,14 +519,16 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
     Triple T{Module.getTargetTriple()};
-    Driver D{(Twine(DPCPPRoot) + "/bin/clang++").str(), T.getTriple(), Diags};
+    Driver D{(jit_compiler::ToolchainPrefix + "/bin/clang++").str(),
+             T.getTriple(), Diags};
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
     (void)Features;
     // Helper lambda to link modules.
     auto LinkInLib = [&](const StringRef LibDevice) -> Error {
       ModuleUPtr LibDeviceModule;
-      if (auto Error = loadBitcodeLibrary(LibDevice, Context)
+      if (auto Error = SYCLToolchain::instance()
+                           .loadBitcodeLibrary(LibDevice, Context)
                            .moveInto(LibDeviceModule)) {
         return Error;
       }
@@ -831,16 +762,14 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   }
 
   if (IsBF16DeviceLibUsed) {
-    const std::string &DPCPPRoot = getDPCPPRoot();
-    if (DPCPPRoot == InvalidDPCPPRoot) {
-      return createStringError("Could not locate DPCPP root directory");
-    }
-
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
-      std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+      std::string LibPath =
+          (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
       ModuleUPtr LibModule;
-      if (auto Error = loadBitcodeLibrary(LibPath, Ctx).moveInto(LibModule)) {
+      if (auto Error = SYCLToolchain::instance()
+                           .loadBitcodeLibrary(LibPath, Ctx)
+                           .moveInto(LibModule)) {
         return Error;
       }
 

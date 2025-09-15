@@ -24,6 +24,9 @@ struct ur_context_handle_t_ : ur::opencl::handle_base {
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
+  ur_context_handle_t_(const ur_context_handle_t_ &) = delete;
+  ur_context_handle_t_ &operator=(const ur_context_handle_t_ &) = delete;
+
   ur_context_handle_t_(native_type Ctx, uint32_t DevCount,
                        const ur_device_handle_t *phDevices)
       : handle_base(), CLContext(Ctx), DeviceCount(DevCount) {
