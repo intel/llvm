@@ -3210,9 +3210,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Kernel submissions should have an associated queue");
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
-    NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
-    std::vector<ArgDesc> &Args = ExecKernel->MArgs;
-
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       // getAllocaForReq may return nullptr if Req is a default constructed
@@ -3238,12 +3235,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       BinImage = retrieveKernelBinary(*MQueue, KernelName);
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(
-        *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
-        SyclKernel.get(), ExecKernel->MDeviceKernelInfo, RawEvents, EventImpl,
-        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
-        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
-        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(*MQueue, ExecKernel->MNDRDesc, ExecKernel->MArgs,
+                     ExecKernel->getKernelBundle().get(), SyclKernel.get(),
+                     ExecKernel->MDeviceKernelInfo, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
