@@ -4627,6 +4627,13 @@ static void getNestedNameSpecifierIdentifiers(
       case Type::TemplateSpecialization: {
         TemplateName Name =
             cast<TemplateSpecializationType>(T)->getTemplateName();
+        if (const DependentTemplateName *DTN =
+                Name.getAsDependentTemplateName()) {
+          getNestedNameSpecifierIdentifiers(DTN->getQualifier(), Identifiers);
+          if (const auto *II = DTN->getName().getIdentifier())
+            Identifiers.push_back(II);
+          return;
+        }
         if (const QualifiedTemplateName *QTN =
                 Name.getAsQualifiedTemplateName()) {
           getNestedNameSpecifierIdentifiers(QTN->getQualifier(), Identifiers);
@@ -4634,15 +4641,6 @@ static void getNestedNameSpecifierIdentifiers(
         }
         if (const auto *TD = Name.getAsTemplateDecl(/*IgnoreDeduced=*/true))
           Identifiers.push_back(TD->getIdentifier());
-        return;
-      }
-      case Type::DependentTemplateSpecialization: {
-        const DependentTemplateStorage &S =
-            cast<DependentTemplateSpecializationType>(T)
-                ->getDependentTemplateName();
-        getNestedNameSpecifierIdentifiers(S.getQualifier(), Identifiers);
-        // FIXME: Should this dig into the Name as well?
-        // Identifiers.push_back(S.getName().getIdentifier());
         return;
       }
       case Type::SubstTemplateTypeParm:
