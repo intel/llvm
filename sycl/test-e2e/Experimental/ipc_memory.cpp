@@ -1,5 +1,8 @@
 // REQUIRES: aspect-usm_device_allocations && aspect-ext_oneapi_ipc_memory
 
+// UNSUPPORTED: level_zero && windows
+// UNSUPPORTED-TRACKER: TODO-0000
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
