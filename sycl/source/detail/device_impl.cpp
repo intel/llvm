@@ -258,7 +258,7 @@ std::vector<device> device_impl::create_sub_devices(
                               affinityDomainToString(AffinityDomain) + ".");
   }
 
-  ur_device_partition_property_t Prop;
+  ur_device_partition_property_t Prop{};
   Prop.type = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
   Prop.value.affinity_domain =
       static_cast<ur_device_affinity_domain_flags_t>(AffinityDomain);
@@ -285,9 +285,8 @@ std::vector<device> device_impl::create_sub_devices() const {
         "sycl::info::partition_property::ext_intel_partition_by_cslice.");
   }
 
-  ur_device_partition_property_t Prop;
+  ur_device_partition_property_t Prop{};
   Prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
-
   ur_device_partition_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
   Properties.pProperties = &Prop;
