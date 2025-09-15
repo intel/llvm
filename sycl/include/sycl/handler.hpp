@@ -166,6 +166,10 @@ class graph_impl;
 class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
+class buffer_impl;
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 class type_erased_cgfo_ty {
   // From SYCL 2020,  command group function object:
