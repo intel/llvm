@@ -5,6 +5,9 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: CMPLRLLVM-70538
+
 /* Tests invoke_simd support in the compiler/headers
  * Test checks support for different subgroup sizes in combination with
  * different return value sizes

@@ -5,6 +5,9 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: CMPLRLLVM-70538
+
 /* Tests invoke_simd support in the compiler/headers
  * Test checks support for passing a debug symbols option (-g) to the compiler.
  * This test also runs with all types of VISA link time optimizations enabled.

@@ -9,6 +9,9 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: CMPLRLLVM-70538
+
 /*
  * Test check basic support of local memory access in invoke_simd.
  */

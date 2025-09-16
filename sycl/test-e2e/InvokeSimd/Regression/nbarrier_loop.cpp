@@ -7,6 +7,9 @@
 // vISA LTO run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: CMPLRLLVM-70538
+
 /*
  * Test checks support of named barrier in a loop in invoke_simd context.
  * First iteration has 1 barrier and 1 producer, second - 2 barriers and 2

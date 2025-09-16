@@ -4,6 +4,9 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: CMPLRLLVM-70538
+
 /*
  * This tests is the same as
  * InvokeSimd/feature/invoke_simd_struct_by_pointer.cpp, but compiles without

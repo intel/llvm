@@ -7,6 +7,9 @@
 // vISA LTO run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: CMPLRLLVM-70538
+
 /*
  * Test checks basic support for named barriers in invoke_simd context.
  * Threads are executed in ascending order of their local ID and each thread
