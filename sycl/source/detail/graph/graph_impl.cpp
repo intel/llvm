@@ -869,11 +869,7 @@ void exec_graph_impl::createCommandBuffers(
 exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
-    : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
-      MQueueImpl(sycl::detail::queue_impl::create(
-          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
-          sycl::property_list{})),
+    : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(), MQueueImpl(),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MSchedulerDependencies(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
