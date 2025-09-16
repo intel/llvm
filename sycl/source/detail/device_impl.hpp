@@ -429,8 +429,7 @@ public:
   /// Constructs a SYCL device instance using the provided
   /// UR device instance.
   //
-  // Must be called through `platform_impl::getOrMakeDeviceImpl` or
-  // `platform_impl::getOrMakeSubDeviceImpl` only.
+  // Must be called through `platform_impl::getOrMakeDeviceImpl` only.
   // `private_tag` ensures that is true.
   explicit device_impl(ur_device_handle_t Device, platform_impl &Platform,
                        private_tag, bool IsSubDevice);

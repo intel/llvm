@@ -163,12 +163,13 @@ std::vector<device> device_impl::create_sub_devices(
   // times with the same arguments?
   //
   std::vector<device> res;
-  std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res, this](const ur_device_handle_t &a_ur_device) {
-                  device sycl_device = detail::createSyclObjFromImpl<device>(
-                      MPlatform.getOrMakeSubDeviceImpl(a_ur_device));
-                  res.push_back(sycl_device);
-                });
+  std::for_each(
+      SubDevices.begin(), SubDevices.end(),
+      [&res, this](const ur_device_handle_t &a_ur_device) {
+        device sycl_device = detail::createSyclObjFromImpl<device>(
+            MPlatform.getOrMakeDeviceImpl(a_ur_device, true /*IsSubDevice*/));
+        res.push_back(sycl_device);
+      });
   return res;
 }
 
