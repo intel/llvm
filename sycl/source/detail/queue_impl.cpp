@@ -451,44 +451,16 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
       -> std::pair<EventImplPtr, bool> {
     std::vector<detail::ArgDesc> Args;
 
-    bool SchedulerBypass = std::all_of(CGData.MEvents.begin(), CGData.MEvents.end(),
-      [&](EventImplPtr &Event) {
-      // Events that don't have an initialized context are throwaway events that
-      // don't represent actual dependencies. Calling getContextImpl() would set
-      // their context, which we wish to avoid as it is expensive.
-      // NOP events also don't represent actual dependencies.
-      if (Event->isDefaultConstructed() || Event->isNOP())
-        return true;
-
-      if (Event->isHost())
-        return Event->isCompleted();
-
-      // Cross-context dependencies can't be passed to the backend directly.
-      if (&Event->getContextImpl() != &getContextImpl())
-        return false;
-
-      // A nullptr here means that the commmand does not produce a UR event or it
-      // hasn't been enqueued yet.
-      return Event->getHandle() != nullptr;
-    });
+    bool SchedulerBypass = CGData.MEvents.size() > 0 ?
+      detail::Scheduler::areEventsSafeForSchedulerBypass(
+           CGData.MEvents, getContextImpl()) : true;
 
     if (SchedulerBypass) {
-      std::vector<ur_event_handle_t> RawEvents;
       bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
+      std::vector<ur_event_handle_t> RawEvents;
 
-      for (EventImplPtr &Event : CGData.MEvents) {
-        auto Handle = Event->getHandle();
-        if (Handle == nullptr)
-          continue;
-
-        // Do not add redundant event dependencies for in-order queues.
-        // At this stage dependency is definitely ur task and need to check if
-        // current one is a host task. In this case we should not skip ur event due
-        // to different sync mechanisms for different task types on in-order queue.
-        if (Event->getWorkerQueue().get() == this && isInOrder())
-          continue;
-
-        RawEvents.push_back(Handle);
+      if (CGData.MEvents.size() > 0) {
+        detail::Command::getUrEvents(CGData.MEvents, this, false);
       }
 
       std::shared_ptr<detail::event_impl> ResultEvent =
