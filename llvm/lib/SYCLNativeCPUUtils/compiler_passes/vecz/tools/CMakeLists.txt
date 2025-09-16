@@ -1,7 +1,7 @@
 llvm_map_components_to_libnames(llvm_libs all ${LLVM_TARGETS_TO_BUILD})
 list(REMOVE_ITEM llvm_libs LTO OptRemarks)
 
-add_llvm_tool(veczc
+add_llvm_utility(veczc
  ${CMAKE_CURRENT_SOURCE_DIR}/source/veczc.cpp
 )
 target_compile_options(veczc PRIVATE ${VECZ_COMPILE_OPTIONS})

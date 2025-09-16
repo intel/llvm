@@ -904,7 +904,7 @@
 
 // Check if fsycl-targets correctly processes multiple NVidia
 // and AMD GPU targets.
-// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -nocudalib --no-offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -fno-sycl-libspirv -nocudalib --no-offload-new-driver  %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-MACRO-SM-60,CHK-MACRO-SM-70 %s
 // CHK-MACRO-SM-60: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_60__"{{.*}}
 // CHK-MACRO-SM-70: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_70__"{{.*}}
