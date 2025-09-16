@@ -54,7 +54,7 @@ not rely on APIs defined in this specification.*
 == Overview
 
 This extension allows host code to check whether a physical device, represented
-by a SYCL device, is integrated.
+by a SYCL device, is integrated with the host.
 
 
 == Specification
@@ -113,7 +113,7 @@ enum class aspect : /*unspecified*/ {
 
 |`sycl::ext::oneapi::info::device::device_is_integrated`
 |bool
-|Returns `true` if device is integrated, overwise returns `false`.
+|Returns `true` if device is integrated, otherwise returns `false`.
 |===
 
 == Issues
