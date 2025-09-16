@@ -95,8 +95,8 @@
 // CHECK-NEXT: detail/kernel_desc.hpp
 // CHECK-NEXT: group.hpp
 // CHECK-NEXT: device_event.hpp
-// CHECK-NEXT: h_item.hpp
 // CHECK-NEXT: item.hpp
+// CHECK-NEXT: h_item.hpp
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
