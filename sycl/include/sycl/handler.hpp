@@ -913,7 +913,7 @@ private:
         setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
     } else {
-      std::ignore = Props;
+      (void)Props;
     }
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<

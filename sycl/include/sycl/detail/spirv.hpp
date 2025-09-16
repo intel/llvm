@@ -924,7 +924,7 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
-  std::ignore = g;
+  (void)g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
                 detail::is_vec<T>::value) {
@@ -957,7 +957,7 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
 template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 #ifndef __NVPTX__
-  std::ignore = g;
+  (void)g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
                 detail::is_vec<T>::value) {
