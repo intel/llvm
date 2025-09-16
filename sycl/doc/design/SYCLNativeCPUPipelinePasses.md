@@ -303,7 +303,7 @@ together multiple kernels to make a single kernel capable of correctly
 executing all work-items in the work-group.
 
 In particular, when a kernel has been vectorized with
-[vecz](SYCLNativeCPUVecz.md) it executes multiple work-items at
+[Vecz](SYCLNativeCPUVecz.md) it executes multiple work-items at
 once. Unless the work-group size in the vectorized dimension is known to
 be a multiple of the vectorization factor, there exists the possibility
 that some work-items will not be executed by the vectorized loop.
@@ -415,7 +415,7 @@ if (group_size_x >= vector_width) {
 #### Vector only
 
 If the [WorkItemLoopsPass](#workitemloopspass) is run on a vectorized
-kernel for which no [vecz](SYCLNativeCPUVecz.md) linking metadata is found to
+kernel for which no [Vecz](SYCLNativeCPUVecz.md) linking metadata is found to
 identify the scalar kernel, or if a scalar kernel is found but one of
 the conditions listed above hold, then the kernel is emitted using the
 vector kernel only. It is assumed that if no scalar kernel is found it
@@ -475,7 +475,7 @@ performed on ARM targets due to LLVM backend compiler bugs.
 ### RunVeczPass
 
 The `RunVeczPass` module pass provides a wrapper for using our
-[vecz](SYCLNativeCPUVecz.md) IR vectorizer. This vectorizes the
+[Vecz](SYCLNativeCPUVecz.md) IR vectorizer. This vectorizes the
 kernel to a SIMD width specified when the pass is created. In our case
 this is typically local size in the first dimension but there are other
 factors to consider when picking the width, like being a power of 2.
@@ -494,9 +494,9 @@ kernel is used instead of our scalar kernel from here on.
 
 #### Cost Model Interface
 
-User cost-modelling in vecz can be handled by the
+User cost-modelling in Vecz can be handled by the
 `vecz::VeczPassOptionsAnalsis` which takes a user defined query function
-on construction. This pass is a required analysis pass for vecz, so be
+on construction. This pass is a required analysis pass for Vecz, so be
 sure to add it to your analysis manager.
 
 Vecz queries the result of this analysis before operating on a kernel,
@@ -505,7 +505,7 @@ contain suitably modelled widths, vectorization factors, and scalability
 options determined suitable for the target.
 
 The `VeczPassOptionsAnalysis` pass can be default-constructed - in which
-case vecz makes a conservative decision about kernel vectorization - or
+case Vecz makes a conservative decision about kernel vectorization - or
 be constructed passing in a user callback function. The function takes
 as its parameters a reference to the function to be optionally
 vectorized, and a reference to a vector of `VeczPassOptions` which it is
@@ -661,8 +661,8 @@ provided by `BIMuxInfoConcept` used by the
 [DefineMuxBuiltinsPass](#definemuxbuiltinspass).
 
 Vectorized definitions of the various sub-group builtins are provided by
-the VECZ pass, so any target running VECZ (and the above passes) will be
-able to support sub-groups of a larger size than 1. Note that VECZ does
+the Vecz pass, so any target running Vecz (and the above passes) will be
+able to support sub-groups of a larger size than 1. Note that Vecz does
 not currently interact "on top of" the mux builtins - it replaces them
 in the functions it vectorized. This is future work to allow the two to
 build on top of each other.
