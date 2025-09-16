@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/detail/address_space_cast.hpp>
+#include <sycl/detail/helpers.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>

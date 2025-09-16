@@ -305,6 +305,26 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,
   /// Enumerator for ::urEnqueueUSMMemcpy2D
   UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,
+  /// Enumerator for ::urVirtualMemGranularityGetInfo
+  UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,
+  /// Enumerator for ::urVirtualMemReserve
+  UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,
+  /// Enumerator for ::urVirtualMemFree
+  UR_FUNCTION_VIRTUAL_MEM_FREE = 155,
+  /// Enumerator for ::urVirtualMemMap
+  UR_FUNCTION_VIRTUAL_MEM_MAP = 156,
+  /// Enumerator for ::urVirtualMemUnmap
+  UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,
+  /// Enumerator for ::urVirtualMemSetAccess
+  UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,
+  /// Enumerator for ::urVirtualMemGetInfo
+  UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,
+  /// Enumerator for ::urPhysicalMemCreate
+  UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,
+  /// Enumerator for ::urPhysicalMemRetain
+  UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,
+  /// Enumerator for ::urPhysicalMemRelease
+  UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,
   /// Enumerator for ::urUSMImportExp
   UR_FUNCTION_USM_IMPORT_EXP = 163,
   /// Enumerator for ::urUSMReleaseExp
@@ -401,6 +421,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,
   /// Enumerator for ::urEnqueueEventsWaitWithBarrierExt
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
+  /// Enumerator for ::urPhysicalMemGetInfo
+  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
   /// Enumerator for ::urEnqueueUSMDeviceAllocExp
   UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP = 250,
   /// Enumerator for ::urEnqueueUSMSharedAllocExp
@@ -445,28 +467,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT = 272,
   /// Enumerator for ::urUSMContextMemcpyExp
   UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP = 273,
-  /// Enumerator for ::urVirtualMemGranularityGetInfo
-  UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 274,
-  /// Enumerator for ::urVirtualMemReserve
-  UR_FUNCTION_VIRTUAL_MEM_RESERVE = 275,
-  /// Enumerator for ::urVirtualMemFree
-  UR_FUNCTION_VIRTUAL_MEM_FREE = 276,
-  /// Enumerator for ::urVirtualMemMap
-  UR_FUNCTION_VIRTUAL_MEM_MAP = 277,
-  /// Enumerator for ::urVirtualMemUnmap
-  UR_FUNCTION_VIRTUAL_MEM_UNMAP = 278,
-  /// Enumerator for ::urVirtualMemSetAccess
-  UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 279,
-  /// Enumerator for ::urVirtualMemGetInfo
-  UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 280,
-  /// Enumerator for ::urPhysicalMemCreate
-  UR_FUNCTION_PHYSICAL_MEM_CREATE = 281,
-  /// Enumerator for ::urPhysicalMemRetain
-  UR_FUNCTION_PHYSICAL_MEM_RETAIN = 282,
-  /// Enumerator for ::urPhysicalMemRelease
-  UR_FUNCTION_PHYSICAL_MEM_RELEASE = 283,
-  /// Enumerator for ::urPhysicalMemGetInfo
-  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 284,
   /// Enumerator for ::urMemoryExportAllocExportableMemoryExp
   UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP = 285,
   /// Enumerator for ::urMemoryExportFreeExportableMemoryExp

@@ -201,11 +201,23 @@ jobs:
       always()
       && !cancelled()
       && needs.build-win.outputs.build_conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel L0 Gen12 GPU
+            runner: '["Windows", "gen12"]'
+            target_devices: level_zero:gpu
+
+          - name: Intel L0 Battlemage GPU
+            runner: '["Windows", "bmg"]'
+            target_devices: level_zero:gpu
+
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
-      name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
-      target_devices: level_zero:gpu
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      target_devices: ${{ matrix.target_devices }}
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
 
   cuda-aws-start:
@@ -320,6 +332,11 @@ jobs:
       toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
       sycl_cts_artifact: sycl_cts_bin_win
 
+  # Verification example:
+  # cosign-windows-amd64.exe verify-blob sycl_linux.tar.gz \
+  # --bundle sycl_linux.tar.gz.sigstore.json \
+  # --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  # --certificate-identity https://github.com/intel/llvm/.github/workflows/sycl-nightly.yml@refs/heads/sycl
   nightly_build_upload:
     name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
@@ -327,6 +344,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
     - uses: actions/download-artifact@v4
       with:
@@ -334,6 +352,10 @@ jobs:
     - uses: actions/download-artifact@v4
       with:
         name: sycl_windows_default
+    - name: Sign with sigstore/cosign
+      uses: sigstore/gh-action-sigstore-python@v3.0.1
+      with:
+        inputs: sycl_linux.tar.gz sycl_windows.tar.gz
     - name: Compute tag
       id: tag
       run: |
@@ -349,6 +371,8 @@ jobs:
         files: |
           sycl_linux.tar.gz
           sycl_windows.tar.gz
+          sycl_linux.tar.gz.sigstore.json
+          sycl_windows.tar.gz.sigstore.json
         tag_name: nightly-${{ steps.tag.outputs.TAG }}
         name: DPC++ daily ${{ steps.tag.outputs.TAG }}
         prerelease: true

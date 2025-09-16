@@ -10,6 +10,7 @@
 #include "ur_api.h"
 #include <algorithm>
 
+#include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -49,6 +50,10 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+  BufImpl->markAsInternal();
+}
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: Check if two ABI exports below are still necessary.
@@ -262,13 +267,12 @@ static void fill_copy_args(
   auto ZCopyExtentComponent = detail::fill_image_type(SrcImgDesc, UrSrcDesc);
   detail::fill_image_type(DestImgDesc, UrDestDesc);
 
-  // ur_rect_offset_t and ur_rect_offset_t which represent image offsets and
-  // copy extents expect that X-axis offset and region width are specified in
-  // bytes rather then in elements.
-  auto SrcPixelSize =
-      SrcImgDesc.num_channels * detail::get_channel_size(SrcImgDesc);
-  auto DestPixelSize =
-      DestImgDesc.num_channels * detail::get_channel_size(DestImgDesc);
+  // Copy args computed here are directly passed to UR. Various offsets and
+  // extents end up passed as ur_rect_offset_t and ur_rect_region_t. Both those
+  // structs expect their first component to be in bytes, not in pixels
+  size_t SrcPixelSize = SrcImgDesc.num_channels * get_channel_size(SrcImgDesc);
+  size_t DestPixelSize =
+      DestImgDesc.num_channels * get_channel_size(DestImgDesc);
 
   impl->MSrcOffset = {SrcOffset[0] * SrcPixelSize, SrcOffset[1], SrcOffset[2]};
   impl->MDestOffset = {DestOffset[0] * DestPixelSize, DestOffset[1],
@@ -598,11 +602,11 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(toKernelNameStrT(MKernelName))) {
+          !KernelBundleImpPtr->tryGetKernel(impl->getKernelName())) {
         detail::device_impl &Dev = impl->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                toKernelNameStrT(MKernelName));
+                impl->getKernelName());
         bool KernelInserted = KernelBundleImpPtr->add_kernel(
             KernelID, detail::createSyclObjFromImpl<device>(Dev));
         // If kernel was not inserted and the bundle is in input mode we try
@@ -683,9 +687,8 @@ event handler::finalize() {
         if (xptiEnabled) {
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               detail::GSYCLStreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              MKernelName.data(), *impl->MDeviceKernelInfoPtr,
-              impl->get_queue_or_null(), impl->MNDRDesc, KernelBundleImpPtr,
-              impl->MArgs);
+              *impl->MDeviceKernelInfoPtr, impl->get_queue_or_null(),
+              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
           detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -693,18 +696,16 @@ event handler::finalize() {
 #endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          BinImage = detail::retrieveKernelBinary(
-              impl->get_queue(), toKernelNameStrT(MKernelName));
+          BinImage = detail::retrieveKernelBinary(impl->get_queue(),
+                                                  impl->getKernelName());
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
             impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), toKernelNameStrT(MKernelName),
-            *impl->MDeviceKernelInfoPtr, RawEvents, ResultEvent.get(), nullptr,
-            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-            BinImage, impl->MKernelFuncPtr, impl->MKernelNumArgs,
-            impl->MKernelParamDescGetter, impl->MKernelHasSpecialCaptures);
+            MKernel.get(), *impl->MDeviceKernelInfoPtr, RawEvents,
+            ResultEvent.get(), nullptr, impl->MKernelCacheConfig,
+            impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
+            impl->MKernelWorkGroupMemorySize, BinImage, impl->MKernelFuncPtr);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         if (xptiEnabled) {
           // Emit signal only when event is created
@@ -761,10 +762,9 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), toKernelNameStrT(MKernelName),
-        *impl->MDeviceKernelInfoPtr, std::move(MStreamStorage),
-        std::move(impl->MAuxiliaryResources), getType(),
-        impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+        std::move(impl->MArgs), *impl->MDeviceKernelInfoPtr,
+        std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
+        getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
         MCodeLoc));
     break;
@@ -2570,6 +2570,16 @@ bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
 
 void handler::setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 sycl::detail::CGType handler::getType() const { return impl->MCGType; }
+
+void handler::setDeviceKernelInfo(kernel &&Kernel) {
+  MKernel = detail::getSyclObjImpl(std::move(Kernel));
+  MKernelName = getKernelName();
+  setDeviceKernelInfoPtr(&MKernel->getDeviceKernelInfo());
+  setType(detail::CGType::Kernel);
+
+  // If any extra actions are added here make sure that logic around
+  // `lambdaAndKernelHaveEqualName` calls can handle that.
+}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
