@@ -166,6 +166,10 @@ class graph_impl;
 class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
+class buffer_impl;
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 class type_erased_cgfo_ty {
   // From SYCL 2020,  command group function object:
@@ -208,9 +212,6 @@ class queue_impl;
 class stream_impl;
 class event_impl;
 class context_impl;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
 class HandlerAccess;
 class HostTask;
 
@@ -501,14 +502,7 @@ private:
     setType(detail::CGType::Kernel);
   }
 
-  void setDeviceKernelInfo(kernel &&Kernel) {
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    MKernelName = getKernelName();
-    setType(detail::CGType::Kernel);
-
-    // If any extra actions are added here make sure that logic around
-    // `lambdaAndKernelHaveEqualName` calls can handle that.
-  }
+  void setDeviceKernelInfo(kernel &&Kernel);
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // TODO: Those functions are not used anymore, remove it in the next
@@ -843,26 +837,28 @@ private:
                                               Dims>());
 #endif
 
-    // SYCL unittests are built without sycl compiler, so "host" information
-    // about kernels isn't provided (e.g., via integration headers or compiler
-    // builtins).
-    //
-    // However, some copy/fill USM operation are implemented via SYCL kernels
-    // and are instantiated resulting in all the `static_assert` checks being
-    // exercised. Without kernel information that would fail, so we explicitly
-    // disable such checks when this macro is defined. Note that the unittests
-    // don't actually execute those operation, that's why disabling
-    // unconditional `static_asserts`s is enough for now.
-#ifndef __SYCL_UNITTESTS_BYPASS_KERNEL_NAME_CHECK
     constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
 
-    static_assert(Info.Name != std::string_view{}, "Kernel must have a name!");
+    // Ideally, the following should be a `static_assert` but cannot do that as
+    // it would fail in at least two scenarios:
+    //
+    //  * Our own unittests that are compiled with an arbitrary host compiler
+    //    without SYCL knowledge (i.e., no integration headers
+    //    generated/supplied). Those that don't have to supply any stub kernel
+    //    information test exceptions thrown before kernel enqueue, so having a
+    //    run-time assert here doesn't affect them.
+    //
+    //  * Mixed SYCL/OpenMP compilation, device code generation for OpenMP in
+    //    particular. For that scenario this code is compiled but never
+    //    executed.
+    assert(Info.Name != std::string_view{} && "Kernel must have a name!");
 
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures,
     // so a static assert is made to fail for incompatible kernel lambdas.
     static_assert(
-        sizeof(KernelType) == Info.KernelSize,
+        Info.Name == std::string_view{} ||
+            sizeof(KernelType) == Info.KernelSize,
         "Unexpected kernel lambda size. This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
@@ -873,7 +869,6 @@ private:
         "In case of MSVC, passing "
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
-#endif
 
     setDeviceKernelInfo<KernelName>((void *)MHostKernel->getPtr());
 
@@ -918,7 +913,7 @@ private:
         setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
     } else {
-      std::ignore = Props;
+      (void)Props;
     }
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<
@@ -1467,12 +1462,13 @@ private:
       setNDRangeDescriptor(std::move(params)...);
     }
 
-    setDeviceKernelInfo(std::move(Kernel));
-    if (lambdaAndKernelHaveEqualName<NameT>()) {
-      StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    } else {
-      extractArgsAndReqs();
+    MKernel = detail::getSyclObjImpl(Kernel);
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "the kernel name must match the name of the lambda");
     }
+    StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     processProperties<Info.IsESIMD, PropertiesT>(Props);
 #endif
   }
@@ -1926,12 +1922,15 @@ public:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
-    setDeviceKernelInfo(std::move(Kernel));
-    if (lambdaAndKernelHaveEqualName<NameT>()) {
-      StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
-    } else {
-      extractArgsAndReqs();
+
+    MKernel = detail::getSyclObjImpl(Kernel);
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "the kernel name must match the name of the lambda");
     }
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
+
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif

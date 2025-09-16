@@ -21,8 +21,11 @@ add_llvm_component_library(LLVMNativeCPUPipeline
   ${CMAKE_CURRENT_SOURCE_DIR}/source/work_item_loops_pass.cpp
 
   LINK_COMPONENTS
-  Passes
+  Analysis
   Core
+  Passes
+  Support
+  TransformUtils
   )
 
 # TODO: Move to under LLVM include and work out why ADDITIONAL_HEADER_DIRS

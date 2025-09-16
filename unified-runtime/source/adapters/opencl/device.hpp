@@ -23,6 +23,9 @@ struct ur_device_handle_t_ : ur::opencl::handle_base {
   bool IsNativeHandleOwned = true;
   ur::RefCount RefCount;
 
+  ur_device_handle_t_(const ur_device_handle_t_ &) = delete;
+  ur_device_handle_t_ &operator=(const ur_device_handle_t_ &) = delete;
+
   ur_device_handle_t_(native_type Dev, ur_platform_handle_t Plat,
                       ur_device_handle_t Parent)
       : handle_base(), CLDevice(Dev), Platform(Plat), ParentDevice(Parent) {

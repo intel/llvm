@@ -16,6 +16,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+static CompileTimeKernelInfoTy
+createCompileTimeKernelInfo(std::string_view KernelName = {}) {
+  return CompileTimeKernelInfoTy{KernelName};
+}
+
 kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
                          context_impl &Context,
                          kernel_bundle_impl *KernelBundleImpl,
@@ -26,7 +31,8 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MCreatedFromSource(true),
       MKernelBundleImpl(KernelBundleImpl ? KernelBundleImpl->shared_from_this()
                                          : nullptr),
-      MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
+      MIsInterop(true), MKernelArgMaskPtr{ArgMask},
+      MInteropDeviceKernelInfo(createCompileTimeKernelInfo(getName())) {
   ur_context_handle_t UrContext = nullptr;
   // Using the adapter from the passed ContextImpl
   getAdapter().call<UrApiKind::urKernelGetInfo>(
@@ -52,7 +58,10 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
-      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
+      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
+      MInteropDeviceKernelInfo(MIsInterop
+                                   ? createCompileTimeKernelInfo(getName())
+                                   : createCompileTimeKernelInfo()) {
   // Enable USM indirect access for interop and non-sycl-jit source kernels.
   // sycl-jit kernels will enable this if needed through the regular kernel
   // path.

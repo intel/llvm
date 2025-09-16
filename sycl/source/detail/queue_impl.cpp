@@ -366,10 +366,9 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     (Type == CGType::ExecCommandBuffer &&
                      HandlerImpl.MExecGraph->containsHostTask());
 
-  auto requiresPostProcess = SubmitInfo.PostProcessorFunc() || Streams.size();
   auto noLastEventPath = !isHostTask &&
                          MNoLastEventMode.load(std::memory_order_acquire) &&
-                         !requiresPostProcess;
+                         !Streams.size();
 
   if (noLastEventPath) {
     std::unique_lock<std::mutex> Lock(MMutex);
@@ -398,14 +397,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         EventImpl = finalizeHandlerInOrderWithDepsUnlocked(Handler);
       }
     }
-  }
-
-  if (SubmitInfo.PostProcessorFunc()) {
-    // All the submission functions using post processing are event based
-    // functions
-    assert(EventImpl);
-    event Event = createSyclObjFromImpl<event>(EventImpl);
-    handlerPostProcess(Handler, SubmitInfo.PostProcessorFunc(), Event);
   }
 
   for (auto &Stream : Streams) {
