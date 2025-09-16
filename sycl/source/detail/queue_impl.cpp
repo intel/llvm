@@ -460,7 +460,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
       std::vector<ur_event_handle_t> RawEvents;
 
       if (CGData.MEvents.size() > 0) {
-        detail::Command::getUrEvents(CGData.MEvents, this, false);
+        RawEvents = detail::Command::getUrEvents(CGData.MEvents, this, false);
       }
 
       std::shared_ptr<detail::event_impl> ResultEvent =
