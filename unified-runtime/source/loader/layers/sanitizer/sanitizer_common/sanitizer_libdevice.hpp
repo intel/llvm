@@ -69,6 +69,9 @@ inline const char *ToString(ErrorType ErrorType) {
 }
 
 // clang-format off
+// We treat "GLOBAL/LOCAL/PRIVATE/CONSTANT/GENERIC" as address space mask as well,
+// So it's easy to check that USM_XXX is also in global memory, and we can also
+// mark an address is a generic & global & usm_device address
 enum MemoryType : uint32_t {
   UNKNOWN       = 0x000000'00,
   GLOBAL        = 0x000001'00,
