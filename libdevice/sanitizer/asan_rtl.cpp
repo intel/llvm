@@ -9,6 +9,8 @@
 #include "include/asan_rtl.hpp"
 #include "asan/asan_libdevice.hpp"
 
+extern "C" __attribute__((weak)) const int __asan_check_shadow_bounds;
+
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
 
@@ -68,6 +70,8 @@ struct DebugInfo {
   uint32_t line;
 };
 
+inline bool IsCheckShadowBounds() { return __asan_check_shadow_bounds; }
+
 void ReportUnknownDevice(const DebugInfo *debug);
 void PrintShadowMemory(uptr addr, uptr shadow_address, uint32_t as);
 void SaveReport(ErrorType error_type, MemoryType memory_type, bool is_recover,
@@ -120,8 +124,9 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
           launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
     }
 
-    if (shadow_ptr < launch_info->GlobalShadowLowerBound ||
-        shadow_ptr > launch_info->GlobalShadowUpperBound) {
+    if (IsCheckShadowBounds() &&
+        (shadow_ptr < launch_info->GlobalShadowLowerBound ||
+         shadow_ptr > launch_info->GlobalShadowUpperBound)) {
       ASAN_DEBUG(__spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
                                     launch_info->GlobalShadowLowerBound,
                                     launch_info->GlobalShadowUpperBound));
@@ -213,8 +218,9 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
                    ((addr & 0x7FFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
     }
 
-    if (shadow_ptr < launch_info->GlobalShadowLowerBound ||
-        shadow_ptr > launch_info->GlobalShadowUpperBound) {
+    if (IsCheckShadowBounds() &&
+        (shadow_ptr < launch_info->GlobalShadowLowerBound ||
+         shadow_ptr > launch_info->GlobalShadowUpperBound)) {
       ASAN_DEBUG(__spirv_ocl_printf(__asan_print_shadow_bound, addr, shadow_ptr,
                                     launch_info->GlobalShadowLowerBound,
                                     launch_info->GlobalShadowUpperBound));

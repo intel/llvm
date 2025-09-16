@@ -465,7 +465,7 @@ ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
   }
   ProgramInfo->AllocInfoForGlobals.clear();
 
-  ProgramInfo->InstrumentedKernels.clear();
+  ProgramInfo->KernelMetadataMap.clear();
 
   return UR_RESULT_SUCCESS;
 }
@@ -520,14 +520,21 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
+      bool CheckLocals = SKI.Flags & SanitizedKernelFlags::CHECK_LOCALS;
+      bool CheckPrivates = SKI.Flags & SanitizedKernelFlags::CHECK_PRIVATES;
+      bool CheckShadowBounds =
+          SKI.Flags & SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS;
 
       UR_LOG_L(getContext()->logger, INFO,
-               "SpirKernel(name='{}', isInstrumented={})", KernelName, true);
+               "SpirKernel(name='{}', isInstrumented={}, "
+               "checkLocals={}, checkPrivates={}, checkShadowBounds={})",
+               KernelName, true, CheckLocals, CheckPrivates, CheckShadowBounds);
 
-      PI->InstrumentedKernels.insert(std::move(KernelName));
+      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
+          CheckLocals, CheckPrivates, CheckShadowBounds};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
-             PI->InstrumentedKernels.size());
+             PI->KernelMetadataMap.size());
   }
 
   return UR_RESULT_SUCCESS;
@@ -691,11 +698,18 @@ KernelInfo &AsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   auto Program = GetProgram(Kernel);
   auto PI = getProgramInfo(Program);
   assert(PI != nullptr && "unregistered program!");
-  bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+
+  auto KI = std::make_unique<KernelInfo>(Kernel);
+  KI->IsInstrumented = PI->isKernelInstrumented(Kernel);
+  if (KI->IsInstrumented) {
+    auto &KM = PI->getKernelMetadata(Kernel);
+    KI->IsCheckLocals = KM.CheckLocals;
+    KI->IsCheckPrivates = KM.CheckPrivates;
+    KI->IsCheckShadowBounds = KM.CheckShadowBounds;
+  }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-  m_KernelMap.emplace(Kernel,
-                      std::make_unique<KernelInfo>(Kernel, IsInstrumented));
+  m_KernelMap.emplace(Kernel, std::move(KI));
   return *m_KernelMap[Kernel].get();
 }
 
@@ -837,14 +851,17 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // Prepare asan runtime data
   LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
-  LaunchInfo.Data.Host.GlobalShadowLowerBound =
-      DeviceInfo->Shadow->ShadowLowerBound;
-  LaunchInfo.Data.Host.GlobalShadowUpperBound =
-      DeviceInfo->Shadow->ShadowUpperBound;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
+  if (KernelInfo.IsCheckShadowBounds) {
+    LaunchInfo.Data.Host.GlobalShadowLowerBound =
+        DeviceInfo->Shadow->ShadowLowerBound;
+    LaunchInfo.Data.Host.GlobalShadowUpperBound =
+        DeviceInfo->Shadow->ShadowUpperBound;
+  }
+
   // Write shadow memory offset for local memory
-  if (getContext()->Options.DetectLocals) {
+  if (KernelInfo.IsCheckLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
             Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
             LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
@@ -864,7 +881,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
   }
 
   // Write shadow memory offset for private memory
-  if (getContext()->Options.DetectPrivates) {
+  if (KernelInfo.IsCheckPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
             Queue, NumSG, LaunchInfo.Data.Host.PrivateBase,
             LaunchInfo.Data.Host.PrivateShadowOffset,
@@ -950,7 +967,14 @@ AsanInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
 
 bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
-  return InstrumentedKernels.find(Name) != InstrumentedKernels.end();
+  return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
+}
+
+const ProgramInfo::KernelMetada &
+ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
+  const auto Name = GetKernelName(Kernel);
+  assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
+  return KernelMetadataMap.at(Name);
 }
 
 ContextInfo::~ContextInfo() {

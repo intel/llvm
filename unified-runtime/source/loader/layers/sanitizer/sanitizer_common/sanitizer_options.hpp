@@ -25,8 +25,6 @@ struct SanitizerOptions {
   bool Debug = false;
   uint64_t MinRZSize = 16;
   uint64_t MaxQuarantineSizeMB = 8;
-  bool DetectLocals = true;
-  bool DetectPrivates = true;
   bool PrintStats = false;
   bool DetectKernelArguments = true;
   bool DetectLeaks = true;
