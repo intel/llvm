@@ -20,19 +20,18 @@ modules containing one or more kernel functions to object code ready for
 execution when invoked by the host-side runtime. The assumptions placed
 on the input and output kernels is as follows:
 
-1.  The original kernel is assumed to adhere to an implicit **SIMT**
+1. The original kernel is assumed to adhere to an implicit **SIMT**
     execution model; it runs once per each *work-item* in an
     **NDRange**.
 2. It is passed a state struct which contains information about the scheduling.
 3. All builtins which do not relate to scheduling have been processed and we are
-   left with some scheduling related calls to `mux builtins`.
-4.  The final compiled kernel is assumed to be invoked from the
+   left with some scheduling related calls to "mux builtins".
+4. The final compiled kernel is assumed to be invoked from the
     host-side runtime once per *work-group* in the **NDRange**.
 
 The inner-most function is the original input kernel, which is *wrapped*
 by new functions in successive phases, until it is ready in a form to be
-executed by the Native CPU driver. These include effectively wrapping a  `for (wi : wg)`
-around the original kernel.
+executed by the Native CPU driver.
 
 The [WorkItemLoopsPass](SYCLNativeCPUPipelinePasses.md#workitemloopspass)
 is the key pass which makes some of the implicit parallelism
@@ -77,9 +76,9 @@ are responsible for adding this information.
 
 ### Whole Function Vectorization
 
-The [vecz](SYCLNativeCPUVecz.md) whole-function vectorizer is optionally run.
+The [Vecz](SYCLNativeCPUVecz.md) whole-function vectorizer is optionally run.
 
-Note that VECZ may perform its own scalarization, depending on the
+Note that Vecz may perform its own scalarization, depending on the
 options passed to it, potentially undoing the work of any previous
 optimization passes, although it is able to preserve or even widen
 pre-existing vector operations in many cases.
@@ -148,7 +147,7 @@ where they are used.
 
 The [WorkItemLoopsPass](SYCLNativeCPUPipelinePasses.md#workitemloopspass) is
 responsible for laying out kernels which have been vectorized by the
-[vecz](SYCLNativeCPUVecz.md) whole-function vectorizer.
+[Vecz](SYCLNativeCPUVecz.md) whole-function vectorizer.
 
 The vectorizer creates multiple versions of the original kernel.
 Vectorized kernels on their own are generally unable to fulfill
@@ -164,7 +163,7 @@ For brevity, the diagram below only details in inner-most work-item
 loops. Most kernels will in reality have 2 outer levels of loops over
 the full *Y* and *Z* work-group dimensions.
 
-![Work Item Loops with vecz.](images/native_cpu_vecz.jpg)
+![Work Item Loops with Vecz.](images/native_cpu_vecz.jpg)
 
 In the above example, the vectorized kernel is called to execute as many
 work-items as possible, up to the largest multiple of the vectorization
