@@ -9,8 +9,8 @@
 #include <libspirv/spirv.h>
 
 #define IMPL(TYPE, AS, FN_NAME)                                                \
-  _CLC_OVERLOAD _CLC_DECL TYPE __spirv_AtomicISub(AS TYPE *p, int scope,       \
-                                                  int semantics, TYPE val) {   \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_AtomicISub(AS TYPE *p, int scope,        \
+                                                 int semantics, TYPE val) {    \
     return FN_NAME(p, val);                                                    \
   }
 
