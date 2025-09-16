@@ -8,13 +8,13 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(global float *p, int scope,
-                                                 int semantics, float val) {
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(global float *p, int scope,
+                                                int semantics, float val) {
   __spirv_AtomicStore((global uint *)p, scope, semantics, __clc_as_uint(val));
 }
 
-_CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(local float *p, int scope,
-                                                 int semantics, float val) {
+_CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(local float *p, int scope,
+                                                int semantics, float val) {
   __spirv_AtomicStore((local uint *)p, scope, semantics, __clc_as_uint(val));
 }
 
@@ -26,8 +26,8 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(local float *p, int scope,
   FDECL(TYPE, PREFIX, AS, BYTE_SIZE, unordered)                                \
   FDECL(TYPE, PREFIX, AS, BYTE_SIZE, release)                                  \
   FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                                  \
-  _CLC_OVERLOAD _CLC_DECL void __spirv_AtomicStore(AS TYPE *p, int scope,      \
-                                                   int semantics, TYPE val) {  \
+  _CLC_OVERLOAD _CLC_DEF void __spirv_AtomicStore(AS TYPE *p, int scope,       \
+                                                  int semantics, TYPE val) {   \
     if (semantics == Release) {                                                \
       __clc__atomic_##PREFIX##store_##AS##_##BYTE_SIZE##_release(p, val);      \
     } else if (semantics == SequentiallyConsistent) {                          \
