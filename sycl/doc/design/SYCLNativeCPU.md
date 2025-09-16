@@ -119,7 +119,7 @@ llvm-cov show .\vector-add.exe -instr-profile=foo.profdata
 
 # Native CPU compiler pipeline
 
-SYCL Native CPU formerly used the [oneAPI Construction Kit](https://github.com/uxlfoundation/oneapi-construction-kit) (OCK) via CMake FetchContent in order to support some core SYCL functionalities and improve performances in the compiler pipeline. The relevant OCK parts have been brought into DPC++ and the Native CPU compiler pipeline is documented [here](SYCLNativeCPUPipeline.md), with a brief overview below. The OCK- related parts are still enabled by using the `NATIVECPU_USE_OCK` CMake variable, but this is enabled by default.
+SYCL Native CPU formerly used the [oneAPI Construction Kit](https://github.com/uxlfoundation/oneapi-construction-kit) (OCK) via CMake FetchContent in order to support some core SYCL functionalities and improve performances in the compiler pipeline. The relevant OCK parts have been brought into DPC++ and the Native CPU compiler pipeline is documented in [SYCLNativeCPUPipeline documentation](SYCLNativeCPUPipeline.md), with a brief overview below. The OCK- related parts are still enabled by using the `NATIVECPU_USE_OCK` CMake variable, but this is enabled by default.
 
 The following section gives a brief overview of how a simple SYCL application is compiled for the SYCL Native CPU target. Consider the following SYCL sample, which performs vector addition using USM:
 

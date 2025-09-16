@@ -1,4 +1,4 @@
-# Vecz Documentation
+# SYCL Native CPU Vecz
 
 Codeplay's Vecz is a library based on LLVM that allows vectorization of SPMD
 programs such as Native CPU kernels.

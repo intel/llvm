@@ -1,7 +1,6 @@
-Native CPU Compiler Pipeline Overview
-=====================================
+# Native CPU Compiler Pipeline Overview
 
-# Introduction
+## Introduction
 
 This document serves to introduce users to the Native CPU compiler pipeline. The
 compiler pipeline performs several key transformations over several phases that
@@ -16,7 +15,7 @@ Kit](https://github.com/uxlfoundation/oneapi-construction-kit/tree/main), under
 
 ## Objective and Execution Model
 
-The compiler pipeline\'s objective is to compile incoming LLVM IR
+The compiler pipeline's objective is to compile incoming LLVM IR
 modules containing one or more kernel functions to object code ready for
 execution when invoked by the host-side runtime. The assumptions placed
 on the input and output kernels is as follows:
@@ -106,7 +105,7 @@ options passed to it, potentially undoing the work of any previous
 optimization passes, although it is able to preserve or even widen
 pre-existing vector operations in many cases.
 
-#### Work-item Scheduling & Barriers
+### Work-item Scheduling & Barriers
 
 The work-item loops are added to each kernel by the [WorkItemLoopsPass](SYCLNativeCPUPipelinePasses.md#workitemloopspass).
 
@@ -119,13 +118,13 @@ well as [Vectorization Scheduling](#vectorization-scheduling) if the
 vectorizer was run.
 
 
-### Barrier Scheduling
+#### Barrier Scheduling
 
 The fact that the
 [WorkItemLoopsPass](SYCLNativeCPUPipelinePasses.md#workitemloopspass) handles
 both work-item loops and barriers can be confusing to newcomers. These two
 concepts are in fact linked. Taking the kernel code below, this section will
-show how the `WorkItemLoopsPass` lays out and schedules a kernel\'s work-item
+show how the `WorkItemLoopsPass` lays out and schedules a kernel's work-item
 loops in the face of barriers.
 
 ```C
@@ -148,7 +147,7 @@ the first contains the call to `get_global_id` and the read/update/write
 of global memory pointed to by `a`; the second contains the
 read/update/write of global memory pointed to by `b`.
 
-To correctly observe the barrier\'s semantics, all work-items in the
+To correctly observe the barrier's semantics, all work-items in the
 work-group need to execute the first barrier region before beginning the
 second. Thus the `WorkItemLoopsPass` produces two sets of work-item
 loops to schedule this kernel:
@@ -174,7 +173,7 @@ In this case, however, calls to certain builtins like `get_global_id`
 are treated specially and are materialized anew in each barrier region
 where they are used.
 
-### Vectorization Scheduling
+#### Vectorization Scheduling
 
 The [WorkItemLoopsPass](SYCLNativeCPUPipelinePasses.md#workitemloopspass) is
 responsible for laying out kernels which have been vectorized by the
@@ -225,9 +224,9 @@ less than or equal to the work-group size.
 In the case that there are work-items remaining (i.e., if the work-group
 size is not a multiple of 4) then the original scalar kernel is called
 on the up to 3 remaining work-items. These remaining work-items are
-typically called the \'peel\' iterations.
+typically called the 'peel' iterations.
 
-#### PrepareSYCLNativeCPU Pass
+### PrepareSYCLNativeCPU Pass
 
 This pass will add a pointer to a `native_cpu::state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `native_cpu::state` struct. The `native_cpu::state` struct is defined in the [native_cpu UR adapter](https://github.com/oneapi-src/unified-runtime/blob/main/source/adapters/native_cpu/nativecpu_state.hpp) and the builtin functions are defined in the [native_cpu device library](https://github.com/intel/llvm/blob/sycl/libdevice/nativecpu_utils.cpp).
 

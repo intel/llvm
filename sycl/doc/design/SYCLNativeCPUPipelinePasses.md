@@ -1,5 +1,4 @@
-Compiler Utilities
-==================
+# SYCL Native CPU pipeline passes
 
 The `compiler::utils` module exists under
 [compiler_pipeline](https://github.com/intel/llvm/tree/sycl/llvm/lib/SYCLNativeCPUUtils/compiler_passes/compiler_pipeline)
@@ -9,7 +8,7 @@ These utility passes are currently only being used by `Native CPU`. These
 utilities were originally under the [oneAPI Construction
 Kit](https://github.com/uxlfoundation/oneapi-construction-kit/tree/main).
 
-# TransferKernelMetadataPass and EncodeKernelMetadataPass
+## TransferKernelMetadataPass and EncodeKernelMetadataPass
 
 These passes are responsible for setting up metadata on kernels under
 compilation. Many other passes implicitly rely on the metadata and
@@ -46,7 +45,7 @@ Their job is three-fold:
     optional data supplied to either pass on construction to encode this
     metadata. If not set, the default `xyz` order is used.
 
-# WorkItemLoopsPass
+## WorkItemLoopsPass
 
 The `WorkItemLoopsPass` is responsible for adding explicit parallelism
 to implicitly parallel SIMT kernels. It does so by wrapping each kernel
@@ -297,7 +296,7 @@ loops individually to each subkernel. The return value of a subkernel is
 used to determine which subkernel loop to branch to next, or to exit the
 wrapper function, as appropriate.
 
-## Work-group scheduling (vectorized and scalar loops)
+### Work-group scheduling (vectorized and scalar loops)
 
 The [WorkItemLoopsPass](#workitemloopspass) is responsible for stitching
 together multiple kernels to make a single kernel capable of correctly
@@ -317,7 +316,7 @@ together kernels in several different configurations:
 -   Vector loop only
 -   Scalar loop only
 
-### Vector + Scalar
+#### Vector + Scalar
 
 The vector + scalar kernel combination is considered the default
 behaviour. Most often the work-group size is unknown at compile time and
@@ -385,7 +384,7 @@ There are circumstances in which this mode is skipped in favour of
 
 If any of these conditions are true, the \"vector only\" mode is used.
 
-### Vector + Vector-predicated
+#### Vector + Vector-predicated
 
 The vector + vector-predicated kernel combination is a special case
 optimization of the default behaviour.
@@ -413,7 +412,7 @@ if (group_size_x >= vector_width) {
 }
 ```
 
-### Vector only
+#### Vector only
 
 If the [WorkItemLoopsPass](#workitemloopspass) is run on a vectorized
 kernel for which no [vecz](SYCLNativeCPUVecz.md) linking metadata is found to
@@ -422,12 +421,12 @@ the conditions listed above hold, then the kernel is emitted using the
 vector kernel only. It is assumed that if no scalar kernel is found it
 is because targets know that one is not required.
 
-### Scalar only
+#### Scalar only
 
 If the [WorkItemLoopsPass](#workitemloopspass) is run on a scalar kernel
 then only the scalar kernel is used.
 
-# OptimalBuiltinReplacementPass
+### OptimalBuiltinReplacementPass
 
 The `OptimalBuiltinReplacementPass` is an optimization call-graph pass designed
 to replace calls to builtin functions with optimal equivalents. This is only
@@ -473,7 +472,7 @@ The `__abacus_fmin` and `__abacus_fmax` builtins can be exchanged for
 hardware intrinsics: `llvm.minnum` and `llvm.maxnum`. This is not
 performed on ARM targets due to LLVM backend compiler bugs.
 
-# RunVeczPass
+### RunVeczPass
 
 The `RunVeczPass` module pass provides a wrapper for using our
 [vecz](SYCLNativeCPUVecz.md) IR vectorizer. This vectorizes the
@@ -493,7 +492,7 @@ the kernel in any case. If successful, this will return a new vectorized
 kernel function created in the LLVM module so that this vectorized
 kernel is used instead of our scalar kernel from here on.
 
-## Cost Model Interface
+#### Cost Model Interface
 
 User cost-modelling in vecz can be handled by the
 `vecz::VeczPassOptionsAnalsis` which takes a user defined query function
@@ -561,7 +560,7 @@ provided.
 
 The Cost Model header file resides at `utils/cost_model.h`.
 
-# DefineMuxBuiltinsPass
+### DefineMuxBuiltinsPass
 
 The `DefineMuxBuiltinsPass` performs a scan over all functions in the
 module, calling `BuiltinInfo::defineMuxBuiltin` on all mux builtin
@@ -574,7 +573,7 @@ end of the module\'s list of functions so that the
 the lowering of `__mux_get_global_id` which calls `__mux_get_local_id`,
 among other functions.
 
-# ReplaceLocalModuleScopeVariablesPass
+### ReplaceLocalModuleScopeVariablesPass
 
 The `ReplaceLocalModuleScopeVariables` pass identifies global variables
 in the local address space and places them in a struct called
@@ -596,7 +595,7 @@ instructions referencing the matching struct member instead. Finally the
 identified global variables are removed once all of their uses have been
 replaced.
 
-# PrepareBarriersPass
+### PrepareBarriersPass
 
 The `PrepareBarriersPass` is useful in order to satisfy the requirements
 the [WorkItemLoopsPass](#workitemloopspass) has on kernels containing
@@ -610,7 +609,7 @@ the vectorizer preserves in each vectorized kernel, meaning the
 `WorkItemLoopsPass` can correctly schedule the work-item loops for each
 barrier region.
 
-# Metadata Utilities
+### Metadata Utilities
 
 There are several key pieces of metadata used for inter-communication
 between the Native CPU passes.
@@ -621,7 +620,7 @@ number of operands, types of operands, etc., utility functions
 names and/or operands of these metadata is **not** guaranteed to be
 stable.
 
-# Attribute Utilities
+### Attribute Utilities
 
 There are several key attributes used for inter-communication between
 the Native CPU passes.
@@ -647,7 +646,7 @@ example:
         function `ToF`, if present on the old function.
         Overwrites any such metadata in the new function.
 
-# Sub-groups
+### Sub-groups
 
 A implementation of SPIR-V sub-group builtins is provided by the
 default compiler pipeline.
@@ -672,9 +671,9 @@ If a target wishes to provide their own sub-group implementation they
 should provide a derived `BIMuxInfoConcept` and override
 `defineMuxBuiltin` for the sub-group builtins.
 
-# LLVM intermediate representation
+### LLVM intermediate representation
 
-## Mangling
+#### Mangling
 
 Mangling is used by the vectorizer to declare, define and use internal
 overloaded builtin functions. In general, the mangling scheme follows [Appendix
@@ -682,7 +681,7 @@ A of the SPIR 1.2
 specification](https://www.khronos.org/registry/SPIR/specs/spir_spec-1.2.pdf).
 itself an extension of the Itanium C++ mangling scheme.
 
-## Vector Types
+##### Vector Types
 
 The Itanium specification under-specifies vector types in general, so vendors
 are left to establish their own system. In the vectorizer, fixed-length vector
@@ -720,7 +719,7 @@ Example:
    define void @__vecz_b_interleaved_storeV_u6nxv16dPU3AS1d(<vscale x 16 x double> %0, double addrspace(1)* %1, i64 %2) {
 ```
 
-# Builtins
+#### Builtins
 
 The Following intermediate representations are used in the interface to Native CPU. Some of these may not be relevant for Native CPU, and may exist from the time this was part of the `oneAPI Construction Kit`.
 
@@ -820,7 +819,7 @@ The Following intermediate representations are used in the interface to Native C
   as ``__mux_mem_barrier(i32 %scope, i32 %semantics)``. See `below
   <#memory-and-control-barriers>`__ for more information.
 
-## Group operation builtins
+##### Group operation builtins
 
 Native CPU defines a variety of builtins to handle operations across a
 sub-group, work-group, or *vector group*.
@@ -859,7 +858,7 @@ The groups are defined as:
   corresponding ``sub-group`` builtins with a sub-group size of 1.
 
 
-### ``any``/``all`` builtins
+##### ``any``/``all`` builtins
 
 The ``any`` and ``all`` builtins return ``true`` if any/all of their operands
 are ``true`` and ``false`` otherwise.
@@ -870,7 +869,7 @@ are ``true`` and ``false`` otherwise.
    i1 @__mux_vec_group_any_v4i1(<4 x i1> %x)
 ```
 
-### ``broadcast`` builtins
+##### ``broadcast`` builtins
 
 The ``broadcast`` builtins broadcast the value corresponding to the local ID to
 the result of all invocations in the group. The sub-group version of this
@@ -886,7 +885,7 @@ the value to broadcast. Unused indices (e.g., in lower-dimension kernels)
    i64 @__mux_vec_group_broadcast_v2i64(<2 x i64> %val, i32 %vec_id)
 ```
 
-### ``reduce`` and ``scan`` builtins
+##### ``reduce`` and ``scan`` builtins
 
 The ``reduce`` and ``scan`` builtins return the result of the group operation
 for all values of their parameters specified by invocations in the group.
@@ -924,7 +923,7 @@ Examples:
 ```
 
 
-### Sub-group ``shuffle`` builtin
+##### Sub-group ``shuffle`` builtin
 
 The ``sub_group_shuffle`` builtin allows data to be arbitrarily transferred
 between invocations in a sub-group. The data that is returned for this
@@ -936,7 +935,7 @@ invocation is the value of ``%val`` for the invocation identified by ``%lid``.
    i32 @__mux_sub_group_shuffle_i32(i32 %val, i32 %lid)
 ```
 
-### Sub-group ``shuffle_up`` builtin
+##### Sub-group ``shuffle_up`` builtin
 
 The ``sub_group_shuffle_up`` builtin allows data to be transferred from an
 invocation in the sub-group with a lower sub-group local invocation ID up to an
@@ -968,7 +967,7 @@ All other values of the shuffle index are considered to be out-of-range.
    i8 @__mux_sub_group_shuffle_up_i8(i8 %prev, i8 %curr, i32 %delta)
 ```
 
-### Sub-group ``shuffle_down`` builtin
+##### Sub-group ``shuffle_down`` builtin
 
 The ``sub_group_shuffle_down`` builtin allows data to be transferred from an
 invocation in the sub-group with a higher sub-group local invocation ID down to
@@ -1000,7 +999,7 @@ All other values of the shuffle index are considered to be out-of-range.
    float @__mux_sub_group_shuffle_down_f32(float %curr, float %next, i32 %delta)
 ```
 
-### Sub-group ``shuffle_xor`` builtin
+##### Sub-group ``shuffle_xor`` builtin
 
 These ``sub_group_shuffle_xor`` builtin allows for efficient sharing of data
 between items within a sub-group.
@@ -1015,7 +1014,7 @@ out-of-range.
    double @__mux_sub_group_shuffle_xor_f64(double %val, i32 %xor_val)
 ```
 
-### Memory and Control Barriers
+##### Memory and Control Barriers
 
 The mux barrier builtins synchronize both memory and execution flow.
 
@@ -1060,7 +1059,7 @@ bitfield.
   };
 ```
 
-### Atomics and Fences
+##### Atomics and Fences
 
 The LLVM intermediate representation stored in
 ``compiler::BaseModule::finalized_llvm_module`` **may** contain any of the
@@ -1095,7 +1094,7 @@ No lock free requirements are made on the above atomic instructions. A target
 **may** choose to provide a software implementation of the atomic instructions
 via some other mechanism such as a hardware mutex.
 
-## Metadata
+### Metadata
 
 The following table describes metadata which can be introduced at different stages of the
 pipeline:
@@ -1126,7 +1125,7 @@ accessing, setting, or updating each piece of metadata.
    |------|--------|-------------|
    |``!mux-scheduling-params``|string, string, ...| A list of scheduling parameter names used by this target. Emitted into       the module at the time scheduling parameters are added to functions that requires them. The indices found in ``!mux_scheduled_fn`` function metadata are indices into this list.
 
-## Function Attributes
+### Function Attributes
 
 The following table describes function attributes which can be introduced at
 different stages of the pipeline:
@@ -1150,7 +1149,7 @@ different stages of the pipeline:
    | ``"mux-barrier-schedule"="val"``| Typically found on call sites. Determines the ordering of work-item execution after a berrier. See the `BarrierSchedule` enum. |
    | ``"mux-no-subgroups"``| Marks the function as not explicitly using sub-groups (e.g., identified by the use of known mux sub-group builtins). If a pass introduces the explicit use of sub-groups to a function, it should remove this  attribute. |
 
-### mux-kernel attribute
+#### mux-kernel attribute
 
 SYCL programs generally consist of a number of *kernel functions*, which
 have a certain programming model and may be a subset of all functions in the

@@ -47,8 +47,10 @@ html_theme = "haiku"
 # The suffix of source filenames.
 source_suffix = [".rst", ".md"]
 
-# Allow use of mermaid directly to view on github without the {}
+# Make the GitHub-compatible syntax also work with MyST
 myst_fence_as_directive = ["mermaid"]
+
+mermaid_output_format = 'png'
 
 exclude_patterns = [
     # Extensions are mostly in asciidoc which has poor support in Sphinx.
