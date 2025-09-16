@@ -53,8 +53,8 @@ up in a triple-nested loop over all work-items in the work-group. Thus,
 kernels scheduled by this pass can be invoked once per work-group.
 
 The order in which work-items are executed is fairly flexible, but generally in
-ascending order from [0] to [N-1] through the innermost [X] dimension, followed
-by the [Y] dimension, and lastly the [Z] dimension.
+ascending order from \[0\] to \[N-1\] through the innermost \[X\] dimension, followed
+by the \[Y\] dimension, and lastly the \[Z\] dimension.
 
 Conceptually, the pass transforms `old_kernel` into `new_kernel` in the
 example below:

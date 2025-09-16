@@ -9,7 +9,7 @@ run in `llvm::sycl::utils::addSYCLNativeCPUBackendPasses`. All of the compiler
 pipeline code can be found under
 [llvm/lib/SYCLNativeCPUUtils](https://github.com/intel/llvm/tree/sycl/llvm/lib/SYCLNativeCPUUtils),
 with the code which originated from the [oneAPI Construction
-Kit](https://github.com/uxlfoundation/oneapi-construction-kit/tree/main), under
+Kit](https://github.com/uxlfoundation/oneapi-construction-kit), under
 `compiler_passes` in that directory.
 
 
@@ -21,13 +21,13 @@ execution when invoked by the host-side runtime. The assumptions placed
 on the input and output kernels is as follows:
 
 1. The original kernel is assumed to adhere to an implicit **SIMT**
-    execution model; it runs once per each *work-item* in an
-    **NDRange**.
+   execution model; it runs once per each *work-item* in an
+   **NDRange**.
 2. It is passed a state struct which contains information about the scheduling.
 3. All builtins which do not relate to scheduling have been processed and we are
    left with some scheduling related calls to "mux builtins".
 4. The final compiled kernel is assumed to be invoked from the
-    host-side runtime once per *work-group* in the **NDRange**.
+   host-side runtime once per *work-group* in the **NDRange**.
 
 The inner-most function is the original input kernel, which is *wrapped*
 by new functions in successive phases, until it is ready in a form to be
