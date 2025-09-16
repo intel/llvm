@@ -259,7 +259,7 @@ replacing the scalar kernel with the vectorized one.
 
 Any remaining materialization of builtins are handled by
 [DefineMuxBuiltinsPass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLNativeCPUUtils/compiler_passes/compiler_pipeline/source/define_mux_builtins_pass.cpp),
-such as ``__mux_mem_barrier``. The use of this pass should probably be phased
+such as `__mux_mem_barrier`. The use of this pass should probably be phased
 out in preference to doing it all in one place.
 
 Some builtins may rely on others to complete their function. These
