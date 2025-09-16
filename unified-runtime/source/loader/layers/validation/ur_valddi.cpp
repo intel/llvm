@@ -7891,6 +7891,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
+    /// [in] flag describing types of source and destination pointers (USM vs
+    /// image handle)
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -7938,6 +7941,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     if (UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
+    if (UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE < imageCopyInputTypes)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
     if (pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
 
@@ -7960,8 +7966,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   ur_result_t result = pfnImageCopyExp(
       hQueue, pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-      phEventWaitList, phEvent);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      numEventsInWaitList, phEventWaitList, phEvent);
 
   return result;
 }

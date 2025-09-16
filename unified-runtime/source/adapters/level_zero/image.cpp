@@ -28,8 +28,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -43,7 +45,17 @@ ur_result_t urBindlessImagesImageCopyExp(
   UR_ASSERT(!(pSrcImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pSrcImageDesc->type),
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
-  bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
+  // When we do a region copy from an image handle to USM with non-zero offest
+  // into a USM region, then copy engine would ignore the offset and always
+  // write data at the beginning of the USM allocation.
+  // On the other hand, when performing memory to memory copies if copy engine
+  // is not used, then only half the lines are copied.
+  // This is wild and the change is only added because we continue to test
+  // both V1 and V2 L0 adapters for all HW, regardless of the default adapter
+  // there.
+  bool UseCopyEngine =
+      hQueue->useCopyEngine(/*PreferCopyEngine*/ imageCopyInputTypes ==
+                            UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
   if (is3ChannelOrder(
@@ -84,8 +96,8 @@ ur_result_t urBindlessImagesImageCopyExp(
 
   auto res = bindlessImagesHandleCopyFlags(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, ZeCommandList, ZeEvent,
-      WaitList.Length, WaitList.ZeEventList);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      ZeCommandList, ZeEvent, WaitList.Length, WaitList.ZeEventList);
 
   if (res == UR_RESULT_SUCCESS)
     UR_CALL(hQueue->executeCommandList(CommandList, Blocking, OkToBatch));

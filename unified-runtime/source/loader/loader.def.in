@@ -346,6 +346,7 @@ EXPORTS
 	urPrintExpExternalSemaphoreType
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
+	urPrintExpImageCopyInputTypes
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
 	urPrintExpPeerInfo
