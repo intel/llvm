@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...

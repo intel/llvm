@@ -471,7 +471,7 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
-  auto &DynamicParams = Handler.impl->MDynamicParameters;
+  auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
   if (NodeType != node_type::kernel && DynamicParams.size() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -1804,6 +1804,12 @@ modifiable_command_graph::modifiable_command_graph(
     const sycl::queue &SyclQueue, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
           SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
+
+modifiable_command_graph::modifiable_command_graph(
+    const sycl::device &SyclDevice, const sycl::property_list &PropList)
+    : impl(std::make_shared<detail::graph_impl>(
+          SyclDevice.get_platform().khr_get_default_context(), SyclDevice,
+          PropList)) {}
 
 node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                                        const std::vector<node> &Deps) {

@@ -41,6 +41,8 @@
 #include "../common.hpp"
 #include "atomic_fixt.hpp"
 
+#include <atomic>
+
 constexpr size_t numBlocks = 1;
 constexpr size_t numThreads = 1;
 constexpr size_t numData = 6;
