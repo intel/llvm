@@ -96,7 +96,7 @@ void GlobalHandler::TraceEventXPTI(const char *Message) {
         CodeLocation.fileName(), CodeLocation.functionName(),
         CodeLocation.lineNumber(), CodeLocation.columnNumber(), nullptr);
     // Notify the subscriber with a diagnostic message when an exception occurs.
-    TP.stream(detail::GSYCLStreamID)
+    TP.stream(detail::getActiveXPTIStreamID())
         .traceType(xpti::trace_point_type_t::diagnostics)
         .parentEvent(GSYCLCallEvent)
         .notify(static_cast<const void *>(Message));

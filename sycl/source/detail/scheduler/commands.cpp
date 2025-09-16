@@ -575,7 +575,7 @@ Command::Command(
     return;
   // Obtain the stream ID so all commands can emit traces to that stream;
   // copying it to the member variable to avoid ABI breakage
-  MStreamID = detail::GSYCLStreamID;
+  MStreamID = getActiveXPTIStreamID();
 #endif
 }
 
@@ -2037,14 +2037,12 @@ void instrumentationAddExtraKernelMetadata(
   }
 }
 
-void instrumentationFillCommonData(const std::string &KernelName,
-                                   const std::string &FuncName,
-                                   const std::string &FileName, uint64_t Line,
-                                   uint64_t Column, const void *const Address,
-                                   queue_impl *Queue,
-                                   std::optional<bool> &FromSource,
-                                   uint64_t &OutInstanceID,
-                                   xpti_td *&OutTraceEvent) {
+void instrumentationFillCommonData(
+    xpti::stream_id_t StreamID, const std::string &KernelName,
+    const std::string &FuncName, const std::string &FileName, uint64_t Line,
+    uint64_t Column, const void *const Address, queue_impl *Queue,
+    std::optional<bool> &FromSource, uint64_t &OutInstanceID,
+    xpti_td *&OutTraceEvent) {
   //  Get source file, line number information from the CommandGroup object
   //  and create payload using name, address, and source info
   bool HasSourceInfo = !FileName.empty();
@@ -2072,7 +2070,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
     }
     // We limit the metadata to only include the kernel name and device
     // information by default.
-    if (xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)) {
+    if (detail::isDebugStream(StreamID)) {
       if (FromSource.has_value()) {
         xpti::addMetadata(CmdTraceEvent, "from_source", FromSource.value());
       }
@@ -2122,7 +2120,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                              ? CodeLoc.functionName()
                              : std::string();
 
-  instrumentationFillCommonData(KernelName, FuncName, FileName,
+  instrumentationFillCommonData(StreamID, KernelName, FuncName, FileName,
                                 CodeLoc.lineNumber(), CodeLoc.columnNumber(),
                                 Address, Queue, FromSource, InstanceID,
                                 CmdTraceEvent);
@@ -2136,7 +2134,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     // Add the additional metadata only if the debug information is subscribed
     // to; in this case, it is the kernel and its parameters.
-    if (xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)) {
+    if (detail::isDebugStream(StreamID)) {
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, NDRDesc, KernelBundleImplPtr, DeviceKernelInfo,
           SyclKernel, Queue, CGArgs);
@@ -2180,10 +2178,10 @@ void ExecCGCommand::emitInstrumentationData() {
     FuncName = MCommandGroup->MFunctionName;
 
   xpti_td *CmdTraceEvent = nullptr;
-  instrumentationFillCommonData(KernelName, FuncName, MCommandGroup->MFileName,
-                                MCommandGroup->MLine, MCommandGroup->MColumn,
-                                MAddress, MQueue.get(), FromSource, MInstanceID,
-                                CmdTraceEvent);
+  instrumentationFillCommonData(MStreamID, KernelName, FuncName,
+                                MCommandGroup->MFileName, MCommandGroup->MLine,
+                                MCommandGroup->MColumn, MAddress, MQueue.get(),
+                                FromSource, MInstanceID, CmdTraceEvent);
 
   if (CmdTraceEvent) {
     xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,

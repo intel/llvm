@@ -68,6 +68,22 @@ extern xpti::trace_event_data_t *GApiEvent;
 
 // We will pick a global constant so that the pointer in TLS never goes stale
 inline constexpr auto XPTI_QUEUE_INSTANCE_ID_KEY = "queue_id";
+
+// Helper to check if xpti stream is debug.
+inline bool isDebugStream(xpti::stream_id_t StreamID) {
+  return StreamID == detail::GSYCLDebugStreamID;
+}
+
+inline uint8_t getActiveXPTIStreamID() {
+  return xptiCheckTraceEnabled(detail::GSYCLDebugStreamID)
+             ? detail::GSYCLDebugStreamID
+             : detail::GSYCLStreamID;
+}
+
+inline bool anyTraceEnabled(uint16_t TraceType) {
+  return xptiCheckTraceEnabled(detail::GSYCLDebugStreamID, TraceType) ||
+         xptiCheckTraceEnabled(detail::GSYCLStreamID, TraceType);
+}
 #endif
 
 class XPTIRegistry {
@@ -108,8 +124,9 @@ public:
       if (detail::GSYCLGraphEvent) {
         // The graph event is a global event and will be used as the parent for
         // all nodes (command groups, memory allocations, etc)
-        xptiNotifySubscribers(detail::GSYCLStreamID, xpti::trace_graph_create,
-                              nullptr, detail::GSYCLGraphEvent,
+        xptiNotifySubscribers(detail::getActiveXPTIStreamID(),
+                              xpti::trace_graph_create, nullptr,
+                              detail::GSYCLGraphEvent,
                               detail::GSYCLGraphEvent->instance_id, nullptr);
       }
       auto MemAllocEventTP =
