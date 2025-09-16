@@ -70,10 +70,7 @@ def _write_output_to_file(
     """
     # Define variable configuration based on whether we're archiving or not
     filename = "data_archive" if archive else "data"
-
-    # Emit unified canonical format for both local (JS wrapper) and remote (pure JSON)
     output_data = json.loads(output.to_json())  # type: ignore
-    output_data["defaultCompareNames"] = output.default_compare_names
 
     if options.flamegraph:
         flamegraph_data = _get_flamegraph_data(html_path)
@@ -83,24 +80,44 @@ def _write_output_to_file(
                 f"Added flamegraph data for {len(flamegraph_data['runs'])} runs to {filename}.*"
             )
 
+    runs_list = output_data.get("runs", [])
+
     if options.output_html == "local":
-        # Single JS assignment for canonical object
+        # Local JS: emit standalone globals (legacy-style) without wrapper object
         data_path = os.path.join(html_path, f"{filename}.js")
         with open(data_path, "w") as f:
-            # kept for backward references, but embed full object under runs
             f.write("benchmarkRuns = ")
-            f.write(
-                "undefined; /* placeholder to preserve legacy global; use benchmarkDataCanonical instead */\n"
-            )
-            f.write("benchmarkDataCanonical = ")
-            json.dump(output_data, f, indent=2)
+            json.dump(runs_list, f, indent=2)
+            f.write(";\n")
+            if "flamegraphData" in output_data:
+                f.write("flamegraphData = ")
+                json.dump(output_data["flamegraphData"], f, indent=2)
+                f.write(";\n")
+            else:
+                f.write("flamegraphData = { runs: {} };\n")
+            f.write("benchmarkMetadata = ")
+            json.dump(output_data.get("metadata", {}), f, indent=2)
+            f.write(";\n")
+            f.write("benchmarkTags = ")
+            json.dump(output_data.get("tags", {}), f, indent=2)
+            f.write(";\n")
+            f.write("defaultCompareNames = ")
+            json.dump(output.default_compare_names, f)
             f.write(";\n")
         if not archive:
             log.info(f"See {html_path}/index.html for the results.")
     else:
+        # Remote JSON: emit flat schema aligning with local globals
+        remote_obj = {
+            "benchmarkRuns": runs_list,
+            "benchmarkMetadata": output_data.get("metadata", {}),
+            "benchmarkTags": output_data.get("tags", {}),
+            "flamegraphData": output_data.get("flamegraphData", {"runs": {}}),
+            "defaultCompareNames": output.default_compare_names,
+        }
         data_path = os.path.join(html_path, f"{filename}.json")
         with open(data_path, "w") as f:
-            json.dump(output_data, f, indent=2)
+            json.dump(remote_obj, f, indent=2)
         log.info(
             f"Upload {data_path} to a location set in config.js remoteDataUrl argument."
         )

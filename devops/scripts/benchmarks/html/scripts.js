@@ -723,27 +723,17 @@ function createChartContainer(data, canvasId, type) {
 
         const listContainer = document.createElement('div');
         listContainer.className = 'download-list';
-        
+
+        // Dynamic positioning (kept in JS)
         const rect = buttonElement.getBoundingClientRect();
-        listContainer.style.position = 'absolute';
         listContainer.style.top = `${window.scrollY + rect.bottom + 5}px`;
         listContainer.style.left = `${window.scrollX + rect.left}px`;
-        listContainer.style.zIndex = '1000';
-        listContainer.style.backgroundColor = 'white';
-        listContainer.style.border = '1px solid #ccc';
-        listContainer.style.borderRadius = '4px';
-        listContainer.style.padding = '4px';
-        listContainer.style.minWidth = '200px';
-        listContainer.style.boxShadow = '0 2px 5px rgba(0,0,0,0.15)';
 
         flamegraphs.forEach(fg => {
             const link = document.createElement('a');
             link.href = fg.path;
             link.textContent = fg.runName;
-            link.style.display = 'block';
-            link.style.padding = '8px 12px';
-            link.style.textDecoration = 'none';
-            link.style.color = '#333';
+            link.className = 'download-list-link';
             link.onclick = (e) => {
                 e.preventDefault();
                 window.open(fg.path, '_blank');
@@ -753,7 +743,7 @@ function createChartContainer(data, canvasId, type) {
         });
 
         document.body.appendChild(listContainer);
-        
+
         setTimeout(() => {
             document.addEventListener('click', function closeHandler(event) {
                 if (!listContainer.contains(event.target) && !buttonElement.contains(event.target)) {
@@ -1398,11 +1388,11 @@ function validateFlameGraphData() {
 function sanitizeFilename(name) {
     /**
      * Sanitize a string to be safe for use as a filename or directory name.
-     * Replace invalid characters with underscores.
+     * Replace invalid characters (including space) with underscores so paths are shell-safe.
      *
-     * Invalid characters: " : < > | * ? \r \n
+     * Invalid characters: " : < > | * ? \r \n <space>
      */
-    const invalidChars = /[":;<>|*?\r\n]/g;
+    const invalidChars = /[":;<>|*?\r\n ]/g; // Added space to align with Python implementation
     return name.replace(invalidChars, '_');
 }
 
@@ -1770,22 +1760,23 @@ function fetchAndProcessData(url, isArchived = false) {
     return fetch(url)
         .then(resp => { if (!resp.ok) throw new Error(`Got response status ${resp.status}.`); return resp.json(); })
         .then(data => {
-            if (!data || !Array.isArray(data.runs)) {
-                throw new Error('Invalid data format: expected { runs: [] , ... }');
+            const runsArray = Array.isArray(data.benchmarkRuns) ? data.benchmarkRuns : data.runs;
+            if (!runsArray || !Array.isArray(runsArray)) {
+                throw new Error('Invalid data format: expected benchmarkRuns or runs array');
             }
             if (isArchived) {
-                loadedBenchmarkRuns = loadedBenchmarkRuns.concat(data.runs);
+                loadedBenchmarkRuns = loadedBenchmarkRuns.concat(runsArray);
                 archivedDataLoaded = true;
             } else {
-                loadedBenchmarkRuns = data.runs;
-                window.benchmarkMetadata = data.metadata || {};
-                window.benchmarkTags = data.tags || {};
+                loadedBenchmarkRuns = runsArray;
+                window.benchmarkMetadata = data.benchmarkMetadata || data.metadata || {};
+                window.benchmarkTags = data.benchmarkTags || data.tags || {};
                 window.flamegraphData = (data.flamegraphData && data.flamegraphData.runs) ? data.flamegraphData : { runs: {} };
                 if (Array.isArray(data.defaultCompareNames)) {
-                    console.log('defaultCompareNames (remote):', data.defaultCompareNames);
+                    defaultCompareNames = data.defaultCompareNames;
                 }
-                console.log('Remote data loaded (canonical):', {
-                    runs: data.runs.length,
+                console.log('Remote data loaded (normalized):', {
+                    runs: runsArray.length,
                     metadata: Object.keys(window.benchmarkMetadata).length,
                     tags: Object.keys(window.benchmarkTags).length,
                     flamegraphs: Object.keys(window.flamegraphData.runs).length
@@ -1812,21 +1803,18 @@ function loadData() {
         fetchAndProcessData(remoteDataUrl);
     } else {
         console.log('Using local canonical data');
-        if (typeof benchmarkDataCanonical !== 'object' || !Array.isArray(benchmarkDataCanonical.runs)) {
-            console.error('benchmarkDataCanonical missing or invalid');
+        if (!Array.isArray(window.benchmarkRuns)) {
+            console.error('benchmarkRuns missing or invalid');
             loadedBenchmarkRuns = [];
             window.benchmarkMetadata = {};
             window.benchmarkTags = {};
             window.flamegraphData = { runs: {} };
         } else {
-            loadedBenchmarkRuns = benchmarkDataCanonical.runs;
-            window.benchmarkMetadata = benchmarkDataCanonical.metadata || {};
-            window.benchmarkTags = benchmarkDataCanonical.tags || {};
-            window.flamegraphData = (benchmarkDataCanonical.flamegraphData && benchmarkDataCanonical.flamegraphData.runs) ? benchmarkDataCanonical.flamegraphData : { runs: {} };
-            if (Array.isArray(benchmarkDataCanonical.defaultCompareNames)) {
-                defaultCompareNames = benchmarkDataCanonical.defaultCompareNames; // assume global defined elsewhere
-            }
-            console.log('Local canonical data loaded:', {
+            loadedBenchmarkRuns = window.benchmarkRuns;
+            window.benchmarkMetadata = window.benchmarkMetadata || {};
+            window.benchmarkTags = window.benchmarkTags || {};
+            window.flamegraphData = (window.flamegraphData && window.flamegraphData.runs) ? window.flamegraphData : { runs: {} };
+            console.log('Local data loaded (standalone globals):', {
                 runs: loadedBenchmarkRuns.length,
                 metadata: Object.keys(window.benchmarkMetadata).length,
                 tags: Object.keys(window.benchmarkTags).length,
@@ -1834,7 +1822,12 @@ function loadData() {
             });
         }
         initializeCharts();
-        loadingIndicator.classList.add('hidden');
+        if (loadedBenchmarkRuns.length === 0) {
+            loadingIndicator.textContent = 'No benchmark data found.';
+            loadingIndicator.setAttribute('role', 'alert');   // optional accessibility
+        } else {
+            loadingIndicator.classList.add('hidden');         // hide when data present
+        }
         console.log('=== loadData() completed ===');
     }
 }

@@ -26,7 +26,8 @@ def sanitize_filename(name: str) -> str:
     Invalid characters: " : < > | * ? \r \n
     """
     # Replace invalid characters with underscores
-    invalid_chars = r'[":;<>|*?\r\n]'
+    # Added space to list to avoid directories with spaces which cause issues in shell commands
+    invalid_chars = r'[":;<>|*?\r\n ]'
     sanitized = re.sub(invalid_chars, "_", name)
     return sanitized
 
@@ -198,7 +199,8 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
         if unzip:
             [stripped_gz, _] = os.path.splitext(data_file)
             with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
+                # copyfileobj expects binary file-like objects; type checker may complain about union types
+                shutil.copyfileobj(f_in, f_out)  # type: ignore[arg-type]
     else:
         log.debug(f"{data_file} exists, skipping...")
     return data_file

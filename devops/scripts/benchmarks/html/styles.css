@@ -3,8 +3,11 @@
    ======================================== */
 :root {
     /* Core Color Palette - only used colors from scripts.js */
-    --color-red: rgb(255, 50, 80);
-    --color-orange: rgb(255, 145, 15);
+    /* Provide RGB component vars to allow reuse in rgba() backgrounds */
+    --color-red-rgb: 255, 50, 80;
+    --color-orange-rgb: 255, 145, 15;
+    --color-red: rgb(var(--color-red-rgb));
+    --color-orange: rgb(var(--color-orange-rgb));
     --color-yellow: rgb(255, 220, 0);
     --color-green: rgb(20, 200, 50);
     --color-blue: rgb(0, 130, 255);
@@ -24,12 +27,14 @@
     /* Backgrounds - consolidated similar grays */
     --bg-body: #f8f9fa;       /* Replaces bg-lighter, bg-light-gray */
     --bg-white: white;
+    --bg-hover: #f5f5f5; /* used for hover states (was fallback) */
     --bg-light: #e9ecef;      /* Replaces bg-disabled */
     --bg-summary: #dee2e6;
     --bg-summary-hover: #ced4da;
     --bg-info: #cfe2ff;
-    --bg-warning: rgba(255, 145, 15, 0.1);  /* Light orange background for warnings */
-    --bg-danger: rgba(255, 50, 80, 0.1);    /* Light red background for errors */
+    --bg-warning: rgba(var(--color-orange-rgb), 0.1);  /* Light orange background for warnings */
+    --bg-danger: rgba(var(--color-red-rgb), 0.1);       /* Light red background for errors */
+    background: var(--bg-white);
 
     /* Borders - simplified */
     --border-light: #ccc;
@@ -57,10 +62,10 @@ h1, h2 {
     font-weight: 500;
 }
 .chart-container {
-    background: white;
-    border-radius: 8px;
+    /* Removed direct literal 'white'; using themed hover background */
+    background: var(--bg-hover);
     padding: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-subtle);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -168,7 +173,7 @@ details[open] summary::after {
 .run-selector button {
     padding: 8px 16px;
     background: var(--color-blue);
-    color: white;
+    color: var(--bg-white);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -213,31 +218,43 @@ details[open] summary::after {
 }
 
 .download-list {
-    position: absolute !important;
-    z-index: 1000 !important;
-    background: var(--bg-white) !important;
-    border: 1px solid var(--border-medium) !important;
-    border-radius: 4px !important;
-    box-shadow: var(--shadow-dropdown) !important;
-    padding: 4px !important;
-    min-width: 200px !important;
-    max-width: 300px !important;
+    position: absolute;
+    z-index: 1000;
+    background: var(--bg-white);
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    padding: 4px;
+    min-width: 200px;
+    max-width: 300px;
+    box-shadow: var(--shadow-dropdown);
+    font-size: 0.9rem;
 }
 
-.download-list a {
-    display: block !important;
-    padding: 8px 12px !important;
-    text-decoration: none !important;
-    color: var(--text-dark) !important;
-    border-radius: 2px !important;
-    font-size: 14px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+/* Support both legacy .download-list-link and generic anchors inside list */
+.download-list a,
+.download-list-link {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-dark);
+    border-radius: 2px;
+    font-size: 14px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.download-list a:hover {
-    background-color: var(--bg-light) !important;
+.download-list a:hover,
+.download-list a:focus,
+.download-list-link:hover,
+.download-list-link:focus {
+    background: var(--bg-light);
+    outline: none;
+}
+
+.chart-download-button {
+    margin-right: 8px;
 }
 .loading-indicator {
     text-align: center;
@@ -470,7 +487,7 @@ details[open] summary::after {
 .remove-tag {
     background: none;
     border: none;
-    color: white;
+    color: var(--bg-white);
     margin-left: 4px;
     cursor: pointer;
     font-size: 16px;
@@ -481,7 +498,7 @@ details[open] summary::after {
 }
 .platform {
     padding: 16px;
-    background: white;
+    background: var(--bg-white);
     border-radius: 8px;
     margin-top: 8px;
 }
@@ -571,9 +588,10 @@ details[open] summary::after {
 }
 
 .flamegraph-error {
-    background-color: var(--bg-warning);
-    border-color: var(--color-orange);
-    color: var(--text-warning);
+    /* Repurposed to use dedicated danger background */
+    background-color: var(--bg-danger);
+    border-color: var(--text-danger);
+    color: var(--text-danger);
 }
 
 /* ========================================
@@ -670,8 +688,8 @@ details[open] summary::after {
     z-index: 1000;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    background-color: white;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    background-color: var(--bg-white);
+    box-shadow: var(--shadow-dropdown);
     padding: 5px;
     margin-top: 5px;
 }
