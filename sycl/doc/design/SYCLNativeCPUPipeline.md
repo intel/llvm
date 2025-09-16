@@ -29,20 +29,10 @@ on the input and output kernels is as follows:
 4.  The final compiled kernel is assumed to be invoked from the
     host-side runtime once per *work-group* in the **NDRange**.
 
-The following diagram provides an overview of the main phases of the
-Native CPU compiler pipeline in terms of the underlying and assumed
-kernel execution model.
-
-```mermaid
-flowchart TD;
-    Start(["Driver Entry Point"])
-    Start-->WiLoop["for (wi : wg)"]
-    WiLoop-->OrigKernel["original_kernel()"]
-```
-
 The inner-most function is the original input kernel, which is *wrapped*
 by new functions in successive phases, until it is ready in a form to be
-executed by the Native CPU driver.
+executed by the Native CPU driver. These include effectively wrapping a  `for (wi : wg)`
+around the original kernel.
 
 The [WorkItemLoopsPass](SYCLNativeCPUPipelinePasses.md#workitemloopspass)
 is the key pass which makes some of the implicit parallelism
@@ -55,23 +45,12 @@ the new kernel entry point now runs on every work-group in an
 With the overall execution model established, we can start to dive
 deeper into the key phases of the compilation pipeline.
 
-```mermaid
-flowchart TD;
-    InputIR(["Input IR"])
-    SpecConstants(["Handling SpecConstants"])
-    Metadata(["Adding Metadata/Attributes"])
-    Vecz(["Vectorization"])
-    WorkItemLoops(["Work Item Loops / Barriers"])
-    DefineBuiltins(["Define builtins and Tidy up"])
-
-    InputIR-->SpecConstants
-    SpecConstants-->Metadata
-    Metadata-->Vecz
-    Vecz-->WorkItemLoops
-    WorkItemLoops-->DefineBuiltins
-    DefineBuiltins-->TidyUp
-```
-
+1. InputIR
+2. Handling SpecConstants
+3. Adding Metadata / Attributes
+4. Vectorization
+5. Work item loops and barriers
+6. Define builtins and tidy up.
 
 ### Input IR
 
@@ -152,15 +131,7 @@ work-group need to execute the first barrier region before beginning the
 second. Thus the `WorkItemLoopsPass` produces two sets of work-item
 loops to schedule this kernel:
 
-```mermaid
-graph TD;
-    A(["@foo.mux-barrier-wrapper()"])
-    A-->B{{"for (wi : wg)"}}
-    B-->C[["@foo.mux-barrier-region.0()<br> a[id] += 4;"]]
-    C-->D["fence"];
-    D-->E{{"for (wi : wg)"}}
-    E-->F[["@foo.mux-barrier-region.1() <br> b[id] += 4;"]]
-```
+![Work Item Loops with barrier.](images/native_cpu_wi_loops_barrier.jpg)
 
 #### Live Variables
 
@@ -193,29 +164,7 @@ For brevity, the diagram below only details in inner-most work-item
 loops. Most kernels will in reality have 2 outer levels of loops over
 the full *Y* and *Z* work-group dimensions.
 
-```mermaid
-flowchart TD;
-    Start("@foo.mux-barrier-wrapper()")
-    OrigKernel0[["@foo()"]]
-    OrigKernel1[["@__vecz_v4_foo()"]]
-    Link1("`unsigned i = 0;
-            unsigned wg_size = get\_local\_size(0);
-            unsigned peel = wg\_size % 4;`")
-    ScalarPH{{"\< scalar check \>"}}
-    VectorPH("for (unsigned e = wg\_size - peel; i \< e; i += 4)")
-    Link2("for (; i< wg_size; i++)")
-    Return("return")
-
-    Start-->Link1
-    Link1-->|"if (wg_size != peel)"|VectorPH
-    Link1-->|"if (wg\_size == peel)"|ScalarPH
-    ScalarPH-->|"if (peel)"|Link2
-    Link2-->OrigKernel0
-    OrigKernel0-->Return
-    OrigKernel1-->ScalarPH
-    ScalarPH-->|"if (!peel)"|Return
-    VectorPH-->OrigKernel1
-```
+![Work Item Loops with vecz.](images/native_cpu_vecz.jpg)
 
 In the above example, the vectorized kernel is called to execute as many
 work-items as possible, up to the largest multiple of the vectorization
