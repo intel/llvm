@@ -103,6 +103,7 @@ context_t::context_t() {
   urGetContextProcAddrTable(version, &urDdiTable.Context);
   urGetEnqueueProcAddrTable(version, &urDdiTable.Enqueue);
   urGetEnqueueExpProcAddrTable(version, &urDdiTable.EnqueueExp);
+  urGetIPCExpProcAddrTable(version, &urDdiTable.IPCExp);
   urGetEventProcAddrTable(version, &urDdiTable.Event);
   urGetKernelProcAddrTable(version, &urDdiTable.Kernel);
   urGetMemProcAddrTable(version, &urDdiTable.Mem);

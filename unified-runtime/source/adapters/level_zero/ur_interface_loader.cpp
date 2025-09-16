@@ -257,6 +257,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    ur_api_version_t version, ur_ipc_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnGetMemHandleExp = ur::level_zero::urIPCGetMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = ur::level_zero::urIPCPutMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = ur::level_zero::urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = ur::level_zero::urIPCCloseMemHandleExp;
+  pDdiTable->pfnGetMemHandleDataExp = ur::level_zero::urIPCGetMemHandleDataExp;
+  pDdiTable->pfnCreateMemHandleFromDataExp =
+      ur::level_zero::urIPCCreateMemHandleFromDataExp;
+  pDdiTable->pfnDestroyMemHandleExp = ur::level_zero::urIPCDestroyMemHandleExp;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_api_version_t version, ur_kernel_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -593,6 +612,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result =
       NAMESPACE_::urGetEventProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Event);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                &ddi->IPCExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
