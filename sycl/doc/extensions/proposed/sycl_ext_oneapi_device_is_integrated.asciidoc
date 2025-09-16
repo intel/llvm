@@ -99,7 +99,7 @@ enum class aspect : /*unspecified*/ {
 
 |`ext_oneapi_device_is_integrated`
 |Indicates that the device supports the
- `sycl::device::get_info<sycl::ext::oneapi::info::device::gpu_is_integrated>()`
+ `sycl::device::get_info<sycl::ext::oneapi::info::device::device_is_integrated>()`
  call.
 |===
 
@@ -111,7 +111,7 @@ enum class aspect : /*unspecified*/ {
 |Return type
 |Description
 
-|`sycl::ext::oneapi::info::device::gpu_is_integrated`
+|`sycl::ext::oneapi::info::device::device_is_integrated`
 |bool
 |Returns `true` if device is integrated, overwise returns `false`.
 |===
