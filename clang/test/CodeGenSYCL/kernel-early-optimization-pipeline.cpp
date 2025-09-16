@@ -29,11 +29,7 @@
 // RUN: %clang_cc1 -O0 -fsycl-is-device -triple spir64-unknown-unknown %s -mdebug-pass Structure -emit-llvm -o /dev/null 2>&1 | FileCheck %s --check-prefix=CHECK-O0
 // CHECK-O0-NOT: SYCLOptimizeBarriersPass
 
-template <typename name, typename Func>
-void kernel(const Func &f) __attribute__((sycl_kernel)) {
-  f();
-}
-
-void bar() {
-  kernel<class MyKernel>([=]() {});
+// Passes registered via registerOptimizerLastEPCallback don't run on empty
+// code
+__attribute__((sycl_device)) void bar() {
 }
