@@ -1,4 +1,4 @@
-# SYCL Native CPU pipeline passes
+# SYCL Native CPU Pipeline Passes
 
 The `compiler::utils` module exists under
 [compiler_pipeline](https://github.com/intel/llvm/tree/sycl/llvm/lib/SYCLNativeCPUUtils/compiler_passes/compiler_pipeline)

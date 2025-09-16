@@ -1320,6 +1320,4 @@ must be present, otherwise scalarization or packetization will not be able to
 materialize the scalarized/vectorized builtin calls and veczc will fail with an
 error message.
 
-## References
-
 [1]: http://dblp.uni-trier.de/pers/hd/k/Karrenberg:Ralf

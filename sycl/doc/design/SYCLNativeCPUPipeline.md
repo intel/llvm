@@ -1,4 +1,4 @@
-# Native CPU Compiler Pipeline Overview
+# SYCL Native CPU Pipeline Overview
 
 ## Introduction
 
