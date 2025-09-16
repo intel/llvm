@@ -50,8 +50,6 @@ source_suffix = [".rst", ".md"]
 # Make the GitHub-compatible syntax also work with MyST
 myst_fence_as_directive = ["mermaid"]
 
-mermaid_output_format = 'png'
-
 exclude_patterns = [
     # Extensions are mostly in asciidoc which has poor support in Sphinx.
     "extensions/*",
