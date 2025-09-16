@@ -267,8 +267,16 @@ fill_copy_args(detail::handler_impl *impl,
   auto ZCopyExtentComponent = detail::fill_image_type(SrcImgDesc, UrSrcDesc);
   detail::fill_image_type(DestImgDesc, UrDestDesc);
 
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  // Copy args computed here are directly passed to UR. Various offsets and
+  // extents end up passed as ur_rect_offset_t and ur_rect_region_t. Both those
+  // structs expect their first component to be in bytes, not in pixels
+  size_t SrcPixelSize = SrcImgDesc.num_channels * get_channel_size(SrcImgDesc);
+  size_t DestPixelSize =
+      DestImgDesc.num_channels * get_channel_size(DestImgDesc);
+
+  impl->MSrcOffset = {SrcOffset[0] * SrcPixelSize, SrcOffset[1], SrcOffset[2]};
+  impl->MDestOffset = {DestOffset[0] * DestPixelSize, DestOffset[1],
+                       DestOffset[2]};
   impl->MSrcImageDesc = UrSrcDesc;
   impl->MDstImageDesc = UrDestDesc;
   impl->MSrcImageFormat = UrSrcFormat;
@@ -276,9 +284,10 @@ fill_copy_args(detail::handler_impl *impl,
   impl->MImageCopyFlags = ImageCopyFlags;
 
   if (CopyExtent.size() != 0) {
-    impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+    impl->MCopyExtent = {CopyExtent[0] * SrcPixelSize, CopyExtent[1],
+                         CopyExtent[2]};
   } else {
-    impl->MCopyExtent = {SrcImgDesc.width, SrcImgDesc.height,
+    impl->MCopyExtent = {SrcImgDesc.width * SrcPixelSize, SrcImgDesc.height,
                          ZCopyExtentComponent};
   }
 
