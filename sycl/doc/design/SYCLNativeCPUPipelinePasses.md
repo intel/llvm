@@ -807,8 +807,7 @@ The Following intermediate representations are used in the interface to Native C
   control is only ensured for memory accesses issued by the invocation calling
   the barrier and observed by another invocation executing within the memory
   `%scope`. Additional control over the kind of memory controlled and what
-  kind of control to apply is provided by `%semantics`. See `below
-  <#memory-and-control-barriers>`__ for more information.
+  kind of control to apply is provided by `%semantics`. See [memory and control barriers](#memory-and-control-barriers) for more information.
 * `void __mux_work_group_barrier(i32 %id, i32 %scope, i32 %semantics)` and
   `void __mux_sub_group_barrier(i32 %id, i32 %scope, i32 %semantics)` - Wait
   for other invocations of the work-group/sub-group to reach the current point
@@ -816,8 +815,7 @@ The Following intermediate representations are used in the interface to Native C
   by `%id` (note that implementations **must** ensure uniqueness themselves,
   e.g., by running the `compiler::utils::PrepareBarriersPass`). These
   builtins may also atomically provide a memory barrier with the same semantics
-  as `__mux_mem_barrier(i32 %scope, i32 %semantics)`. See `below
-  <#memory-and-control-barriers>`__ for more information.
+  as `__mux_mem_barrier(i32 %scope, i32 %semantics)`. See [memory and control barriers](#memory-and-control-barriers) for more information.
 
 ##### Group operation builtins
 
