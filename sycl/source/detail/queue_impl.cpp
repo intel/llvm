@@ -446,7 +446,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   // No special captures supported yet for the no-handler path
   assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
 
-  SubmitCommandFuncType SubmitKernelFunc =
+  auto SubmitKernelFunc =
       [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
     std::unique_ptr<detail::CG> CommandGroup;
     std::vector<detail::ArgDesc> Args;
@@ -463,7 +463,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
         nullptr, // MKernel
         nullptr, // MKernelBundle
         std::move(CGData), std::move(Args),
-        toKernelNameStrT(KRInfo.KernelName()), *KRInfo.DeviceKernelInfoPtr(),
+        *KRInfo.DeviceKernelInfoPtr(),
         std::move(StreamStorage), std::move(AuxiliaryResources),
         detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
         false, // MKernelIsCooperative
@@ -484,6 +484,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
 }
 
+template <typename SubmitCommandFuncType>
 detail::EventImplPtr
 queue_impl::submit_direct(bool CallerNeedsEvent,
                           SubmitCommandFuncType &SubmitCommandFunc) {
