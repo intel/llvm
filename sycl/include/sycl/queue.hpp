@@ -140,8 +140,6 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t (*)(int);
-
 // This class is intended to store the kernel runtime information,
 // extracted from the compile time kernel structures.
 class __SYCL_EXPORT KernelDataDesc {
