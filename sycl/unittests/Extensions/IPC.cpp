@@ -32,8 +32,6 @@ thread_local int urIPCGetMemHandleExp_counter = 0;
 thread_local int urIPCPutMemHandleExp_counter = 0;
 thread_local int urIPCOpenMemHandleExp_counter = 0;
 thread_local int urIPCCloseMemHandleExp_counter = 0;
-thread_local int urIPCCreateMemHandleFromDataExp_counter = 0;
-thread_local int urIPCDestroyMemHandleExp_counter = 0;
 thread_local int urIPCGetMemHandleDataExp_counter = 0;
 
 ur_result_t replace_urIPCGetMemHandleExp(void *pParams) {
@@ -54,7 +52,8 @@ ur_result_t replace_urIPCPutMemHandleExp(void *pParams) {
 ur_result_t replace_urIPCOpenMemHandleExp(void *pParams) {
   ++urIPCOpenMemHandleExp_counter;
   auto params = *static_cast<ur_ipc_open_mem_handle_exp_params_t *>(pParams);
-  EXPECT_EQ(*params.phIPCMem, DummyMemHandle);
+  EXPECT_EQ(*params.pipcMemHandleData, DummyHandleData);
+  EXPECT_EQ(*params.pipcMemHandleDataSize, DummyHandleDataSize);
   **params.pppMem = DummyPtr;
   return UR_RESULT_SUCCESS;
 }
@@ -63,23 +62,6 @@ ur_result_t replace_urIPCCloseMemHandleExp(void *pParams) {
   ++urIPCCloseMemHandleExp_counter;
   auto params = *static_cast<ur_ipc_close_mem_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.ppMem, DummyPtr);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t replace_urIPCCreateMemHandleFromDataExp(void *pParams) {
-  ++urIPCCreateMemHandleFromDataExp_counter;
-  auto params =
-      *static_cast<ur_ipc_create_mem_handle_from_data_exp_params_t *>(pParams);
-  EXPECT_EQ(*params.pipcMemHandleData, DummyHandleData);
-  EXPECT_EQ(*params.pipcMemHandleDataSize, DummyHandleDataSize);
-  **params.pphIPCMem = DummyMemHandle;
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t replace_urIPCDestroyMemHandleExp(void *pParams) {
-  ++urIPCDestroyMemHandleExp_counter;
-  auto params = *static_cast<ur_ipc_destroy_mem_handle_exp_params_t *>(pParams);
-  EXPECT_EQ(*params.phIPCMem, DummyMemHandle);
   return UR_RESULT_SUCCESS;
 }
 
@@ -103,8 +85,6 @@ protected:
     urIPCPutMemHandleExp_counter = 0;
     urIPCOpenMemHandleExp_counter = 0;
     urIPCCloseMemHandleExp_counter = 0;
-    urIPCCreateMemHandleFromDataExp_counter = 0;
-    urIPCDestroyMemHandleExp_counter = 0;
     urIPCGetMemHandleDataExp_counter = 0;
 
     mock::getCallbacks().set_replace_callback("urIPCGetMemHandleExp",
@@ -115,11 +95,6 @@ protected:
                                               replace_urIPCOpenMemHandleExp);
     mock::getCallbacks().set_replace_callback("urIPCCloseMemHandleExp",
                                               replace_urIPCCloseMemHandleExp);
-    mock::getCallbacks().set_replace_callback(
-        "urIPCCreateMemHandleFromDataExp",
-        replace_urIPCCreateMemHandleFromDataExp);
-    mock::getCallbacks().set_replace_callback("urIPCDestroyMemHandleExp",
-                                              replace_urIPCDestroyMemHandleExp);
     mock::getCallbacks().set_replace_callback("urIPCGetMemHandleDataExp",
                                               replace_urIPCGetMemHandleDataExp);
   }
@@ -137,11 +112,9 @@ TEST_F(IPCTests, IPCGetPut) {
     EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
     EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
     EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCCreateMemHandleFromDataExp_counter, 0);
-    EXPECT_EQ(urIPCDestroyMemHandleExp_counter, 0);
     EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
 
-    sycl::span<const char, sycl::dynamic_extent> IPCMemHandleData =
+    syclexp::ipc_memory_handle_data_t IPCMemHandleData =
         IPCMem.get_handle_data();
     EXPECT_EQ(IPCMemHandleData.data(), DummyHandleData);
     EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
@@ -151,8 +124,6 @@ TEST_F(IPCTests, IPCGetPut) {
     EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
     EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
     EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCCreateMemHandleFromDataExp_counter, 0);
-    EXPECT_EQ(urIPCDestroyMemHandleExp_counter, 0);
     EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 1);
   }
 
@@ -162,52 +133,31 @@ TEST_F(IPCTests, IPCGetPut) {
   EXPECT_EQ(urIPCPutMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
-  EXPECT_EQ(urIPCCreateMemHandleFromDataExp_counter, 0);
-  EXPECT_EQ(urIPCDestroyMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 1);
 }
 
 TEST_F(IPCTests, IPCOpenClose) {
-  {
-    sycl::span<const char, sycl::dynamic_extent> HandleData{
-        DummyHandleData, DummyHandleDataSize};
-    syclexp::ipc_memory IPCMem{HandleData, Ctxt, Ctxt.get_devices()[0]};
-    EXPECT_EQ(IPCMem.get_ptr(), DummyPtr);
+  syclexp::ipc_memory_handle_data_t HandleData{DummyHandleData,
+                                               DummyHandleDataSize};
+  void *Ptr =
+      syclexp::ipc_memory::open(HandleData, Ctxt, Ctxt.get_devices()[0]);
+  EXPECT_EQ(Ptr, DummyPtr);
 
-    // Creating the IPC memory from handle data should first re-create the
-    // handle and then call open on it.
-    EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
-    EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCCreateMemHandleFromDataExp_counter, 1);
-    EXPECT_EQ(urIPCDestroyMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
+  // Opening an IPC handle should call open.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
 
-    sycl::span<const char, sycl::dynamic_extent> IPCMemHandleData =
-        IPCMem.get_handle_data();
-    EXPECT_EQ(IPCMemHandleData.data(), DummyHandleData);
-    EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
+  syclexp::ipc_memory::close(Ptr, Ctxt);
 
-    // Getting the underlying data should call the backend.
-    EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
-    EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCCreateMemHandleFromDataExp_counter, 1);
-    EXPECT_EQ(urIPCDestroyMemHandleExp_counter, 0);
-    EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 1);
-  }
-
-  // When the IPC memory object dies, it should release the handle, calling
-  // "close" and then destroying it.
+  // When we close an IPC memory pointer, it should call close.
   EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
-  EXPECT_EQ(urIPCCreateMemHandleFromDataExp_counter, 1);
-  EXPECT_EQ(urIPCDestroyMemHandleExp_counter, 1);
-  EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 1);
+  EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
 }
 
 } // namespace

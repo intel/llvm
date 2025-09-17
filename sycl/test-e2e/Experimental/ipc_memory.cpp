@@ -51,8 +51,7 @@ int spawner(int argc, char *argv[]) {
 
     // Write handle data to file.
     {
-      sycl::span<const char, sycl::dynamic_extent> HandleData =
-          IPCMem.get_handle_data();
+      syclexp::ipc_memory_handle_data_t HandleData = IPCMem.get_handle_data();
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
       FS.write(reinterpret_cast<const char *>(&HandleDataSize), sizeof(size_t));
@@ -89,11 +88,10 @@ int consumer() {
   std::unique_ptr<char[]> HandleData{new char[HandleSize]};
   FS.read(HandleData.get(), HandleSize);
 
-  // Re-create the IPC handle.
-  sycl::span<const char, sycl::dynamic_extent> Handle{HandleData.get(),
-                                                      HandleSize};
-  syclexp::ipc_memory IPCMem{Handle, Q.get_context(), Q.get_device()};
-  int *DataPtr = reinterpret_cast<int *>(IPCMem.get_ptr());
+  // Open IPC handle.
+  syclexp::ipc_memory_handle_data_t Handle{HandleData.get(), HandleSize};
+  int *DataPtr = reinterpret_cast<int *>(
+      syclexp::ipc_memory::open(Handle, Q.get_context(), Q.get_device()));
 
   // Test the data already in the USM pointer.
   // TODO: This is currently disabled for L0 due to a bug in the original data
@@ -114,6 +112,9 @@ int consumer() {
   Q.parallel_for(N, [=](sycl::item<1> I) {
      DataPtr[I] = static_cast<int>(N - I.get_linear_id());
    }).wait();
+
+  // Close the IPC pointer.
+  syclexp::ipc_memory::close(DataPtr, Q.get_context());
 
   return Failures;
 }

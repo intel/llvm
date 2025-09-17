@@ -26,14 +26,18 @@ class ipc_memory_impl;
 }
 
 namespace ext::oneapi::experimental {
+using ipc_memory_handle_data_t = span<char, sycl::dynamic_extent>;
+
 class __SYCL_EXPORT ipc_memory
     : public sycl::detail::OwnerLessBase<ipc_memory> {
 public:
   ipc_memory(void *Ptr, const sycl::context &Ctx);
-  ipc_memory(const span<const char, sycl::dynamic_extent> IPCMemoryHandleData,
-             const sycl::context &Ctx, const sycl::device &Dev);
 
-  sycl::span<const char, sycl::dynamic_extent> get_handle_data() const;
+  static void *open(ipc_memory_handle_data_t IPCMemoryHandleData,
+                    const sycl::context &Ctx, const sycl::device &Dev);
+  static void close(void *Ptr, const sycl::context &Ctx);
+
+  ipc_memory_handle_data_t get_handle_data() const;
 
   void *get_ptr() const;
 

@@ -107,14 +107,17 @@ in the SYCL 2020 specification.
 
 ```
 namespace sycl::ext::oneapi::experimental {
+using ipc_memory_handle_data_t = span<char, sycl::dynamic_extent>;
 
 class ipc_memory {
 public:
   ipc_memory(void *ptr, sycl::context &ctx);
-  ipc_memory(span<const char, sycl::dynamic_extent> ipc_memory_handle_data,
-             const sycl::context &ctx, const sycl::device &dev);
 
-  span<const char, sycl::dynamic_extent> get_handle_data() const;
+  static void *open(ipc_memory_handle_data_t ipc_memory_handle_data,
+                    const sycl::context &ctx, const sycl::device &dev);
+  static void close(void *ptr, const sycl::context &ctx);
+
+  ipc_memory_handle_data_t get_handle_data() const;
 
   void *get_ptr() const;
 };
