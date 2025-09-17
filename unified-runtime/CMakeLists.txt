@@ -225,7 +225,7 @@ if(UR_ENABLE_TRACING)
     endif()
 
     if (MSVC)
-        set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
+        set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)
     endif()
