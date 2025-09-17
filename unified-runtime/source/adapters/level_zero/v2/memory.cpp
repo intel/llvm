@@ -806,9 +806,6 @@ ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   void *pIPCMemHandleData,
                                   size_t ipcMemHandleDataSize, void **ppMem) {
-  if (nullptr == pIPCMemHandleData)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
   auto *pool = hContext->getDefaultUSMPool()->getPool(
       usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
                            UR_USM_TYPE_DEVICE, false});

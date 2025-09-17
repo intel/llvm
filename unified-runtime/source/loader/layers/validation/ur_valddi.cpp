@@ -10386,6 +10386,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
   if (getContext()->enableParameterValidation) {
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hIPCMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10420,6 +10423,12 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ipcMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
@@ -10458,6 +10467,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
@@ -10492,6 +10504,9 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
 
   if (getContext()->enableParameterValidation) {
     if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hIPCMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
