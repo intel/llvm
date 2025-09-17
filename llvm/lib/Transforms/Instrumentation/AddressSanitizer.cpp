@@ -1749,7 +1749,7 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
     return !ClSpirOffloadLocals;
 
-  // When shadow bounds check is disabled, we need to instrument all global
+  // When shadow bounds check is enabled, we need to instrument all global
   // variables that user code can access
   if (ClSpirCheckShadowBounds)
     return false;

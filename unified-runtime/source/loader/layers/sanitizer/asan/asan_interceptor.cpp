@@ -530,7 +530,7 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
                "checkLocals={}, checkPrivates={}, checkShadowBounds={})",
                KernelName, true, CheckLocals, CheckPrivates, CheckShadowBounds);
 
-      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
+      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetadata{
           CheckLocals, CheckPrivates, CheckShadowBounds};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
@@ -970,7 +970,7 @@ bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
 }
 
-const ProgramInfo::KernelMetada &
+const ProgramInfo::KernelMetadata &
 ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
   assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());

@@ -43,7 +43,7 @@ static __SYCL_CONSTANT__ const char __generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
 
 static __SYCL_CONSTANT__ const char __asan_print_shadow_bound[] =
-    "[kernel] addr: %p, shadow: %p, lower: %p, uppper: %p\n";
+    "[kernel] addr: %p, shadow: %p, lower: %p, upper: %p\n";
 
 #define ASAN_REPORT_NONE 0
 #define ASAN_REPORT_START 1
