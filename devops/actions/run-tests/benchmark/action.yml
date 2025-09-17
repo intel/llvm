@@ -32,6 +32,10 @@ inputs:
   dry_run:
     type: string
     required: False
+  enable_unitrace:
+    type: string # true/false: workflow_dispatch does not support booleans
+    required: False
+    default: "false"
 
 runs:
   using: "composite"
@@ -203,7 +207,9 @@ runs:
         --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
-        --detect-version sycl,compute_runtime
+        --detect-version sycl,compute_runtime \
+        --flamegraph inclusive \
+        ${{ inputs.enable_unitrace == 'true' && '--unitrace inclusive' || '' }}
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
@@ -228,8 +234,8 @@ runs:
 
       cd "./llvm-ci-perf-results"
       git add .
-      for diff in $(git diff HEAD --name-only); do
-        mkdir -p "../cached_changes/$(dirname $diff)"
+      git diff HEAD --name-only | while IFS="$(printf '\n')" read -r diff; do
+        mkdir -p "../cached_changes/$(dirname "$diff")"
         cp "$diff" "../cached_changes/$diff"
       done
   - name: Push benchmarks results
@@ -278,6 +284,13 @@ runs:
           --dry-run
         cd -
       done
+  - name: Archive unitrace results
+    if: inputs.enable_unitrace == 'true' && always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: Unitrace results ${{ github.run_id }} (${{ env.SAVE_NAME }})
+      path: ./llvm-ci-perf-results/traces
+      rentention-days: 31
   - name: Archive benchmark results
     if: always()
     uses: actions/upload-artifact@v4
