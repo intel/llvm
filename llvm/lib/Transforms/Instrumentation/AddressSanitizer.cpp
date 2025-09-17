@@ -1742,19 +1742,21 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 }
 
 static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
-  // Non image scope device globals are implemented by device USM, and the
-  // out-of-bounds check for them will be done by sanitizer USM part. So we
-  // exclude them here.
-  if (!G->hasAttribute("sycl-device-image-scope"))
-    return true;
-
   // Skip instrumenting on "__AsanKernelMetadata" etc.
-  if (G->getName().starts_with("__Asan"))
+  if (G->getName().starts_with("__Asan") || G->getName().starts_with("__asan"))
     return true;
 
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
     return !ClSpirOffloadLocals;
 
+  // When shadow bounds check is disabled, we need to instrument all global
+  // variables that user code can access
+  if (ClSpirCheckShadowBounds)
+    return false;
+
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }

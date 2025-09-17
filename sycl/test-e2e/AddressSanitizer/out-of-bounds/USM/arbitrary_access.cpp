@@ -1,7 +1,7 @@
 // REQUIRES: linux, gpu && level_zero
-// RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
+// RUN: %{build} %device_asan_flags -Xarch_device -mllvm=-asan-spir-shadow-bounds=1 -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
+// RUN: %{build} %device_asan_flags -Xarch_device -mllvm=-asan-spir-shadow-bounds=1 -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
