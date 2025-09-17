@@ -65,7 +65,15 @@ By default SYCL Native CPU implements its own scheduler whose only dependency is
 
 ## Supported features and current limitations
 
-The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barriers` are supported only when the oneAPI Construction Kit integration is enabled, several math builtins are not supported and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](https://github.com/intel/llvm/blob/sycl/sycl/test/native_cpu).
+The SYCL Native CPU supports all core SYCL features with some outstanding bugs. There are some optional features which have no or partial support:
+
+* bfloat16
+* address sanitizer
+* images
+* device globals (unsure as we pass one of them)
+* ESIMD
+
+Some of these, such as bfloat16 will fail with an undefined reference error at link time.
 
 
 To execute the `e2e` tests on SYCL Native CPU, configure the test suite with:
@@ -78,8 +86,7 @@ cmake \
   -G Ninja \
   -B build -S . \
  -DCMAKE_CXX_COMPILER=clang++ \
- -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu" 
-
+ -DSYCL_TEST_E2E_TARGETS="native_cpu:cpu"
 ```
 
 Note that a number of `e2e` tests are currently still failing.
@@ -95,6 +102,8 @@ Whole Function Vectorization is enabled by default, and can be controlled throug
 The `-march=` option can be used to select specific target cpus which may improve performance of the vectorized code.
 
 For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Native CPU Compiler Pipeline](#native-cpu-compiler-pipeline) section.
+
+To run the Vecz lit tests, build DPC++ with `-DNATIVE_CPU_BUILD_VECZ_TEST_TOOLS=ON` and run with `check-sycl-vecz`.
 
 ## Code coverage
 
