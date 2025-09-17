@@ -814,4 +814,42 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
                                 "__msan_unpoison_strided_copy"));
 }
 
+static __SYCL_CONSTANT__ const char __msan_print_copy_unsupport_type[] =
+    "[kernel] __msan_unpoison_copy: unsupported type(%d <- %d)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_copy(uptr dst, uint32_t dst_as,
+                                                   uptr src, uint32_t src_as,
+                                                   uint32_t dst_element_size,
+                                                   uint32_t src_element_size,
+                                                   uptr counts) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_copy"));
+
+  uptr shadow_dst = MemToShadow(dst, dst_as);
+  if (shadow_dst != GetMsanLaunchInfo->CleanShadow) {
+    uptr shadow_src = MemToShadow(src, src_as);
+
+    if (dst_element_size == 1 && src_element_size == 1) {
+      Memcpy<__SYCL_GLOBAL__ int8_t *, __SYCL_GLOBAL__ int8_t *>(
+          (__SYCL_GLOBAL__ int8_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int8_t *)shadow_src, counts);
+    } else if (dst_element_size == 4 && src_element_size == 2) {
+      Memcpy<__SYCL_GLOBAL__ int32_t *, __SYCL_GLOBAL__ int16_t *>(
+          (__SYCL_GLOBAL__ int32_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int16_t *)shadow_src, counts);
+    } else if (dst_element_size == 2 && src_element_size == 4) {
+      Memcpy<__SYCL_GLOBAL__ int16_t *, __SYCL_GLOBAL__ int32_t *>(
+          (__SYCL_GLOBAL__ int16_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int32_t *)shadow_src, counts);
+    } else {
+      __spirv_ocl_printf(__msan_print_copy_unsupport_type, dst_element_size,
+                         src_element_size);
+    }
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_copy"));
+}
+
 #endif // __SPIR__ || __SPIRV__
