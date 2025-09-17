@@ -408,7 +408,7 @@ void ur_shared_buffer_handle_t::unmapHostPtr(
   // nop
 }
 
-static bool useHostBuffer(ur_context_handle_t /* hContext */) {
+static bool useHostBuffer(ur_context_handle_t hContext) {
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
   // For integrated devices, allocating the buffer in the host memory
@@ -416,11 +416,10 @@ static bool useHostBuffer(ur_context_handle_t /* hContext */) {
   // unnecessary in the map/unmap operations. This improves performance.
 
   // TODO: fix integrated buffer implementation
-  return false;
 
-  // return hContext->getDevices().size() == 1 &&
-  //        hContext->getDevices()[0]->ZeDeviceProperties->flags &
-  //            ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+  return hContext->getDevices().size() == 1 &&
+         hContext->getDevices()[0]->ZeDeviceProperties->flags &
+             ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
 }
 
 ur_mem_sub_buffer_t::ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset,
