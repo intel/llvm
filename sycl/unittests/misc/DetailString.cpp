@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/string.hpp>
 
 class SYCLDetailStringTest : public ::testing::Test {};
 
@@ -35,6 +35,9 @@ TEST_F(SYCLDetailStringTest, StringViewAssignment) {
   sycl::detail::string s;
   s = "New String";
   EXPECT_STREQ(s.c_str(), "New String");
+  std::string_view sv = "From String View";
+  s = sv;
+  EXPECT_STREQ(s.c_str(), "From String View");
 }
 
 TEST_F(SYCLDetailStringTest, CopyAssignment) {
