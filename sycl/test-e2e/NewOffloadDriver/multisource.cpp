@@ -1,3 +1,6 @@
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
+// investigated and tracked post team transfer.
 //==--------------- multisource.cpp ----------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

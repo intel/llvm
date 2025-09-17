@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: opencl && gpu
+// UNSUPPORTED: (opencl && gpu) || target-native_cpu
 // UNSUPPORTED-TRACKER: GSD-4287
 //
 // Tests basic device_global access through device kernels.

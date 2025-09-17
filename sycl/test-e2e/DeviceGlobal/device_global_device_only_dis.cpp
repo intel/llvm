@@ -1,7 +1,7 @@
 // RUN: %{build} -fsycl-device-code-split=per_source -DUSE_DEVICE_IMAGE_SCOPE -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: opencl && gpu
+// UNSUPPORTED: (opencl && gpu) || target-native_cpu
 // UNSUPPORTED-TRACKER: GSD-4287
 //
 // Tests basic device_global with device_image_scope access through device

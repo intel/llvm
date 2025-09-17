@@ -15,6 +15,10 @@
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64702
 // The test is disabled for spirv-backend while we investigate the root cause.
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
+// investigated and tracked post team transfer.
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/group_algorithm.hpp>

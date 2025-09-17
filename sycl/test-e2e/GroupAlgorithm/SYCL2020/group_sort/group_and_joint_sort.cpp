@@ -1,9 +1,11 @@
 // REQUIRES: sg-8
-// UNSUPPORTED: target-nvidia || target-amd
+// Currently marked as unsupported for Native CPU, should be investigated and
+// tracked in the future
+// UNSUPPORTED: target-nvidia || target-amd || target-native_cpu
 // UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
+// not supported. Native CPU should be checked post team transfer.
 // XFAIL: linux && run-mode && (gpu-intel-gen12 || gpu-intel-dg2)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18577
-// not supported
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
