@@ -16,5 +16,9 @@ inline namespace _V1 {
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
+template <access::address_space Space, access::decorated DecorateAddress,
+          typename ElementType>
+multi_ptr<ElementType, Space, DecorateAddress>
+address_space_cast(ElementType *pointer);
 } // namespace _V1
 } // namespace sycl
