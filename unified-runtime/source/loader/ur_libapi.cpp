@@ -10063,8 +10063,8 @@ ur_result_t UR_APICALL urIPCPutMemHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Opens an inter-process memory handle to get the corresponding pointer
-///        to device USM memory
+/// @brief Opens an inter-process memory handle from raw data to get the
+///        corresponding pointer to device USM memory
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -10073,18 +10073,26 @@ ur_result_t UR_APICALL urIPCPutMemHandleExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
-///         + NULL == hIPCMem
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + NULL == ppMem
+///         + `NULL == ipcMemHandleData`
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcMemHandleDataSize is not the same as the size of IPC memory
+///         handle data
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] pointer to the resulting IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *ipcMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
     /// [out] pointer to a pointer to device USM memory
     void **ppMem) try {
   auto pfnOpenMemHandleExp =
@@ -10092,7 +10100,8 @@ ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   if (nullptr == pfnOpenMemHandleExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnOpenMemHandleExp(hContext, hIPCMem, ppMem);
+  return pfnOpenMemHandleExp(hContext, hDevice, ipcMemHandleData,
+                             ipcMemHandleDataSize, ppMem);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -10107,10 +10116,9 @@ ur_result_t UR_APICALL urIPCOpenMemHandleExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + NULL == pMem
+///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urIPCCloseMemHandleExp(
@@ -10149,7 +10157,7 @@ ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
     /// [in] the IPC memory handle
     ur_exp_ipc_mem_handle_t hIPCMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    const void **ppIPCHandleData,
+    void **ppIPCHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) try {
   auto pfnGetMemHandleDataExp =
@@ -10159,85 +10167,6 @@ ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
 
   return pfnGetMemHandleDataExp(hContext, hIPCMem, ppIPCHandleData,
                                 pIPCMemHandleDataSizeRet);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Creates an inter-process memory handle from handle data
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + NULL == hContext
-///         + NULL == hDevice
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phIPCMem`
-///         + NULL == ipcMemHandleData
-///         + NULL == phIPCMem
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + ipcMemHandleDataSize is not the same as the size of IPC memory
-///         handle data
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urIPCCreateMemHandleFromDataExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object the corresponding USM device memory
-    /// was allocated on
-    ur_device_handle_t hDevice,
-    /// [in] the IPC memory handle data
-    const void *ipcMemHandleData,
-    /// [in] size of the IPC memory handle data
-    size_t ipcMemHandleDataSize,
-    /// [out] the IPC memory handle
-    ur_exp_ipc_mem_handle_t *phIPCMem) try {
-  auto pfnCreateMemHandleFromDataExp =
-      ur_lib::getContext()->urDdiTable.IPCExp.pfnCreateMemHandleFromDataExp;
-  if (nullptr == pfnCreateMemHandleFromDataExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnCreateMemHandleFromDataExp(hContext, hDevice, ipcMemHandleData,
-                                       ipcMemHandleDataSize, phIPCMem);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroys an inter-process memory handle created through
-///        urIPCCreateMemHandleFromDataExp
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + NULL == hContext
-///         + NULL == hIPCMem
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + hIPCMem was not created through CreateMemHandleFromDataExp
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urIPCDestroyMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem) try {
-  auto pfnDestroyMemHandleExp =
-      ur_lib::getContext()->urDdiTable.IPCExp.pfnDestroyMemHandleExp;
-  if (nullptr == pfnDestroyMemHandleExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnDestroyMemHandleExp(hContext, hIPCMem);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

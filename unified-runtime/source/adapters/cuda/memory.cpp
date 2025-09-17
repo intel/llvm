@@ -594,10 +594,10 @@ CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
 UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(
     ur_context_handle_t, void *pMem, ur_exp_ipc_mem_handle_t *phIPCMem) {
   auto resHandle = std::make_unique<ur_exp_ipc_mem_handle_t_>();
-  resHandle->CreatedFromData = false;
 
-  auto umfRet = umfPoolByPtr(pMem, &resHandle->UMFPool);
-  if (umfRet != UMF_RESULT_SUCCESS || !resHandle->UMFPool)
+  umf_memory_pool_handle_t umfPool;
+  auto umfRet = umfPoolByPtr(pMem, &umfPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfPool)
     return UR_RESULT_ERROR_UNKNOWN;
 
   umfRet = umfGetIPCHandle(pMem, &resHandle->UMFHandle, &resHandle->HandleSize);
@@ -619,13 +619,26 @@ urIPCPutMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem, void **ppMem) {
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    void *pIPCMemHandleData, size_t ipcMemHandleDataSize, void **ppMem) {
+  umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
+
+  size_t umfHandleSize = 0;
+  auto umfRet = umfPoolGetIPCHandleSize(umfPool, &umfHandleSize);
+  if (umfRet != UMF_RESULT_SUCCESS || umfHandleSize == 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
   umf_ipc_handler_handle_t umfIPCHandler;
-  auto umfRet = umfPoolGetIPCHandler(hIPCMem->UMFPool, &umfIPCHandler);
+  umfRet = umfPoolGetIPCHandler(umfPool, &umfIPCHandler);
   if (umfRet != UMF_RESULT_SUCCESS || !umfIPCHandler)
     return UR_RESULT_ERROR_UNKNOWN;
 
-  umfRet = umfOpenIPCHandle(umfIPCHandler, hIPCMem->UMFHandle, ppMem);
+  umfRet = umfOpenIPCHandle(
+      umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
+      ppMem);
   return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
                                       : UR_RESULT_ERROR_UNKNOWN;
 }
@@ -639,43 +652,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
     ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem,
-    const void **ppIPCHandleData, size_t *pIPCMemHandleDataSizeRet) {
+    void **ppIPCHandleData, size_t *pIPCMemHandleDataSizeRet) {
   if (ppIPCHandleData)
     *ppIPCHandleData = hIPCMem->UMFHandle;
   if (pIPCMemHandleDataSizeRet)
     *pIPCMemHandleDataSizeRet = hIPCMem->HandleSize;
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urIPCCreateMemHandleFromDataExp(
-    ur_context_handle_t, ur_device_handle_t hDevice,
-    const void *pIPCMemHandleData, size_t ipcMemHandleDataSize,
-    ur_exp_ipc_mem_handle_t *phIPCMem) {
-  umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
-
-  size_t umfHandleSize = 0;
-  auto umfRet = umfPoolGetIPCHandleSize(umfPool, &umfHandleSize);
-  if (umfRet != UMF_RESULT_SUCCESS || umfHandleSize == 0)
-    return UR_RESULT_ERROR_UNKNOWN;
-
-  if (umfHandleSize != ipcMemHandleDataSize)
-    return UR_RESULT_ERROR_INVALID_VALUE;
-
-  auto resHandle = std::make_unique<ur_exp_ipc_mem_handle_t_>();
-  resHandle->UMFPool = umfPool;
-  resHandle->UMFHandle =
-      reinterpret_cast<umf_ipc_handle_t>(std::malloc(umfHandleSize));
-  std::memcpy(resHandle->UMFHandle, pIPCMemHandleData, umfHandleSize);
-  resHandle->HandleSize = umfHandleSize;
-  resHandle->CreatedFromData = true;
-  *phIPCMem = resHandle.release();
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCDestroyMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem) {
-  if (!hIPCMem->CreatedFromData)
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  std::free(hIPCMem);
   return UR_RESULT_SUCCESS;
 }

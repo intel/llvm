@@ -47,8 +47,6 @@ Functions
    * ${x}IPCOpenMemHandleExp
    * ${x}IPCCloseMemHandleExp
    * ${x}IPCGetMemHandleDataExp
-   * ${x}IPCCreateMemHandleFromDataExp
-   * ${x}IPCDestroyMemHandleExp
 
 Changelog
 --------------------------------------------------------------------------------
