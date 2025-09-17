@@ -19,11 +19,6 @@
 // DEFINE: %{gpu_env} = env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 SYCL_PI_SUPPRESS_ERROR_MESSAGE=1
 // RUN: %if gpu %{ %{gpu_env} %{run} %t.out &> %t.gpu.txt ; FileCheck %s --input-file %t.gpu.txt %}
 
-// Shouldn't fail on ACC as fallback assert isn't enqueued there
-// RUN: %if acc %{ %{run} %t.out &> %t.acc.txt ; FileCheck %s --check-prefix=CHECK-ACC --input-file %t.acc.txt %}
-//
 // CHECK:      this message from file1
 // CHECK-NOT:  this message from file2
 // CHECK-NOT:  The test ended.
-//
-// CHECK-ACC: The test ended.
