@@ -145,28 +145,39 @@ and any resulting objects are undefined.
 a!
 [source]
 ----
-ipc_memory(span<const char, sycl::dynamic_extent> ipc_memory_handle_data,
-           const sycl::context &ctx, const sycl::device &dev)
+static void *open(ipc_memory_handle_data_t ipc_memory_handle_data,
+                  const sycl::context &ctx, const sycl::device &dev)
 ----
 !====
 
-_Effects:_ Constructs an IPC memory object in `ctx` from the handle data
-`ipc_memory_handle_data` of returned by the `get_handle_data()` member function
-of another `ipc_memory` object.
+_Effects:_ Returns a pointer to the same device USM memory as the device USM
+memory associated with the `ipc_memory` object that the handle data originated
+from.
 The `ipc_memory` object that the handle data originated from is allowed to be
 from another process on the host system.
 If the `ipc_memory` object that the handle data originated from has been
 destroyed, the behaviors of this constructor and any resulting objects are
 undefined.
 If the device USM memory the original `ipc_memory` object was created with was
-not originally allocated on `dev`, the behaviors of this constructor and any
-resulting objects are undefined.
+not originally allocated on `dev`, the behaviors of this function is undefined.
 
 !====
 a!
 [source]
 ----
-span<const char, sycl::dynamic_extent> get_handle_data() const
+static void close(void *ptr, const sycl::context &ctx)
+----
+!====
+
+_Effects:_ Closes a device USM pointer previously returned by a call to
+`ipc_memory::open()`.
+Accessing `ptr` after a call to this function results in undefined behavior.
+
+!====
+a!
+[source]
+----
+ipc_memory_handle_data_t get_handle_data() const
 ----
 !====
 

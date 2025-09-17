@@ -46,9 +46,9 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
+      - "`NULL == hContext`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "NULL == phIPCMem"
+      - "`NULL == phIPCMem`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -67,8 +67,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
-      - "NULL == hIPCMem"
+      - "`NULL == hContext`"
+      - "`NULL == hIPCMem`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -96,11 +96,11 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
-      - "NULL == hDevice"
+      - "`NULL == hContext`"
+      - "`NULL == hDevice`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "NULL == ipcMemHandleData"
-      - "NULL == ppMem"
+      - "`NULL == ipcMemHandleData`"
+      - "`NULL == ppMem`"
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "ipcMemHandleDataSize is not the same as the size of IPC memory handle data"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -121,9 +121,9 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
+      - "`NULL == hContext`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "NULL == pMem"
+      - "`NULL == pMem`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -148,7 +148,7 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
-      - "NULL == hIPCMem"
+      - "`NULL == hContext`"
+      - "`NULL == hIPCMem`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES

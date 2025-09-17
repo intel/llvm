@@ -10425,9 +10425,6 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ipcMemHandleData)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
