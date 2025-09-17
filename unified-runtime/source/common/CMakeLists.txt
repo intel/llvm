@@ -56,11 +56,11 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit 1de269c00e46b7cbdbafa2247812c8c4bb4ed4a5
+  # commit e7d285269e04d3c0e70917c24945c80a4ea3313a
   # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Mon Jul 21 15:42:59 2025 +0200
-  # 1.0.0 release
-  set(UMF_TAG v1.0.0)
+  # Date:   Tue Sep 16 15:04:27 2025 +0200
+  # 1.0.3 release
+  set(UMF_TAG v1.0.3)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
