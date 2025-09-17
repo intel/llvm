@@ -320,44 +320,44 @@ event queue::submit_with_event_impl(
 }
 
 event queue::submit_kernel_direct_with_event_impl(
-    nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+    nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  return impl->submit_kernel_direct_with_event(Range, KRInfo, CodeLoc,
+  return impl->submit_kernel_direct_with_event(Range, KDDesc, CodeLoc,
                                                IsTopCodeLoc);
 }
 
 event queue::submit_kernel_direct_with_event_impl(
-    nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+    nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  return impl->submit_kernel_direct_with_event(Range, KRInfo, CodeLoc,
+  return impl->submit_kernel_direct_with_event(Range, KDDesc, CodeLoc,
                                                IsTopCodeLoc);
 }
 
 event queue::submit_kernel_direct_with_event_impl(
-    nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+    nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  return impl->submit_kernel_direct_with_event(Range, KRInfo, CodeLoc,
+  return impl->submit_kernel_direct_with_event(Range, KDDesc, CodeLoc,
                                                IsTopCodeLoc);
 }
 
 void queue::submit_kernel_direct_without_event_impl(
-    nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+    nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  impl->submit_kernel_direct_without_event(Range, KRInfo, CodeLoc,
+  impl->submit_kernel_direct_without_event(Range, KDDesc, CodeLoc,
                                            IsTopCodeLoc);
 }
 
 void queue::submit_kernel_direct_without_event_impl(
-    nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+    nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  impl->submit_kernel_direct_without_event(Range, KRInfo, CodeLoc,
+  impl->submit_kernel_direct_without_event(Range, KDDesc, CodeLoc,
                                            IsTopCodeLoc);
 }
 
 void queue::submit_kernel_direct_without_event_impl(
-    nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+    nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  impl->submit_kernel_direct_without_event(Range, KRInfo, CodeLoc,
+  impl->submit_kernel_direct_without_event(Range, KDDesc, CodeLoc,
                                            IsTopCodeLoc);
 }
 

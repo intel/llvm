@@ -439,17 +439,17 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    const NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
+    const NDRDescT &NDRDesc, const v1::KernelDataDesc &KDDesc,
     bool CallerNeedsEvent, const detail::code_location &CodeLoc,
     bool IsTopCodeLoc) {
 
   KernelData KData;
 
-  KData.setDeviceKernelInfoPtr(KRInfo.DeviceKernelInfoPtr());
-  KData.setKernelFunc(KRInfo.GetKernelFuncPtr());
+  KData.setDeviceKernelInfoPtr(KDDesc.DeviceKernelInfoPtr());
+  KData.setKernelFunc(KDDesc.GetKernelFuncPtr());
   KData.setNDRDesc(NDRDesc);
 
-  return submit_kernel_direct_impl(KData, KRInfo.HostKernel(), CallerNeedsEvent,
+  return submit_kernel_direct_impl(KData, KDDesc.HostKernel(), CallerNeedsEvent,
                                    CodeLoc, IsTopCodeLoc);
 }
 

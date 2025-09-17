@@ -360,47 +360,47 @@ public:
   }
 
   event submit_kernel_direct_with_event(
-      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
-        NDRDescT{Range}, KRInfo, true, CodeLoc, IsTopCodeLoc);
+        NDRDescT{Range}, KDDesc, true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   event submit_kernel_direct_with_event(
-      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
-        NDRDescT{Range}, KRInfo, true, CodeLoc, IsTopCodeLoc);
+        NDRDescT{Range}, KDDesc, true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   event submit_kernel_direct_with_event(
-      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl = submit_kernel_direct_impl(
-        NDRDescT{Range}, KRInfo, true, CodeLoc, IsTopCodeLoc);
+        NDRDescT{Range}, KDDesc, true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   void submit_kernel_direct_without_event(
-      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, KRInfo, false, CodeLoc,
+    submit_kernel_direct_impl(NDRDescT{Range}, KDDesc, false, CodeLoc,
                               IsTopCodeLoc);
   }
 
   void submit_kernel_direct_without_event(
-      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, KRInfo, false, CodeLoc,
+    submit_kernel_direct_impl(NDRDescT{Range}, KDDesc, false, CodeLoc,
                               IsTopCodeLoc);
   }
 
   void submit_kernel_direct_without_event(
-      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, KRInfo, false, CodeLoc,
+    submit_kernel_direct_impl(NDRDescT{Range}, KDDesc, false, CodeLoc,
                               IsTopCodeLoc);
   }
 
@@ -922,7 +922,7 @@ protected:
   /// Performs kernel submission to the queue.
   ///
   /// \param NDRDesc is an NDRange descriptor
-  /// \param KRInfo is a descriptor of the kernel
+  /// \param KDDesc is a descriptor of the kernel
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param CodeLoc is the code location of the submit call
@@ -931,7 +931,7 @@ protected:
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
   detail::EventImplPtr submit_kernel_direct_impl(
-      const NDRDescT &NDRDesc, const v1::KernelRuntimeInfo &KRInfo,
+      const NDRDescT &NDRDesc, const v1::KernelDataDesc &KDDesc,
       bool CallerNeedsEvent, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc);
 

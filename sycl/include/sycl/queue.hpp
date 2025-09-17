@@ -144,17 +144,17 @@ using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t (*)(int);
 
 // This class is intended to store the kernel runtime information,
 // extracted from the compile time kernel structures.
-class __SYCL_EXPORT KernelRuntimeInfo {
+class __SYCL_EXPORT KernelDataDesc {
 public:
-  KernelRuntimeInfo() {}
+  KernelDataDesc() {}
 
-  KernelRuntimeInfo(const KernelRuntimeInfo &rhs) = delete;
+  KernelDataDesc(const KernelDataDesc &rhs) = delete;
 
-  KernelRuntimeInfo(KernelRuntimeInfo &&rhs) = delete;
+  KernelDataDesc(KernelDataDesc &&rhs) = delete;
 
-  KernelRuntimeInfo &operator=(const KernelRuntimeInfo &rhs) = delete;
+  KernelDataDesc &operator=(const KernelDataDesc &rhs) = delete;
 
-  KernelRuntimeInfo &operator=(KernelRuntimeInfo &&rhs) = delete;
+  KernelDataDesc &operator=(KernelDataDesc &&rhs) = delete;
 
   std::shared_ptr<detail::HostKernelBase> &HostKernel() { return MHostKernel; }
   const std::shared_ptr<detail::HostKernelBase> &HostKernel() const {
@@ -3693,8 +3693,8 @@ private:
 
   template <typename KernelName, typename KernelType, int Dims,
             detail::WrapAs WrapAsVal>
-  void ProcessKernelRuntimeInfo(const KernelType &KernelFunc,
-                                detail::v1::KernelRuntimeInfo &KRInfo) const {
+  void ProcessKernelDataDesc(const KernelType &KernelFunc,
+                             detail::v1::KernelDataDesc &KDDesc) const {
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
@@ -3704,11 +3704,11 @@ private:
             typename TransformUserItemType<Dims, LambdaArgType>::type>,
         void>;
 
-    KRInfo.HostKernel().reset(
+    KDDesc.HostKernel().reset(
         new detail::HostKernel<KernelType, TransformedArgType, Dims>(
             KernelFunc));
 
-    KRInfo.DeviceKernelInfoPtr() = &detail::getDeviceKernelInfo<KernelName>();
+    KDDesc.DeviceKernelInfoPtr() = &detail::getDeviceKernelInfo<KernelName>();
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -3783,27 +3783,27 @@ private:
                                bool IsTopCodeLoc) const;
 
   event submit_kernel_direct_with_event_impl(
-      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   event submit_kernel_direct_with_event_impl(
-      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   event submit_kernel_direct_with_event_impl(
-      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   void submit_kernel_direct_without_event_impl(
-      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   void submit_kernel_direct_without_event_impl(
-      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   void submit_kernel_direct_without_event_impl(
-      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   /// A template-free version of submit_without_event as const member function.
@@ -3845,18 +3845,18 @@ private:
                                       detail::code_location::current()) const {
     (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::KernelRuntimeInfo KRInfo{};
+    detail::v1::KernelDataDesc KDDesc{};
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, WrapAsVal>(KernelFunc,
-                                                                 KRInfo);
+    ProcessKernelDataDesc<NameT, KernelType, Dims, WrapAsVal>(KernelFunc,
+                                                              KDDesc);
 
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
 
-    return submit_kernel_direct_with_event_impl(Range, KRInfo,
+    return submit_kernel_direct_with_event_impl(Range, KDDesc,
                                                 TlsCodeLocCapture.query(),
                                                 TlsCodeLocCapture.isToplevel());
   }
@@ -3869,18 +3869,18 @@ private:
           detail::code_location::current()) const {
     (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::KernelRuntimeInfo KRInfo{};
+    detail::v1::KernelDataDesc KDDesc{};
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    ProcessKernelRuntimeInfo<NameT, KernelType, Dims,
-                             detail::WrapAs::parallel_for>(KernelFunc, KRInfo);
+    ProcessKernelDataDesc<NameT, KernelType, Dims,
+                          detail::WrapAs::parallel_for>(KernelFunc, KDDesc);
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
 
-    submit_kernel_direct_without_event_impl(Range, KRInfo,
+    submit_kernel_direct_without_event_impl(Range, KDDesc,
                                             TlsCodeLocCapture.query(),
                                             TlsCodeLocCapture.isToplevel());
   }
