@@ -773,20 +773,14 @@ ur_result_t urIPCGetMemHandleExp(ur_context_handle_t hContext, void *pMem,
 ur_result_t urIPCPutMemHandleExp(ur_context_handle_t hContext,
                                  ur_exp_ipc_mem_handle_t hIPCMem);
 ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
-                                  ur_exp_ipc_mem_handle_t hIPCMem,
-                                  void **ppMem);
+                                  ur_device_handle_t hDevice,
+                                  void *ipcMemHandleData,
+                                  size_t ipcMemHandleDataSize, void **ppMem);
 ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t hContext, void *pMem);
 ur_result_t urIPCGetMemHandleDataExp(ur_context_handle_t hContext,
                                      ur_exp_ipc_mem_handle_t hIPCMem,
-                                     const void **ppIPCHandleData,
+                                     void **ppIPCHandleData,
                                      size_t *pIPCMemHandleDataSizeRet);
-ur_result_t urIPCCreateMemHandleFromDataExp(ur_context_handle_t hContext,
-                                            ur_device_handle_t hDevice,
-                                            const void *ipcMemHandleData,
-                                            size_t ipcMemHandleDataSize,
-                                            ur_exp_ipc_mem_handle_t *phIPCMem);
-ur_result_t urIPCDestroyMemHandleExp(ur_context_handle_t hContext,
-                                     ur_exp_ipc_mem_handle_t hIPCMem);
 ur_result_t urMemoryExportAllocExportableMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t alignment,
     size_t size, ur_exp_external_mem_type_t handleTypeToExport, void **ppMem);

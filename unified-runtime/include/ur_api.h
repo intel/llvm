@@ -485,10 +485,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP = 292,
   /// Enumerator for ::urIPCGetMemHandleDataExp
   UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP = 293,
-  /// Enumerator for ::urIPCCreateMemHandleFromDataExp
-  UR_FUNCTION_IPC_CREATE_MEM_HANDLE_FROM_DATA_EXP = 294,
-  /// Enumerator for ::urIPCDestroyMemHandleExp
-  UR_FUNCTION_IPC_DESTROY_MEM_HANDLE_EXP = 295,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12387,10 +12383,8 @@ typedef struct ur_exp_ipc_mem_handle_t_ *ur_exp_ipc_mem_handle_t;
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phIPCMem`
-///         + NULL == phIPCMem
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -12412,8 +12406,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
-///         + NULL == hIPCMem
+///         + `NULL == hIPCMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -12424,8 +12417,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(
     ur_exp_ipc_mem_handle_t hIPCMem);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Opens an inter-process memory handle to get the corresponding pointer
-///        to device USM memory
+/// @brief Opens an inter-process memory handle from raw data to get the
+///        corresponding pointer to device USM memory
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -12434,18 +12427,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
-///         + NULL == hIPCMem
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + NULL == ppMem
+///         + `NULL == ipcMemHandleData`
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcMemHandleDataSize is not the same as the size of IPC memory
+///         handle data
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] pointer to the resulting IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *ipcMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
     /// [out] pointer to a pointer to device USM memory
     void **ppMem);
 
@@ -12459,10 +12460,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + NULL == pMem
+///         + `NULL == pMem`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(
@@ -12481,8 +12481,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + NULL == hContext
-///         + NULL == hIPCMem
+///         + `NULL == hIPCMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -12492,69 +12491,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
     /// [in] the IPC memory handle
     ur_exp_ipc_mem_handle_t hIPCMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    const void **ppIPCHandleData,
+    void **ppIPCHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Creates an inter-process memory handle from handle data
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + NULL == hContext
-///         + NULL == hDevice
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phIPCMem`
-///         + NULL == ipcMemHandleData
-///         + NULL == phIPCMem
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + ipcMemHandleDataSize is not the same as the size of IPC memory
-///         handle data
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urIPCCreateMemHandleFromDataExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object the corresponding USM device memory
-    /// was allocated on
-    ur_device_handle_t hDevice,
-    /// [in] the IPC memory handle data
-    const void *ipcMemHandleData,
-    /// [in] size of the IPC memory handle data
-    size_t ipcMemHandleDataSize,
-    /// [out] the IPC memory handle
-    ur_exp_ipc_mem_handle_t *phIPCMem);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Destroys an inter-process memory handle created through
-///        urIPCCreateMemHandleFromDataExp
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + NULL == hContext
-///         + NULL == hIPCMem
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + hIPCMem was not created through CreateMemHandleFromDataExp
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urIPCDestroyMemHandleExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -15656,7 +15595,9 @@ typedef struct ur_ipc_put_mem_handle_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_ipc_open_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
-  ur_exp_ipc_mem_handle_t *phIPCMem;
+  ur_device_handle_t *phDevice;
+  void **pipcMemHandleData;
+  size_t *pipcMemHandleDataSize;
   void ***pppMem;
 } ur_ipc_open_mem_handle_exp_params_t;
 
@@ -15676,30 +15617,9 @@ typedef struct ur_ipc_close_mem_handle_exp_params_t {
 typedef struct ur_ipc_get_mem_handle_data_exp_params_t {
   ur_context_handle_t *phContext;
   ur_exp_ipc_mem_handle_t *phIPCMem;
-  const void ***pppIPCHandleData;
+  void ***pppIPCHandleData;
   size_t **ppIPCMemHandleDataSizeRet;
 } ur_ipc_get_mem_handle_data_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urIPCCreateMemHandleFromDataExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_ipc_create_mem_handle_from_data_exp_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  const void **pipcMemHandleData;
-  size_t *pipcMemHandleDataSize;
-  ur_exp_ipc_mem_handle_t **pphIPCMem;
-} ur_ipc_create_mem_handle_from_data_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urIPCDestroyMemHandleExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_ipc_destroy_mem_handle_exp_params_t {
-  ur_context_handle_t *phContext;
-  ur_exp_ipc_mem_handle_t *phIPCMem;
-} ur_ipc_destroy_mem_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urMemoryExportAllocExportableMemoryExp

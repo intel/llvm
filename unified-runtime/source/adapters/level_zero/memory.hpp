@@ -245,10 +245,8 @@ struct ur_image final : ur_mem_handle_t_ {
 };
 
 struct ur_exp_ipc_mem_handle_t_ {
-  umf_memory_pool_handle_t UMFPool;
   umf_ipc_handle_t UMFHandle = nullptr;
   size_t HandleSize = 0;
-  bool CreatedFromData = false;
 };
 
 template <typename T>

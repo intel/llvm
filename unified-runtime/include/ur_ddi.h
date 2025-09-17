@@ -1800,7 +1800,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCPutMemHandleExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCOpenMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCOpenMemHandleExp_t)(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t, void **);
+    ur_context_handle_t, ur_device_handle_t, void *, size_t, void **);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCCloseMemHandleExp
@@ -1810,18 +1810,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCCloseMemHandleExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetMemHandleDataExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleDataExp_t)(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t, const void **, size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urIPCCreateMemHandleFromDataExp
-typedef ur_result_t(UR_APICALL *ur_pfnIPCCreateMemHandleFromDataExp_t)(
-    ur_context_handle_t, ur_device_handle_t, const void *, size_t,
-    ur_exp_ipc_mem_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urIPCDestroyMemHandleExp
-typedef ur_result_t(UR_APICALL *ur_pfnIPCDestroyMemHandleExp_t)(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t);
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t, void **, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of IPCExp functions pointers
@@ -1831,8 +1820,6 @@ typedef struct ur_ipc_exp_dditable_t {
   ur_pfnIPCOpenMemHandleExp_t pfnOpenMemHandleExp;
   ur_pfnIPCCloseMemHandleExp_t pfnCloseMemHandleExp;
   ur_pfnIPCGetMemHandleDataExp_t pfnGetMemHandleDataExp;
-  ur_pfnIPCCreateMemHandleFromDataExp_t pfnCreateMemHandleFromDataExp;
-  ur_pfnIPCDestroyMemHandleExp_t pfnDestroyMemHandleExp;
 } ur_ipc_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

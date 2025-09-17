@@ -3541,26 +3541,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcGetMemHandleDataExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_ipc_create_mem_handle_from_data_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcCreateMemHandleFromDataExpParams(
-    const struct ur_ipc_create_mem_handle_from_data_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_ipc_destroy_mem_handle_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintIpcDestroyMemHandleExpParams(
-    const struct ur_ipc_destroy_mem_handle_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_memory_export_alloc_exportable_memory_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

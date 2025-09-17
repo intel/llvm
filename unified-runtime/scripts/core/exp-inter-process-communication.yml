@@ -73,7 +73,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Opens an inter-process memory handle to get the corresponding pointer to device USM memory"
+desc: "Opens an inter-process memory handle from raw data to get the corresponding pointer to device USM memory"
 class: $xIPC
 name: OpenMemHandleExp
 ordinal: "0"
@@ -81,9 +81,15 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: $x_exp_ipc_mem_handle_t
-      name: hIPCMem
-      desc: "[in] pointer to the resulting IPC memory handle"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object the corresponding USM device memory was allocated on"
+    - type: void *
+      name: ipcMemHandleData
+      desc: "[in] the IPC memory handle data"
+    - type: size_t
+      name: ipcMemHandleDataSize
+      desc: "[in] size of the IPC memory handle data"
     - type: void **
       name: ppMem
       desc: "[out] pointer to a pointer to device USM memory"
@@ -91,9 +97,12 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "NULL == hContext"
-      - "NULL == hIPCMem"
+      - "NULL == hDevice"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "NULL == ipcMemHandleData"
       - "NULL == ppMem"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "ipcMemHandleDataSize is not the same as the size of IPC memory handle data"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -130,7 +139,7 @@ params:
     - type: $x_exp_ipc_mem_handle_t
       name: hIPCMem
       desc: "[in] the IPC memory handle"
-    - type: const void**
+    - type: void**
       name: ppIPCHandleData
       desc: "[out][optional] a pointer to the IPC memory handle data"
     - type: size_t*
@@ -141,61 +150,5 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "NULL == hContext"
       - "NULL == hIPCMem"
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES
---- #--------------------------------------------------------------------------
-type: function
-desc: "Creates an inter-process memory handle from handle data"
-class: $xIPC
-name: CreateMemHandleFromDataExp
-ordinal: "0"
-params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
-    - type: $x_device_handle_t
-      name: hDevice
-      desc: "[in] handle of the device object the corresponding USM device memory was allocated on"
-    - type: const void *
-      name: ipcMemHandleData
-      desc: "[in] the IPC memory handle data"
-    - type: size_t
-      name: ipcMemHandleDataSize
-      desc: "[in] size of the IPC memory handle data"
-    - type: $x_exp_ipc_mem_handle_t*
-      name: phIPCMem
-      desc: "[out] the IPC memory handle"
-returns:
-    - $X_RESULT_ERROR_INVALID_CONTEXT
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
-      - "NULL == hDevice"
-    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "NULL == ipcMemHandleData"
-      - "NULL == phIPCMem"
-    - $X_RESULT_ERROR_INVALID_VALUE:
-      - "ipcMemHandleDataSize is not the same as the size of IPC memory handle data"
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES
---- #--------------------------------------------------------------------------
-type: function
-desc: "Destroys an inter-process memory handle created through urIPCCreateMemHandleFromDataExp"
-class: $xIPC
-name: DestroyMemHandleExp
-ordinal: "0"
-params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
-    - type: $x_exp_ipc_mem_handle_t
-      name: hIPCMem
-      desc: "[in] the IPC memory handle"
-returns:
-    - $X_RESULT_ERROR_INVALID_CONTEXT
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "NULL == hContext"
-      - "NULL == hIPCMem"
-    - $X_RESULT_ERROR_INVALID_VALUE:
-      - "hIPCMem was not created through CreateMemHandleFromDataExp"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
