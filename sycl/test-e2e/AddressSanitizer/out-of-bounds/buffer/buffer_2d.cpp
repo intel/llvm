@@ -4,7 +4,7 @@
 // RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 
-// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64052
 
 #include <sycl/detail/core.hpp>

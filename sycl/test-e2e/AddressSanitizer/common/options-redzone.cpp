@@ -7,7 +7,7 @@
 // RUN: env UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=redzone:8 %{run} %t2.out 2>&1 | FileCheck --check-prefixes CHECK-MIN %s
 // clang-format on
 
-// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64052
 
 #include <sycl/usm.hpp>

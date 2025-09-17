@@ -16,6 +16,9 @@
 // UNSUPPORTED: arch-intel_gpu_pvc
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16401
 
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64052
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/device_global/device_global.hpp>

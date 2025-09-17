@@ -3,6 +3,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend && gpu-intel-dg2
+
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

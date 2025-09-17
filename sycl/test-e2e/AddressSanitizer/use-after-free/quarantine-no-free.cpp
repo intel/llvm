@@ -3,7 +3,7 @@
 // RUN: env UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:5;detect_kernel_arguments:0" UR_LOG_SANITIZER=level:info %{run} not %t 2>&1 | FileCheck %s
 #include <sycl/usm.hpp>
 
-// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-64052
 
 /// Quarantine Cache Test

@@ -7,7 +7,7 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
-// UNSUPPORTED: spirv-backend && arch-intel_gpu_pvc
+// UNSUPPORTED: spirv-backend && gpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-70538
 
 /* The test checks that invoke_simd implementation performs proper call of

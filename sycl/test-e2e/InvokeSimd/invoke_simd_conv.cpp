@@ -13,7 +13,7 @@
 // TODO: enable execution of test generated with -O0 once crash issue is
 // resolved
 
-// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL: spirv-backend && gpu
 // XFAIL-TRACKER: CMPLRLLVM-70538
 
 #include <sycl/detail/core.hpp>
