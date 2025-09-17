@@ -1399,8 +1399,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         if (isDuplicateTargetTripleString(Target))
           continue;
         Triples.insert(C.getInputArgs().MakeArgString(TargetTripleString));
-      } else
+      } else {
+        // Check for duplicate target triple strings for offloading
+        // models other than SYCL, before inserting in Triples.
+        if (isDuplicateTargetTripleString(Target))
+          continue;
         Triples.insert(C.getInputArgs().MakeArgString(Target));
+      }
     }
 
     if (ArgValues.empty())
@@ -1458,10 +1463,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT.str();
         continue;
       }
-      // Check for duplicate target triple strings.
-      if ((Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) &&
-          isDuplicateTargetTripleString(Target))
-        continue;
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
                                      C.getDefaultToolChain().getTriple());
