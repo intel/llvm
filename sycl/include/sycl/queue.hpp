@@ -2701,10 +2701,10 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    return submit_kernel_direct_with_event<detail::WrapAs::single_task,
-                                           KernelName>(
-        ext::oneapi::experimental::empty_properties_t{}, nd_range<1>{1, 1},
-        KernelFunc);
+    return submit_kernel_direct_with_event<KernelName, PropertiesT, KernelType,
+                                           1, detail::WrapAs::single_task,
+                                           void>(Properties, nd_range<1>{1, 1},
+                                                 KernelFunc);
 
 #else
     return submit(
@@ -3263,8 +3263,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return submit_kernel_direct_with_event<detail::WrapAs::parallel_for,
-                                             KernelName, sycl::nd_item<Dims>>(
+      return submit_kernel_direct_with_event<KernelName>(
           ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
     } else {
       return submit(
@@ -3835,9 +3834,10 @@ private:
                                   TlsCodeLocCapture.isToplevel());
   }
 
-  template <detail::WrapAs WrapAsVal, typename KernelName = detail::auto_name,
-            typename ElementType = void, typename PropertiesT,
-            typename KernelType, int Dims>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename KernelType, int Dims,
+            detail::WrapAs WrapAsVal = detail::WrapAs::parallel_for,
+            typename ElementType = sycl::nd_item<Dims>>
   event
   submit_kernel_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                                   const KernelType &KernelFunc,
