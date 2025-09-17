@@ -1,4 +1,7 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
+
+// UNSUPPORTED: target-nvidia,cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19214
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}

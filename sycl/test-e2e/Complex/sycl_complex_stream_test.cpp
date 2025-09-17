@@ -1,3 +1,6 @@
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
+
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-finite-math-only%} %else %{-fno-finite-math-only%}
 
 // RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
