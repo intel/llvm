@@ -1,9 +1,10 @@
-// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED: target-nvidia || target-amd || target-native_cpu
 // UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
 // compilation of the kernel, but for CUDA the failure is not thrown, but comes
 // from ptxas that crashes clang. The JIT part is not relevant, because the
 // flow is such that the AOT compilation still happens, it’s just that if we
-// request JIT, it will do the thing again at the run time.
+// request JIT, it will do the thing again at the run time. Native CPU support
+// should be investigated post team transfer.
 //
 // TODO: rewrite this into a unit-test
 

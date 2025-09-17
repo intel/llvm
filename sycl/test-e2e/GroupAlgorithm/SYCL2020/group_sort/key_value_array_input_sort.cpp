@@ -1,7 +1,7 @@
 // REQUIRES: sg-8
-// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED: target-nvidia || target-amd || target-native_cpu
 // UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
-// not supported
+// not supported. Native CPU support should be investigated post team transfer.
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

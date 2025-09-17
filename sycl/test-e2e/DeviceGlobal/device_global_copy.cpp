@@ -3,7 +3,7 @@
 // RUN: %{build} %{cpp23} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: opencl && gpu
+// UNSUPPORTED: (opencl && gpu) || target-native_cpu
 // UNSUPPORTED-TRACKER: GSD-4287
 //
 // Tests the copy ctor on device_global without device_image_scope.

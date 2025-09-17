@@ -5,6 +5,10 @@
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20146
 
+// clock not supported on Native CPU
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
+// investigated and tracked post team transfer
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

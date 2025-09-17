@@ -1,8 +1,8 @@
 // RUN: %{build} -Wno-error=#warnings -o %t.out
 // RUN: %{run} %t.out
 
-// Device globals aren't supported on opencl:gpu yet.
-// UNSUPPORTED: opencl && gpu
+// Device globals aren't supported on opencl:gpu or Native CPU yet.
+// UNSUPPORTED: (opencl && gpu) || target-native_cpu
 
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip

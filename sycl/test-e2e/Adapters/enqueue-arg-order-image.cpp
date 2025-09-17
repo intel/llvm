@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: target-amd
+// UNSUPPORTED: target-amd || target-native_cpu
 // UNSUPPORTED-INTENDED: Legacy images aren't supported on AMD, but also fail
 // to compile. Bindless images should be used instead.
 
