@@ -26,40 +26,52 @@ inline ur_result_t after_urKernelGetInfo(void *pParams) {
 static thread_local size_t counter_urEnqueueKernelLaunch = 0;
 inline ur_result_t redefined_urEnqueueKernelLaunch(void *pParams) {
   ++counter_urEnqueueKernelLaunch;
+// The no-handler scheduler submission includes a fix for the event return,
+// which is not yet applied to the handler-based path
+#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
   EXPECT_EQ(*params.pphEvent, nullptr);
+#endif
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueueMemcpy = 0;
 inline ur_result_t redefined_urUSMEnqueueMemcpy(void *pParams) {
   ++counter_urUSMEnqueueMemcpy;
+#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   auto params = *static_cast<ur_enqueue_usm_memcpy_params_t *>(pParams);
   EXPECT_EQ(*params.pphEvent, nullptr);
+#endif
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueueFill = 0;
 inline ur_result_t redefined_urUSMEnqueueFill(void *pParams) {
   ++counter_urUSMEnqueueFill;
+#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
   EXPECT_EQ(*params.pphEvent, nullptr);
+#endif
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueuePrefetch = 0;
 inline ur_result_t redefined_urUSMEnqueuePrefetch(void *pParams) {
   ++counter_urUSMEnqueuePrefetch;
+#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   auto params = *static_cast<ur_enqueue_usm_prefetch_params_t *>(pParams);
   EXPECT_EQ(*params.pphEvent, nullptr);
+#endif
   return UR_RESULT_SUCCESS;
 }
 
 static thread_local size_t counter_urUSMEnqueueMemAdvise = 0;
 inline ur_result_t redefined_urUSMEnqueueMemAdvise(void *pParams) {
   ++counter_urUSMEnqueueMemAdvise;
+#ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   auto params = *static_cast<ur_enqueue_usm_advise_params_t *>(pParams);
   EXPECT_EQ(*params.pphEvent, nullptr);
+#endif
   return UR_RESULT_SUCCESS;
 }
 

@@ -443,42 +443,45 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
     bool CallerNeedsEvent, const detail::code_location &CodeLoc,
     bool IsTopCodeLoc) {
 
-  // No special captures supported yet for the no-handler path
-  assert(!KRInfo.DeviceKernelInfoPtr()->HasSpecialCaptures);
+  KernelData KData;
+
+  KData.setDeviceKernelInfoPtr(KRInfo.DeviceKernelInfoPtr());
+  KData.setKernelFunc(KRInfo.GetKernelFuncPtr());
+  KData.setNDRDesc(NDRDesc);
+
+  return submit_kernel_direct_impl(KData, KRInfo.HostKernel(), CallerNeedsEvent,
+                                   CodeLoc, IsTopCodeLoc);
+}
+
+detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
+    KernelData &KData, std::shared_ptr<detail::HostKernelBase> HostKernel,
+    bool CallerNeedsEvent, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc) {
 
   auto SubmitKernelFunc =
       [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
     std::unique_ptr<detail::CG> CommandGroup;
-    std::vector<detail::ArgDesc> Args;
     std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
     std::vector<std::shared_ptr<const void>> AuxiliaryResources;
 
-    Args = extractArgsAndReqsFromLambda(
-        KRInfo.GetKernelFuncPtr(),
-        KRInfo.DeviceKernelInfoPtr()->ParamDescGetter,
-        KRInfo.DeviceKernelInfoPtr()->NumParams);
+    KData.extractArgsAndReqsFromLambda();
 
     CommandGroup.reset(new detail::CGExecKernel(
-        std::move(NDRDesc), KRInfo.HostKernel(),
-        nullptr, // MKernel
-        nullptr, // MKernelBundle
-        std::move(CGData), std::move(Args),
-        *KRInfo.DeviceKernelInfoPtr(),
-        std::move(StreamStorage), std::move(AuxiliaryResources),
-        detail::CGType::Kernel, UR_KERNEL_CACHE_CONFIG_DEFAULT,
-        false, // MKernelIsCooperative
-        false, // MKernelUsesClusterLaunch
-        0,     // MKernelWorkGroupMemorySize
+        KData.getNDRDesc(), HostKernel,
+        nullptr, // Kernel
+        nullptr, // KernelBundle
+        std::move(CGData), std::move(KData).getArgs(),
+        *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
+        std::move(AuxiliaryResources), detail::CGType::Kernel,
+        UR_KERNEL_CACHE_CONFIG_DEFAULT,
+        false, // KernelIsCooperative
+        false, // KernelUsesClusterLaunch
+        0,     // KernelWorkGroupMemorySize
         CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
-    // TODO DiscardEvent should include a check for requirements list
-    // once accessors are implemented
-    bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
-
-    EventImplPtr EventImpl = detail::Scheduler::getInstance().addCG(
-        std::move(CommandGroup), *this, !DiscardEvent);
-    return EventImpl;
+    return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                  *this, true);
   };
 
   return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
