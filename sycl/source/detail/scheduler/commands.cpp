@@ -3210,9 +3210,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     assert(MQueue && "Kernel submissions should have an associated queue");
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
-    NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
-    std::vector<ArgDesc> &Args = ExecKernel->MArgs;
-
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       // getAllocaForReq may return nullptr if Req is a default constructed
@@ -3238,12 +3235,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       BinImage = retrieveKernelBinary(*MQueue, KernelName);
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(
-        *MQueue, NDRDesc, Args, ExecKernel->getKernelBundle().get(),
-        SyclKernel.get(), ExecKernel->MDeviceKernelInfo, RawEvents, EventImpl,
-        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
-        ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
-        ExecKernel->MKernelWorkGroupMemorySize, BinImage);
+    enqueueImpKernel(*MQueue, ExecKernel->MNDRDesc, ExecKernel->MArgs,
+                     ExecKernel->getKernelBundle().get(), SyclKernel.get(),
+                     ExecKernel->MDeviceKernelInfo, RawEvents, EventImpl,
+                     getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+                     ExecKernel->MKernelIsCooperative,
+                     ExecKernel->MKernelUsesClusterLaunch,
+                     ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 
     return UR_RESULT_SUCCESS;
   }
@@ -3684,10 +3682,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
 
-    return Adapter
-        .call_nocheck<UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
+    if (auto Result = Adapter.call_nocheck<
+                      UrApiKind::urBindlessImagesWaitExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
-            OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
+            OptWaitValue.has_value(), WaitValue, RawEvents.size(),
+            RawEvents.data(), Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreSignal: {
     assert(MQueue &&
@@ -3697,10 +3702,17 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
-    return Adapter
-        .call_nocheck<UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
+    if (auto Result = Adapter.call_nocheck<
+                      UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
-            OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
+            OptSignalValue.has_value(), SignalValue, RawEvents.size(),
+            RawEvents.data(), Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
   }
   case CGType::AsyncAlloc: {
     // NO-OP. Async alloc calls adapter immediately in order to return a valid
