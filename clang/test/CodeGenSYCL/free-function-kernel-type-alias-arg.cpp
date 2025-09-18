@@ -23,6 +23,11 @@ struct Bar {};
 template<typename T1>
 using BarUsing = Bar<T1, float>;
 
+class Baz {
+public:
+  using type = BarUsing<double>;
+};
+
 } // namespace ns
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
@@ -51,3 +56,8 @@ void bar_using(ns::BarUsing<T> Arg) {}
 template void bar_using(ns::BarUsing<int>);
 
 // CHECK: template <typename T> void bar_using(ns::Bar<T, float>);
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void baz_type(ns::Baz::type Arg) {}
+
+// CHECK: void baz_type(ns::Bar<double, float> Arg);
