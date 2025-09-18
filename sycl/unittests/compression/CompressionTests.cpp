@@ -136,7 +136,7 @@ TEST(CompressionTest, ConcurrentDecompressionOfDeviceImage) {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  sycl_device_binary_struct BinStruct{/*Version*/
+  sycl_device_binary_struct BinStruct { /*Version*/
     1,
 #else
   sycl_device_binary_struct BinStruct{/*Version*/ 3,
