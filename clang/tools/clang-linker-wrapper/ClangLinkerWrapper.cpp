@@ -121,11 +121,6 @@ static cl::opt<std::string> PassPipeline(
 static cl::alias PassPipeline2("p", cl::aliasopt(PassPipeline),
                                cl::desc("Alias for -passes"));
 
-static cl::opt<bool>
-    PreviewBreakingChanges("fpreview-breaking-changes",
-                           cl::desc("Enable preview breaking changes"),
-                           cl::init(false), cl::Hidden);
-
 /// Path of the current binary.
 static const char *LinkerExecutable;
 
@@ -1133,8 +1128,9 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
                       CompileOptions, LinkOptions);
   }
-  if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions,
-                                             PreviewBreakingChanges))
+  if (Error E = offloading::wrapSYCLBinaries(
+          M, Images, WrappingOptions,
+          Args.hasArg(OPT_preview_breaking_changes)))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))

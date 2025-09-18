@@ -73,6 +73,10 @@ def should_extract : CommaJoined<["--"], "should-extract=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<kind=file>">,
   HelpText<"Set of device architectures we should always extract if found.">;
 
+def preview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Enables preview of breaking changes in the wrapper">;
+
 // Flags passed to the device linker.
 def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
