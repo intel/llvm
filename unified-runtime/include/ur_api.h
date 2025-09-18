@@ -3621,6 +3621,8 @@ typedef struct ur_image_desc_t {
 ///         + `pImageDesc && pImageDesc->numSamples != 0`
 ///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
 ///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -4055,6 +4057,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `propSize != 0 && pPropValue == NULL`
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -4184,6 +4188,8 @@ typedef struct ur_sampler_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
@@ -4210,6 +4216,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
     /// [in][retain] handle of the sampler object to get access
     ur_sampler_handle_t hSampler);
@@ -4232,6 +4240,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
     /// [in][release] handle of the sampler object to release
     ur_sampler_handle_t hSampler);
@@ -4264,6 +4274,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetInfo(
     /// [in] handle of the sampler object
     ur_sampler_handle_t hSampler,
@@ -6594,6 +6606,8 @@ typedef struct ur_kernel_arg_sampler_properties_t {
 ///         + `NULL == hKernel`
 ///         + `NULL == hArgValue`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
