@@ -569,6 +569,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   if (err == UR_RESULT_SUCCESS) {
     Platforms = std::move(platforms);
   } else {
+    UR_LOG(ERR, "Failed to initialize Platforms");
     throw err;
   }
 }

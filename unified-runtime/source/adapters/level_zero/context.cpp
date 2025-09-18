@@ -42,16 +42,18 @@ ur_result_t urContextCreate(
 
     Context->initialize();
     *RetContext = reinterpret_cast<ur_context_handle_t>(Context);
+    // TODO: delete below 'if' when memory isolation in the context is
+    // implemented in the driver
     if (IndirectAccessTrackingEnabled) {
       std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
       Platform->Contexts.push_back(*RetContext);
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (umf_result_t e) {
-    return umf::umf2urResult(e);
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+    } catch (umf_result_t e) {
+      return umf::umf2urResult(e);
+    } catch (...) {
+      return UR_RESULT_ERROR_UNKNOWN;
   }
 
   return UR_RESULT_SUCCESS;

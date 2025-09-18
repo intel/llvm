@@ -219,19 +219,27 @@ bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 void device::ext_oneapi_enable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
-  if (Device != Peer) {
-    detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
+
+  if (Device == Peer) return;
+
+  if (peer.get_platform() != get_platform()) {
+    throw exception(errc::invalid, "Can not enable peer access between different platforms");
   }
+
+  impl->getAdapter().call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
 }
 
 void device::ext_oneapi_disable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
-  if (Device != Peer) {
-    detail::adapter_impl &Adapter = impl->getAdapter();
-    Adapter.call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
+
+  if (Device == Peer) return;
+
+  if (peer.get_platform() != get_platform()) {
+    throw exception(errc::invalid, "Can not disable peer access between different platforms");
   }
+
+  impl->getAdapter().call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
 }
 
 bool device::ext_oneapi_can_access_peer(const device &peer,

@@ -68,6 +68,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueGetInfo(
       } else if (status == ZE_RESULT_NOT_READY) {
         return false;
       } else {
+        UR_DFAILURE("getting queue info failed with: " << status);
         throw ze2urResult(status);
       }
     };

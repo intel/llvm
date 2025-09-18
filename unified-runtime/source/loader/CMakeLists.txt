@@ -226,30 +226,6 @@ if(UR_ENABLE_SANITIZER)
     )
 endif()
 
-
-# link validation backtrace dependencies
-if(UNIX)
-    find_package(Libbacktrace)
-endif()
-if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND)
-    message(STATUS "Using libbacktrace backtrace for validation")
-
-    target_sources(ur_loader PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_libbacktrace.cpp)
-    target_link_libraries(ur_loader PRIVATE Libbacktrace)
-else()
-    message(STATUS "Using default backtrace for validation")
-
-    if(WIN32)
-        target_sources(ur_loader PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_win.cpp)
-        target_link_libraries(ur_loader PRIVATE dbghelp)
-    else()
-        target_sources(ur_loader PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/backtrace_lin.cpp)
-    endif()
-endif()
-
 if(WIN32)
     target_sources(ur_loader
         PRIVATE

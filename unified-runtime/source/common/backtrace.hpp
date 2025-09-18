@@ -6,9 +6,8 @@
 #ifndef UR_BACKTRACE_H
 #define UR_BACKTRACE_H 1
 
-#include "ur_validation_layer.hpp"
-
-#define MAX_BACKTRACE_FRAMES 64
+#include <string>
+#include <vector>
 
 namespace ur_validation_layer {
 

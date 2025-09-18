@@ -22,12 +22,37 @@ endif()
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
+    logger/ur_logger.cpp
+    logger/ur_logger.hpp
     latency_tracker.hpp
     offload_bundle_parser.cpp
     offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
+
+# link validation backtrace dependencies
+if(UNIX)
+    find_package(Libbacktrace)
+endif()
+if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND)
+    message(STATUS "Using libbacktrace backtrace")
+
+    target_sources(ur_common PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_libbacktrace.cpp)
+    target_link_libraries(ur_common PRIVATE Libbacktrace)
+else()
+    message(STATUS "Using default backtrace")
+
+    if(WIN32)
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_win.cpp)
+        target_link_libraries(ur_common PRIVATE dbghelp)
+    else()
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_lin.cpp)
+    endif()
+endif()
 
 add_library(${PROJECT_NAME}::common ALIAS ur_common)
 

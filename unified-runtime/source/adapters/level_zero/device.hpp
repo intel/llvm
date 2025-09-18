@@ -254,17 +254,29 @@ struct ur_device_handle_t_ : ur_object {
   std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
       ZeOffsetToImageHandleMap;
 
+  // Devices which user enabled p2p access by
+  // urUsmP2P(Enable|Disable)PeerAccessExp. Devices are indexed by device id.
+  enum class PeerStatus : char { ENABLED, DISABLED, NO_CONNECTION };
+  std::vector<PeerStatus>
+      peers; // info if our device can access given peer device allocations
+
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
 
   ur::RefCount RefCount;
 };
 
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_ const &device_handle);
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_::PeerStatus peer_status);
+
 // Collects a flat vector of unique devices for USM memory pool creation.
 // Traverses the input devices and their sub-devices, ensuring each Level Zero
 // device handle appears only once in the result.
 inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
     const std::vector<ur_device_handle_t> &Devices) {
+
   std::vector<ur_device_handle_t> DevicesAndSubDevices;
   std::unordered_set<ze_device_handle_t> Seen;
 
