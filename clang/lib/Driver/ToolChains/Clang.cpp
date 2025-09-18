@@ -10314,9 +10314,21 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       File = C.getArgs().MakeArgString("@" + File);
 
     StringRef Arch;
+    std::string TransformedArch;
     if (OffloadAction->getOffloadingArch()) {
       if (TC->getTripleString() == "spir64_gen-unknown-unknown") {
-        Arch = mapIntelGPUArchName(OffloadAction->getOffloadingArch());
+        // When compiling like -fsycl-targets=spir64_gen -Xsycl-target-backend
+        // "-device pvc,bdw", the offloading arch will be "pvc,bdw", which
+        // contains a comma. We need to transform it to "arch=pvc,arch=bdw" when
+        // passing to clang-offload-packager.
+        Arch = OffloadAction->getOffloadingArch();
+        SmallVector<StringRef> Archs;
+        Arch.split(Archs, ',');
+        for (StringRef &A : Archs) {
+          A = mapIntelGPUArchName(A);
+        }
+        TransformedArch = llvm::join(Archs, ",arch=");
+        Arch = TransformedArch;
       } else {
         Arch = OffloadAction->getOffloadingArch();
       }
@@ -10366,7 +10378,9 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += " ";
           AL += A;
         }
-        Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+        for (StringRef Split : llvm::split(AL, ',')) {
+          Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + Split));
+        }
       };
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
