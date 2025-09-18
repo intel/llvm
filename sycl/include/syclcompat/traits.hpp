@@ -29,8 +29,9 @@
 #include <cstddef>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
-#include <sycl/range.hpp>
+#include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
+#include <sycl/range.hpp>
 #include <type_traits>
 
 namespace [[deprecated("syclcompat is deprecated")]] syclcompat {

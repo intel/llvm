@@ -8,16 +8,18 @@
 
 #pragma once
 
-#include <sycl/detail/array.hpp>   // for array
-#include <sycl/detail/helpers.hpp> // for Builder
+#include <sycl/detail/array.hpp> // for array
 
-#include <array>       // for array
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {
 template <int Dimensions> class id;
+
+namespace detail {
+class Builder;
+}
 
 /// Defines the iteration domain of either a single work-group in a parallel
 /// dispatch, or the overall Dimensions of the dispatch.
@@ -228,19 +230,6 @@ range(size_t)->range<1>;
 range(size_t, size_t)->range<2>;
 range(size_t, size_t, size_t)->range<3>;
 #endif
-
-namespace detail {
-// XPTI helpers for creating array from a range.
-inline std::array<size_t, 3> rangeToArray(const range<3> &r) {
-  return {r[0], r[1], r[2]};
-}
-inline std::array<size_t, 3> rangeToArray(const range<2> &r) {
-  return {r[0], r[1], 0};
-}
-inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
-  return {r[0], 0, 0};
-}
-} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

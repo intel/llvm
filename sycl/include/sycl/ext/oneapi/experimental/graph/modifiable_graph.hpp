@@ -55,6 +55,12 @@ public:
   modifiable_command_graph(const queue &SyclQueue,
                            const property_list &PropList = {});
 
+  /// Constructor with default context.
+  /// @param SyclDevice Device all nodes will be associated with.
+  /// @param PropList Optional list of properties to pass.
+  modifiable_command_graph(const device &SyclDevice,
+                           const property_list &PropList = {});
+
   /// Add an empty node to the graph.
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed empty node which has been added to the graph.

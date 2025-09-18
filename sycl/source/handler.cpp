@@ -10,6 +10,7 @@
 #include "ur_api.h"
 #include <algorithm>
 
+#include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/graph/dynamic_impl.hpp>
@@ -49,6 +50,10 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+  BufImpl->markAsInternal();
+}
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: Check if two ABI exports below are still necessary.
@@ -262,8 +267,16 @@ fill_copy_args(detail::handler_impl *impl,
   auto ZCopyExtentComponent = detail::fill_image_type(SrcImgDesc, UrSrcDesc);
   detail::fill_image_type(DestImgDesc, UrDestDesc);
 
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  // Copy args computed here are directly passed to UR. Various offsets and
+  // extents end up passed as ur_rect_offset_t and ur_rect_region_t. Both those
+  // structs expect their first component to be in bytes, not in pixels
+  size_t SrcPixelSize = SrcImgDesc.num_channels * get_channel_size(SrcImgDesc);
+  size_t DestPixelSize =
+      DestImgDesc.num_channels * get_channel_size(DestImgDesc);
+
+  impl->MSrcOffset = {SrcOffset[0] * SrcPixelSize, SrcOffset[1], SrcOffset[2]};
+  impl->MDestOffset = {DestOffset[0] * DestPixelSize, DestOffset[1],
+                       DestOffset[2]};
   impl->MSrcImageDesc = UrSrcDesc;
   impl->MDstImageDesc = UrDestDesc;
   impl->MSrcImageFormat = UrSrcFormat;
@@ -271,9 +284,10 @@ fill_copy_args(detail::handler_impl *impl,
   impl->MImageCopyFlags = ImageCopyFlags;
 
   if (CopyExtent.size() != 0) {
-    impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+    impl->MCopyExtent = {CopyExtent[0] * SrcPixelSize, CopyExtent[1],
+                         CopyExtent[2]};
   } else {
-    impl->MCopyExtent = {SrcImgDesc.width, SrcImgDesc.height,
+    impl->MCopyExtent = {SrcImgDesc.width * SrcPixelSize, SrcImgDesc.height,
                          ZCopyExtentComponent};
   }
 
@@ -496,19 +510,16 @@ event handler::finalize() {
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
-  if (type == detail::CGType::Kernel && impl->MKernelFuncPtr &&
-      (!KernelFastPath || impl->MKernelHasSpecialCaptures)) {
-    clearArgs();
-    extractArgsAndReqsFromLambda((char *)impl->MKernelFuncPtr,
-                                 impl->MKernelParamDescGetter,
-                                 impl->MKernelNumArgs, impl->MKernelIsESIMD);
+  if (type == detail::CGType::Kernel && impl->MKernelData.getKernelFuncPtr() &&
+      (!KernelFastPath || impl->MKernelData.hasSpecialCaptures())) {
+    impl->MKernelData.extractArgsAndReqsFromLambda();
   }
 
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
   {
-    for (const auto &arg : impl->MArgs) {
+    for (const auto &arg : impl->MKernelData.getArgs()) {
       if (arg.MType != detail::kernel_param_kind_t::kind_accessor)
         continue;
 
@@ -542,37 +553,14 @@ event handler::finalize() {
   }
 
   if (type == detail::CGType::Kernel) {
-    if (impl->MDeviceKernelInfoPtr) {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-      detail::CompileTimeKernelInfoTy HandlerInfo;
-      HandlerInfo.Name = MKernelName;
-      HandlerInfo.NumParams = impl->MKernelNumArgs;
-      HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
-      HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
-      HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
-
-      impl->MDeviceKernelInfoPtr->initIfEmpty(HandlerInfo);
-#endif
-    } else {
+    if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
       // Fetch the device kernel info pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
-      impl->MDeviceKernelInfoPtr =
+      impl->MKernelData.setDeviceKernelInfoPtr(
           &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-              toKernelNameStrT(MKernelName));
+              toKernelNameStrT(MKernelName)));
     }
-
-    detail::DeviceKernelInfo &Info = *impl->MDeviceKernelInfoPtr;
-    (void)Info;
-
-    // Make sure that information set by old binaries gets properly copied to
-    // the `DeviceKernelInfo` so that the rest of the code base could use it as
-    // the single source of all the data:
-    assert(MKernelName == static_cast<std::string_view>(Info.Name));
-    assert(static_cast<unsigned>(impl->MKernelNumArgs) == Info.NumParams);
-    assert(impl->MKernelParamDescGetter == Info.ParamDescGetter ||
-           impl->MKernelParamDescGetter == nullptr);
-    assert(impl->MKernelIsESIMD == Info.IsESIMD);
-    assert(impl->MKernelHasSpecialCaptures == Info.HasSpecialCaptures);
+    assert(impl->MKernelData.getKernelName() == MKernelName);
 
     // If there were uses of set_specialization_constant build the kernel_bundle
     detail::kernel_bundle_impl *KernelBundleImpPtr =
@@ -648,7 +636,7 @@ event handler::finalize() {
       if (DiscardEvent) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert = !(MKernel && MKernel->isInterop()) &&
-                                impl->MDeviceKernelInfoPtr->usesAssert();
+                                impl->MKernelData.usesAssert();
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -668,8 +656,9 @@ event handler::finalize() {
         if (xptiEnabled) {
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
               detail::GSYCLStreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
-              *impl->MDeviceKernelInfoPtr, impl->get_queue_or_null(),
-              impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
+              *impl->MKernelData.getDeviceKernelInfoPtr(),
+              impl->get_queue_or_null(), impl->MKernelData.getNDRDesc(),
+              KernelBundleImpPtr, impl->MKernelData.getArgs());
           detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
@@ -681,12 +670,16 @@ event handler::finalize() {
                                                   impl->getKernelName());
           assert(BinImage && "Failed to obtain a binary image.");
         }
-        enqueueImpKernel(
-            impl->get_queue(), impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr,
-            MKernel.get(), *impl->MDeviceKernelInfoPtr, RawEvents,
-            ResultEvent.get(), nullptr, impl->MKernelCacheConfig,
-            impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
-            impl->MKernelWorkGroupMemorySize, BinImage, impl->MKernelFuncPtr);
+        enqueueImpKernel(impl->get_queue(), impl->MKernelData.getNDRDesc(),
+                         impl->MKernelData.getArgs(), KernelBundleImpPtr,
+                         MKernel.get(),
+                         *impl->MKernelData.getDeviceKernelInfoPtr(), RawEvents,
+                         ResultEvent.get(), nullptr,
+                         impl->MKernelData.getKernelCacheConfig(),
+                         impl->MKernelData.isCooperative(),
+                         impl->MKernelData.usesClusterLaunch(),
+                         impl->MKernelData.getKernelWorkGroupMemorySize(),
+                         BinImage, impl->MKernelData.getKernelFuncPtr());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         if (xptiEnabled) {
           // Emit signal only when event is created
@@ -741,13 +734,15 @@ event handler::finalize() {
     // assert feature to check if kernel uses assertions
 #endif
     CommandGroup.reset(new detail::CGExecKernel(
-        impl->MNDRDesc, std::move(MHostKernel), std::move(MKernel),
-        std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), *impl->MDeviceKernelInfoPtr,
-        std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
-        getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-        impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-        MCodeLoc));
+        impl->MKernelData.getNDRDesc(), std::move(MHostKernel),
+        std::move(MKernel), std::move(impl->MKernelBundle),
+        std::move(impl->CGData), std::move(impl->MKernelData).getArgs(),
+        *impl->MKernelData.getDeviceKernelInfoPtr(), std::move(MStreamStorage),
+        std::move(impl->MAuxiliaryResources), getType(),
+        impl->MKernelData.getKernelCacheConfig(),
+        impl->MKernelData.isCooperative(),
+        impl->MKernelData.usesClusterLaunch(),
+        impl->MKernelData.getKernelWorkGroupMemorySize(), MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -803,9 +798,10 @@ event handler::finalize() {
   case detail::CGType::CodeplayHostTask: {
     detail::context_impl &Context = impl->get_context();
     detail::queue_impl *Queue = impl->get_queue_or_null();
-    CommandGroup.reset(new detail::CGHostTask(
-        std::move(impl->MHostTask), Queue, &Context, std::move(impl->MArgs),
-        std::move(impl->CGData), getType(), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGHostTask(std::move(impl->MHostTask), Queue, &Context,
+                               std::move(impl->MKernelData).getArgs(),
+                               std::move(impl->CGData), getType(), MCodeLoc));
     break;
   }
   case detail::CGType::Barrier:
@@ -1069,244 +1065,14 @@ void handler::associateWithHandler(
                              static_cast<int>(AccTarget));
 }
 
-static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
-                                     size_t &IndexShift, int Size,
-                                     bool IsKernelCreatedFromSource,
-                                     size_t GlobalSize,
-                                     std::vector<detail::ArgDesc> &Args,
-                                     bool isESIMD) {
-  using detail::kernel_param_kind_t;
-  if (AccImpl->PerWI)
-    AccImpl->resize(GlobalSize);
-
-  Args.emplace_back(kernel_param_kind_t::kind_accessor, AccImpl, Size,
-                    Index + IndexShift);
-
-  // TODO ESIMD currently does not suport offset, memory and access ranges -
-  // accessor::init for ESIMD-mode accessor has a single field, translated
-  // to a single kernel argument set above.
-  if (!isESIMD && !IsKernelCreatedFromSource) {
-    // Dimensionality of the buffer is 1 when dimensionality of the
-    // accessor is 0.
-    const size_t SizeAccField =
-        sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MAccessRange[0], SizeAccField,
-                      Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MMemoryRange[0], SizeAccField,
-                      Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout,
-                      &AccImpl->MOffset[0], SizeAccField, Index + IndexShift);
-  }
-}
-
-static void addArgsForLocalAccessor(detail::LocalAccessorImplHost *LAcc,
-                                    size_t Index, size_t &IndexShift,
-                                    bool IsKernelCreatedFromSource,
-                                    std::vector<detail::ArgDesc> &Args,
-                                    bool IsESIMD) {
-  using detail::kernel_param_kind_t;
-
-  range<3> &LAccSize = LAcc->MSize;
-  const int Dims = LAcc->MDims;
-  int SizeInBytes = LAcc->MElemSize;
-  for (int I = 0; I < Dims; ++I)
-    SizeInBytes *= LAccSize[I];
-
-  // Some backends do not accept zero-sized local memory arguments, so we
-  // make it a minimum allocation of 1 byte.
-  SizeInBytes = std::max(SizeInBytes, 1);
-  Args.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
-                    Index + IndexShift);
-  // TODO ESIMD currently does not suport MSize field passing yet
-  // accessor::init for ESIMD-mode accessor has a single field, translated
-  // to a single kernel argument set above.
-  if (!IsESIMD && !IsKernelCreatedFromSource) {
-    ++IndexShift;
-    const size_t SizeAccField = (Dims == 0 ? 1 : Dims) * sizeof(LAccSize[0]);
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-    ++IndexShift;
-    Args.emplace_back(kernel_param_kind_t::kind_std_layout, &LAccSize,
-                      SizeAccField, Index + IndexShift);
-  }
-}
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
-  using detail::kernel_param_kind_t;
-  size_t GlobalSize = impl->MNDRDesc.GlobalSize[0];
-  for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
-    GlobalSize *= impl->MNDRDesc.GlobalSize[I];
-  }
-
-  switch (Kind) {
-  case kernel_param_kind_t::kind_std_layout:
-  case kernel_param_kind_t::kind_pointer: {
-    addArg(Kind, Ptr, Size, Index + IndexShift);
-    break;
-  }
-  case kernel_param_kind_t::kind_stream: {
-    // Stream contains several accessors inside.
-    stream *S = static_cast<stream *>(Ptr);
-
-    detail::AccessorBaseHost *GBufBase =
-        static_cast<detail::AccessorBaseHost *>(&S->GlobalBuf);
-    detail::Requirement *GBufReq = &*detail::getSyclObjImpl(*GBufBase);
-    addArgsForGlobalAccessor(GBufReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
-    ++IndexShift;
-    detail::AccessorBaseHost *GOffsetBase =
-        static_cast<detail::AccessorBaseHost *>(&S->GlobalOffset);
-    detail::Requirement *GOffsetReq = &*detail::getSyclObjImpl(*GOffsetBase);
-    addArgsForGlobalAccessor(GOffsetReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
-    ++IndexShift;
-    detail::AccessorBaseHost *GFlushBase =
-        static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
-    detail::Requirement *GFlushReq = &*detail::getSyclObjImpl(*GFlushBase);
-
-    // If work group size wasn't set explicitly then it must be recieved
-    // from kernel attribute or set to default values.
-    // For now we can't get this attribute here.
-    // So we just suppose that WG size is always default for stream.
-    // TODO adjust MNDRDesc when device image contains kernel's attribute
-    if (GlobalSize == 0) {
-      GlobalSize = impl->MNDRDesc.NumWorkGroups[0];
-      for (size_t I = 1; I < impl->MNDRDesc.Dims; ++I) {
-        GlobalSize *= impl->MNDRDesc.NumWorkGroups[I];
-      }
-    }
-    addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource, GlobalSize, impl->MArgs,
-                             IsESIMD);
-    ++IndexShift;
-    addArg(kernel_param_kind_t::kind_std_layout, &S->FlushBufferSize,
-           sizeof(S->FlushBufferSize), Index + IndexShift);
-
-    break;
-  }
-  case kernel_param_kind_t::kind_accessor: {
-    // For args kind of accessor Size is information about accessor.
-    // The first 11 bits of Size encodes the accessor target.
-    const access::target AccTarget =
-        static_cast<access::target>(Size & AccessTargetMask);
-    switch (AccTarget) {
-    case access::target::device:
-    case access::target::constant_buffer: {
-      detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
-                               IsKernelCreatedFromSource, GlobalSize,
-                               impl->MArgs, IsESIMD);
-      break;
-    }
-    case access::target::local: {
-      detail::LocalAccessorImplHost *LAccImpl =
-          static_cast<detail::LocalAccessorImplHost *>(Ptr);
-
-      addArgsForLocalAccessor(LAccImpl, Index, IndexShift,
-                              IsKernelCreatedFromSource, impl->MArgs, IsESIMD);
-      break;
-    }
-    case access::target::image:
-    case access::target::image_array: {
-      detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-      addArg(Kind, AccImpl, Size, Index + IndexShift);
-      if (!IsKernelCreatedFromSource) {
-        // TODO Handle additional kernel arguments for image class
-        // if the compiler front-end adds them.
-      }
-      break;
-    }
-    case access::target::host_image:
-    case access::target::host_task:
-    case access::target::host_buffer: {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Unsupported accessor target case.");
-      break;
-    }
-    }
-    break;
-  }
-  case kernel_param_kind_t::kind_dynamic_accessor: {
-    const access::target AccTarget =
-        static_cast<access::target>(Size & AccessTargetMask);
-    switch (AccTarget) {
-    case access::target::local: {
-
-      // We need to recover the inheritance layout by casting to
-      // dynamic_parameter_impl first. Casting directly to
-      // dynamic_local_accessor_impl would result in an incorrect pointer.
-      auto *DynParamImpl = static_cast<
-          ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
-
-      registerDynamicParameter(DynParamImpl, Index + IndexShift);
-
-      auto *DynLocalAccessorImpl = static_cast<
-          ext::oneapi::experimental::detail::dynamic_local_accessor_impl *>(
-          DynParamImpl);
-
-      addArgsForLocalAccessor(&DynLocalAccessorImpl->LAccImplHost, Index,
-                              IndexShift, IsKernelCreatedFromSource,
-                              impl->MArgs, IsESIMD);
-      break;
-    }
-    default: {
-      assert(false && "Unsupported dynamic accessor target");
-    }
-    }
-    break;
-  }
-  case kernel_param_kind_t::kind_dynamic_work_group_memory: {
-
-    // We need to recover the inheritance layout by casting to
-    // dynamic_parameter_impl first. Casting directly to
-    // dynamic_work_group_memory_impl would result in an incorrect pointer.
-    auto *DynParamImpl = static_cast<
-        ext::oneapi::experimental::detail::dynamic_parameter_impl *>(Ptr);
-
-    registerDynamicParameter(DynParamImpl, Index + IndexShift);
-
-    auto *DynWorkGroupImpl = static_cast<
-        ext::oneapi::experimental::detail::dynamic_work_group_memory_impl *>(
-        DynParamImpl);
-
-    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
-           DynWorkGroupImpl->BufferSizeInBytes, Index + IndexShift);
-    break;
-  }
-  case kernel_param_kind_t::kind_work_group_memory: {
-    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
-           static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
-           Index + IndexShift);
-    break;
-  }
-  case kernel_param_kind_t::kind_sampler: {
-    addArg(kernel_param_kind_t::kind_sampler, Ptr, sizeof(sampler),
-           Index + IndexShift);
-    break;
-  }
-  case kernel_param_kind_t::kind_specialization_constants_buffer: {
-    addArg(kernel_param_kind_t::kind_specialization_constants_buffer, Ptr, Size,
-           Index + IndexShift);
-    break;
-  }
-  case kernel_param_kind_t::kind_invalid:
-    throw exception(make_error_code(errc::invalid),
-                    "Invalid kernel param kind");
-    break;
-  }
+  impl->MKernelData.processArg(Ptr, Kind, Size, Index, IndexShift,
+                               IsKernelCreatedFromSource, IsESIMD);
 }
+#endif
 
 void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
   impl->MWorkGroupMemoryObjects.push_back(
@@ -1321,102 +1087,40 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
          ArgIndex);
 }
 
-// The argument can take up more space to store additional information about
-// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
-// We use the worst-case estimate because the lifetime of the vector is short.
-// In processArg the kind_stream case introduces the maximum number of
-// additional arguments. The case adds additional 12 arguments to the currently
-// processed argument, hence worst-case estimate is 12+1=13.
-// TODO: the constant can be removed if the size of MArgs will be calculated at
-// compile time.
-inline constexpr size_t MaxNumAdditionalArgs = 13;
-
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
-  std::vector<detail::ArgDesc> UnPreparedArgs = std::move(impl->MArgs);
-  clearArgs();
-
-  std::sort(
-      UnPreparedArgs.begin(), UnPreparedArgs.end(),
-      [](const detail::ArgDesc &first, const detail::ArgDesc &second) -> bool {
-        return (first.MIndex < second.MIndex);
-      });
-
-  const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
-  impl->MArgs.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
-
-  size_t IndexShift = 0;
-  for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
-    void *Ptr = UnPreparedArgs[I].MPtr;
-    const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
-    const int &Size = UnPreparedArgs[I].MSize;
-    const int Index = UnPreparedArgs[I].MIndex;
-    processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
-               false);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
+    impl->MKernelData.setDeviceKernelInfoPtr(
+        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+            toKernelNameStrT(getKernelName())));
   }
-}
-
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-    size_t NumKernelParams, bool IsESIMD) {
-  size_t IndexShift = 0;
-  impl->MArgs.reserve(MaxNumAdditionalArgs * NumKernelParams);
-
-  for (size_t I = 0; I < NumKernelParams; ++I) {
-    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
-    void *Ptr = LambdaPtr + ParamDesc.offset;
-    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
-    const int &Size = ParamDesc.info;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & AccessTargetMask);
-      if ((AccTarget == access::target::device ||
-           AccTarget == access::target::constant_buffer) ||
-          (AccTarget == access::target::image ||
-           AccTarget == access::target::image_array)) {
-        detail::AccessorBaseHost *AccBase =
-            static_cast<detail::AccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*AccBase).get();
-      } else if (AccTarget == access::target::local) {
-        detail::LocalAccessorBaseHost *LocalAccBase =
-            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
-        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
-      }
-    } else if (Kind == detail::kernel_param_kind_t::kind_dynamic_accessor) {
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      // Only local targets are supported for dynamic accessors.
-      assert(static_cast<access::target>(Size & AccessTargetMask) ==
-             access::target::local);
-
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          *DynamicParamBase = static_cast<
-              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
-    } else if (Kind ==
-               detail::kernel_param_kind_t::kind_dynamic_work_group_memory) {
-      ext::oneapi::experimental::detail::dynamic_parameter_base
-          *DynamicParamBase = static_cast<
-              ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
-      Ptr = detail::getSyclObjImpl(*DynamicParamBase).get();
-    }
-
-    processArg(Ptr, Kind, Size, I, IndexShift,
-               /*IsKernelCreatedFromSource=*/false, IsESIMD);
-  }
+#endif
+  assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
+  impl->MKernelData.extractArgsAndReqs(MKernel->isCreatedFromSource());
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: Those functions are not used anymore, remove it in the next
 // ABI-breaking window.
 void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, bool IsESIMD) {
+  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
+    impl->MKernelData.setDeviceKernelInfoPtr(
+        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+            toKernelNameStrT(getKernelName())));
+  }
+  impl->MKernelData.setKernelInfo(LambdaPtr, NumKernelParams, ParamDescGetter,
+                                  IsESIMD, true);
+  impl->MKernelData.extractArgsAndReqsFromLambda();
+}
+
+void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
-  impl->MArgs.reserve(MaxNumAdditionalArgs * ParamDescs.size());
 
   for (size_t I = 0; I < ParamDescs.size(); ++I) {
     void *Ptr = LambdaPtr + ParamDescs[I].offset;
@@ -1440,8 +1144,8 @@ void handler::extractArgsAndReqsFromLambda(
         Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
       }
     }
-    processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource,
-               IsESIMD);
+    impl->MKernelData.processArg(Ptr, Kind, Size, I, IndexShift,
+                                 IsKernelCreatedFromSource, IsESIMD);
   }
 }
 
@@ -2325,19 +2029,19 @@ detail::context_impl &handler::getContextImpl() const {
 void handler::setKernelCacheConfig(handler::StableKernelCacheConfig Config) {
   switch (Config) {
   case handler::StableKernelCacheConfig::Default:
-    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
+    impl->MKernelData.setKernelCacheConfig(UR_KERNEL_CACHE_CONFIG_DEFAULT);
     break;
   case handler::StableKernelCacheConfig::LargeSLM:
-    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+    impl->MKernelData.setKernelCacheConfig(UR_KERNEL_CACHE_CONFIG_LARGE_SLM);
     break;
   case handler::StableKernelCacheConfig::LargeData:
-    impl->MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+    impl->MKernelData.setKernelCacheConfig(UR_KERNEL_CACHE_CONFIG_LARGE_DATA);
     break;
   }
 }
 
 void handler::setKernelIsCooperative(bool KernelIsCooperative) {
-  impl->MKernelIsCooperative = KernelIsCooperative;
+  impl->MKernelData.setCooperative(KernelIsCooperative);
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -2345,16 +2049,15 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelUsesClusterLaunch = true;
 
   if (Dims == 1) {
     sycl::range<1> ClusterSizeTrimmed = {ClusterSize[0]};
-    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+    impl->MKernelData.setClusterDimensions(ClusterSizeTrimmed);
   } else if (Dims == 2) {
     sycl::range<2> ClusterSizeTrimmed = {ClusterSize[0], ClusterSize[1]};
-    impl->MNDRDesc.setClusterDimensions(ClusterSizeTrimmed);
+    impl->MKernelData.setClusterDimensions(ClusterSizeTrimmed);
   } else if (Dims == 3) {
-    impl->MNDRDesc.setClusterDimensions(ClusterSize);
+    impl->MKernelData.setClusterDimensions(ClusterSize);
   }
 }
 #endif
@@ -2363,30 +2066,27 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+  impl->MKernelData.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelClusterLaunch(sycl::range<2> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+  impl->MKernelData.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelClusterLaunch(sycl::range<1> ClusterSize) {
   throwIfGraphAssociated<
       syclex::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
-  impl->MKernelUsesClusterLaunch = true;
-  impl->MNDRDesc.setClusterDimensions(ClusterSize);
+  impl->MKernelData.setClusterDimensions(ClusterSize);
 }
 
 void handler::setKernelWorkGroupMem(size_t Size) {
   throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
                              sycl_ext_oneapi_work_group_scratch_memory>();
-  impl->MKernelWorkGroupMemorySize = Size;
+  impl->MKernelData.setKernelWorkGroupMemorySize(Size);
 }
 
 void handler::ext_oneapi_graph(
@@ -2459,7 +2159,7 @@ void handler::registerDynamicParameter(
         "Dynamic Parameters cannot be used with normal SYCL submissions");
   }
 
-  impl->MDynamicParameters.emplace_back(DynamicParamImpl, ArgIndex);
+  impl->MKernelData.addDynamicParameter(DynamicParamImpl, ArgIndex);
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -2512,13 +2212,15 @@ void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
 
 void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
                      int AccessTarget, int ArgIndex) {
-  impl->MArgs.emplace_back(ArgKind, Req, AccessTarget, ArgIndex);
+  impl->MKernelData.addArg(ArgKind, Req, AccessTarget, ArgIndex);
 }
 
-void handler::clearArgs() { impl->MArgs.clear(); }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::clearArgs() { impl->MKernelData.clearArgs(); }
+#endif
 
 void handler::setArgsToAssociatedAccessors() {
-  impl->MArgs = impl->MAssociatedAccesors;
+  impl->MKernelData.setArgs(impl->MAssociatedAccesors);
 }
 
 bool handler::HasAssociatedAccessor(detail::AccessorImplHost *Req,
@@ -2550,12 +2252,12 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
   if (Dims == 1) {
     sycl::range<1> Range = {N[0]};
-    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+    impl->MKernelData.setNDRDesc(NDRDescT{Range, SetNumWorkGroups});
   } else if (Dims == 2) {
     sycl::range<2> Range = {N[0], N[1]};
-    impl->MNDRDesc = NDRDescT{Range, SetNumWorkGroups};
+    impl->MKernelData.setNDRDesc(NDRDescT{Range, SetNumWorkGroups});
   } else if (Dims == 3) {
-    impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+    impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
   }
 }
 
@@ -2564,13 +2266,13 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
   if (Dims == 1) {
     sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
     sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed});
   } else if (Dims == 2) {
     sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
     sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MNDRDesc = NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed};
+    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItemsTrimmed, OffsetTrimmed});
   } else if (Dims == 3) {
-    impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
   }
 }
 
@@ -2581,82 +2283,95 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
     sycl::range<1> NumWorkItemsTrimmed = {NumWorkItems[0]};
     sycl::range<1> LocalSizeTrimmed = {LocalSize[0]};
     sycl::id<1> OffsetTrimmed = {Offset[0]};
-    impl->MNDRDesc =
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+    impl->MKernelData.setNDRDesc(
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed});
   } else if (Dims == 2) {
     sycl::range<2> NumWorkItemsTrimmed = {NumWorkItems[0], NumWorkItems[1]};
     sycl::range<2> LocalSizeTrimmed = {LocalSize[0], LocalSize[1]};
     sycl::id<2> OffsetTrimmed = {Offset[0], Offset[1]};
-    impl->MNDRDesc =
-        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed};
+    impl->MKernelData.setNDRDesc(
+        NDRDescT{NumWorkItemsTrimmed, LocalSizeTrimmed, OffsetTrimmed});
   } else if (Dims == 3) {
-    impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+    impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
   }
 }
 #endif
 
 void handler::setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
 }
 void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
                                    sycl::id<3> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
 }
 void handler::setNDRangeDescriptor(sycl::range<3> NumWorkItems,
                                    sycl::range<3> LocalSize,
                                    sycl::id<3> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
 }
 
 void handler::setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
 }
 void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
                                    sycl::id<2> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
 }
 void handler::setNDRangeDescriptor(sycl::range<2> NumWorkItems,
                                    sycl::range<2> LocalSize,
                                    sycl::id<2> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
 }
 
 void handler::setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups};
+  impl->MKernelData.setNDRDesc(NDRDescT{N, SetNumWorkGroups});
 }
 void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                                    sycl::id<1> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset};
+  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, Offset});
 }
 void handler::setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                                    sycl::range<1> LocalSize,
                                    sycl::id<1> Offset) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset};
+  impl->MKernelData.setNDRDesc(NDRDescT{NumWorkItems, LocalSize, Offset});
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::setKernelNameBasedCachePtr(
     sycl::detail::KernelNameBasedCacheT *KernelNameBasedCachePtr) {
-  setDeviceKernelInfoPtr(reinterpret_cast<sycl::detail::DeviceKernelInfo *>(
-      KernelNameBasedCachePtr));
-}
-#endif
-
-void handler::setDeviceKernelInfoPtr(
-    sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
-  assert(!impl->MDeviceKernelInfoPtr && "Already set!");
-  impl->MDeviceKernelInfoPtr = DeviceKernelInfoPtr;
+  assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
+  (void)KernelNameBasedCachePtr;
+  CompileTimeKernelInfoTy HandlerInfo;
+  HandlerInfo.Name = MKernelName;
+  HandlerInfo.NumParams = impl->MKernelNumArgs;
+  HandlerInfo.ParamDescGetter = impl->MKernelParamDescGetter;
+  HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
+  HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
+  impl->MKernelData.setDeviceKernelInfoPtr(
+      &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+          HandlerInfo));
 }
 
 void handler::setKernelInfo(
     void *KernelFuncPtr, int KernelNumArgs,
     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
     bool KernelIsESIMD, bool KernelHasSpecialCaptures) {
-  impl->MKernelFuncPtr = KernelFuncPtr;
+  impl->MKernelData.setKernelFunc(KernelFuncPtr);
   impl->MKernelNumArgs = KernelNumArgs;
   impl->MKernelParamDescGetter = KernelParamDescGetter;
   impl->MKernelIsESIMD = KernelIsESIMD;
   impl->MKernelHasSpecialCaptures = KernelHasSpecialCaptures;
+}
+#endif
+
+void handler::setDeviceKernelInfoPtr(
+    sycl::detail::DeviceKernelInfo *DeviceKernelInfoPtr) {
+  assert(!impl->MKernelData.getDeviceKernelInfoPtr() && "Already set!");
+  impl->MKernelData.setDeviceKernelInfoPtr(DeviceKernelInfoPtr);
+}
+
+void handler::setKernelFunc(void *KernelFuncPtr) {
+  impl->MKernelData.setKernelFunc(KernelFuncPtr);
 }
 
 void handler::instantiateKernelOnHost(void *InstantiateKernelOnHostPtr) {

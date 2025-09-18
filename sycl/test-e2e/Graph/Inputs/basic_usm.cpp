@@ -18,7 +18,7 @@ int main() {
   calculate_reference_data(Iterations, Size, ReferenceA, ReferenceB,
                            ReferenceC);
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  exp_ext::command_graph Graph{Queue.get_device()};
 
   T *PtrA = malloc_device<T>(Size, Queue);
   T *PtrB = malloc_device<T>(Size, Queue);

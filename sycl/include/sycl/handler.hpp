@@ -166,6 +166,10 @@ class graph_impl;
 class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
+class buffer_impl;
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 class type_erased_cgfo_ty {
   // From SYCL 2020,  command group function object:
@@ -208,9 +212,6 @@ class queue_impl;
 class stream_impl;
 class event_impl;
 class context_impl;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
 class HandlerAccess;
 class HostTask;
 
@@ -494,9 +495,7 @@ private:
   template <class Kernel> void setDeviceKernelInfo(void *KernelFuncPtr) {
     constexpr auto Info = detail::CompileTimeKernelInfo<Kernel>;
     MKernelName = Info.Name;
-    // TODO support ESIMD in no-integration-header case too.
-    setKernelInfo(KernelFuncPtr, Info.NumParams, Info.ParamDescGetter,
-                  Info.IsESIMD, Info.HasSpecialCaptures);
+    setKernelFunc(KernelFuncPtr);
     setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Kernel>());
     setType(detail::CGType::Kernel);
   }
@@ -513,23 +512,21 @@ private:
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
-#endif
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
       size_t NumKernelParams, bool IsESIMD);
-
+#endif
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  // TODO: processArg need not to be public
-  __SYCL_DLL_LOCAL
-#endif
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window.
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
+#endif
 
   /// \return a string containing name of SYCL kernel.
   detail::ABINeutralKernelNameStrT getKernelName();
@@ -836,26 +833,28 @@ private:
                                               Dims>());
 #endif
 
-    // SYCL unittests are built without sycl compiler, so "host" information
-    // about kernels isn't provided (e.g., via integration headers or compiler
-    // builtins).
-    //
-    // However, some copy/fill USM operation are implemented via SYCL kernels
-    // and are instantiated resulting in all the `static_assert` checks being
-    // exercised. Without kernel information that would fail, so we explicitly
-    // disable such checks when this macro is defined. Note that the unittests
-    // don't actually execute those operation, that's why disabling
-    // unconditional `static_asserts`s is enough for now.
-#ifndef __SYCL_UNITTESTS_BYPASS_KERNEL_NAME_CHECK
     constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
 
-    static_assert(Info.Name != std::string_view{}, "Kernel must have a name!");
+    // Ideally, the following should be a `static_assert` but cannot do that as
+    // it would fail in at least two scenarios:
+    //
+    //  * Our own unittests that are compiled with an arbitrary host compiler
+    //    without SYCL knowledge (i.e., no integration headers
+    //    generated/supplied). Those that don't have to supply any stub kernel
+    //    information test exceptions thrown before kernel enqueue, so having a
+    //    run-time assert here doesn't affect them.
+    //
+    //  * Mixed SYCL/OpenMP compilation, device code generation for OpenMP in
+    //    particular. For that scenario this code is compiled but never
+    //    executed.
+    assert(Info.Name != std::string_view{} && "Kernel must have a name!");
 
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures,
     // so a static assert is made to fail for incompatible kernel lambdas.
     static_assert(
-        sizeof(KernelType) == Info.KernelSize,
+        Info.Name == std::string_view{} ||
+            sizeof(KernelType) == Info.KernelSize,
         "Unexpected kernel lambda size. This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
@@ -866,7 +865,6 @@ private:
         "In case of MSVC, passing "
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
-#endif
 
     setDeviceKernelInfo<KernelName>((void *)MHostKernel->getPtr());
 
@@ -911,7 +909,7 @@ private:
         setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
     } else {
-      std::ignore = Props;
+      (void)Props;
     }
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<
@@ -3602,7 +3600,10 @@ private:
 
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window
   void clearArgs();
+#endif
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
@@ -3649,10 +3650,12 @@ private:
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
   void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
                             sycl::range<1> LocalSize, sycl::id<1> Offset);
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
                      bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+#endif
+  void setKernelFunc(void *KernelFuncPtr);
 
   void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 

@@ -1,3 +1,4 @@
+// REQUIRES-INTEL-DRIVER: cpu: 2026
 // REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: aspect-ext_oneapi_clock_sub_group || aspect-ext_oneapi_clock_work_group || aspect-ext_oneapi_clock_device
 // RUN: %{build} -o %t.out

@@ -77,10 +77,8 @@ public:
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
-#endif
 
   ext::oneapi::experimental::event_mode_enum &EventMode();
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
@@ -119,7 +117,6 @@ public:
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
     return MPostProcessorFunc;
   }
-#endif
 
   std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
     return MSecondaryQueue;
@@ -127,6 +124,7 @@ public:
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
     return MSecondaryQueue;
   }
+#endif
 
   ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
   const ext::oneapi::experimental::event_mode_enum &EventMode() const {
@@ -136,8 +134,8 @@ public:
 private:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
-#endif
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };

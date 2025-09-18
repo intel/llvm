@@ -17,7 +17,6 @@
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
 #include <sycl/detail/type_traits.hpp>        // for is_bool, change_base_...
 #include <sycl/device_event.hpp>              // for device_event
-#include <sycl/exception.hpp> // for make_error_code, errc, exce...
 #include <sycl/group.hpp>     // for group
 #include <sycl/id.hpp>        // for id
 #include <sycl/item.hpp>      // for item
