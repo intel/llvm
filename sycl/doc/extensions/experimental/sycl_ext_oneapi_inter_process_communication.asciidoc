@@ -218,26 +218,6 @@ sudo bash -c "echo 0 > /proc/sys/kernel/yama/ptrace_scope"
 See also https://github.com/oneapi-src/unified-memory-framework/tree/main?tab=readme-ov-file#level-zero-memory-provider.
 
 
-=== Level Zero memory inconsistency on recreated `ipc_memory` objects
-
-With the Level Zero backend, the data contained in the memory accessible through
-the pointer retrieved through recreating an `ipc_memory` object in another
-process may not correspond to the data in the memory in the owner process.
-
-For example:
- 1. Process `A` allocates a block of USM device memory `X`.
- 2. Process `A` writes to `X`.
- 3. Process `A` creates an `ipc_memory` object from `X` and transfers the handle
-    data to process `B`.
- 4. Process `B` recreates the `ipc_memory` object from the transferred handle
-    data and gets a pointer to `X` through it.
- 5. Process `B` reads from `X`. *This may not result in the same data as what
-    process `A` wrote to `X`.*
- 6. Process `B` writes to `X` and destroys it.
- 7. Process `A` destroys its `ipc_memory` object and reads from `X`. This should
-    be the same as the data process `B` wrote to `X`.
-
-
 === Level Zero IPC memory Windows support
 
 The new IPC memory APIs are not currently supported on the Level Zero backend on

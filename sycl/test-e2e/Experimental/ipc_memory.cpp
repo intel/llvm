@@ -94,18 +94,14 @@ int consumer() {
       syclexp::ipc_memory::open(Handle, Q.get_context(), Q.get_device()));
 
   // Test the data already in the USM pointer.
-  // TODO: This is currently disabled for L0 due to a bug in the original data
-  //       after opening an IPC handle.
   int Failures = 0;
-  if (Q.get_backend() != sycl::backend::ext_oneapi_level_zero) {
-    int Read[N] = {0};
-    Q.copy(DataPtr, Read, N).wait();
-    for (size_t I = 0; I < N; ++I) {
-      if (Read[I] != I) {
-        ++Failures;
-        std::cout << "Failed from consumer: Result at " << I
-                  << " unexpected: " << Read[I] << " != " << I << std::endl;
-      }
+  int Read[N] = {0};
+  Q.copy(DataPtr, Read, N).wait();
+  for (size_t I = 0; I < N; ++I) {
+    if (Read[I] != I) {
+      ++Failures;
+      std::cout << "Failed from consumer: Result at " << I
+                << " unexpected: " << Read[I] << " != " << I << std::endl;
     }
   }
 
