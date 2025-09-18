@@ -1454,7 +1454,8 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
     // IGC supports this since v.2.16.0
-    return ReturnValue(Device->Platform->isDriverVersionNewerOrSimilar(1, 6, 34666));
+    return ReturnValue(
+        Device->Platform->isDriverVersionNewerOrSimilar(1, 6, 34666));
   }
   case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
   case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
