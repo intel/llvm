@@ -8,13 +8,19 @@
 
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
 static unsigned NumOfEventsWaitWithBarrierCalls = 0;
+static unsigned NumEventsInWaitList = 0;
 
-static ur_result_t redefined_urEnqueueEventsWaitWithBarrierExt(void *) {
+static ur_result_t redefined_urEnqueueEventsWaitWithBarrierExt(void *pParams) {
   NumOfEventsWaitWithBarrierCalls++;
+  // Get the number of events in the wait list
+  auto params =
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
+  NumEventsInWaitList = *params.pnumEventsInWaitList;
 
   return UR_RESULT_SUCCESS;
 }
@@ -93,4 +99,18 @@ TEST(Queue, ExtOneAPISubmitBarrierWithWaitList) {
   Q3.ext_oneapi_submit_barrier({E1, E2});
 
   ASSERT_EQ(NumOfEventsWaitWithBarrierCalls, 1u);
+}
+
+TEST(Queue, BarrierWithBarrierDep) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefined_urEnqueueEventsWaitWithBarrierExt);
+  sycl::queue Q1(sycl::property::queue::in_order{});
+  sycl::queue Q2(sycl::property::queue::in_order{});
+  Q1.submit([&](sycl::handler &cgh) { cgh.single_task<TestKernel>([=]() {}); });
+  sycl::event Barrier1 = Q1.ext_oneapi_submit_barrier();
+  NumEventsInWaitList = 0;
+  Q2.ext_oneapi_submit_barrier({Barrier1});
+  ASSERT_EQ(NumEventsInWaitList, 1u);
 }
