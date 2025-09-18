@@ -3,6 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from itertools import product
 import os
 import csv
 import io
@@ -182,49 +183,61 @@ class ComputeBench(Suite):
         # See SubmitKernel.enabled()
         long_kernel_exec_time_ooo = [20, 200]
 
-        for runtime in list(RUNTIMES):
-            # Add SubmitKernel benchmarks using loops
-            for in_order_queue in [0, 1]:
-                for measure_completion in [0, 1]:
-                    for use_events in [0, 1]:
-                        long_kernel_exec_time = (
-                            long_kernel_exec_time_ioq
-                            if in_order_queue
-                            else long_kernel_exec_time_ooo
-                        )
-                        for kernel_exec_time in [1, *long_kernel_exec_time]:
-                            benches.append(
-                                SubmitKernel(
-                                    self,
-                                    runtime,
-                                    in_order_queue,
-                                    measure_completion,
-                                    use_events,
-                                    kernel_exec_time,
-                                )
-                            )
-                            if runtime == RUNTIMES.SYCL:
-                                # Create CPU count variant
-                                benches.append(
-                                    SubmitKernel(
-                                        self,
-                                        runtime,
-                                        in_order_queue,
-                                        measure_completion,
-                                        use_events,
-                                        kernel_exec_time,
-                                        profiler_type=PROFILERS.CPU_COUNTER,
-                                    )
-                                )
-
-            # Add SinKernelGraph benchmarks
-            for with_graphs in [0, 1]:
-                for num_kernels in [5, 100]:
+        submit_kernel_params = product(
+            list(RUNTIMES),
+            [0, 1],  # in_order_queue
+            [0, 1],  # measure_completion
+            [0, 1],  # use_events
+        )
+        for (
+            runtime,
+            in_order_queue,
+            measure_completion,
+            use_events,
+        ) in submit_kernel_params:
+            long_kernel_exec_time = (
+                long_kernel_exec_time_ioq
+                if in_order_queue
+                else long_kernel_exec_time_ooo
+            )
+            for kernel_exec_time in [1, *long_kernel_exec_time]:
+                benches.append(
+                    SubmitKernel(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        measure_completion,
+                        use_events,
+                        kernel_exec_time,
+                    )
+                )
+                if runtime == RUNTIMES.SYCL:
+                    # Create CPU count variant
                     benches.append(
-                        GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
+                        SubmitKernel(
+                            self,
+                            runtime,
+                            in_order_queue,
+                            measure_completion,
+                            use_events,
+                            kernel_exec_time,
+                            profiler_type=PROFILERS.CPU_COUNTER,
+                        )
                     )
 
+        # Add SinKernelGraph benchmarks
+        sin_kernel_graph_params = product(
+            list(RUNTIMES),
+            [0, 1],  # with_graphs
+            [5, 100],  # num_kernels
+        )
+        for runtime, with_graphs, num_kernels in sin_kernel_graph_params:
+            benches.append(
+                GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
+            )
+
             # Add ULLS benchmarks
+        for runtime in list(RUNTIMES):
             if runtime == RUNTIMES.SYCL:
                 benches.append(
                     UllsEmptyKernel(
@@ -234,36 +247,46 @@ class ComputeBench(Suite):
             benches.append(UllsEmptyKernel(self, runtime, 1000, 256))
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
-            # Add GraphApiSubmitGraph benchmarks
-            for in_order_queue in [0, 1]:
-                for num_kernels in self.submit_graph_num_kernels:
-                    for measure_completion_time in [0, 1]:
-                        for use_events in [0, 1]:
-                            benches.append(
-                                GraphApiSubmitGraph(
-                                    self,
-                                    runtime,
-                                    in_order_queue,
-                                    num_kernels,
-                                    measure_completion_time,
-                                    use_events,
-                                    useHostTasks=0,
-                                )
-                            )
-                            if runtime == RUNTIMES.SYCL:
-                                # Create CPU count variant
-                                benches.append(
-                                    GraphApiSubmitGraph(
-                                        self,
-                                        runtime,
-                                        in_order_queue,
-                                        num_kernels,
-                                        measure_completion_time,
-                                        use_events,
-                                        useHostTasks=0,
-                                        profiler_type=PROFILERS.CPU_COUNTER,
-                                    )
-                                )
+        # Add GraphApiSubmitGraph benchmarks
+        submit_graph_params = product(
+            list(RUNTIMES),
+            [0, 1],  # in_order_queue
+            self.submit_graph_num_kernels,
+            [0, 1],  # measure_completion_time
+            [0, 1],  # use_events
+        )
+        for (
+            runtime,
+            in_order_queue,
+            num_kernels,
+            measure_completion_time,
+            use_events,
+        ) in submit_graph_params:
+            benches.append(
+                GraphApiSubmitGraph(
+                    self,
+                    runtime,
+                    in_order_queue,
+                    num_kernels,
+                    measure_completion_time,
+                    use_events,
+                    useHostTasks=0,
+                )
+            )
+            if runtime == RUNTIMES.SYCL:
+                # Create CPU count variant
+                benches.append(
+                    GraphApiSubmitGraph(
+                        self,
+                        runtime,
+                        in_order_queue,
+                        num_kernels,
+                        measure_completion_time,
+                        use_events,
+                        useHostTasks=0,
+                        profiler_type=PROFILERS.CPU_COUNTER,
+                    )
+                )
 
         # Add other benchmarks
         benches += [
