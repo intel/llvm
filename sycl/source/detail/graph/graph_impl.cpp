@@ -471,7 +471,7 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
-  auto &DynamicParams = Handler.impl->MDynamicParameters;
+  auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
   if (NodeType != node_type::kernel && DynamicParams.size() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -739,9 +739,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
         sycl::detail::GSYCLStreamID, CGExec->MSyclKernel, CodeLoc,
-        CGExec->MIsTopCodeLoc, CGExec->MKernelName.data(),
-        CGExec->MKernelNameBasedCachePtr, nullptr, CGExec->MNDRDesc,
-        CGExec->MKernelBundle.get(), CGExec->MArgs);
+        CGExec->MIsTopCodeLoc, CGExec->MDeviceKernelInfo, nullptr,
+        CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
       sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
                                                InstanceID, CmdTraceEvent,
@@ -1401,14 +1400,14 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
       sycl::detail::CGExecKernel *TargetCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               MNodeStorage[i]->MCommandGroup.get());
-      KernelNameStrRefT TargetKernelName = TargetCGExec->getKernelName();
+      std::string_view TargetKernelName = TargetCGExec->getKernelName();
 
       sycl::detail::CGExecKernel *SourceCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               GraphImpl->MNodeStorage[i]->MCommandGroup.get());
-      KernelNameStrRefT SourceKernelName = SourceCGExec->getKernelName();
+      std::string_view SourceKernelName = SourceCGExec->getKernelName();
 
-      if (TargetKernelName.compare(SourceKernelName) != 0) {
+      if (TargetKernelName != SourceKernelName) {
         std::stringstream ErrorStream(
             "Cannot update using a graph with mismatched kernel "
             "types. Source node type ");
@@ -1568,15 +1567,14 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else if (auto SyclKernelImpl =
-                 KernelBundleImplPtr
-                     ? KernelBundleImplPtr->tryGetKernel(ExecCG.MKernelName)
-                     : std::shared_ptr<kernel_impl>{nullptr}) {
+                 KernelBundleImplPtr ? KernelBundleImplPtr->tryGetKernel(
+                                           ExecCG.MDeviceKernelInfo.Name)
+                                     : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else {
     BundleObjs = sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-        ContextImpl, DeviceImpl, ExecCG.MKernelName,
-        ExecCG.MKernelNameBasedCachePtr);
+        ContextImpl, DeviceImpl, ExecCG.MDeviceKernelInfo);
     UrKernel = BundleObjs->MKernelHandle;
     EliminatedArgMask = BundleObjs->MKernelArgMask;
   }
@@ -1807,6 +1805,12 @@ modifiable_command_graph::modifiable_command_graph(
     const sycl::queue &SyclQueue, const sycl::property_list &PropList)
     : impl(std::make_shared<detail::graph_impl>(
           SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
+
+modifiable_command_graph::modifiable_command_graph(
+    const sycl::device &SyclDevice, const sycl::property_list &PropList)
+    : impl(std::make_shared<detail::graph_impl>(
+          SyclDevice.get_platform().khr_get_default_context(), SyclDevice,
+          PropList)) {}
 
 node modifiable_command_graph::addImpl(dynamic_command_group &DynCGF,
                                        const std::vector<node> &Deps) {

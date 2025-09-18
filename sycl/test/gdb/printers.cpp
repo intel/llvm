@@ -72,7 +72,7 @@ sycl::item<2, false> item_wo_offset =
 // CHECK:        24 |   platform_impl & MPlatform
 
 // DEVICE:        0 | class sycl::detail::AccessorImplDevice<1>
-// DEVICE:        0 |   class sycl::id<1> Offset
+// DEVICE:        0 |   class sycl::id<> Offset
 // DEVICE:        8 |   class sycl::range<> AccessRange
 // DEVICE:       16 |   class sycl::range<> MemRange
 
@@ -105,10 +105,10 @@ sycl::item<2, false> item_wo_offset =
 // CHECK:         0 |     class sycl::range<> MExtent
 // CHECK:         0 |       class sycl::detail::array<> (base)
 // CHECK:         0 |         size_t[1] common_array
-// CHECK:         8 |     class sycl::id<1> MIndex
+// CHECK:         8 |     class sycl::id<> MIndex
 // CHECK:         8 |       class sycl::detail::array<> (base)
 // CHECK:         8 |         size_t[1] common_array
-// CHECK:        16 |     class sycl::id<1> MOffset
+// CHECK:        16 |     class sycl::id<> MOffset
 // CHECK:        16 |       class sycl::detail::array<> (base)
 // CHECK:        16 |         size_t[1] common_array
 

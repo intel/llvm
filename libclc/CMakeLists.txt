@@ -349,6 +349,7 @@ file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_IN
 # Setup the paths where libclc runtimes should be stored.
 # FIXME: Align with upstream
 set( LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
+file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
@@ -472,9 +473,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     elseif( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
       set( build_flags )
       set( opt_flags -O3 "--nvvm-reflect-enable=false" )
+      set( MACRO_ARCH ${ARCH} )
     elseif( ARCH STREQUAL amdgcn )
       set( build_flags )
       set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
+      set( MACRO_ARCH ${ARCH} )
     else()
       set( build_flags )
       set( opt_flags -O3 )

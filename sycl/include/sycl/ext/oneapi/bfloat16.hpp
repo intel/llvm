@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>                   // for half
-#include <sycl/bit_cast.hpp>                  // for bit_cast
-#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
-#include <sycl/half_type.hpp>                 // for half
+#include <sycl/aliases.hpp>
+#include <sycl/bit_cast.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/half_type.hpp>
 
-#include <cstdint> // for uint16_t, uint32_t
+#include <cstdint>
 
 namespace sycl {
 inline namespace _V1 {
@@ -126,6 +126,12 @@ public:
   // for floating-point types.
 
   // Stream Operator << and >>
+#ifdef __SYCL_DEVICE_ONLY__
+  // std::istream/std::ostream aren't usable on device, so don't provide a
+  // definition to save compile time by using lightweight `<iosfwd>`.
+  inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs);
+  inline friend std::istream &operator>>(std::istream &I, bfloat16 &rhs);
+#else
   inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
     O << static_cast<float>(rhs);
     return O;
@@ -137,6 +143,7 @@ public:
     rhs = ValFloat;
     return I;
   }
+#endif
 
 private:
   Bfloat16StorageT value;

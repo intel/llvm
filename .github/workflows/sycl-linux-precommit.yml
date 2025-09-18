@@ -81,7 +81,7 @@ jobs:
 
   compat_read_exclude:
     name: Read compatibility testing exclude list
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     outputs:
       FILTER_6_2: ${{ steps.result.outputs.FILTER_6_2 }}
       FILTER_6_3: ${{ steps.result.outputs.FILTER_6_3 }}
@@ -100,14 +100,14 @@ jobs:
         echo FILTER_6_2="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_2 | paste -sd '|')" >> $GITHUB_OUTPUT
         echo FILTER_6_3="$(grep -v '^#\|^\W*$' devops/compat_ci_exclude.sycl-rel-6_3 | paste -sd '|')" >> $GITHUB_OUTPUT
 
-  run_prebuilt_e2e_tests:
+  E2E:
     needs: [build, detect_changes, compat_read_exclude]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: GEN 12 Integrated
+          - name: Intel / GEN 12 Integrated
             runner: '["Linux", "gen12"]'
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
           - name: NVIDIA/CUDA
@@ -119,25 +119,25 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             extra_lit_opts: -j 1
-          - name: Intel Arc A-Series Graphics
+          - name: Intel / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Dev IGC / Intel Arc A-Series Graphics
+          - name: Intel Dev IGC / Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel Ponte Vecchio GPU
+          - name: Intel / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-          - name: Dev IGC / Intel Ponte Vecchio GPU
+          - name: Intel Dev IGC / Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             target_devices: level_zero:gpu
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
-          - name: Intel Battlemage Graphics
+          - name: Intel / Battlemage Graphics
             runner: '["Linux", "bmg"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
           - name: Preview Mode
@@ -145,13 +145,13 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param test-preview-mode=True
             e2e_binaries_artifact: e2e_bin_preview
-          - name: ABI compatibility against sycl-rel-6_2
+          - name: ABI compatibility / sycl-rel-6_2
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_2
             target_devices: level_zero:gpu
             extra_lit_opts: '--param test-preview-mode=False --filter-out "${{ needs.compat_read_exclude.outputs.FILTER_6_2 }}"'
             e2e_binaries_artifact: 'in-container'
-          - name: ABI compatibility against sycl-rel-6_3
+          - name: ABI compatibility / sycl-rel-6_3
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/sycl_prebuilt_tests:sycl-rel-6_3
             target_devices: level_zero:gpu

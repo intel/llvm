@@ -71,6 +71,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PLATFORM:
     return ReturnValue(hDevice->Platform);
     break;
+  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
+    return ReturnValue((std::to_string(OL_VERSION_MAJOR) + "." +
+                        std::to_string(OL_VERSION_MINOR) + "." +
+                        std::to_string(OL_VERSION_PATCH))
+                           .c_str());
+  case UR_DEVICE_INFO_PROFILE:
+    // This doesn't make sense for non-opencl devices, copy other backends and
+    // just return FULL_PROFILE
+    return ReturnValue("FULL_PROFILE");
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
   case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:
     olInfo = OL_DEVICE_INFO_NUM_COMPUTE_UNITS;
@@ -189,20 +198,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_ESIMD_SUPPORT:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
     return ReturnValue(
         ur_queue_flags_t{UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE});
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
+    return ReturnValue(0);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {

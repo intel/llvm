@@ -10300,6 +10300,8 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
   for (const InputInfo &Input : Inputs) {
     const Action *OffloadAction = Input.getAction();
     const ToolChain *TC = OffloadAction->getOffloadingToolChain();
+    if (!TC)
+      TC = &C.getDefaultToolChain();
     const ArgList &TCArgs =
         C.getArgsForToolChain(TC, OffloadAction->getOffloadingArch(),
                               OffloadAction->getOffloadingDeviceKind());
@@ -10382,6 +10384,50 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
 
     CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
   }
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::None(),
+      Args.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, Inputs, Output));
+}
+
+// Use the clang-offload-packager to extract binaries from a packaged
+// binary.  This currently only supports single input/single output.
+void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
+                                          const InputInfo &Output,
+                                          const InputInfoList &Inputs,
+                                          const llvm::opt::ArgList &Args,
+                                          const char *LinkingOutput) const {
+  ArgStringList CmdArgs;
+  const Action *OffloadAction = Inputs[0].getAction();
+  const ToolChain *TC = OffloadAction->getOffloadingToolChain();
+  if (!TC)
+    TC = &C.getDefaultToolChain();
+  const ArgList &TCArgs =
+      C.getArgsForToolChain(TC, OffloadAction->getOffloadingArch(),
+                            OffloadAction->getOffloadingDeviceKind());
+
+  // Input file name.
+  StringRef InFile = C.getArgs().MakeArgString(TC->getInputFilename(Inputs[0]));
+  CmdArgs.push_back(Args.MakeArgString(InFile));
+
+  // Generated --image option containing the output file name, triple, arch
+  // and associated offload kind.
+  assert(Output.isFilename() && "Invalid output.");
+  StringRef File = Output.getFilename();
+  StringRef Arch = OffloadAction->getOffloadingArch()
+                       ? OffloadAction->getOffloadingArch()
+                       : TCArgs.getLastArgValue(options::OPT_march_EQ);
+  StringRef Kind =
+      Action::GetOffloadKindName(OffloadAction->getOffloadingDeviceKind());
+
+  SmallVector<std::string> Parts{
+      "file=" + File.str(),
+      "triple=" + TC->getTripleString(),
+      "arch=" + (Arch.empty() ? "generic" : Arch.str()),
+      "kind=" + Kind.str(),
+  };
+  CmdArgs.push_back(Args.MakeArgString("--image=" + llvm::join(Parts, ",")));
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -11341,6 +11387,23 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (!PostLinkOptString.empty())
       CmdArgs.push_back(
           Args.MakeArgString("--sycl-post-link-options=" + PostLinkOptString));
+
+    if (Args.hasArg(options::OPT_fsycl_remove_unused_external_funcs))
+      CmdArgs.push_back(
+          Args.MakeArgString("-sycl-remove-unused-external-funcs"));
+    if (Args.hasArg(options::OPT_fno_sycl_remove_unused_external_funcs))
+      CmdArgs.push_back(
+          Args.MakeArgString("-no-sycl-remove-unused-external-funcs"));
+    if (Args.hasArg(options::OPT_fsycl_device_code_split_esimd))
+      CmdArgs.push_back(Args.MakeArgString("-sycl-device-code-split-esimd"));
+    if (Args.hasArg(options::OPT_fno_sycl_device_code_split_esimd))
+      CmdArgs.push_back(Args.MakeArgString("-no-sycl-device-code-split-esimd"));
+    if (Args.hasArg(options::OPT_fsycl_add_default_spec_consts_image))
+      CmdArgs.push_back(
+          Args.MakeArgString("-sycl-add-default-spec-consts-image"));
+    if (Args.hasArg(options::OPT_fno_sycl_add_default_spec_consts_image))
+      CmdArgs.push_back(
+          Args.MakeArgString("-no-sycl-add-default-spec-consts-image"));
 
     // --llvm-spirv-options="options" provides a string of options to be passed
     // along to the llvm-spirv (translation) step during device link.

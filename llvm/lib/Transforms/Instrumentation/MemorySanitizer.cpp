@@ -859,6 +859,7 @@ private:
   FunctionCallee MsanUnpoisonStackFunc;
   FunctionCallee MsanUnpoisonShadowFunc;
   FunctionCallee MsanSetPrivateBaseFunc;
+  FunctionCallee MsanUnpoisonCopyFunc;
   FunctionCallee MsanUnpoisonStridedCopyFunc;
 };
 
@@ -965,6 +966,18 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   MsanSetPrivateBaseFunc =
       M.getOrInsertFunction("__msan_set_private_base", IRB.getVoidTy(),
                             PointerType::get(C, kSpirOffloadPrivateAS));
+
+  // __msan_unpoison_copy(
+  //   uptr dest, uint32_t dest_as,
+  //   uptr src, uint32_t src_as,
+  //   uint32_t dst_element_size,
+  //   uint32_t src_element_size,
+  //   uptr counts,
+  // )
+  MsanUnpoisonCopyFunc = M.getOrInsertFunction(
+      "__msan_unpoison_copy", IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
+      IntptrTy, IRB.getInt32Ty(), IRB.getInt32Ty(), IRB.getInt32Ty(),
+      IRB.getInt64Ty());
 
   // __msan_unpoison_strided_copy(
   //   uptr dest, uint32_t dest_as,
@@ -1215,6 +1228,14 @@ void MemorySanitizerOnSpirv::instrumentPrivateArguments(
 void MemorySanitizerOnSpirv::instrumentKernelsMetadata(int TrackOrigins) {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
   SmallVector<uint8_t, 256> KernelNamesBytes;
+
+  // Insert global __msan_track_origins to indicate if origin track is enabled.
+  M.getOrInsertGlobal("__msan_track_origins", Int32Ty, [&] {
+    return new GlobalVariable(
+        M, Int32Ty, true, GlobalValue::WeakODRLinkage,
+        ConstantInt::get(Int32Ty, TrackOrigins), "__msan_track_origins",
+        nullptr, llvm::GlobalValue::NotThreadLocal, kSpirOffloadGlobalAS);
+  });
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
@@ -7016,9 +7037,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                IRB.getInt32(Src->getType()->getPointerAddressSpace()),
                IRB.getInt32(ElementSize), NumElements, Stride});
         } else if (FuncName.contains(
-                       "__sycl_getComposite2020SpecConstantValue")) {
+                       "__sycl_getComposite2020SpecConstantValue") ||
+                   FuncName.contains("clog")) {
           // clang-format off
-          // Handle builtin functions like "_Z40__sycl_getComposite2020SpecConstantValue"
+          // Handle builtin functions which have sret arguments.
           // Structs which are larger than 64b will be returned via sret arguments
           // and will be initialized inside the function. So we need to unpoison
           // the sret arguments.
@@ -7026,14 +7048,42 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           if (Func->hasStructRetAttr()) {
             Type *SCTy = Func->getParamStructRetType(0);
             unsigned Size = Func->getDataLayout().getTypeStoreSize(SCTy);
-            auto *Addr = CB.getArgOperand(0);
-            IRB.CreateCall(
-                MS.Spirv.MsanUnpoisonShadowFunc,
-                {IRB.CreatePointerCast(Addr, MS.Spirv.IntptrTy),
-                 ConstantInt::get(MS.Spirv.Int32Ty,
-                                  Addr->getType()->getPointerAddressSpace()),
-                 ConstantInt::get(MS.Spirv.IntptrTy, Size)});
+            if (FuncName.contains("clog")) {
+              auto *Dest = CB.getArgOperand(0);
+              auto *Src = CB.getArgOperand(1);
+              IRB.CreateCall(
+                  MS.Spirv.MsanUnpoisonCopyFunc,
+                  {IRB.CreatePointerCast(Dest, MS.Spirv.IntptrTy),
+                   IRB.getInt32(Dest->getType()->getPointerAddressSpace()),
+                   IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
+                   IRB.getInt32(Src->getType()->getPointerAddressSpace()),
+                   IRB.getInt32(1), IRB.getInt32(1),
+                   ConstantInt::get(MS.Spirv.IntptrTy, Size)});
+            } else {
+              auto *Addr = CB.getArgOperand(0);
+              IRB.CreateCall(
+                  MS.Spirv.MsanUnpoisonShadowFunc,
+                  {IRB.CreatePointerCast(Addr, MS.Spirv.IntptrTy),
+                   ConstantInt::get(MS.Spirv.Int32Ty,
+                                    Addr->getType()->getPointerAddressSpace()),
+                   ConstantInt::get(MS.Spirv.IntptrTy, Size)});
+            }
           }
+        } else if (FuncName.contains("__devicelib_ConvertBF16ToFINTELVec") ||
+                   FuncName.contains("__devicelib_ConvertFToBF16INTELVec")) {
+          size_t NumElements;
+          bool IsBF16ToF = FuncName.contains("BF16ToF");
+          FuncName.take_back().getAsInteger(10, NumElements);
+          auto *Src = CB.getArgOperand(0);
+          auto *Dest = CB.getArgOperand(1);
+          IRB.CreateCall(
+              MS.Spirv.MsanUnpoisonCopyFunc,
+              {IRB.CreatePointerCast(Dest, MS.Spirv.IntptrTy),
+               IRB.getInt32(Dest->getType()->getPointerAddressSpace()),
+               IRB.CreatePointerCast(Src, MS.Spirv.IntptrTy),
+               IRB.getInt32(Src->getType()->getPointerAddressSpace()),
+               IRB.getInt32(IsBF16ToF ? 4 : 2), IRB.getInt32(IsBF16ToF ? 2 : 4),
+               ConstantInt::get(MS.Spirv.IntptrTy, NumElements)});
         }
       }
     }

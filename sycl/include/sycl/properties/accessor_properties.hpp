@@ -12,6 +12,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/properties/property_traits.hpp>
@@ -91,28 +92,6 @@ struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
 } // namespace ext::oneapi
 
-// Forward declaration
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-class accessor;
-template <typename DataT, int Dimensions, access::mode AccessMode>
-class host_accessor;
-template <typename DataT, int Dimensions>
-class __SYCL_EBO
-    __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-class unsampled_image_accessor;
-template <typename DataT, int Dimensions, image_target AccessTarget>
-class sampled_image_accessor;
-template <typename DataT, int Dimensions, access_mode AccessMode>
-class host_unsampled_image_accessor;
-template <typename DataT, int Dimensions> class host_sampled_image_accessor;
-
 namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -188,8 +167,8 @@ struct is_property<ext::intel::property::buffer_location> : std::true_type {};
 
 template <typename T>
 struct is_property_of<property::noinit, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
-                         detail::acc_properties::is_host_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T> ||
+                         detail::acc_properties::is_host_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<property::no_init, T>
@@ -201,15 +180,15 @@ struct is_property_of<property::no_init, T>
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_offset, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_alias, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::intel::property::buffer_location, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value> {};
+    : std::bool_constant<detail::acc_properties::is_accessor_v<T>> {};
 
 namespace detail {
 template <int I>

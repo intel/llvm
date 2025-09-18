@@ -147,14 +147,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
-  if (EMHASH_SYS_LOC)
-    # If we are using system emhash, include the system directory
-    # containing the emhash folder and note this location so
-    # other modules using emhash can find it.
-    cmake_path(GET EMHASH_SYS_LOC PARENT_PATH EMHASH_SYS_LOC)
-    set(SYCL_EMHASH_DIR ${EMHASH_SYS_LOC} CACHE INTERNAL "")
-    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${EMHASH_SYS_LOC})
-  endif()
+  target_link_libraries(${LIB_OBJ_NAME} PRIVATE emhash::emhash)
 
   # ur_win_proxy_loader
   if (WIN32)
@@ -267,6 +260,7 @@ set(SYCL_COMMON_SOURCES
     "detail/device_filter.cpp"
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_data.cpp"
     "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_image_impl.cpp"
@@ -288,7 +282,8 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
-    "detail/kernel_name_based_cache.cpp"
+    "detail/get_device_kernel_info.cpp"
+    "detail/device_kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_export.cpp"
     "detail/memory_manager.cpp"
