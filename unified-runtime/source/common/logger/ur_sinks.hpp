@@ -35,13 +35,16 @@ public:
              << "[" << level_to_str(level) << "]: ";
     }
 
-    format(buffer, filename, lineno, fmt, std::forward<Args &&>(args)...);
+    format(buffer, filename, lineno, fmt, std::forward<Args>(args)...);
     if (add_fileline) {
       buffer << " <" << filename << ":" << lineno << ">";
     }
     if (!skip_linebreak) {
       buffer << "\n";
     }
+
+    std::string message = buffer.str();
+
 // This is a temporary workaround on windows, where UR adapter is teardowned
 // before the UR loader, which will result in access violation when we use print
 // function as the overrided print function was already released with the UR
@@ -50,12 +53,12 @@ public:
 // using thier own sink class that inherit from logger::Sink.
 #if defined(_WIN32)
     if (isTearDowned) {
-      std::cerr << buffer.str() << "\n";
+      std::cerr << message << "\n";
     } else {
-      print(level, buffer.str());
+      print(level, message);
     }
 #else
-    print(level, buffer.str());
+    print(level, message);
 #endif
   }
 
@@ -155,7 +158,7 @@ private:
       }
     }
 
-    format(buffer, filename, lineno, ++fmt, std::forward<Args &&>(args)...);
+    format(buffer, filename, lineno, ++fmt, std::forward<Args>(args)...);
   }
 };
 
