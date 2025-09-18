@@ -15,6 +15,8 @@
 #define RAND_NEXT_LEN 1024
 DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 
+DeviceGlobal<void *> __DeviceMemPoolPtr;
+DeviceGlobal<size_t> __DeviceMemPoolSize;
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
     defined(__AMDGCN__)
 DEVICE_EXTERN_C_INLINE
@@ -164,6 +166,11 @@ void _wassert(const wchar_t *wexpr, const wchar_t *wfile, unsigned line) {
       __spirv_BuiltInLocalInvocationId(1), __spirv_BuiltInLocalInvocationId(2));
 }
 #else
+DEVICE_EXTERN_C
+void *malloc(size_t size) { return __DeviceMemPoolPtr.get(); }
+DEVICE_EXTERN_C
+void free(void *ptr) { return ; }
+
 DEVICE_EXTERN_C
 void __assert_fail(const char *expr, const char *file, unsigned int line,
                    const char *func) {

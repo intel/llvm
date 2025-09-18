@@ -14,6 +14,7 @@
 #include "ur_interface_loader.hpp"
 
 #include "helpers/kernel_helpers.hpp"
+#include <iostream>
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
@@ -91,6 +92,30 @@ ur_result_t urEnqueueKernelLaunch(
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *OutEvent) {
+  void *DeviceMemPoolPtr = nullptr;
+  size_t DeviceMemPoolSize = 1;
+  std::cout << "Work Dim: " << WorkDim << std::endl;
+  for (size_t Idx = 0; Idx < WorkDim; ++Idx) {
+    std::cout << "Dim " << Idx << ": " << GlobalWorkSize[Idx] << std::endl;
+    DeviceMemPoolSize *= GlobalWorkSize[Idx];
+  }
+  // Each work item has its own 4KB heap...
+  DeviceMemPoolSize *= 4096;
+  ur::level_zero::urUSMDeviceAlloc(
+      ur_context_handle_t{Kernel->Program->Context},
+      ur_device_handle_t{Queue->Device}, nullptr, nullptr, DeviceMemPoolSize,
+      &DeviceMemPoolPtr);
+  std::cout << "v1 urEnqueueKernelLaunch: DeviceMemPool located: " << std::hex
+            << reinterpret_cast<unsigned long long>(DeviceMemPoolPtr)
+            << " Size: " << std::dec << DeviceMemPoolSize << " bytes."
+            << std::endl;
+  ur::level_zero::urEnqueueDeviceGlobalVariableWrite(
+      Queue, ur_program_handle_t{Kernel->Program}, "__DeviceMemPoolPtr", true,
+      sizeof(DeviceMemPoolPtr), 0, &DeviceMemPoolPtr, 0, nullptr, nullptr);
+  ur::level_zero::urEnqueueDeviceGlobalVariableWrite(
+      Queue, ur_program_handle_t{Kernel->Program}, "__DeviceMemPoolSize", true,
+      sizeof(DeviceMemPoolSize), 0, &DeviceMemPoolSize, 0, nullptr, nullptr);
+
   using ZeKernelLaunchFuncT = ze_result_t (*)(
       ze_command_list_handle_t, ze_kernel_handle_t, const ze_group_count_t *,
       ze_event_handle_t, uint32_t, ze_event_handle_t *);
@@ -718,7 +743,6 @@ ur_result_t urKernelRelease(
   KernelProgram->ur_release_program_resources(false);
 
   delete Kernel;
-
   return UR_RESULT_SUCCESS;
 }
 
