@@ -945,6 +945,7 @@ namespace {
     }
 
     ASTContext &getASTContext() const override { return Ctx; }
+    const LangOptions &getLangOpts() const { return Ctx.getLangOpts(); }
 
     void setEvaluatingDecl(APValue::LValueBase Base, APValue &Value,
                            EvaluatingDeclKind EDK = EvaluatingDeclKind::Ctor) {
@@ -14170,6 +14171,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       return Success(Result, E);
     }
     }
+    llvm_unreachable("Fully covered switch above");
   }
   case Builtin::BIstrlen:
   case Builtin::BIwcslen:
@@ -17843,6 +17845,7 @@ bool Expr::EvaluateAsInitializer(APValue &Value, const ASTContext &Ctx,
                                  bool IsConstantInitialization) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
+  assert(VD && "Need a valid VarDecl");
 
   llvm::TimeTraceScope TimeScope("EvaluateAsInitializer", [&] {
     std::string Name;
