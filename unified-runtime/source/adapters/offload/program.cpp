@@ -97,6 +97,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   Program->URContext = hContext;
   Program->Binary = RealBinary;
   Program->BinarySizeInBytes = RealLength;
+  Program->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
 
   // Parse properties
   if (pProperties) {
@@ -160,24 +161,68 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
-                                                   ur_program_handle_t,
-                                                   const char *) {
+                                                   ur_program_handle_t hProgram,
+                                                   const char *pOptions) {
   // Do nothing, program is built upon creation
+  if (pOptions && *pOptions) {
+    hProgram->Error = "Liboffload doesn't support link options";
+    return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  }
+  hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
-                                                      uint32_t,
-                                                      ur_device_handle_t *,
-                                                      const char *) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuildExp(ur_program_handle_t hProgram, uint32_t, ur_device_handle_t *,
+                  const char *pOptions) {
   // Do nothing, program is built upon creation
+  if (pOptions && *pOptions) {
+    hProgram->Error = "Liboffload doesn't support link options";
+    return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  }
+  hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(ur_context_handle_t,
-                                                     ur_program_handle_t,
-                                                     const char *) {
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
+    ur_context_handle_t, ur_program_handle_t hProgram, const char *pOptions) {
   // Do nothing, program is built upon creation
+  if (pOptions && *pOptions) {
+    hProgram->Error = "Liboffload doesn't support link options";
+    return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  }
+  hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramLink(ur_context_handle_t hContext, uint32_t count,
+              const ur_program_handle_t *phPrograms, const char *pOptions,
+              ur_program_handle_t *phProgram) {
+  if (count > 1) {
+    *phProgram = ur_program_handle_t_::newErrorProgram(
+        hContext, nullptr, 0,
+        "Liboffload does not support linking multiple binaries");
+    return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  }
+  if (pOptions) {
+    *phProgram = ur_program_handle_t_::newErrorProgram(
+        hContext, nullptr, 0, "Liboffload does not support linker options");
+    return UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+  }
+  assert(count == 1);
+
+  // Offload programs are already fully linked on creation, just create a new
+  // program containing it
+  auto *InProgram = *phPrograms;
+  ur_program_handle_t Program = new ur_program_handle_t_{};
+  Program->URContext = hContext;
+  Program->Binary = InProgram->Binary;
+  Program->BinarySizeInBytes = InProgram->BinarySizeInBytes;
+  Program->GlobalIDMD = InProgram->GlobalIDMD;
+  Program->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
+  *phProgram = Program;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -231,6 +276,28 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t,
+                      ur_program_build_info_t propName, size_t propSize,
+                      void *pPropValue, size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  switch (propName) {
+  case UR_PROGRAM_BUILD_INFO_STATUS:
+    return ReturnValue(hProgram->Error.empty() ? UR_PROGRAM_BUILD_STATUS_SUCCESS
+                                               : UR_PROGRAM_BUILD_STATUS_ERROR);
+  case UR_PROGRAM_BUILD_INFO_OPTIONS:
+    return ReturnValue("");
+  case UR_PROGRAM_BUILD_INFO_LOG:
+    return ReturnValue(hProgram->Error.c_str());
+  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
+    return ReturnValue(hProgram->BinaryType);
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
   hProgram->RefCount++;
   return UR_RESULT_SUCCESS;
@@ -239,11 +306,12 @@ urProgramRetain(ur_program_handle_t hProgram) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
   if (--hProgram->RefCount == 0) {
-    auto Res = olDestroyProgram(hProgram->OffloadProgram);
-    if (Res) {
-      return offloadResultToUR(Res);
+    if (hProgram->OffloadProgram) {
+      if (auto Res = olDestroyProgram(hProgram->OffloadProgram)) {
+        return offloadResultToUR(Res);
+      }
+      delete hProgram;
     }
-    delete hProgram;
   }
 
   return UR_RESULT_SUCCESS;
