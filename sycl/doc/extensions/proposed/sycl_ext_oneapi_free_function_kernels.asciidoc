@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 8 specification.
+This extension is written against the SYCL 2020 revision 10 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
@@ -940,6 +940,27 @@ bytes) of the device local memory that is represented by the
 `work_group_memory` argument.
 The pointer passed to  `zeKernelSetArgumentValue` or `clSetKernelArg` must be
 NULL in this case.
+
+Some kernel features are disallowed when submitting a kernel using Level Zero or
+OpenCL.
+Other features require the kernel to be invoked in some special way.
+These features are detailed below:
+
+* When a kernel's static call tree contains a call to
+  `get_work_group_scratch_memory` from
+  link:../experimental/sycl_ext_oneapi_work_group_scratch_memory.asciidoc[
+  sycl_ext_oneapi_work_group_scratch_memory], the kernel has an additional
+  "hidden" argument whose value must be set when the kernel is invoked.
+  This argument appears after all other kernel arguments.
+  The value corresponds to the `work_group_scratch_size` launch property, which
+  specifies the size of the dynamic device local memory that is available via
+  `get_work_group_scratch_memory`.
+  The kernel argument's size specifies the size (in bytes) of the dynamic device
+  local memory.
+  The kernel argument's pointer must be NULL.
+
+* Kernels must not use specialization constants as defined in section 4.9.5
+  "Specialization constants" of the core SYCL specification.
 
 
 == Implementation notes
