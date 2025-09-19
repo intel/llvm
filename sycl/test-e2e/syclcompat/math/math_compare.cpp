@@ -31,12 +31,13 @@
 // ===---------------------------------------------------------------------===//
 
 // REQUIRES: aspect-fp16
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
 
 #include <sycl/half_type.hpp>
 #include <syclcompat/math.hpp>

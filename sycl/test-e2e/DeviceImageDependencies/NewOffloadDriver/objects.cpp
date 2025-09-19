@@ -1,15 +1,15 @@
 // Test -fsycl-allow-device-image-dependencies with objects.
 
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer
-
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/c.cpp -I %S/Inputs -c -o %t_c.o
 // RUN: %clangxx --offload-new-driver -fsycl %S/Inputs/d.cpp -I %S/Inputs -c -o %t_d.o
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o -I %S/Inputs -o %t.out
 // RUN: %{run} %t.out
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
 
 #include "a.hpp"
 #include <iostream>

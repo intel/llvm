@@ -1,7 +1,8 @@
+// RUN: %{build} -Wno-error=incorrect-sub-group-size -fsycl-device-code-split=per_kernel -o %t.out
+
 // UNSUPPORTED: target-native_cpu
 // UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
 // investigated and tracked post team transfer.
-// RUN: %{build} -Wno-error=incorrect-sub-group-size -fsycl-device-code-split=per_kernel -o %t.out
 
 // REQUIRES: gpu
 
