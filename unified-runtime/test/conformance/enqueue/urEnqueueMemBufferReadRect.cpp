@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "helpers.h"
+#include "ur_api.h"
 #include <numeric>
 #include <uur/known_failure.h>
 
@@ -199,6 +200,7 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidSize) {
 
   // region.width == 0 || region.height == 0 || region.depth == 0
   region.width = 0;
+  // ur_result_t res =
   ASSERT_EQ_RESULT(urEnqueueMemBufferReadRect(
                        queue, buffer, true, buffer_offset, host_offset, region,
                        buffer_row_pitch, buffer_slice_pitch, host_row_pitch,

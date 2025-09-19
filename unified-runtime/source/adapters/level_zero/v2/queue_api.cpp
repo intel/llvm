@@ -250,6 +250,7 @@ ur_result_t urEnqueueUSMMemcpy(ur_queue_handle_t hQueue, bool blocking,
                                uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t *phEvent) try {
+  // printf("enqueue API\n");
   return hQueue->get().enqueueUSMMemcpy(blocking, pDst, pSrc, size,
                                         numEventsInWaitList, phEventWaitList,
                                         phEvent);
