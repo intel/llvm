@@ -199,7 +199,8 @@ createTargetCodeGenInfo(CodeGenModule &CGM, const TargetInfo &Target,
     return createPPC32TargetCodeGenInfo(CGM, IsSoftFloat);
   }
   case llvm::Triple::ppcle: {
-    bool IsSoftFloat = CodeGenOpts.FloatABI == "soft";
+    bool IsSoftFloat =
+        CodeGenOpts.FloatABI == "soft" || Target.hasFeature("spe");
     return createPPC32TargetCodeGenInfo(CGM, IsSoftFloat);
   }
   case llvm::Triple::ppc64:
