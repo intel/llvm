@@ -3452,10 +3452,10 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_ctzl:
   case Builtin::BI__builtin_ctzll:
   case Builtin::BI__builtin_ctzg:
-  case Builtin::BI__builtin_elementwise_cttz: {
+  case Builtin::BI__builtin_elementwise_ctzg: {
     bool HasFallback =
         (BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_ctzg ||
-         BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_cttz) &&
+         BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_ctzg) &&
         E->getNumArgs() > 1;
 
     Value *ArgValue =
@@ -3469,7 +3469,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     // The elementwise builtins always exhibit zero-is-undef behaviour
     Value *ZeroUndef = Builder.getInt1(
         HasFallback || getTarget().isCLZForZeroUndef() ||
-        BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_cttz);
+        BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_ctzg);
     Value *Result = Builder.CreateCall(F, {ArgValue, ZeroUndef});
     if (Result->getType() != ResultType)
       Result =
@@ -3489,10 +3489,10 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_clzl:
   case Builtin::BI__builtin_clzll:
   case Builtin::BI__builtin_clzg:
-  case Builtin::BI__builtin_elementwise_ctlz: {
+  case Builtin::BI__builtin_elementwise_clzg: {
     bool HasFallback =
         (BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_clzg ||
-         BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_ctlz) &&
+         BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_clzg) &&
         E->getNumArgs() > 1;
 
     Value *ArgValue =
@@ -3506,7 +3506,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     // The elementwise builtins always exhibit zero-is-undef behaviour
     Value *ZeroUndef = Builder.getInt1(
         HasFallback || getTarget().isCLZForZeroUndef() ||
-        BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_ctlz);
+        BuiltinIDIfNoAsmLabel == Builtin::BI__builtin_elementwise_clzg);
     Value *Result = Builder.CreateCall(F, {ArgValue, ZeroUndef});
     if (Result->getType() != ResultType)
       Result =
