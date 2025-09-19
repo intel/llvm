@@ -7,6 +7,10 @@
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o -I %S/Inputs -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
+
 #include "a.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>

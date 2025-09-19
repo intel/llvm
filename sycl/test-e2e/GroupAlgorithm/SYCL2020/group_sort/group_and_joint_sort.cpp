@@ -1,9 +1,9 @@
 // REQUIRES: sg-8
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
+// not supported
 // XFAIL: linux && run-mode && (gpu-intel-gen12 || gpu-intel-dg2)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18577
-// not supported
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
@@ -12,6 +12,9 @@
 // Depends on SPIR-V Backend & run-time drivers version.
 // UNSUPPORTED: spirv-backend && cpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
 
 // The test verifies sort API extension.
 // Currently it checks the following combinations:

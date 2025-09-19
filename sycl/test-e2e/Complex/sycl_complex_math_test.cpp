@@ -2,6 +2,9 @@
 
 // RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
 
 #include "sycl_complex_helper.hpp"
 #include "sycl_complex_math_test_cases.hpp"

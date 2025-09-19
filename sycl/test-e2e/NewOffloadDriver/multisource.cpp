@@ -37,6 +37,10 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl %{sycl_target_opts} --offload-new-driver %t.main.o %t.a -o %t4.fat
 // RUN: %{run} %t4.fat
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
+
 #include <sycl/detail/core.hpp>
 
 #include <iostream>

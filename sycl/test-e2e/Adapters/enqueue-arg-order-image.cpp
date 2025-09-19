@@ -20,6 +20,9 @@
 // resolved and 2 is merged we will re-enable Image support.
 // UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Legacy images aren't supported on Native CPU but also
+// fail to compile. Bindless images should be used when that is working.
 
 #include <iostream>
 

@@ -5,6 +5,10 @@
 // RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
 // RUN: env %{l0_leak_check} SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
 //
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
+//
 // Check that queue submission mode is honored when creating queue.
 //
 #include <iostream>

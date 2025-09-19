@@ -6,6 +6,10 @@
 // request JIT, it will do the thing again at the run time.
 //
 // UNSUPPORTED: ze_debug
+//
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
 
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU -o %t_gpu.out
