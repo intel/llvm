@@ -167,10 +167,12 @@ event queue_impl::memset(void *Ptr, int Value, size_t Count,
   xpti::framework::tracepoint_scope_t TP(
       CodeLocation.fileName(), FuncName, CodeLocation.lineNumber(),
       CodeLocation.columnNumber(), (void *)this);
-  TP.stream(detail::GSYCLStreamID)
+  TP.stream(detail::getActiveXPTIStreamID())
       .traceType(xpti::trace_point_type_t::node_create)
       .parentEvent(detail::GSYCLGraphEvent);
 
+  // This information is necessary for memset, so we will not guard it by debug
+  // stream check.
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(MDevice.getHandleRef()));
@@ -219,10 +221,11 @@ event queue_impl::memcpy(void *Dest, const void *Src, size_t Count,
   xpti::framework::tracepoint_scope_t TP(
       CodeLoc.fileName(), CodeLoc.functionName(), CodeLoc.lineNumber(),
       CodeLoc.columnNumber(), (void *)this);
-  TP.stream(detail::GSYCLStreamID)
+  TP.stream(detail::getActiveXPTIStreamID())
       .traceType(xpti::trace_point_type_t::node_create)
       .parentEvent(GSYCLGraphEvent);
   const char *UserData = "memory_transfer_node::memcpy";
+  // We will include this metadata information as it is required for memcpy.
   TP.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(MDevice.getHandleRef()));
@@ -515,33 +518,32 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
 
-  xpti::payload_t Payload;
-  bool HasSourceInfo = false;
+  xpti_tracepoint_t *Event;
   // We try to create a unique string for the wait() call by combining it with
   // the queue address
   xpti::utils::StringHelper NG;
   Name = NG.nameWithAddress<queue_impl *>("queue.wait", this);
 
-  if (CodeLoc.fileName()) {
-    // We have source code location information
-    Payload =
-        xpti::payload_t(Name.c_str(), CodeLoc.fileName(), CodeLoc.lineNumber(),
-                        CodeLoc.columnNumber(), (void *)this);
-    HasSourceInfo = true;
-  } else {
-    // We have no location information, so we'll use the address of the queue
-    Payload = xpti::payload_t(Name.c_str(), (void *)this);
-  }
+  bool HasSourceInfo = CodeLoc.fileName() != nullptr;
   // wait() calls could be at different user-code locations; We create a new
   // event based on the code location info and if this has been seen before, a
   // previously created event will be returned.
-  uint64_t QWaitInstanceNo = 0;
-  xpti::trace_event_data_t *WaitEvent =
-      xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_graph_event,
-                    xpti_at::active, &QWaitInstanceNo);
-  IId = QWaitInstanceNo;
-  if (WaitEvent) {
-    xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
+  if (HasSourceInfo) {
+    Event = xptiCreateTracepoint(CodeLoc.functionName(), CodeLoc.fileName(),
+                                 CodeLoc.lineNumber(), CodeLoc.columnNumber(),
+                                 (void *)this);
+  } else {
+    Event = xptiCreateTracepoint(Name.c_str(), nullptr, 0, 0, (void *)this);
+  }
+
+  IId = xptiGetUniqueId();
+  auto WaitEvent = Event->event_ref();
+  // We will allow the device type to be set
+  xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
+  // We limit the amount of metadata that is added to the regular stream.
+  // Only "sycl.debug" stream will have the full information. This improves the
+  // performance when this data is not required by the tool or the collector.
+  if (isDebugStream(StreamID)) {
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
@@ -551,11 +553,11 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
           WaitEvent, "sym_column_no",
           static_cast<xpti::object_id_t>((CodeLoc.columnNumber())));
     }
-    xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
-                          QWaitInstanceNo,
-                          static_cast<const void *>(Name.c_str()));
-    TraceEvent = (void *)WaitEvent;
   }
+  xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
+                        IId, static_cast<const void *>(Name.c_str()));
+  TraceEvent = (void *)WaitEvent;
+
   return TraceEvent;
 }
 
@@ -578,13 +580,11 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
 void queue_impl::wait(const detail::code_location &CodeLoc) {
   (void)CodeLoc;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  const bool xptiEnabled = xptiCheckTraceEnabled(GSYCLStreamID);
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  if (xptiEnabled) {
-    TelemetryEvent = instrumentationProlog(CodeLoc, Name, GSYCLStreamID, IId);
-  }
+  auto StreamID = detail::getActiveXPTIStreamID();
+  TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
   if (!MGraph.expired()) {
@@ -664,51 +664,50 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiEnabled) {
-    instrumentationEpilog(TelemetryEvent, Name, GSYCLStreamID, IId);
-  }
+  // There is an early return in instrumentationEpilog() if no subscribers are
+  // subscribing to queue.wait().
+  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
 }
 
 void queue_impl::constructorNotification() {
 #if XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    constexpr uint16_t NotificationTraceType =
-        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    if (xptiCheckTraceEnabled(detail::GSYCLStreamID, NotificationTraceType)) {
-      xpti::utils::StringHelper SH;
-      std::string AddrStr = SH.addressAsString<size_t>(MQueueID);
-      std::string QueueName = SH.nameWithAddressString("queue", AddrStr);
-      // Create a payload for the queue create event as we do not get code
-      // location for the queue create event
-      xpti::payload_t QPayload(QueueName.c_str());
-      MInstanceID = xptiGetUniqueId();
-      uint64_t RetInstanceNo;
-      xpti_td *TEvent =
-          xptiMakeEvent("queue_create", &QPayload,
-                        (uint16_t)xpti::trace_event_type_t::algorithm,
-                        xpti_at::active, &RetInstanceNo);
-      // Cache the trace event, stream id and instance IDs for the destructor
-      MTraceEvent = (void *)TEvent;
+  // If there are no subscribers to queue_create, return immediately.
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+  if (!anyTraceEnabled(NotificationTraceType))
+    return;
+  // We do not have CodeLoc for the queue constructor, so we will have to create
+  // a queue name with the queue ID to create an event; this step can be avoided
+  // by using CodeLoc.
+  xpti::utils::StringHelper SH;
+  std::string AddrStr = SH.addressAsString<size_t>(MQueueID);
+  std::string QueueName = SH.nameWithAddressString("queue", AddrStr);
 
-      xpti::addMetadata(TEvent, "sycl_context",
-                        reinterpret_cast<size_t>(MContext->getHandleRef()));
-      xpti::addMetadata(TEvent, "sycl_device_name",
-                        MDevice.get_info<info::device::name>());
-      xpti::addMetadata(TEvent, "sycl_device",
-                        reinterpret_cast<size_t>(MDevice.getHandleRef()));
-      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-      xpti::addMetadata(TEvent, "queue_id", MQueueID);
-      xpti::addMetadata(TEvent, "queue_handle",
-                        reinterpret_cast<size_t>(getHandleRef()));
-      // Also publish to TLS before notification
-      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-      xptiNotifySubscribers(detail::GSYCLStreamID,
-                            (uint16_t)xpti::trace_point_type_t::queue_create,
-                            nullptr, TEvent, MInstanceID,
-                            static_cast<const void *>("queue_create"));
-    }
-  }
+  xpti_tracepoint_t *Event =
+      xptiCreateTracepoint(QueueName.c_str(), nullptr, 0, 0, (void *)this);
+  MInstanceID = xptiGetUniqueId();
+  xpti_td *TEvent = Event->event_ref();
+  // Cache the trace event, stream id and instance IDs for the destructor.
+  MTraceEvent = (void *)TEvent;
+  // We will allow the queue metadata to be set as this is performed
+  // infrequently.
+  xpti::addMetadata(TEvent, "sycl_context",
+                    reinterpret_cast<size_t>(MContext->getHandleRef()));
+  xpti::addMetadata(TEvent, "sycl_device_name",
+                    MDevice.get_info<info::device::name>());
+  xpti::addMetadata(TEvent, "sycl_device",
+                    reinterpret_cast<size_t>(MDevice.getHandleRef()));
+  xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+  xpti::addMetadata(TEvent, "queue_id", MQueueID);
+  xpti::addMetadata(TEvent, "queue_handle",
+                    reinterpret_cast<size_t>(getHandleRef()));
+  // Also publish to TLS before notification.
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
+  xptiNotifySubscribers(detail::getActiveXPTIStreamID(),
+                        (uint16_t)xpti::trace_point_type_t::queue_create,
+                        nullptr, TEvent, MInstanceID,
+                        static_cast<const void *>("queue_create"));
 #endif
 }
 
@@ -716,10 +715,11 @@ void queue_impl::destructorNotification() {
 #if XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType =
       static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
-  if (xptiCheckTraceEnabled(detail::GSYCLStreamID, NotificationTraceType)) {
+  if (anyTraceEnabled(NotificationTraceType)) {
     // Use the cached trace event, stream id and instance IDs for the
     // destructor
-    xptiNotifySubscribers(detail::GSYCLStreamID, NotificationTraceType, nullptr,
+    xptiNotifySubscribers(detail::getActiveXPTIStreamID(),
+                          NotificationTraceType, nullptr,
                           (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
                           static_cast<const void *>("queue_destroy"));
     xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
