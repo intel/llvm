@@ -10,7 +10,7 @@
 #include <clc/common/clc_radians.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_radians
-#define __IMPL_FUNCTION(x) __clc_radians
+#define __CLC_FUNCTION __spirv_ocl_radians
+#define __CLC_IMPL_FUNCTION(x) __clc_radians
 #define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

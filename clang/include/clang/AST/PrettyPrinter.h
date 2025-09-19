@@ -63,10 +63,10 @@ struct PrintingPolicy {
         SuppressTagKeyword(LO.CPlusPlus), IncludeTagDefinition(false),
         SuppressScope(false), SuppressUnwrittenScope(false),
         SuppressInlineNamespace(SuppressInlineNamespaceMode::Redundant),
-        SuppressElaboration(false), SuppressInitializers(false),
-        ConstantArraySizeAsWritten(false), AnonymousTagLocations(true),
-        SuppressStrongLifetime(false), SuppressLifetimeQualifiers(false),
-        SuppressTypedefs(false), SuppressFinalSpecifier(false),
+        SuppressInitializers(false), ConstantArraySizeAsWritten(false),
+        AnonymousTagLocations(true), SuppressStrongLifetime(false),
+        SuppressLifetimeQualifiers(false), SuppressTypedefs(false),
+        SuppressFinalSpecifier(false),
         SuppressTemplateArgsInCXXConstructors(false),
         SuppressDefaultTemplateArgs(true), EnforceDefaultTemplateArgs(false),
         Bool(LO.Bool), Nullptr(LO.CPlusPlus11 || LO.C23),
@@ -163,11 +163,6 @@ struct PrintingPolicy {
   /// removed.
   LLVM_PREFERRED_TYPE(SuppressInlineNamespaceMode)
   unsigned SuppressInlineNamespace : 2;
-
-  /// Ignore qualifiers and tag keywords as specified by elaborated type sugar,
-  /// instead letting the underlying type print as normal.
-  LLVM_PREFERRED_TYPE(bool)
-  unsigned SuppressElaboration : 1;
 
   /// Suppress printing of variable initializers.
   ///

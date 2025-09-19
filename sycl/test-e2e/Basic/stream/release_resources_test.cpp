@@ -1,3 +1,6 @@
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
+
 // UNSUPPORTED: windows
 // UNSUPPORTED-INTENDED: We can't safely release any resoureces on Windows, so
 // the test is expected to fail there. See comments in

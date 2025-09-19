@@ -54,18 +54,19 @@
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=graniterapids %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-CPU,CLANG-OFFLOAD-PACKAGER-CPU -DDEV_STR=graniterapids
 
+// Tests for handling a missing architecture.
+//
+// RUN:  %clangxx --offload-new-driver -fsycl --offload-arch= %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefixes=TARGET-TRIPLE-DEFAULT,CLANG-OFFLOAD-PACKAGER-DEFAULT %s
+// RUN:  %clang_cl --offload-new-driver -fsycl --offload-arch= %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefixes=TARGET-TRIPLE-DEFAULT,CLANG-OFFLOAD-PACKAGER-DEFAULT %s
+
 // TARGET-TRIPLE-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // TARGET-TRIPLE-CPU: "-D__SYCL_TARGET_INTEL_X86_64__"
 // CLANG-OFFLOAD-PACKAGER-CPU: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_x86_64-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
 
-// Tests for handling a missing architecture.
-//
-// RUN: not %clangxx --offload-new-driver -fsycl --offload-arch= %s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix=MISSING %s
-// RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch= %s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix=MISSING %s
-
-// MISSING: error: must pass in an explicit cpu or gpu architecture to '--offload-arch'
+// TARGET-TRIPLE-DEFAULT: clang{{.*}} "-triple" "spir64-unknown-unknown"
+// CLANG-OFFLOAD-PACKAGER-DEFAULT: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
 
 // Tests for handling a incorrect architecture.
 //
@@ -74,6 +75,6 @@
 // RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch=badArch %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=BAD-ARCH %s
 
-// BAD-ARCH: error: SYCL target is invalid: 'badArch'
+// BAD-ARCH: error: unsupported offload gpu architecture: badArch
 
 
