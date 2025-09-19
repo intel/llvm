@@ -125,6 +125,7 @@ Clang Python Bindings Potentially Breaking Changes
 - TypeKind ``ELABORATED`` is not used anymore, per clang AST changes removing
   ElaboratedTypes. The value becomes unused, and all the existing users should
   expect the former underlying type to be reported instead.
+- Remove ``AccessSpecifier.NONE`` kind. No libclang interfaces ever returned this kind.
 
 What's New in Clang |release|?
 ==============================
@@ -264,7 +265,8 @@ Improvements to Clang's diagnostics
 - Fixed fix-it hint for fold expressions. Clang now correctly places the suggested right
   parenthesis when diagnosing malformed fold expressions. (#GH151787)
 - Added fix-it hint for when scoped enumerations require explicit conversions for binary operations. (#GH24265)
-
+- Constant template parameters are now type checked in template definitions,
+  including template template parameters.
 - Fixed an issue where emitted format-signedness diagnostics were not associated with an appropriate
   diagnostic id. Besides being incorrect from an API standpoint, this was user visible, e.g.:
   "format specifies type 'unsigned int' but the argument has type 'int' [-Wformat]"
@@ -562,9 +564,11 @@ OpenMP Support
 - Allow array length to be omitted in array section subscript expression.
 - Fixed non-contiguous strided update in the ``omp target update`` directive with the ``from`` clause.
 - Properly handle array section/assumed-size array privatization in C/C++.
+- Added support to handle new syntax of the ``uses_allocators`` clause.
 - Added support for ``variable-category`` modifier in ``default clause``.
 - Added support for ``defaultmap`` directive implicit-behavior ``storage``.
 - Added support for ``defaultmap`` directive implicit-behavior ``private``.
+- Added parsing and semantic analysis support for ``groupprivate`` directive.
 
 Improvements
 ^^^^^^^^^^^^

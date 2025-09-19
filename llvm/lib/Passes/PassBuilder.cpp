@@ -292,6 +292,7 @@
 #include "llvm/Transforms/Scalar/DFAJumpThreading.h"
 #include "llvm/Transforms/Scalar/DeadStoreElimination.h"
 #include "llvm/Transforms/Scalar/DivRemPairs.h"
+#include "llvm/Transforms/Scalar/DropUnnecessaryAssumes.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/FlattenCFG.h"
 #include "llvm/Transforms/Scalar/Float2Int.h"
@@ -2117,11 +2118,8 @@ Error PassBuilder::parseFunctionPass(FunctionPassManager &FPM,
       bool UseBFI = llvm::any_of(InnerPipeline, [](auto Pipeline) {
         return Pipeline.Name.contains("simple-loop-unswitch");
       });
-      bool UseBPI = llvm::any_of(InnerPipeline, [](auto Pipeline) {
-        return Pipeline.Name == "loop-predication";
-      });
       FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM), UseMemorySSA,
-                                                  UseBFI, UseBPI));
+                                                  UseBFI));
       return Error::success();
     }
     if (Name == "machine-function") {
