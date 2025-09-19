@@ -4,7 +4,7 @@
 // RUN: %{build} %device_asan_flags -DTEST2 -O0 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK2 %s
 
-// XFAIL: spirv-backend && gpu
+// XFAIL: spirv-backend
 // XFAIL-TRACKER: CMPLRLLVM-64052
 
 #include <sycl/detail/core.hpp>
