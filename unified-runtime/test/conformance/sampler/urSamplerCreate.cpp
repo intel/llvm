@@ -95,8 +95,9 @@ TEST_P(urSamplerCreateTest, InvalidNullHandleContext) {
       UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
   };
   uur::raii::Sampler hSampler = nullptr;
-  ASSERT_EQ_RESULT(urSamplerCreate(nullptr, &sampler_desc, hSampler.ptr()),
-                   UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UUR_ASSERT_RESULT_OR_UNSUPPORTED(
+      urSamplerCreate(nullptr, &sampler_desc, hSampler.ptr()),
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urSamplerCreateTest, InvalidEnumerationAddrMode) {
@@ -108,8 +109,9 @@ TEST_P(urSamplerCreateTest, InvalidEnumerationAddrMode) {
       UR_SAMPLER_FILTER_MODE_LINEAR,           /* filterMode */
   };
   uur::raii::Sampler hSampler = nullptr;
-  ASSERT_EQ_RESULT(urSamplerCreate(context, &sampler_desc, hSampler.ptr()),
-                   UR_RESULT_ERROR_INVALID_ENUMERATION);
+  UUR_ASSERT_RESULT_OR_UNSUPPORTED(
+      urSamplerCreate(context, &sampler_desc, hSampler.ptr()),
+      UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 TEST_P(urSamplerCreateTest, InvalidEnumerationFilterMode) {
@@ -121,8 +123,9 @@ TEST_P(urSamplerCreateTest, InvalidEnumerationFilterMode) {
       UR_SAMPLER_FILTER_MODE_FORCE_UINT32, /* filterMode */
   };
   uur::raii::Sampler hSampler = nullptr;
-  ASSERT_EQ_RESULT(urSamplerCreate(context, &sampler_desc, hSampler.ptr()),
-                   UR_RESULT_ERROR_INVALID_ENUMERATION);
+  UUR_ASSERT_RESULT_OR_UNSUPPORTED(
+      urSamplerCreate(context, &sampler_desc, hSampler.ptr()),
+      UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
 
 TEST_P(urSamplerCreateTest, InvalidNullPointer) {
@@ -134,9 +137,11 @@ TEST_P(urSamplerCreateTest, InvalidNullPointer) {
       UR_SAMPLER_FILTER_MODE_FORCE_UINT32, /* filterMode */
   };
   uur::raii::Sampler hSampler = nullptr;
-  ASSERT_EQ_RESULT(urSamplerCreate(context, nullptr, hSampler.ptr()),
-                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UUR_ASSERT_RESULT_OR_UNSUPPORTED(
+      urSamplerCreate(context, nullptr, hSampler.ptr()),
+      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  ASSERT_EQ_RESULT(urSamplerCreate(context, &sampler_desc, nullptr),
-                   UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UUR_ASSERT_RESULT_OR_UNSUPPORTED(
+      urSamplerCreate(context, &sampler_desc, nullptr),
+      UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
