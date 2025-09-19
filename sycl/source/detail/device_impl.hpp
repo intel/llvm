@@ -432,7 +432,7 @@ public:
   // Must be called through `platform_impl::getOrMakeDeviceImpl` only.
   // `private_tag` ensures that is true.
   explicit device_impl(ur_device_handle_t Device, platform_impl &Platform,
-                       private_tag);
+                       private_tag, bool IsSubDevice);
 
   ~device_impl();
 

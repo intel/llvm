@@ -298,7 +298,8 @@ device_impl *platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
   return getDeviceImplHelper(UrDevice);
 }
 
-device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
+device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
+                                                bool IsSubDevice) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
   // If we've already seen this device, return the impl
   if (device_impl *Result = getDeviceImplHelper(UrDevice))
@@ -306,7 +307,7 @@ device_impl &platform_impl::getOrMakeDeviceImpl(ur_device_handle_t UrDevice) {
 
   // Otherwise make the impl
   MDevices.emplace_back(std::make_shared<device_impl>(
-      UrDevice, *this, device_impl::private_tag{}));
+      UrDevice, *this, device_impl::private_tag{}, IsSubDevice));
 
   return *MDevices.back();
 }

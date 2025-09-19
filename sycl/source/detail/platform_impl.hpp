@@ -170,7 +170,8 @@ public:
   /// \param PlatormImpl is the Platform for that Device
   ///
   /// \return a device_impl* corresponding to the device
-  device_impl &getOrMakeDeviceImpl(ur_device_handle_t UrDevice);
+  device_impl &getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
+                                   bool IsSubDevice = false);
 
   /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
