@@ -2429,6 +2429,15 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the sub-group clock.
+  UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP = 0x2060,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the work-group clock.
+  UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP = 0x2061,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the device clock.
+  UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
