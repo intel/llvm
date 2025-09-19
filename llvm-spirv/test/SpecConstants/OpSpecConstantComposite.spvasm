@@ -23,7 +23,7 @@
   
 ; CHECK-DEFAULT: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 1, float 0.000000e+00 }, %struct._ZTS1A.A { i32 35, float 0.000000e+00 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 45, i32 55> }     }, ptr addrspace(4) %[[#]]
 
-; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 0x4005AE1480000000 }, %struct._ZTS1A.A { i32 43, float 0x40091EB860000000 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, ptr addrspace(4) %3
+; CHECK-SPEC: store %struct._ZTS3POD.POD { [2 x %struct._ZTS1A.A] [%struct._ZTS1A.A { i32 42, float 0x4005AE1480000000 }, %struct._ZTS1A.A { i32 43, float 0x40091EB860000000 }], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" { <2 x i32> <i32 44, i32 55> } }, ptr addrspace(4) %2
 
 ; SPIR-V
 ; Version: 1.1
@@ -113,13 +113,12 @@
          %32 = OpInBoundsPtrAccessChain %_ptr_Function_ulong %_arg_3 %ulong_0 %uint_0 %uint_0 %ulong_0
          %33 = OpLoad %ulong %32 Aligned 8
   %add_ptr_i = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_struct__ZTS3POD_POD %_arg_ %33
-         %37 = OpBitcast %_ptr_Function_uchar %ref_tmp_i
-               OpLifetimeStart %37 24
+               OpLifetimeStart %ref_tmp_i 24
          %39 = OpPtrCastToGeneric %_ptr_Generic_struct__ZTS3POD_POD %ref_tmp_i
                OpStore %39 %51 Aligned 8
          %53 = OpBitcast %_ptr_CrossWorkgroup_uchar %add_ptr_i
          %55 = OpPtrCastToGeneric %_ptr_Generic_uchar %53
-               OpCopyMemorySized %55 %37 %ulong_24 Aligned 8
-               OpLifetimeStop %37 24
+               OpCopyMemorySized %55 %ref_tmp_i %ulong_24 Aligned 8
+               OpLifetimeStop %ref_tmp_i 24
                OpReturn
                OpFunctionEnd
