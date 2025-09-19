@@ -120,7 +120,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgLocal = nullptr;
   pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
-  pDdiTable->pfnSetArgSampler = nullptr;
+  pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
@@ -134,12 +134,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnCreate = urSamplerCreate;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = urSamplerGetInfo;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
+  pDdiTable->pfnRelease = urSamplerRelease;
+  pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
 }
 
@@ -152,11 +152,11 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
   pDdiTable->pfnBufferCreate = urMemBufferCreate;
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
   pDdiTable->pfnBufferCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnImageCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urMemGetInfo;
   pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnImageCreate = nullptr;
-  pDdiTable->pfnImageGetInfo = nullptr;
+  pDdiTable->pfnImageCreate = urMemImageCreate;
+  pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
   pDdiTable->pfnRelease = urMemRelease;
   pDdiTable->pfnRetain = urMemRetain;
   return UR_RESULT_SUCCESS;
