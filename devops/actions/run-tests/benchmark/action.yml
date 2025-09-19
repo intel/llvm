@@ -133,6 +133,11 @@ runs:
       cmake --install build
 
       cd -
+  - name: Install linux-tools package
+    shell: bash
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y linux-tools-generic linux-tools-$(uname -r)
   - name: Checkout results repo
     shell: bash
     run: |
@@ -203,7 +208,9 @@ runs:
         --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
-        --detect-version sycl,compute_runtime
+        --detect-version sycl,compute_runtime \
+        --flamegraph inclusive \
+        --unitrace
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
