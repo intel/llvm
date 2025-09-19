@@ -21,8 +21,10 @@
 
 // RUN: %{run} %t1.out
 
-// UNSUPPORTED: target-nvidia || target-amd || target-native_cpu
-// UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD, Native CPU
-// and Nvidia.
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
 
 #include "bfloat16_conversion_dlopen_test.hpp"

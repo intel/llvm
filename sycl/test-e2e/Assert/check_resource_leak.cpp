@@ -1,11 +1,16 @@
 // RUN: %{build} -Wno-error=#warnings -o %t.out
 // RUN: %{run} %t.out
 
-// Device globals aren't supported on opencl:gpu or Native CPU yet.
-// UNSUPPORTED: (opencl && gpu) || target-native_cpu
+// Device globals aren't supported on opencl:gpu yet.
+// UNSUPPORTED: opencl && gpu
 
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
+
 #define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/detail/core.hpp>

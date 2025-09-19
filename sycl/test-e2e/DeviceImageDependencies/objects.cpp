@@ -1,7 +1,4 @@
 // Test -fsycl-allow-device-image-dependencies with objects.
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer
 
 // RUN: %clangxx -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o
@@ -9,3 +6,7 @@
 // RUN: %clangxx -fsycl %S/Inputs/d.cpp -I %S/Inputs -c -o %t_d.o
 // RUN: %clangxx -fsycl %{sycl_target_opts} -fsycl-device-code-split=per_kernel -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o %S/Inputs/basic.cpp -o %t.out
 // RUN: %{run} %t.out
+
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
+// investigated and tracked post team transfer.
