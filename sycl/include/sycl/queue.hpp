@@ -140,6 +140,64 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
+template<typename KernelType, typename TransformedArgType, int Dims>
+std::shared_ptr<detail::HostKernelBase> CopyHostKernel(const void *KernelFunc) {
+  const KernelType &KernelFuncRef = *static_cast<const KernelType*>(KernelFunc);
+  std::shared_ptr<detail::HostKernelBase> HostKernel;
+  HostKernel.reset(new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+        KernelFuncRef));
+  return HostKernel;
+}
+
+using HostKernelFactory = std::shared_ptr<detail::HostKernelBase>(*)(const void*);
+
+using KernelParamDescGetterFuncPtr = detail::kernel_param_desc_t (*)(int);
+
+// This class is intended to store the kernel runtime information,
+// extracted from the compile time kernel structures.
+class __SYCL_EXPORT KernelRuntimeInfo {
+public:
+  KernelRuntimeInfo() {}
+
+  KernelRuntimeInfo(const KernelRuntimeInfo &rhs) = delete;
+
+  KernelRuntimeInfo(KernelRuntimeInfo &&rhs) = delete;
+
+  KernelRuntimeInfo &operator=(const KernelRuntimeInfo &rhs) = delete;
+
+  KernelRuntimeInfo &operator=(KernelRuntimeInfo &&rhs) = delete;
+
+  char *GetKernelFuncPtr() const {
+    return static_cast<char *>(const_cast<void *>(MHostKernelPtr));
+  }
+
+  void SaveHostKernelRef(const void *KernelFuncPtr, HostKernelFactory Factory) {
+    MHostKernelFactory = Factory;
+    MHostKernelPtr = KernelFuncPtr;
+  }
+
+  std::shared_ptr<detail::HostKernelBase> CopyHostKernel() const {
+    if (MHostKernelFactory && MHostKernelPtr)
+      return MHostKernelFactory(MHostKernelPtr);
+    return nullptr;
+  }
+
+  detail::DeviceKernelInfo *&DeviceKernelInfoPtr() {
+    return MDeviceKernelInfoPtr;
+  }
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr() const {
+    return MDeviceKernelInfoPtr;
+  }
+
+private:
+  detail::ABINeutralKernelNameStrT MKernelName;
+  HostKernelFactory MHostKernelFactory = nullptr;
+  // points to the kernel function object allocated on stack, it's a lambda
+  // function, so have to use void* here
+  const void *MHostKernelPtr = nullptr;
+  detail::DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
+};
+
 } // namespace v1
 } // namespace detail
 
@@ -158,6 +216,19 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc);
+
+template <typename KernelName, typename PropertiesT, typename KernelType,
+          int Dims>
+void submit_kernel_direct_impl(const queue &Q, PropertiesT Props,
+                               nd_range<Dims> Range,
+                               const KernelType &KernelFunc,
+                               const sycl::detail::code_location &CodeLoc);
+
+template <typename KernelName, typename PropertiesT, typename KernelType,
+          int Dims>
+event submit_kernel_direct_with_event_impl(
+    const queue &Q, PropertiesT Props, nd_range<Dims> Range,
+    const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
@@ -2650,12 +2721,22 @@ public:
         "Use queue.submit() instead");
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    (void)Properties;
+    return submit_kernel_direct_with_event<detail::WrapAs::single_task,
+                                           KernelName>(
+        ext::oneapi::experimental::empty_properties_t{}, nd_range<1>{1, 1},
+        KernelFunc);
+
+#else
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
               Properties, KernelFunc);
         },
         TlsCodeLocCapture.query());
+#endif
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3203,11 +3284,25 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    if constexpr (sizeof...(RestT) == 1) {
+      return submit_kernel_direct_with_event<detail::WrapAs::parallel_for,
+                                             KernelName, sycl::nd_item<Dims>>(
+          ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
+    } else {
+      return submit(
+          [&](handler &CGH) {
+            CGH.template parallel_for<KernelName>(Range, Rest...);
+          },
+          TlsCodeLocCapture.query());
+    }
+#else
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Rest...);
         },
         TlsCodeLocCapture.query());
+#endif
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -3586,6 +3681,19 @@ private:
       const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
+  template <typename KernelName, typename PropertiesT, typename KernelType,
+            int Dims>
+  friend void ext::oneapi::experimental::detail::submit_kernel_direct_impl(
+      const queue &Q, PropertiesT Props, nd_range<Dims> Range,
+      const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
+
+  template <typename KernelName, typename PropertiesT, typename KernelType,
+            int Dims>
+  friend event
+  ext::oneapi::experimental::detail::submit_kernel_direct_with_event_impl(
+      const queue &Q, PropertiesT Props, nd_range<Dims> Range,
+      const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
+
   template <typename PropertiesT>
   void ProcessSubmitProperties(PropertiesT Props,
                                detail::v1::SubmissionInfo &SI) const {
@@ -3597,6 +3705,32 @@ private:
           ext::oneapi::experimental::event_mode_enum::none)
         SI.EventMode() = EventModeProp.value;
     }
+  }
+
+  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+    using type = std::conditional_t<
+        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
+        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
+                           item<Dims>, LambdaArgType>>;
+  };
+
+  template <typename KernelName, typename KernelType, int Dims,
+            detail::WrapAs WrapAsVal>
+  void ProcessKernelRuntimeInfo(const KernelType &KernelFunc,
+                                detail::v1::KernelRuntimeInfo &KRInfo) const {
+
+    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        WrapAsVal == detail::WrapAs::parallel_for,
+        std::conditional_t<
+            std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+            typename TransformUserItemType<Dims, LambdaArgType>::type>,
+        void>;
+
+    KRInfo.SaveHostKernelRef(&KernelFunc,
+        detail::v1::CopyHostKernel<KernelType, TransformedArgType, Dims>);
+
+    KRInfo.DeviceKernelInfoPtr() = &detail::getDeviceKernelInfo<KernelName>();
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -3670,6 +3804,30 @@ private:
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
+  event submit_kernel_direct_with_event_impl(
+      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  event submit_kernel_direct_with_event_impl(
+      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  event submit_kernel_direct_with_event_impl(
+      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  void submit_kernel_direct_without_event_impl(
+      nd_range<1> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  void submit_kernel_direct_without_event_impl(
+      nd_range<2> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+  void submit_kernel_direct_without_event_impl(
+      nd_range<3> Range, const detail::v1::KernelRuntimeInfo &KRInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
   /// A template-free version of submit_without_event as const member function.
   void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                  const detail::v1::SubmissionInfo &SubmitInfo,
@@ -3697,6 +3855,56 @@ private:
     ProcessSubmitProperties(Props, SI);
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
+  }
+
+  template <detail::WrapAs WrapAsVal, typename KernelName = detail::auto_name,
+            typename ElementType = void, typename PropertiesT,
+            typename KernelType, int Dims>
+  event
+  submit_kernel_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
+                                  const KernelType &KernelFunc,
+                                  const detail::code_location &CodeLoc =
+                                      detail::code_location::current()) const {
+    (void)Props;
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::KernelRuntimeInfo KRInfo{};
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims, WrapAsVal>(KernelFunc,
+                                                                 KRInfo);
+
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
+                          PropertiesT>::wrap(KernelFunc);
+
+    return submit_kernel_direct_with_event_impl(Range, KRInfo,
+                                                TlsCodeLocCapture.query(),
+                                                TlsCodeLocCapture.isToplevel());
+  }
+
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename KernelType, int Dims>
+  void submit_kernel_direct_without_event(
+      PropertiesT Props, nd_range<Dims> Range, const KernelType &KernelFunc,
+      const detail::code_location &CodeLoc =
+          detail::code_location::current()) const {
+    (void)Props;
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    detail::v1::KernelRuntimeInfo KRInfo{};
+
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    ProcessKernelRuntimeInfo<NameT, KernelType, Dims,
+                             detail::WrapAs::parallel_for>(KernelFunc, KRInfo);
+
+    detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                          sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
+
+    submit_kernel_direct_without_event_impl(Range, KRInfo,
+                                            TlsCodeLocCapture.query(),
+                                            TlsCodeLocCapture.isToplevel());
   }
 
   /// Submits a command group function object to the queue, in order to be
