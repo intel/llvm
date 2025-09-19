@@ -88,33 +88,6 @@ context_impl &platform_impl::khr_get_default_context() {
   return *It->second;
 }
 
-static bool IsBannedPlatform(platform Platform) {
-  // The NVIDIA OpenCL platform is currently not compatible with DPC++
-  // since it is only 1.2 but gets selected by default in many systems
-  // There is also no support on the PTX backend for OpenCL consumption,
-  // and there have been some internal reports.
-  // To avoid problems on default users and deployment of DPC++ on platforms
-  // where CUDA is available, the OpenCL support is disabled.
-  //
-  // There is also no support for the AMD HSA backend for OpenCL consumption,
-  // as well as reported problems with device queries, so AMD OpenCL support
-  // is disabled as well.
-  //
-  auto IsMatchingOpenCL = [](platform Platform, const std::string_view name) {
-    const bool HasNameMatch = Platform.get_info<info::platform::name>().find(
-                                  name) != std::string::npos;
-    const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
-    const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
-    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL) && IsMatchingOCL) {
-      std::cout << "SYCL_UR_TRACE: " << name
-                << " OpenCL platform found but is not compatible." << std::endl;
-    }
-    return IsMatchingOCL;
-  };
-  return IsMatchingOpenCL(Platform, "NVIDIA CUDA") ||
-         IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
-}
-
 // Get the vector of platforms supported by a given UR adapter
 // replace uses of this with a helper in adapter object, the adapter
 // objects will own the ur adapter handles and they'll need to pass them to
@@ -132,25 +105,13 @@ std::vector<platform> platform_impl::getAdapterPlatforms(adapter_impl &Adapter,
   for (const auto &UrPlatform : UrPlatforms) {
     platform Platform = detail::createSyclObjFromImpl<platform>(
         getOrMakePlatformImpl(UrPlatform, Adapter));
-    const bool IsBanned = IsBannedPlatform(Platform);
-    bool HasAnyDevices = false;
-
-    // Platform.get_devices() increments the device count for the platform
-    // and if the platform is banned (like OpenCL for AMD), it can cause
-    // incorrect device numbering, when used with ONEAPI_DEVICE_SELECTOR.
-    if (!IsBanned)
-      HasAnyDevices = !Platform.get_devices(info::device_type::all).empty();
+    bool HasAnyDevices = !Platform.get_devices(info::device_type::all).empty();
 
     if (!Supported) {
-      if (IsBanned || !HasAnyDevices) {
+      if (!HasAnyDevices) {
         Platforms.push_back(std::move(Platform));
       }
     } else {
-      if (IsBanned) {
-        continue; // bail as early as possible, otherwise banned platforms may
-                  // mess up device counting
-      }
-
       // The SYCL spec says that a platform has one or more devices. ( SYCL
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
