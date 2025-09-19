@@ -135,21 +135,28 @@ TEST(CompressionTest, ConcurrentDecompressionOfDeviceImage) {
   _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-  sycl_device_binary_struct BinStruct{/*Version*/ 1,
-                                      /*Kind*/ 4,
-                                      /*Format*/ SYCL_DEVICE_BINARY_TYPE_SPIRV,
-                                      /*DeviceTargetSpec*/ nullptr,
-                                      /*CompileOptions*/ nullptr,
-                                      /*LinkOptions*/ nullptr,
-                                      /*ManifestStart*/ nullptr,
-                                      /*ManifestEnd*/ nullptr,
-                                      /*BinaryStart*/ compressedDataPtr,
-                                      /*BinaryEnd*/ compressedDataPtr +
-                                          compressedSize,
-                                      /*EntriesBegin*/ &EntryStruct,
-                                      /*EntriesEnd*/ &EntryStruct + 1,
-                                      /*PropertySetsBegin*/ nullptr,
-                                      /*PropertySetsEnd*/ nullptr};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  sycl_device_binary_struct BinStruct { /*Version*/
+    1,
+#else
+  sycl_device_binary_struct BinStruct{/*Version*/ 3,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*Kind*/ 4,
+        /*Format*/ SYCL_DEVICE_BINARY_TYPE_SPIRV,
+        /*DeviceTargetSpec*/ nullptr,
+        /*CompileOptions*/ nullptr,
+        /*LinkOptions*/ nullptr,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        /*ManifestStart*/ nullptr,
+        /*ManifestEnd*/ nullptr,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*BinaryStart*/ compressedDataPtr,
+        /*BinaryEnd*/ compressedDataPtr + compressedSize,
+        /*EntriesBegin*/ &EntryStruct,
+        /*EntriesEnd*/ &EntryStruct + 1,
+        /*PropertySetsBegin*/ nullptr,
+        /*PropertySetsEnd*/ nullptr
+  };
   sycl_device_binary Bin = &BinStruct;
   CompressedRTDeviceBinaryImage Img{Bin};
 

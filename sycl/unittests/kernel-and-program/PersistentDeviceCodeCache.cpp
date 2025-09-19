@@ -263,20 +263,28 @@ protected:
   _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-  sycl_device_binary_struct BinStruct{/*Version*/ 1,
-                                      /*Kind*/ 4,
-                                      /*Format*/ GetParam(),
-                                      /*DeviceTargetSpec*/ nullptr,
-                                      /*CompileOptions*/ nullptr,
-                                      /*LinkOptions*/ nullptr,
-                                      /*ManifestStart*/ nullptr,
-                                      /*ManifestEnd*/ nullptr,
-                                      /*BinaryStart*/ nullptr,
-                                      /*BinaryEnd*/ nullptr,
-                                      /*EntriesBegin*/ &EntryStruct,
-                                      /*EntriesEnd*/ &EntryStruct + 1,
-                                      /*PropertySetsBegin*/ nullptr,
-                                      /*PropertySetsEnd*/ nullptr};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  sycl_device_binary_struct BinStruct { /*Version*/
+    1,
+#else
+  sycl_device_binary_struct BinStruct{/*Version*/ 3,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*Kind*/ 4,
+        /*Format*/ GetParam(),
+        /*DeviceTargetSpec*/ nullptr,
+        /*CompileOptions*/ nullptr,
+        /*LinkOptions*/ nullptr,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        /*ManifestStart*/ nullptr,
+        /*ManifestEnd*/ nullptr,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*BinaryStart*/ nullptr,
+        /*BinaryEnd*/ nullptr,
+        /*EntriesBegin*/ &EntryStruct,
+        /*EntriesEnd*/ &EntryStruct + 1,
+        /*PropertySetsBegin*/ nullptr,
+        /*PropertySetsEnd*/ nullptr
+  };
   sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
   ur_program_handle_t NativeProg;
@@ -313,20 +321,28 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
-  sycl_device_binary_struct ExtraBinStruct{/*Version*/ 1,
-                                           /*Kind*/ 4,
-                                           /*Format*/ GetParam(),
-                                           /*DeviceTargetSpec*/ nullptr,
-                                           /*CompileOptions*/ nullptr,
-                                           /*LinkOptions*/ nullptr,
-                                           /*ManifestStart*/ nullptr,
-                                           /*ManifestEnd*/ nullptr,
-                                           /*BinaryStart*/ nullptr,
-                                           /*BinaryEnd*/ nullptr,
-                                           /*EntriesBegin*/ &ExtraEntryStruct,
-                                           /*EntriesEnd*/ &ExtraEntryStruct + 1,
-                                           /*PropertySetsBegin*/ nullptr,
-                                           /*PropertySetsEnd*/ nullptr};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  sycl_device_binary_struct ExtraBinStruct { /*Version*/
+    1,
+#else
+  sycl_device_binary_struct ExtraBinStruct{/*Version*/ 3,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*Kind*/ 4,
+        /*Format*/ GetParam(),
+        /*DeviceTargetSpec*/ nullptr,
+        /*CompileOptions*/ nullptr,
+        /*LinkOptions*/ nullptr,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        /*ManifestStart*/ nullptr,
+        /*ManifestEnd*/ nullptr,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*BinaryStart*/ nullptr,
+        /*BinaryEnd*/ nullptr,
+        /*EntriesBegin*/ &ExtraEntryStruct,
+        /*EntriesEnd*/ &ExtraEntryStruct + 1,
+        /*PropertySetsBegin*/ nullptr,
+        /*PropertySetsEnd*/ nullptr
+  };
   sycl_device_binary ExtraBin = &ExtraBinStruct;
   detail::RTDeviceBinaryImage ExtraImg{ExtraBin};
   std::string BuildOptions{"--multiple-images"};
