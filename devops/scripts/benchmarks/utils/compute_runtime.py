@@ -96,6 +96,7 @@ class ComputeRuntime:
                 Path(options.workdir),
                 "vc-intrinsics",
                 no_suffix_src=True,
+                shallow_clone=False,
             )
             llvm_project = GitProject(
                 "https://github.com/llvm/llvm-project",
@@ -125,6 +126,7 @@ class ComputeRuntime:
                 Path(options.workdir),
                 "SPIRV-Tools",
                 no_suffix_src=True,
+                shallow_clone=False,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
@@ -132,6 +134,7 @@ class ComputeRuntime:
                 Path(options.workdir),
                 "SPIRV-Headers",
                 no_suffix_src=True,
+                shallow_clone=False,
             )
 
             configure_args = [
