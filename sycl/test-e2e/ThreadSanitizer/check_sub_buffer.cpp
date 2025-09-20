@@ -5,6 +5,9 @@
 // RUN: %{build} %device_tsan_flags -O2 -g -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
 
+// XFAIL: spirv-backend && arch-intel_gpu_pvc
+// XFAIL-TRACKER: CMPLRLLVM-64052
+
 #include <sycl/detail/core.hpp>
 
 int main() {

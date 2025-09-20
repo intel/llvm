@@ -5,10 +5,6 @@
 // RUN: %{build} -fno-builtin %if target-spir %{ -fsycl-device-lib-jit-link -Wno-deprecated %} -o %t2.out
 // RUN: %{run} %t2.out
 
-// Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend && run-mode
-// XFAIL-TRACKER: CMPLRLLVM-64705
-
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 

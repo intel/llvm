@@ -4,6 +4,9 @@
 // VISALTO enable run
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// UNSUPPORTED: spirv-backend && gpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-70538
+
 /*
  * This test checks the case of calling the same external function from the SPMD
  * and ESIMD kernels.

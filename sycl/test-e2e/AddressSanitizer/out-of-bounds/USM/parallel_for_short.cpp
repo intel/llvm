@@ -10,6 +10,9 @@
 // RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O2 -g -o %t5.out
 // RUN: %{run} not %t5.out &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
 
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64052
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/usm.hpp>
