@@ -5,8 +5,7 @@
 // flow is such that the AOT compilation still happens, it’s just that if we
 // request JIT, it will do the thing again at the run time.
 // UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer.
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
 // TODO: rewrite this into a unit-test
 

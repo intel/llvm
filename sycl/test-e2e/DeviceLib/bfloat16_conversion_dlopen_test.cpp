@@ -24,7 +24,6 @@
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
 // UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
-// investigated and tracked post team transfer.
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "bfloat16_conversion_dlopen_test.hpp"

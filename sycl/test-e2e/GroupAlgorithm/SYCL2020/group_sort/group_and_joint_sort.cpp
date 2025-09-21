@@ -12,9 +12,8 @@
 // Depends on SPIR-V Backend & run-time drivers version.
 // UNSUPPORTED: spirv-backend && cpu
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
-// investigated and tracked post team transfer.
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // The test verifies sort API extension.
 // Currently it checks the following combinations:

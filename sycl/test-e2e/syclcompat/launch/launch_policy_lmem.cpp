@@ -30,9 +30,8 @@
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer.
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>

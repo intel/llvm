@@ -7,9 +7,8 @@
 // RUN: %{build} --offload-new-driver -fsycl-allow-device-image-dependencies %t_a.o %t_b.o %t_c.o %t_d.o -I %S/Inputs -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
-// investigated and tracked post team transfer.
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "a.hpp"
 #include <iostream>

@@ -15,9 +15,8 @@
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64702
 // The test is disabled for spirv-backend while we investigate the root cause.
 
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer.
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>

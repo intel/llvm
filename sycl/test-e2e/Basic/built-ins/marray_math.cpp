@@ -3,9 +3,8 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
-// investigated and tracked post team transfer
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <cmath>
 #include <sycl/detail/core.hpp>

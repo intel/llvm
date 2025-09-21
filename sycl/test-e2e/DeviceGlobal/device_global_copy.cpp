@@ -6,8 +6,7 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 // UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, should be
-// investigated and tracked post team transfer.
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
 // Tests the copy ctor on device_global without device_image_scope.
 

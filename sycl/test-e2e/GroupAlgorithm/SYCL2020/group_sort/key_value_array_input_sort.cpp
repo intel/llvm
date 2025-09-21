@@ -2,9 +2,8 @@
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
 // not supported
-// UNSUPPORTED: target-native_cpu
-// UNSUPPORTED-INTENDED: Currently mark Native CPU as unsupported, it should be
-// investigated and tracked post team transfer.
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
