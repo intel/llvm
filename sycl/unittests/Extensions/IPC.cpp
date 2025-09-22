@@ -42,10 +42,12 @@ ur_result_t replace_urIPCGetMemHandleExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+thread_local ur_bool_t urIPCPutMemHandleExp_explicit = false;
 ur_result_t replace_urIPCPutMemHandleExp(void *pParams) {
   ++urIPCPutMemHandleExp_counter;
   auto params = *static_cast<ur_ipc_put_mem_handle_exp_params_t *>(pParams);
   EXPECT_EQ(*params.phIPCMem, DummyMemHandle);
+  EXPECT_EQ(*params.pputBackendResource, urIPCPutMemHandleExp_explicit);
   return UR_RESULT_SUCCESS;
 }
 
@@ -103,7 +105,9 @@ protected:
   sycl::context Ctxt;
 };
 
-TEST_F(IPCTests, IPCGetPut) {
+TEST_F(IPCTests, IPCGetPutImplicit) {
+  urIPCPutMemHandleExp_explicit = false;
+
   {
     syclexp::ipc_memory IPCMem{DummyPtr, Ctxt};
 
@@ -134,6 +138,61 @@ TEST_F(IPCTests, IPCGetPut) {
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 1);
+}
+
+TEST_F(IPCTests, IPCGetPutExplicit) {
+  urIPCPutMemHandleExp_explicit = true;
+
+  {
+    syclexp::ipc_memory IPCMem{DummyPtr, Ctxt};
+
+    // Creating the IPC memory from a pointer should only call "get".
+    EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
+    EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
+
+    IPCMem.put();
+
+    // Calling "put" explicitly should call the UR function.
+    EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
+    EXPECT_EQ(urIPCPutMemHandleExp_counter, 1);
+    EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
+
+    // calling put() again should now throw.
+    try {
+      IPCMem.put();
+      FAIL();
+    } catch (sycl::exception &E) {
+      EXPECT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
+    }
+
+    // get_handle_data() should now throw.
+    try {
+      IPCMem.get_handle_data();
+      FAIL();
+    } catch (sycl::exception &E) {
+      EXPECT_EQ(E.code(), sycl::make_error_code(sycl::errc::invalid));
+    }
+
+    // After exception cases, no changes should have happened to the counters.
+    EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
+    EXPECT_EQ(urIPCPutMemHandleExp_counter, 1);
+    EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+    EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
+  }
+
+  // When the IPC memory object dies, put has already been called so "put"
+  // should not be called again.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCGetMemHandleDataExp_counter, 0);
 }
 
 TEST_F(IPCTests, IPCOpenClose) {

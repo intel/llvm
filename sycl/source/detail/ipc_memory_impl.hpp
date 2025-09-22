@@ -27,9 +27,8 @@ class ipc_memory_impl {
 public:
   ipc_memory_impl(void *Ptr, const sycl::context &Ctx, private_tag)
       : MContext{getSyclObjImpl(Ctx)}, MPtr{Ptr} {
-    adapter_impl &Adapter = MContext->getAdapter();
-    Adapter.call<UrApiKind::urIPCGetMemHandleExp>(MContext->getHandleRef(), Ptr,
-                                                  &MUrHandle);
+    MContext->getAdapter().call<UrApiKind::urIPCGetMemHandleExp>(
+        MContext->getHandleRef(), Ptr, &MUrHandle.emplace(nullptr));
   }
 
   ipc_memory_impl(const ipc_memory_impl &) = delete;
@@ -37,12 +36,21 @@ public:
 
   ~ipc_memory_impl() {
     try {
-      adapter_impl &Adapter = MContext->getAdapter();
-      Adapter.call_nocheck<UrApiKind::urIPCPutMemHandleExp>(
-          MContext->getHandleRef(), MUrHandle);
+      if (MUrHandle)
+        MContext->getAdapter().call_nocheck<UrApiKind::urIPCPutMemHandleExp>(
+            MContext->getHandleRef(), *MUrHandle, /*putBackendResource=*/false);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ipc_memory_impl", e);
     }
+  }
+
+  void put() {
+    if (!MUrHandle)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "IPC memory object has already been put back.");
+    MContext->getAdapter().call_nocheck<UrApiKind::urIPCPutMemHandleExp>(
+        MContext->getHandleRef(), *MUrHandle, /*putBackendResource=*/true);
+    MUrHandle = std::nullopt;
   }
 
   ipc_memory_impl &operator=(const ipc_memory_impl &) = delete;
@@ -56,11 +64,15 @@ public:
 
   sycl::ext::oneapi::experimental::ipc_memory_handle_data_t
   get_handle_data() const {
-    adapter_impl &Adapter = MContext->getAdapter();
+    if (!MUrHandle)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "IPC memory object has been put back and the "
+                            "handle data cannot be accessed.");
+
     void *HandleDataPtr = nullptr;
     size_t HandleDataSize = 0;
-    Adapter.call<UrApiKind::urIPCGetMemHandleDataExp>(
-        MContext->getHandleRef(), MUrHandle, &HandleDataPtr, &HandleDataSize);
+    MContext->getAdapter().call<UrApiKind::urIPCGetMemHandleDataExp>(
+        MContext->getHandleRef(), *MUrHandle, &HandleDataPtr, &HandleDataSize);
     return sycl::span<char, sycl::dynamic_extent>{
         reinterpret_cast<char *>(HandleDataPtr), HandleDataSize};
   }
@@ -70,7 +82,7 @@ public:
 private:
   std::shared_ptr<context_impl> MContext;
   void *MPtr = nullptr;
-  ur_exp_ipc_mem_handle_t MUrHandle = nullptr;
+  std::optional<ur_exp_ipc_mem_handle_t> MUrHandle = std::nullopt;
 };
 
 } // namespace detail

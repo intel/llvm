@@ -19,6 +19,8 @@ namespace ext::oneapi::experimental {
 ipc_memory::ipc_memory(void *Ptr, const sycl::context &Ctx)
     : impl(detail::ipc_memory_impl::create(Ptr, Ctx)) {}
 
+void ipc_memory::put() { impl->put(); }
+
 void *ipc_memory::open(ipc_memory_handle_data_t IPCMemoryHandleData,
                        const sycl::context &Ctx, const sycl::device &Dev) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);

@@ -33,6 +33,8 @@ class __SYCL_EXPORT ipc_memory
 public:
   ipc_memory(void *Ptr, const sycl::context &Ctx);
 
+  void put();
+
   static void *open(ipc_memory_handle_data_t IPCMemoryHandleData,
                     const sycl::context &Ctx, const sycl::device &Dev);
   static void close(void *Ptr, const sycl::context &Ctx);

@@ -113,6 +113,8 @@ class ipc_memory {
 public:
   ipc_memory(void *ptr, sycl::context &ctx);
 
+  void put();
+
   static void *open(ipc_memory_handle_data_t ipc_memory_handle_data,
                     const sycl::context &ctx, const sycl::device &dev);
   static void close(void *ptr, const sycl::context &ctx);
@@ -145,6 +147,25 @@ and any resulting objects are undefined.
 a!
 [source]
 ----
+void put()
+----
+!====
+
+_Effects:_ Instructs the underlying IPC memory resources to be returned to
+the backend. This is not required to be called before the `ipc_memory` object
+dies. Freeing the device USM memory used when constructing this instance of
+`ipc_memory` will return the underlying IPC memory resources.
+Calling this function after `sycl::free()` has been called on the device USM
+memory used when constructing this instance of `ipc_memory` will result in
+undefined behavior.
+
+_Throws:_ A `sycl::exception` with `errc::invalid` if `ipc_memory::put()` has
+previously been called on this instance of `ipc_memory`.
+
+!====
+a!
+[source]
+----
 static void *open(ipc_memory_handle_data_t ipc_memory_handle_data,
                   const sycl::context &ctx, const sycl::device &dev)
 ----
@@ -171,7 +192,6 @@ static void close(void *ptr, const sycl::context &ctx)
 
 _Effects:_ Closes a device USM pointer previously returned by a call to
 `ipc_memory::open()`.
-Accessing `ptr` after a call to this function results in undefined behavior.
 
 !====
 a!
@@ -182,8 +202,11 @@ ipc_memory_handle_data_t get_handle_data() const
 !====
 
 _Returns:_ The handle data of the `ipc_memory` object.
-Accessing the handle data returned by this API after the `ipc_memory` object has
+Utilizing the handle data returned by this API after the `ipc_memory` object has
 been destroyed results in undefined behavior.
+
+_Throws:_ A `sycl::exception` with `errc::invalid` if `ipc_memory::put()` has
+previously been called on this instance of `ipc_memory`.
 
 !====
 a!
