@@ -32,7 +32,9 @@ device_impl::device_impl(ur_device_handle_t Device, platform_impl &Platform,
       MCache{*this} {
   // Interoperability Constructor already calls DeviceRetain in
   // urDeviceCreateWithNativeHandle.
-  getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
+  //
+  // Do not call urDeviceRetain() in device_impl::device_impl()
+  // getAdapter().call<UrApiKind::urDeviceRetain>(MDevice);
 }
 
 device_impl::~device_impl() {
