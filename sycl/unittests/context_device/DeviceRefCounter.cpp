@@ -43,12 +43,7 @@ TEST(DevRefCounter, DevRefCounter) {
     sycl::platform Plt = sycl::platform();
 
     Plt.get_devices();
-    EXPECT_NE(DevRefCounter, 0);
-    // This is the behavior that SYCL performs at shutdown, but there
-    // are timing differences Lin/Win and shared/static that make
-    // it not map correctly into our mock.
-    // So for this test, we just do it.
-    sycl::detail::GlobalHandler::instance().getPlatformCache().clear();
+
+    EXPECT_EQ(DevRefCounter, 0);
   }
-  EXPECT_EQ(DevRefCounter, 0);
 }
