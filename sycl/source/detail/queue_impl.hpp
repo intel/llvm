@@ -924,14 +924,10 @@ protected:
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
 
-  std::vector<ArgDesc> extractArgsAndReqsFromLambda(
-      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-      size_t NumKernelParams);
-
   /// Performs kernel submission to the queue.
   ///
   /// \param NDRDesc is an NDRange descriptor
-  /// \param HostKernel is a wrapper for a kernel lambda
+  /// \param HostKernel stores the kernel lambda instance
   /// \param DeviceKernelInfo is a structure aggregating kernel related data
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.

@@ -417,27 +417,6 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   return EventImpl;
 }
 
-std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
-    size_t NumKernelParams) {
-
-  size_t IndexShift = 0;
-  std::vector<ArgDesc> Args;
-
-  Args.reserve(NumKernelParams);
-
-  for (size_t I = 0; I < NumKernelParams; ++I) {
-    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
-    void *Ptr = LambdaPtr + ParamDesc.offset;
-    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
-    const int &Size = ParamDesc.info;
-
-    Args.emplace_back(Kind, Ptr, Size, I + IndexShift);
-  }
-
-  return Args;
-}
-
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,

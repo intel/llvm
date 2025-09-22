@@ -11,7 +11,6 @@
 #include <utility>
 
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_launch_helper.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>

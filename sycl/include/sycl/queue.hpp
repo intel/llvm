@@ -3638,13 +3638,6 @@ private:
     }
   }
 
-  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = std::conditional_t<
-        std::is_convertible_v<nd_item<Dims>, LambdaArgType>, nd_item<Dims>,
-        std::conditional_t<std::is_convertible_v<item<Dims>, LambdaArgType>,
-                           item<Dims>, LambdaArgType>>;
-  };
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
   /// Not using `type_erased_cgfo_ty` on purpose.

@@ -26,8 +26,9 @@ inline ur_result_t after_urKernelGetInfo(void *pParams) {
 static thread_local size_t counter_urEnqueueKernelLaunch = 0;
 inline ur_result_t redefined_urEnqueueKernelLaunch(void *pParams) {
   ++counter_urEnqueueKernelLaunch;
-// The no-handler scheduler submission includes a fix for the event return,
-// which is not yet applied to the handler-based path
+// TODO The no-handler scheduler submission includes a fix for the event return,
+// where the event is returned by the scheduler on every submission. This fix
+// is not yet applied to the handler-based path.
 #ifndef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
   EXPECT_EQ(*params.pphEvent, nullptr);
