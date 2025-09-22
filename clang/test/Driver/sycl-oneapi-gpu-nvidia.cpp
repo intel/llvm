@@ -1,34 +1,34 @@
 /// Tests the behaviors of using -fsycl-targets=nvidia_gpu*
 
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_50 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_50 -DMAC_STR=SM_50
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_52 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_52 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_52 -DMAC_STR=SM_52
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_53 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_53 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_53 -DMAC_STR=SM_53
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_60 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_60 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_60 -DMAC_STR=SM_60
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_61 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_61 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_61 -DMAC_STR=SM_61
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_62 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_62 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_62 -DMAC_STR=SM_62
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_70 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_70 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_70 -DMAC_STR=SM_70
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_72 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_72 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_72 -DMAC_STR=SM_72
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_75 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_75 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_75 -DMAC_STR=SM_75
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_80 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_80 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_80 -DMAC_STR=SM_80
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_86 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_86 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_86 -DMAC_STR=SM_86
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_87 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_87 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_87 -DMAC_STR=SM_87
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_89 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_89 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_89 -DMAC_STR=SM_89
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90 -DMAC_STR=SM_90
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90a -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_90a -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90a -DMAC_STR=SM_90A
 // MACRO_NVIDIA: clang{{.*}}  "-fsycl-is-host"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
@@ -44,7 +44,7 @@
 // BAD_NVIDIA_INPUT: error: SYCL target is invalid: 'nvidia_gpu_bad'
 
 // Check if the partial SYCL triple for NVidia GPUs translate to the full string.
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=NVIDIA-TRIPLE
 // NVIDIA-TRIPLE: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 
@@ -63,7 +63,7 @@
 // BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'nvptx-nvidia-cuda'
 
 /// Test for proper creation of fat object
-// RUN: %clangxx -c -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN: %clangxx -c -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_FATO
@@ -72,7 +72,7 @@
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o
-// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN: %clangxx -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc \
 // RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_CONSUME_FAT
@@ -83,7 +83,8 @@
 /// NVIDIA Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
 // RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -fno-sycl-device-lib=all \
-// RUN:   -fno-sycl-instrument-device-code \
+// RUN:   -fno-sycl-instrument-device-code --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_CHECK_PHASES
 // NVIDIA_CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -96,13 +97,16 @@
 // NVIDIA_CHECK_PHASES: 7: backend, {6}, assembler, (host-sycl)
 // NVIDIA_CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
 // NVIDIA_CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 10: sycl-post-link, {9}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 11: file-table-tform, {10}, ir, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 12: backend, {11}, assembler, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 13: assembler, {12}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 14: linker, {12, 13}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 15: foreach, {11, 14}, cuda-fatbin, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 16: file-table-tform, {10, 15}, tempfiletable, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl, sm_50)
-// NVIDIA_CHECK_PHASES: 18: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {17}, object
-// NVIDIA_CHECK_PHASES: 19: linker, {8, 18}, image, (host-sycl)
+// NVIDIA_CHECK_PHASES: 10: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 11: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 12: linker, {9, 10, 11}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 13: sycl-post-link, {12}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 14: file-table-tform, {13}, ir, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 15: backend, {14}, assembler, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 16: assembler, {15}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 17: linker, {15, 16}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 18: foreach, {14, 17}, cuda-fatbin, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 19: file-table-tform, {13, 18}, tempfiletable, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 20: clang-offload-wrapper, {19}, object, (device-sycl, sm_50)
+// NVIDIA_CHECK_PHASES: 21: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {20}, object
+// NVIDIA_CHECK_PHASES: 22: linker, {8, 21}, image, (host-sycl)

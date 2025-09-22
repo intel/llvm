@@ -66,7 +66,7 @@ std::vector<ur_image_format_t> all_image_formats;
 
 struct urMemImageCreateTestWithImageFormatParam
     : uur::urContextTestWithParam<ur_image_format_t> {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urContextTestWithParam<ur_image_format_t>::SetUp());
     bool image_support = false;
@@ -75,7 +75,7 @@ struct urMemImageCreateTestWithImageFormatParam
       GTEST_SKIP() << "Device doesn't support images";
     }
   }
-  void TearDown() {
+  void TearDown() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urContextTestWithParam<ur_image_format_t>::TearDown());
   }
@@ -100,6 +100,9 @@ TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
   // See https://github.com/oneapi-src/unified-runtime/issues/2638
   UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
+  // Reports INVALID_IMAGE_FORMAT_DESCRIPTOR rather than
+  // UNSUPPORTED_IMAGE_FORMAT
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"gfx1100"});
 
   ur_image_channel_order_t channel_order = std::get<1>(GetParam()).channelOrder;
   ur_image_channel_type_t channel_type = std::get<1>(GetParam()).channelType;

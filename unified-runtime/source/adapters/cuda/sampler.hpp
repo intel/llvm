@@ -8,6 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 
 /// Implementation of samplers for CUDA
@@ -23,8 +25,8 @@
 /// |     4 3 2      | addressing mode 1
 /// |       1        | filter mode
 /// |       0        | normalize coords
-struct ur_sampler_handle_t_ {
-  std::atomic_uint32_t RefCount;
+struct ur_sampler_handle_t_ : ur::cuda::handle_base {
+  ur::RefCount RefCount;
   uint32_t Props;
   float MinMipmapLevelClamp;
   float MaxMipmapLevelClamp;
@@ -32,14 +34,8 @@ struct ur_sampler_handle_t_ {
   ur_context_handle_t Context;
 
   ur_sampler_handle_t_(ur_context_handle_t Context)
-      : RefCount(1), Props(0), MinMipmapLevelClamp(0.0f),
+      : handle_base(), Props(0), MinMipmapLevelClamp(0.0f),
         MaxMipmapLevelClamp(0.0f), MaxAnisotropy(0.0f), Context(Context) {}
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   ur_bool_t isNormalizedCoords() const noexcept {
     return static_cast<ur_bool_t>(Props & 0b1);

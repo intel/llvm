@@ -4,6 +4,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; CHECK: @__AsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global
+; CHECK-SAME: [[ATTR0:#[0-9]+]]
 ; CHECK: @__AsanLaunchInfo = external addrspace(3) global ptr addrspace(1)
 
 define spir_kernel void @sycl_kernel1() #0 {
@@ -25,4 +26,4 @@ entry:
 attributes #0 = { sanitize_address }
 ;; sycl-device-global-size = 16 * 2
 ;; sycl-host-access = 0 read-only
-; CHECK: attributes #{{.*}} = { "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
+; CHECK: attributes [[ATTR0]] = { "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="__AsanKernelMetadata833c47834a0b74946e370c23c39607cc" }

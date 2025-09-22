@@ -24,7 +24,9 @@
 
 #include "common.hpp"
 #include "queue.hpp"
+#include "usm.hpp"
 
+#include "common/ur_ref_count.hpp"
 #include <umf_helpers.hpp>
 
 struct l0_command_list_cache_info {
@@ -51,15 +53,20 @@ typedef struct _ze_intel_event_sync_mode_exp_desc_t {
   ze_intel_event_sync_mode_exp_flags_t syncModeFlags;
 } ze_intel_event_sync_mode_exp_desc_t;
 
-struct ur_context_handle_t_ : _ur_object {
+extern const bool UseUSMAllocator;
+
+struct ur_context_handle_t_ : ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
-        NumDevices{NumDevices} {
+        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator},
+        AsyncPool{this, nullptr, !UseUSMAllocator} {
     OwnNativeHandle = OwnZeContext;
   }
 
-  ur_context_handle_t_(ze_context_handle_t ZeContext) : ZeContext{ZeContext} {}
+  ur_context_handle_t_(ze_context_handle_t ZeContext)
+      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator},
+        AsyncPool{this, nullptr, !UseUSMAllocator} {}
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -94,13 +101,6 @@ struct ur_context_handle_t_ : _ur_object {
   // compute and copy command list caches.
   ur_mutex ZeCommandListCacheMutex;
 
-  // If context contains one device or sub-devices of the same device, we want
-  // to save this device.
-  // This field is only set at ur_context_handle_t creation time, and cannot
-  // change. Therefore it can be accessed without holding a lock on this
-  // ur_context_handle_t.
-  ur_device_handle_t SingleRootDevice = nullptr;
-
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -123,24 +123,14 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Store USM pool for USM shared and device allocations. There is 1 memory
   // pool per each pair of (context, device) per each memory type.
-  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-      DeviceMemPools;
-  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-      SharedMemPools;
-  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-      SharedReadOnlyMemPools;
+  // It's either a DisjointPool implementation from UMF or an
+  // allocation-tracking proxy pool for direct allocations that does not
+  // internally pool memory. Actual implementation during runtime is decided by
+  // the 'UseUSMAllocator' variable value.
+  ur_usm_pool_handle_t_ DefaultPool;
 
-  // Store the host memory pool. It does not depend on any device.
-  umf::pool_unique_handle_t HostMemPool;
-
-  // Allocation-tracking proxy pools for direct allocations. No pooling used.
-  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-      DeviceMemProxyPools;
-  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-      SharedMemProxyPools;
-  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-      SharedReadOnlyMemProxyPools;
-  umf::pool_unique_handle_t HostMemProxyPool;
+  // USM pools for async allocations.
+  ur_usm_pool_handle_t_ AsyncPool;
 
   // Map associating pools created with urUsmPoolCreate and internal pools
   std::list<ur_usm_pool_handle_t> UsmPoolHandles{};
@@ -212,13 +202,12 @@ struct ur_context_handle_t_ : _ur_object {
   // pool then create new one. The HostVisible parameter tells if we need a
   // slot for a host-visible event. The ProfilingEnabled tells is we need a
   // slot for an event with profiling capabilities.
-  ur_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
-                                             bool HostVisible,
-                                             bool ProfilingEnabled,
-                                             ur_device_handle_t Device,
-                                             bool CounterBasedEventEnabled,
-                                             bool UsingImmCmdList,
-                                             bool InterruptBasedEventEnabled);
+  ur_result_t getFreeSlotInExistingOrNewPool(
+      ze_event_pool_handle_t &, size_t &, bool HostVisible,
+      bool ProfilingEnabled, ur_device_handle_t Device,
+      bool CounterBasedEventEnabled, bool UsingImmCmdList,
+      bool InterruptBasedEventEnabled, ur_queue_handle_t Queue,
+      bool IsInternal);
 
   // Get ur_event_handle_t from cache.
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
@@ -368,6 +357,8 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Get handle to the L0 context
   ze_context_handle_t getZeHandle() const;
+
+  ur::RefCount RefCount;
 
 private:
   enum EventFlags {

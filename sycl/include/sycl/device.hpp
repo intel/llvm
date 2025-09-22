@@ -63,7 +63,8 @@ enum class peer_access {
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
+    : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -208,10 +209,6 @@ public:
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
-  /// Specializations of info::param_traits must be defined in accordance with
-  /// the info parameters in Table 4.20 of SYCL Spec to facilitate returning the
-  /// type associated with the param parameter.
-  ///
   /// \return device info of type described in Table 4.20.
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
@@ -299,14 +296,27 @@ public:
 
   /// kernel_compiler extension
 
+  /// Indicates if the device can build a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::build function on kernel bundles written in
+  /// the source language \p Language.
+  bool
+  ext_oneapi_can_build(ext::oneapi::experimental::source_language Language);
+
   /// Indicates if the device can compile a kernel for the given language.
   ///
   /// \param Language is one of the values from the
   /// kernel_bundle::source_language enumeration described in the
   /// sycl_ext_oneapi_kernel_compiler specification
   ///
-  /// \return true only if the device supports kernel bundles written in the
-  /// source language `lang`.
+  /// \return The value true only if the device supports the
+  /// ext::oneapi::experimental::compile function on kernel bundles written in
+  /// the source language \p Language.
   bool
   ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
@@ -362,7 +372,7 @@ public:
 
 private:
   std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
 
   ur_native_handle_t getNative() const;
 
@@ -371,7 +381,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -393,11 +407,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::device> {
-  size_t operator()(const sycl::device &Device) const {
-    return hash<std::shared_ptr<sycl::detail::device_impl>>()(
-        sycl::detail::getSyclObjImpl(Device));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::device>
+    : public sycl::detail::sycl_obj_hash<sycl::device> {};

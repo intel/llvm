@@ -5,7 +5,7 @@
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t-nvptx64-spir64.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*"   %t-nvptx64-spir64.out
 
-// REQUIRES: opencl, target-spir, any-triple-is-nvidia
+// REQUIRES: opencl, target-spir, any-target-is-nvidia
 
 //==------- sycl-targets-order.cpp - SYCL -fsycl-targets order test --------==//
 //

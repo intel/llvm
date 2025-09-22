@@ -311,8 +311,8 @@ TEST(GetProfilingInfo,
   queue Queue{Ctx, Dev};
   DeviceTimerCalled = false;
 
-  event E = Queue.submit(
-      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  event E =
+      Queue.submit([&](handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
   EXPECT_FALSE(DeviceTimerCalled);
 }
 
@@ -340,101 +340,39 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   event E = Queue.submit([&](handler &cgh) {
     accessor writeRes{Buf, cgh, read_write};
 
-    cgh.single_task<TestKernel<>>([]() {});
+    cgh.single_task<TestKernel>([]() {});
   });
 
   EXPECT_TRUE(DeviceTimerCalled);
 }
 
-ur_result_t redefinedFailedUrGetGlobalTimestamps(void *) {
-  return UR_RESULT_ERROR_INVALID_OPERATION;
-}
+// Check that query fails for host task if queue doesn't have profiling
+// enabled.
+TEST(GetProfilingInfo, check_host_task_profiling_info) {
+  using namespace sycl;
+  [[maybe_unused]] unittest::UrMock<> Mock;
+  queue Queue;
+  event E = Queue.submit([&](handler &cgh) { cgh.host_task([]() {}); });
 
-static ur_result_t redefinedDeviceGetInfoAcc(void *pParams) {
-  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<ur_device_type_t *>(*params.ppPropValue);
-    *Result = UR_DEVICE_TYPE_FPGA;
-  }
-  return UR_RESULT_SUCCESS;
-}
+  auto expect_profiling_exception = [&](auto profiling_query) {
+    try {
+      std::ignore = profiling_query();
+      FAIL();
+    } catch (sycl::exception const &e) {
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated "
+          "with the event does not have the 'enable_profiling' property.");
+    }
+  };
 
-TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
-  sycl::unittest::UrMock<> Mock;
-  sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &redefinedUrDeviceGet);
-  mock::getCallbacks().set_before_callback("urEventGetProfilingInfo",
-                                           &redefinedUrEventGetProfilingInfo);
-  mock::getCallbacks().set_replace_callback(
-      "urDeviceGetGlobalTimestamps", &redefinedFailedUrGetGlobalTimestamps);
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &redefinedDeviceGetInfoAcc);
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::context Ctx{Dev};
-  static sycl::unittest::MockDeviceImage DevImage =
-      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
-  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
-  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
-  sycl::queue Queue{
-      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Ctx, {Dev}, {KernelID});
-
-  const int globalWIs{512};
-  DeviceTimerCalled = true;
-  auto event = Queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_submit>();
   });
-  event.wait();
-  auto submit_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto start_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto end_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((submit_time && start_time && end_time) &&
-         "Profiling information failed.");
-  EXPECT_LT(submit_time, start_time);
-  EXPECT_LT(submit_time, end_time);
-}
-
-TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
-  sycl::unittest::UrMock<> Mock;
-  sycl::platform Plt = sycl::platform();
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &redefinedUrDeviceGet);
-  mock::getCallbacks().set_before_callback("urEventGetProfilingInfo",
-                                           &redefinedUrEventGetProfilingInfo);
-  mock::getCallbacks().set_replace_callback(
-      "urDeviceGetGlobalTimestamps", &redefinedFailedUrGetGlobalTimestamps);
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                          &redefinedDeviceGetInfoAcc);
-  const sycl::device Dev = Plt.get_devices()[0];
-  sycl::context Ctx{Dev};
-  static sycl::unittest::MockDeviceImage DevImage =
-      sycl::unittest::generateDefaultImage({"InfoTestKernel"});
-  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage};
-  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
-  sycl::queue Queue{
-      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Ctx, {Dev}, {KernelID});
-
-  const int globalWIs{512};
-  DeviceTimerCalled = true;
-  auto event = Queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_start>();
   });
-  event.wait();
-  auto submit_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto start_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto end_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((submit_time && start_time && end_time) &&
-         "Profiling information failed.");
-  EXPECT_LT(submit_time, start_time);
-  EXPECT_LT(submit_time, end_time);
+  expect_profiling_exception([&] {
+    return E.get_profiling_info<info::event_profiling::command_end>();
+  });
 }

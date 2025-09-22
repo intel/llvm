@@ -19,7 +19,7 @@ queue q;
 void bar() {
   q.submit([&](handler &h) {
     h.single_task<class kernelname>(
-        // expected-warning@+1 {{attribute 'vec_type_hint' is deprecated; attribute ignored}}
+        // expected-warning@+1 {{attribute 'sycl::vec_type_hint' is deprecated; attribute ignored}}
         []() [[sycl::vec_type_hint(test)]] {});
   });
 }

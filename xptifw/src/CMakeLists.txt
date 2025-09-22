@@ -1,29 +1,50 @@
 # Fetch third party headers
-set(EMHASH_REPO https://github.com/ktprime/emhash)
-message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
-FetchContent_Declare(emhash-headers
-  GIT_REPOSITORY    ${EMHASH_REPO}
-  GIT_TAG           96dcae6fac2f5f90ce97c9efee61a1d702ddd634
-)
+include(FetchContent)
 
-FetchContent_GetProperties(emhash-headers)
-if(NOT emhash-headers_POPULATED)
-  FetchContent_Populate(emhash-headers)
+# The sycl target should download or find emhash but may not
+# for standalone builds.
+if (NOT TARGET emhash::emhash)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../sycl/cmake/modules")
+  include(FetchEmhash)
 endif()
 
-set(XPTIFW_EMHASH_HEADERS "${emhash-headers_SOURCE_DIR}")
+set(PHMAP_REQUIRED_VER "1.3.12")
 
-set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
-message(STATUS "Will fetch parallel-hashmap from ${PARALLEL_HASHMAP_REPO}")
-FetchContent_Declare(parallel-hashmap
-  GIT_REPOSITORY    ${PARALLEL_HASHMAP_REPO}
-  GIT_TAG           8a889d3699b3c09ade435641fb034427f3fd12b6
-)
+find_path(PHMAP_LOC phmap_base.h PATH_SUFFIXES parallel_hashmap)
+if(PHMAP_LOC)
+ file(READ "${PHMAP_LOC}/phmap_config.h" PHMAP_CONFIG_H)
+ string(REGEX MATCH "#define PHMAP_VERSION_MAJOR [0-9]+" PHMAP_VER_MAJOR_LINE "${PHMAP_CONFIG_H}")
+ string(REGEX MATCH "#define PHMAP_VERSION_MINOR [0-9]+" PHMAP_VER_MINOR_LINE "${PHMAP_CONFIG_H}")
+ string(REGEX MATCH "#define PHMAP_VERSION_PATCH [0-9]+" PHMAP_VER_PATCH_LINE "${PHMAP_CONFIG_H}")
 
-FetchContent_GetProperties(parallel-hashmap)
-FetchContent_MakeAvailable(parallel-hashmap)
+ # We mached the whole line, extract out the number.
+ string(REGEX REPLACE ".*PHMAP_VERSION_MAJOR ([0-9]+).*" "\\1" PHMAP_VER_MAJOR "${PHMAP_VER_MAJOR_LINE}")
+ string(REGEX REPLACE ".*PHMAP_VERSION_MINOR ([0-9]+).*" "\\1" PHMAP_VER_MINOR "${PHMAP_VER_MINOR_LINE}")
+ string(REGEX REPLACE ".*PHMAP_VERSION_PATCH ([0-9]+).*" "\\1" PHMAP_VER_PATCH "${PHMAP_VER_PATCH_LINE}")
+ set(PHMAP_VER "${PHMAP_VER_MAJOR}.${PHMAP_VER_MINOR}.${PHMAP_VER_PATCH}")
+ if(${PHMAP_VER} VERSION_LESS ${PHMAP_REQUIRED_VER})
+   message(WARNING "Found system install of parallel-hashmap, but it is version ${PHMAP_VER}"
+     " and ${PHMAP_REQUIRED_VER} or later is required, building from source")
+   set(PHMAP_LOC 0)
+ endif()
+endif()
+if(PHMAP_LOC)
+  set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${PHMAP_LOC}")
+  message(STATUS "Using system parallel-hashmap version ${PHMAP_VER}")
+else() 
+  set(PARALLEL_HASHMAP_REPO https://github.com/greg7mdp/parallel-hashmap.git)
+  message(STATUS "Will fetch parallel-hashmap version ${PHMAP_REQUIRED_VER} from ${PARALLEL_HASHMAP_REPO}")
+  # When updating the tag, please check phmap_config.h and update PHMAP_REQUIRED_VER above as well.
+  FetchContent_Declare(parallel-hashmap
+    GIT_REPOSITORY    ${PARALLEL_HASHMAP_REPO}
+    GIT_TAG           8a889d3699b3c09ade435641fb034427f3fd12b6
+  )
+  
+  FetchContent_GetProperties(parallel-hashmap)
+  FetchContent_MakeAvailable(parallel-hashmap)
+  set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${parallel-hashmap_SOURCE_DIR}")
+endif()
 
-set(XPTIFW_PARALLEL_HASHMAP_HEADERS "${parallel-hashmap_SOURCE_DIR}")
 
 file(GLOB SOURCES *.cpp)
 
@@ -42,10 +63,11 @@ function(add_xpti_library LIB_NAME)
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
   target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
-    $<BUILD_INTERFACE:${XPTIFW_EMHASH_HEADERS}>
     $<BUILD_INTERFACE:${XPTIFW_PARALLEL_HASHMAP_HEADERS}>
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
   )
+
+  target_link_libraries(${LIB_NAME} PUBLIC $<BUILD_INTERFACE:emhash::emhash>)
 
   find_package(Threads REQUIRED)
   target_link_libraries(${LIB_NAME} PUBLIC ${CMAKE_DL_LIBS} Threads::Threads)
@@ -54,10 +76,6 @@ function(add_xpti_library LIB_NAME)
     add_dependencies(${LIB_NAME} tbb)
     target_compile_definitions(${LIB_NAME} PRIVATE XPTI_USE_TBB)
     target_link_libraries(${LIB_NAME} PUBLIC $<BUILD_INTERFACE:tbb>)
-  endif()
-
-  if (SYCL_USE_LIBCXX)
-      target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
   endif()
 
   # Set the location of the library installation

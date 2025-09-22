@@ -14,8 +14,8 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/platform.hpp>                  // for platform
 #include <sycl/property_list.hpp>             // for property_list
+#include <sycl/usm/usm_enums.hpp>             // for usm::alloc
 #include <ur_api.h>                           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
@@ -35,6 +35,10 @@ inline namespace _V1 {
 // Forward declarations
 class device;
 class platform;
+
+namespace ext::oneapi::experimental {
+class memory_pool;
+} // namespace ext::oneapi::experimental
 
 namespace detail {
 class context_impl;
@@ -245,6 +249,13 @@ public:
   /// \return a vector of valid SYCL device instances.
   std::vector<device> get_devices() const;
 
+  /// Gets default memory pool associated with a device and context.
+  ///
+  /// \return a memory pool for a particular device and context.
+  sycl::ext::oneapi::experimental::memory_pool
+  ext_oneapi_get_default_memory_pool(const device &dev,
+                                     sycl::usm::alloc kind) const;
+
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(std::shared_ptr<detail::context_impl> Impl);
@@ -261,7 +272,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   const property_list &getPropList() const;
 };
@@ -296,11 +311,6 @@ inline exception::exception(context Ctx, int EV,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::context> {
-  size_t operator()(const sycl::context &Context) const {
-    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
-        sycl::detail::getSyclObjImpl(Context));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::context>
+    : public sycl::detail::sycl_obj_hash<sycl::context> {};

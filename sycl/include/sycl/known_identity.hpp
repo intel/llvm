@@ -258,16 +258,16 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMinimumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
-// TODO: detect -fno-honor-infinities instead of -ffast-math
-// See https://github.com/intel/llvm/issues/13813
-// This workaround is a vast improvement, but still falls short.
-// To correct it properly, we need to detect -fno-honor-infinities usage,
-// perhaps via a driver inserted macro.
-// See similar below in known_identity_impl<IsMaximumIdentityOp>
-#ifdef __FAST_MATH__
-  // -ffast-math implies -fno-honor-infinities,
-  // but neither affect ::has_infinity (which is correct behavior, if
-  // unexpected)
+
+#if defined(__FINITE_MATH_ONLY__) && (__FINITE_MATH_ONLY__ == 1)
+  // Finite math only (-ffast-math,  -fno-honor-infinities) improves
+  // performance, but does not affect ::has_infinity (which is correct behavior,
+  // if unexpected). Use ::max() instead of ::infinity().
+  // Note that if someone uses -fno-honor-infinities WITHOUT -fno-honor-nans
+  // they'll end up using ::infinity(). There is no reasonable case where one of
+  // the flags would be used without the other and therefore
+  // __FINITE_MATH_ONLY__ is sufficient for this problem ( and superior to the
+  // __FAST_MATH__ macro we were using before).
   static constexpr AccumulatorT value =
       (std::numeric_limits<AccumulatorT>::max)();
 #else
@@ -309,10 +309,8 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMaximumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
-// TODO: detect -fno-honor-infinities instead of -ffast-math
-// See https://github.com/intel/llvm/issues/13813
-// and comments above in known_identity_impl<IsMinimumIdentityOp>
-#ifdef __FAST_MATH__
+// See comment above in known_identity_impl<IsMinimumIdentityOp>
+#if defined(__FINITE_MATH_ONLY__) && (__FINITE_MATH_ONLY__ == 1)
   static constexpr AccumulatorT value =
       (std::numeric_limits<AccumulatorT>::lowest)();
 #else

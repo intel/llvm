@@ -170,7 +170,7 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
       {{"BackendName", "host"}},       {{"BackendName", "opencl"}},
       {{"BackendName", "level_zero"}}, {{"BackendName", "cuda"}},
       {{"BackendName", "hip"}},        {{"BackendName", "native_cpu"}},
-      {{"BackendName", "*"}}};
+      {{"BackendName", "offload"}},    {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 

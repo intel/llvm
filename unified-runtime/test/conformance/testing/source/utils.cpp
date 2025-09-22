@@ -213,9 +213,9 @@ ur_result_t GetDeviceMaxMemAllocSize(ur_device_handle_t device,
 }
 
 ur_result_t GetDeviceImageSupport(ur_device_handle_t device,
-                                  bool &image_supported) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
-                             image_supported);
+                                  bool &image_support) {
+  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORT,
+                             image_support);
 }
 
 ur_result_t GetDeviceMaxReadImageArgs(ur_device_handle_t device,
@@ -625,10 +625,6 @@ GetDeviceMemoryScopeCapabilities(ur_device_handle_t device,
       device, UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES, flags);
 }
 
-ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16, support);
-}
-
 ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
                                             uint32_t &max_indices) {
   return GetDeviceInfo<uint32_t>(
@@ -638,13 +634,66 @@ ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support) {
   return GetDeviceInfo<bool>(
-      device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, support);
+      device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT, support);
 }
 
 ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
                                          bool &support) {
   return GetDeviceInfo<bool>(
       device, UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP, support);
+}
+
+ur_result_t GetUSMContextMemcpyExpSupport(ur_device_handle_t device,
+                                          bool &support) {
+  return GetDeviceInfo<bool>(
+      device, UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP, support);
+}
+
+ur_result_t GetPlatformTriple(ur_platform_handle_t platform,
+                              std::string &triple) {
+  ur_backend_t backend;
+  if (auto Err = urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                   sizeof(backend), &backend, nullptr)) {
+    return Err;
+  }
+
+  switch (backend) {
+  case UR_BACKEND_OPENCL:
+  case UR_BACKEND_LEVEL_ZERO:
+    triple = "spir64";
+    break;
+  case UR_BACKEND_CUDA:
+    triple = "nvptx64-nvidia-cuda";
+    break;
+  case UR_BACKEND_HIP:
+    triple = "amdgcn-amd-amdhsa";
+    break;
+  case UR_BACKEND_OFFLOAD: {
+    // All Offload platforms report this backend, use the platform name to select
+    // the actual underlying backend.
+    std::vector<char> PlatformName;
+    size_t PlatformNameSize = 0;
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr,
+                      &PlatformNameSize);
+    PlatformName.resize(PlatformNameSize);
+    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, PlatformNameSize,
+                      PlatformName.data(), nullptr);
+    if (strcmp(PlatformName.data(), "CUDA") == 0) {
+      triple = "nvptx64-nvidia-cuda";
+    } else if (strcmp(PlatformName.data(), "AMDGPU") == 0) {
+      triple = "amdgcn-amd-amdhsa";
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    break;
+  }
+  case UR_BACKEND_NATIVE_CPU:
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_device_partition_property_t makePartitionByCountsDesc(uint32_t count) {
@@ -688,7 +737,7 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
 }
 
 std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter) {
-  ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t backend = UR_BACKEND_UNKNOWN;
   urAdapterGetInfo(hAdapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend), &backend,
                    nullptr);
   std::stringstream ss;

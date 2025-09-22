@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using arch = sycl::ext::oneapi::experimental::architecture;

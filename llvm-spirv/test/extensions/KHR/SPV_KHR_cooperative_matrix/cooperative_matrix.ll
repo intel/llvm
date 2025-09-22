@@ -84,7 +84,6 @@ entry:
   %sub.i = sub nsw i64 %1, %4
   %cmp.i58.i = icmp ult i64 %5, 2147483648
   %sub5.i = sub nsw i64 %2, %5
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %sub_c.sroa.0.i)
   %call.i.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z26__spirv_CompositeConstruct(i32 noundef 0) #4
   store target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) %call.i.i, ptr %sub_c.sroa.0.i, align 8
   %mul.i = mul nsw i64 %sub.i, 12
@@ -118,13 +117,11 @@ for.body.i:                                       ; preds = %for.cond.i
   %add.ptr.i111.i = getelementptr i8, ptr addrspace(1) %add.ptr.i108140.i, i64 %mul23.i
   %call.ascast.i72.i = addrspacecast ptr addrspace(1) %add.ptr.i111.i to ptr addrspace(4)
   %call1.i73.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 2, 48, 12, 1) @_Z32__spirv_CooperativeMatrixLoadKHR_2(ptr addrspace(4) noundef %call.ascast.i72.i, i32 noundef 0, i64 noundef %mul22.i) #4
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i)
   %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0.125.i = load target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2), ptr %sub_c.sroa.0.i, align 8
   %call.i77.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z34__spirv_CooperativeMatrixMulAddKHR(target("spirv.CooperativeMatrixKHR", i8, 0, 12, 48, 0) noundef %call1.i.i, target("spirv.CooperativeMatrixKHR", i8, 2, 48, 12, 1) noundef %call1.i73.i, target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) noundef %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0.125.i, i32 noundef 12) #4
   store target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) %call.i77.i, ptr %ref.tmp29.sroa.0.i, align 8
   %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i = load i64, ptr %ref.tmp29.sroa.0.i, align 8
   store i64 %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i, ptr %sub_c.sroa.0.i, align 8
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i)
   %add.i = add nuw nsw i32 %k.0.i, 1
   br label %for.cond.i
 
@@ -136,7 +133,6 @@ _ZZZ15matrix_multiplyIiaLm24ELm96ELm24ELm96ELm24ELm24EEvR10big_matrixIT_XT5_EXT6
   %call.ascast.i.i = addrspacecast ptr addrspace(1) %add.ptr.i81.i to ptr addrspace(4)
   %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0..i = load target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2), ptr %sub_c.sroa.0.i, align 8
   tail call spir_func void @_Z33__spirv_CooperativeMatrixStoreKHR(ptr addrspace(4) noundef %call.ascast.i.i, target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) noundef %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0..i, i32 noundef 0, i64 noundef %_arg_N, i32 noundef 1) #4
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %sub_c.sroa.0.i)
   ret void
 }
 
@@ -165,11 +161,6 @@ declare dso_local spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3,
 declare dso_local spir_func void @_Z33__spirv_CooperativeMatrixStoreKHR(ptr addrspace(4) noundef, target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) noundef, i32 noundef, i64 noundef, i32 noundef) local_unnamed_addr #2
 
 declare dso_local spir_func void @_Z33__spirv_CooperativeMatrixStoreKHR_2(ptr addrspace(1) noundef, target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) noundef, i32 noundef, i64 noundef, i32 noundef) local_unnamed_addr #2
-; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #3
-
-; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #3
 
 attributes #0 = { convergent norecurse "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="matrix-int8-test.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }

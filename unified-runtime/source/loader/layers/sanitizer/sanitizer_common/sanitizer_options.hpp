@@ -31,6 +31,8 @@ struct SanitizerOptions {
   bool DetectKernelArguments = true;
   bool DetectLeaks = true;
   bool HaltOnError = true;
+  bool Recover = false;
+  bool MsanCheckHostAndSharedUSM = true;
 
   void Init(const std::string &EnvName, logger::Logger &Logger);
 };

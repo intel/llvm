@@ -11,7 +11,7 @@ from templates import helper as th
     handle_create_get_retain_release_funcs=th.get_handle_create_get_retain_release_functions(specs, n, tags)
 %>/*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023-2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -33,10 +33,15 @@ namespace ur_validation_layer
 
         param_checks=th.make_param_checks(n, tags, obj, meta=meta).items()
         first_errors = [X + "_RESULT_ERROR_INVALID_NULL_POINTER", X + "_RESULT_ERROR_INVALID_NULL_HANDLE"]
-        sorted_param_checks = sorted(param_checks, key=lambda pair: False if pair[0] in first_errors else True)
+        # Sort param_checks such that anything in first_errors comes first while respecting the order of values in first_errors.
+        # It is possible to have a pointer to a struct with a handle member, so pointers should be checked first.
+        sorted_param_checks = sorted(param_checks, key=lambda pair: (0, first_errors.index(pair[0])) if pair[0] in first_errors else (1, 0))
 
         tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
     %>
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
     %if 'condition' in obj:
@@ -91,7 +96,7 @@ namespace ur_validation_layer
             %>
             %if tp_input_handle_funcs and not is_related_create_get_retain_release_func:
             if (getContext()->enableLifetimeValidation && !getContext()->refCountContext->isReferenceValid(${tp['name']})) {
-                getContext()->refCountContext->logInvalidReference(${tp['name']});
+                URLOG_CTX_INVALID_REFERENCE(${tp['name']});
             }
             %endif
             %endfor
@@ -115,9 +120,14 @@ namespace ur_validation_layer
         <%
             tp_handle_funcs = next((hf for hf in handle_create_get_retain_release_funcs if th.subt(n, tags, tp['type']) in [hf['handle'], hf['handle'] + "*"]), None)
             is_handle_to_adapter = ("_adapter_handle_t" in tp['type'])
+            is_handle_to_event = ("_event_handle_t" in tp['type'])
         %>
         %if func_name in tp_handle_funcs['create']:
-        if( getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS )
+        if( getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS
+        %if is_handle_to_event:
+            && ${tp['name']}
+        %endif
+        )
         {
             getContext()->refCountContext->createRefCount(*${tp['name']});
         }
@@ -141,9 +151,15 @@ namespace ur_validation_layer
     %if 'condition' in obj:
     #endif // ${th.subt(n, tags, obj['condition'])}
     %endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 
     %endfor
     %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Exported function for filling application's ${tbl['name']} table
     ///        with current process' addresses
@@ -171,6 +187,9 @@ namespace ur_validation_layer
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
 
         %for obj in tbl['functions']:
+%if 'guard' in obj and 'guard' not in tbl:
+#if ${obj['guard']}
+%endif
         %if 'condition' in obj:
     #if ${th.subt(n, tags, obj['condition'])}
         %endif
@@ -182,10 +201,16 @@ namespace ur_validation_layer
         pDdiTable->${th.append_ws(th.make_pfn_name(n, tags, obj), 41)} = nullptr;
     #endif
         %endif
+%if 'guard' in obj and 'guard' not in tbl:
+#endif // ${obj['guard']}
+%endif
 
         %endfor
         return result;
     }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
     %endfor
     ${x}_result_t
@@ -221,10 +246,16 @@ namespace ur_validation_layer
         }
 
         %for tbl in th.get_pfntables(specs, meta, n, tags):
+%if 'guard' in tbl:
+#if ${tbl['guard']}
+%endif
         if ( ${X}_RESULT_SUCCESS == result )
         {
             result = ur_validation_layer::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &dditable->${tbl['name']} );
         }
+%if 'guard' in tbl:
+#endif // ${tbl['guard']}
+%endif
 
         %endfor
         return result;
@@ -232,9 +263,9 @@ namespace ur_validation_layer
 
     ${x}_result_t context_t::tearDown() {
         if (enableLeakChecking) {
-            getContext()->refCountContext->logInvalidReferences();
+            URLOG_CTX_INVALID_REFERENCES();
         }
-        
+
         return ${X}_RESULT_SUCCESS;
     }
 

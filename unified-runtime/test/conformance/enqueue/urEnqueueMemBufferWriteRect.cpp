@@ -78,15 +78,6 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     uur::printRectTestString<urEnqueueMemBufferWriteRectTestWithParam>);
 
 TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
-  const auto name = getParam().name;
-  if (name.find("write_row_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
-  if (name.find("write_3D_2D") != std::string::npos) {
-    UUR_KNOWN_FAILURE_ON(uur::HIP{});
-  }
-
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
   // Unpack the parameters.
@@ -115,13 +106,13 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   std::iota(std::begin(input), std::end(input), 0x0);
 
   // Enqueue the rectangular write from that host buffer.
-  EXPECT_SUCCESS(urEnqueueMemBufferWriteRect(
+  ASSERT_SUCCESS(urEnqueueMemBufferWriteRect(
       queue, buffer, /* isBlocking */ true, buffer_origin, host_origin, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
       input.data(), 0, nullptr, nullptr));
 
   std::vector<uint8_t> output(buffer_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, /* is_blocking */ true,
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, /* is_blocking */ true,
                                         0, buffer_size, output.data(), 0,
                                         nullptr, nullptr));
 
@@ -135,7 +126,7 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
   EXPECT_EQ(expected, output);
 
   // Cleanup.
-  EXPECT_SUCCESS(urMemRelease(buffer));
+  ASSERT_SUCCESS(urMemRelease(buffer));
 }
 
 struct urEnqueueMemBufferWriteRectTest : public uur::urMemBufferQueueTest {
@@ -210,7 +201,7 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidSize) {
   std::vector<uint32_t> src(count);
   std::fill(src.begin(), src.end(), 1);
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferWriteRect(
                        queue, buffer, true, buffer_offset, host_offset, region,

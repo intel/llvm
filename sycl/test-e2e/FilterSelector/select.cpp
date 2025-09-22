@@ -12,6 +12,7 @@
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 #include <sycl/ext/oneapi/filter_selector.hpp>
 

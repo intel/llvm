@@ -18,6 +18,7 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t, ur_device_handle_t hDevice,
+    [[maybe_unused]] size_t allocationSize,
     ur_virtual_mem_granularity_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);

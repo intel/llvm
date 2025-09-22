@@ -12,6 +12,7 @@
 
 #include "../helpers.hpp"
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -25,8 +26,9 @@ int main() {
   {
     device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos &&
-           "default_selector failed to find cpu device");
+    assert((name.find("OpenCL") != string::npos) ||
+           (name.find("NATIVE_CPU") != string::npos) &&
+               "default_selector failed to find cpu device");
   }
   {
     try {

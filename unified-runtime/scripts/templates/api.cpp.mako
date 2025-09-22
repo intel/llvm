@@ -24,6 +24,9 @@ from templates import helper as th
 #include "${n}_api.h"
 
 %for obj in th.extract_objs(specs, r"function"):
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
 ///////////////////////////////////////////////////////////////////////////////
 %if 'condition' in obj:
 #if ${th.subt(n, tags, obj['condition'])}
@@ -50,6 +53,9 @@ ${th.make_func_name(n, tags, obj)}(
 }
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}
+%endif
+%if 'guard' in obj:
+#endif // ${obj['guard']}
 %endif
 
 %endfor

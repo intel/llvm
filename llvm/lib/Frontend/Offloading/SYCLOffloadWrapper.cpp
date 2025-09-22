@@ -34,6 +34,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/PropertySetIO.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
 #include <string>
@@ -62,18 +63,6 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   }
 }
 
-StructType* getLegacyOffloadEntryTy(Module &M) {
-  LLVMContext &C = M.getContext();
-  StructType *EntryTy =
-      StructType::getTypeByName(C, "struct.__tgt_offload_entry");
-  if (!EntryTy)
-    EntryTy = StructType::create(
-        "struct.__tgt_offload_entry", PointerType::getUnqual(C),
-        PointerType::getUnqual(C), M.getDataLayout().getIntPtrType(C),
-        Type::getInt32Ty(C), Type::getInt32Ty(C));
-  return EntryTy;
-}
-
 /// Wrapper helper class that creates all LLVM IRs wrapping given images.
 /// Note: All created structures, "_pi_device_*", "__sycl_*" and "__tgt*" names
 /// in this implementation are aligned with "sycl/include/sycl/detail/pi.h".
@@ -95,7 +84,7 @@ struct Wrapper {
 
     SyclPropTy = getSyclPropTy();
     SyclPropSetTy = getSyclPropSetTy();
-    EntryTy = getLegacyOffloadEntryTy(M);
+    EntryTy = offloading::getEntryTy(M);
     SyclDeviceImageTy = getSyclDeviceImageTy();
     SyclBinDescTy = getSyclBinDescTy();
   }
@@ -399,16 +388,26 @@ struct Wrapper {
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
-    auto *Zero = ConstantInt::get(getSizeTTy(), 0);
+    auto *I64Zero = ConstantInt::get(Type::getInt64Ty(C), 0);
     auto *I32Zero = ConstantInt::get(Type::getInt32Ty(C), 0);
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     SmallVector<Constant *> EntriesInits;
     std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
-      EntriesInits.push_back(ConstantStruct::get(
-          EntryTy, NullPtr, addStringToModule(*LI, "__sycl_offload_entry_name"),
-          Zero, I32Zero, I32Zero));
+    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
+      Constant *EntryData[] = {
+          ConstantExpr::getNullValue(Type::getInt64Ty(C)),
+          ConstantInt::get(Type::getInt16Ty(C), 1),
+          ConstantInt::get(Type::getInt16Ty(C), object::OffloadKind::OFK_SYCL),
+          I32Zero,
+          NullPtr,
+          addStringToModule(*LI, "__sycl_offload_entry_name"),
+          I64Zero,
+          I64Zero,
+          NullPtr};
+
+      EntriesInits.push_back(ConstantStruct::get(EntryTy, EntryData));
+    }
 
     auto *Arr = ConstantArray::get(ArrayType::get(EntryTy, EntriesInits.size()),
                                    EntriesInits);
@@ -736,6 +735,50 @@ struct Wrapper {
     // Add this function to global destructors.
     appendToGlobalDtors(M, Func, /*Priority*/ 1);
   }
+
+  void createSyclRegisterWithAtexitUnregister(GlobalVariable *FatbinDesc) {
+    auto *UnregFuncTy =
+        FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *UnregFunc =
+        Function::Create(UnregFuncTy, GlobalValue::InternalLinkage,
+                         "sycl.descriptor_unreg.atexit", &M);
+    UnregFunc->setSection(".text.startup");
+
+    // Declaration for __sycl_unregister_lib(void*).
+    auto *UnregTargetTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C), false);
+    FunctionCallee UnregTargetC =
+        M.getOrInsertFunction("__sycl_unregister_lib", UnregTargetTy);
+
+    // Body of the unregister wrapper.
+    IRBuilder<> UnregBuilder(BasicBlock::Create(C, "entry", UnregFunc));
+    UnregBuilder.CreateCall(UnregTargetC, FatbinDesc);
+    UnregBuilder.CreateRetVoid();
+
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *RegFunc = Function::Create(RegFuncTy, GlobalValue::InternalLinkage,
+                                     "sycl.descriptor_reg", &M);
+    RegFunc->setSection(".text.startup");
+
+    auto *RegTargetTy =
+        FunctionType::get(Type::getVoidTy(C), PointerType::getUnqual(C), false);
+    FunctionCallee RegTargetC =
+        M.getOrInsertFunction("__sycl_register_lib", RegTargetTy);
+
+    // `atexit` takes a `void(*)()` function pointer arg and returns an i32.
+    FunctionType *AtExitTy = FunctionType::get(
+        Type::getInt32Ty(C), PointerType::getUnqual(C), false);
+    FunctionCallee AtExitC = M.getOrInsertFunction("atexit", AtExitTy);
+
+    IRBuilder<> RegBuilder(BasicBlock::Create(C, "entry", RegFunc));
+    RegBuilder.CreateCall(RegTargetC, FatbinDesc);
+    RegBuilder.CreateCall(AtExitC, UnregFunc);
+    RegBuilder.CreateRetVoid();
+
+    // Finally, add to global constructors.
+    appendToGlobalCtors(M, RegFunc, /*Priority*/ 1);
+  }
+
 }; // end of Wrapper
 
 } // anonymous namespace
@@ -749,7 +792,11 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
     return createStringError(inconvertibleErrorCode(),
                              "No binary descriptors created.");
 
-  W.createRegisterFatbinFunction(Desc);
-  W.createUnregisterFunction(Desc);
+  if (Triple(M.getTargetTriple()).isOSWindows()) {
+    W.createSyclRegisterWithAtexitUnregister(Desc);
+  } else {
+    W.createRegisterFatbinFunction(Desc);
+    W.createUnregisterFunction(Desc);
+  }
   return Error::success();
 }

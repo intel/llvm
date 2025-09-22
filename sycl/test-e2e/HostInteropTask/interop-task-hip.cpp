@@ -1,4 +1,4 @@
-// RUN: %{build} -Wno-error=deprecated-pragma -Wno-error=deprecated-declarations -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
+// RUN: %{build} -Wno-error=deprecated-pragma -Wno-error=deprecated-declarations -o %t.out %hip_options
 // RUN: %{run} %t.out
 // REQUIRES: target-amd
 

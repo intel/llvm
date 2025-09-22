@@ -7,6 +7,7 @@
 #include "../fixtures.h"
 #include <array>
 #include <cstring>
+#include <uur/known_failure.h>
 
 // Negative tests that correct error codes are thrown on invalid update usage.
 struct InvalidUpdateTest
@@ -129,7 +130,7 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
                    UR_RESULT_ERROR_INVALID_OPERATION);
   ASSERT_EQ(test_command_handle, nullptr);
 
-  EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
   finalized = true;
 
   // Set new value to use for fill at kernel index 1
@@ -167,7 +168,7 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
   EXPECT_EQ(UR_RESULT_ERROR_INVALID_NULL_HANDLE, result);
 
   if (test_cmd_buf_handle) {
-    EXPECT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
+    ASSERT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
   }
 }
 
@@ -262,8 +263,8 @@ TEST_P(InvalidUpdateTest, CommandBufferMismatch) {
       urCommandBufferCreateExp(context, device, &desc, &test_cmd_buf_handle));
   EXPECT_NE(test_cmd_buf_handle, nullptr);
 
-  EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
-  EXPECT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
   finalized = true;
 
   // Set new value to use for fill at kernel index 1
@@ -301,7 +302,7 @@ TEST_P(InvalidUpdateTest, CommandBufferMismatch) {
   EXPECT_EQ(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP, result);
 
   if (test_cmd_buf_handle) {
-    EXPECT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
+    ASSERT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
   }
 }
 

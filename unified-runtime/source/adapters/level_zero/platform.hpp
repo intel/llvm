@@ -25,9 +25,10 @@ struct ur_zes_device_handle_data_t {
   ze_bool_t SubDevice = false;
 };
 
-struct ur_platform_handle_t_ : public _ur_platform {
+struct ur_platform_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter>,
+                               public ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
-      : ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
+      : handle_base(), ZeDriver{Driver}, ZeApiVersion{ZE_API_VERSION_CURRENT} {}
   // Performs initialization of a newly constructed PI platform.
   ur_result_t initialize();
 
@@ -48,6 +49,10 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Zero.
   ZeDriverVersionStringExtension ZeDriverVersionString;
 
+  // Helper function to check if the driver supports Driver In Order Lists or
+  // the User has Requested this support.
+  bool allowDriverInOrderLists(bool OnlyIfRequested = false);
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
@@ -63,6 +68,8 @@ struct ur_platform_handle_t_ : public _ur_platform {
   bool zeDriverImmediateCommandListAppendFound{false};
   bool ZeDriverEuCountExtensionFound{false};
   bool ZeCopyOffloadExtensionSupported{false};
+  bool ZeBindlessImagesExtensionSupported{false};
+  bool ZeLUIDSupported{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
@@ -126,21 +133,15 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Structure with function pointers for External Semaphore Extension.
   struct ZeExternalSemaphoreExtension {
     bool Supported = false;
-    ze_result_t (*zexImportExternalSemaphoreExp)(
-        ze_device_handle_t, const ze_intel_external_semaphore_exp_desc_t *,
-        ze_intel_external_semaphore_exp_handle_t *);
-    ze_result_t (*zexCommandListAppendWaitExternalSemaphoresExp)(
-        ze_command_list_handle_t, unsigned int,
-        const ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_wait_exp_params_t *,
-        ze_event_handle_t, uint32_t, ze_event_handle_t *);
-    ze_result_t (*zexCommandListAppendSignalExternalSemaphoresExp)(
-        ze_command_list_handle_t, size_t,
-        const ze_intel_external_semaphore_exp_handle_t *,
-        const ze_intel_external_semaphore_signal_exp_params_t *,
-        ze_event_handle_t, uint32_t, ze_event_handle_t *);
-    ze_result_t (*zexDeviceReleaseExternalSemaphoreExp)(
-        ze_intel_external_semaphore_exp_handle_t);
+    // Spec Functions
+    ze_pfnDeviceImportExternalSemaphoreExt_t zexImportExternalSemaphoreExp =
+        nullptr;
+    ze_pfnCommandListAppendWaitExternalSemaphoreExt_t
+        zexCommandListAppendWaitExternalSemaphoresExp = nullptr;
+    ze_pfnCommandListAppendSignalExternalSemaphoreExt_t
+        zexCommandListAppendSignalExternalSemaphoresExp = nullptr;
+    ze_pfnDeviceReleaseExternalSemaphoreExt_t
+        zexDeviceReleaseExternalSemaphoreExp = nullptr;
   } ZeExternalSemaphoreExt;
 
   struct ZeCommandListImmediateAppendExtension {
@@ -149,4 +150,16 @@ struct ur_platform_handle_t_ : public _ur_platform {
         ze_command_list_handle_t, uint32_t, ze_command_list_handle_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
   } ZeCommandListImmediateAppendExt;
+
+  struct ZeImageGetDeviceOffsetExtension {
+    bool Supported = false;
+    ze_result_t (*zeImageGetDeviceOffsetExp)(ze_image_handle_t, uint64_t *);
+  } ZeImageGetDeviceOffsetExt;
+
+  struct ZeMemGetPitchFor2dImageExtension {
+    bool Supported = false;
+    ze_result_t (*zeMemGetPitchFor2dImage)(ze_context_handle_t,
+                                           ze_device_handle_t, size_t, size_t,
+                                           unsigned int, size_t *);
+  } ZeMemGetPitchFor2dImageExt;
 };

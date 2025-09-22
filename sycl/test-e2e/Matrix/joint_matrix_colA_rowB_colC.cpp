@@ -5,17 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: target-nvidia, target-amd
-// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
-// other triples
+// REQUIRES: target-spir
 
 // REQUIRES: aspect-ext_intel_matrix
 
+// XFAIL: run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-5768
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: gpu && run-mode
-// XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
 #include "joint_matrix_colA_rowB_colC_impl.hpp"

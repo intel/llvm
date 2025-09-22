@@ -99,20 +99,22 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
     printFillTestString<urEnqueueUSMFillTestWithParam>);
 
 TEST_P(urEnqueueUSMFillTestWithParam, Success) {
+  // https://github.com/intel/llvm/issues/19604
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
   ur_event_handle_t event = nullptr;
 
   ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
                                   size, 0, nullptr, &event));
-  EXPECT_SUCCESS(urQueueFlush(queue));
+  ASSERT_SUCCESS(urQueueFlush(queue));
 
   ASSERT_SUCCESS(urEventWait(1, &event));
   ur_event_status_t event_status;
   ASSERT_SUCCESS(uur::GetEventInfo<ur_event_status_t>(
       event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, event_status));
   ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
-  EXPECT_SUCCESS(urEventRelease(event));
+  ASSERT_SUCCESS(urEventRelease(event));
 
   ASSERT_NO_FATAL_FAILURE(verifyData());
 }

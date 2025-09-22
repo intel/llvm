@@ -643,7 +643,7 @@ void SPIRVToOCLBase::visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC) {
   Value *PtrArg = CI->getArgOperand(0);
   auto AddrSpace =
       static_cast<SPIRAddressSpace>(CI->getType()->getPointerAddressSpace());
-  Type *NewTy = PointerType::get(PtrArg->getType(), AddrSpace);
+  Type *NewTy = PointerType::get(CI->getContext(), AddrSpace);
   Value *ASC = Builder.CreateAddrSpaceCast(PtrArg, NewTy);
   CI->replaceAllUsesWith(ASC);
   CI->eraseFromParent();
@@ -752,11 +752,29 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
       ConstantFP *LodVal = dyn_cast<ConstantFP>(Mutator.getArg(ImOpArgIndex));
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
-          ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
+          ImOpValue & ImageOperandsMask::ImageOperandsLodMask) {
         Mutator.removeArgs(ImOpArgIndex, Mutator.arg_size() - ImOpArgIndex);
+        ImOpValue &= ~ImageOperandsMask::ImageOperandsLodMask;
+      }
     }
   }
   return Mutator;
+}
+
+static bool isOCLDepthImage(Type *Ty) {
+  if (auto *TET = dyn_cast<TargetExtType>(Ty)) {
+    if (TET->getName() != "spirv.Image")
+      return false;
+    assert(TET->getNumIntParameters() > 2 &&
+           "unexpected image TargetExtType parameter count");
+    return TET->getIntParameter(1);
+  }
+
+  StringRef ImageTypeName;
+  if (isOCLImageType(Ty, &ImageTypeName))
+    return ImageTypeName.contains("_depth_");
+
+  return false;
 }
 
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
@@ -770,12 +788,8 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
   CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
   auto Img = getCallValue(CallSampledImg, 0);
   auto Sampler = getCallValue(CallSampledImg, 1);
-  bool IsDepthImage = false;
+  const bool IsDepthImage = isOCLDepthImage(Img.second);
   Mutator.mapArg(0, [&](Value *SampledImg) {
-    StringRef ImageTypeName;
-    if (isOCLImageType(Img.second, &ImageTypeName))
-      IsDepthImage = ImageTypeName.contains("_depth_");
-
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           PoisonValue::get(CallSampledImg->getType()));

@@ -133,6 +133,8 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
 // RUN: %clangxx -fsycl --no-offload-new-driver %s -fno-sycl-device-lib=libc,all,libm-fp64,libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
+// RUN: %clangxx -fsycl --no-offload-new-driver %s --no-offloadlib --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
 // SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB-NOT: libsycl-cmath.bc
 
@@ -415,3 +417,26 @@
 // SYCL_DEVICE_TSAN_MACRO-SAME: "USE_SYCL_DEVICE_TSAN"
 // SYCL_DEVICE_TSAN_MACRO: llvm-link{{.*}} "-only-needed"
 // SYCL_DEVICE_TSAN_MACRO-SAME: "{{.*}}libsycl-tsan.bc"
+
+/// ###########################################################################
+/// test behavior of linking libsycl-tsan-pvc for PVC target AOT compilation when tsan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device 12.60.7" --no-offload-new-driver %s \
+// RUN: --sysroot=%S/Inputs/SYCL -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xs "-device 12.60.7" --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_PVC
+// SYCL_DEVICE_LIB_TSAN_PVC: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_TSAN_PVC-SAME: "{{.*}}libsycl-tsan-pvc.bc"
+
+
+/// ###########################################################################
+/// test behavior of linking libsycl-tsan-cpu for CPU target AOT compilation when tsan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=thread -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_TSAN_CPU
+// SYCL_DEVICE_LIB_TSAN_CPU: llvm-link{{.*}} "-only-needed" "{{.*}}libsycl-crt.bc"
+// SYCL_DEVICE_LIB_TSAN_CPU-SAME: "{{.*}}libsycl-tsan-cpu.bc"

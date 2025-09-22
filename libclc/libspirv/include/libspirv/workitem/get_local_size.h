@@ -6,6 +6,4 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_WorkgroupSize_x();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_WorkgroupSize_y();
-_CLC_DECL _CLC_OVERLOAD size_t __spirv_WorkgroupSize_z();
+_CLC_DECL _CLC_OVERLOAD size_t __spirv_BuiltInWorkgroupSize(int);

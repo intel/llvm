@@ -19,6 +19,7 @@
  *  Description:
  *     launch<F> with config tests
  **************************************************************************/
+// REQUIRES: sg-32
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

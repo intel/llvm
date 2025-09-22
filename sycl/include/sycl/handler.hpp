@@ -10,14 +10,16 @@
 
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
-#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/get_device_kernel_info.hpp>
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_launch_helper.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -25,8 +27,6 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
-#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -35,16 +35,13 @@
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
-#include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
@@ -65,9 +62,6 @@
 // TODO: refactor this header
 // 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
-
-#define _KERNELFUNCPARAMTYPE const KernelType &
-#define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
 #if defined(__SYCL_UNNAMED_LAMBDA__)
 // We can't use nested types (e.g. struct S defined inside main() routine) to
@@ -152,15 +146,30 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+template <typename, typename> class work_group_memory;
+template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
+enum class prefetch_type;
+
+__SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
+__SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
+                                 size_t size);
+__SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
+                                           const memory_pool &pool);
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
+class dynamic_parameter_base;
+class dynamic_work_group_memory_base;
+class dynamic_local_accessor_base;
 class graph_impl;
+class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
+class buffer_impl;
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 class type_erased_cgfo_ty {
   // From SYCL 2020,  command group function object:
@@ -179,11 +188,12 @@ class type_erased_cgfo_ty {
 
 public:
   template <class T>
-  type_erased_cgfo_ty(T &f)
-      // NOTE: Even if `T` is a pointer to a function, `&f` is a pointer to a
+  type_erased_cgfo_ty(T &&f)
+      // NOTE: Even if `f` is a pointer to a function, `&f` is a pointer to a
       // pointer to a function and as such can be casted to `void *` (pointer to
       // a function cannot be casted).
-      : object(static_cast<const void *>(&f)), invoker_f(&invoker<T>::call) {}
+      : object(static_cast<const void *>(&f)),
+        invoker_f(&invoker<std::remove_reference_t<T>>::call) {}
   ~type_erased_cgfo_ty() = default;
 
   type_erased_cgfo_ty(const type_erased_cgfo_ty &) = delete;
@@ -202,9 +212,6 @@ class queue_impl;
 class stream_impl;
 class event_impl;
 class context_impl;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
 class HandlerAccess;
 class HostTask;
 
@@ -245,6 +252,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
+device_impl &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
@@ -253,28 +261,6 @@ __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
 __SYCL_EXPORT void *getValueFromDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base
         &DynamicParamBase);
-
-// Helper for merging properties with ones defined in an optional kernel functor
-// getter.
-template <typename KernelType, typename PropertiesT, typename Cond = void>
-struct GetMergedKernelProperties {
-  using type = PropertiesT;
-};
-template <typename KernelType, typename PropertiesT>
-struct GetMergedKernelProperties<
-    KernelType, PropertiesT,
-    std::enable_if_t<ext::oneapi::experimental::detail::
-                         HasKernelPropertiesGetMethod<KernelType>::value>> {
-  using get_method_properties =
-      typename ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-          KernelType>::properties_t;
-  static_assert(
-      ext::oneapi::experimental::is_property_list<get_method_properties>::value,
-      "get(sycl::ext::oneapi::experimental::properties_tag) member in kernel "
-      "functor class must return a valid property list.");
-  using type = ext::oneapi::experimental::detail::merged_properties_t<
-      PropertiesT, get_method_properties>;
-};
 
 template <int Dims> class RoundedRangeIDGenerator {
   id<Dims> Id;
@@ -339,6 +325,16 @@ public:
       KernelFunc(item);
     }
   }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -353,6 +349,16 @@ public:
       auto item = Gen.template getItem<KernelType>();
       KernelFunc(item, KH);
     }
+  }
+
+  // Copy the properties_tag getter from the original kernel to propagate
+  // property(s)
+  template <
+      typename T = KernelType,
+      typename = std::enable_if_t<ext::oneapi::experimental::detail::
+                                      HasKernelPropertiesGetMethod<T>::value>>
+  auto get(ext::oneapi::experimental::properties_tag) const {
+    return KernelFunc.get(ext::oneapi::experimental::properties_tag{});
   }
 };
 
@@ -378,16 +384,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   return true;
 }
 
-template <typename KernelNameType>
-std::vector<kernel_param_desc_t> getKernelParamDescs() {
-  std::vector<kernel_param_desc_t> Result;
-  int NumParams = getKernelNumParams<KernelNameType>();
-  Result.reserve(NumParams);
-  for (int I = 0; I < NumParams; ++I) {
-    Result.push_back(getKernelParamDesc<KernelNameType>(I));
-  }
-  return Result;
-}
 } // namespace detail
 
 /// Command group handler class.
@@ -425,13 +421,23 @@ std::vector<kernel_param_desc_t> getKernelParamDescs() {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed stack-allocated
+  /// `handler_impl` (not enforced, but meaningless to do a heap allocation
+  /// outside handler instance).
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  //
+  // Can't provide this overload outside preview because `handler` lacks
+  // required data members.
+  handler(detail::handler_impl &HandlerImpl);
+#else
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
-
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -446,14 +452,21 @@ private:
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
+  __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
+                           detail::queue_impl *SecondaryQueue,
+                           bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
   ///
-  /// The hander will add the command-group as a node to the graph rather than
+  /// The handler will add the command-group as a node to the graph rather than
   /// enqueueing it straight away.
   ///
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+#endif
+  handler(std::unique_ptr<detail::handler_impl> &&HandlerImpl);
+
+  ~handler();
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -479,44 +492,63 @@ private:
                             "a single kernel or explicit memory operation.");
   }
 
-  /// Extracts and prepares kernel arguments from the lambda using information
-  /// from the built-ins or integration header.
+  template <class Kernel> void setDeviceKernelInfo(void *KernelFuncPtr) {
+    constexpr auto Info = detail::CompileTimeKernelInfo<Kernel>;
+    MKernelName = Info.Name;
+    setKernelFunc(KernelFuncPtr);
+    setDeviceKernelInfoPtr(&detail::getDeviceKernelInfo<Kernel>());
+    setType(detail::CGType::Kernel);
+  }
+
+  void setDeviceKernelInfo(kernel &&Kernel);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: Those functions are not used anymore, remove it in the next
+  // ABI-breaking window.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr,
       const std::vector<detail::kernel_param_desc_t> &ParamDescs, bool IsESIMD);
-  // TODO Unused, remove during ABI breaking window
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
-
+  /// Extracts and prepares kernel arguments from the lambda using information
+  /// from the built-ins or integration header.
+  void extractArgsAndReqsFromLambda(
+      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+      size_t NumKernelParams, bool IsESIMD);
+#endif
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window.
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
+#endif
 
   /// \return a string containing name of SYCL kernel.
-  detail::string getKernelName();
+  detail::ABINeutralKernelNameStrT getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
     // for parallel_for with sycl::kernel and lambda/functor together
-    // Now if they are equal we extract argumets from lambda/functor for the
+    // Now if they are equal we extract arguments from lambda/functor for the
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const std::string LambdaName = detail::getKernelName<LambdaNameT>();
-    detail::string KernelName = getKernelName();
+    constexpr std::string_view LambdaName =
+        detail::CompileTimeKernelInfo<LambdaNameT>.Name;
+    detail::ABINeutralKernelNameStrT KernelName = getKernelName();
     return KernelName == LambdaName;
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
-  ///   at the next ABI breaking window since removing it breaks ABI on windows.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void saveCodeLoc(detail::code_location CodeLoc);
+#endif
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
   void copyCodeLoc(const handler &other);
 
@@ -526,7 +558,14 @@ private:
   /// object destruction.
   ///
   /// \return a SYCL event object representing the command group
+  ///
+  /// Note: in preview mode, handler.finalize() is expected to return
+  /// nullptr if the event is not needed (discarded).
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::EventImplPtr finalize();
+#else
   event finalize();
+#endif
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -566,8 +605,6 @@ private:
     detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
     addReduction(std::shared_ptr<const void>(ReduBuf));
   }
-
-  ~handler() = default;
 
 #ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from host base classes, so
@@ -639,7 +676,7 @@ private:
       int ArgIndex,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder> &&Arg) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Arg;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+    const detail::AccessorImplPtr &AccImpl = detail::getSyclObjImpl(*AccBase);
     detail::AccessorImplHost *Req = AccImpl.get();
     // Add accessor to the list of arguments.
     addArg(detail::kernel_param_kind_t::kind_accessor, Req,
@@ -664,6 +701,8 @@ private:
            sizeof(sampler), ArgIndex);
   }
 
+  void setArgHelper(int ArgIndex, stream &&Str);
+
   // setArgHelper for graph dynamic_parameters
   template <typename T>
   void
@@ -674,9 +713,56 @@ private:
         *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
-    // Register the dynamic parameter with the handler for later association
-    // with the node being added
+
+// Register the dynamic parameter with the handler for later association
+// with the node being added
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    registerDynamicParameter(detail::getSyclObjImpl(DynamicParam).get(),
+                             ArgIndex);
+#else
     registerDynamicParameter(DynamicParam, ArgIndex);
+#endif
+  }
+
+  template <typename DataT, typename PropertyListT>
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &DynWorkGroupMem) {
+    (void)ArgIndex;
+    (void)DynWorkGroupMem;
+
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &DynWorkGroupBase = DynWorkGroupMem;
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynWorkGroupBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+           DynParamImpl, 0, ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+#endif
+  }
+
+  template <typename DataT, int Dimensions>
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::dynamic_local_accessor<DataT, Dimensions>
+          &DynLocalAccessor) {
+    (void)ArgIndex;
+    (void)DynLocalAccessor;
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_local_accessor_base
+        &DynLocalAccessorBase = DynLocalAccessor;
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynLocalAccessorBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_accessor, DynParamImpl, 0,
+           ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+#endif
   }
 
   // setArgHelper for the raw_kernel_arg extension type.
@@ -687,13 +773,22 @@ private:
            Arg.MArgSize, ArgIndex);
   }
 
-  /// Registers a dynamic parameter with the handler for later association with
-  /// the node being created
-  /// @param DynamicParamBase
-  /// @param ArgIndex
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: Remove in the next ABI-breaking window.
   void registerDynamicParameter(
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
+      int ArgIndex);
+#endif
+
+  /// Registers a dynamic parameter with the handler for later association with
+  /// the node being created.
+  /// @param DynamicParamImpl The dynamic parameter impl object.
+  /// @param ArgIndex The index of the kernel argument that this dynamic
+  /// parameter represents.
+  void registerDynamicParameter(
+      ext::oneapi::experimental::detail::dynamic_parameter_impl
+          *DynamicParamImpl,
       int ArgIndex);
 
   /// Verifies the kernel bundle to be used if any is set. This throws a
@@ -712,34 +807,54 @@ private:
 
   /// Stores lambda to the template-free object
   ///
-  /// Also initializes kernel name, list of arguments and requirements using
-  /// information from the integration header/built-ins.
+  /// Also initializes the kernel name and prepares for arguments to
+  /// be extracted from the lambda in handler::finalize().
   ///
   /// \param KernelFunc is a SYCL kernel function
   /// \param ParamDescs is the vector of kernel parameter descriptors.
   template <typename KernelName, typename KernelType, int Dims,
-            typename LambdaArgType>
-  void StoreLambda(KernelType KernelFunc) {
+            typename LambdaArgType, typename KernelTypeUniversalRef>
+  void StoreLambda(KernelTypeUniversalRef &&KernelFunc) {
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    // Not using `std::make_unique` to avoid unnecessary instantiations of
+    // `std::unique_ptr<HostKernel<...>>`. Only
+    // `std::unique_ptr<HostKernelBase>` is necessary.
+    MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
+        std::forward<KernelTypeUniversalRef>(KernelFunc)));
 
-    constexpr bool KernelHasName =
-        detail::getKernelName<KernelName>() != nullptr &&
-        detail::getKernelName<KernelName>()[0] != '\0';
+    // Instantiating the kernel on the host improves debugging.
+    // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+    instantiateKernelOnHost(
+        detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>());
+#endif
+
+    constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
+
+    // Ideally, the following should be a `static_assert` but cannot do that as
+    // it would fail in at least two scenarios:
+    //
+    //  * Our own unittests that are compiled with an arbitrary host compiler
+    //    without SYCL knowledge (i.e., no integration headers
+    //    generated/supplied). Those that don't have to supply any stub kernel
+    //    information test exceptions thrown before kernel enqueue, so having a
+    //    run-time assert here doesn't affect them.
+    //
+    //  * Mixed SYCL/OpenMP compilation, device code generation for OpenMP in
+    //    particular. For that scenario this code is compiled but never
+    //    executed.
+    assert(Info.Name != std::string_view{} && "Kernel must have a name!");
 
     // Some host compilers may have different captures from Clang. Currently
-    // there is no stable way of handling this when extracting the captures, so
-    // a static assert is made to fail for incompatible kernel lambdas.
-
-    // TODO remove the ifdef once the kernel size builtin is supported.
-#ifdef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+    // there is no stable way of handling this when extracting the captures,
+    // so a static assert is made to fail for incompatible kernel lambdas.
     static_assert(
-        !KernelHasName ||
-            sizeof(KernelFunc) == detail::getKernelSize<KernelName>(),
+        Info.Name == std::string_view{} ||
+            sizeof(KernelType) == Info.KernelSize,
         "Unexpected kernel lambda size. This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
@@ -750,28 +865,13 @@ private:
         "In case of MSVC, passing "
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
-#endif
-    // Empty name indicates that the compilation happens without integration
-    // header, so don't perform things that require it.
-    if (KernelHasName) {
-      // TODO support ESIMD in no-integration-header case too.
-      clearArgs();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   detail::getKernelParamDescs<KernelName>(),
-                                   detail::isKernelESIMD<KernelName>());
-      MKernelName = detail::getKernelName<KernelName>();
-    } else {
-      // In case w/o the integration header it is necessary to process
-      // accessors from the list(which are associated with this handler) as
-      // arguments. We must copy the associated accessors as they are checked
-      // later during finalize.
-      setArgsToAssociatedAccessors();
-    }
+
+    setDeviceKernelInfo<KernelName>((void *)MHostKernel->getPtr());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
-    if (IsCallableWithKernelHandler) {
-      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+    if constexpr (IsCallableWithKernelHandler) {
+      getOrInsertHandlerKernelBundlePtr(/*Insert=*/true);
     }
   }
 
@@ -790,7 +890,7 @@ private:
                              .template get_property<
                                  syclex::cuda::cluster_size_key<ClusterDim>>()
                              .get_cluster_size();
-      setKernelClusterLaunch(padRange(ClusterSize), ClusterDim);
+      setKernelClusterLaunch(ClusterSize);
     }
   }
 
@@ -809,12 +909,14 @@ private:
         setKernelCacheConfig(StableKernelCacheConfig::LargeData);
       }
     } else {
-      std::ignore = Props;
+      (void)Props;
     }
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
-    setKernelIsCooperative(UsesRootSync);
+    if (UsesRootSync) {
+      setKernelIsCooperative(UsesRootSync);
+    }
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
                           work_group_progress_key>()) {
@@ -1133,10 +1235,16 @@ private:
       typename KernelName, typename KernelType, int Dims,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
-                                KernelType KernelFunc) {
+                                const KernelType &KernelFunc) {
+    // TODO: Properties may change the kernel function, so in order to avoid
+    //       conflicts they should be included in the name.
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnKernelParameterMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse(Info);
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
@@ -1169,17 +1277,9 @@ private:
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
 
-    // TODO: Properties may change the kernel function, so in order to avoid
-    //       conflicts they should be included in the name.
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-
     // Range rounding can be disabled by the user.
-    // Range rounding is not done on the host device.
     // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
-    !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
-    !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) &&                                 \
     SYCL_LANGUAGE_VERSION >= 202012L
     auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
     if (HasRoundedRange) {
@@ -1191,11 +1291,14 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      kernel_parallel_for_wrapper<KName, TransformedArgType, decltype(Wrapper),
-                                  PropertiesT>(Wrapper);
+      detail::KernelWrapper<detail::WrapAs::parallel_for, KName,
+                            decltype(Wrapper), TransformedArgType,
+                            PropertiesT>::wrap(Wrapper);
+
+      detail::KernelLaunchPropertyWrapper::parseProperties<KName>(this,
+                                                                  Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
+      verifyUsedKernelBundleInternal(Info.Name);
       // We are executing over the rounded range, but there are still
       // items/ids that are are constructed in ther range rounded
       // kernel use items/ids in the user range, which means that
@@ -1205,11 +1308,9 @@ private:
       setNDRangeDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      setType(detail::CGType::Kernel);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
-       // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&
        // SYCL_LANGUAGE_VERSION >= 202012L
     {
       (void)UserRange;
@@ -1217,68 +1318,22 @@ private:
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
-      kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
-                                  PropertiesT>(KernelFunc);
+      detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                            TransformedArgType, PropertiesT>::wrap(KernelFunc);
+      detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
+                                                                  KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(
-          detail::string_view{detail::getKernelName<NameT>()});
-      processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
+      verifyUsedKernelBundleInternal(Info.Name);
+      processProperties<Info.IsESIMD, PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
-      setType(detail::CGType::Kernel);
 #endif
 #else
       (void)KernelFunc;
 #endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     }
-  }
-
-  /// Defines and invokes a SYCL kernel function for the specified nd_range.
-  ///
-  /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id or item for indexing in the indexing
-  /// space defined by range.
-  /// If it is a named function object and the function object type is
-  /// globally visible, there is no need for the developer to provide
-  /// a kernel name for it.
-  ///
-  /// \param ExecutionRange is a ND-range defining global and local sizes as
-  /// well as offset.
-  /// \param Properties is the properties.
-  /// \param KernelFunc is a SYCL kernel function.
-  template <typename KernelName, typename KernelType, int Dims,
-            typename PropertiesT>
-  void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT Props,
-                         _KERNELFUNCPARAM(KernelFunc)) {
-    // TODO: Properties may change the kernel function, so in order to avoid
-    //       conflicts they should be included in the name.
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-    static_assert(
-        std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
-        "Kernel argument of a sycl::parallel_for with sycl::nd_range "
-        "must be either sycl::nd_item or be convertible from sycl::nd_item");
-    using TransformedArgType = sycl::nd_item<Dims>;
-
-    (void)ExecutionRange;
-    (void)Props;
-    kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
-                                PropertiesT>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    detail::checkValueRange<Dims>(ExecutionRange);
-    setNDRangeDescriptor(std::move(ExecutionRange));
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
-    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
-        std::move(KernelFunc));
-    setType(detail::CGType::Kernel);
-#endif
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1295,13 +1350,11 @@ private:
                          [[maybe_unused]] kernel Kernel) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     processLaunchProperties<PropertiesT>(Props);
-    setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
 #endif
   }
 
@@ -1320,385 +1373,130 @@ private:
                          [[maybe_unused]] kernel Kernel) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     processLaunchProperties(Props);
-    setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
 #endif
   }
 
-  /// Hierarchical kernel invocation method of a kernel defined as a lambda
-  /// encoding the body of each work-group to launch.
-  ///
-  /// Lambda may contain multiple calls to parallel_for_work_item(...) methods
-  /// representing the execution on each work-item. Launches NumWorkGroups
-  /// work-groups of runtime-defined size.
-  ///
-  /// \param NumWorkGroups is a range describing the number of work-groups in
-  /// each dimension.
-  /// \param KernelFunc is a lambda representing kernel.
   template <
-      typename KernelName, typename KernelType, int Dims,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
-                                           PropertiesT Props,
-                                           _KERNELFUNCPARAM(KernelFunc)) {
+      detail::WrapAs WrapAsVal, typename KernelName,
+      typename ElementType = void, int Dims = 1, bool SetNumWorkGroups = false,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
+      typename KernelType, typename... RangeParams>
+  void wrap_kernel(const KernelType &KernelFunc, const PropertiesT &Props,
+                   [[maybe_unused]] RangeParams &&...params) {
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-    (void)NumWorkGroups;
     (void)Props;
-    kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
-                                           PropertiesT>(KernelFunc);
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
+                          PropertiesT>::wrap(KernelFunc);
+    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
+                                                                KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+    if constexpr (WrapAsVal == detail::WrapAs::single_task) {
+      throwOnKernelParameterMisuse(Info);
+    }
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
-    detail::checkValueRange<Dims>(NumWorkGroups);
-    setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CGType::Kernel);
-#endif // __SYCL_DEVICE_ONLY__
-  }
+    verifyUsedKernelBundleInternal(Info.Name);
 
-  /// Hierarchical kernel invocation method of a kernel defined as a lambda
-  /// encoding the body of each work-group to launch.
-  ///
-  /// Lambda may contain multiple calls to parallel_for_work_item(...) methods
-  /// representing the execution on each work-item. Launches NumWorkGroups
-  /// work-groups of WorkGroupSize size.
-  ///
-  /// \param NumWorkGroups is a range describing the number of work-groups in
-  /// each dimension.
-  /// \param WorkGroupSize is a range describing the size of work-groups in
-  /// each dimension.
-  /// \param KernelFunc is a lambda representing kernel.
-  template <
-      typename KernelName, typename KernelType, int Dims,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
-                                           range<Dims> WorkGroupSize,
-                                           PropertiesT Props,
-                                           _KERNELFUNCPARAM(KernelFunc)) {
-    // TODO: Properties may change the kernel function, so in order to avoid
-    //       conflicts they should be included in the name.
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-    (void)NumWorkGroups;
-    (void)WorkGroupSize;
-    (void)Props;
-    kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
-                                           PropertiesT>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
-    nd_range<Dims> ExecRange =
-        nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
-    detail::checkValueRange<Dims>(ExecRange);
-    setNDRangeDescriptor(std::move(ExecRange));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CGType::Kernel);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-#ifdef SYCL_LANGUAGE_VERSION
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
-#else
-#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
-#endif // __INTEL_SYCL_USE_INTEGRATION_HEADERS
-#else
-#define __SYCL_KERNEL_ATTR__
-#endif // SYCL_LANGUAGE_VERSION
-
-  // NOTE: the name of this function - "kernel_single_task" - is used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      "sycl-single-task",
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      nullptr,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc();
-#else
-    (void)KernelFunc;
-#endif
-  }
-
-  // NOTE: the name of this function - "kernel_single_task" - is used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      "sycl-single-task",
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      nullptr,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_single_task(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(KH);
-#else
-    (void)KernelFunc;
-    (void)KH;
-#endif
-  }
-
-  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
-#else
-    (void)KernelFunc;
-#endif
-  }
-
-  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
-  // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for(_KERNELFUNCPARAM(KernelFunc), kernel_handler KH) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
-#else
-    (void)KernelFunc;
-    (void)KH;
-#endif
-  }
-
-  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-  // used by the Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for_work_group(_KERNELFUNCPARAM(KernelFunc)) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()));
-#else
-    (void)KernelFunc;
-#endif
-  }
-
-  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-  // used by the Front End to determine kernel invocation kind.
-  template <typename KernelName, typename ElementType, typename KernelType,
-            typename... Props>
-#ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_function(
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-      ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
-#endif
-  __SYCL_KERNEL_ATTR__ static void
-  kernel_parallel_for_work_group(_KERNELFUNCPARAM(KernelFunc),
-                                 kernel_handler KH) {
-#ifdef __SYCL_DEVICE_ONLY__
-    KernelFunc(detail::Builder::getElement(detail::declptr<ElementType>()), KH);
-#else
-    (void)KernelFunc;
-    (void)KH;
-#endif
-  }
-
-  template <typename... Props> struct KernelPropertiesUnpackerImpl {
-    // Just pass extra Props... as template parameters to the underlying
-    // Caller->* member functions. Don't have reflection so try to use
-    // templates as much as possible to reduce the amount of boilerplate code
-    // needed. All the type checks are expected to be done at the Caller's
-    // methods side.
-
-    template <typename... TypesToForward, typename... ArgsTy>
-    static void kernel_single_task_unpack(handler *h, ArgsTy... Args) {
-      h->kernel_single_task<TypesToForward..., Props...>(Args...);
-    }
-
-    template <typename... TypesToForward, typename... ArgsTy>
-    static void kernel_parallel_for_unpack(handler *h, ArgsTy... Args) {
-      h->kernel_parallel_for<TypesToForward..., Props...>(Args...);
-    }
-
-    template <typename... TypesToForward, typename... ArgsTy>
-    static void kernel_parallel_for_work_group_unpack(handler *h,
-                                                      ArgsTy... Args) {
-      h->kernel_parallel_for_work_group<TypesToForward..., Props...>(Args...);
-    }
-  };
-
-  template <typename PropertiesT>
-  struct KernelPropertiesUnpacker : public KernelPropertiesUnpackerImpl<> {
-    // This should always fail outside the specialization below but must be
-    // dependent to avoid failing even if not instantiated.
-    static_assert(
-        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-        "Template type is not a property list.");
-  };
-
-  template <typename... Props>
-  struct KernelPropertiesUnpacker<
-      ext::oneapi::experimental::detail::properties_t<Props...>>
-      : public KernelPropertiesUnpackerImpl<Props...> {};
-
-  // Helper function to
-  //
-  //   * Make use of the KernelPropertiesUnpacker above
-  //   * Decide if we need an extra kernel_handler parameter
-  //
-  // The interface uses a \p Lambda callback to propagate that information back
-  // to the caller as we need the caller to communicate:
-  //
-  //   * Name of the method to call
-  //   * Provide explicit template type parameters for the call
-  //
-  // Couldn't think of a better way to achieve both.
-  template <typename KernelName, typename KernelType, typename PropertiesT,
-            bool HasKernelHandlerArg, typename FuncTy>
-  void unpack(_KERNELFUNCPARAM(KernelFunc), FuncTy Lambda) {
-#ifdef __SYCL_DEVICE_ONLY__
-    detail::CheckDeviceCopyable<KernelType>();
-#endif // __SYCL_DEVICE_ONLY__
-    using MergedPropertiesT =
-        typename detail::GetMergedKernelProperties<KernelType,
-                                                   PropertiesT>::type;
-    using Unpacker = KernelPropertiesUnpacker<MergedPropertiesT>;
-#ifndef __SYCL_DEVICE_ONLY__
-    // If there are properties provided by get method then process them.
-    if constexpr (ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<
-                          _KERNELFUNCPARAMTYPE>::value) {
-      processProperties<detail::isKernelESIMD<KernelName>()>(
-          KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-    }
-#endif
-    if constexpr (HasKernelHandlerArg) {
-      kernel_handler KH;
-      Lambda(Unpacker{}, this, KernelFunc, KH);
+    detail::checkValueRange<Dims>(params...);
+    if constexpr (SetNumWorkGroups) {
+      setNDRangeDescriptor(std::move(params)...,
+                           /*SetNumWorkGroups=*/true);
     } else {
-      Lambda(Unpacker{}, this, KernelFunc);
+      setNDRangeDescriptor(std::move(params)...);
     }
+
+    StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
+    processProperties<Info.IsESIMD, PropertiesT>(Props);
+#endif
   }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Implementation for something that had to be removed long ago but now stuck
+  // until next major release...
+  template <
+      detail::WrapAs WrapAsVal, typename KernelName,
+      typename ElementType = void, int Dims = 1, bool SetNumWorkGroups = false,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
+      typename KernelType, typename... RangeParams>
+  void wrap_kernel_legacy(const KernelType &KernelFunc, kernel &Kernel,
+                          const PropertiesT &Props,
+                          [[maybe_unused]] RangeParams &&...params) {
+    // TODO: Properties may change the kernel function, so in order to avoid
+    //       conflicts they should be included in the name.
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    (void)Props;
+    (void)Kernel;
+    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
+                          PropertiesT>::wrap(KernelFunc);
+    detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
+                                                                KernelFunc);
+#ifndef __SYCL_DEVICE_ONLY__
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+    if constexpr (WrapAsVal == detail::WrapAs::single_task) {
+      throwOnKernelParameterMisuse(Info);
+    }
+    throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the
+    // kernel.
+    setHandlerKernelBundle(Kernel);
+    verifyUsedKernelBundleInternal(Info.Name);
+
+    detail::checkValueRange<Dims>(params...);
+    if constexpr (SetNumWorkGroups) {
+      setNDRangeDescriptor(std::move(params)...,
+                           /*SetNumWorkGroups=*/true);
+    } else {
+      setNDRangeDescriptor(std::move(params)...);
+    }
+
+    MKernel = detail::getSyclObjImpl(Kernel);
+    if (!lambdaAndKernelHaveEqualName<NameT>()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "the kernel name must match the name of the lambda");
+    }
+    StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
+    processProperties<Info.IsESIMD, PropertiesT>(Props);
+#endif
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // NOTE: to support kernel_handler argument in kernel lambdas, only
-  // kernel_***_wrapper functions must be called in this code
-
-  template <
-      typename KernelName, typename KernelType,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelName, KernelType, PropertiesT,
-           detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
-        KernelFunc, [&](auto Unpacker, auto... args) {
-          Unpacker.template kernel_single_task_unpack<KernelName, KernelType>(
-              args...);
-        });
-  }
-
-  template <
-      typename KernelName, typename ElementType, typename KernelType,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelName, KernelType, PropertiesT,
-           detail::KernelLambdaHasKernelHandlerArgT<KernelType,
-                                                    ElementType>::value>(
-        KernelFunc, [&](auto Unpacker, auto... args) {
-          Unpacker.template kernel_parallel_for_unpack<KernelName, ElementType,
-                                                       KernelType>(args...);
-        });
-  }
-
-  template <
-      typename KernelName, typename ElementType, typename KernelType,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelName, KernelType, PropertiesT,
-           detail::KernelLambdaHasKernelHandlerArgT<KernelType,
-                                                    ElementType>::value>(
-        KernelFunc, [&](auto Unpacker, auto... args) {
-          Unpacker.template kernel_parallel_for_work_group_unpack<
-              KernelName, ElementType, KernelType>(args...);
-        });
-  }
-
-  /// Defines and invokes a SYCL kernel function as a function object type.
-  ///
-  /// If it is a named function object and the function object type is
-  /// globally visible, there is no need for the developer to provide
-  /// a kernel name for it.
-  ///
-  /// \param KernelFunc is a SYCL kernel function.
-  template <
-      typename KernelName, typename KernelType,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void single_task_lambda_impl(PropertiesT Props,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    (void)Props;
-    // TODO: Properties may change the kernel function, so in order to avoid
-    //       conflicts they should be included in the name.
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-
-    kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    throwOnKernelParameterMisuse<KernelName, KernelType>();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    // No need to check if range is out of INT_MAX limits as it's compile-time
-    // known constant.
-    setNDRangeDescriptor(range<1>{1});
-    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
-    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
-    setType(detail::CGType::Kernel);
-#endif
-  }
+  // detail::KernelWrapper<...>::wrap() must be called in this code.
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
   bool isStateExplicitKernelBundle() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
+#endif
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Rename to just getOrInsertHandlerKernelBundle
+#endif
+  detail::kernel_bundle_impl *
+  getOrInsertHandlerKernelBundlePtr(bool Insert) const;
 
   void setHandlerKernelBundle(kernel Kernel);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
+#endif
+
+  template <typename SharedPtrT>
+  void setHandlerKernelBundle(SharedPtrT &&NewKernelBundleImpPtr);
 
   void SetHostTask(std::function<void()> &&Func);
   void SetHostTask(std::function<void(interop_handle)> &&Func);
@@ -1746,6 +1544,8 @@ private:
   /// called.
   void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
 
+  kernel_bundle<bundle_state::input> getKernelBundle() const;
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
@@ -1774,8 +1574,11 @@ public:
   ///
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget, access::placeholder isPlaceholder>
-  void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+            access::target AccTarget, access::placeholder isPlaceholder,
+            typename propertyListT>
+  void require(
+      accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder, propertyListT>
+          Acc) {
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -1826,7 +1629,8 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;         // Interop
+        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
@@ -1871,6 +1675,25 @@ public:
     setArgHelper(argIndex, dynamicParam);
   }
 
+  // set_arg for graph dynamic_work_group_memory
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int argIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &DynWorkGroupMem) {
+    setArgHelper<DataT, PropertyListT>(argIndex, DynWorkGroupMem);
+  }
+
+  // set_arg for graph dynamic_local_accessor
+  template <typename DataT, int Dimensions>
+  void
+  set_arg(int argIndex,
+          ext::oneapi::experimental::dynamic_local_accessor<DataT, Dimensions>
+              &DynLocalAccessor) {
+    setArgHelper<DataT, Dimensions>(argIndex, DynLocalAccessor);
+  }
+
   // set_arg for the raw_kernel_arg extension type.
   void set_arg(int argIndex, ext::oneapi::experimental::raw_kernel_arg &&Arg) {
     setArgHelper(argIndex, std::move(Arg));
@@ -1892,30 +1715,30 @@ public:
   ///
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(_KERNELFUNCPARAM(KernelFunc)) {
-    single_task_lambda_impl<KernelName>(
-        ext::oneapi::experimental::empty_properties_t{}, KernelFunc);
+  void single_task(const KernelType &KernelFunc) {
+    wrap_kernel<detail::WrapAs::single_task, KernelName>(
+        KernelFunc, {} /*Props*/, range<1>{1});
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<1> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<1> NumWorkItems, const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::empty_properties_t{},
-        std::move(KernelFunc));
+        KernelFunc);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<2> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<2> NumWorkItems, const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::empty_properties_t{},
-        std::move(KernelFunc));
+        KernelFunc);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<3> NumWorkItems, _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(range<3> NumWorkItems, const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::empty_properties_t{},
-        std::move(KernelFunc));
+        KernelFunc);
   }
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
@@ -1934,9 +1757,6 @@ public:
                                               void(interop_handle)>::value>
   ext_codeplay_enqueue_native_command([[maybe_unused]] FuncT &&Func) {
 #ifndef __SYCL_DEVICE_ONLY__
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_codeplay_enqueue_native_command>();
     ext_codeplay_enqueue_native_command_impl(Func);
 #endif
   }
@@ -1958,26 +1778,13 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    _KERNELFUNCPARAM(KernelFunc)) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+                    const KernelType &KernelFunc) {
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
         typename TransformUserItemType<Dims, LambdaArgType>::type>;
-    (void)NumWorkItems;
-    (void)WorkItemOffset;
-    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
-    setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
-    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
-        std::move(KernelFunc));
-    setType(detail::CGType::Kernel);
-#endif
+    wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType,
+                Dims>(KernelFunc, {} /*Props*/, NumWorkItems, WorkItemOffset);
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -1993,10 +1800,11 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_work_group_lambda_impl<KernelName>(
-        NumWorkGroups, ext::oneapi::experimental::empty_properties_t{},
-        KernelFunc);
+                               const KernelType &KernelFunc) {
+    wrap_kernel<detail::WrapAs::parallel_for_work_group, KernelName,
+                detail::lambda_arg_type<KernelType, group<Dims>>, Dims,
+                /*SetNumWorkGroups=*/true>(KernelFunc, {} /*Props*/,
+                                           NumWorkGroups);
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -2015,10 +1823,11 @@ public:
             int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_work_group_lambda_impl<KernelName>(
-        NumWorkGroups, WorkGroupSize,
-        ext::oneapi::experimental::empty_properties_t{}, KernelFunc);
+                               const KernelType &KernelFunc) {
+    wrap_kernel<detail::WrapAs::parallel_for_work_group, KernelName,
+                detail::lambda_arg_type<KernelType, group<Dims>>, Dims>(
+        KernelFunc, {} /*Props*/,
+        nd_range<Dims>{NumWorkGroups * WorkGroupSize, WorkGroupSize});
   }
 
   /// Invokes a SYCL kernel.
@@ -2034,10 +1843,8 @@ public:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
+    setDeviceKernelInfo(std::move(Kernel));
     extractArgsAndReqs();
-    MKernelName = getKernelName();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -2070,12 +1877,10 @@ public:
                     [[maybe_unused]] kernel Kernel) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
-    setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
 #endif
   }
 
@@ -2099,32 +1904,35 @@ public:
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
+  void single_task(kernel Kernel, const KernelType &KernelFunc) {
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     (void)Kernel;
-    kernel_single_task<NameT>(KernelFunc);
+    detail::KernelWrapperHelperFuncs::kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
+    constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+    verifyUsedKernelBundleInternal(Info.Name);
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     setNDRangeDescriptor(range<1>{1});
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
+
+    MKernel = detail::getSyclObjImpl(Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
-      extractArgsAndReqs();
-      MKernelName = getKernelName();
-    } else
-      StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "the kernel name must match the name of the lambda");
+    }
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
+
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// \param Kernel is a SYCL kernel that is executed on a SYCL device
@@ -2134,31 +1942,14 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    _KERNELFUNCPARAM(KernelFunc)) {
+                    const KernelType &KernelFunc) {
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    (void)Kernel;
-    (void)NumWorkItems;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    detail::checkValueRange<Dims>(NumWorkItems);
-    setNDRangeDescriptor(std::move(NumWorkItems));
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
-    if (!lambdaAndKernelHaveEqualName<NameT>()) {
-      extractArgsAndReqs();
-      MKernelName = getKernelName();
-    } else
-      StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
-          std::move(KernelFunc));
-#endif
+    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType,
+                       Dims>(KernelFunc, Kernel, {} /*Props*/, NumWorkItems);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2172,33 +1963,13 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
-                    id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+                    id<Dims> WorkItemOffset, const KernelType &KernelFunc) {
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    (void)Kernel;
-    (void)NumWorkItems;
-    (void)WorkItemOffset;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
-    setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
-    if (!lambdaAndKernelHaveEqualName<NameT>()) {
-      extractArgsAndReqs();
-      MKernelName = getKernelName();
-    } else
-      StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
-          std::move(KernelFunc));
-#endif
+    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType,
+                       Dims>(KernelFunc, Kernel, {} /*Props*/, NumWorkItems,
+                             WorkItemOffset);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2212,32 +1983,13 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
-                    _KERNELFUNCPARAM(KernelFunc)) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+                    const KernelType &KernelFunc) {
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-    (void)Kernel;
-    (void)NDRange;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    detail::checkValueRange<Dims>(NDRange);
-    setNDRangeDescriptor(std::move(NDRange));
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CGType::Kernel);
-    if (!lambdaAndKernelHaveEqualName<NameT>()) {
-      extractArgsAndReqs();
-      MKernelName = getKernelName();
-    } else
-      StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
-          std::move(KernelFunc));
-#endif
+    wrap_kernel_legacy<detail::WrapAs::parallel_for, KernelName, LambdaArgType,
+                       Dims>(KernelFunc, Kernel, {} /*Props*/, NDRange);
   }
 
   /// Hierarchical kernel invocation method of a kernel.
@@ -2255,27 +2007,15 @@ public:
   /// \param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+                               const KernelType &KernelFunc) {
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-    (void)Kernel;
-    (void)NumWorkGroups;
-    kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
-    detail::checkValueRange<Dims>(NumWorkGroups);
-    setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CGType::Kernel);
-#endif // __SYCL_DEVICE_ONLY__
+    wrap_kernel_legacy<detail::WrapAs::parallel_for_work_group, KernelName,
+                       LambdaArgType, Dims,
+                       /*SetNumWorkGroups*/ true>(KernelFunc, Kernel,
+                                                  {} /*Props*/, NumWorkGroups);
   }
 
   /// Hierarchical kernel invocation method of a kernel.
@@ -2295,32 +2035,19 @@ public:
   /// \param KernelFunc is a lambda representing kernel.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+                               const KernelType &KernelFunc) {
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
-    (void)Kernel;
-    (void)NumWorkGroups;
-    (void)WorkGroupSize;
-    kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
-#ifndef __SYCL_DEVICE_ONLY__
-    throwIfActionIsCreated();
-    // Ignore any set kernel bundles and use the one associated with the kernel
-    setHandlerKernelBundle(Kernel);
-    verifyUsedKernelBundleInternal(
-        detail::string_view{detail::getKernelName<NameT>()});
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
-    detail::checkValueRange<Dims>(ExecRange);
-    setNDRangeDescriptor(std::move(ExecRange));
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CGType::Kernel);
-#endif // __SYCL_DEVICE_ONLY__
+    wrap_kernel_legacy<detail::WrapAs::parallel_for_work_group, KernelName,
+                       LambdaArgType, Dims>(KernelFunc, Kernel, {} /*Props*/,
+                                            ExecRange);
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
@@ -2330,9 +2057,9 @@ public:
                     "member function instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> single_task(PropertiesT Props,
-                                       _KERNELFUNCPARAM(KernelFunc)) {
-    single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
-                                                                 KernelFunc);
+                                       const KernelType &KernelFunc) {
+    wrap_kernel<detail::WrapAs::single_task, KernelName>(KernelFunc, Props,
+                                                         range<1>{1});
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -2344,7 +2071,7 @@ public:
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(range<1> NumWorkItems,
                                         PropertiesT Props,
-                                        _KERNELFUNCPARAM(KernelFunc)) {
+                                        const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2358,7 +2085,7 @@ public:
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(range<2> NumWorkItems,
                                         PropertiesT Props,
-                                        _KERNELFUNCPARAM(KernelFunc)) {
+                                        const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2372,7 +2099,7 @@ public:
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(range<3> NumWorkItems,
                                         PropertiesT Props,
-                                        _KERNELFUNCPARAM(KernelFunc)) {
+                                        const KernelType &KernelFunc) {
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2386,8 +2113,17 @@ public:
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> parallel_for(nd_range<Dims> Range,
                                         PropertiesT Properties,
-                                        _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
+                                        const KernelType &KernelFunc) {
+    using LambdaArgType =
+        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+    static_assert(
+        std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+        "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+        "must be either sycl::nd_item or be convertible from sycl::nd_item");
+    using TransformedArgType = sycl::nd_item<Dims>;
+
+    wrap_kernel<detail::WrapAs::parallel_for, KernelName, TransformedArgType,
+                Dims>(KernelFunc, Properties, Range);
   }
 
   /// Reductions @{
@@ -2453,7 +2189,8 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)>
   parallel_for(range<1> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
@@ -2461,7 +2198,8 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)>
   parallel_for(range<2> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
@@ -2469,7 +2207,8 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)>
   parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
@@ -2514,10 +2253,10 @@ public:
                     "get(sycl::ext::oneapi::experimental::properties_tag) "
                     "member function instead.")
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
-                                        PropertiesT>(NumWorkGroups, Props,
-                                                     KernelFunc);
+                               const KernelType &KernelFunc) {
+    wrap_kernel<detail::WrapAs::parallel_for_work_group, KernelName,
+                detail::lambda_arg_type<KernelType, group<Dims>>, Dims,
+                /*SetNumWorkGroups=*/true>(KernelFunc, Props, NumWorkGroups);
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -2528,14 +2267,12 @@ public:
                     "member function instead.")
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize, PropertiesT Props,
-                               _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
-                                        PropertiesT>(
-        NumWorkGroups, WorkGroupSize, Props, KernelFunc);
+                               const KernelType &KernelFunc) {
+    wrap_kernel<detail::WrapAs::parallel_for_work_group, KernelName,
+                detail::lambda_arg_type<KernelType, group<Dims>>, Dims>(
+        KernelFunc, Props,
+        nd_range<Dims>{NumWorkGroups * WorkGroupSize, WorkGroupSize});
   }
-
-  // Clean up KERNELFUNC macro.
-#undef _KERNELFUNCPARAM
 
   // Explicit copy operations API
 
@@ -2878,6 +2615,16 @@ public:
   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
+
+  /// Provides hints to the runtime library that data should be made available
+  /// on a device earlier than Unified Shared Memory would normally require it
+  /// to be available.
+  ///
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+  /// \param Count is a number of bytes to be prefetched.
+  /// \param Type is type of prefetch, i.e. fetch to device or fetch to host.
+  void prefetch(const void *Ptr, size_t Count,
+                ext::oneapi::experimental::prefetch_type Type);
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -3428,11 +3175,18 @@ public:
       uint64_t SignalValue);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::unique_ptr<detail::handler_impl> implOwner;
+  detail::handler_impl *impl;
+#else
   std::shared_ptr<detail::handler_impl> impl;
-  std::shared_ptr<detail::queue_impl> MQueue;
+
+  // Use impl->get_queue*() instead:
+  std::shared_ptr<detail::queue_impl> MQueueDoNotUse;
+#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  detail::string MKernelName;
+  detail::ABINeutralKernelNameStrT MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Pointer to the source host memory or accessor(depending on command type).
@@ -3447,8 +3201,11 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
 
   detail::code_location MCodeLoc = {};
-  bool MIsFinalized = false;
-  event MLastEvent;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Was used for the previous reduction implementation (via `withAuxHandler`).
+  bool MIsFinalizedDoNotUse = false;
+  event MLastEventDoNotUse;
+#endif
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3458,6 +3215,7 @@ private:
             typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
+  friend detail::device_impl &detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -3470,10 +3228,6 @@ private:
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
             bool ExplicitIdentity, typename RedOutVar>
   friend class detail::reduction_impl_algo;
-
-  friend inline void detail::reduction::finalizeHandler(handler &CGH);
-  template <class FunctorTy>
-  friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
   template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
             typename PropertiesT, typename... RestT>
@@ -3566,7 +3320,10 @@ private:
         UserRange, KernelFunc};
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
+#endif
+  detail::context_impl &getContextImpl() const;
 
   // Checks if 2D memory operations are supported by the underlying platform.
   bool supportsUSMMemcpy2D();
@@ -3738,7 +3495,12 @@ private:
   void setKernelIsCooperative(bool);
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
+#endif
+  void setKernelClusterLaunch(sycl::range<3> ClusterSize);
+  void setKernelClusterLaunch(sycl::range<2> ClusterSize);
+  void setKernelClusterLaunch(sycl::range<1> ClusterSize);
 
   // Set the request work group memory size (work_group_static ext).
   void setKernelWorkGroupMem(size_t Size);
@@ -3752,13 +3514,13 @@ private:
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
-  template <typename KernelName, typename KernelType>
-  void throwOnKernelParameterMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
-      const detail::kernel_param_desc_t ParamDesc =
-          detail::getKernelParamDesc<NameT>(I);
+  //
+  // Exception handling generates lots of code, outline it out of template
+  // method to improve compilation times.
+  void throwOnKernelParameterMisuse(
+      const detail::CompileTimeKernelInfoTy &Info) const {
+    for (size_t I = 0; I < Info.NumParams; ++I) {
+      detail::kernel_param_desc_t ParamDesc = (*Info.ParamDescGetter)(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
@@ -3769,7 +3531,8 @@ private:
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
             "parallel_for that takes a range parameter.");
-      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory ||
+          Kind == detail::kernel_param_kind_t::kind_dynamic_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
             "A work group memory object must not be used in a SYCL kernel "
@@ -3777,6 +3540,18 @@ private:
             "of parallel_for that takes a range parameter.");
     }
   }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Exported on Windows for some reason, have to keep for backward ABI
+  // compatibility, at least formally.
+  void throwOnKernelParameterMisuseHelper(
+      int N, detail::kernel_param_desc_t (*f)(int)) const {
+    detail::CompileTimeKernelInfoTy Info{};
+    Info.NumParams = N;
+    Info.ParamDescGetter = f;
+    throwOnKernelParameterMisuse(Info);
+  }
+#endif
 
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
@@ -3825,53 +3600,16 @@ private:
 
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window
   void clearArgs();
+#endif
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
-  }
-
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
-  }
-
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::range<Dims> N,
-                            bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
-  }
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
-                            sycl::id<Dims> Offset) {
-    return setNDRangeDescriptorPadded(padRange(NumWorkItems), padId(Offset),
-                                      Dims);
-  }
-  template <int Dims>
-  void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
-    return setNDRangeDescriptorPadded(
-        padRange(ExecutionRange.get_global_range()),
-        padRange(ExecutionRange.get_local_range()),
-        padId(ExecutionRange.get_offset()), Dims);
-  }
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
                                   int Dims);
   void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
@@ -3879,8 +3617,75 @@ private:
   void setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                   sycl::range<3> LocalSize, sycl::id<3> Offset,
                                   int Dims);
+#endif
+
+  template <int Dims>
+  void setNDRangeDescriptor(sycl::range<Dims> N,
+                            bool SetNumWorkGroups = false) {
+    return setNDRangeDescriptor(N, SetNumWorkGroups);
+  }
+  template <int Dims>
+  void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
+                            sycl::id<Dims> Offset) {
+    return setNDRangeDescriptor(NumWorkItems, Offset);
+  }
+  template <int Dims>
+  void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
+    return setNDRangeDescriptor(ExecutionRange.get_global_range(),
+                                ExecutionRange.get_local_range(),
+                                ExecutionRange.get_offset());
+  }
+
+  void setNDRangeDescriptor(sycl::range<3> N, bool SetNumWorkGroups);
+  void setNDRangeDescriptor(sycl::range<3> NumWorkItems, sycl::id<3> Offset);
+  void setNDRangeDescriptor(sycl::range<3> NumWorkItems,
+                            sycl::range<3> LocalSize, sycl::id<3> Offset);
+
+  void setNDRangeDescriptor(sycl::range<2> N, bool SetNumWorkGroups);
+  void setNDRangeDescriptor(sycl::range<2> NumWorkItems, sycl::id<2> Offset);
+  void setNDRangeDescriptor(sycl::range<2> NumWorkItems,
+                            sycl::range<2> LocalSize, sycl::id<2> Offset);
+
+  void setNDRangeDescriptor(sycl::range<1> N, bool SetNumWorkGroups);
+  void setNDRangeDescriptor(sycl::range<1> NumWorkItems, sycl::id<1> Offset);
+  void setNDRangeDescriptor(sycl::range<1> NumWorkItems,
+                            sycl::range<1> LocalSize, sycl::id<1> Offset);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
+                     detail::kernel_param_desc_t (*KernelParamDescGetter)(int),
+                     bool KernelIsESIMD, bool KernelHasSpecialCaptures);
+#endif
+  void setKernelFunc(void *KernelFuncPtr);
+
+  void instantiateKernelOnHost(void *InstantiateKernelOnHostPtr);
 
   friend class detail::HandlerAccess;
+  friend struct detail::KernelLaunchPropertyWrapper;
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
+#else
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
+#endif
+  // Friend free-functions for asynchronous allocation and freeing.
+  __SYCL_EXPORT friend void
+  ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
+
+  __SYCL_EXPORT friend void *
+  ext::oneapi::experimental::async_malloc(sycl::handler &h,
+                                          sycl::usm::alloc kind, size_t size);
+
+  __SYCL_EXPORT friend void *ext::oneapi::experimental::async_malloc_from_pool(
+      sycl::handler &h, size_t size,
+      const ext::oneapi::experimental::memory_pool &pool);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  void setKernelNameBasedCachePtr(
+      detail::KernelNameBasedCacheT *KernelNameBasedCachePtr);
+#endif
+  void setDeviceKernelInfoPtr(detail::DeviceKernelInfo *DeviceKernelInfoPtr);
+
+  queue getQueue();
 
 protected:
   /// Registers event dependencies in this command group.
@@ -3900,6 +3705,56 @@ public:
   static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
                               kernel Kernel) {
     Handler.parallel_for_impl(Range, Props, Kernel);
+  }
+
+  static void swap(handler &LHS, handler &RHS) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.implOwner, RHS.implOwner);
+#endif
+    std::swap(LHS.impl, RHS.impl);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.MQueueDoNotUse, RHS.MQueueDoNotUse);
+#endif
+    std::swap(LHS.MLocalAccStorage, RHS.MLocalAccStorage);
+    std::swap(LHS.MStreamStorage, RHS.MStreamStorage);
+    std::swap(LHS.MKernelName, RHS.MKernelName);
+    std::swap(LHS.MKernel, RHS.MKernel);
+    std::swap(LHS.MSrcPtr, RHS.MSrcPtr);
+    std::swap(LHS.MDstPtr, RHS.MDstPtr);
+    std::swap(LHS.MLength, RHS.MLength);
+    std::swap(LHS.MPattern, RHS.MPattern);
+    std::swap(LHS.MHostKernel, RHS.MHostKernel);
+    std::swap(LHS.MCodeLoc, RHS.MCodeLoc);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    std::swap(LHS.MIsFinalizedDoNotUse, RHS.MIsFinalizedDoNotUse);
+    std::swap(LHS.MLastEventDoNotUse, RHS.MLastEventDoNotUse);
+#endif
+  }
+
+  // pre/postProcess are used only for reductions right now, but the
+  // abstractions they provide aren't reduction-specific. The main problem they
+  // solve is
+  //
+  //   # User code
+  //   q.submit([&](handler &cgh) {
+  //     set_dependencies(cgh);
+  //     enqueue_whatever(cgh);
+  //   });  // single submission
+  //
+  // that needs to be implemented as multiple enqueues involving
+  // pre-/post-processing internally. SYCL prohibits recursive submits from
+  // inside control group function object (lambda above) so we need some
+  // internal interface to implement that.
+  __SYCL_EXPORT static void preProcess(handler &CGH, type_erased_cgfo_ty F);
+  __SYCL_EXPORT static void postProcess(handler &CGH, type_erased_cgfo_ty F);
+
+  template <class FunctorTy>
+  static void preProcess(handler &CGH, FunctorTy &Func) {
+    preProcess(CGH, type_erased_cgfo_ty{Func});
+  }
+  template <class FunctorTy>
+  static void postProcess(handler &CGH, FunctorTy &Func) {
+    postProcess(CGH, type_erased_cgfo_ty{Func});
   }
 };
 } // namespace detail

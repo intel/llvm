@@ -32,6 +32,9 @@ ur_queue_t_::~ur_queue_t_() {}
 namespace ${x}::level_zero {
 %for obj in th.get_queue_related_functions(specs, n, tags):
 %if not 'Release' in obj['name'] and not 'Retain' in obj['name']:
+%if 'guard' in obj:
+#if ${obj['guard']}
+%endif
 ${x}_result_t
 ${th.make_func_name(n, tags, obj)}(
     %for line in th.make_param_lines(n, tags, obj, format=["name", "type", "delim"]):
@@ -43,7 +46,13 @@ try {
 } catch(...) {
     return exceptionToResult(std::current_exception());
 }
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 %else:
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 ${x}_result_t
 ${th.make_func_name(n, tags, obj)}(
     %for line in th.make_param_lines(n, tags, obj, format=["name", "type", "delim"]):
@@ -55,6 +64,9 @@ try {
 } catch(...) {
     return exceptionToResult(std::current_exception());
 }
+%if 'guard' in obj:
+#endif // ${obj['guard']}
+%endif
 %endif
 %endfor
 }

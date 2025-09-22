@@ -24,7 +24,7 @@ int main() {
 }
 
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (MyUnion)'
+// CHECK: FunctionDecl {{.*}}kernel{{.*}} 'void (MyUnion) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_accel 'MyUnion'
 
 // Check kernel inits

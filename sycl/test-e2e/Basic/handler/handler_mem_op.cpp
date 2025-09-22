@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: run-mode && arch-intel_gpu_pvc && !igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19585
+
 //==- handler.cpp - SYCL handler explicit memory operations test -*- C++-*--==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -42,6 +42,27 @@ TEST_P(urContextGetInfoTest, SuccessDevices) {
   ASSERT_EQ(property_value, device);
 }
 
+TEST_P(urContextGetInfoTest, SuccessRoundtripDevices) {
+  const ur_context_info_t property_name = UR_CONTEXT_INFO_DEVICES;
+  size_t property_size = sizeof(ur_device_handle_t);
+
+  ur_native_handle_t native_context;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urContextGetNativeHandle(context, &native_context));
+
+  ur_context_handle_t from_native_context;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
+      native_context, adapter, 1, &device, nullptr, &from_native_context));
+
+  ur_device_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urContextGetInfo(from_native_context, property_name,
+                                  property_size, &property_value, nullptr));
+
+  size_t devices_count = property_size / sizeof(ur_device_handle_t);
+  ASSERT_EQ(devices_count, 1);
+  ASSERT_EQ(property_value, device);
+}
+
 TEST_P(urContextGetInfoTest, SuccessUSMMemCpy2DSupport) {
   const ur_context_info_t property_name = UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT;
   size_t property_size = 0;
@@ -77,74 +98,6 @@ TEST_P(urContextGetInfoTest, SuccessReferenceCount) {
                                               nullptr),
                              property_value);
   ASSERT_GT(property_value, 0U);
-}
-
-TEST_P(urContextGetInfoTest, SuccessAtomicMemoryOrderCapabilities) {
-  const ur_context_info_t property_name =
-      UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES;
-  size_t property_size = 0;
-
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urContextGetInfo(context, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(property_size, sizeof(ur_memory_order_capability_flags_t));
-
-  ur_memory_order_capability_flags_t property_value = 0;
-  ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
-                                  &property_value, nullptr));
-
-  ASSERT_EQ(property_value & UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK, 0);
-}
-
-TEST_P(urContextGetInfoTest, SuccessAtomicMemoryScopeCapabilities) {
-  const ur_context_info_t property_name =
-      UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES;
-  size_t property_size = 0;
-
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urContextGetInfo(context, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(property_size, sizeof(ur_memory_scope_capability_flags_t));
-
-  ur_memory_scope_capability_flags_t property_value = 0;
-  ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
-                                  &property_value, nullptr));
-
-  ASSERT_EQ(property_value & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
-}
-
-TEST_P(urContextGetInfoTest, SuccessAtomicFenceOrderCapabilities) {
-  const ur_context_info_t property_name =
-      UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES;
-  size_t property_size = 0;
-
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urContextGetInfo(context, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(property_size, sizeof(ur_memory_order_capability_flags_t));
-
-  ur_memory_order_capability_flags_t property_value = 0;
-  ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
-                                  &property_value, nullptr));
-
-  ASSERT_EQ(property_value & UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK, 0);
-}
-
-TEST_P(urContextGetInfoTest, SuccessAtomicFenceScopeCapabilities) {
-  const ur_context_info_t property_name =
-      UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES;
-  size_t property_size = 0;
-
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urContextGetInfo(context, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(property_size, sizeof(ur_memory_scope_capability_flags_t));
-
-  ur_memory_scope_capability_flags_t property_value = 0;
-  ASSERT_SUCCESS(urContextGetInfo(context, property_name, property_size,
-                                  &property_value, nullptr));
-
-  ASSERT_EQ(property_value & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
 }
 
 TEST_P(urContextGetInfoTest, InvalidNullHandleContext) {

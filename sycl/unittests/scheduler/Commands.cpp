@@ -55,7 +55,7 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
       &redefineEnqueueEventsWaitWithBarrierExt);
 
   queue Queue{Plt.get_devices()[0]};
-  sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
+  detail::queue_impl &QueueImpl = *detail::getSyclObjImpl(Queue);
 
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
@@ -63,12 +63,12 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   mock::getCallbacks().set_before_callback("urEventGetInfo",
                                            &redefineUrEventGetInfo);
 
-  auto EmptyEvent = std::make_shared<detail::event_impl>();
+  auto EmptyEvent = detail::event_impl::create_completed_host_event();
 
   ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
   auto Event =
-      std::make_shared<detail::event_impl>(UREvent, Queue.get_context());
+      detail::event_impl::create_from_handle(UREvent, Queue.get_context());
 
   using EventList = std::vector<detail::EventImplPtr>;
   std::vector<EventList> InputEventWaitLists = {

@@ -65,7 +65,7 @@ __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT
     __spirv_GroupNonUniformShuffleUp(__spv::Scope::Flag, T, unsigned) noexcept;
 #endif
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 namespace detail {
 
@@ -86,10 +86,15 @@ template <typename T> struct DataType<sycl::vec<T, 2>> {
   using T2 = detail::complex_type<T>;
 };
 
+template <typename T = void>
 inline void matrix_mem_copy(void *to_ptr, const void *from_ptr, int to_ld,
                             int from_ld, int rows, int cols, int elem_size,
                             sycl::queue queue = syclcompat::get_default_queue(),
                             bool async = false) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::matrix_mem_copy only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   if (to_ptr == from_ptr && to_ld == from_ld) {
     return;
   }
@@ -963,7 +968,7 @@ enum class group_type { work_group, sub_group, logical_group, root_group };
 template <int dimensions = 3> class group_base {
 public:
   group_base(sycl::nd_item<dimensions> item)
-      : nd_item(item), logical_group(item) {}
+      : nd_item(item), _logical_group(item) {}
   ~group_base() {}
   /// Returns the number of work-items in the group.
   size_t get_local_linear_range() {
@@ -973,7 +978,7 @@ public:
     case group_type::sub_group:
       return nd_item.get_sub_group().get_local_linear_range();
     case group_type::logical_group:
-      return logical_group.get_local_linear_range();
+      return _logical_group.get_local_linear_range();
     default:
       return -1; // Unkonwn group type
     }
@@ -986,7 +991,7 @@ public:
     case group_type::sub_group:
       return nd_item.get_sub_group().get_local_linear_id();
     case group_type::logical_group:
-      return logical_group.get_local_linear_id();
+      return _logical_group.get_local_linear_id();
     default:
       return -1; // Unkonwn group type
     }
@@ -1008,7 +1013,7 @@ public:
   }
 
 protected:
-  logical_group<dimensions> logical_group;
+  logical_group<dimensions> _logical_group;
   sycl::nd_item<dimensions> nd_item;
   group_type type;
 };

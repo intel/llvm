@@ -44,11 +44,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   try {
     ScopedDevice active(commandDevice);
     switch (propName) {
-    case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
+    case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT: {
       hipAttr = hipDevP2PAttrAccessSupported;
       break;
     }
-    case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
+    case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT: {
       hipAttr = hipDevP2PAttrNativeAtomicSupported;
       break;
     }

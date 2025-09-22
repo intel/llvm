@@ -43,7 +43,6 @@ add_public_tablegen_target(InstCombineTableGen)
 add_llvm_target(AMDGPUCodeGen
   AMDGPUAliasAnalysis.cpp
   AMDGPUAlwaysInlinePass.cpp
-  AMDGPUAnnotateKernelFeatures.cpp
   AMDGPUAnnotateUniformValues.cpp
   AMDGPUArgumentUsageInfo.cpp
   AMDGPUAsanInstrumentation.cpp
@@ -55,6 +54,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUCombinerHelper.cpp
   AMDGPUCtorDtorLowering.cpp
   AMDGPUExportClustering.cpp
+  AMDGPUExportKernelRuntimeHandles.cpp
   AMDGPUFrameLowering.cpp
   AMDGPUGlobalISelDivergenceLowering.cpp
   AMDGPUGlobalISelUtils.cpp
@@ -85,11 +85,11 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUMarkLastScratchLoad.cpp
   AMDGPUMIRFormatter.cpp
   AMDGPUOclcReflect.cpp
-  AMDGPUOpenCLEnqueuedBlockLowering.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDGPUPostLegalizerCombiner.cpp
   AMDGPUPreLegalizerCombiner.cpp
   AMDGPUPreloadKernArgProlog.cpp
+  AMDGPUPreloadKernelArguments.cpp
   AMDGPUPrintfRuntimeBinding.cpp
   AMDGPUPromoteAlloca.cpp
   AMDGPUPromoteKernelArguments.cpp
@@ -102,6 +102,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPURemoveIncompatibleFunctions.cpp
   AMDGPUReserveWWMRegs.cpp
   AMDGPUResourceUsageAnalysis.cpp
+  AMDGPURewriteAGPRCopyMFMA.cpp
   AMDGPURewriteOutArguments.cpp
   AMDGPURewriteUndefForPHI.cpp
   AMDGPUSelectionDAGInfo.cpp

@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=#warnings -o %t.out
 // RUN: %{run} %t.out
 
 // Device globals aren't supported on opencl:gpu yet.
@@ -12,7 +12,6 @@
 
 #include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
-#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 

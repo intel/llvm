@@ -12,15 +12,17 @@ using urCommandBufferReleaseExpTest =
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urCommandBufferReleaseExpTest);
 
 TEST_P(urCommandBufferReleaseExpTest, Success) {
-  EXPECT_SUCCESS(urCommandBufferRetainExp(cmd_buf_handle));
+  // https://github.com/intel/llvm/issues/19139
+  UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+  ASSERT_SUCCESS(urCommandBufferRetainExp(cmd_buf_handle));
 
   uint32_t prev_ref_count = 0;
-  EXPECT_SUCCESS(uur::GetObjectReferenceCount(cmd_buf_handle, prev_ref_count));
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(cmd_buf_handle, prev_ref_count));
 
-  EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
+  ASSERT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
 
   uint32_t ref_count = 0;
-  EXPECT_SUCCESS(uur::GetObjectReferenceCount(cmd_buf_handle, ref_count));
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(cmd_buf_handle, ref_count));
 
   EXPECT_GT(prev_ref_count, ref_count);
 }

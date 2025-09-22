@@ -23,11 +23,13 @@ int main() {
   auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
     CGH.parallel_for(nd_range({Size}, {LocalSize}), [=](nd_item<1> Item) {
       multi_ptr<size_t[LocalSize], access::address_space::local_space>
-          LocalMem = sycl::ext::oneapi::group_local_memory<size_t[LocalSize]>(
-              Item.get_group());
-      *LocalMem[Item.get_local_linear_id()] = Item.get_global_linear_id() * 2;
+          LocalMemPtr =
+              sycl::ext::oneapi::group_local_memory<size_t[LocalSize]>(
+                  Item.get_group());
+      (*LocalMemPtr)[Item.get_local_linear_id()] =
+          Item.get_global_linear_id() * 2;
       PtrA[Item.get_global_linear_id()] +=
-          *LocalMem[Item.get_local_linear_id()];
+          (*LocalMemPtr)[Item.get_local_linear_id()];
     });
   });
 
@@ -37,12 +39,12 @@ int main() {
         depends_on_helper(CGH, NodeA);
         CGH.parallel_for(nd_range({Size}, {LocalSize}), [=](nd_item<1> Item) {
           multi_ptr<size_t[LocalSize], access::address_space::local_space>
-              LocalMem = sycl::ext::oneapi::group_local_memory_for_overwrite<
+              LocalMemPtr = sycl::ext::oneapi::group_local_memory_for_overwrite<
                   size_t[LocalSize]>(Item.get_group());
-          *LocalMem[Item.get_local_linear_id()] =
+          (*LocalMemPtr)[Item.get_local_linear_id()] =
               Item.get_global_linear_id() + 4;
           PtrA[Item.get_global_linear_id()] *=
-              *LocalMem[Item.get_local_linear_id()];
+              (*LocalMemPtr)[Item.get_local_linear_id()];
         });
       },
       NodeA);

@@ -16,20 +16,10 @@ namespace uur {
 namespace command_buffer {
 
 static void checkCommandBufferSupport(ur_device_handle_t device) {
-  size_t returned_size;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-                                 &returned_size));
-
-  std::unique_ptr<char[]> returned_extensions(new char[returned_size]);
-
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS,
-                                 returned_size, returned_extensions.get(),
-                                 nullptr));
-
-  std::string_view extensions_string(returned_extensions.get());
-  bool command_buffer_support =
-      extensions_string.find(UR_COMMAND_BUFFER_EXTENSION_STRING_EXP) !=
-      std::string::npos;
+  ur_bool_t command_buffer_support = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+      sizeof(command_buffer_support), &command_buffer_support, nullptr));
 
   if (!command_buffer_support) {
     GTEST_SKIP() << "EXP command-buffer feature is not supported.";
@@ -55,8 +45,6 @@ static void checkCommandBufferUpdateSupport(
 
 struct urCommandBufferExpTest : uur::urContextTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -82,8 +70,6 @@ struct urCommandBufferExpTest : uur::urContextTest {
 template <class T>
 struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
@@ -107,8 +93,6 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
 
 struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -130,10 +114,35 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
 };
 
+template <class T>
+struct urCommandBufferExpExecutionTestWithParam
+    : urKernelExecutionTestWithParam<T> {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::SetUp());
+
+    UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(this->device));
+
+    ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                      nullptr, false, false, false};
+    ASSERT_SUCCESS(urCommandBufferCreateExp(this->context, this->device, &desc,
+                                            &cmd_buf_handle));
+    ASSERT_NE(cmd_buf_handle, nullptr);
+  }
+
+  void TearDown() override {
+    if (cmd_buf_handle) {
+      EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
+    }
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urKernelExecutionTestWithParam<T>::TearDown());
+  }
+
+  ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
+};
+
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -163,13 +172,11 @@ struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   }
 
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
 };
 
 struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
@@ -200,7 +207,7 @@ struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::TearDown());
   }
 
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
   ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
 };
 
@@ -248,7 +255,7 @@ struct TestKernel {
     std::shared_ptr<std::vector<char>> ILBinary;
     std::vector<ur_program_metadata_t> Metadatas{};
 
-    ur_platform_backend_t Backend;
+    ur_backend_t Backend;
     ASSERT_SUCCESS(urPlatformGetInfo(Platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(Backend), &Backend, nullptr));
 
@@ -259,8 +266,9 @@ struct TestKernel {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
         static_cast<uint32_t>(Metadatas.size()),
         Metadatas.empty() ? nullptr : Metadatas.data()};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        Platform, Context, Device, *ILBinary, &Properties, &Program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            Platform, Context, Device, *ILBinary, &Properties, &Program));
 
     auto KernelNames =
         uur::KernelsEnvironment::instance->GetEntryPointNames(Name);

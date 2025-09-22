@@ -55,7 +55,7 @@ void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
+  handleSimpleAttribute<DeviceKernelAttr>(*this, D, AL);
 }
 
 // Returns a DupArgResult value; Same means the args have the same value,
@@ -2098,8 +2098,8 @@ void SemaSYCL::handleIntelNamedSubGroupSizeAttr(Decl *D, const ParsedAttr &AL) {
   SourceLocation Loc;
   if (AL.isArgIdent(0)) {
     IdentifierLoc *IL = AL.getArgAsIdent(0);
-    SizeStr = IL->Ident->getName();
-    Loc = IL->Loc;
+    SizeStr = IL->getIdentifierInfo()->getName();
+    Loc = IL->getLoc();
   } else if (!SemaRef.checkStringLiteralArgumentAttr(AL, 0, SizeStr, &Loc)) {
     return;
   }
@@ -2736,7 +2736,7 @@ void SemaSYCL::handleSYCLTypeAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  IdentifierInfo *II = AL.getArgAsIdent(0)->Ident;
+  IdentifierInfo *II = AL.getArgAsIdent(0)->getIdentifierInfo();
   SYCLTypeAttr::SYCLType Type;
 
   if (!SYCLTypeAttr::ConvertStrToSYCLType(II->getName(), Type)) {

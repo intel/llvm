@@ -9,7 +9,6 @@
 #pragma once
 
 #include <sycl/access/access.hpp>                     // for target, mode
-#include <sycl/atomic.hpp>                            // for atomic
 #include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
 #include <sycl/detail/common.hpp>                     // for code_location
@@ -215,17 +214,16 @@
 namespace sycl {
 inline namespace _V1 {
 class stream;
+template <typename T, access::address_space addressSpace> class atomic;
+
 namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
 } // namespace ext::intel::esimd::detail
 
-template <typename DataT, int Dimensions = 1,
-          access::mode AccessMode = access::mode::read_write,
-          access::target AccessTarget = access::target::device,
-          access::placeholder IsPlaceholder = access::placeholder::false_t,
-          typename PropertyListT = ext::oneapi::accessor_property_list<>>
-class accessor;
+namespace ext::oneapi::experimental {
+template <typename, int> class dynamic_local_accessor;
+}
 
 namespace detail {
 
@@ -236,7 +234,7 @@ template <typename... Ts>
 void cannot_be_called_on_host([[maybe_unused]] const char *API,
                               Ts &&.../* ignore */) {
 #ifndef __SYCL_DEVICE_ONLY__
-  std::fprintf(stderr, "%s cannot be called on host!\n", API);
+  std::cerr << API << " cannot be called on host!" << std::endl;
   std::abort();
 #endif
 }
@@ -556,7 +554,11 @@ public:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename, int, access::mode, access::target, access::placeholder,
             typename>
@@ -592,7 +594,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   LocalAccessorImplPtr impl;
 };
@@ -603,9 +609,11 @@ protected:
 /// \sa buffer
 ///
 /// \ingroup sycl_api_acc
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
+template <typename DataT, int Dimensions = 1,
+          access::mode AccessMode = access::mode::read_write,
+          access::target AccessTarget = access::target::device,
+          access::placeholder IsPlaceholder = access::placeholder::false_t,
+          typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
@@ -851,7 +859,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
 public:
   // 4.7.6.9.1. Interface for buffer command accessors
@@ -1739,14 +1751,14 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if_t<Dims == 0 &&
-                                         AccessMode == access::mode::atomic,
+  operator typename std::enable_if_t<
+      Dims == 0 && AccessMode == access::mode::atomic,
 #ifdef __ENABLE_USM_ADDR_SPACE__
-                                     atomic<DataT>
+      atomic<DataT, access::address_space::global_space>
 #else
-                                     atomic<DataT, AS>
+      atomic<DataT, AS>
 #endif
-                                     >() const {
+      >() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
@@ -2242,7 +2254,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename DataT_, int Dimensions_> friend class local_accessor;
 
@@ -2622,6 +2638,8 @@ public:
 
 private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
+  template <typename, int>
+  friend class ext::oneapi::experimental::dynamic_local_accessor;
 };
 
 template <typename DataT, int Dimensions = 1,
@@ -2658,7 +2676,11 @@ protected:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 #endif // __SYCL_DEVICE_ONLY__
 
 public:
@@ -2910,61 +2932,24 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
-struct hash<sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                           IsPlaceholder>> {
-  using AccType = sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                                 IsPlaceholder>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    // getSyclObjImpl() here returns a pointer to either AccessorImplHost
-    // or LocalAccessorImplHost depending on the AccessTarget.
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<
+    sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                         IsPlaceholder>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
-struct hash<sycl::host_accessor<DataT, Dimensions, AccessMode>> {
-  using AccType = sycl::host_accessor<DataT, Dimensions, AccessMode>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    // getSyclObjImpl() here returns a pointer to AccessorImplHost.
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
+struct std::hash<sycl::host_accessor<DataT, Dimensions, AccessMode>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::host_accessor<DataT, Dimensions, AccessMode>,
+          false /*SupportedOnDevice*/> {};
 
 template <typename DataT, int Dimensions>
-struct hash<sycl::local_accessor<DataT, Dimensions>> {
-  using AccType = sycl::local_accessor<DataT, Dimensions>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    // getSyclObjImpl() here returns a pointer to LocalAccessorImplHost.
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
-
-} // namespace std
+struct std::hash<sycl::local_accessor<DataT, Dimensions>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::local_accessor<DataT, Dimensions>,
+          false /*SupportedOnDevice*/> {};

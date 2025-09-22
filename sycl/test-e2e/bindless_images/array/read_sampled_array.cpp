@@ -151,7 +151,6 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   }
 
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   sycl::backend backend = dev.get_backend();
 

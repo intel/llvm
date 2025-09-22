@@ -142,6 +142,9 @@ template <typename dataT, int dimensions, access::mode accessmode,
           typename propertyListT = ext::oneapi::accessor_property_list<>>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+accessor() = default;
+#endif
   void use(void) const {}
   void use(void *) const {}
   _ImplT<dimensions> impl;
@@ -223,6 +226,9 @@ local_accessor: public accessor<dataT,
         dimensions, access::mode::read_write,
         access::target::local> {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  local_accessor() = default;
+#endif
   void use(void) const {}
   template <typename... T>
   void use(T... args) {}
@@ -250,6 +256,9 @@ class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
 #endif
 
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  sampler() = default;
+#endif
   void use(void) const {}
 };
 
@@ -452,11 +461,9 @@ private:
 template <typename DataT>
 class __attribute__((sycl_special_class))
 __SYCL_TYPE(work_group_memory) work_group_memory {
-
-// Default constructor for objects later initialized with __init member.
-  work_group_memory() = default;
-
 public:
+  // Default constructor for objects later initialized with __init member.
+  work_group_memory() = default;
   work_group_memory(handler &CGH) {}
 
   void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
@@ -465,23 +472,40 @@ private:
   __attribute((opencl_local)) DataT *Ptr;
 };
 
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory {
+public:
+  dynamic_work_group_memory() = default;
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->LocalMem.__init(Ptr); }
+  work_group_memory<DataT> get() const { return LocalMem; }
+
+private:
+  work_group_memory<DataT> LocalMem;
+};
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(T _obj) {}
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(T _obj) {}
+public:
+  annotated_arg() = default;
+#endif
 };
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
   T* obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    void __init(T* _obj) {}
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(T* _obj) {}
+public:
+  annotated_ptr() = default;   
+#endif
 };
 
 } // namespace experimental

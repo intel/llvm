@@ -12,9 +12,9 @@ else()
 endif()
 
 if (UR_BUILD_ADAPTER_CUDA)
-    find_package(CUDA 10.1 REQUIRED)
+    find_package(CUDAToolkit 10.1 REQUIRED)
     set(UMF_BUILD_CUDA_PROVIDER ON CACHE INTERNAL "Build UMF CUDA provider")
-    set(UMF_CUDA_INCLUDE_DIR "${CUDA_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
+    set(UMF_CUDA_INCLUDE_DIR "${CUDAToolkit_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
 else()
     set(UMF_BUILD_CUDA_PROVIDER OFF CACHE INTERNAL "Build UMF CUDA provider")
 endif()
@@ -23,6 +23,8 @@ add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
     latency_tracker.hpp
+    offload_bundle_parser.cpp
+    offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
@@ -34,26 +36,6 @@ target_include_directories(ur_common PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
-message(STATUS "Download Unified Memory Framework from github.com")
-if (NOT DEFINED UMF_REPO)
-    set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
-endif()
-
-if (NOT DEFINED UMF_TAG)
-    # commit 5a515c56c92be75944c8246535c408cee7711114
-    # Author: Lukasz Dorau <lukasz.dorau@intel.com>
-    # Date:   Mon Feb 17 10:56:05 2025 +0100
-    # Merge pull request #1086 from vinser52/svinogra_l0_linking
-    set(UMF_TAG 5a515c56c92be75944c8246535c408cee7711114)
-endif()
-
-message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
-
-include(FetchContent)
-FetchContent_Declare(unified-memory-framework
-    GIT_REPOSITORY    ${UMF_REPO}
-    GIT_TAG           ${UMF_TAG}
-)
 
 if (UR_STATIC_ADAPTER_L0)
     if (UMF_BUILD_SHARED_LIBRARY)
@@ -61,24 +43,47 @@ if (UR_STATIC_ADAPTER_L0)
         set(UMF_BUILD_SHARED_LIBRARY OFF)
     endif()
 endif()
+  
+set(UR_USE_EXTERNAL_UMF ON CACHE BOOL "Use a pre-built UMF if available")
 
-set(UR_USE_EXTERNAL_UMF OFF CACHE BOOL "Use a pre-built UMF")
-
-if (UR_USE_EXTERNAL_UMF)
-  find_package(umf REQUIRED)
+if(UR_USE_EXTERNAL_UMF)
+  find_package(umf 1.0.0 QUIET)
+endif()
+if(umf_FOUND)
+  message(STATUS "Using preinstalled UMF at ${umf_DIR}, ignoring UMF build related options")
   # Add an alias matching the FetchContent case
   add_library(umf::headers ALIAS umf::umf_headers)
 else()
+  set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
+
+  # commit e7d285269e04d3c0e70917c24945c80a4ea3313a
+  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+  # Date:   Tue Sep 16 15:04:27 2025 +0200
+  # 1.0.3 release
+  set(UMF_TAG v1.0.3)
+
+  if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
+    message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
+  endif()
+
+  include(FetchContent)
+  FetchContent_Declare(unified-memory-framework
+    GIT_REPOSITORY    ${UMF_REPO}
+    GIT_TAG           ${UMF_TAG}
+    )
   set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
   set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
-  set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
 
   FetchContent_MakeAvailable(unified-memory-framework)
   FetchContent_GetProperties(unified-memory-framework)
 endif()
 
 if(UR_ENABLE_LATENCY_HISTOGRAM)
+  find_package(hdr_histogram QUIET)
+  if(hdr_histogram_FOUND)
+    set(hdr_histogram_SOURCE_DIR "${hdr_histogram_DIR}")
+  else()
     set(HDR_HISTOGRAM_BUILD_STATIC CACHE INTERNAL ON "")
     set(HDR_HISTOGRAM_BUILD_SHARED CACHE INTERNAL OFF "")
 
@@ -90,10 +95,10 @@ if(UR_ENABLE_LATENCY_HISTOGRAM)
 
     FetchContent_MakeAvailable(hdr_histogram)
     FetchContent_GetProperties(hdr_histogram)
-
-    target_link_libraries(ur_common PUBLIC hdr_histogram_static)
-    target_include_directories(ur_common PUBLIC $<BUILD_INTERFACE:${hdr_histogram_SOURCE_DIR}/include>)
-    target_compile_options(ur_common PUBLIC -DUR_ENABLE_LATENCY_HISTOGRAM=1)
+  endif()
+  target_link_libraries(ur_common PUBLIC hdr_histogram_static)
+  target_include_directories(ur_common PUBLIC $<BUILD_INTERFACE:${hdr_histogram_SOURCE_DIR}/include>)
+  target_compile_options(ur_common PUBLIC -DUR_ENABLE_LATENCY_HISTOGRAM=1)
 endif()
 
 target_link_libraries(ur_common PUBLIC
@@ -127,5 +132,4 @@ add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
 target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
-    umf::disjoint_pool
 )

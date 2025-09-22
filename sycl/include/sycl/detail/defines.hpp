@@ -44,3 +44,9 @@
 #else
 #define __SYCL_BUILTIN_ALIAS(x)
 #endif
+
+#if __has_cpp_attribute(_Clang::__standalone_debug__)
+#define __SYCL_STANDALONE_DEBUG [[_Clang::__standalone_debug__]]
+#else
+#define __SYCL_STANDALONE_DEBUG
+#endif

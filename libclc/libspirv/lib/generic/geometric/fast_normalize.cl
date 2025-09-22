@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/geometric/clc_fast_normalize.h>
 #include <libspirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_fast_normalize(float p) {
-  return __spirv_ocl_normalize(p);
-}
-
-#define __CLC_BODY <fast_normalize.inc>
+#define FUNCTION __spirv_ocl_fast_normalize
+#define __IMPL_FUNCTION(x) __clc_fast_normalize
+#define __CLC_GEOMETRIC_RET_GENTYPE
+#define __CLC_BODY <clc/geometric/unary_def.inc>
 #define __FLOAT_ONLY
-#include <clc/geometric/floatn.inc>
-#undef __FLOAT_ONLY
+#include <clc/math/gentype.inc>

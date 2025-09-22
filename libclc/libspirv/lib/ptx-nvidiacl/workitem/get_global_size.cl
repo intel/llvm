@@ -8,14 +8,6 @@
 
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_x() {
-  return __spirv_NumWorkgroups_x() * __spirv_WorkgroupSize_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_y() {
-  return __spirv_NumWorkgroups_y() * __spirv_WorkgroupSize_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalSize_z() {
-  return __spirv_NumWorkgroups_z() * __spirv_WorkgroupSize_z();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInGlobalSize(int dim) {
+  return __spirv_BuiltInNumWorkgroups(dim) * __spirv_BuiltInWorkgroupSize(dim);
 }

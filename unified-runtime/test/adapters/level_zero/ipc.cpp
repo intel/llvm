@@ -4,6 +4,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v1 ./ipc-test
+
+// TODO: debug for v2
+// REQUIRES: v1
+
 #include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 #include <uur/fixtures.h>
@@ -27,7 +32,9 @@ TEST_P(urL0IpcTest, SuccessHostL0Ipc) {
   ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocSize, &ptr));
   ASSERT_NE(ptr, nullptr);
 
-  umf_memory_pool_handle_t umfPool = umfPoolByPtr(ptr);
+  umf_memory_pool_handle_t umfPool = nullptr;
+  auto umfRet = umfPoolByPtr(ptr, &umfPool);
+  ASSERT_UMF_SUCCESS(umfRet);
   ASSERT_NE(umfPool, nullptr);
 
   umf_memory_provider_handle_t umfProvider = nullptr;

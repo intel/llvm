@@ -13,6 +13,7 @@ if(LIBC_TESTS_CAN_USE_MPFR OR LIBC_TESTS_CAN_USE_MPC)
     libc.src.__support.CPP.string
     libc.src.__support.CPP.string_view
     libc.src.__support.CPP.type_traits
+    libc.src.__support.FPUtil.bfloat16
     libc.src.__support.FPUtil.cast
     libc.src.__support.FPUtil.fp_bits
   )
@@ -34,7 +35,7 @@ if(LIBC_TESTS_CAN_USE_MPFR)
   _get_common_test_compile_options(compile_options "" "")
   # mpfr/gmp headers do not work with -ffreestanding flag.
   list(REMOVE_ITEM compile_options "-ffreestanding")
-  target_compile_options(libcMPFRWrapper PRIVATE -O3 ${compile_options})
+  target_compile_options(libcMPFRWrapper PRIVATE ${libc_opt_high_flag} ${compile_options})
   add_dependencies(
     libcMPFRWrapper
     libcMPCommon

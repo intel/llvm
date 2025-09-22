@@ -57,12 +57,6 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90c \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90c -DMAC_STR=GFX90C
-// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx940 \
-// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx940 -DMAC_STR=GFX940
-// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx941 \
-// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx941 -DMAC_STR=GFX941
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx942 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx942 -DMAC_STR=GFX942
@@ -130,9 +124,9 @@
 // DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
 
 /// test for invalid amd arch
-// RUN: not %clangxx -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -nogpulib -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
-// RUN: not %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad --rocm-device-lib-path=/Inputs/rocm/amdgcn/bitcode -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
 // BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 

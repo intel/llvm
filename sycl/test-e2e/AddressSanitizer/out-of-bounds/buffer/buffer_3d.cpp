@@ -1,8 +1,12 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
-// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
+// OCL CPU has subgroup alignment issue with -O0, skip it for
+// now.(CMPLRLLVM-61493)
+// RUN: %{run} %if !cpu %{ not %t1.out 2>&1 | FileCheck %s %}
 // RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
+// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 

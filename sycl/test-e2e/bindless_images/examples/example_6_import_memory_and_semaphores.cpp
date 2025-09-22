@@ -13,10 +13,9 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 int main() {
-  // Set up device, queue, and context
+  // Set up queue
   sycl::device dev;
   sycl::queue q(dev);
-  sycl::context ctxt = q.get_context();
 
   size_t width = 123 /* passed from external API */;
   size_t height = 123 /* passed from external API */;
@@ -51,7 +50,7 @@ int main() {
       sycl::ext::oneapi::experimental::resource_fd>
       output_ext_mem_desc{
           external_output_image_file_descriptor,
-          sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+          sycl::ext::oneapi::experimental::external_mem_handle_type::dma_buf,
           img_size_in_bytes};
 
   // An external API semaphore will signal this semaphore before our SYCL

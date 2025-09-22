@@ -10,8 +10,10 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "event.hpp"
+
 #include <cassert>
 #include <memory>
 #include <unordered_map>
@@ -249,7 +251,7 @@ public:
       break;
     default:
       // urMemImageCreate given unsupported image_channel_data_type
-      detail::ur::die("Bad image format given to ur_image_ constructor");
+      throw UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
   }
 
@@ -307,7 +309,7 @@ public:
 /// Migrations will occur in both cases if the most recent version of data
 /// is on a different device, marked by LastQueueWritingToMemObj->getDevice().
 ///
-struct ur_mem_handle_t_ {
+struct ur_mem_handle_t_ : ur::hip::handle_base {
 
   // TODO: Move as much shared data up as possible
   using ur_context = ur_context_handle_t_ *;
@@ -317,7 +319,7 @@ struct ur_mem_handle_t_ {
   ur_context Context;
 
   /// Reference counting of the handler
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   // Original mem flags passed
   ur_mem_flags_t MemFlags;
@@ -347,7 +349,7 @@ struct ur_mem_handle_t_ {
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
   ur_mem_handle_t_(ur_context_handle_t Ctxt, ur_mem_flags_t MemFlags,
                    BufferMem::AllocMode Mode, void *HostPtr, size_t Size)
-      : Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+      : Context{Ctxt}, MemFlags{MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
         Mem{std::in_place_type<BufferMem>, Ctxt, this, Mode, HostPtr, Size} {
     urContextRetain(Context);
@@ -355,7 +357,7 @@ struct ur_mem_handle_t_ {
 
   // Subbuffer constructor
   ur_mem_handle_t_(ur_mem Parent, size_t SubBufferOffset)
-      : Context{Parent->Context}, RefCount{1}, MemFlags{Parent->MemFlags},
+      : handle_base(), Context{Parent->Context}, MemFlags{Parent->MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Parent->Context->Devices.size(),
                                            false),
         Mem{BufferMem{std::get<BufferMem>(Parent->Mem)}} {
@@ -378,7 +380,7 @@ struct ur_mem_handle_t_ {
   ur_mem_handle_t_(ur_context Ctxt, ur_mem_flags_t MemFlags,
                    ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
                    void *HostPtr)
-      : Context{Ctxt}, RefCount{1}, MemFlags{MemFlags},
+      : Context{Ctxt}, MemFlags{MemFlags},
         HaveMigratedToDeviceSinceLastWrite(Context->Devices.size(), false),
         Mem{std::in_place_type<SurfaceMem>,
             Ctxt,
@@ -418,12 +420,6 @@ struct ur_mem_handle_t_ {
   }
 
   ur_context getContext() const noexcept { return Context; }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   void setLastQueueWritingToMemObj(ur_queue_handle_t WritingQueue) {
     if (LastQueueWritingToMemObj != nullptr) {

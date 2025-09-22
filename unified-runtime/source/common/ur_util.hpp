@@ -59,15 +59,23 @@ int ur_duplicate_fd(int pid, int fd_in);
     defined(SANITIZER_THREAD)
 #define SANITIZER_ANY
 #endif
+
 ///////////////////////////////////////////////////////////////////////////////
+#if UR_USE_DEBUG_POSTFIX
+#define LIBRARY_NAME(NAME) NAME "d"
+#else
+#define LIBRARY_NAME(NAME) NAME
+#endif
+
 #if defined(_WIN32)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define MAKE_LIBRARY_NAME(NAME, VERSION) LIBRARY_NAME(NAME) ".dll"
 #define STATIC_LIBRARY_EXTENSION ".lib"
 #else
 #if defined(__APPLE__)
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
+#define MAKE_LIBRARY_NAME(NAME, VERSION)                                       \
+  "lib" LIBRARY_NAME(NAME) "." VERSION ".dylib"
 #else
-#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
+#define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" LIBRARY_NAME(NAME) ".so." VERSION
 #endif
 #define STATIC_LIBRARY_EXTENSION ".a"
 #endif
@@ -159,14 +167,14 @@ getenv_to_vec(const char *env_var_name) {
     return std::nullopt;
   }
 
-  auto is_quoted = [](std::string &str) {
-    return (str.front() == '\'' && str.back() == '\'') ||
-           (str.front() == '"' && str.back() == '"');
+  auto is_quoted = [](const std::string &str) {
+    return str.size() >= 2 && ((str.front() == '\'' && str.back() == '\'') ||
+                               (str.front() == '"' && str.back() == '"'));
   };
-  auto has_colon = [](std::string &str) {
+  auto has_colon = [](const std::string &str) {
     return str.find(':') != std::string::npos;
   };
-  auto has_semicolon = [](std::string &str) {
+  auto has_semicolon = [](const std::string &str) {
     return str.find(';') != std::string::npos;
   };
 
@@ -180,8 +188,7 @@ getenv_to_vec(const char *env_var_name) {
     }
 
     if (is_quoted(value)) {
-      value.erase(value.cbegin());
-      value.erase(value.cend() - 1);
+      value = value.substr(1, value.length() - 2);
     }
 
     values_vec.push_back(value);
@@ -207,6 +214,9 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 ///             map[param_1] = [value_1, value_2]
 ///             map[param_2] = [value_1]
 /// @param env_var_name name of an environment variable to be parsed
+/// @param reject_empy whether to throw an error on discovering an empty value
+/// @param allow_duplicate whether to allow multiple pairs with the same key
+/// @param lower convert keys to lowercase
 /// @return std::optional with a possible map with parsed parameters as keys and
 ///         vectors of strings containing parsed values as keys.
 ///         Otherwise, optional is set to std::nullopt when the environment
@@ -214,7 +224,9 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 /// @throws std::invalid_argument() when the parsed environment variable has
 /// wrong format
 inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
-                                              bool reject_empty = true) {
+                                              bool reject_empty = true,
+                                              bool allow_duplicate = false,
+                                              bool lower = false) {
   char main_delim = ';';
   char key_value_delim = ':';
   char values_delim = ',';
@@ -225,46 +237,66 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     return std::nullopt;
   }
 
-  auto is_quoted = [](std::string &str) {
-    return (str.front() == '\'' && str.back() == '\'') ||
-           (str.front() == '"' && str.back() == '"');
+  auto is_quoted = [](const std::string &str) {
+    return str.size() >= 2 && ((str.front() == '\'' && str.back() == '\'') ||
+                               (str.front() == '"' && str.back() == '"'));
   };
-  auto has_colon = [](std::string &str) {
+  auto has_colon = [](const std::string &str) {
     return str.find(':') != std::string::npos;
   };
 
   std::stringstream ss(*env_var);
   std::string key_value;
   while (std::getline(ss, key_value, main_delim)) {
-    std::string key;
-    std::string values;
-    std::stringstream kv_ss(key_value);
-
     if (reject_empty && !has_colon(key_value)) {
       throw_wrong_format_map(env_var_name, *env_var);
     }
 
-    std::getline(kv_ss, key, key_value_delim);
-    std::getline(kv_ss, values);
-    if (key.empty() || (reject_empty && values.empty()) ||
-        map.find(key) != map.end()) {
+    size_t colon_pos = key_value.find(key_value_delim);
+    if (colon_pos == std::string::npos) {
       throw_wrong_format_map(env_var_name, *env_var);
     }
 
+    std::string key = key_value.substr(0, colon_pos);
+    std::string values = key_value.substr(colon_pos + 1);
+
+    if (key.empty() || (reject_empty && values.empty()) ||
+        (map.find(key) != map.end() && !allow_duplicate)) {
+      throw_wrong_format_map(env_var_name, *env_var);
+    }
+
+    if (lower) {
+      std::transform(key.begin(), key.end(), key.begin(), tolower);
+    }
+
     std::vector<std::string> values_vec;
-    std::stringstream values_ss(values);
-    std::string value;
-    while (std::getline(values_ss, value, values_delim)) {
+
+    size_t start = 0;
+    size_t pos = 0;
+    while ((pos = values.find(values_delim, start)) != std::string::npos ||
+           start < values.length()) {
+      // No delimiter found, process the last value
+      if (pos == std::string::npos) {
+        pos = values.length();
+      }
+
+      std::string value = values.substr(start, pos - start);
       if (value.empty() || (has_colon(value) && !is_quoted(value))) {
         throw_wrong_format_map(env_var_name, *env_var);
       }
       if (is_quoted(value)) {
-        value.erase(value.cbegin());
-        value.pop_back();
+        value = value.substr(1, value.length() - 2);
       }
-      values_vec.push_back(value);
+      values_vec.push_back(std::move(value));
+
+      start = pos + 1;
     }
-    map[key] = values_vec;
+
+    if (map.find(key) != map.end()) {
+      map[key].insert(map[key].end(), values_vec.begin(), values_vec.end());
+    } else {
+      map[key] = std::move(values_vec);
+    }
   }
   return map;
 }
@@ -526,5 +558,42 @@ static inline std::string groupDigits(Numeric numeric) {
 }
 
 template <typename T> Spinlock<Rc<T>> AtomicSingleton<T>::instance;
+
+inline bool isPointerAlignedTo(uint32_t Alignment, void *Ptr) {
+  return Alignment == 0 ||
+         reinterpret_cast<std::uintptr_t>(Ptr) % Alignment == 0;
+}
+
+template <typename T, typename F, size_t... Is>
+std::array<T, sizeof...(Is)> createArrayOfHelper(F &&f,
+                                                 std::index_sequence<Is...>) {
+  return {(f(Is))...};
+}
+
+// Helper function to intialize std::array of non-default constructible
+// types. Calls provided ctor function (passing index to the array) to create
+// each element of the array.
+template <typename T, size_t N, typename F>
+std::array<T, N> createArrayOf(F &&ctor) {
+  return createArrayOfHelper<T, F>(std::forward<F>(ctor),
+                                   std::make_index_sequence<N>{});
+}
+
+// Helper function for `urMemBufferPartition`
+//
+// Returns true if and only if `child`'s flags are compatible with `parent`'s.
+inline bool subBufferFlagsAreLegal(ur_mem_flags_t parent,
+                                   ur_mem_flags_t child) {
+  if (child & (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER |
+               UR_MEM_FLAG_ALLOC_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER))
+    return false;
+  if (parent & UR_MEM_FLAG_WRITE_ONLY &&
+      (child & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_READ_ONLY)))
+    return false;
+  if (parent & UR_MEM_FLAG_READ_ONLY &&
+      (child & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)))
+    return false;
+  return true;
+}
 
 #endif /* UR_UTIL_H */

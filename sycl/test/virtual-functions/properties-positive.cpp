@@ -49,27 +49,27 @@ oneapi::properties props_multiple{oneapi::assume_indirect_calls_to<int, Base>};
 
 struct TestKernel_props_empty {
   void operator()() const {}
-  auto get(oneapi::properties_tag) { return props_empty; }
+  auto get(oneapi::properties_tag) const { return props_empty; }
 };
 
 struct TestKernel_props_void {
   void operator()() const {}
-  auto get(oneapi::properties_tag) { return props_void; }
+  auto get(oneapi::properties_tag) const { return props_void; }
 };
 
 struct TestKernel_props_int {
   void operator()() const {}
-  auto get(oneapi::properties_tag) { return props_int; }
+  auto get(oneapi::properties_tag) const { return props_int; }
 };
 
 struct TestKernel_props_base {
   void operator()() const {}
-  auto get(oneapi::properties_tag) { return props_base; }
+  auto get(oneapi::properties_tag) const { return props_base; }
 };
 
 struct TestKernel_props_multiple {
   void operator()() const {}
-  auto get(oneapi::properties_tag) { return props_multiple; }
+  auto get(oneapi::properties_tag) const { return props_multiple; }
 };
 
 int main() {

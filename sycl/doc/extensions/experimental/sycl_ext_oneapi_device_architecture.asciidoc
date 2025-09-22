@@ -400,6 +400,14 @@ intel_gpu_bmg_g21
 a|
 [source]
 ----
+intel_gpu_bmg_g31
+----
+|-
+|Battlemage G31 Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_lnl_m
 ----
 |-
@@ -420,6 +428,14 @@ intel_gpu_ptl_u
 ----
 |-
 |Panther Lake U Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_wcl
+----
+|-
+|Wildcat Lake Intel graphics architecture.
 
 a|
 [source]
@@ -450,9 +466,11 @@ intel_gpu_12_70_4 = intel_gpu_mtl_u
 intel_gpu_12_71_4 = intel_gpu_mtl_h
 intel_gpu_12_74_4 = intel_gpu_arl_h
 intel_gpu_20_1_4 = intel_gpu_bmg_g21
+intel_gpu_20_2_0 = intel_gpu_bmg_g31
 intel_gpu_20_4_4 = intel_gpu_lnl_m
 intel_gpu_30_0_4 = intel_gpu_ptl_h
 intel_gpu_30_1_1 = intel_gpu_ptl_u
+intel_gpu_30_3_0 = intel_gpu_wcl
 ----
 |-
 |Aliases for Intel graphics architectures.

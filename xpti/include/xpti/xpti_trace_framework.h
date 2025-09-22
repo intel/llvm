@@ -476,7 +476,7 @@ XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload);
 /// @param stream_name The stream name that needs to be registered.
 /// @return The stream ID. If the stream has already been registered, the
 /// previously generated stream ID is returned.
-XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name);
+XPTI_EXPORT_API xpti::stream_id_t xptiRegisterStream(const char *stream_name);
 
 /// @brief Unregister a stream by its name
 /// @details Unregistering a stream will invalidate the stream ID associated
@@ -696,6 +696,11 @@ XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t uid);
 /// @param column_no A uint32_t value representing the column number on the
 /// specified line where the tracepoint is located. This provides the most
 /// precise location of the tracepoint.
+/// @param code_ptr_va A void pointer representing the virtual address of the
+/// code where the tracepoint is located. This can be used to associate the
+/// tracepoint with a specific code location in memory, which is particularly
+/// useful for debugging and performance analysis. If not provided, it defaults
+/// to nullptr, indicating that the code pointer is not specified.
 ///
 /// @return A pointer to the created `xpti_tracepoint_t` structure, which
 /// represents the tracepoint. If the tracepoint cannot be created, the function
@@ -704,10 +709,10 @@ XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t uid);
 /// @note In order to preserve ABI compatibility, an interface pointer to
 /// `xpti_tracepoint_t` is returned.
 
-XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *func_name,
-                                                        const char *file_name,
-                                                        uint32_t line_no,
-                                                        uint32_t column_no);
+XPTI_EXPORT_API xpti_tracepoint_t *
+xptiCreateTracepoint(const char *func_name, const char *file_name,
+                     uint32_t line_no, uint32_t column_no,
+                     void *code_ptr_va = nullptr);
 
 /// @brief Deletes a tracepoint object.
 ///
@@ -750,7 +755,7 @@ XPTI_EXPORT_API xpti::result_t xptiDeleteTracepoint(xpti_tracepoint_t *tp);
 ///            3. XPTI_RESULT_UNDELETE when the registration is for a callback
 ///               that had been previously unregistered.
 XPTI_EXPORT_API xpti::result_t
-xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
+xptiRegisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
                      xpti::tracepoint_callback_api_t cb);
 
 /// @brief Unregisters a previously registered callback for a trace point type
@@ -771,7 +776,7 @@ xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
 ///            3. XPTI_RESULT_NOTFOUND if the callback has not been previously
 ///               registered.
 XPTI_EXPORT_API xpti::result_t
-xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
+xptiUnregisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
                        xpti::tracepoint_callback_api_t cb);
 
 /// @brief Notifies all registered subscribers that an event has occurred
@@ -805,7 +810,7 @@ xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
 ///            function_begin and function_end, the per_instance_user_data value
 ///            must be populated to not get this return value.
 XPTI_EXPORT_API xpti::result_t
-xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
+xptiNotifySubscribers(xpti::stream_id_t stream_id, uint16_t trace_type,
                       xpti::trace_event_data_t *parent,
                       xpti::trace_event_data_t *object, uint64_t instance,
                       const void *per_instance_user_data);
@@ -855,7 +860,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled();
 /// @param stream Stream ID
 /// @param ttype The trace type within the stream
 /// @return bool that indicates whether it is enabled or not
-XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype = 0);
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(xpti::stream_id_t stream,
+                                           uint16_t ttype = 0);
 
 /// @brief Resets internal state
 /// @details This method is currently ONLY used by the tests and is NOT
@@ -916,18 +922,22 @@ XPTI_EXPORT_API void xptiUnsetTracepointScopeData();
 /// @param columnNo The column number in the source file where the trace point
 ///                 is defined. If column information is not available, this can
 ///                 be set to 0.
+/// @param codePtrVa The code pointer value associated with the trace point.
+///                 If code pointer information is not available, this can
+///                 be set to nullptr.
 /// @return Returns a pointer to the registered `xpti_tracepoint_t` structure if
 ///                 the registration is successful; otherwise, returns NULL. The
 ///                 returned pointer should not be freed by the caller.
 XPTI_EXPORT_API const xpti_tracepoint_t *
 xptiRegisterTracepointScope(const char *funcName, const char *fileName,
-                            uint32_t lineNo, uint32_t columnNo);
+                            uint32_t lineNo, uint32_t columnNo,
+                            void *codePtrVa = nullptr);
 
 /// @brief Retrieves the default stream ID.
 /// @details This function is used to get the default stream ID that is
 /// currently set in the tracing framework.
 /// @return The default stream ID.
-XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID();
+XPTI_EXPORT_API xpti::stream_id_t xptiGetDefaultStreamID();
 
 /// @brief Sets the default stream ID.
 /// @details This function is used to set the default stream ID in the tracing
@@ -936,7 +946,8 @@ XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID();
 ///
 /// @param defaultStreamID The stream ID to be set as default.
 /// @return Result of the operation, success or failure.
-XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t defaultStreamID);
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultStreamID(xpti::stream_id_t defaultStreamID);
 
 /// @brief Retrieves the default event type.
 /// @details This function is used to get the default event type that is
@@ -1018,7 +1029,7 @@ typedef uint16_t (*xpti_register_user_defined_et_t)(const char *, uint8_t);
 typedef xpti::trace_event_data_t *(*xpti_make_event_t)(
     const char *, xpti::payload_t *, uint16_t, xpti::trace_activity_type_t,
     uint64_t *);
-typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(int64_t);
+typedef const xpti::trace_event_data_t *(*xpti_find_event_t)(uint64_t);
 typedef const xpti::payload_t *(*xpti_query_payload_t)(
     xpti::trace_event_data_t *);
 typedef const xpti::payload_t *(*xpti_query_payload_by_uid_t)(uint64_t uid);
@@ -1033,7 +1044,8 @@ typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
                                               const char *, xpti::object_id_t);
 typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
-typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
+typedef bool (*xpti_check_trace_enabled_t)(xpti::stream_id_t stream,
+                                           uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
 typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
 typedef void (*xpti_enable_tracepoint_scope_notification_t)(bool);
@@ -1042,12 +1054,13 @@ typedef xpti::result_t (*xpti_make_key_from_payload_t)(xpti::payload_t *,
                                                        xpti::uid128_t *);
 typedef const xpti_tracepoint_t *(*xpti_get_trace_point_scope_data_t)();
 typedef const xpti_tracepoint_t *(*xpti_register_tracepoint_scope_t)(
-    const char *func, const char *file, uint32_t line, uint32_t col);
+    const char *func, const char *file, uint32_t line, uint32_t col,
+    void *code_ptr_va);
 typedef xpti::result_t (*xpti_set_trace_point_scope_data_t)(
     xpti_tracepoint_t *);
 typedef void (*xpti_unset_trace_point_scope_data_t)();
-typedef uint8_t (*xpti_get_default_stream_id_t)();
-typedef xpti::result_t (*xpti_set_default_stream_id_t)(uint8_t);
+typedef xpti::stream_id_t (*xpti_get_default_stream_id_t)();
+typedef xpti::result_t (*xpti_set_default_stream_id_t)(xpti::stream_id_t);
 typedef xpti::trace_event_type_t (*xpti_get_default_event_type_t)();
 typedef xpti::result_t (*xpti_set_default_event_type_t)(
     xpti::trace_event_type_t);
@@ -1059,6 +1072,6 @@ typedef const xpti_payload_t *(*xpti_lookup_payload_t)(uint64_t);
 typedef const xpti_trace_event_t *(*xpti_lookup_event_t)(uint64_t);
 typedef xpti_tracepoint_t *(*xpti_create_tracepoint_t)(const char *,
                                                        const char *, uint32_t,
-                                                       uint32_t);
+                                                       uint32_t, void *);
 typedef xpti::result_t (*xpti_delete_tracepoint_t)(xpti_tracepoint_t *);
 }

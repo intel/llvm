@@ -4,10 +4,10 @@
 #include <sycl/sycl.hpp>
 
 // CHECK-LABEL: define dso_local spir_func noundef i32 @_Z17atomic_ref_globalRi(
-// CHECK-SAME: ptr addrspace(4) noundef align 4 dereferenceable(4) [[I:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
+// CHECK-SAME: ptr addrspace(4) noundef align 4 dereferenceable(4) [[I:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP:%.*]] = addrspacecast ptr addrspace(4) [[I]] to ptr addrspace(1)
-// CHECK-NEXT:    [[CALL3_I_I:%.*]] = tail call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS1KiN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(ptr addrspace(1) noundef [[TMP]], i32 noundef 1, i32 noundef 898) #[[ATTR4:[0-9]+]]
+// CHECK-NEXT:    [[CALL3_I_I:%.*]] = tail call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS1iii(ptr addrspace(1) noundef [[TMP]], i32 noundef 1, i32 noundef 898) #[[ATTR4:[0-9]+]]
 // CHECK-NEXT:    ret i32 [[CALL3_I_I]]
 //
 SYCL_EXTERNAL auto atomic_ref_global(int &i) {

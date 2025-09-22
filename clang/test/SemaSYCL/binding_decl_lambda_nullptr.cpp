@@ -18,5 +18,5 @@ void foo() {
   h.single_task<class C>(Lambda);
 }
 
-// CHECK: FunctionDecl {{.*}}foo{{.*}} 'void (int)'
+// CHECK: FunctionDecl {{.*}}foo{{.*}} 'void (int) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_bind_x 'int'

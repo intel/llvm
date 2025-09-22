@@ -12,6 +12,10 @@ import os
 import re
 
 
+def remove_level_zero_suffix(devices):
+    return [device.replace("_v2", "").replace("_v1", "") for device in devices]
+
+
 def parse_min_intel_driver_req(line_number, line, output):
     """
     Driver version looks like this for Intel devices:
@@ -37,6 +41,12 @@ def parse_min_intel_driver_req(line_number, line, output):
             raise ValueError('Multiple entries for "win" version')
         # Return "win" version as (101, 4502) to ease later comparison.
         output["win"] = tuple(map(int, win.group(1).split(".")))
+
+    cpu = re.search(r"cpu:\s*([^\s]+)", line)
+    if cpu:
+        if "cpu" in output:
+            raise ValueError('Multiple entries for "cpu" version')
+        output["cpu"] = cpu.group(1)
 
     return output
 
@@ -71,6 +81,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         test.requires += parsed["REQUIRES:"] or []
         test.unsupported += test.config.unsupported_features
         test.unsupported += parsed["UNSUPPORTED:"] or []
+        if parsed["ALLOW_RETRIES:"]:
+            test.allowed_retries = parsed["ALLOW_RETRIES:"][0]
 
         test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
 
@@ -149,8 +161,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
     def select_devices_for_test(self, test):
         devices = []
-        for d in test.config.sycl_devices:
-            features = test.config.sycl_dev_features[d]
+        for full_name in test.config.sycl_devices:
+            features = test.config.sycl_dev_features[full_name]
             if self.getMissingRequires(features, test.requires):
                 continue
 
@@ -159,18 +171,18 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             driver_ok = True
             if test.intel_driver_req:
-                for fmt in ["lin", "win"]:
+                for fmt in ["lin", "win", "cpu"]:
                     if (
                         fmt in test.intel_driver_req
-                        and fmt in test.config.intel_driver_ver[d]
-                        and test.config.intel_driver_ver[d][fmt]
+                        and fmt in test.config.intel_driver_ver[full_name]
+                        and test.config.intel_driver_ver[full_name][fmt]
                         < test.intel_driver_req[fmt]
                     ):
                         driver_ok = False
             if not driver_ok:
                 continue
 
-            devices.append(d)
+            devices.append(full_name)
 
         if len(devices) <= 1:
             return devices
@@ -216,7 +228,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     lit.Test.UNSUPPORTED, "No supported devices to run the test on"
                 )
 
-            for sycl_device in devices_for_test:
+            for sycl_device in remove_level_zero_suffix(devices_for_test):
                 (backend, _) = sycl_device.split(":")
                 build_targets.add(test.config.backend_to_target[backend])
 
@@ -238,6 +250,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             )
             sycl_target_opts += hip_arch_opts
             substitutions.append(("%{hip_arch_opts}", hip_arch_opts))
+            substitutions.append(("%{amd_arch}", test.config.amd_arch))
         if (
             "target-spir" in build_targets
             and "spirv-backend" in test.config.available_features
@@ -281,11 +294,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 )
 
             if "cuda:gpu" in sycl_devices:
-                extra_env.append("UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
+                extra_env.append("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
             return extra_env
 
-        extra_env = get_extra_env(devices_for_test)
+        extra_env = get_extra_env(remove_level_zero_suffix(devices_for_test))
 
         run_unfiltered_substitution = ""
         if extra_env:
@@ -315,20 +328,27 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 new_script.append(directive)
                 continue
 
-            for sycl_device in devices_for_test:
+            for full_dev_name, parsed_dev_name in zip(
+                devices_for_test, remove_level_zero_suffix(devices_for_test)
+            ):
                 expanded = "env"
 
-                extra_env = get_extra_env([sycl_device])
+                extra_env = get_extra_env([parsed_dev_name])
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
+                if "level_zero_v2" in full_dev_name:
+                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
+                elif "level_zero_v1" in full_dev_name:
+                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
+
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
-                    sycl_device, test.config.run_launcher
+                    parsed_dev_name, test.config.run_launcher
                 )
                 cmd = directive.command.replace("%{run}", expanded)
                 # Expand device-specific condtions (%if ... %{ ... %}).
                 tmp_script = [cmd]
-                conditions = {x: True for x in sycl_device.split(":")}
+                conditions = {x: True for x in parsed_dev_name.split(":")}
                 for cond_features in [
                     "linux",
                     "windows",
@@ -362,15 +382,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             recursion_limit=test.config.recursiveExpansionLimit,
         )
 
-        # TODO: workaround for lit hanging when executing non-existent binary
-        # inside our containers
         if len(script) == 0:
             return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
-        useExternalSh = test.config.test_mode == "run-only"
 
-        result = lit.TestRunner._runShTest(
-            test, litConfig, useExternalSh, script, tmpBase
-        )
+        result = lit.TestRunner._runShTest(test, litConfig, False, script, tmpBase)
 
         # Single triple/device - might be an XFAIL.
         def map_result(features, code):
@@ -386,4 +401,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if len(devices_for_test) == 1:
             device = devices_for_test[0]
             result.code = map_result(test.config.sycl_dev_features[device], result.code)
+
+        # Set this to empty so internal lit code won't change our result if it incorrectly
+        # thinks the test should XFAIL. This can happen when our XFAIL condition relies on
+        # device features, since the internal lit code doesn't have knowledge of these.
+        test.xfails = []
+
         return result

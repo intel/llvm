@@ -9,10 +9,10 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_GNU_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_GNU_H
 
-#include "Cuda.h"
-#include "LazyDetector.h"
-#include "ROCm.h"
-#include "SYCL.h"
+#include "clang/Driver/CudaInstallationDetector.h"
+#include "clang/Driver/LazyDetector.h"
+#include "clang/Driver/RocmInstallationDetector.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include <set>
@@ -63,12 +63,6 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
-
-private:
-  void constructLLVMARCommand(Compilation &C, const JobAction &JA,
-                              const InputInfo &Output,
-                              const InputInfoList &InputFiles,
-                              const llvm::opt::ArgList &Args) const;
 };
 
 class LLVM_LIBRARY_VISIBILITY StaticLibTool : public Tool {

@@ -44,7 +44,7 @@ public:
   inline sycl::kernel GetTestKernel() {
     auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
         Q.get_context());
-    return KB.get_kernel<TestKernel<>>();
+    return KB.get_kernel<TestKernel>();
   }
 
   template <typename FuncT> void RunForwardProgressTest(const FuncT &F) {

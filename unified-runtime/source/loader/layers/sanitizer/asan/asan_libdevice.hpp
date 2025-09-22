@@ -49,11 +49,17 @@ struct LocalArgsInfo {
   uint64_t SizeWithRedZone = 0;
 };
 
+constexpr uint32_t ASAN_MAX_WG_LOCAL = 8192;
+
+constexpr uint32_t ASAN_MAX_SG_PRIVATE = 256;
+
 constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct AsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
   uintptr_t GlobalShadowOffsetEnd = 0;
+
+  uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;
   uintptr_t PrivateShadowOffsetEnd = 0;
 

@@ -55,8 +55,6 @@ TEST_P(urProgramGetBuildInfoTest, SuccessOptions) {
 }
 
 TEST_P(urProgramGetBuildInfoTest, SuccessLog) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
-
   size_t property_size = 0;
   const ur_program_build_info_t property_name = UR_PROGRAM_BUILD_INFO_LOG;
 

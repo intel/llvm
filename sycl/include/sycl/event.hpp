@@ -161,7 +161,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -171,11 +175,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::event> {
-  size_t operator()(const sycl::event &e) const {
-    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
-        sycl::detail::getSyclObjImpl(e));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::event>
+    : public sycl::detail::sycl_obj_hash<sycl::event> {};

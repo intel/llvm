@@ -3,6 +3,10 @@
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// RUN: %maybe-v1 ./mem_buffer_map-test
+// RUN: %maybe-v2 ./mem_buffer_map-test
+
 #include "../../enqueue/helpers.h"
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>

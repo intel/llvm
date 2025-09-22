@@ -1,5 +1,6 @@
 @LIT_SITE_CFG_IN_HEADER@
 
+import os
 import sys
 
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
@@ -14,10 +15,21 @@ config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.libclc_root = "@LIBCLC_SOURCE_DIR@"
-config.test_run_dir = "@LIBCLC_BINARY_DIR@"
+config.libclc_binary_dir = "@LIBCLC_BINARY_DIR@"
+config.libclc_targets_to_test = "@LIBCLC_TARGET_TO_TEST@".split(";")
+config.libclc_pertarget_test_dir = "@LIBCLC_PERTARGET_TEST_DIR@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
+
+config.libclc_target = lit_config.params.get("libclc_target")
+
+if config.libclc_target is None:
+    # This file is copied to per-target test directories by cmake,
+    # use the name of the directory containing this file as the target name.
+    dirname = os.path.dirname(__file__)
+    if os.path.realpath(dirname) != os.path.realpath("@CMAKE_CURRENT_BINARY_DIR@"):
+        config.libclc_target = os.path.basename(dirname)
 
 # Let the main config do the real work.
 lit_config.load_config(config, "@LIBCLC_TEST_SOURCE_DIR@/lit.cfg.py")

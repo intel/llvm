@@ -29,6 +29,10 @@
 #include <../include/complex>
 #endif
 
+#if defined(__NVPTX__) || defined(__AMDGCN__)
+#include "__sycl_complex_impl.hpp"
+#endif
+
 // Now that we have std::complex available, implement SYCL functionality related
 // to it.
 

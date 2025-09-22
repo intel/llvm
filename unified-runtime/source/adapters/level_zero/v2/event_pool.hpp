@@ -31,14 +31,15 @@ public:
   // store weak reference to the queue as event_pool is part of the queue
   event_pool(ur_context_handle_t hContext,
              std::unique_ptr<event_provider> Provider)
-      : hContext(hContext), provider(std::move(Provider)),
-        mutex(std::make_unique<std::mutex>()) {};
+      : hContext(hContext), provider(std::move(Provider)) {};
 
-  event_pool(event_pool &&other) = default;
-  event_pool &operator=(event_pool &&other) = default;
+  event_pool(event_pool &&other) = delete;
+  event_pool &operator=(event_pool &&other) = delete;
 
   event_pool(const event_pool &) = delete;
   event_pool &operator=(const event_pool &) = delete;
+
+  ~event_pool() = default;
 
   // Allocate an event from the pool. Thread safe.
   ur_event_handle_t allocate();
@@ -56,7 +57,37 @@ private:
   std::deque<ur_event_handle_t_> events;
   std::vector<ur_event_handle_t> freelist;
 
-  std::unique_ptr<std::mutex> mutex;
+  ur_mutex mutex;
 };
+
+// Only create an event when requested by the user.
+static inline ur_event_handle_t
+createEventIfRequested(event_pool *eventPool, ur_event_handle_t *phEvent,
+                       ur_queue_t_ *queue) {
+  if (phEvent == nullptr) {
+    return nullptr;
+  }
+
+  (*phEvent) = eventPool->allocate();
+  (*phEvent)->setQueue(queue);
+  return (*phEvent);
+}
+
+// Always creates an event (used in functions that need to store the event
+// internally). If event was requested by the user, also increase ref count of
+// that event to avoid pre-mature release.
+static inline ur_event_handle_t createEventAndRetain(event_pool *eventPool,
+                                                     ur_event_handle_t *phEvent,
+                                                     ur_queue_t_ *queue) {
+  auto hEvent = eventPool->allocate();
+  hEvent->setQueue(queue);
+
+  if (phEvent) {
+    (*phEvent) = hEvent;
+    hEvent->retain();
+  }
+
+  return hEvent;
+}
 
 } // namespace v2

@@ -27,6 +27,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/memory_export.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
@@ -54,7 +55,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 )
 
 find_package(Threads REQUIRED)
-find_package(CUDA 10.1 REQUIRED)
+find_package(CUDAToolkit 10.1 REQUIRED)
 
 # Make imported library global to use it within the project.
 add_library(cudadrv SHARED IMPORTED GLOBAL)
@@ -62,37 +63,20 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+      IMPORTED_IMPLIB               "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 else()
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+      IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
-endif()
-
-if(UMF_ENABLE_POOL_TRACKING)
-  target_compile_definitions("ur_adapter_cuda" PRIVATE UMF_ENABLE_POOL_TRACKING)
-else()
-  message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
 endif()
 
 # Only enable xpti tracing on Linux as tracing tools aren't available on
 # Windows yet.
 if (UR_ENABLE_TRACING AND UNIX)
-  include(FindCUDACupti)
-  # The following two ifs can be removed when FindCUDA -> FindCUDAToolkit.
-  # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
-  if(NOT CUDA_CUPTI_INCLUDE_DIR)
-    find_cuda_cupti_include_dir()
-  endif()
-  # CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
-  if(NOT CUDA_cupti_LIBRARY)
-    find_cuda_cupti_library()
-  endif()
-
   if (NOT XPTI_INCLUDES)
     get_target_property(XPTI_INCLUDES xpti INCLUDE_DIRECTORIES)
   endif()
@@ -104,9 +88,24 @@ if (UR_ENABLE_TRACING AND UNIX)
     XPTI_ENABLE_INSTRUMENTATION
     XPTI_STATIC_LIBRARY
     )
+
+  # CUDAToolkit_CUPTI_INCLUDE_DIR is provided by FindCUDAToolkit since CMake
+  # 3.24, but we support versions back to 3.20. Find it if not found already.
+  if (NOT CUDAToolkit_CUPTI_INCLUDE_DIR)
+    find_path(CUDAToolkit_CUPTI_INCLUDE_DIR cupti.h PATHS
+      "${CUDAToolkit_ROOT_DIR}/extras/CUPTI/include"
+      ${CUDAToolkit_INCLUDE_DIRS}
+      PATH_SUFFIXES "../extras/CUPTI/include"
+                    "../../../extras/CUPTI/include"
+      REQUIRED
+      NO_DEFAULT_PATH)
+  endif()
+
   target_include_directories(${TARGET_NAME} PRIVATE
     ${XPTI_INCLUDES}
-    ${CUDA_CUPTI_INCLUDE_DIR}
+  )
+  target_include_directories(${TARGET_NAME} SYSTEM PRIVATE
+    ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
 endif()
@@ -117,6 +116,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::umf
     Threads::Threads
     cudadrv
+    CUDA::nvml
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE

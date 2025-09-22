@@ -43,13 +43,13 @@ entry:
 !13 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !11, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
 !14 = !DILocation(line: 1, column: 2, scope: !13)
 ; CHECK-LABEL: define i64 @_ZTS14other_function(
-; CHECK-SAME: ) !dbg [[DBG12:![0-9]+]] {
+; CHECK-SAME: ) !dbg [[DBG7:![0-9]+]] {
 ; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 0 to i64
 ; CHECK-NEXT:    ret i64 [[TMP1]]
 ;
 ;
 ; CHECK-LABEL: define i64 @_ZTS14other_function_with_offset(
-; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG15:![0-9]+]] {
+; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG10:![0-9]+]] {
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i64 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = zext i32 [[TMP3]] to i64
@@ -57,16 +57,16 @@ entry:
 ;
 ;
 ; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel(
-; CHECK-SAME: ) !dbg [[DBG16:![0-9]+]] {
+; CHECK-SAME: ) !dbg [[DBG11:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
-; CHECK-NEXT:    [[TMP0:%.*]] = call i64 @_ZTS14other_function(), !dbg [[DBG17:![0-9]+]]
+; CHECK-NEXT:    [[TMP0:%.*]] = call i64 @_ZTS14other_function(), !dbg [[DBG12:![0-9]+]]
 ; CHECK-NEXT:    ret void
 ;
 ;
 ; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel_with_offset(
-; CHECK-SAME: ptr byval([3 x i32]) [[TMP0:%.*]]) !dbg [[DBG18:![0-9]+]] {
+; CHECK-SAME: ptr byval([3 x i32]) [[TMP0:%.*]]) !dbg [[DBG13:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
-; CHECK-NEXT:    [[TMP1:%.*]] = call i64 @_ZTS14other_function_with_offset(ptr [[TMP0]]), !dbg [[DBG19:![0-9]+]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i64 @_ZTS14other_function_with_offset(ptr [[TMP0]]), !dbg [[DBG14:![0-9]+]]
 ; CHECK-NEXT:    ret void
 ;
 ;.
@@ -76,13 +76,13 @@ entry:
 ; CHECK: [[META3:![0-9]+]] = !{i32 2, !"Dwarf Version", i32 4}
 ; CHECK: [[META4:![0-9]+]] = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: [[META5:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
-; CHECK: [[META7:![0-9]+]] = !{i32 1, i32 4}
-; CHECK: [[DBG12]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META13:![0-9]+]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[META13]] = !DISubroutineType(types: [[META14:![0-9]+]])
-; CHECK: [[META14]] = !{null}
-; CHECK: [[DBG15]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META13]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[DBG16]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META13]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[DBG17]] = !DILocation(line: 1, column: 2, scope: [[DBG16]])
-; CHECK: [[DBG18]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META13]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[DBG19]] = !DILocation(line: 1, column: 2, scope: [[DBG18]])
+; CHECK: [[META6:![0-9]+]] = !{i32 1, i32 4}
+; CHECK: [[DBG7]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META8:![0-9]+]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[META8]] = !DISubroutineType(types: [[META9:![0-9]+]])
+; CHECK: [[META9]] = !{null}
+; CHECK: [[DBG10]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META8]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[DBG11]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META8]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[DBG12]] = !DILocation(line: 1, column: 2, scope: [[DBG11]])
+; CHECK: [[DBG13]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META8]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[DBG14]] = !DILocation(line: 1, column: 2, scope: [[DBG13]])
 ;.

@@ -300,7 +300,7 @@ int main() {
 
     // Ignore duplicate attribute with same argument value.
     h.single_task<class test_kernell2>(
-        // CHECK-LABEL: FunctionDecl {{.*}}test_kernell2 'void ()'
+        // CHECK-LABEL: FunctionDecl {{.*}}test_kernell2 'void () __attribute__((device_kernel))'
         // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
         // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
         // CHECK-NEXT:  value: Int 3

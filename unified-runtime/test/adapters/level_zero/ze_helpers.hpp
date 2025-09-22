@@ -10,8 +10,18 @@
 #include <ur_api.h>
 #include <uur/fixtures.h>
 
+static bool ze_initialized = false;
+
 std::unique_ptr<_ze_event_handle_t, std::function<void(ze_event_handle_t)>>
 createZeEvent(ur_context_handle_t hContext, ur_device_handle_t hDevice) {
+  if (!ze_initialized) {
+    ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+    if (result != ZE_RESULT_SUCCESS) {
+      return nullptr;
+    }
+    ze_initialized = true;
+  }
+
   ze_event_pool_desc_t desc;
   desc.stype = ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
   desc.pNext = nullptr;

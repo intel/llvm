@@ -56,3 +56,18 @@ ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
                                       ze_kernel_handle_t hZeKernel,
                                       size_t GlobalWorkSize3D[3],
                                       uint32_t SuggestedLocalWorkSize3D[3]);
+
+/**
+ * Handle uncommon conditions after kernel submission.
+ * Resets the offset to {0, 0, 0} if one was supplied.
+ * @param[in] hZeKernel The kernel handle.
+ * @param[in] pGlobalWorkOffset Pointer to offset array.
+ */
+inline void postSubmit(ze_kernel_handle_t hZeKernel,
+                       const size_t *pGlobalWorkOffset) {
+  // If this kernel was launched with an offset, clear it for the next launch.
+  // This slows down kernels with offsets but keeps the common case fast.
+  if (pGlobalWorkOffset != NULL) {
+    zeKernelSetGlobalOffsetExp(hZeKernel, 0, 0, 0);
+  }
+}

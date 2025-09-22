@@ -48,6 +48,25 @@ TEST_P(urSamplerGetInfoTest, SuccessContext) {
   ASSERT_EQ(property_value, context);
 }
 
+TEST_P(urSamplerGetInfoTest, SuccessRoundtripContext) {
+  const ur_sampler_info_t property_name = UR_SAMPLER_INFO_CONTEXT;
+  size_t property_size = sizeof(ur_context_handle_t);
+
+  ur_native_handle_t native_sampler;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urSamplerGetNativeHandle(sampler, &native_sampler));
+
+  ur_sampler_handle_t from_native_sampler;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urSamplerCreateWithNativeHandle(
+      native_sampler, context, nullptr, &from_native_sampler));
+
+  ur_context_handle_t property_value = nullptr;
+  ASSERT_SUCCESS(urSamplerGetInfo(from_native_sampler, property_name,
+                                  property_size, &property_value, nullptr));
+
+  ASSERT_EQ(property_value, context);
+}
+
 TEST_P(urSamplerGetInfoTest, SuccessNormalizedCoords) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 

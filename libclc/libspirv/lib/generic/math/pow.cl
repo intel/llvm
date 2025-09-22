@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_pow.h>
 #include <libspirv/spirv.h>
 
-#include <clc/clcmacro.h>
-#include <clc/math/clc_subnormal_config.h>
-#include <math/clc_pow.h>
-#include <clc/math/math.h>
-
-#define __CLC_BODY <pow.inc>
+#define FUNCTION __spirv_ocl_pow
+#define __IMPL_FUNCTION(x) __clc_pow
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

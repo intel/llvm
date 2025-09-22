@@ -1,15 +1,88 @@
 
+
+set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
+set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
+
+if (WIN32)
+set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "c:/sycl-jit-toolchain/")
+else()
+set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
+endif()
+
+set(SYCL_JIT_RESOURCE_DEPS
+  sycl-headers    # include/sycl
+  clang           # lib/clang/N/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
+
+if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+  # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins) # lib/clc/*.bc
+endif()
+
+if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
+endif()
+
+add_custom_command(
+  OUTPUT ${SYCL_JIT_RESOURCE_CPP}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  DEPENDS
+  ${SYCL_JIT_RESOURCE_DEPS}
+)
+
+# We use C23/C++26's `#embed` to implement this resource creation, and "current"
+# CMAKE_CXX_COMPILER might not have support for it. As such, use freshly built
+# `clang++` instead.
+if (WIN32)
+  set(clang_exe ${CMAKE_BINARY_DIR}/bin/clang-cl.exe)
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS /O2 /std:c++17 /W0)
+
+  # Determine if we should use static (/MT) or dynamic (/MD) runtime
+  set(USE_STATIC_RUNTIME 0)
+  if(CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+    set(USE_STATIC_RUNTIME 1)
+  endif()
+
+  list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS /M$<IF:${USE_STATIC_RUNTIME},T,D>$<$<CONFIG:Debug>:d>)
+else()
+  get_host_tool_path( clang CLANG clang_exe clang_target )
+  set(SYCL_JIT_RESOURCE_CXX_FLAGS -O2 -Wno-c23-extensions -std=c++17 -fPIC -fvisibility=hidden)
+
+  if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    # Hack based on the information at
+    # https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_SYSROOT.html
+    execute_process(COMMAND xcrun --sdk macosx --show-sdk-path OUTPUT_VARIABLE SYCL_JIT_OSX_SYSROOT)
+    list(APPEND SYCL_JIT_RESOURCE_CXX_FLAGS -isysroot ${SYCL_JIT_OSX_SYSROOT})
+  endif()
+endif()
+
+add_custom_command(
+  OUTPUT ${SYCL_JIT_RESOURCE_OBJ}
+  COMMAND
+  # ${clang_exe}'s default target is not necessarily ${LLVM_HOST_TRIPLE}: when
+  # cross compiling, it will be whatever the host tools were configured with,
+  # and when building a cross compiler, it will be
+  # ${LLVM_DEFAULT_TARGET_TRIPLE}. Rather than special casing these, just always
+  # specify --target=${LLVM_HOST_TRIPLE}.
+  ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
+  DEPENDS
+  ${SYCL_JIT_RESOURCE_CPP}
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
+)
+
 add_llvm_library(sycl-jit
-   lib/KernelFusion.cpp
-   lib/translation/KernelTranslation.cpp
+   lib/translation/JITContext.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
-   lib/fusion/FusionPipeline.cpp
-   lib/fusion/FusionHelper.cpp
-   lib/fusion/JITContext.cpp
-   lib/fusion/ModuleHelper.cpp
+   lib/translation/Translation.cpp
+   lib/materializer/MaterializerPipeline.cpp
+   lib/materializer/Materializer.cpp
    lib/rtc/DeviceCompilation.cpp
    lib/rtc/ESIMD.cpp
+   lib/rtc/RTC.cpp
    lib/helper/ConfigHelper.cpp
+   lib/helper/ErrorHelper.cpp
+
+   ${SYCL_JIT_RESOURCE_OBJ}
 
    SHARED
 
@@ -34,7 +107,8 @@ add_llvm_library(sycl-jit
    TargetParser
    MC
    SYCLLowerIR
-   GenXIntrinsics
+   SYCLPostLink
+   SPIRVLib
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -66,7 +140,6 @@ target_include_directories(sycl-jit
   PUBLIC
   $<INSTALL_INTERFACE:include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
@@ -75,9 +148,7 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit
   PRIVATE
-  sycl-jit-common
-  LLVMSPIRVLib
-  SYCLKernelJITPasses
+  SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
 

@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
@@ -48,7 +47,7 @@ using properties_t =
     properties<detail::properties_type_list<PropertyValueTs...>>;
 
 template <typename... property_tys>
-inline constexpr bool properties_are_unique = []() constexpr {
+inline constexpr bool properties_are_unique = []() constexpr -> bool {
   if constexpr (sizeof...(property_tys) == 0) {
     return true;
   } else {
@@ -64,7 +63,7 @@ inline constexpr bool properties_are_unique = []() constexpr {
 }();
 
 template <typename... property_tys>
-inline constexpr bool properties_are_sorted = []() constexpr {
+inline constexpr bool properties_are_sorted = []() constexpr -> bool {
   if constexpr (sizeof...(property_tys) == 0) {
     return true;
   } else {

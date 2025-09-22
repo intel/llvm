@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "common/ur_ref_count.hpp"
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ur_print.hpp>
@@ -17,29 +18,12 @@
 #include <memory>
 #include <unordered_set>
 
-// Trace an internal UR call
-#define UR_TRACE(Call)                                                         \
-  {                                                                            \
-    ur_result_t Result;                                                        \
-    UR_CALL(Call, Result);                                                     \
-  }
-
-// Trace an internal UR call and return the result to the user.
-#define UR_CALL(Call, Result)                                                  \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      std::cerr << "UR ---> " << #Call << "\n";                                \
-    Result = (Call);                                                           \
-    if (PrintTrace)                                                            \
-      std::cerr << "UR <--- " << #Call << "(" << Result << ")\n";              \
-  }
-
 // Handle to a kernel command.
 //
 // Struct that stores all the information related to a kernel command in a
 // command-buffer, such that the command can be recreated. When handles can
 // be returned from other command types this struct will need refactored.
-struct ur_exp_command_buffer_command_handle_t_ {
+struct ur_exp_command_buffer_command_handle_t_ : ur::hip::handle_base {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
       hipGraphNode_t Node, hipKernelNodeParams Params, uint32_t WorkDim,
@@ -100,10 +84,11 @@ struct ur_exp_command_buffer_command_handle_t_ {
   size_t LocalWorkSize[3];
 };
 
-struct ur_exp_command_buffer_handle_t_ {
+struct ur_exp_command_buffer_handle_t_ : ur::hip::handle_base {
 
   ur_exp_command_buffer_handle_t_(ur_context_handle_t hContext,
-                                  ur_device_handle_t hDevice, bool IsUpdatable);
+                                  ur_device_handle_t hDevice, bool IsUpdatable,
+                                  bool IsInOrder);
 
   ~ur_exp_command_buffer_handle_t_();
 
@@ -125,9 +110,6 @@ struct ur_exp_command_buffer_handle_t_ {
     registerSyncPoint(SyncPoint, std::move(HIPNode));
     return SyncPoint;
   }
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -135,17 +117,19 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_device_handle_t Device;
   // Whether commands in the command-buffer can be updated
   bool IsUpdatable;
+  // Whether commands in the command-buffer are in-order.
+  bool IsInOrder;
   // HIP Graph handle
   hipGraph_t HIPGraph;
   // HIP Graph Exec handle
   hipGraphExec_t HIPGraphExec = nullptr;
-  // Atomic variable counting the number of reference to this command_buffer
-  // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCount;
+  // Track the event of the current graph execution. This extra synchronization
+  // is needed because HIP (unlike CUDA) does not seem to synchronize with other
+  // executions of the same graph during hipGraphLaunch and hipExecGraphDestroy.
+  ur_event_handle_t CurrentExecution = nullptr;
 
-  // Map of sync_points to ur_events
-  std::unordered_map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t>
-      SyncPoints;
+  // Ordered map of sync_points to ur_events
+  std::map<ur_exp_command_buffer_sync_point_t, hipGraphNode_t> SyncPoints;
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
@@ -153,4 +137,6 @@ struct ur_exp_command_buffer_handle_t_ {
   // Handles to individual commands in the command-buffer
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
       CommandHandles;
+
+  ur::RefCount RefCount;
 };

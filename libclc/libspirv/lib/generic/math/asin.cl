@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_asin.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <asin.inc>
+#define FUNCTION __spirv_ocl_asin
+#define __IMPL_FUNCTION(x) __clc_asin
+#define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

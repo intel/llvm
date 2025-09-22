@@ -19,7 +19,7 @@ typed_etors: true
 desc: "Extension enums to $x_device_info_t to support low-power events."
 name: $x_device_info_t
 etors:
-    - name: LOW_POWER_EVENTS_EXP
+    - name: LOW_POWER_EVENTS_SUPPORT_EXP
       value: "0x2021"
       desc: "[$x_bool_t] returns true if the device supports low-power events."
 
@@ -29,7 +29,7 @@ extend: true
 desc: "Extension enums to $x_queue_flags_t to support low power events."
 name: $x_queue_flags_t
 etors:
-    - name: LOW_POWER_EVENTS_EXP
+    - name: LOW_POWER_EVENTS_SUPPORT_EXP
       desc: >
             Hint: use low-power events. Only meaningful for Level Zero, where the implementation may use interrupt-driven events.
             May reduce CPU utilization at the cost of increased event completion latency.
@@ -41,7 +41,7 @@ type: enum
 desc: "Extended enqueue properties"
 name: $x_exp_enqueue_ext_flags_t
 etors:
-    - name: LOW_POWER_EVENTS
+    - name: LOW_POWER_EVENTS_SUPPORT
       desc: >
             Hint: use low-power events. Only meaningful for Level Zero, where the implementation may use interrupt-driven events.
             May reduce CPU utilization at the cost of increased event completion latency.

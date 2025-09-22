@@ -63,19 +63,15 @@ private:
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
 };
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::physical_mem> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::physical_mem &PhysicalMem) const {
-    return hash<std::shared_ptr<sycl::detail::physical_mem_impl>>()(
-        sycl::detail::getSyclObjImpl(PhysicalMem));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::physical_mem>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::physical_mem> {};

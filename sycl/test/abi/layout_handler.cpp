@@ -19,13 +19,13 @@ void foo() {
 // CHECK-NEXT:   0 |       class std::__shared_ptr_access<class sycl::detail::handler_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT:   0 |       element_type * _M_ptr
 // CHECK-NEXT:   8 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:   8 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:   8 |         _Sp_counted_base<(__gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  16 |   class std::shared_ptr<class sycl::detail::queue_impl> MQueue
 // CHECK-NEXT:  16 |     class std::__shared_ptr<class sycl::detail::queue_impl> (base)
 // CHECK-NEXT:  16 |       class std::__shared_ptr_access<class sycl::detail::queue_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT:  16 |       element_type * _M_ptr
 // CHECK-NEXT:  24 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:  24 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:  24 |         _Sp_counted_base<(__gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  32 |   class std::vector<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > MLocalAccStorage
 // CHECK-NEXT:  32 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost>, class std::allocator<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > > (base)
 // CHECK-NEXT:  32 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost>, class std::allocator<class std::shared_ptr<class sycl::detail::LocalAccessorImplHost> > >::_Vector_impl _M_impl
@@ -47,7 +47,7 @@ void foo() {
 // CHECK-NEXT:  88 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT:  88 |       element_type * _M_ptr
 // CHECK-NEXT:  96 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT:  96 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:  96 |         _Sp_counted_base<(__gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 104 |   void * MSrcPtr
 // CHECK-NEXT: 112 |   void * MDstPtr
 // CHECK-NEXT: 120 |   size_t MLength
@@ -78,6 +78,6 @@ void foo() {
 // CHECK-NEXT: 200 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
 // CHECK-NEXT: 200 |         element_type * _M_ptr
 // CHECK-NEXT: 208 |         class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 208 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 208 |           _Sp_counted_base<(__gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:     | [sizeof=216, dsize=216, align=8,
 // CHECK-NEXT:     |  nvsize=216, nvalign=8]

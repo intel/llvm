@@ -39,7 +39,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
                     UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
                     UR_QUEUE_FLAG_USE_DEFAULT_STREAM,
                     UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM,
-                    UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP),
+                    UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP),
     uur::deviceTestWithParamPrinter<ur_queue_flag_t>);
 
 TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {

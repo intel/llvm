@@ -1,6 +1,6 @@
 @TARGET_LIBNAME@ {
 	global:
-		urGetGlobalProcAddrTable;
+		urGetAdapterProcAddrTable;
 		urGetBindlessImagesExpProcAddrTable;
 		urGetCommandBufferExpProcAddrTable;
 		urGetContextProcAddrTable;
@@ -8,8 +8,8 @@
 		urGetEnqueueExpProcAddrTable;
 		urGetEventProcAddrTable;
 		urGetKernelProcAddrTable;
-		urGetKernelExpProcAddrTable;
 		urGetMemProcAddrTable;
+		urGetMemoryExportExpProcAddrTable;
 		urGetPhysicalMemProcAddrTable;
 		urGetPlatformProcAddrTable;
 		urGetProgramProcAddrTable;

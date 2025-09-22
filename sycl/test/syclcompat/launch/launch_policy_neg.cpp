@@ -147,7 +147,7 @@ void test_variadic_config_ctor() {
     sycl::nd_range<3> launch_range{{1, 1, 32}, {1, 1, 32}};
     compat_exp::local_mem_size lmem_size(0);
     compat_exp::launch_policy duplicate_local_mem_config(launch_range, lmem_size, lmem_size);
-    //CHECK8: error: static assertion failed due to requirement{{.*(exactly once|duplicate type)}}
+    //CHECK8: error: static assertion failed{{.*(exactly once|duplicate type)}}
   }
 #endif
 #ifdef CHECK9

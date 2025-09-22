@@ -46,9 +46,10 @@ This extension is supported by {dpcpp} on all backends except OpenCL.
 [NOTE]
 ====
 Currently support for OpenCL backend is limited, API introduced by this extension
-can be called only for in-order queues which doesn't have `discard_events` property.
-Exception is thrown if new API is called on other type of queue. OpenCL currently
-doesn't have an API to get queue status.
+can be called only for in-order queues that have only enqueued operations
+returning events. Exception is thrown if new API is called following operations
+that did not return a sycl::event, because OpenCL currently doesn't have an API
+to get queue status.
 ====
 
 

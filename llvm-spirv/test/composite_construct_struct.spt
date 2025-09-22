@@ -37,7 +37,7 @@
 2 Label 21
 5 CompositeConstruct 11 22 16 17
 5 CompositeConstruct 12 23 20 22
-6 Load 5 24 3 2 0
+4 Load 5 24 3
 5 CompositeExtract 4 25 24 0
 5 ShiftLeftLogical 4 26 25 15
 5 ShiftRightArithmetic 4 27 26 15

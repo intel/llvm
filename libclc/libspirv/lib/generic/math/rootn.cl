@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/math/clc_rootn.h>
 #include <libspirv/spirv.h>
 
-#include <math/clc_rootn.h>
-
-#define __CLC_BODY <rootn.inc>
+#define FUNCTION __spirv_ocl_rootn
+#define __IMPL_FUNCTION(x) __clc_rootn
+#define __CLC_BODY <clc/shared/binary_def_with_int_second_arg.inc>
 #include <clc/math/gentype.inc>

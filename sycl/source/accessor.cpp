@@ -14,15 +14,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-device getDeviceFromHandler(handler &cgh) {
-  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
-         "One of MQueue or MGraph should be nonnull!");
-  if (cgh.MQueue)
-    return cgh.MQueue->get_device();
-
-  return getSyclObjImpl(cgh)->MGraph->getDevice();
-}
-
 // property::no_init is supported now for
 // accessor
 // host_accessor
@@ -119,13 +110,25 @@ const sycl::range<3> &LocalAccessorBaseHost::getSize() const {
   return impl->MSize;
 }
 void *LocalAccessorBaseHost::getPtr() {
+  // `local_accessor_base::GDBMethodsAnchor` was/is inline and used to call
+  // `(void)getPtr()` inside. As such, binaries compiled with older toolchain
+  // are calling this method from the `sycl::local_accessor` ctor on host and we
+  // cannot "abort" for them.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Must not be/isn't called, user-facing APIs do error-checking.
   std::abort();
+#endif
   return nullptr;
 }
 void *LocalAccessorBaseHost::getPtr() const {
+  // `local_accessor_base::GDBMethodsAnchor` was/is inline and used to call
+  // `(void)getPtr()` inside. As such, binaries compiled with older toolchain
+  // are calling this method from the `sycl::local_accessor` ctor on host and we
+  // cannot "abort" for them.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Must not be/isn't called, user-facing APIs do error-checking.
   std::abort();
+#endif
   return nullptr;
 }
 const property_list &LocalAccessorBaseHost::getPropList() const {

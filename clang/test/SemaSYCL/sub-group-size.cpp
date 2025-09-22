@@ -10,59 +10,59 @@
 
 #include "Inputs/sycl.hpp"
 
-// expected-error@+2 {{'named_sub_group_size' and 'reqd_sub_group_size' attributes are not compatible}}
+// expected-error@+2 {{'intel::named_sub_group_size' and 'sycl::reqd_sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[sycl::reqd_sub_group_size(1)]] [[intel::named_sub_group_size(automatic)]] void f1();
-// expected-error@+2 {{'reqd_sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
+// expected-error@+2 {{'sycl::reqd_sub_group_size' and 'intel::named_sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size(primary)]] [[sycl::reqd_sub_group_size(1)]] void f2();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[sycl::reqd_sub_group_size(1)]] void f3();
-// expected-error@+1 {{'named_sub_group_size' and 'reqd_sub_group_size' attributes are not compatible}}
+// expected-error@+1 {{'intel::named_sub_group_size' and 'sycl::reqd_sub_group_size' attributes are not compatible}}
 [[intel::named_sub_group_size(primary)]] void f3();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size(primary)]] void f4();
-// expected-error@+1 {{'reqd_sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
+// expected-error@+1 {{'sycl::reqd_sub_group_size' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[sycl::reqd_sub_group_size(1)]] void f4();
 
 // expected-note@+1 {{previous attribute is here}}
 [[intel::named_sub_group_size(automatic)]] void f5();
 
-// expected-warning@+1 {{attribute 'named_sub_group_size' is already applied with different arguments}}
+// expected-warning@+1 {{attribute 'intel::named_sub_group_size' is already applied with different arguments}}
 [[intel::named_sub_group_size(primary)]] void f5();
 
 [[intel::named_sub_group_size(automatic)]] void f6();
 
 [[intel::named_sub_group_size(automatic)]] void f6();
 
-// expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid}}
+// expected-warning@+1 {{'intel::named_sub_group_size' attribute argument not supported: invalid}}
 [[intel::named_sub_group_size(invalid)]] void f7();
 
-// expected-error@+2 {{'named_sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
+// expected-error@+2 {{'intel::named_sub_group_size' and 'intel::sycl_explicit_simd' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::sycl_explicit_simd]] [[intel::named_sub_group_size(automatic)]] void f8();
-// expected-error@+2 {{'sub_group_size' and 'sycl_explicit_simd' attributes are not compatible}}
+// expected-error@+2 {{'intel::sub_group_size' and 'intel::sycl_explicit_simd' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::sycl_explicit_simd]] [[intel::sub_group_size(1)]] void f9();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size(primary)]] void f10();
-// expected-error@+1 {{'sycl_explicit_simd' and 'named_sub_group_size' attributes are not compatible}}
+// expected-error@+1 {{'intel::sycl_explicit_simd' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[intel::sycl_explicit_simd]] void f10();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size("primary")]] void f11();
-// expected-error@+1 {{'sycl_explicit_simd' and 'named_sub_group_size' attributes are not compatible}}
+// expected-error@+1 {{'intel::sycl_explicit_simd' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[intel::sycl_explicit_simd]] void f11();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size("automatic")]] void f12();
-// expected-error@+1 {{'sycl_explicit_simd' and 'named_sub_group_size' attributes are not compatible}}
+// expected-error@+1 {{'intel::sycl_explicit_simd' and 'intel::named_sub_group_size' attributes are not compatible}}
 [[intel::sycl_explicit_simd]] void f12();
 
-// expected-warning@+1 {{'named_sub_group_size' attribute argument not supported: invalid string}}
+// expected-warning@+1 {{'intel::named_sub_group_size' attribute argument not supported: invalid string}}
 [[intel::named_sub_group_size("invalid string")]] void f13();
 
 void NoAttrFunc() {}
@@ -129,11 +129,11 @@ void calls_kernel_4() {
   sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
     // integer-error@#AttrFunc2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // integer-note@#Kernel4{{kernel declared here}}
-    // expected-warning@#AttrFunc2 {{'sub_group_size' attribute can only be applied to a SYCL kernel function}}
+    // expected-warning@#AttrFunc2 {{'intel::sub_group_size' attribute can only be applied to a SYCL kernel function}}
     AttrFunc2();
     // integer-error@#AttrExternalDefined2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // integer-note@#Kernel4{{kernel declared here}}
-    // expected-warning@#AttrExternalDefined2 {{'sub_group_size' attribute can only be applied to a SYCL kernel function}}
+    // expected-warning@#AttrExternalDefined2 {{'intel::sub_group_size' attribute can only be applied to a SYCL kernel function}}
     AttrExternalDefined2();
     // integer-error@#AttrExternalNotDefined2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // integer-note@#Kernel4{{kernel declared here}}

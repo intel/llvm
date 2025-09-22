@@ -25,7 +25,7 @@ filterP2PDevices(ur_device_handle_t hSourceDevice,
 
     ze_bool_t p2p;
     ZE2UR_CALL_THROWS(zeDeviceCanAccessPeer,
-                      (hSourceDevice->ZeDevice, device->ZeDevice, &p2p));
+                      (device->ZeDevice, hSourceDevice->ZeDevice, &p2p));
 
     if (p2p) {
       p2pDevices.push_back(device);
@@ -35,13 +35,38 @@ filterP2PDevices(ur_device_handle_t hSourceDevice,
 }
 
 static std::vector<std::vector<ur_device_handle_t>>
-populateP2PDevices(size_t maxDevices,
-                   const std::vector<ur_device_handle_t> &devices) {
-  std::vector<std::vector<ur_device_handle_t>> p2pDevices(maxDevices);
+populateP2PDevices(const std::vector<ur_device_handle_t> &devices) {
+  std::vector<ur_device_handle_t> allDevices;
+  std::function<void(ur_device_handle_t)> collectDeviceAndSubdevices =
+      [&allDevices, &collectDeviceAndSubdevices](ur_device_handle_t device) {
+        allDevices.push_back(device);
+        for (auto &subDevice : device->SubDevices) {
+          collectDeviceAndSubdevices(subDevice);
+        }
+      };
+
   for (auto &device : devices) {
-    p2pDevices[device->Id.value()] = filterP2PDevices(device, devices);
+    collectDeviceAndSubdevices(device);
+  }
+
+  uint64_t maxDeviceId = 0;
+  for (auto &device : allDevices) {
+    maxDeviceId = std::max(maxDeviceId, device->Id.value());
+  }
+
+  std::vector<std::vector<ur_device_handle_t>> p2pDevices(maxDeviceId + 1);
+  for (auto &device : allDevices) {
+    p2pDevices[device->Id.value()] = filterP2PDevices(device, allDevices);
   }
   return p2pDevices;
+}
+
+static std::vector<ur_device_handle_t>
+uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
+  std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
+  std::sort(devices.begin(), devices.end());
+  devices.erase(std::unique(devices.begin(), devices.end()), devices.end());
+  return devices;
 }
 
 ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
@@ -49,36 +74,42 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices),
+      hDevices(uniqueDevices(numDevices, phDevices)),
       commandListCache(hContext,
-                       phDevices[0]->Platform->ZeCopyOffloadExtensionSupported),
-      eventPoolCache(this, phDevices[0]->Platform->getNumDevices(),
-                     [context = this, platform = phDevices[0]->Platform](
-                         DeviceId deviceId, v2::event_flags_t flags)
-                         -> std::unique_ptr<v2::event_provider> {
-                       assert((flags & v2::EVENT_FLAGS_COUNTER) != 0);
+                       {phDevices[0]->Platform->ZeCopyOffloadExtensionSupported,
+                        phDevices[0]->Platform->ZeMutableCmdListExt.Supported}),
+      eventPoolCacheImmediate(
+          this, phDevices[0]->Platform->getNumDevices(),
+          [context = this](DeviceId /* deviceId*/, v2::event_flags_t flags)
+              -> std::unique_ptr<v2::event_provider> {
+            // TODO: just use per-context id?
+            return std::make_unique<v2::provider_normal>(
+                context, v2::QUEUE_IMMEDIATE, flags);
+          }),
+      eventPoolCacheRegular(this, phDevices[0]->Platform->getNumDevices(),
+                            [context = this, platform = phDevices[0]->Platform](
+                                DeviceId deviceId, v2::event_flags_t flags)
+                                -> std::unique_ptr<v2::event_provider> {
+                              std::ignore = deviceId;
+                              std::ignore = platform;
 
-                       std::ignore = deviceId;
-                       std::ignore = platform;
-
-                       // TODO: just use per-context id?
-                       return std::make_unique<v2::provider_normal>(
-                           context, v2::QUEUE_IMMEDIATE, flags);
-                     }),
+                              // TODO: just use per-context id?
+                              return std::make_unique<v2::provider_normal>(
+                                  context, v2::QUEUE_REGULAR, flags);
+                            }),
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
-      p2pAccessDevices(populateP2PDevices(
-          phDevices[0]->Platform->getNumDevices(), this->hDevices)),
-      defaultUSMPool(this, nullptr) {}
+      p2pAccessDevices(populateP2PDevices(this->hDevices)),
+      defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
-  RefCount.increment();
+  RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_context_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete this;
@@ -107,6 +138,18 @@ ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
   return &defaultUSMPool;
 }
 
+ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() { return &asyncPool; }
+
+void ur_context_handle_t_::addUsmPool(ur_usm_pool_handle_t hPool) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
+  usmPoolHandles.push_back(hPool);
+}
+
+void ur_context_handle_t_::removeUsmPool(ur_usm_pool_handle_t hPool) {
+  std::scoped_lock<ur_shared_mutex> lock(Mutex);
+  usmPoolHandles.remove(hPool);
+}
+
 const std::vector<ur_device_handle_t> &
 ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
   return p2pAccessDevices[hDevice->Id.value()];
@@ -115,9 +158,8 @@ ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
 namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
-                            const ur_context_properties_t *pProperties,
+                            const ur_context_properties_t * /*pProperties*/,
                             ur_context_handle_t *phContext) try {
-  std::ignore = pProperties;
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
   ZeStruct<ze_context_desc_t> contextDesc{};
@@ -183,19 +225,13 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(uint32_t(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{hContext->RefCount.load()});
+    return ReturnValue(uint32_t{hContext->RefCount.getCount()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // TODO: this is currently not implemented
     return ReturnValue(uint8_t{false});
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

@@ -18,7 +18,7 @@
 #include <iostream>
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   UR_ASSERT(pNumPlatforms || phPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
@@ -29,7 +29,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
   if (NumEntries == 0) {
     if (phPlatforms != nullptr) {
-      logger::error("Invalid argument combination for urPlatformsGet");
+      UR_LOG(ERR, "Invalid argument combination for urPlatformsGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;
@@ -76,9 +76,11 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
     return ReturnValue("");
 
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_NATIVE_CPU);
+    return ReturnValue(UR_BACKEND_NATIVE_CPU);
+
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(&Adapter);
+
   default:
     DIE_NO_IMPLEMENTATION;
   }
@@ -87,13 +89,9 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t hPlatform, const char *pFrontendOption,
+    ur_platform_handle_t /*hPlatform*/, const char *pFrontendOption,
     const char **ppPlatformOption) {
-  std::ignore = hPlatform;
-  std::ignore = pFrontendOption;
-  std::ignore = ppPlatformOption;
 
-  std::ignore = hPlatform;
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
@@ -112,10 +110,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
-    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  std::ignore = hPlatform;
-  std::ignore = phNativePlatform;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetNativeHandle(ur_platform_handle_t /*hPlatform*/,
+                          ur_native_handle_t * /*phNativePlatform*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

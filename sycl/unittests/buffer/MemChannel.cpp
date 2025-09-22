@@ -100,8 +100,7 @@ TEST_F(BufferMemChannelTest, MemChannelProp) {
 
   Q.submit([&](sycl::handler &CGH) {
      sycl::accessor Acc{Buf, CGH, sycl::read_write};
-     constexpr size_t KS = sizeof(decltype(Acc));
-     CGH.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
+     CGH.single_task<TestKernelWithAcc>([=]() { Acc[0] = 4; });
    }).wait();
   EXPECT_EQ(PassedChannel, (uint32_t)42);
 }
