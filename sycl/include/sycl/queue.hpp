@@ -140,40 +140,6 @@ private:
       ext::oneapi::experimental::event_mode_enum::none;
 };
 
-// This class is intended to store the kernel runtime information,
-// extracted from the compile time kernel structures.
-class __SYCL_EXPORT KernelDataDesc {
-public:
-  KernelDataDesc() {}
-
-  KernelDataDesc(const KernelDataDesc &rhs) = delete;
-
-  KernelDataDesc(KernelDataDesc &&rhs) = delete;
-
-  KernelDataDesc &operator=(const KernelDataDesc &rhs) = delete;
-
-  KernelDataDesc &operator=(KernelDataDesc &&rhs) = delete;
-
-  std::shared_ptr<detail::HostKernelBase> &HostKernel() { return MHostKernel; }
-  const std::shared_ptr<detail::HostKernelBase> &HostKernel() const {
-    return MHostKernel;
-  }
-
-  char *GetKernelFuncPtr() { return (*MHostKernel).getPtr(); }
-  char *GetKernelFuncPtr() const { return (*MHostKernel).getPtr(); }
-
-  detail::DeviceKernelInfo *&DeviceKernelInfoPtr() {
-    return MDeviceKernelInfoPtr;
-  }
-  detail::DeviceKernelInfo *DeviceKernelInfoPtr() const {
-    return MDeviceKernelInfoPtr;
-  }
-
-private:
-  std::shared_ptr<detail::HostKernelBase> MHostKernel;
-  detail::DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
-};
-
 } // namespace v1
 } // namespace detail
 
@@ -2697,21 +2663,12 @@ public:
         "Use queue.submit() instead");
 
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    return submit_kernel_direct_with_event<KernelName, PropertiesT, KernelType,
-                                           1, detail::WrapAs::single_task,
-                                           void>(Properties, nd_range<1>{1, 1},
-                                                 KernelFunc);
-
-#else
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
               Properties, KernelFunc);
         },
         TlsCodeLocCapture.query());
-#endif
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3688,26 +3645,6 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
-  template <typename KernelName, typename KernelType, int Dims,
-            detail::WrapAs WrapAsVal>
-  void ProcessKernelDataDesc(const KernelType &KernelFunc,
-                             detail::v1::KernelDataDesc &KDDesc) const {
-
-    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    using TransformedArgType = std::conditional_t<
-        WrapAsVal == detail::WrapAs::parallel_for,
-        std::conditional_t<
-            std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-            typename TransformUserItemType<Dims, LambdaArgType>::type>,
-        void>;
-
-    KDDesc.HostKernel().reset(
-        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
-            KernelFunc));
-
-    KDDesc.DeviceKernelInfoPtr() = &detail::getDeviceKernelInfo<KernelName>();
-  }
-
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
   /// Not using `type_erased_cgfo_ty` on purpose.
@@ -3780,27 +3717,33 @@ private:
                                bool IsTopCodeLoc) const;
 
   event submit_kernel_direct_with_event_impl(
-      nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
+      nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   event submit_kernel_direct_with_event_impl(
-      nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
+      nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   event submit_kernel_direct_with_event_impl(
-      nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
+      nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   void submit_kernel_direct_without_event_impl(
-      nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
+      nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   void submit_kernel_direct_without_event_impl(
-      nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
+      nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   void submit_kernel_direct_without_event_impl(
-      nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
+      nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
   /// A template-free version of submit_without_event as const member function.
@@ -3833,9 +3776,7 @@ private:
   }
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
-            typename KernelType, int Dims,
-            detail::WrapAs WrapAsVal = detail::WrapAs::parallel_for,
-            typename ElementType = sycl::nd_item<Dims>>
+            typename KernelType, int Dims>
   event
   submit_kernel_direct_with_event(PropertiesT Props, nd_range<Dims> Range,
                                   const KernelType &KernelFunc,
@@ -3843,20 +3784,31 @@ private:
                                       detail::code_location::current()) const {
     (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::KernelDataDesc KDDesc{};
+    std::shared_ptr<detail::HostKernelBase> HostKernel;
+    detail::DeviceKernelInfo *DeviceKernelInfoPtr = nullptr;
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using LambdaArgType =
+        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+    static_assert(
+        std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+        "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+        "must be either sycl::nd_item or be convertible from sycl::nd_item");
+    using TransformedArgType = sycl::nd_item<Dims>;
 
-    ProcessKernelDataDesc<NameT, KernelType, Dims, WrapAsVal>(KernelFunc,
-                                                              KDDesc);
+    HostKernel.reset(
+        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+            KernelFunc));
 
-    detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
-                          PropertiesT>::wrap(KernelFunc);
+    DeviceKernelInfoPtr = &detail::getDeviceKernelInfo<NameT>();
 
-    return submit_kernel_direct_with_event_impl(Range, KDDesc,
-                                                TlsCodeLocCapture.query(),
-                                                TlsCodeLocCapture.isToplevel());
+    detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                          TransformedArgType, PropertiesT>::wrap(KernelFunc);
+
+    return submit_kernel_direct_with_event_impl(
+        Range, HostKernel, DeviceKernelInfoPtr, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
   }
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
@@ -3867,20 +3819,31 @@ private:
           detail::code_location::current()) const {
     (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::v1::KernelDataDesc KDDesc{};
+    std::shared_ptr<detail::HostKernelBase> HostKernel;
+    detail::DeviceKernelInfo *DeviceKernelInfoPtr = nullptr;
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    using LambdaArgType =
+        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+    static_assert(
+        std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+        "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+        "must be either sycl::nd_item or be convertible from sycl::nd_item");
+    using TransformedArgType = sycl::nd_item<Dims>;
 
-    ProcessKernelDataDesc<NameT, KernelType, Dims,
-                          detail::WrapAs::parallel_for>(KernelFunc, KDDesc);
+    HostKernel.reset(
+        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
+            KernelFunc));
+
+    DeviceKernelInfoPtr = &detail::getDeviceKernelInfo<NameT>();
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                          sycl::nd_item<Dims>, PropertiesT>::wrap(KernelFunc);
+                          TransformedArgType, PropertiesT>::wrap(KernelFunc);
 
-    submit_kernel_direct_without_event_impl(Range, KDDesc,
-                                            TlsCodeLocCapture.query(),
-                                            TlsCodeLocCapture.isToplevel());
+    submit_kernel_direct_without_event_impl(
+        Range, HostKernel, DeviceKernelInfoPtr, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
   }
 
   /// Submits a command group function object to the queue, in order to be

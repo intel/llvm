@@ -439,22 +439,23 @@ std::vector<ArgDesc> queue_impl::extractArgsAndReqsFromLambda(
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    const NDRDescT &NDRDesc, const v1::KernelDataDesc &KDDesc,
-    bool CallerNeedsEvent, const detail::code_location &CodeLoc,
-    bool IsTopCodeLoc) {
+    const NDRDescT &NDRDesc,
+    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
 
-  KData.setDeviceKernelInfoPtr(KDDesc.DeviceKernelInfoPtr());
-  KData.setKernelFunc(KDDesc.GetKernelFuncPtr());
+  KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
+  KData.setKernelFunc(HostKernel->getPtr());
   KData.setNDRDesc(NDRDesc);
 
-  return submit_kernel_direct_impl(KData, KDDesc.HostKernel(), CallerNeedsEvent,
-                                   CodeLoc, IsTopCodeLoc);
+  return submit_kernel_direct_impl(KData, HostKernel, CallerNeedsEvent, CodeLoc,
+                                   IsTopCodeLoc);
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    KernelData &KData, std::shared_ptr<detail::HostKernelBase> HostKernel,
+    KernelData &KData, std::shared_ptr<detail::HostKernelBase> &HostKernel,
     bool CallerNeedsEvent, const detail::code_location &CodeLoc,
     bool IsTopCodeLoc) {
 

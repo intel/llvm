@@ -320,45 +320,51 @@ event queue::submit_with_event_impl(
 }
 
 event queue::submit_kernel_direct_with_event_impl(
-    nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
+    nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  return impl->submit_kernel_direct_with_event(Range, KDDesc, CodeLoc,
-                                               IsTopCodeLoc);
+  return impl->submit_kernel_direct_with_event(
+      Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_kernel_direct_with_event_impl(
-    nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
+    nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  return impl->submit_kernel_direct_with_event(Range, KDDesc, CodeLoc,
-                                               IsTopCodeLoc);
+  return impl->submit_kernel_direct_with_event(
+      Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_kernel_direct_with_event_impl(
-    nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
+    nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  return impl->submit_kernel_direct_with_event(Range, KDDesc, CodeLoc,
-                                               IsTopCodeLoc);
+  return impl->submit_kernel_direct_with_event(
+      Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_kernel_direct_without_event_impl(
-    nd_range<1> Range, const detail::v1::KernelDataDesc &KDDesc,
+    nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  impl->submit_kernel_direct_without_event(Range, KDDesc, CodeLoc,
-                                           IsTopCodeLoc);
+  impl->submit_kernel_direct_without_event(Range, HostKernel, DeviceKernelInfo,
+                                           CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_kernel_direct_without_event_impl(
-    nd_range<2> Range, const detail::v1::KernelDataDesc &KDDesc,
+    nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  impl->submit_kernel_direct_without_event(Range, KDDesc, CodeLoc,
-                                           IsTopCodeLoc);
+  impl->submit_kernel_direct_without_event(Range, HostKernel, DeviceKernelInfo,
+                                           CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_kernel_direct_without_event_impl(
-    nd_range<3> Range, const detail::v1::KernelDataDesc &KDDesc,
+    nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) const {
-  impl->submit_kernel_direct_without_event(Range, KDDesc, CodeLoc,
-                                           IsTopCodeLoc);
+  impl->submit_kernel_direct_without_event(Range, HostKernel, DeviceKernelInfo,
+                                           CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(
