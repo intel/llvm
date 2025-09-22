@@ -1093,7 +1093,7 @@ void handler::extractArgsAndReqs() {
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            std::string(MKernel->getName())));
+            detail::toKernelNameStrT(MKernel->getName())));
   }
 #endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
@@ -1109,7 +1109,7 @@ void handler::extractArgsAndReqsFromLambda(
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            std::string(MKernel->getName())));
+            detail::toKernelNameStrT(MKernel->getName())));
   }
   impl->MKernelData.setKernelInfo(LambdaPtr, NumKernelParams, ParamDescGetter,
                                   IsESIMD, true);
