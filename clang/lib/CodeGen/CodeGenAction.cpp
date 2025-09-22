@@ -29,6 +29,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Serialization/ASTWriter.h"
 #include "llvm/ADT/Hashing.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/Demangle/Demangle.h"
@@ -1162,7 +1163,7 @@ namespace {
 // Handles the initialization and cleanup of the OptRecordFile before the clang
 // codegen runs so it can also emit to the opt report.
 struct OptRecordFileRAII {
-  std::unique_ptr<llvm::ToolOutputFile> OptRecordFile;
+  LLVMRemarkFileHandle OptRecordFile;
   std::unique_ptr<DiagnosticHandler> OldDiagnosticHandler;
   llvm::LLVMContext &Ctx;
 
@@ -1176,7 +1177,7 @@ struct OptRecordFileRAII {
     Ctx.setDiagnosticHandler(
         std::make_unique<ClangDiagnosticHandler>(CodeGenOpts, &BC));
 
-    Expected<std::unique_ptr<llvm::ToolOutputFile>> OptRecordFileOrErr =
+    Expected<LLVMRemarkFileHandle> OptRecordFileOrErr =
         setupLLVMOptimizationRemarks(
             Ctx, CodeGenOpts.OptRecordFile, CodeGenOpts.OptRecordPasses,
             CodeGenOpts.OptRecordFormat, CodeGenOpts.DiagnosticsWithHotness,
@@ -1265,7 +1266,7 @@ void CodeGenAction::ExecuteAction() {
   Ctx.setDefaultTargetCPU(TargetOpts.CPU);
   Ctx.setDefaultTargetFeatures(llvm::join(TargetOpts.Features, ","));
 
-  Expected<std::unique_ptr<llvm::ToolOutputFile>> OptRecordFileOrErr =
+  Expected<LLVMRemarkFileHandle> OptRecordFileOrErr =
       setupLLVMOptimizationRemarks(
           Ctx, CodeGenOpts.OptRecordFile, CodeGenOpts.OptRecordPasses,
           CodeGenOpts.OptRecordFormat, CodeGenOpts.DiagnosticsWithHotness,
@@ -1275,8 +1276,7 @@ void CodeGenAction::ExecuteAction() {
     reportOptRecordError(std::move(E), Diagnostics, CodeGenOpts);
     return;
   }
-  std::unique_ptr<llvm::ToolOutputFile> OptRecordFile =
-      std::move(*OptRecordFileOrErr);
+  LLVMRemarkFileHandle OptRecordFile = std::move(*OptRecordFileOrErr);
 
   emitBackendOutput(CI, CI.getCodeGenOpts(),
                     CI.getTarget().getDataLayoutString(), TheModule.get(), BA,
