@@ -421,6 +421,8 @@ params:
       desc: "[in] handle of Sampler object."
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "Device `$X_DEVICE_INFO_IMAGE_SUPPORT` is false"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelSetArgMemObj."

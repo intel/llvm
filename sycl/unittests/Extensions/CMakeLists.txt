@@ -27,6 +27,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   IPC.cpp
 )
 
+add_subdirectory(BindlessImages)
 add_subdirectory(CommandGraph)
 add_subdirectory(VirtualFunctions)
 add_subdirectory(VirtualMemory)

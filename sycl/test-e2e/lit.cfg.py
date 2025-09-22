@@ -1013,14 +1013,17 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
-            if lin:
-                intel_driver_ver["lin"] = int(lin.group(1))
-            win = re.match(
-                r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
-            )
-            if win:
-                intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            if sycl_device.endswith("gpu"):
+                lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
+                if lin:
+                    intel_driver_ver["lin"] = int(lin.group(1))
+                win = re.match(
+                    r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
+                )
+                if win:
+                    intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            elif sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1147,7 +1150,7 @@ if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
-    clangxx = " " + config.dpcpp_compiler + " "
+    clangxx = " " + config.dpcpp_compiler + " -Werror "
     if "preview-mode" in config.available_features:
         # Technically, `-fpreview-breaking-changes` is reported as unused option
         # if used without `-fsycl`. However, we have far less tests compiling
