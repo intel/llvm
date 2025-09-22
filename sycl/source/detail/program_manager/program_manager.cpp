@@ -2412,7 +2412,7 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
 }
 
 void ProgramManager::registerKernelGlobalInfo(
-    std::unordered_map<std::string_view, unsigned> &&GlobalInfoToCopy) {
+    std::unordered_map<std::string, unsigned> &&GlobalInfoToCopy) {
   std::lock_guard<std::mutex> Guard(MNativeProgramsMutex);
   if (m_FreeFunctionKernelGlobalInfo.empty())
     m_FreeFunctionKernelGlobalInfo = std::move(GlobalInfoToCopy);
