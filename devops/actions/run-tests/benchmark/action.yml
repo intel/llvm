@@ -209,8 +209,7 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        --flamegraph inclusive \
-        --unitrace
+        --flamegraph inclusive
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
