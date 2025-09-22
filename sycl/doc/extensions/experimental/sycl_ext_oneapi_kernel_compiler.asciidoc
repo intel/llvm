@@ -1127,6 +1127,57 @@ build_options{{
 Relax the requirement that parameter types for free-function kernels must be
 forward-declarable.
 
+===== `--auto-pch`
+
+Enable auto-detection of the preamble and use it as a pre-compiled header to
+speed up subsequent compilations of TUs matching the preamble/compilation
+options. Example of the code that can benefit from this:
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+
+// Auto-detected preamble ends before next line:
+namespace syclext = sycl::ext::oneapi;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+extern "C"
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(float start, float *ptr) {
+    size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+    ptr[id] = start + static_cast<float>(id);
+}
+----
+
+Limitations:
+
+* Preamble detection is done at the Lexer level and can't handle code like
+
+[source,c++]
+----
+#if 1
+#include <sycl/sycl.hpp>
+#else
+// Auto-detected preamble ends in the middle of `#else` and would fail to compile.
+void foo() {}
+#endif
+----
+
+* Any changes in either preamble or compilation options (including
+  `-DSOMETHING`!) result in a creation of a new pre-compiled header/preamble.
+
+* No support (including not reporting any errors) for `+__DATE__+`/`+__TIME__+`
+  macros inside auto-detected preamble (transitively in regards to the
+  includes).
+
+* Files used inside preamble must not change between different compilations (at
+  least for the same auto-detected preamble).
+
+* Auto-generated pre-compiled headers/preambles are stored in memory only. That means:
+  - No persistency between invocations
+  - Currently there is no eviction mechanism, so application is expected to use
+     the option only when number of preambles is limited.
+
 === Known issues and limitations when the language is `sycl`
 
 ==== Changing the compiler action or output
