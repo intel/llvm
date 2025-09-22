@@ -14,15 +14,17 @@
 #include <sycl/detail/fwd/multi_ptr.hpp>
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
-#include <sycl/exception.hpp>                  // for exception, make_error...
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp> // for range
 
 #include <stdint.h>    // for uint32_t
-#include <tuple>       // for _Swallow_assign, ignore
 #include <type_traits> // for enable_if_t, remove_cv_t
+
+#ifndef __SYCL_DEVICE_ONLY__
+#include <sycl/exception.hpp> // for exception, make_error...
+#endif
 
 namespace sycl {
 inline namespace _V1 {

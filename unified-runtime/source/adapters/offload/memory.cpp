@@ -144,6 +144,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
+urMemImageCreate(ur_context_handle_t, ur_mem_flags_t, const ur_image_format_t *,
+                 const ur_image_desc_t *, void *, ur_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t, const ur_image_format_t *,
+    const ur_image_desc_t *, const ur_mem_native_properties_t *,
+    ur_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t,
+                                                      ur_image_info_t, size_t,
+                                                      void *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
 urIPCGetMemHandleExp(ur_context_handle_t, void *, ur_exp_ipc_mem_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
