@@ -622,8 +622,8 @@ urIPCPutMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    void *pIPCMemHandleData, size_t ipcMemHandleDataSize, void **ppMem) {
+    ur_context_handle_t, ur_device_handle_t hDevice, void *pIPCMemHandleData,
+    size_t ipcMemHandleDataSize, void **ppMem) {
   umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
 
   size_t umfHandleSize = 0;
