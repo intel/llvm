@@ -954,7 +954,7 @@ protected:
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
   detail::EventImplPtr submit_kernel_direct_impl(
-      KernelData &KData, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      KernelData &&KData, std::shared_ptr<detail::HostKernelBase> &HostKernel,
       bool CallerNeedsEvent, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc);
 
