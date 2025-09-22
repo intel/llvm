@@ -1795,7 +1795,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCPutMemHandleExp
 typedef ur_result_t(UR_APICALL *ur_pfnIPCPutMemHandleExp_t)(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t);
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t, ur_bool_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCOpenMemHandleExp

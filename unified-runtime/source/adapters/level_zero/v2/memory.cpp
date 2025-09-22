@@ -794,10 +794,13 @@ ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
 }
 
 ur_result_t urIPCPutMemHandleExp(ur_context_handle_t,
-                                 ur_exp_ipc_mem_handle_t hIPCMem) {
-  auto umfRet = umfPutIPCHandle(hIPCMem->UMFHandle);
-  if (umfRet != UMF_RESULT_SUCCESS)
-    return UR_RESULT_ERROR_UNKNOWN;
+                                 ur_exp_ipc_mem_handle_t hIPCMem,
+                                 ur_bool_t putBackendResource) {
+  if (putBackendResource) {
+    auto umfRet = umfPutIPCHandle(hIPCMem->UMFHandle);
+    if (umfRet != UMF_RESULT_SUCCESS)
+      return UR_RESULT_ERROR_UNKNOWN;
+  }
   std::free(hIPCMem);
   return UR_RESULT_SUCCESS;
 }

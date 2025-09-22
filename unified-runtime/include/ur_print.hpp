@@ -20332,6 +20332,11 @@ inline std::ostream &operator<<(
 
   ur::details::printPtr(os, *(params->phIPCMem));
 
+  os << ", ";
+  os << ".putBackendResource = ";
+
+  os << *(params->pputBackendResource);
+
   return os;
 }
 

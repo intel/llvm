@@ -12414,7 +12414,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem);
+    ur_exp_ipc_mem_handle_t hIPCMem,
+    /// [in] true if the backend resource should be released, false if the
+    /// backend resource will be released when freeing the corresponding
+    /// device USM memory
+    ur_bool_t putBackendResource);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Opens an inter-process memory handle from raw data to get the
@@ -15587,6 +15591,7 @@ typedef struct ur_ipc_get_mem_handle_exp_params_t {
 typedef struct ur_ipc_put_mem_handle_exp_params_t {
   ur_context_handle_t *phContext;
   ur_exp_ipc_mem_handle_t *phIPCMem;
+  ur_bool_t *pputBackendResource;
 } ur_ipc_put_mem_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -5478,7 +5478,11 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem) {
+    ur_exp_ipc_mem_handle_t hIPCMem,
+    /// [in] true if the backend resource should be released, false if the
+    /// backend resource will be released when freeing the corresponding
+    /// device USM memory
+    ur_bool_t putBackendResource) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
 
@@ -5487,7 +5491,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnPutMemHandleExp(hContext, hIPCMem);
+  return pfnPutMemHandleExp(hContext, hIPCMem, putBackendResource);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
