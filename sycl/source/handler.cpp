@@ -645,21 +645,21 @@ event handler::finalize() {
               ? nullptr
               : detail::event_impl::create_device_event(impl->get_queue());
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-      // Only enable instrumentation if there are subscribes to the SYCL stream
-      const bool xptiEnabled = xptiCheckTraceEnabled(detail::GSYCLStreamID);
-#endif
       auto EnqueueKernel = [&]() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         xpti_td *CmdTraceEvent = nullptr;
         uint64_t InstanceID = 0;
+        auto StreamID = detail::getActiveXPTIStreamID();
+        // Only enable instrumentation if there are subscribes to the SYCL
+        // stream
+        const bool xptiEnabled = xptiCheckTraceEnabled(StreamID);
         if (xptiEnabled) {
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-              detail::GSYCLStreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
+              StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
               *impl->MKernelData.getDeviceKernelInfoPtr(),
               impl->get_queue_or_null(), impl->MKernelData.getNDRDesc(),
               KernelBundleImpPtr, impl->MKernelData.getArgs());
-          detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
+          detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_begin, nullptr);
         }
@@ -685,11 +685,10 @@ event handler::finalize() {
           // Emit signal only when event is created
           if (!DiscardEvent) {
             detail::emitInstrumentationGeneral(
-                detail::GSYCLStreamID, InstanceID, CmdTraceEvent,
-                xpti::trace_signal,
+                StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
                 static_cast<const void *>(ResultEvent->getHandle()));
           }
-          detail::emitInstrumentationGeneral(detail::GSYCLStreamID, InstanceID,
+          detail::emitInstrumentationGeneral(StreamID, InstanceID,
                                              CmdTraceEvent,
                                              xpti::trace_task_end, nullptr);
         }

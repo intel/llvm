@@ -885,6 +885,9 @@ private:
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
+    if (Func.hasLocalLinkage())
+      return true;
+
     if (!Func.getName().starts_with("_Z"))
       return true;
 

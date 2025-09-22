@@ -153,6 +153,17 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   xptiRegisterCallback(StreamID, xpti::trace_queue_destroy, testCallback);
   xptiRegisterCallback(StreamID, xpti::trace_task_begin, testCallback);
   xptiRegisterCallback(StreamID, xpti::trace_task_end, testCallback);
+  // Register callbacks for the debug stream to enable additional
+  // metadata that may be used for tests.
+  uint8_t DebugStreamID = xptiRegisterStream("sycl.debug");
+  xptiRegisterCallback(DebugStreamID, xpti::trace_diagnostics, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_node_create, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_task_begin, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_task_end, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_queue_create, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_queue_destroy, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_task_begin, testCallback);
+  xptiRegisterCallback(DebugStreamID, xpti::trace_task_end, testCallback);
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char * /*StreamName*/) {}
