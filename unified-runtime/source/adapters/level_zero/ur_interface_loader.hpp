@@ -771,7 +771,8 @@ ur_result_t urEnqueueTimestampRecordingExp(
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t hContext, void *pMem,
                                  ur_exp_ipc_mem_handle_t *phIPCMem);
 ur_result_t urIPCPutMemHandleExp(ur_context_handle_t hContext,
-                                 ur_exp_ipc_mem_handle_t hIPCMem);
+                                 ur_exp_ipc_mem_handle_t hIPCMem,
+                                 ur_bool_t putBackendResource);
 ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   void *ipcMemHandleData,

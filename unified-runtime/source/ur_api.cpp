@@ -8749,7 +8749,11 @@ ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem) {
+    ur_exp_ipc_mem_handle_t hIPCMem,
+    /// [in] true if the backend resource should be released, false if the
+    /// backend resource will be released when freeing the corresponding
+    /// device USM memory
+    ur_bool_t putBackendResource) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }

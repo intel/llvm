@@ -9617,20 +9617,26 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem) {
+    ur_exp_ipc_mem_handle_t hIPCMem,
+    /// [in] true if the backend resource should be released, false if the
+    /// backend resource will be released when freeing the corresponding
+    /// device USM memory
+    ur_bool_t putBackendResource) {
   auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
 
   if (nullptr == pfnPutMemHandleExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &hIPCMem};
+  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &hIPCMem,
+                                               &putBackendResource};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, "urIPCPutMemHandleExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urIPCPutMemHandleExp\n");
 
-  ur_result_t result = pfnPutMemHandleExp(hContext, hIPCMem);
+  ur_result_t result =
+      pfnPutMemHandleExp(hContext, hIPCMem, putBackendResource);
 
   getContext()->notify_end(UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP,
                            "urIPCPutMemHandleExp", &params, &result, instance);

@@ -64,6 +64,9 @@ params:
     - type: $x_exp_ipc_mem_handle_t
       name: hIPCMem
       desc: "[in] the IPC memory handle"
+    - type: $x_bool_t
+      name: putBackendResource
+      desc: "[in] true if the backend resource should be released, false if the backend resource will be released when freeing the corresponding device USM memory"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
