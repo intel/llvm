@@ -15,53 +15,6 @@
 #include "event_provider_normal.hpp"
 
 static std::vector<ur_device_handle_t>
-filterP2PDevices(ur_device_handle_t hSourceDevice,
-                 const std::vector<ur_device_handle_t> &devices) {
-  std::vector<ur_device_handle_t> p2pDevices;
-  for (auto &device : devices) {
-    if (device == hSourceDevice) {
-      continue;
-    }
-
-    ze_bool_t p2p;
-    ZE2UR_CALL_THROWS(zeDeviceCanAccessPeer,
-                      (device->ZeDevice, hSourceDevice->ZeDevice, &p2p));
-
-    if (p2p) {
-      p2pDevices.push_back(device);
-    }
-  }
-  return p2pDevices;
-}
-
-static std::vector<std::vector<ur_device_handle_t>>
-populateP2PDevices(const std::vector<ur_device_handle_t> &devices) {
-  std::vector<ur_device_handle_t> allDevices;
-  std::function<void(ur_device_handle_t)> collectDeviceAndSubdevices =
-      [&allDevices, &collectDeviceAndSubdevices](ur_device_handle_t device) {
-        allDevices.push_back(device);
-        for (auto &subDevice : device->SubDevices) {
-          collectDeviceAndSubdevices(subDevice);
-        }
-      };
-
-  for (auto &device : devices) {
-    collectDeviceAndSubdevices(device);
-  }
-
-  uint64_t maxDeviceId = 0;
-  for (auto &device : allDevices) {
-    maxDeviceId = std::max(maxDeviceId, device->Id.value());
-  }
-
-  std::vector<std::vector<ur_device_handle_t>> p2pDevices(maxDeviceId + 1);
-  for (auto &device : allDevices) {
-    p2pDevices[device->Id.value()] = filterP2PDevices(device, allDevices);
-  }
-  return p2pDevices;
-}
-
-static std::vector<ur_device_handle_t>
 uniqueDevices(uint32_t numDevices, const ur_device_handle_t *phDevices) {
   std::vector<ur_device_handle_t> devices(phDevices, phDevices + numDevices);
   std::sort(devices.begin(), devices.end());
@@ -100,8 +53,9 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
       nativeEventsPool(this, std::make_unique<v2::provider_normal>(
                                  this, v2::QUEUE_IMMEDIATE,
                                  v2::EVENT_FLAGS_PROFILING_ENABLED)),
-      p2pAccessDevices(populateP2PDevices(this->hDevices)),
-      defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {}
+      defaultUSMPool(this, nullptr), asyncPool(this, nullptr) {
+  UR_LOG(INFO, "UR context created with {} devices", numDevices);
+}
 
 ur_result_t ur_context_handle_t_::retain() {
   RefCount.retain();
@@ -120,8 +74,7 @@ ur_platform_handle_t ur_context_handle_t_::getPlatform() const {
   return hDevices[0]->Platform;
 }
 
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getDevices() const {
+const std::vector<ur_device_handle_t> &ur_context_handle_t_::getDevices() const {
   return hDevices;
 }
 
@@ -141,37 +94,123 @@ ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
 ur_usm_pool_handle_t ur_context_handle_t_::getAsyncPool() { return &asyncPool; }
 
 void ur_context_handle_t_::addUsmPool(ur_usm_pool_handle_t hPool) {
+  UR_LOG(INFO, "Adding USM pool {} to context:{}", hPool, this);
   std::scoped_lock<ur_shared_mutex> lock(Mutex);
   usmPoolHandles.push_back(hPool);
 }
 
 void ur_context_handle_t_::removeUsmPool(ur_usm_pool_handle_t hPool) {
+  UR_LOG(INFO, "Removing USM pool {} from context:{}", hPool, this)
   std::scoped_lock<ur_shared_mutex> lock(Mutex);
   usmPoolHandles.remove(hPool);
 }
 
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getP2PDevices(ur_device_handle_t hDevice) const {
-  return p2pAccessDevices[hDevice->Id.value()];
+void ur_context_handle_t_::changeResidentDevice(ur_device_handle_t hDevice,
+                                                ur_device_handle_t peerDevice,
+                                                bool isAdding) {
+  if (!isValidDevice(hDevice)) {
+    UR_LOG(INFO,
+           "skipped changing peer device in context:%p because "
+           "commandDevice:%d is invalid in this context",
+           (void *)this, hDevice->Id.value());
+    return;
+  }
+
+  if (!isValidDevice(peerDevice)) {
+    UR_LOG(INFO,
+           "skipped changing peer device in context:%p because peerDevice:%d "
+           "is invalid in this context",
+           (void *)this, peerDevice->Id.value());
+    return;
+  }
+
+  UR_LOG(INFO, "{} peerDevice:{} in the default pool and {} usmPools",
+         isAdding ? "adding" : "removing", peerDevice->Id.value(),
+         usmPoolHandles.size())
+  defaultUSMPool.changeResidentDevice(hDevice, peerDevice, isAdding);
+  for (const auto &hPool : usmPoolHandles) {
+    hPool->changeResidentDevice(hDevice, peerDevice, isAdding);
+  }
+}
+
+std::vector<ur_device_handle_t>
+ur_context_handle_t_::getDevicesWhoseAllocationsCanBeAccessedFrom(
+    ur_device_handle_t hDevice) {
+  UR_FASSERT(hDevice != nullptr && hDevice->Id.has_value(),
+             "invalid device handle");
+
+  std::vector<ur_device_handle_t_::PeerStatus> peers;
+  {
+    std::scoped_lock<ur_shared_mutex> lock(hDevice->Mutex);
+    peers = hDevice->peers;
+  }
+
+  std::vector<ur_device_handle_t> retVal;
+  std::copy_if(
+      std::begin(hDevices), std::end(hDevices), std::back_inserter(retVal),
+      [&](ur_device_handle_t peerCandidateDevice) {
+        const auto candidateId = peerCandidateDevice->Id.value();
+        UR_FASSERT(candidateId < peers.size(),
+                   "there is no device:"
+                       << candidateId << " in peers table, number of devices:"
+                       << peers.size());
+        return peers[candidateId] == ur_device_handle_t_::PeerStatus::ENABLED;
+      });
+
+  return retVal;
+}
+
+std::vector<ur_device_handle_t>
+ur_context_handle_t_::getDevicesWhichCanAccessAllocationsPresentOn(
+    ur_device_handle_t hDevice) {
+  UR_FASSERT(hDevice != nullptr && hDevice->Id.has_value(),
+             "invalid device handle");
+
+  const auto hDeviceId = hDevice->Id.value();
+  std::vector<ur_device_handle_t> retVal;
+  std::copy_if(
+      std::begin(hDevices), std::end(hDevices), std::back_inserter(retVal),
+      [&](ur_device_handle_t peerCandidateDevice) {
+        const auto candidateId = peerCandidateDevice->Id.value();
+        UR_FASSERT(
+            hDeviceId < peerCandidateDevice->peers.size(),
+            "there is no device:"
+                << hDeviceId << " in peers table of device:" << candidateId
+                << ", number of devices:" << peerCandidateDevice->peers.size());
+        std::scoped_lock<ur_shared_mutex> lock(peerCandidateDevice->Mutex);
+        return peerCandidateDevice->peers[hDeviceId] ==
+               ur_device_handle_t_::PeerStatus::ENABLED;
+      });
+
+  return retVal;
 }
 
 namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
                             const ur_context_properties_t * /*pProperties*/,
-                            ur_context_handle_t *phContext) try {
+                            ur_context_handle_t *phContext) {
+  try {
 
-  ur_platform_handle_t hPlatform = phDevices[0]->Platform;
-  ZeStruct<ze_context_desc_t> contextDesc{};
+    ur_platform_handle_t hPlatform = phDevices[0]->Platform;
+    ZeStruct<ze_context_desc_t> contextDesc{};
 
-  ze_context_handle_t zeContext{};
-  ZE2UR_CALL(zeContextCreate, (hPlatform->ZeDriver, &contextDesc, &zeContext));
+    ze_context_handle_t zeContext{};
+    ZE2UR_CALL(zeContextCreate,
+               (hPlatform->ZeDriver, &contextDesc, &zeContext));
+    UR_LOG(INFO, "ZE context created with {} devices", deviceCount);
 
-  *phContext =
-      new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
-  return UR_RESULT_SUCCESS;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
+    *phContext =
+        new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
+    {
+      std::scoped_lock<ur_shared_mutex> Lock(hPlatform->ContextsMutex);
+      hPlatform->Contexts.push_back(*phContext);
+    }
+    return UR_RESULT_SUCCESS;
+  } catch (...) {
+    UR_DFAILURE("creating context failed");
+    return exceptionToResult(std::current_exception());
+  }
 }
 
 ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
@@ -206,6 +245,14 @@ ur_result_t urContextRetain(ur_context_handle_t hContext) try {
 }
 
 ur_result_t urContextRelease(ur_context_handle_t hContext) try {
+  auto Platform = hContext->getPlatform();
+  auto &Contexts = Platform->Contexts;
+  {
+    std::scoped_lock<ur_shared_mutex> Lock(Platform->ContextsMutex);
+    auto It = std::find(Contexts.begin(), Contexts.end(), hContext);
+    UR_ASSERT(It != Contexts.end(), UR_RESULT_ERROR_INVALID_CONTEXT);
+    Contexts.erase(It);
+  }
   return hContext->release();
 } catch (...) {
   return exceptionToResult(std::current_exception());

@@ -16,6 +16,9 @@ set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 option(SYCL_UR_FORMAT_CPP_STYLE "Format code style of UR C++ sources" OFF)
 set(UR_FORMAT_CPP_STYLE "${SYCL_UR_FORMAT_CPP_STYLE}" CACHE BOOL "" FORCE)
 
+option(SYCL_UR_ENABLE_ASSERTIONS "Enable assertions for all UR build types" OFF)
+set(UR_ENABLE_ASSERTIONS "${SYCL_UR_ENABLE_ASSERTIONS}" CACHE BOOL "" FORCE)
+
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")

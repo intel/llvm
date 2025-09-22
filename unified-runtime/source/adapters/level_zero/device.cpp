@@ -2199,3 +2199,24 @@ void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
                                           void *HostPtr) {
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
 }
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_ const &device_handle) {
+  if (device_handle.Id.has_value()) {
+    return os << device_handle.Id.value();
+  }
+  return os << "NONE";
+}
+
+std::ostream &operator<<(std::ostream &os,
+                         ur_device_handle_t_::PeerStatus peer_status) {
+  switch (peer_status) {
+  case ur_device_handle_t_::PeerStatus::DISABLED:
+    return os << "DISABLED";
+  case ur_device_handle_t_::PeerStatus::ENABLED:
+    return os << "ENABLED";
+  case ur_device_handle_t_::PeerStatus::NO_CONNECTION:
+    return os << "NO_CONNECTION";
+  }
+  return os << "UNKNOWN";
+}

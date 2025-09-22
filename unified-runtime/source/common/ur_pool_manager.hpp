@@ -65,12 +65,13 @@ struct pool_descriptor {
   createFromDevices(ur_usm_pool_handle_t poolHandle,
                     ur_context_handle_t hContext,
                     const std::vector<ur_device_handle_t> &devices);
-};
 
-static inline bool
-isSharedAllocationReadOnlyOnDevice(const pool_descriptor &desc) {
-  return desc.type == UR_USM_TYPE_SHARED && desc.deviceReadOnly;
-}
+  bool isSharedAllocationReadOnlyOnDevice() const {
+    return type == UR_USM_TYPE_SHARED && deviceReadOnly;
+  }
+
+  bool supportsResidentDevices() const { return type == UR_USM_TYPE_DEVICE; }
+};
 
 inline bool pool_descriptor::operator==(const pool_descriptor &other) const {
   static usm::detail::ddiTables ddi;
@@ -100,8 +101,8 @@ inline bool pool_descriptor::operator==(const pool_descriptor &other) const {
   }
 
   return lhsNative == rhsNative && lhs.type == rhs.type &&
-         (isSharedAllocationReadOnlyOnDevice(lhs) ==
-          isSharedAllocationReadOnlyOnDevice(rhs)) &&
+         (lhs.isSharedAllocationReadOnlyOnDevice() ==
+          rhs.isSharedAllocationReadOnlyOnDevice()) &&
          lhs.poolHandle == rhs.poolHandle;
 }
 
@@ -153,6 +154,7 @@ inline std::vector<pool_descriptor> pool_descriptor::createFromDevices(
 
 template <typename D, typename H> struct pool_manager {
 private:
+  static_assert(std::is_same_v<D, usm::pool_descriptor>);
   using pool_handle_t = H *;
   using unique_pool_handle_t = std::unique_ptr<H, std::function<void(H *)>>;
   using desc_to_pool_map_t = std::unordered_map<D, unique_pool_handle_t>;
@@ -175,6 +177,8 @@ public:
   }
 
   ur_result_t addPool(const D &desc, unique_pool_handle_t &&hPool) {
+    UR_LOG(INFO, "Adding USM pool {} ptr:{} into pool_manager, size:{}", desc,
+           hPool.get(), descToPoolMap.size());
     if (!descToPoolMap.try_emplace(desc, std::move(hPool)).second) {
       UR_LOG(ERR, "Pool for pool descriptor: {}, already exists", desc);
       return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -192,9 +196,17 @@ public:
 
     return it->second.get();
   }
+
   template <typename Func> void forEachPool(Func func) {
     for (const auto &[desc, pool] : descToPoolMap) {
       if (!func(pool.get()))
+        break;
+    }
+  }
+
+  template <typename Func> void forEachPoolWithDesc(Func func) {
+    for (const auto &[desc, pool] : descToPoolMap) {
+      if (!func(desc, pool.get()))
         break;
     }
   }
@@ -239,7 +251,7 @@ template <> struct hash<usm::pool_descriptor> {
     }
 
     return combine_hashes(0, desc.type, native,
-                          isSharedAllocationReadOnlyOnDevice(desc),
+                          desc.isSharedAllocationReadOnlyOnDevice(),
                           desc.poolHandle);
   }
 };

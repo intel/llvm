@@ -9,17 +9,17 @@
  *
  */
 #include "backtrace.hpp"
-
 #include <execinfo.h>
-#include <vector>
 
 namespace ur_validation_layer {
 
+#define MAX_BACKTRACE_FRAMES 64
+
 std::vector<BacktraceLine> getCurrentBacktrace() {
   void *backtraceFrames[MAX_BACKTRACE_FRAMES];
-  int frameCount = backtrace(backtraceFrames, MAX_BACKTRACE_FRAMES);
-  char **backtraceStr = backtrace_symbols(backtraceFrames, frameCount);
-
+  int frameCount = ::backtrace(backtraceFrames, MAX_BACKTRACE_FRAMES);
+  char **backtraceStr = ::backtrace_symbols(backtraceFrames, frameCount);
+  // TODO: implement getting demangled symbols using abi::__cxa_demangle
   if (backtraceStr == nullptr) {
     return std::vector<BacktraceLine>(1, "Failed to acquire a backtrace");
   }

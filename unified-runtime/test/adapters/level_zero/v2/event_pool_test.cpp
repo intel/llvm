@@ -45,8 +45,7 @@ const ur_dditable_t *ur::level_zero::ddi_getter::value() {
 // mock necessary functions from context, we can't pull in entire context
 // implementation due to a lot of other dependencies
 std::vector<ur_device_handle_t> mockVec{};
-const std::vector<ur_device_handle_t> &
-ur_context_handle_t_::getDevices() const {
+const std::vector<ur_device_handle_t> &ur_context_handle_t_::getDevices() const {
   return mockVec;
 }
 
