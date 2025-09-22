@@ -298,7 +298,6 @@
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_K_NAEBVproperty_list@23@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@V?$id@$02@23@V?$range@$02@23@1W4mode@access@23@PEAXHH_N_K4AEBVproperty_list@23@@Z
 ??0HostProfilingInfo@detail@_V1@sycl@@QEAA@XZ
-??0KernelRuntimeInfo@v1@detail@_V1@sycl@@QEAA@XZ
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VLocalAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
@@ -509,7 +508,6 @@
 ??0tls_code_loc_t@detail@_V1@sycl@@QEAA@AEBUcode_location@123@@Z
 ??0tls_code_loc_t@detail@_V1@sycl@@QEAA@XZ
 ??1AccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
-??1KernelRuntimeInfo@v1@detail@_V1@sycl@@QEAA@XZ
 ??1LocalAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
 ??1SYCLCategory@detail@_V1@sycl@@UEAA@XZ
 ??1SampledImageAccessorBaseHost@detail@_V1@sycl@@QEAA@XZ
@@ -713,8 +711,6 @@
 ??_Fqueue@_V1@sycl@@QEAAXXZ
 ?AccessTargetMask@handler@_V1@sycl@@0HB
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
-?DeviceKernelInfoPtr@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEAAAEAPEAVDeviceKernelInfo@345@XZ
-?DeviceKernelInfoPtr@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEBAPEAVDeviceKernelInfo@345@XZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
 ?EventMode@SubmissionInfo@detail@_V1@sycl@@QEAAAEAW4event_mode_enum@experimental@oneapi@ext@34@XZ
@@ -723,14 +719,8 @@
 ?EventMode@SubmissionInfo@v1@detail@_V1@sycl@@QEBAAEBW4event_mode_enum@experimental@oneapi@ext@45@XZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
-?GetKernelFuncPtr@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEAAPEADXZ
-?GetKernelFuncPtr@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEBAPEADXZ
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
 ?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
-?HostKernel@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEAAAEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@XZ
-?HostKernel@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@XZ
-?KernelName@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEAAAEAVstring@345@XZ
-?KernelName@KernelRuntimeInfo@v1@detail@_V1@sycl@@QEBAAEBVstring@345@XZ
 ?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
 ?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
 ?PostProcessorFunc@SubmissionInfo@v1@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@345@XZ
@@ -4429,8 +4419,8 @@
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$01@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
-?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
+?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
@@ -4477,12 +4467,6 @@
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXAEBVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXPEBX_K@Z
 ?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
-?submit_direct_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@V?$nd_range@$00@23@AEBVSubmissionInfo@v1@detail@23@AEBVKernelRuntimeInfo@7823@AEBUcode_location@823@_N@Z
-?submit_direct_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@V?$nd_range@$01@23@AEBVSubmissionInfo@v1@detail@23@AEBVKernelRuntimeInfo@7823@AEBUcode_location@823@_N@Z
-?submit_direct_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@V?$nd_range@$02@23@AEBVSubmissionInfo@v1@detail@23@AEBVKernelRuntimeInfo@7823@AEBUcode_location@823@_N@Z
-?submit_direct_without_event_impl@queue@_V1@sycl@@AEBAXV?$nd_range@$00@23@AEBVSubmissionInfo@v1@detail@23@AEBVKernelRuntimeInfo@6723@AEBUcode_location@723@_N@Z
-?submit_direct_without_event_impl@queue@_V1@sycl@@AEBAXV?$nd_range@$01@23@AEBVSubmissionInfo@v1@detail@23@AEBVKernelRuntimeInfo@6723@AEBUcode_location@723@_N@Z
-?submit_direct_without_event_impl@queue@_V1@sycl@@AEBAXV?$nd_range@$02@23@AEBVSubmissionInfo@v1@detail@23@AEBVKernelRuntimeInfo@6723@AEBUcode_location@723@_N@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
@@ -4491,6 +4475,12 @@
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@@Z
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
+?submit_kernel_direct_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@V?$nd_range@$00@23@AEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@PEAVDeviceKernelInfo@detail@23@AEBUcode_location@923@_N@Z
+?submit_kernel_direct_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@V?$nd_range@$01@23@AEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@PEAVDeviceKernelInfo@detail@23@AEBUcode_location@923@_N@Z
+?submit_kernel_direct_with_event_impl@queue@_V1@sycl@@AEBA?AVevent@23@V?$nd_range@$02@23@AEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@PEAVDeviceKernelInfo@detail@23@AEBUcode_location@923@_N@Z
+?submit_kernel_direct_without_event_impl@queue@_V1@sycl@@AEBAXV?$nd_range@$00@23@AEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@PEAVDeviceKernelInfo@detail@23@AEBUcode_location@823@_N@Z
+?submit_kernel_direct_without_event_impl@queue@_V1@sycl@@AEBAXV?$nd_range@$01@23@AEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@PEAVDeviceKernelInfo@detail@23@AEBUcode_location@823@_N@Z
+?submit_kernel_direct_without_event_impl@queue@_V1@sycl@@AEBAXV?$nd_range@$02@23@AEAV?$shared_ptr@VHostKernelBase@detail@_V1@sycl@@@std@@PEAVDeviceKernelInfo@detail@23@AEBUcode_location@823@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@623@AEBUcode_location@623@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@AEBVtype_erased_cgfo_ty@detail@23@AEBVSubmissionInfo@v1@623@AEBUcode_location@623@_N@Z
 ?submit_with_event_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBVSubmissionInfo@detail@23@AEBUcode_location@823@_N@Z
