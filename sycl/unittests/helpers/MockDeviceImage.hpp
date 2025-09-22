@@ -337,7 +337,7 @@ public:
                         SYCL_DEVICE_BINARY_TYPE_SPIRV,
                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64, "", "",
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                        {},
+                        {}, // Manifest.
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
                         std::vector<unsigned char>{1, 2, 3, 4, 5},
                         internal::LifetimeExtender(std::move(OffloadEntries)),

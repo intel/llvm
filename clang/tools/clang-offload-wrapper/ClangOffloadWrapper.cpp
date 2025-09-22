@@ -82,9 +82,6 @@ static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-/// TODO: here and below in addition to removing code under macro
-///       #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-///       also remove conditional code under `!PreviewBreakingChanges` option.
 static constexpr char COL_MANIFEST[] = "Manifest";
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
@@ -605,6 +602,7 @@ private:
 
   StructType *getSyclDeviceImageTy() {
     if (!SyclImageTy) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       if (!PreviewBreakingChanges) {
         SyclImageTy = StructType::create(
             {
@@ -625,6 +623,7 @@ private:
             },
             "__tgt_device_image");
       } else {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
         SyclImageTy = StructType::create(
             {
                 Type::getInt16Ty(C), // Version
@@ -641,7 +640,9 @@ private:
                 getPtrTy()           // PropertySetEnd
             },
             "__tgt_device_image");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
     }
     return SyclImageTy;
   }
@@ -2011,6 +2012,7 @@ int main(int argc, const char **argv) {
     // ID != 0 signal that a new image(s) must be added
     if (ID != 0) {
       // create an image instance using current state
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
       if (!PreviewBreakingChanges && CurInputGroup.size() > 2) {
         reportError(
             createStringError(errc::invalid_argument,
@@ -2018,7 +2020,12 @@ int main(int argc, const char **argv) {
                               "<binary file> <manifest file>{opt}expected"));
         return 1;
       }
-      if (PreviewBreakingChanges && CurInputGroup.size() > 1) {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+      if (
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+          PreviewBreakingChanges &&
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+          CurInputGroup.size() > 1) {
         reportError(createStringError(errc::invalid_argument,
                                       "too many inputs for a single binary "
                                       "image, <binary file> expected"));

@@ -1,40 +1,39 @@
-// REQUIRES: system-linux || system-windows
-
 // End-to-end clang-offload-wrapper executable test: check that -batch options
 // works, and that the tool generates data properly accessible at runtime.
 
-// --- Prepare test data
-// - create the first binary image
+// Prepare test data. Create the first binary image.
 // RUN: echo -e -n 'device binary image1\n' > %t.bin
 // RUN: echo -e -n '[Category1]\nint_prop1=1|10\n[Category2]\nint_prop2=1|20\n' > %t.props
 // RUN: echo -e -n 'kernel1\nkernel2\n' > %t.sym
 
-// - create the second binary image with byte array property values
+// Create the second binary image with byte array property values.
 // RUN: echo -e -n 'device binary image2\n' > %t_1.bin
 // RUN: echo -e -n '[Category3]\n' > %t_1.props
 // RUN: echo -e -n 'kernel1=2|IAAAAAAAAAQA\n' >> %t_1.props
 // RUN: echo -e -n 'kernel2=2|oAAAAAAAAAw///3/wB\n' >> %t_1.props
 
-// - create the batch file input for the wrapper
+// Create the batch file input for the wrapper.
 // RUN: echo '[Code|Properties|Symbols]' > %t.batch
 // RUN: echo %t.bin"|"%t.props"|"%t.sym >> %t.batch
 // RUN: echo %t_1.bin"|"%t_1.props"|" >> %t.batch
-// --- Generate "gold" output
+
+// Generate "gold" output.
 // RUN: cat %t.bin %t.props %t.sym > %t.all
-// --- Create the wrapper object
-// -host omitted - generate object for the host triple:
+
+// Create the wrapper object.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-/// TODO: Remove -fpreview-breaking-changes from the command line, when removing the macro
+/// TODO: Remove -fpreview-breaking-changes from the command line, when removing the macro.
 // RUN: clang-offload-wrapper -kind=sycl -target=TARGET -format=native -batch %t.batch -o %t.wrapped.bc -fpreview-breaking-changes
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 // RUN: llc --filetype=obj %t.wrapped.bc -o %t.wrapped.o
-// --- Compile & link the test with the wrapper
+
+// Compile & link the test with the wrapper.
 // RUN: %clangxx %t.wrapped.o %s -o %t.batch.exe -v
-// --- Run and check ignoring white spaces
+
+// Run and check ignoring white spaces.
 // RUN: %t.batch.exe > %t.batch.exe.out
 // RUN: diff -b %t.batch.exe.out %t.all
 
-#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -53,26 +52,26 @@ struct _pi_offload_entry_struct {
 typedef _pi_offload_entry_struct *_pi_offload_entry;
 
 struct _pi_device_binary_property_struct {
-  char *Name;       // null-terminated property name
-  void *ValAddr;    // address of property value
-  uint32_t Type;    // pi_property_type
-  uint64_t ValSize; // size of property value in bytes
+  char *Name;       // Null-terminated property name.
+  void *ValAddr;    // Address of property value.
+  uint32_t Type;    // pi_property_type.
+  uint64_t ValSize; // Size of property value in bytes.
 };
 
 typedef _pi_device_binary_property_struct *pi_device_binary_property;
 
 struct _pi_device_binary_property_set_struct {
-  char *Name;                                // the name
-  pi_device_binary_property PropertiesBegin; // array start
-  pi_device_binary_property PropertiesEnd;   // array end
+  char *Name;                                // The name.
+  pi_device_binary_property PropertiesBegin; // Array start.
+  pi_device_binary_property PropertiesEnd;   // Array end.
 };
 
 typedef _pi_device_binary_property_set_struct *pi_device_binary_property_set;
 
 struct pi_device_binary_struct {
   uint16_t Version;
-  uint8_t Kind;   // 4 for SYCL
-  uint8_t Format; // 1 for native
+  uint8_t Kind;   // 4 for SYCL.
+  uint8_t Format; // 1 for native.
   const char *DeviceTargetSpec;
   const char *CompileOptions;
   const char *LinkOptions;
@@ -96,7 +95,7 @@ typedef pi_device_binaries_struct *pi_device_binaries;
 
 static pi_device_binaries BinDesc = nullptr;
 
-// Wrapper object has code which calls these 2 functions below
+// Wrapper object has code which calls these 2 functions below.
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
   BinDesc = desc;
 }
@@ -149,9 +148,9 @@ static int dumpBinary0() {
   ASSERT(Bin->Kind == 4, "Bin->Kind");
   ASSERT(Bin->Format == 1, "Bin->Format");
 
-  // dump code
+  // Dump code.
   std::cout << getString(Bin->BinaryStart, Bin->BinaryEnd);
-  // dump properties
+  // Dump properties.
   for (pi_device_binary_property_set PropSet = Bin->PropertySetsBegin; PropSet != Bin->PropertySetsEnd; ++PropSet) {
     std::cout << "[" << PropSet->Name << "]"
               << "\n";
@@ -161,7 +160,7 @@ static int dumpBinary0() {
       std::cout << Prop->Name << "=" << Prop->Type << "|" << getInt(&Prop->ValSize) << "\n";
     }
   }
-  // dump symbols
+  // Dump symbols.
   for (_pi_offload_entry Entry = Bin->EntriesBegin; Entry != Bin->EntriesEnd; ++Entry)
     std::cout << Entry->name << "\n";
   return 0;
@@ -191,7 +190,7 @@ static int checkBinary1() {
     int Cnt = 0;
 
     for (pi_device_binary_property Prop = PropSet->PropertiesBegin; Prop != PropSet->PropertiesEnd; ++Prop, ++Cnt) {
-      ASSERT(Prop->Type == 2, "Prop->Type"); // must be a byte array
+      ASSERT(Prop->Type == 2, "Prop->Type"); // Must be a byte array.
       char *Ptr = reinterpret_cast<char *>(Prop->ValAddr);
       int Cmp = std::memcmp(Prop->ValAddr, GoldArrays[Cnt].Ptr, GoldArrays[Cnt].Size);
       ASSERT(Cmp == 0, "byte array property");

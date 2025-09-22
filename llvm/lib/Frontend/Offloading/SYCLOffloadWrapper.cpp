@@ -179,6 +179,7 @@ struct Wrapper {
   /// };
   /// \endcode
   StructType *getSyclDeviceImageTy() {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (!PreviewBreakingChanges) {
       return StructType::create(
           {
@@ -199,6 +200,7 @@ struct Wrapper {
           },
           "__sycl.tgt_device_image");
     } else {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
       return StructType::create(
           {
               Type::getInt16Ty(C),       // Version
@@ -215,7 +217,9 @@ struct Wrapper {
               PointerType::getUnqual(C)  // PropertySetEnd
           },
           "__sycl.tgt_device_image");
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   /// Creates a structure for SYCL specific binary descriptor type. Corresponds
