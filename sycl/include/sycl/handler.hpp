@@ -1909,6 +1909,7 @@ public:
   /// (except for the host device).
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel Kernel, const KernelType &KernelFunc) {
     // Ignore any set kernel bundles and use the one associated with the kernel
