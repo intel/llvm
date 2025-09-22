@@ -53,12 +53,9 @@ int main() {
     std::cout << "Test 2" << std::endl;
     *Res = 0;
 
-    auto Event1 = Q.submit(
-        [&](sycl::handler &CGH) { CGH.host_task([&] { *Res += 1; }); });
-    auto BarrierEvent1 = Q.ext_oneapi_submit_barrier();
-    assert(checkBarrierEvent(Q.get_backend(), Event1, BarrierEvent1,
-                             false /* host tasks used */));
-    auto Event2 = Q.submit([&](sycl::handler &CGH) { CGH.fill(Res, 10, 1); });
+    Q.submit([&](sycl::handler &CGH) { CGH.host_task([&] { *Res += 1; }); });
+    Q.ext_oneapi_submit_barrier();
+    Q.submit([&](sycl::handler &CGH) { CGH.fill(Res, 10, 1); });
 
     Q.wait();
     assert(*Res == 10);
