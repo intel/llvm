@@ -93,7 +93,7 @@ class SyclBench(Suite):
             # Gesumv(self), # validation failure
             # Gramschmidt(self), # validation failure
             KMeans(self),
-            LinRegCoeff(self),
+            # LinRegCoeff(self), # FIXME: causes serious GPU hangs on 25.31.34666.3
             # LinRegError(self), # run time < 1ms
             # MatmulChain(self), # validation failure
             MolDyn(self),
