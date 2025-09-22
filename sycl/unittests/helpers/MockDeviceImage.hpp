@@ -318,8 +318,8 @@ public:
                         SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
                         DeviceTargetSpec, CompileOptions, LinkOptions,
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-                        {},
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+                        {}, // Manifest.
+#endif                      // __INTEL_PREVIEW_BREAKING_CHANGES
                         std::move(Binary),
                         internal::LifetimeExtender(std::move(OffloadEntries)),
                         std::move(PropertySet)) {
@@ -338,7 +338,7 @@ public:
                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64, "", "",
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
                         {}, // Manifest.
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#endif                      // __INTEL_PREVIEW_BREAKING_CHANGES
                         std::vector<unsigned char>{1, 2, 3, 4, 5},
                         internal::LifetimeExtender(std::move(OffloadEntries)),
                         std::move(PropertySet)) {
