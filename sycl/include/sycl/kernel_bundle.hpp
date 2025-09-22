@@ -1179,14 +1179,11 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr,
                   const std::vector<std::string> &RegisteredKernelNames) {
-  std::vector<sycl::detail::string_view> Options;
-  Options.reserve(BuildOptions.size());
-  for (const std::string &opt : BuildOptions)
-    Options.push_back(sycl::detail::string_view{opt});
+  std::vector<sycl::detail::string_view> Options{BuildOptions.begin(),
+                                                 BuildOptions.end()};
 
-  std::vector<sycl::detail::string_view> KernelNames;
-  for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});
+  std::vector<sycl::detail::string_view> KernelNames{
+      RegisteredKernelNames.begin(), RegisteredKernelNames.end()};
 
   if (LogPtr) {
     sycl::detail::string Log;
@@ -1211,15 +1208,11 @@ compile_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                     const std::vector<std::string> &CompileOptions,
                     std::string *LogPtr,
                     const std::vector<std::string> &RegisteredKernelNames) {
-  std::vector<sycl::detail::string_view> Options;
-  Options.reserve(CompileOptions.size());
-  for (const std::string &opt : CompileOptions)
-    Options.push_back(sycl::detail::string_view{opt});
+  std::vector<sycl::detail::string_view> Options{CompileOptions.begin(),
+                                                 CompileOptions.end()};
 
-  std::vector<sycl::detail::string_view> KernelNames;
-  KernelNames.reserve(RegisteredKernelNames.size());
-  for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});
+  std::vector<sycl::detail::string_view> KernelNames{
+      RegisteredKernelNames.begin(), RegisteredKernelNames.end()};
 
   sycl::detail::string Log;
   auto result = compile_from_source(SourceKB, Devices, Options,

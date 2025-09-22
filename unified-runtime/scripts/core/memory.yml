@@ -258,6 +258,8 @@ returns:
       - "`pImageDesc && pImageDesc->numSamples != 0`"
       - "`pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`"
       - "`pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "Device `$X_DEVICE_INFO_IMAGE_SUPPORT` is false"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
@@ -627,6 +629,8 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`propSize != 0 && pPropValue == NULL`"
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+      - "Device `$X_DEVICE_INFO_IMAGE_SUPPORT` is false"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

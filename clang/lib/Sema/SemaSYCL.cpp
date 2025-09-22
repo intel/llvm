@@ -6822,12 +6822,12 @@ private:
         continue;
       }
 
-      TemplateName TN = TST->getTemplateName();
+      TemplateName CTN = CTST->getTemplateName();
+      CTN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
+      ParmListOstream << "<";
+
       auto SpecArgs = TST->template_arguments();
       auto DeclArgs = CTST->template_arguments();
-
-      TN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
-      ParmListOstream << "<";
 
       for (size_t I = 0, E = std::max(DeclArgs.size(), SpecArgs.size()),
                   SE = SpecArgs.size();

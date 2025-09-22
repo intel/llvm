@@ -99,6 +99,8 @@ struct TsanRuntimeData {
   // The last one is to record global state
   VectorClock Clock[kThreadSlotCount + 1];
 
+  DeviceType DeviceTy = DeviceType::UNKNOWN;
+
   uint32_t Debug = 0;
 
   int Lock = 0;

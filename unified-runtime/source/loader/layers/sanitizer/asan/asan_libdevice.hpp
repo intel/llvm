@@ -69,6 +69,7 @@ struct AsanRuntimeData {
   LocalArgsInfo *LocalArgs = nullptr; // Ordered by ArgIndex
   uint32_t NumLocalArgs = 0;
 
+  DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
 
   int ReportFlag = 0;

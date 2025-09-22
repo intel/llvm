@@ -1452,6 +1452,15 @@ ur_result_t urDeviceGetInfo(
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
   }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    // IGC supports this since v.2.16.0
+    return ReturnValue(
+        Device->Platform->isDriverVersionNewerOrSimilar(1, 6, 34666));
+  }
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    // Currently GPUs only support sub-group clock.
+    return ReturnValue(false);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,

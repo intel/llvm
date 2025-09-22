@@ -91,6 +91,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
       if (!Q) {
         break;
       }
+      OL_RETURN_ON_ERR(olSyncQueue(Q));
       OL_RETURN_ON_ERR(olDestroyQueue(Q));
     }
     delete hQueue;

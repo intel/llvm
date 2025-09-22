@@ -1,5 +1,10 @@
+// REQUIRES-INTEL-DRIVER: cpu: 2026
 // REQUIRES: aspect-usm_shared_allocations
 // REQUIRES: aspect-ext_oneapi_clock_sub_group || aspect-ext_oneapi_clock_work_group || aspect-ext_oneapi_clock_device
+
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20146
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

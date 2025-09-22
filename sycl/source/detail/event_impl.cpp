@@ -288,7 +288,8 @@ void event_impl::wait(bool *Success) {
   void *TelemetryEvent = nullptr;
   uint64_t IId = 0;
   std::string Name;
-  TelemetryEvent = instrumentationProlog(Name, GSYCLStreamID, IId);
+  auto StreamID = detail::getActiveXPTIStreamID();
+  TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
   auto EventHandle = getHandle();
@@ -300,7 +301,7 @@ void event_impl::wait(bool *Success) {
     detail::Scheduler::getInstance().waitForEvent(*this, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  instrumentationEpilog(TelemetryEvent, Name, GSYCLStreamID, IId);
+  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
 }
 

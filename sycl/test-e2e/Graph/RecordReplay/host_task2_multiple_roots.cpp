@@ -13,9 +13,6 @@
 // UNSUPPORTED: windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/11852
 
-// UNSUPPORTED: level_zero_v2_adapter && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/18996
-
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/host_task2_multiple_roots.cpp"
