@@ -174,18 +174,6 @@ event submit_with_event(const queue &Q, CommandGroupFunc &&CGF,
                            std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
-template <typename KernelName = sycl::detail::auto_name, typename PropertiesT,
-          typename KernelType, int Dims>
-event submit_with_event(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
-                        const KernelType &KernelFunc,
-                        const sycl::detail::code_location &CodeLoc =
-                            sycl::detail::code_location::current()) {
-  return sycl::ext::oneapi::experimental::detail::
-      submit_kernel_direct_with_event_impl<KernelName, PropertiesT, KernelType,
-                                           Dims>(Q, Props, Range, KernelFunc,
-                                                 CodeLoc);
-}
-
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(handler &CGH, const KernelType &KernelObj) {
   CGH.single_task<KernelName>(KernelObj);
@@ -306,16 +294,13 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
   if constexpr (sizeof...(ReductionsT) == 0) {
     submit<KernelName>(std::move(Q), empty_properties_t{}, Range, KernelObj);
   } else {
+#endif
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
     });
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   }
-#else
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Range, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
 #endif
 }
 
@@ -345,16 +330,13 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
     submit<KernelName>(std::move(Q), ConfigAccess.getProperties(),
                        ConfigAccess.getRange(), KernelObj);
   } else {
+#endif
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Config, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
     });
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   }
-#else
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Config, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
 #endif
 }
 

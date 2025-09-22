@@ -3221,18 +3221,14 @@ public:
       return submit_kernel_direct_with_event<KernelName>(
           ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
     } else {
+#endif
       return submit(
           [&](handler &CGH) {
             CGH.template parallel_for<KernelName>(Range, Rest...);
           },
           TlsCodeLocCapture.query());
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     }
-#else
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        TlsCodeLocCapture.query());
 #endif
   }
 
@@ -3777,8 +3773,6 @@ private:
                                       detail::code_location::current()) const {
     (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    std::shared_ptr<detail::HostKernelBase> HostKernel;
-    detail::DeviceKernelInfo *DeviceKernelInfoPtr = nullptr;
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -3790,11 +3784,11 @@ private:
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
 
-    HostKernel.reset(
-        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
-            KernelFunc));
+    std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
+        detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
 
-    DeviceKernelInfoPtr = &detail::getDeviceKernelInfo<NameT>();
+    detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+        &detail::getDeviceKernelInfo<NameT>();
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           TransformedArgType, PropertiesT>::wrap(KernelFunc);
@@ -3812,8 +3806,6 @@ private:
           detail::code_location::current()) const {
     (void)Props;
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    std::shared_ptr<detail::HostKernelBase> HostKernel;
-    detail::DeviceKernelInfo *DeviceKernelInfoPtr = nullptr;
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -3825,11 +3817,11 @@ private:
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
 
-    HostKernel.reset(
-        new detail::HostKernel<KernelType, TransformedArgType, Dims>(
-            KernelFunc));
+    std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
+        detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
 
-    DeviceKernelInfoPtr = &detail::getDeviceKernelInfo<NameT>();
+    detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+        &detail::getDeviceKernelInfo<NameT>();
 
     detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                           TransformedArgType, PropertiesT>::wrap(KernelFunc);
