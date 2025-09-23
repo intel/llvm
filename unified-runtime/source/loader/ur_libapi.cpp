@@ -7730,6 +7730,8 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pCopyRegion`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
+///         + `::UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE <
+///         imageCopyInputTypes`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -7759,6 +7761,9 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
+    /// [in] flag describing types of source and destination pointers (USM vs
+    /// image handle)
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -7778,8 +7783,8 @@ ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   return pfnImageCopyExp(hQueue, pSrc, pDst, pSrcImageDesc, pDstImageDesc,
                          pSrcImageFormat, pDstImageFormat, pCopyRegion,
-                         imageCopyFlags, numEventsInWaitList, phEventWaitList,
-                         phEvent);
+                         imageCopyFlags, imageCopyInputTypes,
+                         numEventsInWaitList, phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
