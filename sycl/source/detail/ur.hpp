@@ -16,6 +16,8 @@
 
 #include <ur_api.h>
 
+#include <sycl/detail/export.hpp>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,6 +27,18 @@ inline namespace _V1 {
 enum class backend : char;
 namespace detail {
 class adapter_impl;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT
+#endif
+const char *stringifyErrorCode(int32_t error);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+inline std::string codeToString(int32_t code) {
+  return std::to_string(code) + " (" + std::string(stringifyErrorCode(code)) +
+         ")";
+}
+#endif
 
 namespace ur {
 void *getURLoaderLibrary();
