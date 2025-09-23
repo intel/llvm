@@ -131,6 +131,7 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   return 0;
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
   if (!Ptr)
     return;
@@ -150,6 +151,7 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 #endif
   }
 }
+#endif
 
 } // namespace detail
 } // namespace _V1
