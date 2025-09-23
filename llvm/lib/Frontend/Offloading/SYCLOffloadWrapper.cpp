@@ -46,7 +46,7 @@ using namespace llvm::util;
 
 namespace {
 
-/// Enable preview breaking changes
+/// Enable preview breaking changes.
 static bool PreviewBreakingChanges = false;
 
 /// Note: Returned values are a part of ABI. If you want to change them
