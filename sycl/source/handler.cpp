@@ -502,11 +502,15 @@ event handler::finalize() {
   detail::queue_impl *Queue = impl->get_queue_or_null();
   ext::oneapi::experimental::detail::graph_impl *Graph =
       impl->get_graph_or_null();
+
+  // TODO checking the size of the events vector and avoiding the call is more
+  // efficient here at this point
   const bool KernelFastPath =
       (Queue && !Graph && !impl->MSubgraphNode && !Queue->hasCommandGraph() &&
        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
-       detail::Scheduler::areEventsSafeForSchedulerBypass(
-           impl->CGData.MEvents, Queue->getContextImpl()));
+       (impl->CGData.MEvents.size() == 0 ||
+        detail::Scheduler::areEventsSafeForSchedulerBypass(
+            impl->CGData.MEvents, Queue->getContextImpl())));
 
   // Extract arguments from the kernel lambda, if required.
   // Skipping this is currently limited to simple kernels on the fast path.
@@ -628,8 +632,13 @@ event handler::finalize() {
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
-      std::vector<ur_event_handle_t> RawEvents = detail::Command::getUrEvents(
-          impl->CGData.MEvents, impl->get_queue_or_null(), false);
+      std::vector<ur_event_handle_t> RawEvents;
+      // TODO checking the size of the events vector and avoiding the call is
+      // more efficient here at this point
+      if (impl->CGData.MEvents.size() > 0) {
+        RawEvents = detail::Command::getUrEvents(
+            impl->CGData.MEvents, impl->get_queue_or_null(), false);
+      }
 
       bool DiscardEvent =
           !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
