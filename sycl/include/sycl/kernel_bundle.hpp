@@ -123,9 +123,10 @@ public:
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
-  ur_native_handle_t getNative() const;
 
 protected:
+  ur_native_handle_t getNative() const;
+
   std::shared_ptr<device_image_impl> impl;
 
   template <class Obj>
@@ -207,6 +208,10 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(
       std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
+
+  // To allow calling device_image_plain::getNative()
+  template <bundle_state>
+  friend class kernel_bundle;
 };
 
 namespace detail {
