@@ -123,8 +123,13 @@ public:
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
-protected:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   ur_native_handle_t getNative() const;
+#endif
+protected:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ur_native_handle_t getNative() const;
+#endif
 
   std::shared_ptr<device_image_impl> impl;
 
