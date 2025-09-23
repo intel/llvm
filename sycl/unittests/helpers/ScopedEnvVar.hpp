@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <functional>
 #include <stdlib.h>
+#include <string>
 
 namespace sycl {
 inline namespace _V1 {
