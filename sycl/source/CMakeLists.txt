@@ -294,7 +294,6 @@ set(SYCL_COMMON_SOURCES
     "detail/queue_impl.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
-    "detail/platform_util.cpp"
     "detail/preview_marker.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
