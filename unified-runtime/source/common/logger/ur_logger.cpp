@@ -17,7 +17,7 @@
 namespace logger {
 
 void print_backtrace() {
-  for (auto btLine : ur_validation_layer::getCurrentBacktrace()) {
+  for (auto btLine : ur::getCurrentBacktrace()) {
     std::cerr << btLine << std::endl;
   }
 }
