@@ -429,15 +429,6 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.setKernelFunc(HostKernel->getPtr());
   KData.setNDRDesc(NDRDesc);
 
-  return submit_kernel_direct_impl(std::move(KData), HostKernel,
-                                   CallerNeedsEvent, CodeLoc, IsTopCodeLoc);
-}
-
-detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    KernelData &&KData, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-    bool CallerNeedsEvent, const detail::code_location &CodeLoc,
-    bool IsTopCodeLoc) {
-
   auto SubmitKernelFunc =
       [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
     std::unique_ptr<detail::CG> CommandGroup;

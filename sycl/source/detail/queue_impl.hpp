@@ -942,22 +942,6 @@ protected:
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-  /// Performs kernel submission to the queue.
-  ///
-  /// \param KData contains aggregated data related to the kernel
-  /// \param HostKernel stores the kernel lambda instance
-  /// \param CallerNeedsEvent is a boolean indicating whether the event is
-  ///        required by the user after the call.
-  /// \param CodeLoc is the code location of the submit call
-  /// \param IsTopCodeLoc Used to determine if the object is in a local
-  ///        scope or in the top level scope.
-  ///
-  /// \return a SYCL event representing submitted command group or nullptr.
-  detail::EventImplPtr submit_kernel_direct_impl(
-      KernelData &&KData, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      bool CallerNeedsEvent, const detail::code_location &CodeLoc,
-      bool IsTopCodeLoc);
-
   template <typename SubmitCommandFuncType>
   detail::EventImplPtr submit_direct(bool CallerNeedsEvent,
                                      SubmitCommandFuncType &SubmitCommandFunc);
