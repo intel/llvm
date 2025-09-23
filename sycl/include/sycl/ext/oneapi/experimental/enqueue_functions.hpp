@@ -120,15 +120,6 @@ void submit_kernel_direct_impl(const queue &Q, PropertiesT Props,
                                        Dims>(Props, Range, KernelFunc, CodeLoc);
 }
 
-template <typename KernelName, typename PropertiesT, typename KernelType,
-          int Dims>
-event submit_kernel_direct_with_event_impl(
-    const queue &Q, PropertiesT Props, nd_range<Dims> Range,
-    const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_kernel_direct_with_event<KernelName, PropertiesT, KernelType,
-                                           Dims>(Props, Range, KernelFunc,
-                                                 CodeLoc);
-}
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>

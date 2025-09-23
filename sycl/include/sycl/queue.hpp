@@ -166,11 +166,6 @@ void submit_kernel_direct_impl(const queue &Q, PropertiesT Props,
                                const KernelType &KernelFunc,
                                const sycl::detail::code_location &CodeLoc);
 
-template <typename KernelName, typename PropertiesT, typename KernelType,
-          int Dims>
-event submit_kernel_direct_with_event_impl(
-    const queue &Q, PropertiesT Props, nd_range<Dims> Range,
-    const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
@@ -3611,13 +3606,6 @@ private:
   template <typename KernelName, typename PropertiesT, typename KernelType,
             int Dims>
   friend void ext::oneapi::experimental::detail::submit_kernel_direct_impl(
-      const queue &Q, PropertiesT Props, nd_range<Dims> Range,
-      const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
-
-  template <typename KernelName, typename PropertiesT, typename KernelType,
-            int Dims>
-  friend event
-  ext::oneapi::experimental::detail::submit_kernel_direct_with_event_impl(
       const queue &Q, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc, const sycl::detail::code_location &CodeLoc);
 
