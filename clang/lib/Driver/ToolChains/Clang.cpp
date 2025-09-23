@@ -10168,6 +10168,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
+    // Enable preview breaking changes in clang-offload-wrapper,
+    // in case it needs to introduce any ABI breaking changes.
+    // For example, changes in offload binary descriptor format.
     if (C.getArgs().hasArg(options::OPT_fpreview_breaking_changes))
       WrapperArgs.push_back("-fpreview-breaking-changes");
 
@@ -11588,6 +11591,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           Args.MakeArgString("--wrapper-jobs=" + Twine(NumThreads)));
   }
 
+  // Enable preview breaking changes in clang-linker-wrapper,
+  // in case it needs to introduce any ABI breaking changes.
+  // For example, changes in offload binary descriptor format.
   if (Args.hasArg(options::OPT_fpreview_breaking_changes))
     CmdArgs.push_back("-fpreview-breaking-changes");
 
