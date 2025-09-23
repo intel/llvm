@@ -3760,6 +3760,7 @@ private:
                                   const detail::code_location &CodeLoc =
                                       detail::code_location::current()) const {
     // TODO Properties not supported yet
+    (void)Props;
     static_assert(
         std::is_same_v<PropertiesT,
                        ext::oneapi::experimental::empty_properties_t>,
@@ -3797,6 +3798,7 @@ private:
       const detail::code_location &CodeLoc =
           detail::code_location::current()) const {
     // TODO Properties not supported yet
+    (void)Props;
     static_assert(
         std::is_same_v<PropertiesT,
                        ext::oneapi::experimental::empty_properties_t>,
