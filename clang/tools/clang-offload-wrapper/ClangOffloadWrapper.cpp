@@ -1121,7 +1121,7 @@ private:
 
       if (!PreviewBreakingChanges) {
         if (Img.Manif.empty()) {
-          // no manifest - zero out the fields
+          // No manifest - zero out the fields.
           FMnf = std::make_pair(NullPtr, NullPtr);
         } else {
           Expected<MemoryBuffer *> MnfOrErr = loadFile(Img.Manif);
