@@ -330,7 +330,6 @@ set(SYCL_COMMON_SOURCES
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
-    "spirv_ops.cpp"
     "virtual_mem.cpp"
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
@@ -341,6 +340,7 @@ set(SYCL_COMMON_SOURCES
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+  "spirv_ops.cpp"
 )
 
 
