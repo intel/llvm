@@ -740,7 +740,7 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phDevices != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -790,7 +790,7 @@ ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urDeviceGetSelected(
     /// [in] handle of the platform instance
@@ -1427,6 +1427,8 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///         + `pImageDesc && pImageDesc->numSamples != 0`
 ///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
 ///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -1792,6 +1794,8 @@ ur_result_t UR_APICALL urMemGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `propSize != 0 && pPropValue == NULL`
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -1847,6 +1851,8 @@ ur_result_t UR_APICALL urMemImageGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ur_result_t UR_APICALL urSamplerCreate(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
@@ -1876,6 +1882,8 @@ ur_result_t UR_APICALL urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ur_result_t UR_APICALL urSamplerRetain(
     /// [in][retain] handle of the sampler object to get access
     ur_sampler_handle_t hSampler) {
@@ -1901,6 +1909,8 @@ ur_result_t UR_APICALL urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ur_result_t UR_APICALL urSamplerRelease(
     /// [in][release] handle of the sampler object to release
     ur_sampler_handle_t hSampler) {
@@ -1936,6 +1946,8 @@ ur_result_t UR_APICALL urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ur_result_t UR_APICALL urSamplerGetInfo(
     /// [in] handle of the sampler object
     ur_sampler_handle_t hSampler,
@@ -3024,6 +3036,8 @@ ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
 ///         + If `pFunctionName` could be located, but its address couldn't be
 ///         retrieved.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the backend does not support querying function pointers.
 ur_result_t UR_APICALL urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
     ur_device_handle_t hDevice,
@@ -3642,6 +3656,8 @@ ur_result_t UR_APICALL urKernelSetExecInfo(
 ///         + `NULL == hKernel`
 ///         + `NULL == hArgValue`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ur_result_t UR_APICALL urKernelSetArgSampler(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
@@ -8239,7 +8255,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,

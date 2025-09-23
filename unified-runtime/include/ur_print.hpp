@@ -1018,6 +1018,36 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D:
     os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D";
     break;
+  case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO:
+    os << "UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_RESERVE:
+    os << "UR_FUNCTION_VIRTUAL_MEM_RESERVE";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_FREE:
+    os << "UR_FUNCTION_VIRTUAL_MEM_FREE";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_MAP:
+    os << "UR_FUNCTION_VIRTUAL_MEM_MAP";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_UNMAP:
+    os << "UR_FUNCTION_VIRTUAL_MEM_UNMAP";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS:
+    os << "UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_GET_INFO:
+    os << "UR_FUNCTION_VIRTUAL_MEM_GET_INFO";
+    break;
+  case UR_FUNCTION_PHYSICAL_MEM_CREATE:
+    os << "UR_FUNCTION_PHYSICAL_MEM_CREATE";
+    break;
+  case UR_FUNCTION_PHYSICAL_MEM_RETAIN:
+    os << "UR_FUNCTION_PHYSICAL_MEM_RETAIN";
+    break;
+  case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
+    os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
+    break;
   case UR_FUNCTION_USM_IMPORT_EXP:
     os << "UR_FUNCTION_USM_IMPORT_EXP";
     break;
@@ -1162,6 +1192,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT:
     os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT";
     break;
+  case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
+    os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
+    break;
   case UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP:
     os << "UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP";
     break;
@@ -1228,39 +1261,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP:
     os << "UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO:
-    os << "UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_RESERVE:
-    os << "UR_FUNCTION_VIRTUAL_MEM_RESERVE";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_FREE:
-    os << "UR_FUNCTION_VIRTUAL_MEM_FREE";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_MAP:
-    os << "UR_FUNCTION_VIRTUAL_MEM_MAP";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_UNMAP:
-    os << "UR_FUNCTION_VIRTUAL_MEM_UNMAP";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS:
-    os << "UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_GET_INFO:
-    os << "UR_FUNCTION_VIRTUAL_MEM_GET_INFO";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_CREATE:
-    os << "UR_FUNCTION_PHYSICAL_MEM_CREATE";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_RETAIN:
-    os << "UR_FUNCTION_PHYSICAL_MEM_RETAIN";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
-    os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
-    os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
     break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP:
     os << "UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP";
@@ -2609,6 +2609,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value) {
   case UR_DEVICE_TYPE_VPU:
     os << "UR_DEVICE_TYPE_VPU";
     break;
+  case UR_DEVICE_TYPE_CUSTOM:
+    os << "UR_DEVICE_TYPE_CUSTOM";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -3115,6 +3118,15 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5242,6 +5254,45 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -11031,8 +11082,11 @@ inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag) {
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value) {
   switch (value) {
-  case UR_USM_MIGRATION_FLAG_DEFAULT:
-    os << "UR_USM_MIGRATION_FLAG_DEFAULT";
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    os << "UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE";
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    os << "UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST";
     break;
   default:
     os << "unknown enumerator";
@@ -11050,15 +11104,26 @@ inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_USM_MIGRATION_FLAG_DEFAULT) ==
-      (uint32_t)UR_USM_MIGRATION_FLAG_DEFAULT) {
-    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_DEFAULT;
+  if ((val & UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) ==
+      (uint32_t)UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_USM_MIGRATION_FLAG_DEFAULT;
+    os << UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
+  }
+
+  if ((val & UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) ==
+      (uint32_t)UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST) {
+    val ^= (uint32_t)UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   }
   if (val != 0) {
     std::bitset<32> bits(val);

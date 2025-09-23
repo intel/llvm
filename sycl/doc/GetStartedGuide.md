@@ -12,9 +12,9 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+    * [Build DPC++ toolchain with support for Native CPU](#build-dpc-toolchain-with-support-for-native-cpu)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
     * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
-    * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
@@ -124,6 +124,7 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
+* `--native_cpu` -> use the Native CPU backend (see [Native CPU](#build-dpc-toolchain-with-support-for-native-cpu))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -298,6 +299,13 @@ as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
 Guide for
 Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
+### Build DPC++ toolchain with support for Native CPU
+
+Native CPU is a cpu device which by default has no other dependency than DPC++. This device works with all cpu targets supported by the DPC++ runtime.
+Supported targets include x86, Aarch64 and riscv_64.
+
+To enable Native CPU in a DPC++ build just add `--native_cpu` to the set of flags passed to `configure.py`.
+
 ### Build DPC++ toolchain with support for ARM processors
 
 There is no continuous integration for this, and there are no guarantees for supported platforms or configurations.
@@ -368,36 +376,6 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
 directory.
-
-### Build DPC++ toolchain with a custom Unified Runtime
-
-DPC++ uses the [Unified Runtime](https://github.com/oneapi-src/unified-runtime)
-under the hood to provide implementations of various SYCL backends. By default
-the source code for the Unified Runtime will be acquired using CMake's
-[FetchCotent](https://cmake.org/cmake/help/latest/module/FetchContent.html). The
-specific repository URL and revision tag used can be found in the file
-`sycl/cmake/modules/FetchUnifiedRuntime.cmake` searching for the variables
-`UNIFIED_RUNTIME_REPO` and `UNIFIED_RUNTIME_TAG`.
-
-In order to enable developers, a number of CMake variables are available to
-control which revision of Unified Runtime should be used when building DPC++:
-
-* `SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
-  override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
-  the Unified Runtime source code.
-* `SYCL_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
-  `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
-  When set to `OFF`, `FetchContent` will not be used, instead:
-  * The path specified by variable `SYCL_UR_SOURCE_DIR` will be used with
-    `add_directory()`. This can be used to point at an adjacent directory
-    containing a clone of the Unified Runtime repository.
-  * The path `sycl/unified-runtime` will be used, if it
-    exists. This can be used as-if an in-tree build.
-* `SYCL_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
-  Runtime repository when `SYCL_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Build DPC++ libclc with a custom toolchain
 
@@ -726,6 +704,13 @@ When building for CUDA or HIP NVIDIA, use the CUDA target triple as follows:
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
+
+When building for Native CPU use the SYCL target native_cpu:
+
+```bash
+clang++ -fsycl -fsycl-targets=native_cpu simple-sycl-app.cpp -o simple-sycl-app.exe
+```
+More Native CPU build options can be found in [SYCLNativeCPU.md](design/SYCLNativeCPU.md).
 
 **Linux & Windows (64-bit)**:
 

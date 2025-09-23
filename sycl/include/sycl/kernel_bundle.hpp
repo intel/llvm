@@ -624,7 +624,7 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   return detail::get_kernel_id_impl(
-      detail::string_view{detail::getKernelName<KernelName>()});
+      detail::CompileTimeKernelInfo<KernelName>.Name);
 }
 
 /// \returns a vector with all kernel_id's defined in the application
@@ -1179,14 +1179,11 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr,
                   const std::vector<std::string> &RegisteredKernelNames) {
-  std::vector<sycl::detail::string_view> Options;
-  Options.reserve(BuildOptions.size());
-  for (const std::string &opt : BuildOptions)
-    Options.push_back(sycl::detail::string_view{opt});
+  std::vector<sycl::detail::string_view> Options{BuildOptions.begin(),
+                                                 BuildOptions.end()};
 
-  std::vector<sycl::detail::string_view> KernelNames;
-  for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});
+  std::vector<sycl::detail::string_view> KernelNames{
+      RegisteredKernelNames.begin(), RegisteredKernelNames.end()};
 
   if (LogPtr) {
     sycl::detail::string Log;
@@ -1211,15 +1208,11 @@ compile_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                     const std::vector<std::string> &CompileOptions,
                     std::string *LogPtr,
                     const std::vector<std::string> &RegisteredKernelNames) {
-  std::vector<sycl::detail::string_view> Options;
-  Options.reserve(CompileOptions.size());
-  for (const std::string &opt : CompileOptions)
-    Options.push_back(sycl::detail::string_view{opt});
+  std::vector<sycl::detail::string_view> Options{CompileOptions.begin(),
+                                                 CompileOptions.end()};
 
-  std::vector<sycl::detail::string_view> KernelNames;
-  KernelNames.reserve(RegisteredKernelNames.size());
-  for (const std::string &name : RegisteredKernelNames)
-    KernelNames.push_back(sycl::detail::string_view{name});
+  std::vector<sycl::detail::string_view> KernelNames{
+      RegisteredKernelNames.begin(), RegisteredKernelNames.end()};
 
   sycl::detail::string Log;
   auto result = compile_from_source(SourceKB, Devices, Options,
@@ -1362,25 +1355,14 @@ handler::get_specialization_constant() const {
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::kernel_id> {
-  size_t operator()(const sycl::kernel_id &KernelID) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_id_impl>>()(
-        sycl::detail::getSyclObjImpl(KernelID));
-  }
-};
+template <>
+struct std::hash<sycl::kernel_id>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel_id> {};
 
-template <sycl::bundle_state State> struct hash<sycl::device_image<State>> {
-  size_t operator()(const sycl::device_image<State> &DeviceImage) const {
-    return hash<std::shared_ptr<sycl::detail::device_image_impl>>()(
-        sycl::detail::getSyclObjImpl(DeviceImage));
-  }
-};
+template <sycl::bundle_state State>
+struct std::hash<sycl::device_image<State>>
+    : public sycl::detail::sycl_obj_hash<sycl::device_image<State>> {};
 
-template <sycl::bundle_state State> struct hash<sycl::kernel_bundle<State>> {
-  size_t operator()(const sycl::kernel_bundle<State> &KernelBundle) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_bundle_impl>>()(
-        sycl::detail::getSyclObjImpl(KernelBundle));
-  }
-};
-} // namespace std
+template <sycl::bundle_state State>
+struct std::hash<sycl::kernel_bundle<State>>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel_bundle<State>> {};

@@ -11,7 +11,9 @@
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_data.hpp>
 #include <memory>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -30,10 +32,8 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(queue_impl &Queue, queue_impl *SubmissionSecondaryQueue,
-               bool EventNeeded)
-      : MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
-        MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
+  handler_impl(queue_impl &Queue, bool EventNeeded)
+      : MEventNeeded(EventNeeded), MQueueOrGraph{Queue} {};
 
   handler_impl(ext::oneapi::experimental::detail::graph_impl &Graph)
       : MQueueOrGraph{Graph} {}
@@ -61,12 +61,12 @@ public:
            HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   }
 
+  KernelNameStrRefT getKernelName() const {
+    return MKernelData.getKernelName();
+  }
+
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
-
-  /// Pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission.
-  queue_impl *MSubmissionSecondaryQueue = nullptr;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.
@@ -91,6 +91,10 @@ public:
   /// property.
   bool MIsDeviceImageScoped = false;
 
+  /// Direction of USM prefetch / destination device.
+  sycl::ext::oneapi::experimental::prefetch_type MPrefetchType =
+      sycl::ext::oneapi::experimental::prefetch_type::device;
+
   // Program scope pipe information.
 
   // Pipe name that uniquely identifies a pipe.
@@ -103,12 +107,6 @@ public:
   size_t HostPipeTypeSize = 0;
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
-
-  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-
-  bool MKernelIsCooperative = false;
-  bool MKernelUsesClusterLaunch = false;
-  uint32_t MKernelWorkGroupMemorySize = 0;
 
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};
@@ -134,28 +132,16 @@ public:
   sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
       sycl::ext::oneapi::experimental::node_type::empty;
 
-  // Storage for any SYCL Graph dynamic parameters which have been flagged for
-  // registration in the CG, along with the argument index for the parameter.
-  std::vector<std::pair<
-      ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
-      MDynamicParameters;
-
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
   /// we exit the method they are passed in.
   detail::CG::StorageInitHelper CGData;
 
-  /// The list of arguments for the kernel.
-  std::vector<detail::ArgDesc> MArgs;
-
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.
   std::vector<detail::ArgDesc> MAssociatedAccesors;
-
-  /// Struct that encodes global size, local size, ...
-  detail::NDRDescT MNDRDesc;
 
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless
@@ -237,15 +223,16 @@ public:
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
 
-  // Store information about the kernel arguments.
-  void *MKernelFuncPtr = nullptr;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: remove in the next ABI-breaking window
+  // Today they are used only in the handler::setKernelNameBasedCachePtr
   int MKernelNumArgs = 0;
   detail::kernel_param_desc_t (*MKernelParamDescGetter)(int) = nullptr;
   bool MKernelIsESIMD = false;
   bool MKernelHasSpecialCaptures = true;
+#endif
 
-  // A pointer to a kernel name based cache retrieved on the application side.
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr = nullptr;
+  KernelData MKernelData;
 };
 
 } // namespace detail

@@ -15,7 +15,8 @@
 #include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetchType
+#include <sycl/ext/oneapi/experimental/graph/node.hpp>    // for node
 
 #include <cstring>
 #include <fstream>
@@ -340,7 +341,7 @@ public:
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+      return ExecKernelA->getKernelName() == ExecKernelB->getKernelName();
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
@@ -542,7 +543,7 @@ private:
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      Stream << "NAME = " << Kernel->getKernelName() << "\\n";
       if (Verbose) {
         Stream << "ARGS = \\n";
         for (size_t i = 0; i < Kernel->MArgs.size(); i++) {
@@ -655,7 +656,10 @@ private:
         sycl::detail::CGPrefetchUSM *Prefetch =
             static_cast<sycl::detail::CGPrefetchUSM *>(MCommandGroup.get());
         Stream << "Dst: " << Prefetch->getDst()
-               << " Length: " << Prefetch->getLength() << "\\n";
+               << " Length: " << Prefetch->getLength() << " PrefetchType: "
+               << sycl::ext::oneapi::experimental::prefetchTypeToString(
+                      Prefetch->getPrefetchType())
+               << "\\n";
       }
       break;
     case sycl::detail::CGType::AdviseUSM:

@@ -49,9 +49,7 @@ std::pair<sycl_device_binaries, std::string> SYCL_JIT_Compile(
 #if SYCL_EXT_JIT_ENABLE
   static std::atomic_uintptr_t CompilationCounter;
   std::string CompilationID = "rtc_" + std::to_string(CompilationCounter++);
-  std::vector<std::string> UserArgStrings;
-  for (const sycl::detail::string_view UserArg : UserArgs)
-    UserArgStrings.push_back(UserArg.data());
+  std::vector<std::string> UserArgStrings{UserArgs.begin(), UserArgs.end()};
   return sycl::detail::jit_compiler::get_instance().compileSYCL(
       CompilationID, SYCLSource, IncludePairs, UserArgStrings, LogPtr, Format);
 #else

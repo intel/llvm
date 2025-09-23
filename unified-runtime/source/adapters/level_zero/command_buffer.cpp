@@ -1313,7 +1313,7 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
 
 ur_result_t urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
-    ur_usm_migration_flags_t /*Flags*/, uint32_t NumSyncPointsInWaitList,
+    ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     uint32_t /*NumEventsInWaitList*/,
     const ur_event_handle_t * /*EventWaitList*/,
@@ -1327,6 +1327,17 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
       UR_COMMAND_USM_PREFETCH, CommandBuffer,
       CommandBuffer->ZeComputeCommandList, NumSyncPointsInWaitList,
       SyncPointWaitList, true, RetSyncPoint, ZeEventList, ZeLaunchEvent));
+  switch (Flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    UR_LOG(WARN, "commandBufferAppendUSMPrefetch: L0 does not support prefetch "
+                 "to host yet");
+    break;
+  default:
+    UR_LOG(ERR, "commandBufferAppendUSMPrefetch: invalid USM migration flag");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 
   if (!ZeEventList.empty()) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
@@ -1335,9 +1346,11 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
   }
 
   // Add the prefetch command to the command-buffer.
-  // Note that L0 does not handle migration flags.
-  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-             (CommandBuffer->ZeComputeCommandList, Mem, Size));
+  // TODO Support migration flags after L0 backend support is added.
+  if (Flags == UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+               (CommandBuffer->ZeComputeCommandList, Mem, Size));
+  }
 
   if (!CommandBuffer->IsInOrderCmdList) {
     // Level Zero does not have a completion "event" with the prefetch API,

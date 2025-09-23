@@ -20,6 +20,10 @@
 #include <sycl/kernel.hpp>        // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
 
+#include <detail/device_kernel_info.hpp>
+#include <detail/kernel_arg_desc.hpp>
+#include <detail/ndrange_desc.hpp>
+
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
 #include <stddef.h> // for size_t
@@ -46,114 +50,6 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
-
-// The structure represents kernel argument.
-class ArgDesc {
-public:
-  ArgDesc(sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
-          int Index)
-      : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
-
-  sycl::detail::kernel_param_kind_t MType;
-  void *MPtr;
-  int MSize;
-  int MIndex;
-};
-
-// The structure represents NDRange - global, local sizes, global offset and
-// number of dimensions.
-
-// TODO: A lot of tests rely on particular values to be set for dimensions that
-// are not used. To clarify, for example, if a 2D kernel is invoked, in
-// NDRDescT, the value of index 2 in GlobalSize must be set to either 1 or 0
-// depending on which constructor is used for no clear reason.
-// Instead, only sensible defaults should be used and tests should be updated
-// to reflect this.
-class NDRDescT {
-
-public:
-  NDRDescT() = default;
-  NDRDescT(const NDRDescT &Desc) = default;
-  NDRDescT(NDRDescT &&Desc) = default;
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> N, bool SetNumWorkGroups) : Dims{size_t(Dims_)} {
-    if (SetNumWorkGroups) {
-      for (size_t I = 0; I < Dims_; ++I) {
-        NumWorkGroups[I] = N[I];
-      }
-    } else {
-      for (size_t I = 0; I < Dims_; ++I) {
-        GlobalSize[I] = N[I];
-      }
-
-      for (int I = Dims_; I < 3; ++I) {
-        GlobalSize[I] = 1;
-      }
-    }
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::range<Dims_> LocalSizes,
-           sycl::id<Dims_> Offset)
-      : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      LocalSize[I] = LocalSizes[I];
-      GlobalOffset[I] = Offset[I];
-    }
-
-    for (int I = Dims_; I < 3; ++I) {
-      LocalSize[I] = LocalSizes[0] ? 1 : 0;
-    }
-
-    for (int I = Dims_; I < 3; ++I) {
-      GlobalSize[I] = 1;
-    }
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset)
-      : Dims{size_t(Dims_)} {
-    for (size_t I = 0; I < Dims_; ++I) {
-      GlobalSize[I] = NumWorkItems[I];
-      GlobalOffset[I] = Offset[I];
-    }
-  }
-
-  template <int Dims_>
-  NDRDescT(sycl::nd_range<Dims_> ExecutionRange)
-      : NDRDescT(ExecutionRange.get_global_range(),
-                 ExecutionRange.get_local_range(),
-                 ExecutionRange.get_offset()) {}
-
-  template <int Dims_>
-  NDRDescT(sycl::range<Dims_> Range)
-      : NDRDescT(Range, /*SetNumWorkGroups=*/false) {}
-
-  template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
-    if (this->Dims != size_t(Dims_)) {
-      throw std::runtime_error(
-          "Dimensionality of cluster, global and local ranges must be same");
-    }
-
-    for (int I = 0; I < Dims_; ++I)
-      ClusterDimensions[I] = N[I];
-  }
-
-  NDRDescT &operator=(const NDRDescT &Desc) = default;
-  NDRDescT &operator=(NDRDescT &&Desc) = default;
-
-  std::array<size_t, 3> GlobalSize{0, 0, 0};
-  std::array<size_t, 3> LocalSize{0, 0, 0};
-  std::array<size_t, 3> GlobalOffset{0, 0, 0};
-  /// Number of workgroups, used to record the number of workgroups from the
-  /// simplest form of parallel_for_work_group. If set, all other fields must be
-  /// zero
-  std::array<size_t, 3> NumWorkGroups{0, 0, 0};
-  std::array<size_t, 3> ClusterDimensions{1, 1, 1};
-  size_t Dims = 0;
-};
 
 /// Base class for all types of command groups.
 class CG {
@@ -253,8 +149,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  KernelNameStrT MKernelName;
-  KernelNameBasedCacheT *MKernelNameBasedCachePtr;
+  DeviceKernelInfo &MDeviceKernelInfo;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -269,8 +164,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               KernelNameStrT KernelName,
-               KernelNameBasedCacheT *KernelNameBasedCachePtr,
+               DeviceKernelInfo &DeviceKernelInfo,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -279,9 +173,7 @@ public:
       : CG(Type, std::move(CGData), std::move(loc)), MNDRDesc(NDRDesc),
         MHostKernel(std::move(HKernel)), MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)),
-        MKernelNameBasedCachePtr(KernelNameBasedCachePtr),
-        MStreams(std::move(Streams)),
+        MDeviceKernelInfo(DeviceKernelInfo), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
@@ -293,7 +185,9 @@ public:
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
   const std::vector<ArgDesc> &getArguments() const { return MArgs; }
-  KernelNameStrRefT getKernelName() const { return MKernelName; }
+  std::string_view getKernelName() const {
+    return static_cast<std::string_view>(MDeviceKernelInfo.Name);
+  }
   const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
@@ -397,14 +291,19 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::prefetch_type PrefetchType,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
-  void *getDst() { return MDst; }
-  size_t getLength() { return MLength; }
+        MDst(DstPtr), MLength(Length), MPrefetchType(PrefetchType) {}
+  void *getDst() const { return MDst; }
+  size_t getLength() const { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() const {
+    return MPrefetchType;
+  }
 };
 
 /// "Advise USM" command group class.
