@@ -41,24 +41,8 @@ void SanitizerOptions::Init(const std::string &EnvName,
 
   Parser.ParseBool("debug", Debug);
   Parser.ParseBool("detect_kernel_arguments", DetectKernelArguments);
-
-  bool DetectLocals = true;
   Parser.ParseBool("detect_locals", DetectLocals);
-  if (!DetectLocals) {
-    UR_LOG_L(Logger, WARN,
-             "Option `detect_locals` has been deprecated. Just using compiler "
-             "flag is enough.");
-  }
-
-  bool DetectPrivates = true;
   Parser.ParseBool("detect_privates", DetectPrivates);
-  if (!DetectPrivates) {
-    UR_LOG_L(
-        Logger, WARN,
-        "Option `detect_privates` has been deprecated. Just using compiler "
-        "flag is enough.");
-  }
-
   Parser.ParseBool("print_stats", PrintStats);
   Parser.ParseBool("detect_leaks", DetectLeaks);
   Parser.ParseBool("halt_on_error", HaltOnError);

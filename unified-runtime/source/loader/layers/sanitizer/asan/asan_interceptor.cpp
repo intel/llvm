@@ -520,18 +520,15 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
-      bool CheckLocals = SKI.Flags & SanitizedKernelFlags::CHECK_LOCALS;
-      bool CheckPrivates = SKI.Flags & SanitizedKernelFlags::CHECK_PRIVATES;
       bool CheckShadowBounds =
           SKI.Flags & SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS;
 
       UR_LOG_L(getContext()->logger, INFO,
-               "SpirKernel(name='{}', isInstrumented={}, "
-               "checkLocals={}, checkPrivates={}, checkShadowBounds={})",
-               KernelName, true, CheckLocals, CheckPrivates, CheckShadowBounds);
+               "SpirKernel(name='{}', isInstrumented={}, checkShadowBounds={})",
+               KernelName, true, CheckShadowBounds);
 
-      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetadata{
-          CheckLocals, CheckPrivates, CheckShadowBounds};
+      PI->KernelMetadataMap[KernelName] =
+          ProgramInfo::KernelMetadata{CheckShadowBounds};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
              PI->KernelMetadataMap.size());
@@ -690,8 +687,6 @@ KernelInfo &AsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   KI->IsInstrumented = PI->isKernelInstrumented(Kernel);
   if (KI->IsInstrumented) {
     auto &KM = PI->getKernelMetadata(Kernel);
-    KI->IsCheckLocals = KM.CheckLocals;
-    KI->IsCheckPrivates = KM.CheckPrivates;
     KI->IsCheckShadowBounds = KM.CheckShadowBounds;
   }
 
@@ -849,7 +844,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
   }
 
   // Write shadow memory offset for local memory
-  if (KernelInfo.IsCheckLocals) {
+  if (getContext()->Options.DetectLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
             Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
             LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
@@ -869,7 +864,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
   }
 
   // Write shadow memory offset for private memory
-  if (KernelInfo.IsCheckPrivates) {
+  if (getContext()->Options.DetectPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
             Queue, NumSG, LaunchInfo.Data.Host.PrivateBase,
             LaunchInfo.Data.Host.PrivateShadowOffset,

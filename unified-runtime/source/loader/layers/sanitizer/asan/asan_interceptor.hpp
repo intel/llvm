@@ -86,10 +86,6 @@ struct KernelInfo {
 
   // sanitized kernel
   bool IsInstrumented = false;
-  // check local memory
-  bool IsCheckLocals = true;
-  // check private memory
-  bool IsCheckPrivates = true;
   // check shadow bounds
   bool IsCheckShadowBounds = false;
 
@@ -119,8 +115,6 @@ struct ProgramInfo {
   std::atomic<int32_t> RefCount = 1;
 
   struct KernelMetadata {
-    bool CheckLocals;
-    bool CheckPrivates;
     bool CheckShadowBounds;
   };
 
