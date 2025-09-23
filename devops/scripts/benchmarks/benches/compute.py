@@ -218,19 +218,6 @@ class ComputeBench(Suite):
 
             # Add GraphApiSubmitGraph benchmarks
             for in_order_queue in [0, 1]:
-                for profiler_type in profiler_types:
-                    benches.append(
-                        GraphApiSubmitGraph(
-                            self,
-                            runtime,
-                            in_order_queue,
-                            self.submit_graph_num_kernels[-1],
-                            0,
-                            profiler_type,
-                            useEvents=0,
-                            useHostTasks=1,
-                        )
-                    )
                 for num_kernels in self.submit_graph_num_kernels:
                     for measure_completion_time in [0, 1]:
                         for use_events in [0, 1]:
@@ -1008,6 +995,9 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             runtime,
             profiler_type,
         )
+
+    def supported_runtimes(self) -> list[RUNTIMES]:
+        return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
     def explicit_group(self):
         return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"

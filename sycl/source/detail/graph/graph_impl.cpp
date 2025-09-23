@@ -471,7 +471,7 @@ node_impl &graph_impl::add(std::function<void(handler &)> CGF,
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
-  auto &DynamicParams = Handler.impl->MDynamicParameters;
+  auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
   if (NodeType != node_type::kernel && DynamicParams.size() > 0) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -731,6 +731,7 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
   const bool xptiEnabled = xptiTraceEnabled();
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
+  auto StreamID = detail::getActiveXPTIStreamID();
   if (xptiEnabled) {
     sycl::detail::CGExecKernel *CGExec =
         static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
@@ -738,13 +739,12 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
                                         CGExec->MFunctionName.c_str(),
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-        sycl::detail::GSYCLStreamID, CGExec->MSyclKernel, CodeLoc,
-        CGExec->MIsTopCodeLoc, CGExec->MDeviceKernelInfo, nullptr,
-        CGExec->MNDRDesc, CGExec->MKernelBundle.get(), CGExec->MArgs);
+        StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+        CGExec->MDeviceKernelInfo, nullptr, CGExec->MNDRDesc,
+        CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)
-      sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
-                                               InstanceID, CmdTraceEvent,
-                                               xpti::trace_task_begin, nullptr);
+      sycl::detail::emitInstrumentationGeneral(
+          StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
   }
 #endif
 
@@ -764,9 +764,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiEnabled && CmdTraceEvent)
-    sycl::detail::emitInstrumentationGeneral(sycl::detail::GSYCLStreamID,
-                                             InstanceID, CmdTraceEvent,
-                                             xpti::trace_task_end, nullptr);
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
 #endif
 
   return NewSyncPoint;

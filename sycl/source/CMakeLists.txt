@@ -53,6 +53,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
   )
 
@@ -260,6 +261,7 @@ set(SYCL_COMMON_SOURCES
     "detail/device_filter.cpp"
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_data.cpp"
     "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_image_impl.cpp"
