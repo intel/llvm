@@ -55,7 +55,10 @@ inline constexpr bool operator==(const CompileTimeKernelInfoTy &LHS,
          LHS.LineNumber == RHS.LineNumber &&
          LHS.ColumnNumber == RHS.ColumnNumber &&
          LHS.KernelSize == RHS.KernelSize &&
-         LHS.ParamDescGetter == RHS.ParamDescGetter &&
+         // TODO This check fails with test_handler CTS due to what appears to
+         // be a test bug. Disable it for now as a workaround.
+         // See https://github.com/intel/llvm/issues/20134 for more info.
+         // LHS.ParamDescGetter == RHS.ParamDescGetter &&
          LHS.HasSpecialCaptures == RHS.HasSpecialCaptures;
 }
 
@@ -63,7 +66,11 @@ void DeviceKernelInfo::setCompileTimeInfoIfNeeded(
     const CompileTimeKernelInfoTy &Info) {
   if (!isCompileTimeInfoSet())
     CompileTimeKernelInfoTy::operator=(Info);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // In case of 6.3 compatibility mode the KernelSize is not passed to the
+  // runtime. So, it will always be 0 and this assert fails.
   assert(isCompileTimeInfoSet());
+#endif
   assert(Info == *this);
 }
 

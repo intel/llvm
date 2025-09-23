@@ -662,19 +662,6 @@ ur_result_t AsanInterceptor::insertProgram(ur_program_handle_t Program) {
   if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
     return UR_RESULT_SUCCESS;
   }
-  auto CI = getContextInfo(GetContext(Program));
-  auto DI = getDeviceInfo(CI->DeviceList[0]);
-  ur_specialization_constant_info_t SpecConstantInfo{
-      SPEC_CONSTANT_DEVICE_TYPE_ID, sizeof(DeviceType), &DI->Type};
-  ur_result_t URes =
-      getContext()->urDdiTable.Program.pfnSetSpecializationConstants(
-          Program, 1, &SpecConstantInfo);
-  if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "Set specilization constant for device type failed: {}, the "
-             "program may not be sanitized or is created from binary.",
-             URes);
-  }
   m_ProgramMap.emplace(Program, std::make_shared<ProgramInfo>(Program));
   return UR_RESULT_SUCCESS;
 }
@@ -851,6 +838,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // Prepare asan runtime data
   LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+  LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
   if (KernelInfo.IsCheckShadowBounds) {
@@ -921,7 +909,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
       getContext()->logger, INFO,
       "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
       "PrivateShadow={}, GlobalShadowLowerBound={}, GlobalShadowUpperBound={}, "
-      "LocalArgs={}, NumLocalArgs={}, Debug={})",
+      "LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
       (void *)LaunchInfo.Data.getDevicePtr(),
       (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
       (void *)LaunchInfo.Data.Host.LocalShadowOffset,
@@ -930,7 +918,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
       (void *)LaunchInfo.Data.Host.GlobalShadowLowerBound,
       (void *)LaunchInfo.Data.Host.GlobalShadowUpperBound,
       (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
-      LaunchInfo.Data.Host.Debug);
+      ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   return UR_RESULT_SUCCESS;
 }

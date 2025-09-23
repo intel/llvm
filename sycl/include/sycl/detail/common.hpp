@@ -9,7 +9,9 @@
 #pragma once
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/exception.hpp> // for sycl::exception, sycl::errc
+#ifndef __SYCL_DEVICE_ONLY__
+#include <sycl/exception.hpp>
+#endif
 #endif                        // #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
@@ -159,8 +161,10 @@ public:
     // Should never be called. In PREVIEW we marked it as deleted, but
     // before ABI breaking change we need to keep it for backward compatibility.
     assert(false && "tls_code_loc_t should not be copied");
+#ifndef __SYCL_DEVICE_ONLY__
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "tls_code_loc_t should not be copied");
+#endif
     return *this;
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -199,8 +203,6 @@ private:
 #define __SYCL_UR_ERROR_REPORT(backend)                                        \
   std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
       " backend failed with error: "
-
-#include <sycl/exception.hpp>
 
 namespace sycl {
 inline namespace _V1 {

@@ -293,15 +293,16 @@ inline uptr MemToShadow(uptr addr, uint32_t as,
 #elif defined(__LIBDEVICE_DG2__)
   shadow_ptr = MemToShadow_DG2(addr, as, debug);
 #else
-  if (GetDeviceTy() == DeviceType::CPU) {
+  auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
+  if (launch_info->DeviceTy == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr);
-  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
+  } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as, debug);
-  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
+  } else if (launch_info->DeviceTy == DeviceType::GPU_DG2) {
     shadow_ptr = MemToShadow_DG2(addr, as, debug);
   } else {
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_unsupport_device_type,
-                                  (int)GetDeviceTy()));
+                                  (int)launch_info->DeviceTy));
     ReportUnknownDevice(debug);
     return 0;
   }
@@ -917,7 +918,8 @@ DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr shadow, uptr size,
 static __SYCL_CONSTANT__ const char __asan_print_private_base[] =
     "[kernel] set_private_base: %llu -> %p\n";
 
-inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
+DEVICE_EXTERN_C_NOINLINE void
+__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   const size_t sid = SubGroupLinearId();
   if (!launch_info || sid >= ASAN_MAX_SG_PRIVATE ||
@@ -929,19 +931,6 @@ inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
     ASAN_DEBUG(__spirv_ocl_printf(__asan_print_private_base, sid, ptr));
   }
   SubGroupBarrier();
-}
-
-DEVICE_EXTERN_C_NOINLINE void
-__asan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
-#if defined(__LIBDEVICE_CPU__)
-  return;
-#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
-  SetPrivateBaseImpl(ptr);
-#else
-  if (GetDeviceTy() == DeviceType::CPU)
-    return;
-  SetPrivateBaseImpl(ptr);
-#endif
 }
 
 #endif // __SPIR__ || __SPIRV__

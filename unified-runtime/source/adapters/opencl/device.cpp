@@ -1480,6 +1480,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(nodeMask);
   }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP: {
+    bool Supported = false;
+    size_t ExtSize = 0;
+
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        hDevice->CLDevice, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+    std::string ExtStr(ExtSize, '\0');
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_EXTENSIONS, ExtSize,
+                                         ExtStr.data(), nullptr));
+
+    if (ExtStr.find("cl_khr_kernel_clock") != std::string::npos) {
+      cl_device_kernel_clock_capabilities_khr caps = 0;
+
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+          hDevice->CLDevice, CL_DEVICE_KERNEL_CLOCK_CAPABILITIES_KHR,
+          sizeof(cl_device_kernel_clock_capabilities_khr), &caps, nullptr));
+
+      if ((propName == UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_SUB_GROUP_KHR)) ||
+          (propName == UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_WORK_GROUP_KHR)) ||
+          (propName == UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_DEVICE_KHR)))
+        Supported = true;
+    }
+    return ReturnValue(Supported);
+  }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
