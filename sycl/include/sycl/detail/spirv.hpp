@@ -1239,12 +1239,12 @@ ControlBarrier(Group, [[maybe_unused]] memory_scope FenceScope,
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group g, [[maybe_unused]] memory_scope FenceScope,
+ControlBarrier([[maybe_unused]] Group g,
+               [[maybe_unused]] memory_scope FenceScope,
                [[maybe_unused]] memory_order Order) {
 #if defined(__NVPTX__)
   __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
 #elif defined(__SYCL_DEVICE_ONLY__)
-  (void)g;
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.

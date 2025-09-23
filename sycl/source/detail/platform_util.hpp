@@ -42,10 +42,6 @@ struct PlatformUtil {
   static uint32_t getMemCacheLineSize();
 
   static uint64_t getMemCacheSize();
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  static void prefetch(const char *Ptr, size_t NumBytes);
-#endif
 };
 
 } // namespace detail
