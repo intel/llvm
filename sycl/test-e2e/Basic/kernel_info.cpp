@@ -18,6 +18,8 @@
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi;
 
+class SingleTask;
+
 auto checkExceptionIsThrown = [](auto &getInfoFunc,
                                  const std::string &refErrMsg,
                                  std::error_code refErrc) {
@@ -40,13 +42,13 @@ int main() {
   queue q;
   auto ctx = q.get_context();
   buffer<int, 1> buf(range<1>(1));
-  auto kernelID = sycl::get_kernel_id<class SingleTask>();
+  auto kernelID = sycl::get_kernel_id<SingleTask>();
   auto kb = get_kernel_bundle<bundle_state::executable>(ctx, {kernelID});
   kernel krn = kb.get_kernel(kernelID);
 
   q.submit([&](handler &cgh) {
     auto acc = buf.get_access<access::mode::read_write>(cgh);
-    cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
+    cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
   const std::string krnName = krn.get_info<info::kernel::function_name>();

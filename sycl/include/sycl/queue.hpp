@@ -401,10 +401,12 @@ public:
   typename detail::is_backend_info_desc<Param>::return_type
       get_backend_info() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
   bool device_has(aspect Aspect) const;
+#endif
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -3453,6 +3455,7 @@ public:
         CodeLoc);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// @brief Returns true if the queue was created with the
   /// ext::codeplay::experimental::property::queue::enable_fusion property.
   ///
@@ -3460,7 +3463,10 @@ public:
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
   // TODO(#15184) Remove this function in the next ABI-breaking window.
+  __SYCL_DEPRECATED(
+      "Support for ext_codeplay_kernel_fusion extesnsion is dropped")
   bool ext_codeplay_supports_fusion() const;
+#endif
 
   /// Shortcut for executing a graph of commands.
   ///

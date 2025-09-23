@@ -1092,7 +1092,7 @@ void handler::extractArgsAndReqs() {
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(getKernelName())));
+            detail::toKernelNameStrT(MKernel->getName())));
   }
 #endif
   assert(impl->MKernelData.getDeviceKernelInfoPtr() != nullptr);
@@ -1108,7 +1108,7 @@ void handler::extractArgsAndReqsFromLambda(
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
         &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            toKernelNameStrT(getKernelName())));
+            detail::toKernelNameStrT(MKernel->getName())));
   }
   impl->MKernelData.setKernelInfo(LambdaPtr, NumKernelParams, ParamDescGetter,
                                   IsESIMD, true);
@@ -1157,12 +1157,14 @@ void handler::extractArgsAndReqsFromLambda(
 }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
 detail::ABINeutralKernelNameStrT handler::getKernelName() {
   return MKernel->getName();
 }
+#endif
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
   detail::kernel_bundle_impl *UsedKernelBundleImplPtr =
@@ -2238,7 +2240,7 @@ sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
 void handler::setDeviceKernelInfo(kernel &&Kernel) {
   MKernel = detail::getSyclObjImpl(std::move(Kernel));
-  MKernelName = getKernelName();
+  MKernelName = MKernel->getName();
   setDeviceKernelInfoPtr(&MKernel->getDeviceKernelInfo());
   setType(detail::CGType::Kernel);
 

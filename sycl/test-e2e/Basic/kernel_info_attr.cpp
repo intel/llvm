@@ -25,17 +25,19 @@
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi;
 
+class SingleTask;
+
 int main() {
   queue q;
   auto ctx = q.get_context();
   buffer<int, 1> buf(range<1>(1));
-  auto KernelID = sycl::get_kernel_id<class SingleTask>();
+  auto KernelID = sycl::get_kernel_id<SingleTask>();
   auto KB = get_kernel_bundle<bundle_state::executable>(ctx, {KernelID});
   kernel krn = KB.get_kernel(KernelID);
 
   q.submit([&](handler &cgh) {
     auto acc = buf.get_access<access::mode::read_write>(cgh);
-    cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
+    cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
   const std::string krnAttr = krn.get_info<info::kernel::attributes>();
