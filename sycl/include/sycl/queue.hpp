@@ -3771,7 +3771,11 @@ private:
                                   const KernelType &KernelFunc,
                                   const detail::code_location &CodeLoc =
                                       detail::code_location::current()) const {
-    (void)Props;
+    // TODO Properties not supported yet
+    static_assert(
+        std::is_same_v<PropertiesT,
+                       ext::oneapi::experimental::empty_properties_t>,
+        "Setting properties not supported yet for no-CGH kernel submit.");
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
     using NameT =
@@ -3804,7 +3808,11 @@ private:
       PropertiesT Props, nd_range<Dims> Range, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc =
           detail::code_location::current()) const {
-    (void)Props;
+    // TODO Properties not supported yet
+    static_assert(
+        std::is_same_v<PropertiesT,
+                       ext::oneapi::experimental::empty_properties_t>,
+        "Setting properties not supported yet for no-CGH kernel submit.");
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 
     using NameT =
