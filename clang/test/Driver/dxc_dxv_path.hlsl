@@ -1,3 +1,4 @@
+// UNSUPPORTED: system-windows
 // RUN: mkdir -p %t.dir
 // RUN: env PATH="" %clang_dxc -I test -Tlib_6_3 -Fo %t.dir/a.dxo  -### %s 2>&1 | FileCheck %s
 
