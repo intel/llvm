@@ -1105,14 +1105,14 @@ void handler::extractArgsAndReqs() {
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
     size_t NumKernelParams, bool IsESIMD) {
-  if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
-    impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-            detail::toKernelNameStrT(MKernel->getName())));
+
+  std::vector<detail::kernel_param_desc_t> ParamDescs;
+  ParamDescs.reserve(NumKernelParams);
+  for (size_t i = 0; i < NumKernelParams; i++) {
+    ParamDescs.push_back(ParamDescGetter(i));
   }
-  impl->MKernelData.setKernelInfo(LambdaPtr, NumKernelParams, ParamDescGetter,
-                                  IsESIMD, true);
-  impl->MKernelData.extractArgsAndReqsFromLambda();
+
+  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
 }
 
 void handler::extractArgsAndReqsFromLambda(
