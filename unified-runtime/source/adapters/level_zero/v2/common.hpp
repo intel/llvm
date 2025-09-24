@@ -69,8 +69,10 @@ struct ze_handle_wrapper {
           ZE_CALL_NOCHECK_NAME(destroy, (handle), destroyName);
       // Gracefully handle the case that L0 was already unloaded.
       if (zeResult && (zeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
-                       zeResult != ZE_RESULT_ERROR_UNKNOWN))
+                       zeResult != ZE_RESULT_ERROR_UNKNOWN)) {
+        UR_DFAILURE("destroy failed in L0 with" << zeResult);
         throw ze2urResult(zeResult);
+      }
       if (zeResult == ZE_RESULT_ERROR_UNKNOWN) {
         zeResult = ZE_RESULT_ERROR_UNINITIALIZED;
       }
