@@ -110,6 +110,15 @@ struct DeviceGlobalMapEntry {
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
 
+  // Checks if the device_global is available in the given context.
+  bool isAvailableInContext(const context_impl *CtxImpl);
+
+  // Returns true if the device_global is a profile counter.
+  bool isProfileCounter();
+
+  // Cleans up a profile counter device global
+  void cleanupProfileCounter(context_impl *CtxImpl);
+
   // Gets or allocates USM memory for a device_global.
   DeviceGlobalUSMMem &getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl);
 

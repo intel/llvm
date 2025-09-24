@@ -601,7 +601,7 @@ getInstrProfOptions(const CodeGenOptions &CodeGenOpts,
   Options.InstrProfileOutput = CodeGenOpts.ContinuousProfileSync
                                    ? ("%c" + CodeGenOpts.InstrProfileOutput)
                                    : CodeGenOpts.InstrProfileOutput;
-  Options.Atomic = CodeGenOpts.AtomicProfileUpdate;
+  Options.Atomic = LangOpts.SYCLIsDevice || CodeGenOpts.AtomicProfileUpdate;
   return Options;
 }
 

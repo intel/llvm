@@ -53,6 +53,63 @@ OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
   }
 }
 
+bool DeviceGlobalMapEntry::isAvailableInContext(const context_impl *CtxImpl) {
+  std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
+  for (const auto &It : MDeviceToUSMPtrMap)
+    if (It.first.second == CtxImpl)
+      return true;
+  return false;
+}
+
+bool DeviceGlobalMapEntry::isProfileCounter() {
+  const std::string CounterPrefix = "__profc_";
+  return MUniqueId.substr(0, CounterPrefix.size()) == CounterPrefix;
+}
+
+extern "C" void __attribute__((weak))
+__sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
+                                  const std::uint64_t *Increments);
+
+void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
+  std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
+  const std::size_t NumCounters = MDeviceGlobalTSize / sizeof(std::uint64_t);
+  const std::uint64_t FnHash = [&] {
+    const auto PrefixSize = std::string{"__profc_"}.size();
+    constexpr int DecimalBase = 10;
+    return std::strtoull(MUniqueId.substr(PrefixSize).c_str(), nullptr,
+                         DecimalBase);
+  }();
+  for (device_impl &Device : CtxImpl->getDevices()) {
+    auto USMPtrIt = MDeviceToUSMPtrMap.find({&Device, CtxImpl});
+    if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
+      DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
+
+      // Get the increments from the USM pointer
+      std::vector<std::uint64_t> Increments(NumCounters);
+      const std::uint64_t *Counters = static_cast<std::uint64_t *>(USMMem.MPtr);
+      for (std::size_t I = 0; I < NumCounters; ++I)
+        Increments[I] += Counters[I];
+
+      // Call the weak symbol to update the profile counters
+      if (__sycl_increment_profile_counters) {
+        __sycl_increment_profile_counters(FnHash, Increments.size(),
+                                          Increments.data());
+      }
+
+      // Free the USM memory and release the event if it exists.
+      detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
+      if (USMMem.MInitEvent != nullptr)
+        CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
+            USMMem.MInitEvent);
+
+      // Set to nullptr to avoid double free.
+      USMMem.MPtr = nullptr;
+      USMMem.MInitEvent = nullptr;
+      MDeviceToUSMPtrMap.erase(USMPtrIt);
+    }
+  }
+}
+
 DeviceGlobalUSMMem &
 DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   assert(!MIsDeviceImageScopeDecorated &&
@@ -67,7 +124,8 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, &CtxImpl, &DevImpl, sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, &CtxImpl, &DevImpl,
+      isProfileCounter() ? sycl::usm::alloc::shared : sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
       std::piecewise_construct, std::forward_as_tuple(&DevImpl, &CtxImpl),
@@ -125,7 +183,8 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
     return DGUSMPtr->second;
 
   void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
-      0, MDeviceGlobalTSize, &CtxImpl, &DevImpl, sycl::usm::alloc::device);
+      0, MDeviceGlobalTSize, &CtxImpl, &DevImpl,
+      isProfileCounter() ? sycl::usm::alloc::shared : sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
       std::piecewise_construct, std::forward_as_tuple(&DevImpl, &CtxImpl),

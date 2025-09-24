@@ -2466,6 +2466,19 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
   return FoundEntries;
 }
 
+std::vector<DeviceGlobalMapEntry *>
+ProgramManager::getProfileCounterDeviceGlobalEntries(
+    const context_impl *CtxImpl) {
+  std::vector<DeviceGlobalMapEntry *> ProfileCounters =
+      ProgramManager::getInstance().m_DeviceGlobals.getProfileCounterEntries();
+  std::vector<DeviceGlobalMapEntry *> FoundEntries;
+  for (const auto &DGEntry : ProfileCounters) {
+    if (DGEntry->isAvailableInContext(CtxImpl))
+      FoundEntries.push_back(DGEntry);
+  }
+  return FoundEntries;
+}
+
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
                                             const char *UniqueId) {
   std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
