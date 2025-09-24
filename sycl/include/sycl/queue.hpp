@@ -3693,33 +3693,15 @@ private:
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc) const;
 
+  template <int Dims>
   event submit_kernel_direct_with_event_impl(
-      nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      nd_range<Dims> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
-  event submit_kernel_direct_with_event_impl(
-      nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
-
-  event submit_kernel_direct_with_event_impl(
-      nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
-
+  template <int Dims>
   void submit_kernel_direct_without_event_impl(
-      nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
-
-  void submit_kernel_direct_without_event_impl(
-      nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
-
-  void submit_kernel_direct_without_event_impl(
-      nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      nd_range<Dims> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
@@ -3983,6 +3965,36 @@ private:
             Info.ColumnNumber};
   }
 };
+
+extern template event queue::submit_kernel_direct_with_event_impl<1>(
+    nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+extern template event queue::submit_kernel_direct_with_event_impl<2>(
+    nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+extern template event queue::submit_kernel_direct_with_event_impl<3>(
+    nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+extern template void queue::submit_kernel_direct_without_event_impl<1>(
+    nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+extern template void queue::submit_kernel_direct_without_event_impl<2>(
+    nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
+
+extern template void queue::submit_kernel_direct_without_event_impl<3>(
+    nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) const;
 
 } // namespace _V1
 } // namespace sycl
