@@ -94,7 +94,9 @@ TEST_P(urEnqueueKernelLaunchTest, Success) {
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 0,
                                        nullptr, 0, nullptr, nullptr));
+  // TODO UNCOMMENT DOBBLE
   ASSERT_SUCCESS(urQueueFinish(queue));
+  // val = 42
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
 
@@ -558,10 +560,13 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
                                        nullptr, &kernel_evt));
 
   std::vector<uint32_t> data(global_size);
+  printf("bef memcpy2\n");
   ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, data.data(), virtual_ptr,
                                     alloc_size, 1, &kernel_evt, nullptr));
+  printf("after memcpy\n");
 
   ASSERT_SUCCESS(urQueueFinish(queue));
+  printf("after queueFinish");
 
   // verify fill worked
   for (size_t i = 0; i < data.size(); i++) {
