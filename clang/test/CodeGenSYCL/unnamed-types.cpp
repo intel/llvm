@@ -1,3 +1,8 @@
+// This test checks that lambdas assigned to variables (including inline and
+// templated cases) in the same namespace are uniquely mangled and callable via
+// template functions. It ensures that the compiler generates distinct symbols
+// for each lambda and resolves them correctly in function calls.
+
 // RUN: %clang_cc1 -fsycl-is-device -O0 -triple spirv64-unknown-unknown \
 // RUN: -emit-llvm  %s -o - | FileCheck %s --check-prefix=DEVICE
 
