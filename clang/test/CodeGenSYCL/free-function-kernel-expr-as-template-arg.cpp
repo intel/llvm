@@ -38,6 +38,10 @@ enum class class_enum_typed : int {
   VAL_D
 };
 
+constexpr int bar(int arg) {
+  return arg + 42;
+}
+
 } // namespace ns
 
 template<int V>
@@ -99,3 +103,8 @@ void constexpr_ns2(Arg4<ns::class_enum::VAL_A>) {}
 void constexpr_ns2(Arg5<ns::class_enum_typed::VAL_C>) {}
 
 // CHECK: void constexpr_ns2(Arg5<ns::class_enum_typed::VAL_C> );
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]]
+void constexpr_call(Arg<ns::bar(B)>) {}
+
+// CHECK: void constexpr_call(Arg<45> );

@@ -6834,15 +6834,16 @@ private:
       auto TemplateArgPrinter = [&](const TemplateArgument &Arg) {
         if (Arg.getKind() != TemplateArgument::ArgKind::Expression ||
             Arg.isInstantiationDependent()) {
-          Arg.print(Policy, ParmListOstream, false /* IncludeType */);
+          Arg.print(Policy, ParmListOstream, /* IncludeType = */ false);
           return;
         }
 
         Expr *E = Arg.getAsExpr();
+        assert(E && "Failed to get an Expr for an Expression template arg?");
         if (E->getType().getTypePtr()->isScopedEnumeralType()) {
           // Scoped enumerations can't be implicitly cast from integers, so
-          // we don't need to evaluate them
-          Arg.print(Policy, ParmListOstream, false /* IncludeType */);
+          // we don't need to evaluate them.
+          Arg.print(Policy, ParmListOstream, /* IncludeType = */ false);
           return;
         }
 
@@ -6861,7 +6862,7 @@ private:
         if (I != 0)
           ParmListOstream << ", ";
         // If we have a specialized argument, use it. Otherwise fallback to a
-        // default argument
+        // default argument.
         TemplateArgPrinter(I < SE ? SpecArgs[I] : DeclArgs[I]);
       }
 
