@@ -1365,25 +1365,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Get the list of requested offloading toolchains. If they were not
   // explicitly specified we will infer them based on the offloading language
   // and requested architectures.
-  llvm::StringMap<StringRef> FoundNormalizedTriples;
-  auto isDuplicateTargetTripleString = [&](llvm::StringRef Target) -> bool {
-    std::string NormalizedName =
-        C.getDriver().getSYCLDeviceTriple(Target).normalize();
-    auto [TripleIt, Inserted] =
-        FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-    if (!Inserted) {
-      Diag(clang::diag::warn_drv_offload_target_duplicate)
-          << Target << TripleIt->second;
-      return true;
-    }
-    return false;
-  };
 
   std::multiset<llvm::StringRef> Triples;
+  llvm::StringMap<StringRef> FoundNormalizedTriples;
   if (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ)) {
     std::vector<std::string> ArgValues =
         C.getInputArgs().getAllArgValues(options::OPT_offload_targets_EQ);
     llvm::Triple TT;
+
     for (llvm::StringRef Target : ArgValues) {
       if (IsSYCL) {
         StringRef TargetTripleString(Target);
@@ -1393,17 +1382,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           TargetTripleString = "nvptx64-nvidia-cuda";
         else if (Target.starts_with("amd_gpu_"))
           TargetTripleString = "amdgcn-amd-amdhsa";
-
-        // Check for duplicate target triple strings
-        // before inserting in Triples.
-        if (isDuplicateTargetTripleString(Target))
+        std::string NormalizedName =
+            getSYCLDeviceTriple(TargetTripleString).normalize();
+        auto [TripleIt, Inserted] =
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+        if (!Inserted) {
+          if (Target == TripleIt->second)
+            Diag(clang::diag::warn_drv_offload_target_duplicate)
+                << Target << TripleIt->second;
           continue;
+        }
         Triples.insert(C.getInputArgs().MakeArgString(TargetTripleString));
       } else {
-        // Check for duplicate target triple strings for offloading
-        // models other than SYCL, before inserting in Triples.
-        if (isDuplicateTargetTripleString(Target))
-          continue;
         Triples.insert(C.getInputArgs().MakeArgString(Target));
       }
     }
@@ -1419,7 +1409,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       Triples.insert(Derived.begin(), Derived.end());
     }
   }
-
   FoundNormalizedTriples.clear();
   // Build an offloading toolchain for every requested target and kind.
   for (StringRef Target : Triples) {
@@ -1461,6 +1450,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (TT.getArch() == llvm::Triple::ArchType::UnknownArch ||
           (Kind == Action::OFK_SYCL && !isValidSYCLTriple(TT))) {
         Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT.str();
+        continue;
+      }
+
+      std::string NormalizedName = TT.normalize();
+      auto [TripleIt, Inserted] =
+          FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+      if (!Inserted) {
+        Diag(clang::diag::warn_drv_offload_target_duplicate)
+            << Target << TripleIt->second;
         continue;
       }
 
