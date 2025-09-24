@@ -3,6 +3,8 @@
 // RUN: %{run} %t.out
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/18230
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "common.hpp"
 

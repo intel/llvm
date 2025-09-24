@@ -26,6 +26,9 @@
 
 // RUN:  env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test uses a kernel of the same name in three different shared libraries.
 // It loads each library, calls the kernel, and checks that the incrementation
 // is done correctly, and then unloads the library.
