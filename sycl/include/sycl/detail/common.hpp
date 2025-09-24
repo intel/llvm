@@ -20,7 +20,6 @@
 #include <cassert> // for assert
 #include <cstddef> // for size_t
 #include <cstdint>
-#include <string>      // for allocator, operator+
 #include <type_traits> // for enable_if_t
 #include <utility>     // for index_sequence, make_i...
 
@@ -199,10 +198,6 @@ private:
 #else
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
-
-#define __SYCL_UR_ERROR_REPORT(backend)                                        \
-  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
-      " backend failed with error: "
 
 namespace sycl {
 inline namespace _V1 {
