@@ -131,26 +131,6 @@ uint32_t PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex TIndex) {
   return 0;
 }
 
-void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
-  if (!Ptr)
-    return;
-
-  const size_t CacheLineSize = PlatformUtil::getMemCacheLineSize();
-  const size_t CacheLineMask = ~(CacheLineSize - 1);
-  const char *PtrEnd = Ptr + NumBytes;
-
-  // Set the pointer to the beginning of the current cache line.
-  Ptr = reinterpret_cast<const char *>(reinterpret_cast<size_t>(Ptr) &
-                                       CacheLineMask);
-  for (; Ptr < PtrEnd; Ptr += CacheLineSize) {
-#if defined(__SYCL_RT_OS_LINUX)
-    __builtin_prefetch(Ptr);
-#elif defined(__SYCL_RT_OS_WINDOWS)
-    _mm_prefetch(Ptr, _MM_HINT_T0);
-#endif
-  }
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
