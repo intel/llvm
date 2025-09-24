@@ -356,7 +356,17 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  if (WaitList.empty())
+
+  // If waitlist contains only empty, default constructed events, ignore
+  // them.
+  bool AllEventsEmptyOrNop = std::all_of(
+      begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
+        detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
+        return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
+               !EventImpl.hasCommandGraph();
+      });
+
+  if (WaitList.empty() || AllEventsEmptyOrNop)
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
   else
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
