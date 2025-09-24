@@ -84,8 +84,8 @@ class Benchmark(ABC):
         """Returns whether tracing is enabled for the given type."""
         return (self.traceable(tr_type) or force_trace) and run_trace == tr_type
 
-    @abstractmethod
     def setup(self):
+        """Extra setup steps to be performed before running the benchmark."""
         pass
 
     @abstractmethod

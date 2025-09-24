@@ -3,14 +3,13 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import os
 import shutil
 from pathlib import Path
 
 from options import options
-from utils.utils import run, git_clone, prune_old_files, remove_by_prefix
+from utils.utils import run, prune_old_files, remove_by_prefix
 from utils.logger import log
-
+from git_project import GitProject
 from datetime import datetime, timezone
 
 
@@ -29,14 +28,13 @@ class FlameGraph:
         )
 
         log.info("Downloading FlameGraph...")
-        repo_dir = git_clone(
-            options.workdir,
-            "flamegraph-repo",
+        self.project = GitProject(
             "https://github.com/brendangregg/FlameGraph.git",
             "41fee1f99f9276008b7cd112fca19dc3ea84ac32",
+            Path(options.workdir),
+            "flamegraph",
         )
         log.info("FlameGraph tools ready.")
-        self.repo_dir = Path(repo_dir)
 
         if options.results_directory_override:
             self.flamegraphs_dir = (
@@ -130,7 +128,7 @@ class FlameGraph:
         """Step 1: Convert perf script to folded format using a pipeline."""
         log.debug(f"Converting perf data to folded format: {folded_file}")
         perf_script_cmd = ["perf", "script", "-i", str(perf_data_file)]
-        stackcollapse_cmd = [str(self.repo_dir / "stackcollapse-perf.pl")]
+        stackcollapse_cmd = [str(self.project.src_dir / "stackcollapse-perf.pl")]
 
         try:
             # Run perf script and capture its output
@@ -150,7 +148,7 @@ class FlameGraph:
         """Step 2: Generate flamegraph SVG from a folded file."""
         log.debug(f"Generating flamegraph SVG: {svg_file}")
         flamegraph_cmd = [
-            str(self.repo_dir / "flamegraph.pl"),
+            str(self.project.src_dir / "flamegraph.pl"),
             "--title",
             f"{options.save_name} - {bench_name}",
             "--width",

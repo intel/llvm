@@ -4,18 +4,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from itertools import product
-import os
 import csv
 import io
 import copy
 import math
 from enum import Enum
+from pathlib import Path
 
-from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite, TracingType
 from utils.result import BenchmarkMetadata, Result
 from .base import Benchmark, Suite
 from options import options
+from git_project import GitProject
 
 
 class RUNTIMES(Enum):
@@ -50,8 +50,8 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
 
 class ComputeBench(Suite):
     def __init__(self, directory):
-        self.directory = directory
         self.submit_graph_num_kernels = [4, 10, 32]
+        self.project = None
 
     def name(self) -> str:
         return "Compute Benchmarks"
@@ -66,47 +66,36 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return
 
-        repo_path = git_clone(
-            self.directory,
-            "compute-benchmarks-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
-        build_path = create_build_path(self.directory, "compute-benchmarks-build")
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "compute-benchmarks",
+                force_rebuild=True,
+            )
 
-        configure_command = [
-            "cmake",
-            f"-B {build_path}",
-            f"-S {repo_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+        extra_args = [
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
-
         if options.ur_adapter == "cuda":
-            configure_command += [
+            extra_args += [
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
             ]
-
         if options.ur is not None:
-            configure_command += [
+            extra_args += [
                 f"-DBUILD_UR=ON",
                 f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
             ]
 
-        run(configure_command, add_sycl=True)
-
-        run(
-            f"cmake --build {build_path} -j {options.build_jobs}",
-            add_sycl=True,
-        )
-
-        self.built = True
+        self.project.configure(extra_args, install_prefix=False, add_sycl=True)
+        self.project.build(add_sycl=True)
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         metadata = {
@@ -370,7 +359,7 @@ class ComputeBenchmark(Benchmark):
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench.directory, bench)
+        super().__init__(options.workdir, bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
@@ -383,6 +372,11 @@ class ComputeBenchmark(Benchmark):
 
         self._validate_attr("iterations_regular")
         self._validate_attr("iterations_trace")
+
+    @property
+    def benchmark_bin(self) -> Path:
+        """Returns the path to the benchmark binary"""
+        return self.bench.project.build_dir / "bin" / self.bench_name
 
     def get_iters(self, run_trace: TracingType):
         """Returns the number of iterations to run for the given tracing type."""
@@ -437,11 +431,6 @@ class ComputeBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
-    def setup(self):
-        self.benchmark_bin = os.path.join(
-            self.bench.directory, "compute-benchmarks-build", "bin", self.bench_name
-        )
-
     def explicit_group(self):
         return ""
 
@@ -455,7 +444,7 @@ class ComputeBenchmark(Benchmark):
         force_trace: bool = False,
     ) -> list[Result]:
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
             f"--test={self.test}",
             "--csv",
             "--noHeaders",

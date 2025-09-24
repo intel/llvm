@@ -5,20 +5,20 @@
 
 import re
 import shutil
-from utils.utils import git_clone
+import os
+from pathlib import Path
+
 from .base import Benchmark, Suite, TracingType
 from utils.result import Result
-from utils.utils import run, create_build_path
+from utils.utils import run
 from options import options
 from utils.oneapi import get_oneapi
-import shutil
-
-import os
+from git_project import GitProject
 
 
 class VelocityBench(Suite):
-    def __init__(self, directory):
-        self.directory = directory
+    def __init__(self, directory) -> None:
+        self.project = None
 
     def name(self) -> str:
         return "Velocity Bench"
@@ -33,12 +33,13 @@ class VelocityBench(Suite):
         if options.sycl is None:
             return
 
-        self.repo_path = git_clone(
-            self.directory,
-            "velocity-bench-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "velocity-bench",
+            )
 
     def benchmarks(self) -> list[Benchmark]:
         return [
@@ -56,11 +57,23 @@ class VelocityBench(Suite):
 
 class VelocityBase(Benchmark):
     def __init__(self, name: str, bin_name: str, vb: VelocityBench, unit: str):
-        super().__init__(vb.directory, vb)
+        super().__init__(options.workdir, vb)
         self.vb = vb
         self.bench_name = name
         self.bin_name = bin_name
         self.unit = unit
+
+    @property
+    def src_dir(self) -> Path:
+        return self.vb.project.src_dir / self.bench_name / "SYCL"
+
+    @property
+    def build_dir(self) -> Path:
+        return self.vb.project.build_dir / self.bench_name
+
+    @property
+    def benchmark_bin(self) -> Path:
+        return self.build_dir / self.bin_name
 
     def enabled(self) -> bool:
         if options.sycl is None:
@@ -92,25 +105,27 @@ class VelocityBase(Benchmark):
         return []
 
     def setup(self):
-        self.code_path = os.path.join(self.vb.repo_path, self.bench_name, "SYCL")
         self.download_deps()
-        self.benchmark_bin = os.path.join(
-            self.directory, self.bench_name, self.bin_name
-        )
+        self.configure()
+        self.build()
 
-        build_path = create_build_path(self.directory, self.bench_name)
+    def configure(self) -> None:
+        if options.rebuild and self.build_dir.exists():
+            shutil.rmtree(self.build_dir)
+        self.build_dir.mkdir(parents=True, exist_ok=True)
 
-        configure_command = [
+        cmd = [
             "cmake",
-            f"-B {build_path}",
-            f"-S {self.code_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+            f"-S {self.src_dir}",
+            f"-B {self.build_dir}",
+            "-DCMAKE_BUILD_TYPE=Release",
         ]
-        configure_command += self.extra_cmake_args()
+        cmd += self.extra_cmake_args()
+        run(cmd, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
 
-        run(configure_command, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
+    def build(self) -> None:
         run(
-            f"cmake --build {build_path} -j {options.build_jobs}",
+            f"cmake --build {self.build_dir} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.ld_libraries(),
         )
@@ -139,7 +154,7 @@ class VelocityBase(Benchmark):
         env_vars.update(self.extra_env_vars())
 
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
         ]
         command += self.bin_args()
 
@@ -214,7 +229,9 @@ class Bitcracker(VelocityBase):
         )
 
     def bin_args(self) -> list[str]:
-        self.data_path = os.path.join(self.vb.repo_path, "bitcracker", "hash_pass")
+        self.data_path = os.path.join(
+            self.vb.project.src_dir, "bitcracker", "hash_pass"
+        )
 
         return [
             "-f",
@@ -323,7 +340,7 @@ class QuickSilver(VelocityBase):
 
     def bin_args(self) -> list[str]:
         self.data_path = os.path.join(
-            self.vb.repo_path, "QuickSilver", "Examples", "AllScattering"
+            self.vb.project.src_dir, "QuickSilver", "Examples", "AllScattering"
         )
 
         return ["-i", f"{self.data_path}/scatteringOnly.inp"]
@@ -416,8 +433,8 @@ class CudaSift(VelocityBase):
         super().__init__("cudaSift", "cudaSift", vb, "ms")
 
     def download_deps(self):
-        images = os.path.join(self.vb.repo_path, self.bench_name, "inputData")
-        dest = os.path.join(self.directory, "inputData")
+        images = os.path.join(self.vb.project.src_dir, self.bench_name, "inputData")
+        dest = os.path.join(options.workdir, "inputData")
         if not os.path.exists(dest):
             shutil.copytree(images, dest)
 
@@ -615,8 +632,8 @@ class SVM(VelocityBase):
 
     def bin_args(self):
         return [
-            f"{self.code_path}/a9a",
-            f"{self.code_path}/a.m",
+            f"{self.src_dir}/a9a",
+            f"{self.src_dir}/a.m",
         ]
 
     def parse_output(self, stdout: str) -> float:
