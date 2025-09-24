@@ -401,10 +401,12 @@ public:
   typename detail::is_backend_info_desc<Param>::return_type
       get_backend_info() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
   bool device_has(aspect Aspect) const;
+#endif
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -3453,6 +3455,7 @@ public:
         CodeLoc);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// @brief Returns true if the queue was created with the
   /// ext::codeplay::experimental::property::queue::enable_fusion property.
   ///
@@ -3460,7 +3463,10 @@ public:
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
   // TODO(#15184) Remove this function in the next ABI-breaking window.
+  __SYCL_DEPRECATED(
+      "Support for ext_codeplay_kernel_fusion extesnsion is dropped")
   bool ext_codeplay_supports_fusion() const;
+#endif
 
   /// Shortcut for executing a graph of commands.
   ///
@@ -3543,7 +3549,12 @@ public:
   bool khr_empty() const;
 #endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: to be made private in the next ABI-breaking window
+  __SYCL_DEPRECATED(
+      "This is a non-standard method, use sycl::get_native instead")
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+#endif
 
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
@@ -3552,6 +3563,10 @@ public:
   void ext_oneapi_set_external_event(const event &external_event);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+#endif
+
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
@@ -3568,6 +3583,10 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+  template <backend BackendName>
+  friend auto get_native(const queue &Obj)
+      -> backend_return_t<BackendName, queue>;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if __SYCL_USE_FALLBACK_ASSERT

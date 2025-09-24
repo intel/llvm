@@ -781,9 +781,7 @@ xptiUnregisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
 
 /// @brief Notifies all registered subscribers that an event has occurred
 /// @details Subscribers receive notifications to the trace point types they
-/// register a callback with. This function allows subscribers to unregister
-/// any previously registered callback  functions with this function so they can
-/// stop receiving notifications.
+/// register a callback with.
 ///
 /// @param stream_id The stream for which the registration must be disabled
 /// @param trace_type The trace point type for which the notification is being

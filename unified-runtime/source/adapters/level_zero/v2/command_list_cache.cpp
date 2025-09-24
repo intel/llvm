@@ -109,6 +109,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     if (!ZeMutableCmdListExtentionSupported && IsMutable) {
       UR_LOG(INFO, "Mutable command lists were requested but are not supported "
                    "by the driver.");
+      UR_DFAILURE("Mutable command lists unsupported");
       throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
