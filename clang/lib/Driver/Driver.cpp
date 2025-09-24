@@ -1453,13 +1453,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         continue;
       }
 
-      std::string NormalizedName = TT.normalize();
-      auto [TripleIt, Inserted] =
-          FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-      if (!Inserted) {
-        Diag(clang::diag::warn_drv_offload_target_duplicate)
-            << Target << TripleIt->second;
-        continue;
+      if (Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) {
+        std::string NormalizedName = TT.normalize();
+        auto [TripleIt, Inserted] =
+            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+        if (!Inserted) {
+          Diag(clang::diag::warn_drv_offload_target_duplicate)
+              << Target << TripleIt->second;
+          continue;
+        }
       }
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
