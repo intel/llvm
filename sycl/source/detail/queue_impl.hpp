@@ -359,8 +359,9 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+  template <int Dims>
   event submit_kernel_direct_with_event(
-      nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      nd_range<Dims> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
@@ -369,44 +370,9 @@ public:
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
-  event submit_kernel_direct_with_event(
-      nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    detail::EventImplPtr EventImpl =
-        submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                                  true, CodeLoc, IsTopCodeLoc);
-    return createSyclObjFromImpl<event>(EventImpl);
-  }
-
-  event submit_kernel_direct_with_event(
-      nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    detail::EventImplPtr EventImpl =
-        submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                                  true, CodeLoc, IsTopCodeLoc);
-    return createSyclObjFromImpl<event>(EventImpl);
-  }
-
+  template <int Dims>
   void submit_kernel_direct_without_event(
-      nd_range<1> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, CodeLoc, IsTopCodeLoc);
-  }
-
-  void submit_kernel_direct_without_event(
-      nd_range<2> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
-    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, CodeLoc, IsTopCodeLoc);
-  }
-
-  void submit_kernel_direct_without_event(
-      nd_range<3> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      nd_range<Dims> Range, std::shared_ptr<detail::HostKernelBase> &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
