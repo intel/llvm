@@ -24,7 +24,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
 
   switch (propName) {
   case UR_EVENT_INFO_CONTEXT:
-    return ReturnValue(hEvent->UrQueue->UrContext);
+    return ReturnValue(hEvent->UrContext);
   case UR_EVENT_INFO_COMMAND_QUEUE:
     return ReturnValue(hEvent->UrQueue);
   case UR_EVENT_INFO_COMMAND_TYPE:
@@ -107,7 +107,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   if (--hEvent->RefCount == 0) {
-    if (hEvent->OffloadEvent) {
+    if (hEvent->OffloadEvent && hEvent->isNativeHandleOwned) {
       auto Res = olDestroyEvent(hEvent->OffloadEvent);
       if (Res) {
         return offloadResultToUR(Res);
@@ -119,13 +119,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEventGetNativeHandle(ur_event_handle_t, ur_native_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
+    ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
+  if (!hEvent->OffloadEvent) {
+    // There is no associated event - rather than returning nullptr, create an
+    // empty one
+    ol_queue_handle_t TmpQueue;
+    OL_RETURN_ON_ERR(olCreateQueue(hEvent->UrQueue->OffloadDevice, &TmpQueue));
+    OL_RETURN_ON_ERR(olCreateEvent(
+        TmpQueue, reinterpret_cast<ol_event_handle_t *>(phNativeEvent)));
+    OL_RETURN_ON_ERR(olDestroyQueue(TmpQueue));
+  } else {
+    *phNativeEvent = reinterpret_cast<ur_native_handle_t>(hEvent->OffloadEvent);
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t, ur_context_handle_t,
-    const ur_event_native_properties_t *, ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
+    const ur_event_native_properties_t *pProperties,
+    ur_event_handle_t *hEvent) {
+  bool IsNativeHandleOwned =
+      pProperties ? pProperties->isNativeHandleOwned : false;
+
+  *hEvent =
+      new ur_event_handle_t_(reinterpret_cast<ol_event_handle_t>(hNativeEvent),
+                             hContext, IsNativeHandleOwned);
+  return UR_RESULT_SUCCESS;
 }
