@@ -6851,8 +6851,8 @@ private:
             Arg.getAsExpr()->EvaluateAsConstantExpr(Res, Context);
         assert(Success && "invalid non-type template argument?");
         assert(!Res.Val.isAbsent() && "couldn't read the evaulation result?");
-        Res.Val.printPretty(ParmListOstream, Policy,
-                            Arg.getAsExpr()->getType(), &Context);
+        Res.Val.printPretty(ParmListOstream, Policy, Arg.getAsExpr()->getType(),
+                            &Context);
       };
 
       for (size_t I = 0, E = std::max(DeclArgs.size(), SpecArgs.size()),
