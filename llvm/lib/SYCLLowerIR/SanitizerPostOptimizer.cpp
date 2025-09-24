@@ -28,17 +28,26 @@ constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 
 struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
   void visitCallInst(CallInst &CI) {
+    // If the shadow value is constant zero, the check instruction can be safely
+    // erased.
     auto *Func = CI.getCalledFunction();
-    if (Func) {
-      auto FuncName = Func->getName();
-      if (FuncName.contains("__msan_maybe_warning_")) {
-        auto *Shadow = CI.getArgOperand(0);
-        if (isa<ConstantInt>(Shadow) &&
-            cast<ConstantInt>(Shadow)->isZeroValue())
-          CI.eraseFromParent();
-      }
-    }
+    if (!Func)
+      return;
+    auto FuncName = Func->getName();
+    if (!FuncName.contains("__msan_maybe_warning_"))
+      return;
+    auto *Shadow = CI.getArgOperand(0);
+    if (isa<ConstantInt>(Shadow) && cast<ConstantInt>(Shadow)->isZeroValue())
+      InstToErase.push_back(&CI);
   }
+
+  void eraseDeadCheck() {
+    for (auto *CI : InstToErase)
+      CI->eraseFromParent();
+  }
+
+private:
+  SmallVector<CallInst *, 8> InstToErase;
 };
 
 static bool FixSanitizerKernelMetadata(Module &M) {
@@ -112,6 +121,7 @@ PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
   if (M.getNamedGlobal("__MsanKernelMetadata")) {
     EliminateDeadCheck V;
     V.visit(M);
+    V.eraseDeadCheck();
   }
 
   return PreservedAnalyses::none();
