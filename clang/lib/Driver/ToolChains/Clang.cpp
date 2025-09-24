@@ -5338,7 +5338,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver,
-                    C.isOffloadingHostKind(Action::OFK_Cuda)));
+                    C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                        C.isOffloadingHostKind(Action::OFK_SYCL)));
 
   bool IsRDCMode =
       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
@@ -6025,9 +6026,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-emit-llvm-uselists");
 
     if (IsUsingLTO) {
-      bool IsUsingOffloadNewDriver =
-          Args.hasFlag(options::OPT_offload_new_driver,
-                       options::OPT_no_offload_new_driver, false);
+      bool IsUsingOffloadNewDriver = Args.hasFlag(
+          options::OPT_offload_new_driver, options::OPT_no_offload_new_driver,
+          C.isOffloadingHostKind(Action::OFK_SYCL));
       Arg *SYCLSplitMode =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       bool IsDeviceCodeSplitDisabled =
@@ -7603,7 +7604,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.append({"--offload-new-driver", "-foffload-via-llvm"});
   } else if (Args.hasFlag(options::OPT_offload_new_driver,
                           options::OPT_no_offload_new_driver,
-                          C.isOffloadingHostKind(Action::OFK_Cuda))) {
+                          C.isOffloadingHostKind(Action::OFK_Cuda) ||
+                              C.isOffloadingHostKind(Action::OFK_SYCL))) {
     CmdArgs.push_back("--offload-new-driver");
   }
 
