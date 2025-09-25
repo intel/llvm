@@ -44,6 +44,7 @@ struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
   void eraseDeadCheck() {
     for (auto *CI : InstToErase)
       CI->eraseFromParent();
+    InstToErase.clear();
   }
 
 private:
