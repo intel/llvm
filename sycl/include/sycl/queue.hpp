@@ -3228,8 +3228,9 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return submit_kernel_direct_with_event<KernelName>(
-          ext::oneapi::experimental::empty_properties_t{}, Range, Rest...);
+      return detail::submit_kernel_direct_with_event<KernelName>(
+          *this, ext::oneapi::experimental::empty_properties_t{}, Range,
+          Rest...);
     } else {
 #endif
       return submit(
@@ -3942,8 +3943,8 @@ extern template void queue::submit_kernel_direct_without_event_impl<3>(
 
 namespace detail {
 
-template <typename KernelName = detail::auto_name, typename PropertiesT,
-          typename KernelType, int Dims>
+template <typename KernelName, typename PropertiesT, typename KernelType,
+          int Dims>
 event submit_kernel_direct_with_event(const queue &Queue, PropertiesT Props,
                                       nd_range<Dims> Range,
                                       const KernelType &KernelFunc,
@@ -3980,8 +3981,8 @@ event submit_kernel_direct_with_event(const queue &Queue, PropertiesT Props,
       TlsCodeLocCapture.isToplevel());
 }
 
-template <typename KernelName = detail::auto_name, typename PropertiesT,
-          typename KernelType, int Dims>
+template <typename KernelName, typename PropertiesT, typename KernelType,
+          int Dims>
 void submit_kernel_direct_without_event(const queue &Queue, PropertiesT Props,
                                         nd_range<Dims> Range,
                                         const KernelType &KernelFunc,
