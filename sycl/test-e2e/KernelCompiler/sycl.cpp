@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20127
 // REQUIRES: sycl-jit, aspect-usm_device_allocations
 
 // RUN: %{build} -o %t.out
