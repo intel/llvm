@@ -60,7 +60,9 @@ ur_native_handle_t interop_handle::getNativeContext() const {
 
 ur_native_handle_t
 interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
-  return MQueue->getNative(NativeHandleDesc);
+  if (MQueue != nullptr)
+    return MQueue->getNative(NativeHandleDesc);
+  return 0;
 }
 
 ur_native_handle_t interop_handle::getNativeGraph() const {
