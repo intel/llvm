@@ -8,7 +8,7 @@
 
 void foo(sycl::detail::compile_time_kernel_info_v1::CompileTimeKernelInfoTy) {}
 
-// CHECK:       0 | class sycl::detail::compile_time_kernel_info_v1::CompileTimeKernelInfoTy
+// CHECK:       0 | struct sycl::detail::CompileTimeKernelInfoTy
 // CHECK-NEXT:  0 |   class sycl::detail::string_view Name
 // CHECK-NEXT:  0 |     const char * str
 // CHECK-NEXT:  8 |   unsigned int NumParams
