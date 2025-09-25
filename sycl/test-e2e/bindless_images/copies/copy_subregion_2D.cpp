@@ -1,5 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: cuda
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-INTENDED: sporadic failure in CI
+//                       https://github.com/intel/llvm/issues/20006
+// XFAIL: linux && arch-intel_gpu_acm_g10
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20004
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
