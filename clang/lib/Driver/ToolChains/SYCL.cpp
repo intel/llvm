@@ -1815,7 +1815,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   // Default device AOT: -g -cl-opt-disable
   // Default device JIT: -g (-O0 is handled by the runtime)
   // GEN:  -options "-g -O0"
-  // CPU:  "--bo=-g -cl-opt-disable"
+  // CPU: "--bo=-g" "-bo=-cl-opt-disable"
   llvm::opt::ArgStringList BeArgs;
   // Per-device argument vector storing the device name and the backend argument
   // string
@@ -1969,17 +1969,23 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(A));
     return;
   }
-  SmallString<128> BeOpt;
-  if (IsGen)
+  if (IsGen) {
+    SmallString<128> BeOpt;
     CmdArgs.push_back("-options");
-  else
-    BeOpt = "--bo=";
-  for (unsigned I = 0; I < BeArgs.size(); ++I) {
-    if (I)
-      BeOpt += ' ';
-    BeOpt += BeArgs[I];
+    for (unsigned I = 0; I < BeArgs.size(); ++I) {
+      if (I)
+        BeOpt += ' ';
+      BeOpt += BeArgs[I];
+    }
+    CmdArgs.push_back(Args.MakeArgString(BeOpt));
+  } else {
+    for (unsigned I = 0; I < BeArgs.size(); ++I) {
+      SmallString<128> BeOpt;
+      BeOpt += "--bo=";
+      BeOpt += BeArgs[I];
+      CmdArgs.push_back(Args.MakeArgString(BeOpt));
+    }
   }
-  CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
