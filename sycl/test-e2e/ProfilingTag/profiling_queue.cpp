@@ -26,6 +26,9 @@
 // UNSUPPORTED: ((intel_gpu_acm{{.*}} || intel_gpu_pvc || intel_gpu_bmg{{.*}}) && (!level_zero)) || preview-mode
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19425
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include "common.hpp"
 
 int main() {

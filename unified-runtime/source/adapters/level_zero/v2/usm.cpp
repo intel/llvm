@@ -20,6 +20,8 @@
 
 static inline void UMF_CALL_THROWS(umf_result_t res) {
   if (res != UMF_RESULT_SUCCESS) {
+    UR_DFAILURE("some umf call in v2 L0 adapter returned "
+                << res << " instead of success");
     throw res;
   }
 }
@@ -80,9 +82,10 @@ inline umf_usm_memory_type_t urToUmfMemoryType(ur_usm_type_t type) {
     return UMF_MEMORY_TYPE_SHARED;
   case UR_USM_TYPE_HOST:
     return UMF_MEMORY_TYPE_HOST;
-  default:
-    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  case UR_USM_TYPE_UNKNOWN:
+  case UR_USM_TYPE_FORCE_UINT32:; // silence warning, fail below
   }
+  UR_FFAILURE("invalid memory type: " << type);
 }
 
 static usm::DisjointPoolMemType
@@ -93,14 +96,14 @@ descToDisjoinPoolMemType(const usm::pool_descriptor &desc) {
   case UR_USM_TYPE_SHARED: {
     if (desc.deviceReadOnly)
       return usm::DisjointPoolMemType::SharedReadOnly;
-    else
-      return usm::DisjointPoolMemType::Shared;
+    return usm::DisjointPoolMemType::Shared;
   }
   case UR_USM_TYPE_HOST:
     return usm::DisjointPoolMemType::Host;
-  default:
-    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  case UR_USM_TYPE_UNKNOWN:
+  case UR_USM_TYPE_FORCE_UINT32:; // silence warning, fail below
   }
+  UR_FFAILURE("invalid memory type: " << desc.type);
 }
 
 static umf::provider_unique_handle_t
@@ -143,6 +146,7 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
   auto [ret, provider] =
       umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), hParams);
   if (ret != UMF_RESULT_SUCCESS) {
+    UR_DFAILURE("umf::providerMakeUniqueFromOps failed with " << ret);
     throw umf::umf2urResult(ret);
   }
 

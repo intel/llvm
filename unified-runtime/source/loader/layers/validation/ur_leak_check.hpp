@@ -23,10 +23,10 @@ private:
   struct RefRuntimeInfo {
     int64_t refCount;
     std::type_index type;
-    std::vector<BacktraceLine> backtrace;
+    std::vector<ur::BacktraceLine> backtrace;
 
     RefRuntimeInfo(int64_t refCount, std::type_index type,
-                   std::vector<BacktraceLine> backtrace)
+                   std::vector<ur::BacktraceLine> backtrace)
         : refCount(refCount), type(type), backtrace(std::move(backtrace)) {}
   };
 
@@ -54,7 +54,7 @@ private:
       if (it == counts.end()) {
         std::tie(it, std::ignore) = counts.emplace(
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
-                                getCurrentBacktrace()});
+                                ur::getCurrentBacktrace()});
         if (isAdapterHandle) {
           adapterCount++;
         }
@@ -66,7 +66,7 @@ private:
       if (it == counts.end()) {
         std::tie(it, std::ignore) = counts.emplace(
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
-                                getCurrentBacktrace()});
+                                ur::getCurrentBacktrace()});
       } else {
         getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, __FILE__,
                                  UR_STR_(__LINE__), "Handle {} already exists",
@@ -88,7 +88,7 @@ private:
       if (it == counts.end()) {
         std::tie(it, std::ignore) = counts.emplace(
             ptr, RefRuntimeInfo{-1, std::type_index(typeid(handle)),
-                                getCurrentBacktrace()});
+                                ur::getCurrentBacktrace()});
       } else {
         it->second.refCount--;
       }

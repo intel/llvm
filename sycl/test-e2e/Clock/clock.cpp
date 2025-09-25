@@ -3,6 +3,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20146
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/clock.hpp>
 #include <sycl/usm.hpp>

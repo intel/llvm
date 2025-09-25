@@ -534,6 +534,8 @@ operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_copy_input_types_t value);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -11407,6 +11409,31 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_copy_input_types_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_copy_input_types_t value) {
+  switch (value) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_sampler_cubemap_filter_mode_t type
 /// @returns
 ///     std::ostream &
@@ -18316,6 +18343,11 @@ inline std::ostream &operator<<(
 
   ur::details::printFlag<ur_exp_image_copy_flag_t>(os,
                                                    *(params->pimageCopyFlags));
+
+  os << ", ";
+  os << ".imageCopyInputTypes = ";
+
+  os << *(params->pimageCopyInputTypes);
 
   os << ", ";
   os << ".numEventsInWaitList = ";

@@ -15,8 +15,8 @@
 
 namespace llvm {
 
-class SanitizerKernelMetadataPass
-    : public PassInfoMixin<SanitizerKernelMetadataPass> {
+class SanitizerPostOptimizerPass
+    : public PassInfoMixin<SanitizerPostOptimizerPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };

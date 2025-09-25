@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// UNSUPPORTED: run-mode && arch-intel_gpu_pvc && !igc-dev
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19585
+// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
 
 // RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O2 -g -o %t1.out
 // RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:1 %{run} %t1.out 2>&1 | FileCheck %s

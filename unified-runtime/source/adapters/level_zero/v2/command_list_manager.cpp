@@ -715,6 +715,7 @@ static void *getGlobalPointerFromModule(ze_module_handle_t hModule,
   ZE2UR_CALL_THROWS(zeModuleGetGlobalPointer,
                     (hModule, name, &globalVarSize, &globalVarPtr));
   if (globalVarSize < offset + count) {
+    UR_DFAILURE("Write device global variable is out of range");
     setErrorMessage("Write device global variable is out of range.",
                     UR_RESULT_ERROR_INVALID_VALUE,
                     static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
@@ -820,8 +821,7 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     commandType = UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP;
     break;
   default:
-    UR_LOG(ERR, "enqueueUSMAllocHelper: unsupported USM type");
-    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+    UR_FFAILURE("enqueueUSMAllocHelper: unsupported USM type:" << type);
   }
 
   auto zeSignalEvent = getSignalEvent(phEvent, commandType);
@@ -894,16 +894,19 @@ ur_result_t ur_command_list_manager::bindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent) {
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t phEvent) {
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   return bindlessImagesHandleCopyFlags(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, getZeCommandList(),
-      zeSignalEvent, waitListView.num, waitListView.handles);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      getZeCommandList(), zeSignalEvent, waitListView.num,
+      waitListView.handles);
 }
 
 ur_result_t ur_command_list_manager::bindlessImagesWaitExternalSemaphoreExp(

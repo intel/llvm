@@ -13,5 +13,7 @@
 
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "bfloat16_conversion_test.hpp"

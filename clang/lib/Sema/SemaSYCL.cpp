@@ -6626,10 +6626,12 @@ class FreeFunctionPrinter {
   raw_ostream &O;
   PrintingPolicy &Policy;
   bool NSInserted = false;
+  ASTContext &Context;
 
 public:
-  FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &PrintPolicy)
-      : O(O), Policy(PrintPolicy) {}
+  FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &PrintPolicy,
+                      ASTContext &Context)
+      : O(O), Policy(PrintPolicy), Context(Context) {}
 
   /// Emits the function declaration of template free function.
   /// \param FTD The function declaration to print.
@@ -6822,22 +6824,46 @@ private:
         continue;
       }
 
-      TemplateName TN = TST->getTemplateName();
-      auto SpecArgs = TST->template_arguments();
-      auto DeclArgs = CTST->template_arguments();
-
-      TN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
+      TemplateName CTN = CTST->getTemplateName();
+      CTN.getAsTemplateDecl()->printQualifiedName(ParmListOstream);
       ParmListOstream << "<";
+
+      ArrayRef<TemplateArgument> SpecArgs = TST->template_arguments();
+      ArrayRef<TemplateArgument> DeclArgs = CTST->template_arguments();
+
+      auto TemplateArgPrinter = [&](const TemplateArgument &Arg) {
+        if (Arg.getKind() != TemplateArgument::ArgKind::Expression ||
+            Arg.isInstantiationDependent()) {
+          Arg.print(Policy, ParmListOstream, /* IncludeType = */ false);
+          return;
+        }
+
+        Expr *E = Arg.getAsExpr();
+        assert(E && "Failed to get an Expr for an Expression template arg?");
+        if (E->getType().getTypePtr()->isScopedEnumeralType()) {
+          // Scoped enumerations can't be implicitly cast from integers, so
+          // we don't need to evaluate them.
+          Arg.print(Policy, ParmListOstream, /* IncludeType = */ false);
+          return;
+        }
+
+        Expr::EvalResult Res;
+        [[maybe_unused]] bool Success =
+            Arg.getAsExpr()->EvaluateAsConstantExpr(Res, Context);
+        assert(Success && "invalid non-type template argument?");
+        assert(!Res.Val.isAbsent() && "couldn't read the evaulation result?");
+        Res.Val.printPretty(ParmListOstream, Policy, Arg.getAsExpr()->getType(),
+                            &Context);
+      };
 
       for (size_t I = 0, E = std::max(DeclArgs.size(), SpecArgs.size()),
                   SE = SpecArgs.size();
            I < E; ++I) {
         if (I != 0)
           ParmListOstream << ", ";
-        if (I < SE) // A specialized argument exists, use it
-          SpecArgs[I].print(Policy, ParmListOstream, false /* IncludeType */);
-        else // Print a canonical form of a default argument
-          DeclArgs[I].print(Policy, ParmListOstream, false /* IncludeType */);
+        // If we have a specialized argument, use it. Otherwise fallback to a
+        // default argument.
+        TemplateArgPrinter(I < SE ? SpecArgs[I] : DeclArgs[I]);
       }
 
       ParmListOstream << ">";
@@ -7236,7 +7262,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
-    FreeFunctionPrinter FFPrinter(O, Policy);
+    FreeFunctionPrinter FFPrinter(O, Policy, S.getASTContext());
     if (FTD) {
       FFPrinter.printFreeFunctionDeclaration(FTD);
       if (const auto kind = K.SyclKernel->getTemplateSpecializationKind();
