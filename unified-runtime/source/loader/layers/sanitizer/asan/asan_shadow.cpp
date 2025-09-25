@@ -226,6 +226,11 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
         VirtualMemMaps[MappedPtr] = PhysicalMem;
       }
     }
+
+    ShadowLowerBound =
+        std::min(ShadowLowerBound, RoundDownTo(ShadowBegin, PageSize));
+    ShadowUpperBound =
+        std::max(ShadowUpperBound, RoundUpTo(ShadowEnd, PageSize));
   }
 
   auto URes = EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
