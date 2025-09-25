@@ -1238,6 +1238,9 @@ private:
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 const KernelType &KernelFunc) {
+    (void)Props;
+    (void)UserRange;
+    (void)KernelFunc;
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1251,6 +1254,13 @@ private:
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
                             "a range must fit within size_t");
+    verifyUsedKernelBundleInternal(Info.Name);
+    processProperties<Info.IsESIMD, PropertiesT>(Props);
+    // Even if range rounding will be used, there will still be items/ids
+    // constructed in the range rounded kernel that use items/ids in the
+    // user range, which means that __SYCL_ASSUME_INT can still be violated.
+    // So check the bounds of the user range regardless.
+    detail::checkValueRange<Dims>(UserRange);
 #endif
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
@@ -1280,9 +1290,7 @@ private:
         "invocable with sycl::item and optionally sycl::kernel_handler");
 
     // Range rounding can be disabled by the user.
-    // Range rounding is supported only for newer SYCL standards.
-#if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
-    SYCL_LANGUAGE_VERSION >= 202012L
+#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
     auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
     if (HasRoundedRange) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
@@ -1300,23 +1308,13 @@ private:
       detail::KernelLaunchPropertyWrapper::parseProperties<KName>(this,
                                                                   Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(Info.Name);
-      // We are executing over the rounded range, but there are still
-      // items/ids that are are constructed in ther range rounded
-      // kernel use items/ids in the user range, which means that
-      // __SYCL_ASSUME_INT can still be violated. So check the bounds
-      // of the user range, instead of the rounded range.
-      detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
 #endif
     } else
-#endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
-       // SYCL_LANGUAGE_VERSION >= 202012L
+#endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
     {
-      (void)UserRange;
-      (void)Props;
 #ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
       // If parallel_for range rounding is forced then only range rounded
       // kernel is generated
@@ -1325,16 +1323,11 @@ private:
       detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(this,
                                                                   KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      verifyUsedKernelBundleInternal(Info.Name);
-      processProperties<Info.IsESIMD, PropertiesT>(Props);
-      detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
 #endif
-#else
-      (void)KernelFunc;
-#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+#endif // !__SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     }
   }
 
