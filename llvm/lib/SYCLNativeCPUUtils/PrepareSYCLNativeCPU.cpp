@@ -404,7 +404,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
     NewF->setLinkage(llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage);
-    if (O3 && !NewF->hasFnAttribute(Attribute::NoInline)) {
+    if (OptLevel == OptimizationLevel::O3 &&
+        !NewF->hasFnAttribute(Attribute::NoInline)) {
       if (!NewF->hasFnAttribute(Attribute::AlwaysInline))
         NewF->addFnAttr(Attribute::AlwaysInline);
     }
