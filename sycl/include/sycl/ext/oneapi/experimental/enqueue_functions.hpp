@@ -110,16 +110,6 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
   return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 
-template <typename KernelName, typename PropertiesT, typename KernelType,
-          int Dims>
-void submit_kernel_direct_impl(const queue &Q, PropertiesT Props,
-                               nd_range<Dims> Range,
-                               const KernelType &KernelFunc,
-                               const sycl::detail::code_location &CodeLoc) {
-  Q.submit_kernel_direct_without_event<KernelName, PropertiesT, KernelType,
-                                       Dims>(Props, Range, KernelFunc, CodeLoc);
-}
-
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -135,17 +125,6 @@ void submit(const queue &Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
   submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
-}
-
-template <typename KernelName = sycl::detail::auto_name, typename PropertiesT,
-          typename KernelType, int Dims>
-void submit(const queue &Q, PropertiesT Props, nd_range<Dims> Range,
-            const KernelType &KernelFunc,
-            const sycl::detail::code_location &CodeLoc =
-                sycl::detail::code_location::current()) {
-  sycl::ext::oneapi::experimental::detail::submit_kernel_direct_impl<
-      KernelName, PropertiesT, KernelType, Dims>(Q, Props, Range, KernelFunc,
-                                                 CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -283,7 +262,8 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   if constexpr (sizeof...(ReductionsT) == 0) {
-    submit<KernelName>(std::move(Q), empty_properties_t{}, Range, KernelObj);
+    detail::submit_kernel_direct_without_event<KernelName>(
+        std::move(Q), empty_properties_t{}, Range, KernelObj);
   } else {
 #endif
     submit(std::move(Q), [&](handler &CGH) {
@@ -318,8 +298,9 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
         ConfigAccess(Config);
-    submit<KernelName>(std::move(Q), ConfigAccess.getProperties(),
-                       ConfigAccess.getRange(), KernelObj);
+    detail::submit_kernel_direct_without_event<KernelName>(
+        std::move(Q), ConfigAccess.getProperties(), ConfigAccess.getRange(),
+        KernelObj);
   } else {
 #endif
     submit(std::move(Q), [&](handler &CGH) {
