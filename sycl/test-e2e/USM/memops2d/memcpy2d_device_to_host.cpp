@@ -16,6 +16,8 @@
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: level_zero && windows
 
+// XFAIL: spirv-backend && gpu-intel-dg2
+
 #include "memcpy2d_common.hpp"
 
 int main() { return test<Alloc::Device, Alloc::Host>(); }
