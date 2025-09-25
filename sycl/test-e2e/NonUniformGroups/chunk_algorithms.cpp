@@ -13,6 +13,7 @@
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/group_algorithm.hpp>
