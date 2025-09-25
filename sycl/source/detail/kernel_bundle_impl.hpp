@@ -580,7 +580,7 @@ public:
           "kernel_bundle state does not match the state of the SYCLBIN file.");
 
     std::vector<const detail::RTDeviceBinaryImage *> BestImages =
-        SYCLBIN->getBestCompatibleImages(Devs);
+        SYCLBIN->getBestCompatibleImages(Devs, State);
     MDeviceImages.reserve(BestImages.size());
     for (const detail::RTDeviceBinaryImage *Image : BestImages)
       MDeviceImages.emplace_back(device_image_impl::create(

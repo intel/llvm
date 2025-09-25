@@ -8,6 +8,10 @@
 
 // REQUIRES: aspect-usm_device_allocations
 
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: CUDA and HIP targets produce only native device
+// binaries and can therefore not produce input-state SYCLBIN files.
+
 // -- Basic test for compiling and loading a SYCLBIN kernel_bundle in input
 // -- state.
 
