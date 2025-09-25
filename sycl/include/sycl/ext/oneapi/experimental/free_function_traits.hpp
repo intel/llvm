@@ -8,6 +8,7 @@
 
 #pragma once
 #include <type_traits>
+#include <sycl/detail/kernel_desc.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -48,24 +49,12 @@ inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 namespace detail {
 // A struct with special type is a struct type that contains special types.
 // The frontend defines this trait to be true after analyzing the struct at
-// compile time.
+// compile time and contains information about Offset, Size and kind(accessor,
+// etc...) inside the struct
 template <typename T> struct is_struct_with_special_type {
-  inline static constexpr bool value = false;
-};
-
-// This struct is made to be specialized in the integration header.
-// It calls set_arg for every member of contained in the struct at
-// any level of composition. So if type Foo contains two accessors and an
-// integer inside and the user calls set_arg(Foo) which calls this function with
-// T = Foo which will call set_arg for each of those two accessors and the int.
-// The function stores in NumArgs the number of set_arg calls that it made so
-// that subsequent set_arg calls initiated by the user can have the correct
-// index.
-template <typename T> struct struct_with_special_type_info {
-  template <typename ArgT, typename HandlerT>
-  static void set_arg([[maybe_unused]] int ArgIndex, [[maybe_unused]] ArgT &arg,
-                      [[maybe_unused]] HandlerT &cgh,
-                      [[maybe_unused]] int &NumArgs) {}
+  static constexpr bool value = false;
+  static constexpr size_t offsetsSizes[2][];
+  static constexpr detail::kernel_param_kind_t kinds[];
 };
 
 } // namespace detail

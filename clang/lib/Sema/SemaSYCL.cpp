@@ -1771,6 +1771,11 @@ protected:
   SemaSYCL &SemaSYCLRef;
   SyclKernelFieldHandler(SemaSYCL &S) : SemaSYCLRef(S) {}
 
+  // Holds the last handled kernel struct parameter that contains a special
+  // type. Set in the enterStruct functions. Only relevant for free function
+  // kernels
+  ParmVarDecl *TopLevelStruct = nullptr;
+
   // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
   // is an element of an array. FD will always be the array field. When
   // traversing the array field, Ty will be the type of the array field or the
@@ -1778,6 +1783,8 @@ protected:
   bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
     return !SemaSYCLRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
+
+  ParmVarDecl *getTopLevelStructForCurrentField() { return TopLevelStruct; }
 };
 
 // A class to represent the 'do nothing' case for filtering purposes.
@@ -2696,9 +2703,6 @@ public:
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   FunctionDecl *KernelDecl = nullptr;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
-  // Holds the last handled kernel struct parameter that contains a special
-  // type. Set in the enterStruct functions.
-  ParmVarDecl *CurrentStruct;
   Sema::ContextRAII FuncContext;
   // Holds the last handled field's first parameter. This doesn't store an
   // iterator as push_back invalidates iterators.
@@ -2971,7 +2975,7 @@ public:
     ++StructDepth;
     StringRef Name = "_arg_struct";
     addParam(Name, Ty);
-    CurrentStruct = Params.back();
+    TopLevelStruct = Params.back();
     return true;
   }
 
@@ -3171,7 +3175,6 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  ParmVarDecl *getParentStructForCurrentField() { return CurrentStruct; }
 };
 
 // This Visitor traverses the AST of the function with
@@ -4523,17 +4526,14 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     // Being inside this function means there is a struct parameter to the free
     // function kernel that contains a special type.
-    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
-    Expr *Base = createParamReferenceExpr(ParentStruct);
+    Expr *Base = createParamReferenceExpr(TopLevelStruct);
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
-    for (auto it = CurrentStructs.rbegin(); it != CurrentStructs.rend(); ++it)
-      SemaSYCLRef.addStructWithSpecialType((*it)->getParent());
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
     createSpecialMethodCall(FieldTy->getAsCXXRecordDecl(), InitMethodName,
                             MemberAccess, BodyStmts);
-    SemaSYCLRef.addStructWithSpecialType(FD->getParent());
+    SemaSYCLRef.addStructWithSpecialType(TopLevelStruct->getOriginalType()->getAsCXXRecordDecl());
     return true;
   }
 
@@ -4672,9 +4672,8 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    ParmVarDecl *ParentStruct = DeclCreator.getParentStructForCurrentField();
     ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        ParentStruct, ParentStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
+        TopLevelStruct, TopLevelStruct->getType(), VK_PRValue, FreeFunctionSrcLoc));
     return true;
   }
 
@@ -4738,6 +4737,13 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
+  // For every struct that contains a special type, record the offset and size
+  // of every special type inside of it at any nesting level. Store the
+  // information in the variable below.
+  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
+      OffsetSizeInfo;
+  // Likewise for the kind of a special type i.e accessor etc...
+  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<SYCLIntegrationHeader::kernel_param_kind_t>> KindInfo;
   int StructDepth = 0;
 
   // A series of functions to calculate the change in offset based on the type.
@@ -4759,7 +4765,11 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
-    addParam(ArgTy, Kind, offsetOf(FD, ArgTy));
+    // If we are dealing with a field of a free function kernel parameter struct
+    // do not add the parameter. The offset, Size, Kind information has been
+    // stored in OffsetSizeInfo and KindInfo
+    if (TopLevelStruct)
+      addParam(ArgTy, Kind, offsetOf(FD, ArgTy));
   }
 
   // For free functions we increment the current offset as each parameter is
@@ -4837,6 +4847,16 @@ public:
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
+    // If TopLevelStruct is set, it means we are traversing the fields of a free
+    // function parameter struct. In this case, we simply record the current
+    // field's offset and size in OffsetSizeInfo and Kind in KindInfo.
+    if (TopLevelStruct) {
+      OffsetSizeInfo[TopLevelStruct].emplace_back(
+          make_pair(offsetOf(FD, FieldTy), SemaSYCLRef.getASTContext()
+                                               .getTypeSizeInChars(FieldTy)
+                                               .getQuantity()));
+    }
+
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
     if (isSyclAccessorType(FieldTy)) {
@@ -4852,17 +4872,22 @@ public:
           SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
               ? SYCLIntegrationHeader::kind_dynamic_accessor
               : SYCLIntegrationHeader::kind_accessor;
-
       Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
+      KindInfo[TopLevelStruct].emplace_back(ParamKind);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+      KindInfo[TopLevelStruct].emplace_back(SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
                offsetOf(FD, FieldTy));
+      KindInfo[TopLevelStruct].emplace_back(
+          SYCLIntegrationHeader::kind_work_group_memory);
     } else if (SemaSYCL::isSyclType(FieldTy,
                                     SYCLTypeAttr::dynamic_work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_dynamic_work_group_memory,
                offsetOf(FD, FieldTy));
+      KindInfo[TopLevelStruct].emplace_back(
+          SYCLIntegrationHeader::kind_dynamic_work_group_memory);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
@@ -4877,6 +4902,7 @@ public:
               : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
                                     : SYCLIntegrationHeader::kind_std_layout);
       addParam(T, ParamKind, offsetOf(FD, FieldTy));
+      KindInfo[TopLevelStruct].emplace_back(ParamKind);
     } else {
       llvm_unreachable(
           "Unexpected SYCL special class when generating integration header");
@@ -4927,146 +4953,148 @@ public:
     return true;
   }
 
-  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy,
-             ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
-                            : SYCLIntegrationHeader::kind_pointer));
-    return true;
-  }
+    bool handlePointerType(FieldDecl * FD, QualType FieldTy) final {
+      addParam(FD, FieldTy,
+               ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
+                              : SYCLIntegrationHeader::kind_pointer));
+      return true;
+    }
 
-  bool handlePointerType(ParmVarDecl *PD, QualType ParamTy) final {
-    addParam(PD, ParamTy, SYCLIntegrationHeader::kind_pointer);
-    return true;
-  }
+    bool handlePointerType(ParmVarDecl * PD, QualType ParamTy) final {
+      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_pointer);
+      return true;
+    }
 
-  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
+    bool handleScalarType(FieldDecl * FD, QualType FieldTy) final {
+      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+      return true;
+    }
 
-  bool handleScalarType(ParmVarDecl *PD, QualType ParamTy) final {
-    addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
+    bool handleScalarType(ParmVarDecl * PD, QualType ParamTy) final {
+      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
+      return true;
+    }
 
-  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    // Arrays are always wrapped inside of structs, so just treat it as a simple
-    // struct.
-    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
+    bool handleSimpleArrayType(FieldDecl * FD, QualType FieldTy) final {
+      // Arrays are always wrapped inside of structs, so just treat it as a
+      // simple struct.
+      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+      return true;
+    }
 
-  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
-    addParam(Ty, SYCLIntegrationHeader::kind_std_layout, /*Offset=*/0);
-    return true;
-  }
+    bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+      addParam(Ty, SYCLIntegrationHeader::kind_std_layout, /*Offset=*/0);
+      return true;
+    }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
-                             QualType Ty) final {
-    addParam(FD, Ty, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
+    bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                               QualType Ty) final {
+      addParam(FD, Ty, SYCLIntegrationHeader::kind_std_layout);
+      return true;
+    }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
-                             QualType ParamTy) final {
-    addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
-    return true;
-  }
+    bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
+                               QualType ParamTy) final {
+      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
+      return true;
+    }
 
-  bool handleNonDecompStruct(const CXXRecordDecl *Base,
-                             const CXXBaseSpecifier &, QualType Ty) final {
-    addParam(Ty, SYCLIntegrationHeader::kind_std_layout,
-             offsetOf(Base, Ty->getAsCXXRecordDecl()));
-    return true;
-  }
+    bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                               const CXXBaseSpecifier &, QualType Ty) final {
+      addParam(Ty, SYCLIntegrationHeader::kind_std_layout,
+               offsetOf(Base, Ty->getAsCXXRecordDecl()));
+      return true;
+    }
 
-  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
-    return handleScalarType(FD, FieldTy);
-  }
+    bool handleUnionType(FieldDecl * FD, QualType FieldTy) final {
+      return handleScalarType(FD, FieldTy);
+    }
 
-  bool handleUnionType(ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool handleUnionType(ParmVarDecl *, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  void handleSyclKernelHandlerType(QualType) {
-    // The compiler generated kernel argument used to initialize SYCL 2020
-    // specialization constants, `specialization_constants_buffer`, should
-    // have corresponding entry in integration header.
-    ASTContext &Context = SemaSYCLRef.getASTContext();
-    // Offset is zero since kernel_handler argument is not part of
-    // kernel object (i.e. it is not captured)
-    addParam(Context.getPointerType(Context.CharTy),
-             SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
-  }
+    void handleSyclKernelHandlerType(QualType) {
+      // The compiler generated kernel argument used to initialize SYCL 2020
+      // specialization constants, `specialization_constants_buffer`, should
+      // have corresponding entry in integration header.
+      ASTContext &Context = SemaSYCLRef.getASTContext();
+      // Offset is zero since kernel_handler argument is not part of
+      // kernel object (i.e. it is not captured)
+      addParam(Context.getPointerType(Context.CharTy),
+               SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
+    }
 
-  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    ++StructDepth;
-    CurOffset += offsetOf(FD, Ty);
-    return true;
-  }
+    bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+      ++StructDepth;
+      CurOffset += offsetOf(FD, Ty);
+      return true;
+    }
 
-  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
-    addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
-    return true;
-  }
+    bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty)
+        final {
+      addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
+      TopLevelStruct = PD;
+      return true;
+    }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-    --StructDepth;
-    CurOffset -= offsetOf(FD, Ty);
-    return true;
-  }
+    bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+      --StructDepth;
+      CurOffset -= offsetOf(FD, Ty);
+      return true;
+    }
 
-  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    return true;
-  }
+    bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+      return true;
+    }
 
-  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
-                   QualType) final {
-    CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
-    return true;
-  }
+    bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                     QualType) final {
+      CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
+      return true;
+    }
 
-  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
-                   QualType) final {
-    CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
-    return true;
-  }
+    bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                     QualType) final {
+      CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
+      return true;
+    }
 
-  bool enterArray(FieldDecl *FD, QualType ArrayTy, QualType) final {
-    ArrayBaseOffsets.push_back(CurOffset + offsetOf(FD, ArrayTy));
-    return true;
-  }
+    bool enterArray(FieldDecl * FD, QualType ArrayTy, QualType) final {
+      ArrayBaseOffsets.push_back(CurOffset + offsetOf(FD, ArrayTy));
+      return true;
+    }
 
-  bool enterArray(ParmVarDecl *, QualType, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool enterArray(ParmVarDecl *, QualType, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  bool nextElement(QualType ET, uint64_t Index) final {
-    int64_t Size =
-        SemaSYCLRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-    CurOffset = ArrayBaseOffsets.back() + Size * Index;
-    return true;
-  }
+    bool nextElement(QualType ET, uint64_t Index) final {
+      int64_t Size =
+          SemaSYCLRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+      CurOffset = ArrayBaseOffsets.back() + Size * Index;
+      return true;
+    }
 
-  bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType) final {
-    CurOffset = ArrayBaseOffsets.pop_back_val();
-    CurOffset -= offsetOf(FD, ArrayTy);
-    return true;
-  }
+    bool leaveArray(FieldDecl * FD, QualType ArrayTy, QualType) final {
+      CurOffset = ArrayBaseOffsets.pop_back_val();
+      CurOffset -= offsetOf(FD, ArrayTy);
+      return true;
+    }
 
-  bool leaveArray(ParmVarDecl *, QualType, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
-  }
+    bool leaveArray(ParmVarDecl *, QualType, QualType) final {
+      // TODO
+      unsupportedFreeFunctionParamType();
+      return true;
+    }
 
-  using SyclKernelFieldHandler::enterStruct;
-  using SyclKernelFieldHandler::leaveStruct;
-};
+    using SyclKernelFieldHandler::enterStruct;
+    using SyclKernelFieldHandler::leaveStruct;
+  };
 
 class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
   SYCLIntegrationFooter &Footer;
@@ -7188,60 +7216,39 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       Policy.SuppressTagKeyword = true;
       type.print(O, Policy);
       O << "> {\n";
-      O << " inline static constexpr bool value = true;\n};\n\n";
-      // Now we define the set_arg function for this struct that contains
-      // special types. It takes the handler as an argument so that we can
-      // ultimately call set_arg on the handler for each member
-      // contained in the struct. First, emit needed forward declarations for
-      // all types contained in the struct by doing a depth first search
-      // exploration of the struct. Also collect the offsets of all the
-      // members inside the struct while we're at it so that we can call
-      // set_arg for each one of those.
-      llvm::SmallVector<std::pair<const FieldDecl *, uint64_t>, 8> offsets;
-      llvm::SmallVector<const RecordDecl *, 8> dfs;
-      dfs.emplace_back(Struct);
-      while (!dfs.empty()) {
-        const auto top = dfs.pop_back_val();
-        for (const auto member : top->fields()) {
-          if (isSyclSpecialType(member->getType(), S) ||
-              !member->getType()->isStructureType()) {
-            FwdDeclEmitter.Visit(
-                member->getType().getDesugaredType(S.getASTContext()));
-            offsets.emplace_back(std::make_pair(
-                member, S.getASTContext().getFieldOffset(member) / 8));
-          } else if (member->getType()->isStructureType()) {
-            dfs.emplace_back(
-                member->getType()->getAsStructureType()->getDecl());
-          }
+      O << " inline static constexpr bool value = true;\n";
+      O << " static constexpr size_t offsetsSizes[2][] = {\n";
+      for (const auto OffsetSize : OffsetSizeInfo[Param]) {
+        O << "{ " << OffsetSize.first << ", " << OffsetSize.second << "},\n ";
+      }
+      O << "{-1, -1} } \n};\n\n ";
+      O << " static constexpr sycl::detail::kernel_param_kind_t kinds[] = {\n";
+      for (const auto Kind : KindInfo[Param]) {
+        switch (Kind) {
+        case SYCLIntegrationHeader::kind_accessor:
+          O << "sycl::detail::kernel_param_kind_t::kind_accessor,\n";
+          break;
+        case SYCLIntegrationHeader::kind_sampler:
+          O << "sycl::detail::kernel_param_kind_t::kind_accessor,\n";
+          break;
+        case SYCLIntegrationHeader::kind_pointer:
+          O << "sycl::detail::kernel_param_kind_t::kind_accessor,\n";
+          break;
+        case SYCLIntegrationHeader::kind_stream:
+          O << "sycl::detail::kernel_param_kind_t::kind_accessor,\n";
+          break;
+        case SYCLIntegrationHeader::kind_work_group_memory:
+          O << "sycl::detail::kernel_param_kind_t::kind_accessor,\n";
+          break;
+        case SYCLIntegrationHeader::kind_dynamic_accessor:
+          O << "sycl::detail::kernel_param_kind_t::kind_accessor,\n";
+          break;
+        default:
         }
+        O << ",\n ";
       }
+      O << "sycl::detail::kernel_param_kind_t::kind_invalid } \n};\n\n ";
 
-      O << "namespace sycl { inline namespace _V1 { namespace ext { "
-           "namespace oneapi { namespace "
-           "experimental { namespace detail { \n";
-      O << "template <> struct struct_with_special_type_info<";
-      type.print(O, Policy);
-      O << "> {\n";
-      O << "template<typename ArgT, typename HandlerT>\n";
-      O << "  static void set_arg(int ArgIndex, ArgT& ";
-      O << "arg";
-      O << ", HandlerT& cgh, int &NumArgs) {\n";
-      int NumFields = 0;
-      for (const auto fieldoffset : offsets) {
-        O << "    cgh.set_arg(ArgIndex, *(";
-        fieldoffset.first->getType().print(O, Policy);
-        O << " *)";
-        O << "((char *)(&arg) + " << fieldoffset.second << ")";
-        O << ");\n";
-        O << "    ++ArgIndex;\n";
-        ++NumFields;
-      }
-      O << "    NumArgs = " << NumFields << ";\n";
-      O << "  }\n};\n} // namespace detail \n} // namespace experimental "
-           "\n} "
-           "// namespace oneapi \n} // namespace ext \n} // namespace "
-           "_V1\n} "
-           "// namespace sycl\n\n";
       visitedStructWithSpecialType[Struct] = true;
     }
     Policy.SuppressTagKeyword = false;
