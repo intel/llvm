@@ -5377,6 +5377,8 @@ bool CompilerInvocation::CreateFromArgsImpl(
   if (LangOpts.SYCLIsDevice) {
     // Set the triple of the host for SYCL device compile.
     Res.getTargetOpts().HostTriple = Res.getFrontendOpts().AuxTriple;
+    // Set the atomic profile update flag to increment counters atomically.
+    Res.getCodeGenOpts().AtomicProfileUpdate = true;
     // If specified, create empty integration header files for now.
     CreateEmptyFile(LangOpts.SYCLIntHeader);
     CreateEmptyFile(LangOpts.SYCLIntFooter);
