@@ -2469,7 +2469,7 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
 std::vector<DeviceGlobalMapEntry *>
 ProgramManager::getProfileCounterDeviceGlobalEntries(
     const context_impl *CtxImpl) {
-  std::vector<DeviceGlobalMapEntry *> ProfileCounters =
+  const std::vector<DeviceGlobalMapEntry *> ProfileCounters =
       ProgramManager::getInstance().m_DeviceGlobals.getProfileCounterEntries();
   std::vector<DeviceGlobalMapEntry *> FoundEntries;
   for (const auto &DGEntry : ProfileCounters) {

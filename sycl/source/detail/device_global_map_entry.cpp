@@ -79,22 +79,21 @@ void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
     return std::strtoull(MUniqueId.substr(PrefixSize).c_str(), nullptr,
                          DecimalBase);
   }();
-  for (device_impl &Device : CtxImpl->getDevices()) {
+  for (const device_impl &Device : CtxImpl->getDevices()) {
     auto USMPtrIt = MDeviceToUSMPtrMap.find({&Device, CtxImpl});
     if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
 
-      // Get the increments from the USM pointer
+      // Get the increments from the USM pointer.
       std::vector<std::uint64_t> Increments(NumCounters);
       const std::uint64_t *Counters = static_cast<std::uint64_t *>(USMMem.MPtr);
       for (std::size_t I = 0; I < NumCounters; ++I)
-        Increments[I] += Counters[I];
+        Increments[I] = Counters[I];
 
-      // Call the weak symbol to update the profile counters
-      if (__sycl_increment_profile_counters) {
+      // Call the weak symbol to update the profile counters.
+      if (__sycl_increment_profile_counters)
         __sycl_increment_profile_counters(FnHash, Increments.size(),
                                           Increments.data());
-      }
 
       // Free the USM memory and release the event if it exists.
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);

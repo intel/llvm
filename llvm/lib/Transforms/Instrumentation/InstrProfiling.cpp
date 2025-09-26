@@ -1126,9 +1126,10 @@ Value *InstrLowerer::getCounterAddress(InstrProfCntrInstBase *I) {
                                     Counters, "pgocount.addr");
     const std::uint64_t Index = I->getIndex()->getZExtValue();
     if (Index > 0) {
-      auto *Offset = Builder.getInt64(I->getIndex()->getZExtValue());
-      auto *AddrWithOffset = Builder.CreateGEP(Type::getInt64Ty(M.getContext()),
-                                               Addr, Offset, "pgocount.addr");
+      auto *Offset = Builder.getInt64(I->getIndex()->getZExtValue() *
+                                      sizeof(std::uint64_t));
+      auto *AddrWithOffset =
+          Builder.CreatePtrAdd(Addr, Offset, "pgocount.offset");
       return AddrWithOffset;
     }
     return Addr;
@@ -1686,12 +1687,7 @@ InstrLowerer::createRegionCounters(InstrProfCntrInstBase *Inc, StringRef Name,
                             Constant::getNullValue(StructTy), Name);
     const std::uint64_t FnHash = IndexedInstrProf::ComputeHash(
         getPGOFuncNameVarInitializer(Inc->getName()));
-    const std::string FnName = [&] {
-      auto *Arr = cast<ConstantDataArray>(Inc->getName()->getInitializer());
-      StringRef NameStr =
-          Arr->isCString() ? Arr->getAsCString() : Arr->getAsString();
-      return std::string{"__profc_"} + std::to_string(FnHash);
-    }();
+    const std::string FnName = std::string{"__profc_"} + std::to_string(FnHash);
     GV->addAttribute("sycl-unique-id", FnName);
     GV->addAttribute("sycl-device-global-size", Twine(NumCounters * 8).str());
     return GV;

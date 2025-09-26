@@ -1,9 +1,9 @@
 // RUN: %{build} -fprofile-instr-generate -fcoverage-mapping -o %t.out
 // RUN: %{run} LLVM_PROFILE_FILE=%t.profraw %t.out
-// RUN: llvm-profdata merge %t.profraw -o %t.profdata
-// RUN: llvm-cov show -instr-profile=%t.profdata %t.out -name="main" | FileCheck %s
+// RUN: %{run-aux} llvm-profdata merge %t.profraw -o %t.profdata
+// RUN: %{run-aux} llvm-cov show -instr-profile=%t.profdata %t.out -name="main" | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue q;
@@ -22,6 +22,7 @@ int main() {
   return 0;
 }
 
+// REQUIRES: target-spir
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 

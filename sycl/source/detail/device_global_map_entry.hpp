@@ -116,7 +116,7 @@ struct DeviceGlobalMapEntry {
   // Returns true if the device_global is a profile counter.
   bool isProfileCounter();
 
-  // Cleans up a profile counter device global
+  // Cleans up a profile counter device global.
   void cleanupProfileCounter(context_impl *CtxImpl);
 
   // Gets or allocates USM memory for a device_global.
