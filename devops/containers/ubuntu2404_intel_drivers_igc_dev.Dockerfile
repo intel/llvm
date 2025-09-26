@@ -17,7 +17,7 @@ RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
     install_driver_opt="dependencies.json dependencies-igc-dev.json --use-dev-igc"; \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh $install_driver_opt --igfx --cpu
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh $install_driver_opt --all
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 

@@ -173,33 +173,12 @@ InstallCPURT () {
   fi
 }
 
-InstallFPGAEmu () {
-  echo "Installing Intel FPGA Fast Emulator..."
-  echo "FPGA Emulator version $FPGA_TAG"
-  mkdir -p $INSTALL_LOCATION
-  cd $INSTALL_LOCATION
-  if [ -d "$INSTALL_LOCATION/fpgaemu" ]; then
-    echo "$INSTALL_LOCATION/fpgaemu exists and will be removed!"
-    rm -Rf $INSTALL_LOCATION/fpgaemu;
-  fi
-  get_release intel/llvm $FPGA_TAG \
-    | grep -E ".*fpgaemu.*tar.gz" \
-    | wget -qi - && \
-    mkdir fpgaemu && tar -xf *.tar.gz -C fpgaemu && rm *.tar.gz
-  if [ -e /runtimes/fpgaemu/install.sh ]; then
-    bash -x /runtimes/fpgaemu/install.sh
-  else
-    echo  /runtimes/fpgaemu/x64/libintelocl_emu.so >  /etc/OpenCL/vendors/intel_fpgaemu.icd
-  fi
-}
-
 if [[ $# -eq 0 ]] ; then
   echo "No options were specified. Please, specify one or more of the following:"
   echo "--all      - Install all Intel drivers"
   echo "--igfx     - Install Intel Graphics drivers"
   echo "--use-dev-igc     - Install development version of Intel Graphics drivers instead"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
-  echo "--fpga-emu - Install Intel FPGA Fast emulator"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi
@@ -217,7 +196,6 @@ while [ "${1:-}" != "" ]; do
       InstallIGFX
       InstallTBB
       InstallCPURT
-      InstallFPGAEmu
       ;;
     "--igfx")
       InstallIGFX
@@ -225,10 +203,6 @@ while [ "${1:-}" != "" ]; do
     "--cpu")
       InstallTBB
       InstallCPURT
-      ;;
-    "--fpga-emu")
-      InstallTBB
-      InstallFPGAEmu
       ;;
   esac
   shift

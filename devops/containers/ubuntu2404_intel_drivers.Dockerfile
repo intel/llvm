@@ -15,7 +15,7 @@ COPY dependencies.json /
 RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh dependencies.json --igfx --cpu
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh dependencies.json --all
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
