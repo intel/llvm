@@ -25,6 +25,7 @@
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
+#include <clang/Frontend/PrecompiledPreamble.h>
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
@@ -78,6 +79,12 @@ class SYCLToolchain {
     }
   }
 
+  struct PrecompiledPreambles {
+    using key = std::pair<std::string /*Opts*/, std::string /*Preamble*/>;
+    std::mutex Mutex;
+    std::map<key, std::shared_ptr<PrecompiledPreamble>> PreamblesMap;
+  };
+
   // Similar to FrontendActionFactory, but we don't take ownership of
   // `FrontendAction`, nor do we create copies of it as we only perform a single
   // `ToolInvocation`.
@@ -117,16 +124,135 @@ class SYCLToolchain {
     }
   };
 
+  std::vector<std::string> createCommandLine(const InputArgList &UserArgList,
+                                             BinaryFormat Format,
+                                             std::string_view SourceFilePath) {
+    DerivedArgList DAL{UserArgList};
+    const auto &OptTable = getDriverOptTable();
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+    // User args may contain options not intended for the frontend, but we can't
+    // claim them here to tell the driver they're used later. Hence, suppress
+    // the unused argument warning.
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+      auto [CPU, Features] =
+          Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+      (void)Features;
+      StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                                 : "amdgcn-amd-amdhsa";
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+    }
+
+    ArgStringList ASL;
+    for (Arg *A : DAL)
+      A->render(DAL, ASL);
+    for (Arg *A : UserArgList) {
+      Option Group = A->getOption().getGroup();
+      if (Group.isValid() && Group.getID() == OPT_sycl_rtc_only_Group)
+        continue;
+
+      A->render(UserArgList, ASL);
+    }
+
+    std::vector<std::string> CommandLine;
+    CommandLine.reserve(ASL.size() + 2);
+    CommandLine.emplace_back(ClangXXExe);
+    transform(ASL, std::back_inserter(CommandLine),
+              [](const char *AS) { return std::string{AS}; });
+    CommandLine.emplace_back(SourceFilePath);
+    return CommandLine;
+  }
+
+  class ActionWithPCHPreamble : public Action {
+    std::string CmdLineOpts;
+
+  public:
+    ActionWithPCHPreamble(FrontendAction &FEAction, std::string &&CmdLineOpts)
+        : Action(FEAction), CmdLineOpts(std::move(CmdLineOpts)) {}
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      auto MainFilePath = Invocation->getFrontendOpts().Inputs[0].getFile();
+      auto MainFileBuffer = Files->getBufferForFile(MainFilePath);
+      assert(MainFileBuffer && "Can't get memory buffer for in-memory source?");
+
+      PreambleBounds Bounds = ComputePreambleBounds(
+          Invocation->getLangOpts(), **MainFileBuffer, 100 /* MaxLines */);
+
+      PrecompiledPreambles::key key{
+          std::move(CmdLineOpts),
+          (*MainFileBuffer)->getBuffer().substr(0, Bounds.Size).str()};
+
+      std::shared_ptr<PrecompiledPreamble> Preamble;
+      {
+        PrecompiledPreambles &Preambles = SYCLToolchain::instance().Preambles;
+        std::lock_guard<std::mutex> Lock{Preambles.Mutex};
+        auto [It, Inserted] = Preambles.PreamblesMap.try_emplace(key);
+
+        if (Inserted) {
+          PreambleCallbacks Callbacks;
+          auto DiagIds = llvm::makeIntrusiveRefCnt<DiagnosticIDs>();
+          auto DiagOpts = Invocation->getDiagnosticOpts();
+          auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+              DiagIds, DiagOpts, DiagConsumer, false);
+
+          static std::string StoragePath =
+              (SYCLToolchain::instance().getPrefix() + "/preambles").str();
+          llvm::ErrorOr<PrecompiledPreamble> NewPreamble =
+              PrecompiledPreamble::Build(
+                  *Invocation, MainFileBuffer->get(), Bounds, *Diags,
+                  Files->getVirtualFileSystemPtr(), PCHContainerOps,
+                  /*StorePreamblesInMemory*/ true, StoragePath, Callbacks,
+                  /*AllowASTWithErrors=*/false);
+
+          if (!NewPreamble)
+            return false;
+
+          It->second = std::make_shared<PrecompiledPreamble>(
+              std::move(NewPreamble.get()));
+        }
+
+        Preamble = It->second;
+      } // End lock
+
+      assert(Preamble);
+      assert(Preamble->CanReuse(*Invocation, **MainFileBuffer, Bounds,
+                                Files->getVirtualFileSystem()));
+
+      // FIXME: WHY release????
+      auto Buf = llvm::MemoryBuffer::getMemBufferCopy(
+                     (*MainFileBuffer)->getBuffer(), MainFilePath)
+                     .release();
+
+      auto VFS = Files->getVirtualFileSystemPtr();
+      Preamble->AddImplicitPreamble(*Invocation, VFS, Buf);
+      auto NewFiles = makeIntrusiveRefCnt<FileManager>(
+          Files->getFileSystemOpts(), std::move(VFS));
+
+      return Action::runInvocation(std::move(Invocation), NewFiles.get(),
+                                   std::move(PCHContainerOps), DiagConsumer);
+    }
+  };
+
 public:
   static SYCLToolchain &instance() {
     static SYCLToolchain Instance;
     return Instance;
   }
 
-  bool run(const std::vector<std::string> &CommandLine,
-           FrontendAction &FEAction,
+  bool run(const InputArgList &UserArgList, BinaryFormat Format,
+           const char *SourceFilePath, FrontendAction &FEAction,
            IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
-           DiagnosticConsumer *DiagConsumer = nullptr) {
+           DiagnosticConsumer *DiagConsumer = nullptr,
+           bool UseAutoPCH = false) {
+    std::vector<std::string> CommandLine =
+        createCommandLine(UserArgList, Format, SourceFilePath);
+
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
     FS->pushOverlay(ToolchainFS);
@@ -136,9 +262,14 @@ public:
     auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
         clang::FileSystemOptions{"." /* WorkingDir */}, FS);
 
-    Action A{FEAction};
-    ToolInvocation TI{CommandLine, &A, Files.get(),
-                      std::make_shared<PCHContainerOperations>()};
+    Action Normal{FEAction};
+    ActionWithPCHPreamble WithPreamble{FEAction,
+                                       join(drop_end(CommandLine, 1), " ")};
+    ToolInvocation TI{CommandLine,
+                      UseAutoPCH ? static_cast<Action *>(&WithPreamble)
+                                 : &Normal,
+                      Files.get(), std::make_shared<PCHContainerOperations>()};
+
     TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
 
     return TI.run();
@@ -178,6 +309,8 @@ private:
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
       llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+
+  PrecompiledPreambles Preambles;
 };
 
 class ClangDiagnosticWrapper {
@@ -226,42 +359,6 @@ public:
 
 } // anonymous namespace
 
-static std::vector<std::string>
-createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
-                  std::string_view SourceFilePath) {
-  DerivedArgList DAL{UserArgList};
-  const auto &OptTable = getDriverOptTable();
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  // User args may contain options not intended for the frontend, but we can't
-  // claim them here to tell the driver they're used later. Hence, suppress the
-  // unused argument warning.
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
-
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    auto [CPU, Features] =
-        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-    (void)Features;
-    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
-                                               : "amdgcn-amd-amdhsa";
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
-  }
-
-  ArgStringList ASL;
-  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
-  for_each(UserArgList,
-           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
-
-  std::vector<std::string> CommandLine;
-  CommandLine.reserve(ASL.size() + 2);
-  CommandLine.emplace_back(SYCLToolchain::instance().getClangXXExe());
-  transform(ASL, std::back_inserter(CommandLine),
-            [](const char *AS) { return std::string{AS}; });
-  CommandLine.emplace_back(SourceFilePath);
-  return CommandLine;
-}
-
 static llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
 getInMemoryFS(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles) {
   auto InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
@@ -282,9 +379,6 @@ Expected<std::string> jit_compiler::calculateHash(
     InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
-
-  std::vector<std::string> CommandLine =
-      createCommandLine(UserArgList, Format, SourceFile.Path);
 
   class HashPreprocessedAction : public PreprocessorFrontendAction {
   protected:
@@ -315,7 +409,8 @@ Expected<std::string> jit_compiler::calculateHash(
   BLAKE3 Hasher;
   HashPreprocessedAction HashAction{Hasher};
 
-  if (!SYCLToolchain::instance().run(CommandLine, HashAction,
+  if (!SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path,
+                                     HashAction,
                                      getInMemoryFS(SourceFile, IncludeFiles)))
     return createStringError("Calculating source hash failed");
 
@@ -324,10 +419,11 @@ Expected<std::string> jit_compiler::calculateHash(
       ArrayRef<uint8_t>{reinterpret_cast<const uint8_t *>(&Format),
                         reinterpret_cast<const uint8_t *>(&Format + 1)});
 
-  // Last argument is "rtc_N.cpp" source file name which is never the same,
-  // ignore it:
-  for (auto &Opt : drop_end(CommandLine, 1))
-    Hasher.update(Opt);
+  for (Arg *Opt : UserArgList) {
+    Hasher.update(Opt->getSpelling());
+    for (const char *Val : Opt->getValues())
+      Hasher.update(Val);
+  }
 
   std::string EncodedHash = encodeBase64(Hasher.result());
 
@@ -346,9 +442,11 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
-  if (SYCLToolchain::instance().run(
-          createCommandLine(UserArgList, Format, SourceFile.Path), ELOA,
-          getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
+  bool AutoPCH = UserArgList.hasArg(OPT_auto_pch);
+
+  if (SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path, ELOA,
+                                    getInMemoryFS(SourceFile, IncludeFiles),
+                                    Wrapper.consumer(), AutoPCH)) {
     return ELOA.takeModule();
   } else {
     return createStringError(BuildLog);
