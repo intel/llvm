@@ -44,7 +44,7 @@ static zex_counter_based_event_exp_flags_t createZeFlags(queue_type queueType,
   zex_counter_based_event_exp_flags_t zeFlags =
       ZEX_COUNTER_BASED_EVENT_FLAG_HOST_VISIBLE;
   if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
-    zeFlags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
+    zeFlags |= ZEX_COUNTER_BASED_EVENT_FLAG_KERNEL_TIMESTAMP;
   }
 
   if (queueType == QUEUE_IMMEDIATE) {
@@ -63,6 +63,8 @@ raii::cache_borrowed_event provider_counter::allocate() {
     desc.flags = createZeFlags(queueType, flags);
     desc.signalScope = ZE_EVENT_SCOPE_FLAG_HOST;
 
+    // Enhanced debug output to validate control flow integrity
+    UR_LOG(DEBUG, "zex_counter_based_event_desc_t flags set to: {}", desc.flags);
     ze_event_handle_t handle;
 
     // TODO: allocate host and device buffers to use here

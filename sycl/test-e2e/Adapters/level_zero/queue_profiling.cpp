@@ -10,12 +10,12 @@
 // clang-format off
 // Check the expected output when queue::enable_profiling is not specified
 //
-// WITHOUT: ze_event_pool_desc_t flags set to: 1
+// WITHOUT: {{ze_event_pool_desc_t flags set to: 1|zex_counter_based_event_desc_t flags set to: 5}}
 // WITHOUT: SYCL exception caught: Profiling information is unavailable as the queue associated with the event does not have the 'enable_profiling' property.
 
 // Check the expected output when queue::enable_profiling is specified
 //
-// WITH: ze_event_pool_desc_t flags set to: 5
+// WITH: {{ze_event_pool_desc_t flags set to: 5|zex_counter_based_event_desc_t flags set to: 21}}
 // WITH: Device kernel time:
 // clang-format on
 //
