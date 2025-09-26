@@ -9,14 +9,13 @@ USER root
 
 RUN apt update && apt install -yqq wget
 
-COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
 COPY dependencies.json /
 
 RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh dependencies.json --all
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh dependencies.json --igfx --cpu
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 

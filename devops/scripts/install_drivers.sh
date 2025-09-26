@@ -127,9 +127,9 @@ InstallIGFX () {
     | grep -v "u18" \
     | wget -qi -
   get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*$UBUNTU_VER.*deb" \
+    | grep ".*$UBUNTU_VER.*deb$" \
     | wget -qi -
-  dpkg -i --force-all *.deb && rm *.deb *.sum
+  dpkg -i --force-all *.deb && rm *.deb *.ddeb *.sum
   mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
