@@ -49,8 +49,7 @@ benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
 
 
 class Benchmark(ABC):
-    def __init__(self, directory, suite):
-        self.directory = directory
+    def __init__(self, suite):
         self.suite = suite
 
     @abstractmethod
@@ -205,9 +204,9 @@ class Benchmark(ABC):
 
     def create_data_path(self, name, skip_data_dir=False):
         if skip_data_dir:
-            data_path = os.path.join(self.directory, name)
+            data_path = os.path.join(options.workdir, name)
         else:
-            data_path = os.path.join(self.directory, "data", name)
+            data_path = os.path.join(options.workdir, "data", name)
             if options.redownload and Path(data_path).exists():
                 shutil.rmtree(data_path)
 

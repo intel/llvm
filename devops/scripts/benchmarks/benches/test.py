@@ -58,7 +58,7 @@ class TestSuite(Suite):
 
 class TestBench(Benchmark):
     def __init__(self, suite, name, value, diff, group="", notes=None, unstable=None):
-        super().__init__("", suite)
+        super().__init__(suite)
         self.bname = name
         self.value = value
         self.diff = diff

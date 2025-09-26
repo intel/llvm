@@ -49,7 +49,7 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
 
 
 class ComputeBench(Suite):
-    def __init__(self, directory):
+    def __init__(self):
         self.submit_graph_num_kernels = [4, 10, 32]
         self.project = None
 
@@ -359,7 +359,7 @@ class ComputeBenchmark(Benchmark):
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(options.workdir, bench)
+        super().__init__(bench)
         self.bench = bench
         self.bench_name = name
         self.test = test

@@ -17,7 +17,7 @@ from git_project import GitProject
 
 
 class GromacsBench(Suite):
-    def __init__(self, directory):
+    def __init__(self):
         self.project = None
         model_path = str(Path(options.workdir) / self.grappa_file()).replace(
             ".tar.gz", ""

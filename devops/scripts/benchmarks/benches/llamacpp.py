@@ -17,7 +17,7 @@ from git_project import GitProject
 
 
 class LlamaCppBench(Suite):
-    def __init__(self, directory):
+    def __init__(self):
         self.project = None
 
     def name(self) -> str:
@@ -73,7 +73,7 @@ class LlamaCppBench(Suite):
 
 class LlamaBench(Benchmark):
     def __init__(self, bench):
-        super().__init__(options.workdir, bench)
+        super().__init__(bench)
         self.bench = bench
 
     @property
