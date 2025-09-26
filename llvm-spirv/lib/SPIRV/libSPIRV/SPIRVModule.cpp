@@ -2588,7 +2588,7 @@ std::istream &SPIRVModuleImpl::parseSPIRV(std::istream &I) {
   SPIRVWord Header[5] = {0};
   I.read(reinterpret_cast<char *>(&Header), sizeof(Header));
 
-  SPIRVErrorLog ErrorLog = MI.getErrorLog();
+  SPIRVErrorLog &ErrorLog = MI.getErrorLog();
   if (!ErrorLog.checkError(!I.eof(), SPIRVEC_InvalidModule,
                            "input file is empty") ||
       !ErrorLog.checkError(!I.fail(), SPIRVEC_InvalidModule,
