@@ -25,7 +25,7 @@ let loadedBenchmarkRuns = []; // Loaded results from the js/json files
 
 // Helper function to get base URL for remote or local resources
 function getResourceBaseUrl() {
-    return typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '' 
+    return typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== ''
         ? 'https://raw.githubusercontent.com/intel/llvm-ci-perf-results/unify-ci'
         : '.';
 }
@@ -59,7 +59,7 @@ const toggleConfigs = {
         defaultValue: true,
         urlParam: 'notes',
         invertUrlParam: true, // Store false in URL when enabled (legacy behavior)
-        onChange: function(isEnabled) {
+        onChange: function (isEnabled) {
             document.querySelectorAll('.benchmark-note').forEach(note => {
                 note.style.display = isEnabled ? 'block' : 'none';
             });
@@ -70,7 +70,7 @@ const toggleConfigs = {
         defaultValue: false,
         urlParam: 'unstable',
         invertUrlParam: false,
-        onChange: function(isEnabled) {
+        onChange: function (isEnabled) {
             document.querySelectorAll('.benchmark-unstable').forEach(warning => {
                 warning.style.display = isEnabled ? 'block' : 'none';
             });
@@ -81,7 +81,7 @@ const toggleConfigs = {
         defaultValue: false,
         urlParam: 'customRange',
         invertUrlParam: false,
-        onChange: function(isEnabled) {
+        onChange: function (isEnabled) {
             updateCharts();
         }
     },
@@ -89,7 +89,7 @@ const toggleConfigs = {
         defaultValue: false,
         urlParam: 'archived',
         invertUrlParam: false,
-        onChange: function(isEnabled) {
+        onChange: function (isEnabled) {
             if (isEnabled) {
                 loadArchivedData();
             } else {
@@ -105,7 +105,7 @@ const toggleConfigs = {
         defaultValue: false,
         urlParam: 'flamegraph',
         invertUrlParam: false,
-        onChange: function(isEnabled) {
+        onChange: function (isEnabled) {
             // Toggle between flamegraph-only display and normal charts
             updateCharts();
             updateFlameGraphTooltip();
@@ -127,7 +127,7 @@ function setupToggle(toggleId, config) {
     if (!toggle) return;
 
     // Set up event listener
-    toggle.addEventListener('change', function() {
+    toggle.addEventListener('change', function () {
         config.onChange(toggle.checked);
     });
 
@@ -484,7 +484,7 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
         const containerId = `timeseries-${index}`;
         const container = createChartContainer(data, containerId, 'benchmark');
         document.querySelector('.timeseries .charts').appendChild(container);
-        
+
         // Only set up chart observers if not in flamegraph mode
         if (!isFlameGraphEnabled()) {
             pendingCharts.set(containerId, { data, type: 'time' });
@@ -497,7 +497,7 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
         const containerId = `layer-comparison-${index}`;
         const container = createChartContainer(data, containerId, 'group');
         document.querySelector('.layer-comparisons .charts').appendChild(container);
-        
+
         // Only set up chart observers if not in flamegraph mode
         if (!isFlameGraphEnabled()) {
             pendingCharts.set(containerId, { data, type: 'time' });
@@ -510,7 +510,7 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayer
         const containerId = `barchart-${index}`;
         const container = createChartContainer(data, containerId, 'group');
         document.querySelector('.bar-charts .charts').appendChild(container);
-        
+
         // Only set up chart observers if not in flamegraph mode
         if (!isFlameGraphEnabled()) {
             pendingCharts.set(containerId, { data, type: 'bar' });
@@ -598,7 +598,7 @@ function createChartContainer(data, canvasId, type) {
     if (isFlameGraphEnabled()) {
         // Get all flamegraph data for this benchmark from selected runs
         const flamegraphsToShow = getFlameGraphsForBenchmark(data.label, activeRuns);
-        
+
         if (flamegraphsToShow.length > 0) {
             // Add a class to reduce padding for flamegraph containers
             container.classList.add('flamegraph-chart');
@@ -607,24 +607,24 @@ function createChartContainer(data, canvasId, type) {
                 // Create a dedicated container for this flamegraph
                 const flamegraphContainer = document.createElement('div');
                 flamegraphContainer.className = 'flamegraph-container';
-                
+
                 const iframe = document.createElement('iframe');
                 iframe.src = flamegraphInfo.path;
                 iframe.className = 'flamegraph-iframe';
                 iframe.title = `${flamegraphInfo.runName} - ${data.label}`;
-                
+
                 // Add error handling for missing flamegraph files
-                iframe.onerror = function() {
+                iframe.onerror = function () {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'flamegraph-error';
                     errorDiv.textContent = `No flamegraph available for ${flamegraphInfo.runName} - ${data.label}`;
                     flamegraphContainer.replaceChild(errorDiv, iframe);
                 };
-                
+
                 flamegraphContainer.appendChild(iframe);
                 contentSection.appendChild(flamegraphContainer);
             });
-            
+
             // No need for resize handling since CSS handles all sizing
             // The flamegraphs will automatically use the full container width
         } else {
@@ -758,7 +758,7 @@ function createChartContainer(data, canvasId, type) {
     const chartButton = document.createElement('button');
     chartButton.className = 'download-button chart-download-button';
     chartButton.style.marginRight = '8px';
-    
+
     // Function to update button based on current mode
     function updateChartButton() {
         if (isFlameGraphEnabled()) {
@@ -790,9 +790,9 @@ function createChartContainer(data, canvasId, type) {
             };
         }
     }
-    
+
     updateChartButton();
-    
+
     // Store the update function on the button so it can be called when mode changes
     chartButton.updateChartButton = updateChartButton;
 
@@ -1403,9 +1403,8 @@ function createFlameGraphPath(benchmarkLabel, runName, timestamp) {
         console.error(`Could not find suite for benchmark '${benchmarkLabel}' in run '${runName}'`);
         // Fallback: sanitize benchmark name for directory structure
         const sanitizedBenchmarkName = sanitizeFilename(benchmarkLabel);
-        const benchmarkDirName = sanitizedBenchmarkName;
         const timestampPrefix = timestamp + '_';
-        const relativePath = `results/flamegraphs/${benchmarkDirName}/${timestampPrefix}${runName}.svg`;
+        const relativePath = `results/flamegraphs/${sanitizedBenchmarkName}/${timestampPrefix}${runName}.svg`;
 
         // For local mode, use relative path; for remote mode, use full URL
         const baseUrl = getResourceBaseUrl();
@@ -1429,11 +1428,11 @@ function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
     if (!window.flamegraphData?.runs) {
         return [];
     }
-    
+
     const runsWithFlameGraph = [];
     activeRuns.forEach(runName => {
-        if (window.flamegraphData.runs[runName] && 
-            window.flamegraphData.runs[runName].suites && 
+        if (window.flamegraphData.runs[runName] &&
+            window.flamegraphData.runs[runName].suites &&
             Object.keys(window.flamegraphData.runs[runName].suites).includes(benchmarkLabel)) {
             runsWithFlameGraph.push({
                 name: runName,
@@ -1441,25 +1440,25 @@ function getRunsWithFlameGraph(benchmarkLabel, activeRuns) {
             });
         }
     });
-    
+
     return runsWithFlameGraph;
 }
 
 function getFlameGraphsForBenchmark(benchmarkLabel, activeRuns) {
     const runsWithFlameGraph = getRunsWithFlameGraph(benchmarkLabel, activeRuns);
     const flamegraphsToShow = [];
-    
+
     // For each run that has flamegraph data, create the path
     runsWithFlameGraph.forEach(runInfo => {
         const flamegraphPath = createFlameGraphPath(benchmarkLabel, runInfo.name, runInfo.timestamp);
-        
+
         flamegraphsToShow.push({
             path: flamegraphPath,
             runName: runInfo.name,
             timestamp: runInfo.timestamp
         });
     });
-    
+
     // Sort by the order of activeRuns to maintain consistent display order
     const runOrder = Array.from(activeRuns);
     flamegraphsToShow.sort((a, b) => {
@@ -1467,23 +1466,23 @@ function getFlameGraphsForBenchmark(benchmarkLabel, activeRuns) {
         const indexB = runOrder.indexOf(b.runName);
         return indexA - indexB;
     });
-    
+
     return flamegraphsToShow;
 }
 
 function updateFlameGraphTooltip() {
     const flameGraphToggle = document.getElementById('show-flamegraph');
     const label = document.querySelector('label[for="show-flamegraph"]');
-    
+
     if (!flameGraphToggle || !label) return;
-    
+
     // Check if we have flamegraph data
     if (validateFlameGraphData()) {
         const runsWithFlameGraphs = Object.keys(window.flamegraphData.runs).filter(
-            runName => window.flamegraphData.runs[runName].suites && 
-                      Object.keys(window.flamegraphData.runs[runName].suites).length > 0
+            runName => window.flamegraphData.runs[runName].suites &&
+                Object.keys(window.flamegraphData.runs[runName].suites).length > 0
         );
-        
+
         if (runsWithFlameGraphs.length > 0) {
             label.title = `Show flamegraph SVG files instead of benchmark charts. Available for runs: ${runsWithFlameGraphs.join(', ')}`;
             flameGraphToggle.disabled = false;
@@ -1587,39 +1586,39 @@ function initializeCharts() {
     console.log('loadedBenchmarkRuns:', loadedBenchmarkRuns.length, 'runs');
     console.log('First run name:', loadedBenchmarkRuns.length > 0 ? loadedBenchmarkRuns[0].name : 'no runs');
     console.log('defaultCompareNames:', defaultCompareNames);
-    
+
     // Process raw data
     console.log('Processing timeseries data...');
     timeseriesData = processTimeseriesData();
     console.log('Timeseries data processed:', timeseriesData.length, 'items');
-    
+
     console.log('Processing bar charts data...');
     barChartsData = processBarChartsData();
     console.log('Bar charts data processed:', barChartsData.length, 'items');
-    
+
     console.log('Processing layer comparisons data...');
     layerComparisonsData = processLayerComparisonsData();
     console.log('Layer comparisons data processed:', layerComparisonsData.length, 'items');
-    
+
     allRunNames = [...new Set(loadedBenchmarkRuns.map(run => run.name))];
     console.log('All run names:', allRunNames);
-    
+
     // In flamegraph-only mode, ensure we include runs from flamegraph data
     if (validateFlameGraphData()) {
         const flamegraphRunNames = Object.keys(window.flamegraphData.runs);
         allRunNames = [...new Set([...allRunNames, ...flamegraphRunNames])];
         console.log('Added flamegraph runs, total run names:', allRunNames);
     }
-    
+
     latestRunsLookup = createLatestRunsLookup();
     console.log('Run names and lookup created. Runs:', allRunNames);
 
     // Check if we have actual benchmark results vs flamegraph-only results
-    const hasActualBenchmarks = loadedBenchmarkRuns.some(run => 
+    const hasActualBenchmarks = loadedBenchmarkRuns.some(run =>
         run.results && run.results.length > 0 && run.results.some(result => result.suite !== 'flamegraph')
     );
-    
-    const hasFlameGraphResults = loadedBenchmarkRuns.some(run => 
+
+    const hasFlameGraphResults = loadedBenchmarkRuns.some(run =>
         run.results && run.results.some(result => result.suite === 'flamegraph')
     ) || (validateFlameGraphData() && Object.keys(window.flamegraphData.runs).length > 0);
 
@@ -1639,16 +1638,16 @@ function initializeCharts() {
     // If we only have flamegraph results (no actual benchmark data), create synthetic data
     if (!hasActualBenchmarks && hasFlameGraphResults) {
         console.log('Detected flamegraph-only mode - creating synthetic data for flamegraphs');
-        
+
         // Check if we have flamegraph data available
-        const hasFlamegraphData = validateFlameGraphData() && 
-                                 Object.keys(window.flamegraphData.runs).length > 0 &&
-                                 Object.values(window.flamegraphData.runs).some(run => run.suites && Object.keys(run.suites).length > 0);
-        
+        const hasFlamegraphData = validateFlameGraphData() &&
+            Object.keys(window.flamegraphData.runs).length > 0 &&
+            Object.values(window.flamegraphData.runs).some(run => run.suites && Object.keys(run.suites).length > 0);
+
         if (hasFlamegraphData) {
             console.log('Creating synthetic benchmark data for flamegraph display');
             createFlameGraphOnlyData();
-            
+
             // Auto-enable flamegraph mode for user convenience
             const flameGraphToggle = document.getElementById('show-flamegraph');
             if (flameGraphToggle && !flameGraphToggle.checked) {
@@ -1695,7 +1694,7 @@ function initializeCharts() {
     } else {
         // No runs parameter, use defaults
         activeRuns = new Set(defaultCompareNames || []);
-        
+
         // If no default runs and we're in flamegraph-only mode, use all available runs
         if (activeRuns.size === 0 && !hasActualBenchmarks && hasFlameGraphResults) {
             activeRuns = new Set(allRunNames);
@@ -1925,17 +1924,17 @@ function displaySelectedRunsPlatformInfo() {
     selectedRunsWithPlatform.forEach(runData => {
         const runSection = document.createElement('div');
         runSection.className = 'platform-run-section';
-            const runTitle = document.createElement('h3');
+        const runTitle = document.createElement('h3');
         runTitle.textContent = `Run: ${runData.name}`;
         runTitle.className = 'platform-run-title';
         runSection.appendChild(runTitle);
-            // Create just the platform details without the grid wrapper
+        // Create just the platform details without the grid wrapper
         const platform = runData.platform;
         const detailsContainer = document.createElement('div');
         detailsContainer.className = 'platform-details-compact';
         detailsContainer.innerHTML = createPlatformDetailsHTML(platform);
         runSection.appendChild(detailsContainer);
-            container.appendChild(runSection);
+        container.appendChild(runSection);
     });
 }
 
@@ -1969,8 +1968,8 @@ function createPlatformDetailsHTML(platform) {
                 <span class="platform-label">GPU:</span>
                 <div class="platform-value multiple">
                     ${platform.gpu_info && platform.gpu_info.length > 0
-                        ? platform.gpu_info.map(gpu => `<div class="platform-gpu-item">    • ${gpu}</div>`).join('')
-                        : '<div class="platform-gpu-item">    • No GPU detected</div>'}
+            ? platform.gpu_info.map(gpu => `<div class="platform-gpu-item">    • ${gpu}</div>`).join('')
+            : '<div class="platform-gpu-item">    • No GPU detected</div>'}
                 </div>
             </div>
             <div class="platform-item">
@@ -2000,7 +1999,7 @@ function createFlameGraphOnlyData() {
         // Collect all unique benchmarks from all runs that have flamegraphs
         const allBenchmarks = new Set();
         const availableRuns = Object.keys(window.flamegraphData.runs);
-        
+
         availableRuns.forEach(runName => {
             if (window.flamegraphData.runs[runName].suites) {
                 Object.keys(window.flamegraphData.runs[runName].suites).forEach(benchmark => {
@@ -2008,7 +2007,7 @@ function createFlameGraphOnlyData() {
                 });
             }
         });
-        
+
         if (allBenchmarks.size > 0) {
             console.log(`Using flamegraphData from data.js for runs: ${availableRuns.join(', ')}`);
             console.log(`Available benchmarks with flamegraphs: ${Array.from(allBenchmarks).join(', ')}`);
@@ -2016,26 +2015,26 @@ function createFlameGraphOnlyData() {
             return; // Success - we have flamegraph data
         }
     }
-    
+
     // No flamegraph data available - benchmarks were run without --flamegraph option
     console.log('No flamegraph data found - benchmarks were likely run without --flamegraph option');
-    
+
     // Disable the flamegraph checkbox since no flamegraphs are available
     const flameGraphToggle = document.getElementById('show-flamegraph');
     if (flameGraphToggle) {
         flameGraphToggle.disabled = true;
         flameGraphToggle.checked = false;
-        
+
         // Add a visual indicator that flamegraphs are not available
         const label = document.querySelector('label[for="show-flamegraph"]');
         if (label) {
             label.classList.add('disabled-text');
             label.title = 'No flamegraph data available - run benchmarks with --flamegraph option to enable';
         }
-        
+
         console.log('Disabled flamegraph toggle - no flamegraph data available');
     }
-    
+
     // Clear any flamegraph-only mode detection and proceed with normal benchmark display
     // This handles the case where we're in flamegraph-only mode but have no actual flamegraph data
 }
@@ -2045,10 +2044,10 @@ function displayNoFlameGraphsMessage() {
     timeseriesData = [];
     barChartsData = [];
     layerComparisonsData = [];
-    
+
     // Add a special suite for the message
     suiteNames.add('Information');
-    
+
     // Create a special entry to show a helpful message
     const messageData = {
         label: 'No FlameGraphs Available',
@@ -2060,7 +2059,7 @@ function displayNoFlameGraphsMessage() {
         range_max: null,
         runs: {}
     };
-    
+
     timeseriesData.push(messageData);
     console.log('Added informational message about missing flamegraphs');
 }
@@ -2070,10 +2069,10 @@ function displayNoDataMessage() {
     timeseriesData = [];
     barChartsData = [];
     layerComparisonsData = [];
-    
+
     // Add a special suite for the message
     suiteNames.add('Information');
-    
+
     // Create a special entry to show a helpful message
     const messageData = {
         label: 'No Data Available',
@@ -2085,7 +2084,7 @@ function displayNoDataMessage() {
         range_max: null,
         runs: {}
     };
-    
+
     timeseriesData.push(messageData);
     console.log('Added informational message about missing benchmark data');
 }
@@ -2095,12 +2094,12 @@ function createSyntheticFlameGraphData(flamegraphLabels) {
     timeseriesData = [];
     barChartsData = [];
     layerComparisonsData = [];
-    
+
     // Create synthetic benchmark results for each flamegraph
     flamegraphLabels.forEach(label => {
         // Get suite from flamegraphData - this should always be available
         let suite = null;
-        
+
         if (window.flamegraphData?.runs) {
             // Check all runs for suite information for this benchmark
             for (const runName in window.flamegraphData.runs) {
@@ -2111,16 +2110,16 @@ function createSyntheticFlameGraphData(flamegraphLabels) {
                 }
             }
         }
-        
+
         // If no suite found, this indicates a problem with the flamegraph data generation
         if (!suite) {
             console.error(`No suite information found for flamegraph: ${label}. This indicates missing suite data in flamegraphs.js`);
             suite = `ERROR: Missing suite for ${label}`;
         }
-        
+
         // Add to suite names
         suiteNames.add(suite);
-        
+
         // Create a synthetic timeseries entry for this flamegraph
         const syntheticData = {
             label: label,
@@ -2132,11 +2131,11 @@ function createSyntheticFlameGraphData(flamegraphLabels) {
             range_max: null,
             runs: {}
         };
-        
+
         // Add this to timeseriesData so it shows up in the charts
         timeseriesData.push(syntheticData);
     });
-    
+
     console.log(`Created synthetic data for ${flamegraphLabels.length} flamegraphs with suites:`, Array.from(suiteNames));
 }
 
