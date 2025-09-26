@@ -12,11 +12,12 @@
 // "spirv.Decorations" is removed by llvm-link, so we add it here again.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
+#include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
 
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstVisitor.h"
 
-#define DEBUG_TYPE "SanitizerKernelMetadata"
+#define DEBUG_TYPE "SanitizerPostOptimizer"
 
 using namespace llvm;
 
@@ -25,8 +26,32 @@ namespace llvm {
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 
-PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
-                                                   ModuleAnalysisManager &MAM) {
+struct EliminateDeadCheck : public InstVisitor<EliminateDeadCheck> {
+  void visitCallInst(CallInst &CI) {
+    // If the shadow value is constant zero, the check instruction can be safely
+    // erased.
+    auto *Func = CI.getCalledFunction();
+    if (!Func)
+      return;
+    auto FuncName = Func->getName();
+    if (!FuncName.contains("__msan_maybe_warning_"))
+      return;
+    auto *Shadow = CI.getArgOperand(0);
+    if (isa<ConstantInt>(Shadow) && cast<ConstantInt>(Shadow)->isZeroValue())
+      InstToErase.push_back(&CI);
+  }
+
+  void eraseDeadCheck() {
+    for (auto *CI : InstToErase)
+      CI->eraseFromParent();
+    InstToErase.clear();
+  }
+
+private:
+  SmallVector<CallInst *, 8> InstToErase;
+};
+
+static bool FixSanitizerKernelMetadata(Module &M) {
   auto *KernelMetadata = M.getNamedGlobal("__AsanKernelMetadata");
 
   if (!KernelMetadata)
@@ -36,7 +61,7 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
     KernelMetadata = M.getNamedGlobal("__TsanKernelMetadata");
 
   if (!KernelMetadata)
-    return PreservedAnalyses::all();
+    return false;
 
   auto &DL = M.getDataLayout();
   auto &Ctx = M.getContext();
@@ -85,6 +110,20 @@ PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
   MDOps.push_back(MDNode::get(Ctx, MD));
 
   KernelMetadata->addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));
+
+  return true;
+}
+
+PreservedAnalyses SanitizerPostOptimizerPass::run(Module &M,
+                                                  ModuleAnalysisManager &MAM) {
+  if (!FixSanitizerKernelMetadata(M))
+    return PreservedAnalyses::all();
+
+  if (M.getNamedGlobal("__MsanKernelMetadata")) {
+    EliminateDeadCheck V;
+    V.visit(M);
+    V.eraseDeadCheck();
+  }
 
   return PreservedAnalyses::none();
 }

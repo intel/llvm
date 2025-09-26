@@ -356,7 +356,14 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
       return std::make_tuple(&Context.getManglingNumberContext(DC), nullptr);
     }
 
-    return std::make_tuple(nullptr, nullptr);
+    if (ManglingContextDecl) {
+      // Lambdas defined in the initializer of a local variable are mangled
+      // in the enclosing function context.
+      if (auto *VD = dyn_cast<VarDecl>(ManglingContextDecl);
+          VD && !VD->hasGlobalStorage())
+        ManglingContextDecl = nullptr;
+    }
+    return std::make_tuple(nullptr, ManglingContextDecl);
   }
 
   case NonInlineInModulePurview:
