@@ -64,14 +64,14 @@ auto get_native(const SyclObjectT &Obj)
 
 template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
-    const queue &Queue, nd_range<Dims> Range,
+    const queue &Queue, const nd_range<Dims> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
-    const queue &Queue, nd_range<Dims> Range,
+    const queue &Queue, const nd_range<Dims> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
@@ -159,7 +159,7 @@ private:
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT, typename KernelType, int Dims>
 auto submit_kernel_direct(
-    const queue &Queue, PropertiesT Props, nd_range<Dims> Range,
+    const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
     const KernelType &KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
@@ -3271,20 +3271,20 @@ public:
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    // TODO The handler-less path does not support reductions yet.
     if constexpr (sizeof...(RestT) == 1) {
       return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
           Rest...);
-    } else {
+    } else
 #endif
+    {
       return submit(
           [&](handler &CGH) {
             CGH.template parallel_for<KernelName>(Range, Rest...);
           },
           TlsCodeLocCapture.query());
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     }
-#endif
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that

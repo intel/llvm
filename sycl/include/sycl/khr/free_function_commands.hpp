@@ -5,7 +5,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+//#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
 template <typename CommandGroupFunc>
@@ -538,6 +538,6 @@ inline void event_barrier(const queue &q, const std::vector<event> &events,
 }
 
 } // namespace khr
-#endif
+//#endif
 } // namespace _V1
 } // namespace sycl

@@ -109,7 +109,6 @@ event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              const sycl::detail::code_location &CodeLoc) {
   return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
-
 } // namespace detail
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -261,18 +260,18 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  // TODO The handler-less path does not support reductions yet.
   if constexpr (sizeof...(ReductionsT) == 0) {
     detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
                                              Range, KernelObj);
-  } else {
+  } else
 #endif
+  {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
     });
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   }
-#endif
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -294,6 +293,7 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  // TODO The handler-less path does not support reductions yet.
   if constexpr (sizeof...(ReductionsT) == 0) {
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
@@ -301,15 +301,14 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
     detail::submit_kernel_direct<KernelName>(
         std::move(Q), ConfigAccess.getProperties(), ConfigAccess.getRange(),
         KernelObj);
-  } else {
+  } else
 #endif
+  {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Config, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);
     });
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   }
-#endif
 }
 
 template <int Dimensions, typename... ArgsT>

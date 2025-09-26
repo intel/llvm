@@ -482,7 +482,7 @@ const property_list &queue::getPropList() const { return impl->getPropList(); }
 
 template <int Dims>
 event submit_kernel_direct_with_event_impl(
-    const queue &Queue, nd_range<Dims> Range,
+    const queue &Queue, const nd_range<Dims> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
@@ -491,26 +491,26 @@ event submit_kernel_direct_with_event_impl(
 }
 
 template event submit_kernel_direct_with_event_impl<1>(
-    const queue &Queue, nd_range<1> Range,
+    const queue &Queue, const nd_range<1> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template event submit_kernel_direct_with_event_impl<2>(
-    const queue &Queue, nd_range<2> Range,
+    const queue &Queue, const nd_range<2> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template event submit_kernel_direct_with_event_impl<3>(
-    const queue &Queue, nd_range<3> Range,
+    const queue &Queue, const nd_range<3> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
 void submit_kernel_direct_without_event_impl(
-    const queue &Queue, nd_range<Dims> Range,
+    const queue &Queue, const nd_range<Dims> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
@@ -519,19 +519,19 @@ void submit_kernel_direct_without_event_impl(
 }
 
 template void submit_kernel_direct_without_event_impl<1>(
-    const queue &Queue, nd_range<1> Range,
+    const queue &Queue, const nd_range<1> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template void submit_kernel_direct_without_event_impl<2>(
-    const queue &Queue, nd_range<2> Range,
+    const queue &Queue, const nd_range<2> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template void submit_kernel_direct_without_event_impl<3>(
-    const queue &Queue, nd_range<3> Range,
+    const queue &Queue, const nd_range<3> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
