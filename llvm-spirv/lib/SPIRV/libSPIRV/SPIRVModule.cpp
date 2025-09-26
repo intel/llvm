@@ -2230,7 +2230,7 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
 
   for (auto &I : M.getConditionalExtensions()) {
     auto Cond = I.first;
-    auto Ext = I.second;
+    const auto &Ext = I.second;
     assert(!Ext.empty() && "Invalid conditional extension");
     O << SPIRVConditionalExtensionINTEL(&M, Cond, Ext);
   }
