@@ -66,9 +66,26 @@ bool DeviceGlobalMapEntry::isProfileCounter() {
   return MUniqueId.substr(0, CounterPrefix.size()) == CounterPrefix;
 }
 
+#ifdef _MSC_VER
+extern "C" void
+__sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
+                                  const std::uint64_t *Increments);
+extern "C" void
+__sycl_increment_profile_counters_default(std::uint64_t FnHash,
+                                          std::size_t NumCounters,
+                                          const std::uint64_t *Increments) {
+  (void)FnHash;
+  (void)NumCounters;
+  (void)Increments;
+}
+#pragma comment(                                                               \
+    linker,                                                                    \
+    "/alternatename:__sycl_increment_profile_counters=__sycl_increment_profile_counters_default")
+#else
 extern "C" void __attribute__((weak))
 __sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
                                   const std::uint64_t *Increments);
+#endif
 
 void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
@@ -91,7 +108,7 @@ void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
         Increments[I] = Counters[I];
 
       // Call the weak symbol to update the profile counters.
-      if (__sycl_increment_profile_counters)
+      if (&__sycl_increment_profile_counters)
         __sycl_increment_profile_counters(FnHash, Increments.size(),
                                           Increments.data());
 
@@ -139,12 +156,12 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
     std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
     ur_event_handle_t InitEvent;
     if (MDeviceGlobalPtr) {
-      // C++ guarantees members appear in memory in the order they are declared,
-      // so since the member variable that contains the initial contents of the
-      // device_global is right after the usm_ptr member variable we can do
-      // some pointer arithmetic to memcopy over this value to the usm_ptr. This
-      // value inside of the device_global will be zero-initialized if it was
-      // not given a value on construction.
+      // C++ guarantees members appear in memory in the order they are
+      // declared, so since the member variable that contains the initial
+      // contents of the device_global is right after the usm_ptr member
+      // variable we can do some pointer arithmetic to memcopy over this
+      // value to the usm_ptr. This value inside of the device_global will
+      // be zero-initialized if it was not given a value on construction.
       MemoryManager::copy_usm(
           reinterpret_cast<const void *>(
               reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
@@ -152,8 +169,8 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
           QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
           std::vector<ur_event_handle_t>{}, &InitEvent);
     } else {
-      // For SYCLBIN device globals we do not have a host pointer to copy from,
-      // so instead we fill the USM memory with 0's.
+      // For SYCLBIN device globals we do not have a host pointer to copy
+      // from, so instead we fill the USM memory with 0's.
       MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize,
                               {static_cast<unsigned char>(0)}, {}, &InitEvent);
     }
@@ -161,8 +178,8 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   }
 
   // Only device globals with host variables need to be registered with the
-  // context. The rest will be managed by their kernel bundles and cleaned up
-  // accordingly.
+  // context. The rest will be managed by their kernel bundles and cleaned
+  // up accordingly.
   if (MDeviceGlobalPtr)
     CtxImpl.addAssociatedDeviceGlobal(MDeviceGlobalPtr);
   return NewAlloc;
@@ -194,20 +211,20 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
   NewAlloc.MAllocatingContext = CtxImpl.shared_from_this();
 
   if (MDeviceGlobalPtr) {
-    // C++ guarantees members appear in memory in the order they are declared,
-    // so since the member variable that contains the initial contents of the
-    // device_global is right after the usm_ptr member variable we can do
-    // some pointer arithmetic to memcopy over this value to the usm_ptr. This
-    // value inside of the device_global will be zero-initialized if it was not
-    // given a value on construction.
+    // C++ guarantees members appear in memory in the order they are
+    // declared, so since the member variable that contains the initial
+    // contents of the device_global is right after the usm_ptr member
+    // variable we can do some pointer arithmetic to memcopy over this value
+    // to the usm_ptr. This value inside of the device_global will be
+    // zero-initialized if it was not given a value on construction.
     MemoryManager::context_copy_usm(
         reinterpret_cast<const void *>(
             reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
             sizeof(MDeviceGlobalPtr)),
         &CtxImpl, MDeviceGlobalTSize, NewAlloc.MPtr);
   } else {
-    // For SYCLBIN device globals we do not have a host pointer to copy from,
-    // so instead we fill the USM memory with 0's.
+    // For SYCLBIN device globals we do not have a host pointer to copy
+    // from, so instead we fill the USM memory with 0's.
     std::vector<unsigned char> ImmBuff(MDeviceGlobalTSize,
                                        static_cast<unsigned char>(0));
     MemoryManager::context_copy_usm(ImmBuff.data(), &CtxImpl,
@@ -215,8 +232,8 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
   }
 
   // Only device globals with host variables need to be registered with the
-  // context. The rest will be managed by their kernel bundles and cleaned up
-  // accordingly.
+  // context. The rest will be managed by their kernel bundles and cleaned
+  // up accordingly.
   if (MDeviceGlobalPtr)
     CtxImpl.addAssociatedDeviceGlobal(MDeviceGlobalPtr);
   return NewAlloc;
