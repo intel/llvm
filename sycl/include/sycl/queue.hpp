@@ -217,14 +217,6 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc);
-
-template <typename KernelName, typename PropertiesT, typename KernelType,
-          int Dims>
-void submit_kernel_direct_impl(const queue &Q, PropertiesT Props,
-                               nd_range<Dims> Range,
-                               const KernelType &KernelFunc,
-                               const sycl::detail::code_location &CodeLoc);
-
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
