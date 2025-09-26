@@ -479,7 +479,8 @@ static bool initTargetOptions(const CompilerInstance &CI,
 
   if (Options.BBSections == llvm::BasicBlockSection::List) {
     ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
-        MemoryBuffer::getFile(CodeGenOpts.BBSections.substr(5));
+        CI.getVirtualFileSystem().getBufferForFile(
+            CodeGenOpts.BBSections.substr(5));
     if (!MBOrErr) {
       Diags.Report(diag::err_fe_unable_to_load_basic_block_sections_file)
           << MBOrErr.getError().message();
@@ -827,7 +828,8 @@ static void addSanitizers(const Triple &TargetTriple,
     HWASanPass(SanitizerKind::KernelHWAddress, true);
 
     if (LangOpts.Sanitize.has(SanitizerKind::DataFlow)) {
-      MPM.addPass(DataFlowSanitizerPass(LangOpts.NoSanitizeFiles));
+      MPM.addPass(DataFlowSanitizerPass(LangOpts.NoSanitizeFiles,
+                                        PB.getVirtualFileSystemPtr()));
     }
   };
   if (ClSanitizeOnOptimizerEarlyEP) {
@@ -879,9 +881,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
     PGOOpt = PGOOptions(getProfileGenName(CodeGenOpts), "", "",
-                        CodeGenOpts.MemoryProfileUsePath, nullptr,
-                        PGOOptions::IRInstr, PGOOptions::NoCSAction,
-                        ClPGOColdFuncAttr, CodeGenOpts.DebugInfoForProfiling,
+                        CodeGenOpts.MemoryProfileUsePath, PGOOptions::IRInstr,
+                        PGOOptions::NoCSAction, ClPGOColdFuncAttr,
+                        CodeGenOpts.DebugInfoForProfiling,
                         /*PseudoProbeForProfiling=*/false,
                         CodeGenOpts.AtomicProfileUpdate);
   else if (CodeGenOpts.hasProfileIRUse()) {
@@ -890,32 +892,30 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
                                                     : PGOOptions::NoCSAction;
     PGOOpt = PGOOptions(CodeGenOpts.ProfileInstrumentUsePath, "",
                         CodeGenOpts.ProfileRemappingFile,
-                        CodeGenOpts.MemoryProfileUsePath, VFS,
-                        PGOOptions::IRUse, CSAction, ClPGOColdFuncAttr,
+                        CodeGenOpts.MemoryProfileUsePath, PGOOptions::IRUse,
+                        CSAction, ClPGOColdFuncAttr,
                         CodeGenOpts.DebugInfoForProfiling);
   } else if (!CodeGenOpts.SampleProfileFile.empty())
     // -fprofile-sample-use
     PGOOpt = PGOOptions(
         CodeGenOpts.SampleProfileFile, "", CodeGenOpts.ProfileRemappingFile,
-        CodeGenOpts.MemoryProfileUsePath, VFS, PGOOptions::SampleUse,
+        CodeGenOpts.MemoryProfileUsePath, PGOOptions::SampleUse,
         PGOOptions::NoCSAction, ClPGOColdFuncAttr,
         CodeGenOpts.DebugInfoForProfiling, CodeGenOpts.PseudoProbeForProfiling);
   else if (!CodeGenOpts.MemoryProfileUsePath.empty())
     // -fmemory-profile-use (without any of the above options)
-    PGOOpt = PGOOptions("", "", "", CodeGenOpts.MemoryProfileUsePath, VFS,
+    PGOOpt = PGOOptions("", "", "", CodeGenOpts.MemoryProfileUsePath,
                         PGOOptions::NoAction, PGOOptions::NoCSAction,
                         ClPGOColdFuncAttr, CodeGenOpts.DebugInfoForProfiling);
   else if (CodeGenOpts.PseudoProbeForProfiling)
     // -fpseudo-probe-for-profiling
-    PGOOpt =
-        PGOOptions("", "", "", /*MemoryProfile=*/"", nullptr,
-                   PGOOptions::NoAction, PGOOptions::NoCSAction,
-                   ClPGOColdFuncAttr, CodeGenOpts.DebugInfoForProfiling, true);
+    PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", PGOOptions::NoAction,
+                        PGOOptions::NoCSAction, ClPGOColdFuncAttr,
+                        CodeGenOpts.DebugInfoForProfiling, true);
   else if (CodeGenOpts.DebugInfoForProfiling)
     // -fdebug-info-for-profiling
-    PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", nullptr,
-                        PGOOptions::NoAction, PGOOptions::NoCSAction,
-                        ClPGOColdFuncAttr, true);
+    PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", PGOOptions::NoAction,
+                        PGOOptions::NoCSAction, ClPGOColdFuncAttr, true);
 
   // Check to see if we want to generate a CS profile.
   if (CodeGenOpts.hasProfileCSIRInstr()) {
@@ -931,7 +931,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PGOOpt->CSAction = PGOOptions::CSIRInstr;
     } else
       PGOOpt = PGOOptions("", getProfileGenName(CodeGenOpts), "",
-                          /*MemoryProfile=*/"", nullptr, PGOOptions::NoAction,
+                          /*MemoryProfile=*/"", PGOOptions::NoAction,
                           PGOOptions::CSIRInstr, ClPGOColdFuncAttr,
                           CodeGenOpts.DebugInfoForProfiling);
   }
@@ -971,7 +971,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       (CodeGenOpts.DebugPassManager || DebugPassStructure),
       CodeGenOpts.VerifyEach, PrintPassOpts);
   SI.registerCallbacks(PIC, &MAM);
-  PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
+  PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC, CI.getVirtualFileSystemPtr());
 
   // Handle the assignment tracking feature options.
   switch (CodeGenOpts.getAssignmentTrackingMode()) {
