@@ -4180,7 +4180,6 @@ extern "C" __device__ long int test_lround(double x) {
 // AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15:[0-9]+]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func noundef addrspace(4) float @__ocml_modf_f32(float noundef [[X]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load float, ptr [[__TMP_I]], align 4, !tbaa [[FLOAT_TBAA17:![0-9]+]]
@@ -4240,7 +4239,6 @@ extern "C" __device__ float test_modff(float x, float* y) {
 // AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func noundef addrspace(4) double @__ocml_modf_f64(double noundef [[X]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load double, ptr [[__TMP_I]], align 8, !tbaa [[DOUBLE_TBAA19:![0-9]+]]
@@ -6056,7 +6054,6 @@ extern "C" __device__ double test_remainder(double x, double y) {
 // AMDGCNSPIRV-SAME: float noundef [[X:%.*]], float noundef [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func noundef addrspace(4) float @__ocml_remquo_f32(float noundef [[X]], float noundef [[Y]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__TMP_I]], align 4, !tbaa [[INT_TBAA13]]
@@ -6116,7 +6113,6 @@ extern "C" __device__ float test_remquof(float x, float y, int* z) {
 // AMDGCNSPIRV-SAME: double noundef [[X:%.*]], double noundef [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca i32, align 4
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func noundef addrspace(4) double @__ocml_remquo_f64(double noundef [[X]], double noundef [[Y]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    [[TMP0:%.*]] = load i32, ptr [[__TMP_I]], align 4, !tbaa [[INT_TBAA13]]
@@ -7045,7 +7041,6 @@ extern "C" __device__ BOOL_TYPE test___signbit(double x) {
 // AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func addrspace(4) float @__ocml_sincos_f32(float noundef [[X]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    store float [[CALL_I]], ptr addrspace(4) [[Y]], align 4, !tbaa [[FLOAT_TBAA17]]
@@ -7110,7 +7105,6 @@ extern "C" __device__ void test_sincosf(float x, float *y, float *z) {
 // AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func addrspace(4) double @__ocml_sincos_f64(double noundef [[X]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    store double [[CALL_I]], ptr addrspace(4) [[Y]], align 8, !tbaa [[DOUBLE_TBAA19]]
@@ -7175,7 +7169,6 @@ extern "C" __device__ void test_sincos(double x, double *y, double *z) {
 // AMDGCNSPIRV-SAME: float noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 4)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca float, align 4
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func addrspace(4) float @__ocml_sincospi_f32(float noundef [[X]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    store float [[CALL_I]], ptr addrspace(4) [[Y]], align 4, !tbaa [[FLOAT_TBAA17]]
@@ -7240,7 +7233,6 @@ extern "C" __device__ void test_sincospif(float x, float *y, float *z) {
 // AMDGCNSPIRV-SAME: double noundef [[X:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Y:%.*]], ptr addrspace(4) noundef writeonly captures(none) initializes((0, 8)) [[Z:%.*]]) local_unnamed_addr addrspace(4) #[[ATTR6]] {
 // AMDGCNSPIRV-NEXT:  [[ENTRY:.*:]]
 // AMDGCNSPIRV-NEXT:    [[__TMP_I:%.*]] = alloca double, align 8
-// AMDGCNSPIRV-NEXT:    [[__TMP_ASCAST_I:%.*]] = addrspacecast ptr [[__TMP_I]] to ptr addrspace(4) ; TODO: remove??
 // AMDGCNSPIRV-NEXT:    call addrspace(4) void @llvm.lifetime.start.p0(ptr nonnull [[__TMP_I]]) #[[ATTR15]]
 // AMDGCNSPIRV-NEXT:    [[CALL_I:%.*]] = call contract spir_func addrspace(4) double @__ocml_sincospi_f64(double noundef [[X]], ptr noundef nonnull [[__TMP_I]]) #[[ATTR14]]
 // AMDGCNSPIRV-NEXT:    store double [[CALL_I]], ptr addrspace(4) [[Y]], align 8, !tbaa [[DOUBLE_TBAA19]]

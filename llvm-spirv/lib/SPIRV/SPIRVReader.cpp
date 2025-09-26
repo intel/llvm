@@ -56,7 +56,7 @@
 #include "VectorComputeUtil.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -831,7 +831,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     // Create index group metadata nodes - one per each of the array
     // variables. Mark each GEP accessing a particular array variable
     // into a corresponding index group
-    std::map<unsigned, SmallSet<MDNode *, 4>> SafelenIdxGroupMap;
+    std::map<unsigned, SmallPtrSet<MDNode *, 4>> SafelenIdxGroupMap;
     // Whenever a kernel closure field access is pointed to instead of
     // an array/pointer variable, ensure that all GEPs to that memory
     // share the same index group by hashing the newly added index groups.
@@ -1887,7 +1887,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *Var = transValue(LTStop->getObject(), F, BB);
     for (const auto &I : Var->users())
       if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
-        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(1)));
+        return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(0)));
     return mapValue(BV, Builder.CreateLifetimeEnd(Var));
   }
 
@@ -2296,6 +2296,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     auto *LI = Builder.CreateAlignedLoad(DstTy, SrcAI, SrcAI->getAlign());
     return mapValue(BV, LI);
+  }
+
+  case OpImage: {
+    auto *Inst = static_cast<SPIRVImage *>(BV);
+    SPIRVValue *SampledImage = Inst->getOperand(0);
+    auto *SampledInst = static_cast<SPIRVSampledImage *>(SampledImage);
+    return mapValue(BV, transValue(SampledInst->getOperand(0), F, BB));
   }
 
   case OpAccessChain:

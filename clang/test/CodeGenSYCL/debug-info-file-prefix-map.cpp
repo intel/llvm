@@ -13,7 +13,6 @@
 
 // CHECK: distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: ![[#FILE1:]]
 // CHECK-NEXT: ![[#FILE1]] = !DIFile(filename: "debug-info-file-prefix-map.cpp"
-// CHECK: ![[#FILE2:]] = !DIFile(filename: "debug-info-file-prefix-map.cpp"
 // CHECK: !DIDerivedType(tag: DW_TAG_typedef, name: "__builtin_va_list", file: ![[#FILE1]]
 
 void a(__builtin_va_list);

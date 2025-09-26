@@ -47,15 +47,15 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '[[_arg_Mem]]' '__global int *'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>':'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_AccessRange]]' 'sycl::range<1>'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'range<1>':'sycl::range<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>':'const sycl::range<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const range<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::range<1>' lvalue ParmVar {{.*}} '[[_arg_MemRange]]' 'sycl::range<1>'
 
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'id<1>':'sycl::id<1>'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const id<1>':'const sycl::id<1>' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const id<1>' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::id<1>' lvalue ParmVar {{.*}} '[[_arg_Offset]]' 'sycl::id<1>'
 
 // Check that body of the kernel caller function is included into kernel

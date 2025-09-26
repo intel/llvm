@@ -1739,6 +1739,7 @@ def offload_EQ : CommaJoined<["--"], "offload=">,
                  Alias<offload_targets_EQ>,
                  HelpText<"Specify comma-separated list of offloading target "
                           "triples (CUDA and HIP only)">;
+<<<<<<< HEAD
 
 // This flag is only here so we can test the named loops implementation
 // in C++ mode and C language modes before C2y to make sure it actually
@@ -1750,6 +1751,8 @@ defm named_loops
           "named-loops", LangOpts<"NamedLoops">, DefaultFalse,
           PosFlag<SetTrue, [], [CC1Option], "Enable support for named loops">,
           NegFlag<SetFalse>>;
+=======
+>>>>>>> 36363e606092e25deab5ba9d493f890c912b0462
 
 // C++ Coroutines
 defm coroutines : BoolFOption<"coroutines",

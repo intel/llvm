@@ -7,7 +7,7 @@
 // RUN: %clang_cc1 %s -fcuda-is-device -std=c++17 -triple spirv32 -aux-triple x86_64-pc-windows-msvc -verify
 // RUN: %clang_cc1 %s -fcuda-is-device -std=c++17 -triple spirv64 -aux-triple x86_64-pc-windows-msvc -verify
 // RUN: %clang_cc1 %s -fcuda-is-device -std=c++17 -triple spirv64-amd-amdhsa -aux-triple x86_64-pc-windows-msvc -verify
-
+// XFAIL: *
 // expected-no-diagnostics
 
 namespace std

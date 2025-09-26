@@ -461,8 +461,12 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
     if (!IsSpirvAOT)
       return JIT;
 
+<<<<<<< HEAD
     llvm::opt::Arg *SYCLTarget =
         Args.getLastArg(options::OPT_offload_targets_EQ);
+=======
+    llvm::opt::Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ);
+>>>>>>> 36363e606092e25deab5ba9d493f890c912b0462
     if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
       return JIT;
 

@@ -1,6 +1,10 @@
 // UNSUPPORTED: preview-mode
 // UNSUPPORTED-INTENDED: Functionality is removed under
 //                       `-fpreview-breaking-changes`
+
+// XFAIL: native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20127
+
 // RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //
