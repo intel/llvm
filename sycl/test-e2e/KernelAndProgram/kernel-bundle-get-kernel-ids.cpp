@@ -5,7 +5,7 @@
 // in the source regardless of whether they are expressed as lambdas,
 // function objects or free functions.
 //
-// XFAIL: ((intel_gpu_acm{{.*}} || intel_gpu_pvc || intel_gpu_bmg{{.*}} || cuda || hip) && (!level_zero)) || preview-mode
+// XFAIL: ((intel_gpu_acm{{.*}} || intel_gpu_pvc || intel_gpu_bmg{{.*}}) && (!level_zero)) || preview-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19423
 
 #include <sycl/detail/core.hpp>
