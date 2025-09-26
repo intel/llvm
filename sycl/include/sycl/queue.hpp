@@ -142,16 +142,9 @@ private:
 
 } // namespace v1
 
-template <typename KernelName = detail::auto_name, typename PropertiesT,
-          typename KernelType, int Dims>
-event submit_kernel_direct_with_event(
-    const queue &Queue, PropertiesT Props, nd_range<Dims> Range,
-    const KernelType &KernelFunc,
-    const detail::code_location &CodeLoc = detail::code_location::current());
-
-template <typename KernelName = detail::auto_name, typename PropertiesT,
-          typename KernelType, int Dims>
-void submit_kernel_direct_without_event(
+template <typename KernelName = detail::auto_name, bool EventNeeded = false,
+          typename PropertiesT, typename KernelType, int Dims>
+auto submit_kernel_direct(
     const queue &Queue, PropertiesT Props, nd_range<Dims> Range,
     const KernelType &KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current());
@@ -3228,7 +3221,7 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     if constexpr (sizeof...(RestT) == 1) {
-      return detail::submit_kernel_direct_with_event<KernelName>(
+      return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
           Rest...);
     } else {
@@ -3619,15 +3612,9 @@ private:
       const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
-  template <typename KernelName, typename PropertiesT, typename KernelType,
-            int Dims>
-  friend void sycl::detail::submit_kernel_direct_without_event(
-      const queue &Queue, PropertiesT Props, nd_range<Dims> Range,
-      const KernelType &KernelFunc, const detail::code_location &CodeLoc);
-
-  template <typename KernelName, typename PropertiesT, typename KernelType,
-            int Dims>
-  friend event sycl::detail::submit_kernel_direct_with_event(
+  template <typename KernelName, bool EventNeeded, typename PropertiesT,
+            typename KernelType, int Dims>
+  friend auto sycl::detail::submit_kernel_direct(
       const queue &Queue, PropertiesT Props, nd_range<Dims> Range,
       const KernelType &KernelFunc, const detail::code_location &CodeLoc);
 
@@ -3913,12 +3900,11 @@ private:
 
 namespace detail {
 
-template <typename KernelName, typename PropertiesT, typename KernelType,
-          int Dims>
-event submit_kernel_direct_with_event(const queue &Queue, PropertiesT Props,
-                                      nd_range<Dims> Range,
-                                      const KernelType &KernelFunc,
-                                      const detail::code_location &CodeLoc) {
+template <typename KernelName, bool EventNeeded, typename PropertiesT,
+          typename KernelType, int Dims>
+auto submit_kernel_direct(const queue &Queue, PropertiesT Props,
+                          nd_range<Dims> Range, const KernelType &KernelFunc,
+                          const detail::code_location &CodeLoc) {
   // TODO Properties not supported yet
   (void)Props;
   static_assert(
@@ -3946,48 +3932,17 @@ event submit_kernel_direct_with_event(const queue &Queue, PropertiesT Props,
   detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                         TransformedArgType, PropertiesT>::wrap(KernelFunc);
 
-  return Queue.submit_kernel_direct_with_event_impl(
-      Range, HostKernel, DeviceKernelInfoPtr, TlsCodeLocCapture.query(),
-      TlsCodeLocCapture.isToplevel());
+  if constexpr (EventNeeded) {
+    return Queue.submit_kernel_direct_with_event_impl(
+        Range, HostKernel, DeviceKernelInfoPtr, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  } else {
+    Queue.submit_kernel_direct_without_event_impl(
+        Range, HostKernel, DeviceKernelInfoPtr, TlsCodeLocCapture.query(),
+        TlsCodeLocCapture.isToplevel());
+  }
 }
 
-template <typename KernelName, typename PropertiesT, typename KernelType,
-          int Dims>
-void submit_kernel_direct_without_event(const queue &Queue, PropertiesT Props,
-                                        nd_range<Dims> Range,
-                                        const KernelType &KernelFunc,
-                                        const detail::code_location &CodeLoc) {
-  // TODO Properties not supported yet
-  (void)Props;
-  static_assert(
-      std::is_same_v<PropertiesT,
-                     ext::oneapi::experimental::empty_properties_t>,
-      "Setting properties not supported yet for no-CGH kernel submit.");
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-
-  using NameT =
-      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-  using LambdaArgType =
-      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-  static_assert(
-      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
-      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
-      "must be either sycl::nd_item or be convertible from sycl::nd_item");
-  using TransformedArgType = sycl::nd_item<Dims>;
-
-  std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
-      detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
-
-  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
-      &detail::getDeviceKernelInfo<NameT>();
-
-  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
-
-  Queue.submit_kernel_direct_without_event_impl(
-      Range, HostKernel, DeviceKernelInfoPtr, TlsCodeLocCapture.query(),
-      TlsCodeLocCapture.isToplevel());
-}
 } // namespace detail
 
 } // namespace _V1

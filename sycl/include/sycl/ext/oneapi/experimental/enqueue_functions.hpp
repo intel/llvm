@@ -262,8 +262,8 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   if constexpr (sizeof...(ReductionsT) == 0) {
-    detail::submit_kernel_direct_without_event<KernelName>(
-        std::move(Q), empty_properties_t{}, Range, KernelObj);
+    detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
+                                             Range, KernelObj);
   } else {
 #endif
     submit(std::move(Q), [&](handler &CGH) {
@@ -298,7 +298,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
         ConfigAccess(Config);
-    detail::submit_kernel_direct_without_event<KernelName>(
+    detail::submit_kernel_direct<KernelName>(
         std::move(Q), ConfigAccess.getProperties(), ConfigAccess.getRange(),
         KernelObj);
   } else {

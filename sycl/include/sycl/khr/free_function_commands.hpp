@@ -154,9 +154,9 @@ void launch_grouped(const queue &q, range<1> r, range<1> size,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct_without_event(
-      q, ext::oneapi::experimental::empty_properties_t{}, nd_range<1>(r, size),
-      k);
+  detail::submit_kernel_direct(q,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               nd_range<1>(r, size), k);
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -169,9 +169,9 @@ void launch_grouped(const queue &q, range<2> r, range<2> size,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct_without_event(
-      q, ext::oneapi::experimental::empty_properties_t{}, nd_range<2>(r, size),
-      k);
+  detail::submit_kernel_direct(q,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               nd_range<2>(r, size), k);
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -184,9 +184,9 @@ void launch_grouped(const queue &q, range<3> r, range<3> size,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct_without_event(
-      q, ext::oneapi::experimental::empty_properties_t{}, nd_range<3>(r, size),
-      k);
+  detail::submit_kernel_direct(q,
+                               ext::oneapi::experimental::empty_properties_t{},
+                               nd_range<3>(r, size), k);
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
