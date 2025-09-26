@@ -17,7 +17,7 @@
 // UNSUPPORTED: level_zero && windows
 
 // XFAIL: spirv-backend && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160892 
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160892
 
 #include "copy2d_common.hpp"
 
