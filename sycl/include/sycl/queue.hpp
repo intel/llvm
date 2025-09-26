@@ -2663,8 +2663,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(const KernelType &KernelFunc,
-                    const detail::code_location &) {
+  event single_task(
+      const KernelType &KernelFunc,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task_impl<KernelName>(KernelFunc);
   }
 
@@ -3718,11 +3719,13 @@ private:
                               TlsCodeLocCapture.isToplevel());
   }
 
+  event remembered_event;
   void set_std_layout_arg(int, const char *, size_t);
   void remember_kernel_single_task(const char *);
+  void enqueue_remembered_kernel();
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
-    set_std_layout_arg(ArgIndex, reinterpret_cast<const char *>(&T), sizeof(T));
+    set_std_layout_arg(ArgIndex, reinterpret_cast<const char *>(&Arg), sizeof(T));
   }
 
   void setArgsHelper(int) {}
@@ -3745,7 +3748,7 @@ private:
 
   template <typename KernelName, typename KernelType>
   [[clang::sycl_kernel_entry_point(KernelName)]]
-  void __kernel_single_task(const KernelType &KernelFunc) {
+  void __kernel_single_task(const KernelType KernelFunc) {
     KernelFunc();
   }
 
@@ -3753,7 +3756,9 @@ private:
   /// simplify a prototype)
   template <typename KernelName, typename KernelFunctor>
   event single_task_impl(KernelFunctor &&Functor) {
+    // save range to impl for parallel for
     __kernel_single_task<KernelName>(Functor);
+    return remembered_event;
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that

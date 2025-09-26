@@ -245,7 +245,10 @@ public:
                                         private_tag{});
   }
 
+  ur_kernel_handle_t UrKernel = nullptr;
   void remember_kernel_single_task(const char *);
+  void set_std_layout_arg(int ArgIndex, const char *ArgPtr, size_t ArgSize);
+  EventImplPtr enqueue_remembered_kernel();
 
   ~queue_impl() {
     try {
