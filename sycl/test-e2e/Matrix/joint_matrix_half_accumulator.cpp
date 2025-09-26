@@ -15,7 +15,7 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27868, win: 101.5181
 
-// XFAIL: gpu && (!igc-dev || gpu-intel-dg2)
+// XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: GSD-10112
 
 // RUN: %{build} -o %t.out
