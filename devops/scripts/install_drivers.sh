@@ -114,14 +114,10 @@ InstallIGFX () {
     | grep ".*deb" \
     | wget -qi -
   get_release intel/compute-runtime $CR_TAG \
-    | grep -E ".*((deb)|(sum))" \
+    | grep -E ".*((\.deb)|(sum))" \
     | wget -qi -
-  # Perform the checksum conditionally and then get the release
-  # Skip the ww45 checksum because the igc_dev driver was manually updated
-  # so the package versions don't exactly match.
-  if [ ! -f "ww45.sum" ]; then
-      sha256sum -c *.sum
-  fi
+  # We don't download .ddeb packages, so ignore missing ones.
+  sha256sum -c *.sum --ignore-missing
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
@@ -129,7 +125,7 @@ InstallIGFX () {
   get_release oneapi-src/level-zero $L0_TAG \
     | grep ".*$UBUNTU_VER.*deb$" \
     | wget -qi -
-  dpkg -i --force-all *.deb && rm *.deb *.ddeb *.sum
+  dpkg -i --force-all *.deb && rm *.deb *.sum
   mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
