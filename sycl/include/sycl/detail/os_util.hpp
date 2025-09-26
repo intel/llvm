@@ -126,7 +126,7 @@ fn *dynLookupFunction(const char *WinName, const char *LinName,
 // the loader.
 #define __SYCL_OCL_CALL(FN, ...)                                               \
   (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
-      "OpenCL", "libur_adapter_opencl.so", #FN)(__VA_ARGS__))
+      "OpenCL", "libur_adapter_opencl.so.0", #FN)(__VA_ARGS__))
 
 } // namespace detail
 } // namespace _V1
