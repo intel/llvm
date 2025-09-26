@@ -15,3 +15,6 @@
 // RUN:   %{-L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -Wl,-rpath=%T%}
 
 // RUN: %{run} %t.out
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142

@@ -5,6 +5,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test verifies that we can compile, run and get correct results when
 // using a free function kernel that allocates shared local memory in a kernel
 // either by way of the work group scratch memory extension or the work group

@@ -9,13 +9,7 @@
 #pragma once
 
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
-#include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
-#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
-
-#include <tuple>       // for tuple, tupl...
-#include <type_traits> // for enable_if_t
-#include <variant>     // for tuple
+#include <sycl/ext/oneapi/properties/property_utils.hpp>
 
 namespace sycl {
 inline namespace _V1 {

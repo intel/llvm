@@ -10097,8 +10097,13 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // clang-offload-wrapper
     //   -o=<outputfile>.bc
     //   -host=x86_64-pc-linux-gnu -kind=sycl
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     //   -format=spirv <inputfile1>.spv <manifest1>(optional)
     //   -format=spirv <inputfile2>.spv <manifest2>(optional)
+#else
+    //   -format=spirv <inputfile1>.spv
+    //   -format=spirv <inputfile2>.spv
+#endif
     //  ...
     ArgStringList WrapperArgs;
 
@@ -10162,6 +10167,12 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       Kind = Action::GetOffloadKindName(OK);
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
+
+    // Enable preview breaking changes in clang-offload-wrapper,
+    // in case it needs to introduce any ABI breaking changes.
+    // For example, changes in offload binary descriptor format.
+    if (C.getArgs().hasArg(options::OPT_fpreview_breaking_changes))
+      WrapperArgs.push_back("-fpreview-breaking-changes");
 
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
     assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
@@ -11579,6 +11590,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("--wrapper-jobs=" + Twine(NumThreads)));
   }
+
+  // Enable preview breaking changes in clang-linker-wrapper,
+  // in case it needs to introduce any ABI breaking changes.
+  // For example, changes in offload binary descriptor format.
+  if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+    CmdArgs.push_back("-fpreview-breaking-changes");
 
   const char *Exec =
       Args.MakeArgString(getToolChain().GetProgramPath("clang-linker-wrapper"));

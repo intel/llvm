@@ -867,7 +867,7 @@ ur_result_t urKernelSuggestMaxCooperativeGroupCount(
   (void)dynamicSharedMemorySize;
   std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
 
-  ze_kernel_handle_t ZeKernel;
+  ze_kernel_handle_t ZeKernel = nullptr;
   UR_CALL(getZeKernel(hDevice->ZeDevice, hKernel, &ZeKernel));
 
   uint32_t WG[3];

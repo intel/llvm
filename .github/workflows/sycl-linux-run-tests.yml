@@ -235,7 +235,7 @@ jobs:
     - name: Reset Intel GPU
       uses: ./devops/actions/reset_gpu
     - name: Install drivers
-      if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
+      if: inputs.e2e_binaries_artifact != 'in-container' && (inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true')
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |

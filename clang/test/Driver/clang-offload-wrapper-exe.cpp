@@ -3,6 +3,11 @@
 // End-to-end clang-offload-wrapper executable test: check that -batch options
 // works, and that the tool generates data properly accessible at runtime.
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+/// TODO: Delete this test when the preview changes are enabled by default.
+/// Rename clang-offload-wrapper-exe-preview.cpp to clang-offload-wrapper-exe.cpp
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
 // --- Prepare test data
 // - create the first binary image
 // RUN: echo -e -n 'device binary image1\n' > %t.bin

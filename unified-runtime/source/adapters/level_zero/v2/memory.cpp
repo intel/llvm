@@ -302,6 +302,7 @@ static void migrateMemory(ze_command_list_handle_t cmdList, void *src,
                           void *dst, size_t size,
                           wait_list_view &waitListView) {
   if (!cmdList) {
+    UR_DFAILURE("invalid handle in migrateMemory");
     throw UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
@@ -356,6 +357,7 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(void *pMappedPtr,
                    });
 
   if (hostAlloc == hostAllocations.end()) {
+    UR_DFAILURE("could not find pMappedPtr:" << pMappedPtr);
     throw UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
 
@@ -507,11 +509,15 @@ static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
          rowPitch == 4 * 2 * zeRegion.width) ||
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-         rowPitch == 4 * zeRegion.width)))
+         rowPitch == 4 * zeRegion.width))) {
+    UR_DFAILURE("image size is invalid");
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
+  }
 #endif
-  if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height))
+  if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height)) {
+    UR_DFAILURE("image size is invalid");
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
+  }
 }
 
 std::pair<ze_image_handle_t, ze_image_region_t>

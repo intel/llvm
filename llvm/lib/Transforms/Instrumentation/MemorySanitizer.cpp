@@ -1970,14 +1970,18 @@ static int getTypeSizeFromManglingName(StringRef Name) {
     switch (C) {
     case 'a': // signed char
     case 'c': // char
+    case 'h': // unsigned char
       return 1;
     case 's': // short
+    case 't': // unsigned short
       return 2;
     case 'f': // float
     case 'i': // int
+    case 'j': // unsigned int
       return 4;
     case 'd': // double
     case 'l': // long
+    case 'm': // unsigned long
       return 8;
     default:
       return 0;
