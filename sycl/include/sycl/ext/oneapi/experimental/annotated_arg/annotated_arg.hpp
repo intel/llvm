@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>

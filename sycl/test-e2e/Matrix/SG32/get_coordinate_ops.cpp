@@ -13,9 +13,6 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 30049, win: 101.4943
 
-// XFAIL: arch-intel_gpu_pvc && igc-dev
-// XFAIL-TRACKER: GSD-11139
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

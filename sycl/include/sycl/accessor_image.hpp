@@ -907,7 +907,7 @@ public:
   DataT read(const CoordT &Coords) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
+    (void)Coords;
     return {0, 0, 0, 0};
 #else
     return host_base_class::read<DataT>(Coords);
@@ -925,8 +925,8 @@ public:
   void write(const CoordT &Coords, const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
-    std::ignore = Color;
+    (void)Coords;
+    (void)Color;
 #else
     host_base_class::write<DataT>(Coords, Color);
 #endif // __SYCL_DEVICE_ONLY__
@@ -938,7 +938,7 @@ private:
       : host_base_class{Impl}
 #endif // __SYCL_DEVICE_ONLY__
   {
-    std::ignore = Impl;
+    (void)Impl;
   }
 
   template <class Obj>
@@ -1216,7 +1216,7 @@ public:
   DataT read(const CoordT &Coords) const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
-    std::ignore = Coords;
+    (void)Coords;
     return {0, 0, 0, 0};
 #else
     return host_base_class::read<DataT>(Coords);
@@ -1229,7 +1229,7 @@ private:
       : host_base_class{Impl}
 #endif // __SYCL_DEVICE_ONLY__
   {
-    std::ignore = Impl;
+    (void)Impl;
   }
 
   template <class Obj>

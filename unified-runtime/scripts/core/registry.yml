@@ -415,6 +415,36 @@ etors:
 - name: ENQUEUE_USM_MEMCPY_2D
   desc: Enumerator for $xEnqueueUSMMemcpy2D
   value: '152'
+- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
+  desc: Enumerator for $xVirtualMemGranularityGetInfo
+  value: '153'
+- name: VIRTUAL_MEM_RESERVE
+  desc: Enumerator for $xVirtualMemReserve
+  value: '154'
+- name: VIRTUAL_MEM_FREE
+  desc: Enumerator for $xVirtualMemFree
+  value: '155'
+- name: VIRTUAL_MEM_MAP
+  desc: Enumerator for $xVirtualMemMap
+  value: '156'
+- name: VIRTUAL_MEM_UNMAP
+  desc: Enumerator for $xVirtualMemUnmap
+  value: '157'
+- name: VIRTUAL_MEM_SET_ACCESS
+  desc: Enumerator for $xVirtualMemSetAccess
+  value: '158'
+- name: VIRTUAL_MEM_GET_INFO
+  desc: Enumerator for $xVirtualMemGetInfo
+  value: '159'
+- name: PHYSICAL_MEM_CREATE
+  desc: Enumerator for $xPhysicalMemCreate
+  value: '160'
+- name: PHYSICAL_MEM_RETAIN
+  desc: Enumerator for $xPhysicalMemRetain
+  value: '161'
+- name: PHYSICAL_MEM_RELEASE
+  desc: Enumerator for $xPhysicalMemRelease
+  value: '162'
 - name: USM_IMPORT_EXP
   desc: Enumerator for $xUSMImportExp
   value: '163'
@@ -559,6 +589,9 @@ etors:
 - name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
   desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
   value: '246'
+- name: PHYSICAL_MEM_GET_INFO
+  desc: Enumerator for $xPhysicalMemGetInfo
+  value: '249'
 - name: ENQUEUE_USM_DEVICE_ALLOC_EXP
   desc: Enumerator for $xEnqueueUSMDeviceAllocExp
   value: '250'
@@ -625,39 +658,6 @@ etors:
 - name: USM_CONTEXT_MEMCPY_EXP
   desc: Enumerator for $xUSMContextMemcpyExp
   value: '273'
-- name: VIRTUAL_MEM_GRANULARITY_GET_INFO
-  desc: Enumerator for $xVirtualMemGranularityGetInfo
-  value: '274'
-- name: VIRTUAL_MEM_RESERVE
-  desc: Enumerator for $xVirtualMemReserve
-  value: '275'
-- name: VIRTUAL_MEM_FREE
-  desc: Enumerator for $xVirtualMemFree
-  value: '276'
-- name: VIRTUAL_MEM_MAP
-  desc: Enumerator for $xVirtualMemMap
-  value: '277'
-- name: VIRTUAL_MEM_UNMAP
-  desc: Enumerator for $xVirtualMemUnmap
-  value: '278'
-- name: VIRTUAL_MEM_SET_ACCESS
-  desc: Enumerator for $xVirtualMemSetAccess
-  value: '279'
-- name: VIRTUAL_MEM_GET_INFO
-  desc: Enumerator for $xVirtualMemGetInfo
-  value: '280'
-- name: PHYSICAL_MEM_CREATE
-  desc: Enumerator for $xPhysicalMemCreate
-  value: '281'
-- name: PHYSICAL_MEM_RETAIN
-  desc: Enumerator for $xPhysicalMemRetain
-  value: '282'
-- name: PHYSICAL_MEM_RELEASE
-  desc: Enumerator for $xPhysicalMemRelease
-  value: '283'
-- name: PHYSICAL_MEM_GET_INFO
-  desc: Enumerator for $xPhysicalMemGetInfo
-  value: '284'
 - name: MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP
   desc: Enumerator for $xMemoryExportAllocExportableMemoryExp
   value: '285'

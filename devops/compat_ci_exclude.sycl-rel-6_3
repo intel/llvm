@@ -2,6 +2,20 @@
 Matrix/joint_matrix_bf16_fill_k_cache_arg_dim.cpp
 Matrix/joint_matrix_bf16_fill_k_cache_runtime_dim.cpp
 
+# https://github.com/intel/llvm/pull/18310 removed fallback assertions, but due
+# to a bug in the L0 drivers, one test causes the implementation to continue
+# after assertions are triggered. We allow this regression while the drivers bug
+# gets addressed.
+# See GSD-11097.
+Assert/assert_in_kernels.cpp
+
+# https://github.com/intel/llvm/pull/20159 prevents returning last event as an
+# optimization for submitting barrier to an empty IOQ. However, the test
+# actually checks whether last event is returned or not, so it needs to be
+# updated to match the new behavior. ext_oneapi_submit_barrier spec doesn't
+# require last event to be returned, so this is not an ABI break.
+InorderQueue/in_order_ext_oneapi_submit_barrier.cpp
+
 # Likely OK, but need author to provide justification, get approval/confirmation
 # from someone:
 

@@ -1,3 +1,6 @@
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: CMPLRLLVM-69478
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

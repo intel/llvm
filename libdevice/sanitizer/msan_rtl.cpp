@@ -216,16 +216,16 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_CPU__)
   shadow_ptr = MemToShadow_CPU(addr);
 #else
-  if (GetDeviceTy() == DeviceType::CPU) {
+  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
     shadow_ptr = MemToShadow_CPU(addr);
-  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
-  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
     shadow_ptr = MemToShadow_DG2(addr, as);
   } else {
     shadow_ptr = GetMsanLaunchInfo->CleanShadow;
-    MSAN_DEBUG(
-        __spirv_ocl_printf(__msan_print_unsupport_device_type, GetDeviceTy()));
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
+                                  GetMsanLaunchInfo->DeviceTy));
   }
 #endif
 
@@ -273,17 +273,17 @@ inline uptr MemToOrigin(uptr addr, uint32_t as) {
 #elif defined(__LIBDEVICE_CPU__)
   origin_ptr = MemToOrigin_CPU(addr);
 #else
-  if (GetDeviceTy() == DeviceType::CPU) {
+  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
     origin_ptr = MemToOrigin_CPU(aligned_addr);
-  } else if (GetDeviceTy() == DeviceType::GPU_PVC) {
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
     origin_ptr = MemToOrigin_PVC(aligned_addr, as);
-  } else if (GetDeviceTy() == DeviceType::GPU_DG2) {
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
     origin_ptr = MemToOrigin_DG2(aligned_addr, as);
   } else {
     // Return clean shadow (0s) by default
     origin_ptr = GetMsanLaunchInfo->CleanShadow;
-    MSAN_DEBUG(
-        __spirv_ocl_printf(__msan_print_unsupport_device_type, GetDeviceTy()));
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
+                                  GetMsanLaunchInfo->DeviceTy));
   }
 #endif
 
@@ -743,7 +743,8 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow(uptr ptr, uint32_t as,
 static __SYCL_CONSTANT__ const char __msan_print_private_base[] =
     "[kernel] __msan_set_private_base(sid=%llu): %p\n";
 
-inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
+DEVICE_EXTERN_C_NOINLINE void
+__msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
   const size_t sid = SubGroupLinearId();
   if (!GetMsanLaunchInfo || sid >= MSAN_MAX_SG_PRIVATE ||
       GetMsanLaunchInfo->PrivateShadowOffset == 0 ||
@@ -755,19 +756,6 @@ inline void SetPrivateBaseImpl(__SYCL_PRIVATE__ void *ptr) {
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_private_base, sid, ptr));
   }
   SubGroupBarrier();
-}
-
-DEVICE_EXTERN_C_NOINLINE void
-__msan_set_private_base(__SYCL_PRIVATE__ void *ptr) {
-#if defined(__LIBDEVICE_CPU__)
-  return;
-#elif defined(__LIBDEVICE_DG2__) || defined(__LIBDEVICE_PVC__)
-  SetPrivateBaseImpl(ptr);
-#else
-  if (GetDeviceTy() == DeviceType::CPU)
-    return;
-  SetPrivateBaseImpl(ptr);
-#endif
 }
 
 static __SYCL_CONSTANT__ const char __msan_print_strided_copy_unsupport_type[] =
@@ -812,6 +800,44 @@ __msan_unpoison_strided_copy(uptr dest, uint32_t dest_as, uptr src,
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
                                 "__msan_unpoison_strided_copy"));
+}
+
+static __SYCL_CONSTANT__ const char __msan_print_copy_unsupport_type[] =
+    "[kernel] __msan_unpoison_copy: unsupported type(%d <- %d)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_copy(uptr dst, uint32_t dst_as,
+                                                   uptr src, uint32_t src_as,
+                                                   uint32_t dst_element_size,
+                                                   uint32_t src_element_size,
+                                                   uptr counts) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_copy"));
+
+  uptr shadow_dst = MemToShadow(dst, dst_as);
+  if (shadow_dst != GetMsanLaunchInfo->CleanShadow) {
+    uptr shadow_src = MemToShadow(src, src_as);
+
+    if (dst_element_size == 1 && src_element_size == 1) {
+      Memcpy<__SYCL_GLOBAL__ int8_t *, __SYCL_GLOBAL__ int8_t *>(
+          (__SYCL_GLOBAL__ int8_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int8_t *)shadow_src, counts);
+    } else if (dst_element_size == 4 && src_element_size == 2) {
+      Memcpy<__SYCL_GLOBAL__ int32_t *, __SYCL_GLOBAL__ int16_t *>(
+          (__SYCL_GLOBAL__ int32_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int16_t *)shadow_src, counts);
+    } else if (dst_element_size == 2 && src_element_size == 4) {
+      Memcpy<__SYCL_GLOBAL__ int16_t *, __SYCL_GLOBAL__ int32_t *>(
+          (__SYCL_GLOBAL__ int16_t *)shadow_dst,
+          (__SYCL_GLOBAL__ int32_t *)shadow_src, counts);
+    } else {
+      __spirv_ocl_printf(__msan_print_copy_unsupport_type, dst_element_size,
+                         src_element_size);
+    }
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_unpoison_copy"));
 }
 
 #endif // __SPIR__ || __SPIRV__

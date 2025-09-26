@@ -60,6 +60,9 @@ add_custom_target( libclc ALL )
 add_custom_target( libclc-opencl-builtins COMMENT "Build libclc OpenCL builtins" )
 add_dependencies( libclc libclc-opencl-builtins )
 
+add_custom_target( libspirv-builtins COMMENT "Build libspirv builtins" )
+add_dependencies( libclc libspirv-builtins )
+
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
   set( LIBCLC_STANDALONE_BUILD TRUE )
@@ -187,8 +190,6 @@ if( spirv-mesa3d- IN_LIST LIBCLC_TARGETS_TO_BUILD
       "installed and the SPIR-V backend has not been requested." )
   endif()
 endif()
-
-add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
 
 if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
   set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
@@ -359,6 +360,7 @@ file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_IN
 # Setup the paths where libclc runtimes should be stored.
 # FIXME: Align with upstream
 set( LIBCLC_OUTPUT_LIBRARY_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
+file( MAKE_DIRECTORY ${LIBCLC_OUTPUT_LIBRARY_DIR} )
 
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )

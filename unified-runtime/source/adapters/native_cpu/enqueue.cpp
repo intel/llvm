@@ -639,13 +639,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    ur_queue_handle_t /*hQueue*/, bool /*blocking*/, void * /*pDst*/,
-    size_t /*dstPitch*/, const void * /*pSrc*/, size_t /*srcPitch*/,
-    size_t /*width*/, size_t /*height*/, uint32_t /*numEventsInWaitList*/,
-    const ur_event_handle_t * /*phEventWaitList*/,
-    ur_event_handle_t * /*phEvent*/) {
-
-  DIE_NO_IMPLEMENTATION;
+    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
+    const void *pSrc, size_t srcPitch, size_t width, size_t height,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return withTimingEvent(
+      UR_COMMAND_USM_MEMCPY_2D, hQueue, numEventsInWaitList, phEventWaitList,
+      phEvent,
+      [width, height, srcPitch, dstPitch, pDst, pSrc]() {
+        for (size_t h = 0, Src_ind = 0, Dst_ind = 0; h < height;
+             h++, Src_ind += srcPitch, Dst_ind += dstPitch) {
+          int8_t &d_mem = ur_cast<int8_t *>(pDst)[Dst_ind];
+          const int8_t &s_mem = ur_cast<const int8_t *>(pSrc)[Src_ind];
+          std::memcpy(&d_mem, &s_mem, width);
+        }
+        return UR_RESULT_SUCCESS;
+      },
+      blocking);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(

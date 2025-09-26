@@ -102,7 +102,8 @@ public:
 
   void init(KernelNameStrRefT KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void initIfNeeded(KernelNameStrRefT KernelName);
+  // Initialize default-created entry that has no data recorded:
+  void initIfEmpty(const CompileTimeKernelInfoTy &Info);
 #endif
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 

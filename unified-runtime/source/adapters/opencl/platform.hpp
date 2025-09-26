@@ -22,6 +22,9 @@ struct ur_platform_handle_t_ : ur::opencl::handle_base {
   std::map<cl_device_id, ur_device_handle_t> SubDevices;
   std::mutex SubDevicesLock;
 
+  ur_platform_handle_t_(const ur_platform_handle_t_ &) = delete;
+  ur_platform_handle_t_ &operator=(const ur_platform_handle_t_ &) = delete;
+
   ur_platform_handle_t_(native_type Plat) : handle_base(), CLPlatform(Plat) {}
 
   ~ur_platform_handle_t_() {

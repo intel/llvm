@@ -534,6 +534,8 @@ operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_copy_input_types_t value);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -1018,6 +1020,36 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D:
     os << "UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D";
     break;
+  case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO:
+    os << "UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_RESERVE:
+    os << "UR_FUNCTION_VIRTUAL_MEM_RESERVE";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_FREE:
+    os << "UR_FUNCTION_VIRTUAL_MEM_FREE";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_MAP:
+    os << "UR_FUNCTION_VIRTUAL_MEM_MAP";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_UNMAP:
+    os << "UR_FUNCTION_VIRTUAL_MEM_UNMAP";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS:
+    os << "UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS";
+    break;
+  case UR_FUNCTION_VIRTUAL_MEM_GET_INFO:
+    os << "UR_FUNCTION_VIRTUAL_MEM_GET_INFO";
+    break;
+  case UR_FUNCTION_PHYSICAL_MEM_CREATE:
+    os << "UR_FUNCTION_PHYSICAL_MEM_CREATE";
+    break;
+  case UR_FUNCTION_PHYSICAL_MEM_RETAIN:
+    os << "UR_FUNCTION_PHYSICAL_MEM_RETAIN";
+    break;
+  case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
+    os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
+    break;
   case UR_FUNCTION_USM_IMPORT_EXP:
     os << "UR_FUNCTION_USM_IMPORT_EXP";
     break;
@@ -1162,6 +1194,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT:
     os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT";
     break;
+  case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
+    os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
+    break;
   case UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP:
     os << "UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP";
     break;
@@ -1228,39 +1263,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP:
     os << "UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO:
-    os << "UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_RESERVE:
-    os << "UR_FUNCTION_VIRTUAL_MEM_RESERVE";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_FREE:
-    os << "UR_FUNCTION_VIRTUAL_MEM_FREE";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_MAP:
-    os << "UR_FUNCTION_VIRTUAL_MEM_MAP";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_UNMAP:
-    os << "UR_FUNCTION_VIRTUAL_MEM_UNMAP";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS:
-    os << "UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS";
-    break;
-  case UR_FUNCTION_VIRTUAL_MEM_GET_INFO:
-    os << "UR_FUNCTION_VIRTUAL_MEM_GET_INFO";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_CREATE:
-    os << "UR_FUNCTION_PHYSICAL_MEM_CREATE";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_RETAIN:
-    os << "UR_FUNCTION_PHYSICAL_MEM_RETAIN";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_RELEASE:
-    os << "UR_FUNCTION_PHYSICAL_MEM_RELEASE";
-    break;
-  case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
-    os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
     break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP:
     os << "UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP";
@@ -3118,6 +3120,15 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
@@ -5245,6 +5256,45 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -11358,6 +11408,31 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_image_copy_input_types_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_image_copy_input_types_t value) {
+  switch (value) {
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM";
+    break;
+  case UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE:
+    os << "UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_sampler_cubemap_filter_mode_t type
 /// @returns
@@ -18268,6 +18343,11 @@ inline std::ostream &operator<<(
 
   ur::details::printFlag<ur_exp_image_copy_flag_t>(os,
                                                    *(params->pimageCopyFlags));
+
+  os << ", ";
+  os << ".imageCopyInputTypes = ";
+
+  os << *(params->pimageCopyInputTypes);
 
   os << ", ";
   os << ".numEventsInWaitList = ";

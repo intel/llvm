@@ -54,15 +54,16 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/exception.hpp>                  // for errc
+#include <sycl/detail/generic_type_traits.hpp>
 
 #include <sycl/detail/memcpy.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
 #include <sycl/vector.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <cfenv> // for fesetround, fegetround
+#include <cfenv>
+#include <sycl/exception.hpp>
 #endif
 
 #include <type_traits>
@@ -894,8 +895,7 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
 #endif
             bool, /*->*/ std::uint8_t,                            //
             sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
-            sycl::ext::oneapi::bfloat16,
-            /*->*/ sycl::ext::oneapi::bfloat16::Bfloat16StorageT, //
+            sycl::ext::oneapi::bfloat16, /*->*/ uint16_t,         //
             char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
             DataT, /*->*/ DataT                                   //
             >::type
