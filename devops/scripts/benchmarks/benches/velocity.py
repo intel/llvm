@@ -17,7 +17,7 @@ from git_project import GitProject
 
 
 class VelocityBench(Suite):
-    def __init__(self, directory) -> None:
+    def __init__(self) -> None:
         self.project = None
 
     def name(self) -> str:
@@ -57,7 +57,7 @@ class VelocityBench(Suite):
 
 class VelocityBase(Benchmark):
     def __init__(self, name: str, bin_name: str, vb: VelocityBench, unit: str):
-        super().__init__(options.workdir, vb)
+        super().__init__(vb)
         self.vb = vb
         self.bench_name = name
         self.bin_name = bin_name

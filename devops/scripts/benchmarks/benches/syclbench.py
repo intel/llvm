@@ -14,7 +14,7 @@ from git_project import GitProject
 
 
 class SyclBench(Suite):
-    def __init__(self, directory):
+    def __init__(self):
         self.project = None
 
     def name(self) -> str:
@@ -99,7 +99,7 @@ class SyclBench(Suite):
 
 class SyclBenchmark(Benchmark):
     def __init__(self, bench, name, test):
-        super().__init__(options.workdir, bench)
+        super().__init__(bench)
         self.bench = bench
         self.bench_name = name
         self.test = test

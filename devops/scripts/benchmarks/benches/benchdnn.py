@@ -16,7 +16,7 @@ from git_project import GitProject
 
 
 class OneDnnBench(Suite):
-    def __init__(self, directory):
+    def __init__(self):
         self.project = None
 
     def git_url(self):
