@@ -187,7 +187,7 @@
 // RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix COMMA_FILE %s
-// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
+// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
 
 /// Verify the arch value for the packager is populated with different
 /// scenarios for spir64_gen
@@ -210,6 +210,21 @@
 // RUN: --offload-new-driver %s 2>&1 \
 // RUN:   | FileCheck -check-prefix ARCH_CHECK %s
 // ARCH_CHECK: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
+
+// Verify when a comma-separated list of architectures is provided in -device, they are
+// passed to clang-offload-packager correctly
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend "-device pvc,bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix MULTI_ARCH %s
+// MULTI_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl
+// MULTI_ARCH-SAME: compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw"
+
+// Verify that the driver correctly handles link-opt and compile-opt values with commas
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend "-device bdw -FOO a,b" \
+// RUN:   -Xsycl-target-linker "-BAR x,y" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix COMMA_OPTS %s
+// COMMA_OPTS: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl,compile-opts=-device bdw -FOO a,compile-opts=b,link-opts=-BAR x,link-opts=y"
 
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \
