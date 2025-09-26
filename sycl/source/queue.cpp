@@ -490,19 +490,19 @@ event submit_kernel_direct_with_event_impl(
       Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
 
-template event submit_kernel_direct_with_event_impl<1>(
+template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<1>(
     const queue &Queue, const nd_range<1> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-template event submit_kernel_direct_with_event_impl<2>(
+template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<2>(
     const queue &Queue, const nd_range<2> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-template event submit_kernel_direct_with_event_impl<3>(
+template event __SYCL_EXPORT submit_kernel_direct_with_event_impl<3>(
     const queue &Queue, const nd_range<3> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
@@ -518,19 +518,19 @@ void submit_kernel_direct_without_event_impl(
       Range, HostKernel, DeviceKernelInfo, CodeLoc, IsTopCodeLoc);
 }
 
-template void submit_kernel_direct_without_event_impl<1>(
+template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<1>(
     const queue &Queue, const nd_range<1> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-template void submit_kernel_direct_without_event_impl<2>(
+template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<2>(
     const queue &Queue, const nd_range<2> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
-template void submit_kernel_direct_without_event_impl<3>(
+template void __SYCL_EXPORT submit_kernel_direct_without_event_impl<3>(
     const queue &Queue, const nd_range<3> &Range,
     std::shared_ptr<detail::HostKernelBase> &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
