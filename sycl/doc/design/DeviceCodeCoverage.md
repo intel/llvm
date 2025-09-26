@@ -16,7 +16,7 @@ Each counter is annotated with a unique identifier (`sycl-unique-id`) of the for
 
 The device global infrastructure, as described in [DeviceGlobal.md](DeviceGlobal.md), provides mechanisms for mapping host and device instances of global variables, managing their lifetimes, and facilitating data transfer. Device-side coverage counters are treated as a special class of device globals:
 
-- They use the shared alloation type rather than the device allocation type for the underlying USM memory.
+- They use the shared allocation type rather than the device allocation type for the underlying USM memory.
 - They do not have corresponding `device_global` declarations in host code.
 - Their lifetime and cleanup are managed via the device global map, with integration footer code ensuring registration and deregistration.
 
