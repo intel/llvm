@@ -859,6 +859,12 @@ void queue_impl::verifyProps(const property_list &Props) const {
                                                 CheckPropertiesWithData);
 }
 
+void queue_impl::remember_kernel_single_task(const char *KernelName) {
+  FastKernelCacheValPtr KernelCacheVal =
+      detail::ProgramManager::getInstanct().getOrCreateKernel(
+          MContext, MDevice, KernelName, NDRDesc(sycl::range{1, 1, 1}));
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

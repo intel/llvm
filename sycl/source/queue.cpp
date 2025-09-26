@@ -431,6 +431,15 @@ bool queue::khr_empty() const { return impl->queue_empty(); }
 
 void queue::ext_oneapi_prod() { impl->flush(); }
 
+void queue::set_std_layout_arg(int ArgIndex, const char *ArgPtr,
+                               size_t ArgSize) {
+  impl->set_std_layout_aqrg(ArgIndex, ArgPtr, ArgSize);
+}
+
+void queue::remmeber_kernel_single_task(const char *KernelName) {
+  impl->remember_kernel_single_task(const char *KernelName);
+}
+
 ur_native_handle_t queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }

@@ -245,6 +245,8 @@ public:
                                         private_tag{});
   }
 
+  void remember_kernel_single_task(const char *);
+
   ~queue_impl() {
     try {
 #if XPTI_ENABLE_INSTRUMENTATION

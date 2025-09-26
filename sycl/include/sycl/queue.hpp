@@ -2663,11 +2663,9 @@ public:
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(
-      const KernelType &KernelFunc,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return single_task<KernelName, KernelType>(
-        ext::oneapi::experimental::empty_properties_t{}, KernelFunc, CodeLoc);
+  event single_task(const KernelType &KernelFunc,
+                    const detail::code_location &) {
+    return single_task_impl<KernelName>(KernelFunc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -3718,6 +3716,44 @@ private:
     ProcessSubmitProperties(Props, SI);
     submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());
+  }
+
+  void set_std_layout_arg(int, const char *, size_t);
+  void remember_kernel_single_task(const char *);
+
+  template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
+    set_std_layout_arg(ArgIndex, reinterpret_cast<const char *>(&T), sizeof(T));
+  }
+
+  void setArgsHelper(int) {}
+
+  template <typename T, typename... Ts>
+  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
+    setArgHelper(ArgIndex, std::forward<T>(Arg));
+    setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
+  }
+
+  template <typename, typename... Args>
+  void sycl_enqueue_kernel_launch(const char *KernelName, Args... args) {
+    remember_kernel_single_task(KernelName);
+    setArgsHelper(0, args...);
+    enqueue_remembered_kernel();
+    // get kernel
+    // call set_args
+    // call enqueue
+  }
+
+  template <typename KernelName, typename KernelType>
+  [[clang::sycl_kernel_entry_point(KernelName)]]
+  void __kernel_single_task(const KernelType &KernelFunc) {
+    KernelFunc();
+  }
+
+  /// special overload that does not accept properties or reductions (to
+  /// simplify a prototype)
+  template <typename KernelName, typename KernelFunctor>
+  event single_task_impl(KernelFunctor &&Functor) {
+    __kernel_single_task<KernelName>(Functor);
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
