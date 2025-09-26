@@ -148,7 +148,6 @@ add_clang_library(clangCodeGen
   Targets/Mips.cpp
   Targets/NVPTX.cpp
   Targets/NativeCPU.cpp
-  Targets/PNaCl.cpp
   Targets/PPC.cpp
   Targets/RISCV.cpp
   Targets/SPIR.cpp

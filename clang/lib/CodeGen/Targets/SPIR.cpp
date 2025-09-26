@@ -100,7 +100,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallReturnType(QualType RetTy) const {
         return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
       if (const RecordType *RT = RetTy->getAs<RecordType>()) {
-        const RecordDecl *RD = RT->getDecl();
+        const RecordDecl *RD = RT->getOriginalDecl();
         if (RD->hasFlexibleArrayMember())
           return classifyReturnType(RetTy);
       }
@@ -150,7 +150,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
       return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
     if (const RecordType *RT = Ty->getAs<RecordType>()) {
-      const RecordDecl *RD = RT->getDecl();
+      const RecordDecl *RD = RT->getOriginalDecl();
       if (RD->hasFlexibleArrayMember())
         return classifyArgumentType(Ty);
     }
@@ -271,7 +271,7 @@ ABIArgInfo SPIRVABIInfo::classifyReturnType(QualType RetTy) const {
     return DefaultABIInfo::classifyReturnType(RetTy);
 
   if (const RecordType *RT = RetTy->getAs<RecordType>()) {
-    const RecordDecl *RD = RT->getDecl();
+    const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
     if (RD->hasFlexibleArrayMember())
       return DefaultABIInfo::classifyReturnType(RetTy);
   }
@@ -342,7 +342,7 @@ ABIArgInfo SPIRVABIInfo::classifyArgumentType(QualType Ty) const {
                                    RAA == CGCXXABI::RAA_DirectInMemory);
 
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
-    const RecordDecl *RD = RT->getDecl();
+    const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
     if (RD->hasFlexibleArrayMember())
       return DefaultABIInfo::classifyArgumentType(Ty);
   }
@@ -599,7 +599,7 @@ static llvm::Type *getInlineSpirvType(CodeGenModule &CGM,
     case SpirvOperandKind::TypeId: {
       QualType TypeOperand = Operand.getResultType();
       if (auto *RT = TypeOperand->getAs<RecordType>()) {
-        auto *RD = RT->getDecl();
+        auto *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
         assert(RD->isCompleteDefinition() &&
                "Type completion should have been required in Sema");
 
