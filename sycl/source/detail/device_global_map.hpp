@@ -75,7 +75,8 @@ public:
         //       cannot be set until registration happens.
         auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
             DeviceGlobal->Name, Img, TypeSize, DeviceImageScopeDecorated);
-        auto NewEntry = MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+        auto NewEntry =
+            MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
         if (NewEntry.first->second->isProfileCounter())
           MProfileCounterDeviceGlobals.push_back(NewEntry.first->second.get());
       }
