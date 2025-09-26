@@ -819,11 +819,12 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   // Check for options that are unsupported because they would interfere with
   // the in-memory pipeline.
   Arg *UnsupportedArg =
-      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
-                    OPT_Link_Group,       // Linker flags
-                    OPT_o,                // Output file
-                    OPT_fsycl_targets_EQ, // AoT compilation
-                    OPT_fsycl_link_EQ,    // SYCL linker
+      AL.getLastArg(OPT_Action_Group,       // Actions like -c or -S
+                    OPT_Link_Group,         // Linker flags
+                    OPT_o,                  // Output file
+                    OPT_fsycl_targets_EQ,   // AoT compilation
+                    OPT_offload_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,      // SYCL linker
                     OPT_fno_sycl_device_code_split_esimd, // invoke_simd
                     OPT_fsanitize_EQ                      // Sanitizer
       );
