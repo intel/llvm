@@ -767,6 +767,9 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer);
+ur_result_t urProgramDynamicLinkExp(ur_context_handle_t hContext,
+                                    uint32_t count,
+                                    const ur_program_handle_t *phPrograms);
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
@@ -782,13 +785,16 @@ ur_result_t urMemoryExportExportMemoryHandleExp(
     void *pMemHandleRet);
 ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
                               ur_device_handle_t *phDevices,
+                              ur_exp_program_flags_t flags,
                               const char *pOptions);
 ur_result_t urProgramCompileExp(ur_program_handle_t hProgram,
                                 uint32_t numDevices,
                                 ur_device_handle_t *phDevices,
+                                ur_exp_program_flags_t flags,
                                 const char *pOptions);
 ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
-                             ur_device_handle_t *phDevices, uint32_t count,
+                             ur_device_handle_t *phDevices,
+                             ur_exp_program_flags_t flags, uint32_t count,
                              const ur_program_handle_t *phPrograms,
                              const char *pOptions,
                              ur_program_handle_t *phProgram);
