@@ -91,7 +91,7 @@ class GitProject:
     def configure(
         self,
         extra_args: list | None = None,
-        install_prefix=True,
+        install_prefix: bool = True,
         add_sycl: bool = False,
     ) -> None:
         """Configures the project."""
