@@ -65,6 +65,7 @@
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Types.h"
+#include "clang/Lex/DependencyDirectivesScanner.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
@@ -1365,14 +1366,25 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Get the list of requested offloading toolchains. If they were not
   // explicitly specified we will infer them based on the offloading language
   // and requested architectures.
+  llvm::StringMap<StringRef> FoundNormalizedTriples;
+  auto isDuplicateTargetTripleString = [&](llvm::StringRef Target) -> bool {
+    std::string NormalizedName =
+        C.getDriver().getSYCLDeviceTriple(Target).normalize();
+    auto [TripleIt, Inserted] =
+        FoundNormalizedTriples.try_emplace(NormalizedName, Target);
+    if (!Inserted) {
+      Diag(clang::diag::warn_drv_offload_target_duplicate)
+          << Target << TripleIt->second;
+      return true;
+    }
+    return false;
+  };
 
   std::multiset<llvm::StringRef> Triples;
-  llvm::StringMap<StringRef> FoundNormalizedTriples;
   if (C.getInputArgs().hasArg(options::OPT_offload_targets_EQ)) {
     std::vector<std::string> ArgValues =
         C.getInputArgs().getAllArgValues(options::OPT_offload_targets_EQ);
     llvm::Triple TT;
-
     for (llvm::StringRef Target : ArgValues) {
       if (IsSYCL) {
         StringRef TargetTripleString(Target);
@@ -1382,20 +1394,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           TargetTripleString = "nvptx64-nvidia-cuda";
         else if (Target.starts_with("amd_gpu_"))
           TargetTripleString = "amdgcn-amd-amdhsa";
-        std::string NormalizedName =
-            getSYCLDeviceTriple(TargetTripleString).normalize();
-        auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-        if (!Inserted) {
-          if (Target == TripleIt->second)
-            Diag(clang::diag::warn_drv_offload_target_duplicate)
-                << Target << TripleIt->second;
+
+        // Check for duplicate target triple strings
+        // before inserting in Triples.
+        if (isDuplicateTargetTripleString(Target))
           continue;
-        }
         Triples.insert(C.getInputArgs().MakeArgString(TargetTripleString));
-      } else {
+      } else
         Triples.insert(C.getInputArgs().MakeArgString(Target));
-      }
     }
 
     if (ArgValues.empty())
@@ -1409,6 +1415,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       Triples.insert(Derived.begin(), Derived.end());
     }
   }
+
   FoundNormalizedTriples.clear();
   // Build an offloading toolchain for every requested target and kind.
   for (StringRef Target : Triples) {
@@ -1452,17 +1459,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(diag::err_drv_invalid_or_unsupported_offload_target) << TT.str();
         continue;
       }
-
-      if (Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) {
-        std::string NormalizedName = TT.normalize();
-        auto [TripleIt, Inserted] =
-            FoundNormalizedTriples.try_emplace(NormalizedName, Target);
-        if (!Inserted) {
-          Diag(clang::diag::warn_drv_offload_target_duplicate)
-              << Target << TripleIt->second;
-          continue;
-        }
-      }
+      // Check for duplicate target triple strings.
+      if ((Kind == Action::OFK_OpenMP || Kind == Action::OFK_SYCL) &&
+          isDuplicateTargetTripleString(Target))
+        continue;
 
       auto &TC = getOffloadToolChain(C.getInputArgs(), Kind, TT,
                                      C.getDefaultToolChain().getTriple());
@@ -6821,6 +6821,11 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
     YcArg = nullptr;
   }
 
+  if (Args.hasArgNoClaim(options::OPT_fmodules_driver))
+    // TODO: Check against all incompatible -fmodules-driver arguments
+    if (!ModulesModeCXX20 && !Args.hasArgNoClaim(options::OPT_fmodules))
+      Args.eraseArg(options::OPT_fmodules_driver);
+
   Arg *FinalPhaseArg;
   phases::ID FinalPhase = getFinalPhase(Args, &FinalPhaseArg);
 
@@ -6947,6 +6952,33 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
   }
 }
 
+static bool hasCXXModuleInputType(const Driver::InputList &Inputs) {
+  const auto IsTypeCXXModule = [](const auto &Input) -> bool {
+    const auto TypeID = Input.first;
+    return (TypeID == types::TY_CXXModule);
+  };
+  return llvm::any_of(Inputs, IsTypeCXXModule);
+}
+
+llvm::ErrorOr<bool>
+Driver::ScanInputsForCXX20ModulesUsage(const InputList &Inputs) const {
+  const auto CXXInputs = llvm::make_filter_range(
+      Inputs, [](const auto &Input) { return types::isCXX(Input.first); });
+  for (const auto &Input : CXXInputs) {
+    StringRef Filename = Input.second->getSpelling();
+    auto ErrOrBuffer = VFS->getBufferForFile(Filename);
+    if (!ErrOrBuffer)
+      return ErrOrBuffer.getError();
+    const auto Buffer = std::move(*ErrOrBuffer);
+
+    if (scanInputForCXX20ModulesUsage(Buffer->getBuffer())) {
+      Diags.Report(diag::remark_found_cxx20_module_usage) << Filename;
+      return true;
+    }
+  }
+  return false;
+}
+
 void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                           const InputList &Inputs, ActionList &Actions) const {
   llvm::PrettyStackTraceString CrashInfo("Building compilation actions");
@@ -7013,6 +7045,33 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
   }
+
+  if (Args.hasFlag(options::OPT_fmodules_driver,
+                   options::OPT_fno_modules_driver, false)) {
+    // TODO: Move the logic for implicitly enabling explicit-module-builds out
+    // of -fmodules-driver once it is no longer experimental.
+    // Currently, this serves diagnostic purposes only.
+    bool UsesCXXModules = hasCXXModuleInputType(Inputs);
+    if (!UsesCXXModules) {
+      const auto ErrOrScanResult = ScanInputsForCXX20ModulesUsage(Inputs);
+      if (!ErrOrScanResult) {
+        Diags.Report(diag::err_cannot_open_file)
+            << ErrOrScanResult.getError().message();
+        return;
+      }
+      UsesCXXModules = *ErrOrScanResult;
+    }
+    if (UsesCXXModules || Args.hasArg(options::OPT_fmodules))
+      BuildDriverManagedModuleBuildActions(C, Args, Inputs, Actions);
+    return;
+  }
+
+  BuildDefaultActions(C, Args, Inputs, Actions);
+}
+
+void Driver::BuildDefaultActions(Compilation &C, DerivedArgList &Args,
+                                 const InputList &Inputs,
+                                 ActionList &Actions) const {
 
   bool UseNewOffloadingDriver =
       C.isOffloadingHostKind(Action::OFK_OpenMP) ||
@@ -7295,16 +7354,28 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
   }
 
-  // Call validator for dxil when -Vd not in Args.
   if (C.getDefaultToolChain().getTriple().isDXIL()) {
-    // Only add action when needValidation.
     const auto &TC =
         static_cast<const toolchains::HLSLToolChain &>(C.getDefaultToolChain());
+
+    // Call objcopy for manipulation of the unvalidated DXContainer when an
+    // option in Args requires it.
+    if (TC.requiresObjcopy(Args)) {
+      Action *LastAction = Actions.back();
+      // llvm-objcopy expects an unvalidated DXIL container (TY_OBJECT).
+      if (LastAction->getType() == types::TY_Object)
+        Actions.push_back(
+            C.MakeAction<ObjcopyJobAction>(LastAction, types::TY_Object));
+    }
+
+    // Call validator for dxil when -Vd not in Args.
     if (TC.requiresValidation(Args)) {
       Action *LastAction = Actions.back();
       Actions.push_back(C.MakeAction<BinaryAnalyzeJobAction>(
           LastAction, types::TY_DX_CONTAINER));
     }
+
+    // Call metal-shaderconverter when targeting metal.
     if (TC.requiresBinaryTranslation(Args)) {
       Action *LastAction = Actions.back();
       // Metal shader converter runs on DXIL containers, which can either be
@@ -7319,6 +7390,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // Claim ignored clang-cl options.
   Args.ClaimAllArgs(options::OPT_cl_ignored_Group);
+}
+
+void Driver::BuildDriverManagedModuleBuildActions(
+    Compilation &C, llvm::opt::DerivedArgList &Args, const InputList &Inputs,
+    ActionList &Actions) const {
+  Diags.Report(diag::remark_performing_driver_managed_module_build);
 }
 
 /// Returns the canonical name for the offloading architecture when using a HIP
@@ -9409,8 +9486,9 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
        C.getArgs().hasArg(options::OPT_dxc_Fo)) ||
       JA.getType() == types::TY_DX_CONTAINER) {
     StringRef FoValue = C.getArgs().getLastArgValue(options::OPT_dxc_Fo);
-    // If we are targeting DXIL and not validating or translating, we should set
-    // the final result file. Otherwise we should emit to a temporary.
+    // If we are targeting DXIL and not validating/translating/objcopying, we
+    // should set the final result file. Otherwise we should emit to a
+    // temporary.
     if (C.getDefaultToolChain().getTriple().isDXIL()) {
       const auto &TC = static_cast<const toolchains::HLSLToolChain &>(
           C.getDefaultToolChain());

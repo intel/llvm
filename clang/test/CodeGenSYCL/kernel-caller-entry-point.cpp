@@ -97,6 +97,9 @@ int main() {
 // CHECK-HOST-WINDOWS-NEXT: }
 
 // Verify that SYCL kernel caller functions are emitted for each device target.
+//
+// main() shouldn't be emitted in device code.
+// CHECK-NOT: @main()
 
 // IR for the SYCL kernel caller function generated for
 // single_purpose_kernel_task with single_purpose_kernel_name as the SYCL kernel

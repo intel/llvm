@@ -62,12 +62,14 @@ class VarDecl;
 class ParmVarDecl;
 class InitListExpr;
 class HLSLBufferDecl;
+class HLSLRootSignatureDecl;
 class HLSLVkBindingAttr;
 class HLSLResourceBindingAttr;
 class Type;
 class RecordType;
 class DeclContext;
 class HLSLPackOffsetAttr;
+class ArraySubscriptExpr;
 
 class FunctionDecl;
 
@@ -75,6 +77,7 @@ namespace CodeGen {
 
 class CodeGenModule;
 class CodeGenFunction;
+class LValue;
 
 class CGHLSLRuntime {
 public:
@@ -89,6 +92,7 @@ public:
   GENERATE_HLSL_INTRINSIC_FUNCTION(Frac, frac)
   GENERATE_HLSL_INTRINSIC_FUNCTION(FlattenedThreadIdInGroup,
                                    flattened_thread_id_in_group)
+  GENERATE_HLSL_INTRINSIC_FUNCTION(IsInf, isinf)
   GENERATE_HLSL_INTRINSIC_FUNCTION(Lerp, lerp)
   GENERATE_HLSL_INTRINSIC_FUNCTION(Normalize, normalize)
   GENERATE_HLSL_INTRINSIC_FUNCTION(Rsqrt, rsqrt)
@@ -148,6 +152,7 @@ public:
   void generateGlobalCtorDtorCalls();
 
   void addBuffer(const HLSLBufferDecl *D);
+  void addRootSignature(const HLSLRootSignatureDecl *D);
   void finishCodeGen();
 
   void setHLSLEntryAttributes(const FunctionDecl *FD, llvm::Function *Fn);
@@ -163,6 +168,10 @@ public:
   void addHLSLBufferLayoutType(const RecordType *LayoutStructTy,
                                llvm::TargetExtType *LayoutTy);
   void emitInitListOpaqueValues(CodeGenFunction &CGF, InitListExpr *E);
+
+  std::optional<LValue>
+  emitResourceArraySubscriptExpr(const ArraySubscriptExpr *E,
+                                 CodeGenFunction &CGF);
 
 private:
   void emitBufferGlobalsAndMetadata(const HLSLBufferDecl *BufDecl,

@@ -528,8 +528,8 @@ ParamType lastFuncParamType(StringRef MangledName) {
   char Mangled = Copy.back();
   std::string Mangled2 = Copy.substr(Copy.size() - 2);
 
-  std::string Mangled6 = Copy.substr(Copy.size() - 6);
-  if (Mangled6 == "__bf16") {
+  std::string Mangled5 = Copy.substr(Copy.size() - 5);
+  if (Mangled5 == "DF16b") {
     return ParamType::FLOAT;
   }
 
