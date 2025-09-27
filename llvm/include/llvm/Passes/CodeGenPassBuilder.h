@@ -738,7 +738,7 @@ void CodeGenPassBuilder<Derived, TargetMachineT>::addISelPasses(
 
   addPass(PreISelIntrinsicLoweringPass(&TM));
   addPass(ExpandLargeDivRemPass(&TM));
-  addPass(ExpandFpPass(&TM));
+  addPass(ExpandFpPass(&TM, getOptLevel()));
 
   derived().addIRPasses(addPass);
   addPass(FPBuiltinFnSelectionPass());
@@ -1097,11 +1097,9 @@ Error CodeGenPassBuilder<Derived, TargetMachineT>::addMachinePasses(
   if (TM.Options.EnableMachineOutliner &&
       getOptLevel() != CodeGenOptLevel::None &&
       Opt.EnableMachineOutliner != RunOutliner::NeverOutline) {
-    bool RunOnAllFunctions =
-        (Opt.EnableMachineOutliner == RunOutliner::AlwaysOutline);
-    bool AddOutliner = RunOnAllFunctions || TM.Options.SupportsDefaultOutlining;
-    if (AddOutliner)
-      addPass(MachineOutlinerPass(RunOnAllFunctions));
+    if (Opt.EnableMachineOutliner != RunOutliner::TargetDefault ||
+        TM.Options.SupportsDefaultOutlining)
+      addPass(MachineOutlinerPass(Opt.EnableMachineOutliner));
   }
 
   addPass(StackFrameLayoutAnalysisPass());

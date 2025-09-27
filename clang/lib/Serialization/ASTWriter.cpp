@@ -57,6 +57,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Version.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/MacroInfo.h"
@@ -627,6 +628,11 @@ void TypeLocWriter::VisitSubstTemplateTypeParmPackTypeLoc(
   addSourceLocation(TL.getNameLoc());
 }
 
+void TypeLocWriter::VisitSubstBuiltinTemplatePackTypeLoc(
+    SubstBuiltinTemplatePackTypeLoc TL) {
+  addSourceLocation(TL.getNameLoc());
+}
+
 void TypeLocWriter::VisitTemplateSpecializationTypeLoc(
                                            TemplateSpecializationTypeLoc TL) {
   addSourceLocation(TL.getElaboratedKeywordLoc());
@@ -1060,6 +1066,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(TYPE_PACK_EXPANSION);
   RECORD(TYPE_ATTRIBUTED);
   RECORD(TYPE_SUBST_TEMPLATE_TYPE_PARM_PACK);
+  RECORD(TYPE_SUBST_BUILTIN_TEMPLATE_PACK);
   RECORD(TYPE_AUTO);
   RECORD(TYPE_UNARY_TRANSFORM);
   RECORD(TYPE_ATOMIC);
@@ -1704,9 +1711,13 @@ void ASTWriter::WriteControlBlock(Preprocessor &PP, StringRef isysroot) {
   const HeaderSearchOptions &HSOpts =
       PP.getHeaderSearchInfo().getHeaderSearchOpts();
 
+  SmallString<256> HSOpts_ModuleCachePath;
+  normalizeModuleCachePath(PP.getFileManager(), HSOpts.ModuleCachePath,
+                           HSOpts_ModuleCachePath);
+
   AddString(HSOpts.Sysroot, Record);
   AddString(HSOpts.ResourceDir, Record);
-  AddString(HSOpts.ModuleCachePath, Record);
+  AddString(HSOpts_ModuleCachePath, Record);
   AddString(HSOpts.ModuleUserBuildPath, Record);
   Record.push_back(HSOpts.DisableModuleHash);
   Record.push_back(HSOpts.ImplicitModuleMaps);
@@ -8541,6 +8552,7 @@ void OMPClauseWriter::VisitOMPSeverityClause(OMPSeverityClause *C) {
 }
 
 void OMPClauseWriter::VisitOMPMessageClause(OMPMessageClause *C) {
+  VisitOMPClauseWithPreInit(C);
   Record.AddStmt(C->getMessageString());
   Record.AddSourceLocation(C->getLParenLoc());
 }
@@ -8744,8 +8756,11 @@ void ASTRecordWriter::writeOpenACCClause(const OpenACCClause *C) {
     writeSourceLocation(PC->getLParenLoc());
     writeOpenACCVarList(PC);
 
-    for (VarDecl *VD : PC->getInitRecipes())
-      AddDeclRef(VD);
+    for (const OpenACCPrivateRecipe &R : PC->getInitRecipes()) {
+      static_assert(sizeof(R) == 2 * sizeof(int *));
+      AddDeclRef(R.AllocaDecl);
+      AddStmt(const_cast<Expr *>(R.InitExpr));
+    }
     return;
   }
   case OpenACCClauseKind::Host: {
@@ -8766,7 +8781,9 @@ void ASTRecordWriter::writeOpenACCClause(const OpenACCClause *C) {
     writeOpenACCVarList(FPC);
 
     for (const OpenACCFirstPrivateRecipe &R : FPC->getInitRecipes()) {
-      AddDeclRef(R.RecipeDecl);
+      static_assert(sizeof(R) == 3 * sizeof(int *));
+      AddDeclRef(R.AllocaDecl);
+      AddStmt(const_cast<Expr *>(R.InitExpr));
       AddDeclRef(R.InitFromTemporary);
     }
     return;
@@ -8886,6 +8903,12 @@ void ASTRecordWriter::writeOpenACCClause(const OpenACCClause *C) {
     writeSourceLocation(RC->getLParenLoc());
     writeEnum(RC->getReductionOp());
     writeOpenACCVarList(RC);
+
+    for (const OpenACCReductionRecipe &R : RC->getRecipes()) {
+      static_assert(sizeof(OpenACCReductionRecipe) == 2 * sizeof(int *));
+      AddDeclRef(R.AllocaDecl);
+      AddStmt(const_cast<Expr *>(R.InitExpr));
+    }
     return;
   }
   case OpenACCClauseKind::Seq:
