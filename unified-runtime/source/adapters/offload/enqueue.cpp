@@ -268,6 +268,58 @@ ur_result_t doMemcpy(ur_command_t Command, ur_queue_handle_t hQueue,
 
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t doMemcpyRect(
+    ur_command_t Command, ur_queue_handle_t hQueue, void *DestPtr,
+    ur_rect_offset_t DestOffset, size_t DestPitch, size_t DestSlice,
+    ol_device_handle_t DestDevice, void *SrcPtr, ur_rect_offset_t SrcOffset,
+    size_t SrcPitch, size_t SrcSlice, ol_device_handle_t SrcDevice,
+    ur_rect_region_t Region, bool blocking, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  ol_queue_handle_t Queue;
+  OL_RETURN_ON_ERR(hQueue->nextQueue(Queue));
+  OL_RETURN_ON_ERR(waitOnEvents(Queue, phEventWaitList, numEventsInWaitList));
+
+  ol_memcpy_rect_t DestRect{DestPtr,
+                            {static_cast<uint32_t>(DestOffset.x),
+                             static_cast<uint32_t>(DestOffset.y),
+                             static_cast<uint32_t>(DestOffset.z)},
+                            DestPitch,
+                            DestSlice};
+  ol_memcpy_rect_t SrcRect{SrcPtr,
+                           {static_cast<uint32_t>(SrcOffset.x),
+                            static_cast<uint32_t>(SrcOffset.y),
+                            static_cast<uint32_t>(SrcOffset.z)},
+                           SrcPitch,
+                           SrcSlice};
+  ol_dimensions_t OlRegion{static_cast<uint32_t>(Region.width),
+                           static_cast<uint32_t>(Region.height),
+                           static_cast<uint32_t>(Region.depth)};
+
+  if (blocking) {
+    // Ensure all work in the queue is complete
+    OL_RETURN_ON_ERR(olSyncQueue(Queue));
+    OL_RETURN_ON_ERR(olMemcpyRect(nullptr, DestRect, DestDevice, SrcRect,
+                                  SrcDevice, OlRegion));
+    if (phEvent) {
+      *phEvent = ur_event_handle_t_::createEmptyEvent(Command, hQueue);
+    }
+    return UR_RESULT_SUCCESS;
+  }
+
+  OL_RETURN_ON_ERR(
+      olMemcpyRect(Queue, DestRect, DestDevice, SrcRect, SrcDevice, OlRegion));
+  if (phEvent) {
+    auto *Event = new ur_event_handle_t_(Command, hQueue);
+    if (auto Res = olCreateEvent(Queue, &Event->OffloadEvent)) {
+      delete Event;
+      return offloadResultToUR(Res);
+    };
+    *phEvent = Event;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 } // namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -282,6 +334,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                   numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
+    ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
+    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  char *DevPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+
+  return doMemcpyRect(UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, pDst, hostOrigin,
+                      hostRowPitch, hostSlicePitch, Adapter->HostDevice, DevPtr,
+                      bufferOrigin, bufferRowPitch, bufferSlicePitch,
+                      hQueue->OffloadDevice, region, blockingRead,
+                      numEventsInWaitList, phEventWaitList, phEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
@@ -292,6 +361,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   return doMemcpy(UR_COMMAND_MEM_BUFFER_WRITE, hQueue, DevPtr + offset,
                   hQueue->OffloadDevice, pSrc, Adapter->HostDevice, size,
                   blockingWrite, numEventsInWaitList, phEventWaitList, phEvent);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
+    ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
+    ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
+    size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  char *DevPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBuffer->Mem).Ptr);
+
+  return doMemcpyRect(
+      UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, DevPtr, bufferOrigin,
+      bufferRowPitch, bufferSlicePitch, hQueue->OffloadDevice, pSrc, hostOrigin,
+      hostRowPitch, hostSlicePitch, Adapter->HostDevice, region, blockingWrite,
+      numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
@@ -308,6 +394,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                   hQueue->OffloadDevice, DevPtrSrc + srcOffset,
                   hQueue->OffloadDevice, size, false, numEventsInWaitList,
                   phEventWaitList, phEvent);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
+    ur_queue_handle_t hQueue, ur_mem_handle_t hBufferSrc,
+    ur_mem_handle_t hBufferDst, ur_rect_offset_t srcOrigin,
+    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
+    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  char *SrcPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBufferSrc->Mem).Ptr);
+  char *DstPtr =
+      reinterpret_cast<char *>(std::get<BufferMem>(hBufferDst->Mem).Ptr);
+
+  return doMemcpyRect(UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, DstPtr,
+                      dstOrigin, dstRowPitch, dstSlicePitch,
+                      hQueue->OffloadDevice, SrcPtr, srcOrigin, srcRowPitch,
+                      srcSlicePitch, hQueue->OffloadDevice, region, false,
+                      numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
