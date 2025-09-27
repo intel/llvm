@@ -1,3 +1,4 @@
+// UNSUPPORTED: system-windows
 // RUN: mkdir -p %t.dir
 // RUN: echo "dxv" > %t.dir/dxv && chmod 754 %t.dir/dxv
 
