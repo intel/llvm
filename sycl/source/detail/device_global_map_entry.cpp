@@ -87,6 +87,7 @@ __sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
 
 void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
+  assert(isProfileCounter());
   const std::size_t NumCounters = MDeviceGlobalTSize / sizeof(std::uint64_t);
   const std::uint64_t FnHash = [&] {
     const auto PrefixSize = std::string{"__profc_"}.size();
