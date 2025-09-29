@@ -31,6 +31,8 @@ struct ur_adapter_manifest {
 };
 
 const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
+    // NOTE: SYCL RT also loads OpenCL adapter for interop functionality.
+    // If OpenCL adapter version is changed, please update SYCL RT accordingly.
     {"opencl",
      MAKE_LIBRARY_NAME("ur_adapter_opencl", "0"),
      UR_BACKEND_OPENCL,
