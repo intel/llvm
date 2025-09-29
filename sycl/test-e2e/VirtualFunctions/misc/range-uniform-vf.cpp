@@ -4,10 +4,7 @@
 // kernels when every work-item calls the same virtual function on the same
 // object.
 //
-// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
-// https://github.com/intel/llvm/issues/16839. Remove the flag as well as the
-// variable 'props' once the issue is resolved.
-// RUN: %{build} -o %t.out -Wno-deprecated-declarations %helper-includes
+// RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/builtins.hpp>
@@ -69,7 +66,6 @@ int main() try {
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
   sycl::range R{1024};
 
-  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 3; ++TestCase) {
     std::vector<float> HostData(R.size());
     for (size_t I = 1; I < HostData.size(); ++I)
@@ -85,7 +81,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, props, KernelFunctor(DeviceStorage, DataAcc));
+      CGH.parallel_for(R, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);

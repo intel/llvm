@@ -5,26 +5,26 @@
 
 #if !defined(NO_SYCL) || defined(SYCL_HOST)
 
-[[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute only applies to functions}}
+[[intel::device_indirectly_callable]] // expected-warning {{'intel::device_indirectly_callable' attribute only applies to functions}}
 int N;
 
-[[intel::device_indirectly_callable(3)]] // expected-error {{'device_indirectly_callable' attribute takes no arguments}}
+[[intel::device_indirectly_callable(3)]] // expected-error {{'intel::device_indirectly_callable' attribute takes no arguments}}
 void
 bar() {}
 
-[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
+[[intel::device_indirectly_callable]] // expected-error {{'intel::device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
 static void
 func1() {}
 
 namespace {
-[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
+[[intel::device_indirectly_callable]] // expected-error {{'intel::device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
 void
 func2() {}
 
 struct UnnX {};
 }
 
-[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
+[[intel::device_indirectly_callable]] // expected-error {{'intel::device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
 void func4(UnnX) {}
 
 class A {
@@ -48,7 +48,7 @@ void foo() {
 
 #else
 
-[[intel::device_indirectly_callable]] // expected-warning {{'device_indirectly_callable' attribute ignored}}
+[[intel::device_indirectly_callable]] // expected-warning {{'intel::device_indirectly_callable' attribute ignored}}
 void
 baz() {}
 

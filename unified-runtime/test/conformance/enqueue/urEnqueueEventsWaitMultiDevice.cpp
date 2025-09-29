@@ -29,6 +29,8 @@ struct urEnqueueEventsWaitMultiDeviceTest
     : uur::urMultiQueueMultiDeviceTest<2> {
   void SetUp() override {
     UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
+    // https://github.com/intel/llvm/issues/19607
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest<2>::SetUp());
 
@@ -125,6 +127,9 @@ struct urEnqueueEventsWaitMultiDeviceMTTest
   }
 
   void SetUp() override {
+    // https://github.com/intel/llvm/issues/19607
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::NativeCPU{});
 
     UUR_RETURN_ON_FATAL_FAILURE(

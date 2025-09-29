@@ -22,13 +22,13 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   if (pNumPlatforms) {
-    *pNumPlatforms = Adapter.Platforms.size();
+    *pNumPlatforms = Adapter->Platforms.size();
   }
 
   if (phPlatforms) {
     size_t PlatformIndex = 0;
-    for (auto &Platform : Adapter.Platforms) {
-      phPlatforms[PlatformIndex++] = &Platform;
+    for (auto &Platform : Adapter->Platforms) {
+      phPlatforms[PlatformIndex++] = Platform.get();
       if (PlatformIndex == NumEntries) {
         break;
       }
@@ -61,24 +61,20 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   case UR_PLATFORM_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_OFFLOAD);
   case UR_PLATFORM_INFO_ADAPTER:
-    return ReturnValue(&Adapter);
+    return ReturnValue(Adapter);
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   if (pPropSizeRet) {
-    if (auto Res = olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
-                                         pPropSizeRet)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olGetPlatformInfoSize(hPlatform->OffloadPlatform, olInfo,
+                                           pPropSizeRet));
   }
 
   if (pPropValue) {
-    if (auto Res = olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
-                                     propSize, pPropValue)) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olGetPlatformInfo(hPlatform->OffloadPlatform, olInfo,
+                                       propSize, pPropValue));
   }
 
   return UR_RESULT_SUCCESS;
@@ -99,14 +95,27 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetNativeHandle(ur_platform_handle_t, ur_native_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hAdapter, ur_native_handle_t *phNativePlatform) {
+  *phNativePlatform =
+      reinterpret_cast<ur_native_handle_t>(hAdapter->OffloadPlatform);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
-    ur_native_handle_t, ur_adapter_handle_t,
-    const ur_platform_native_properties_t *, ur_platform_handle_t *) {
+    ur_native_handle_t hNativePlatform, ur_adapter_handle_t hAdapter,
+    const ur_platform_native_properties_t *, ur_platform_handle_t *phPlatform) {
+
+  auto Found = std::find_if(
+      hAdapter->Platforms.begin(), hAdapter->Platforms.end(), [&](auto &P) {
+        return P->OffloadPlatform ==
+               reinterpret_cast<ol_platform_handle_t>(hNativePlatform);
+      });
+  if (Found != hAdapter->Platforms.end()) {
+    *phPlatform = Found->get();
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

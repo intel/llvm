@@ -22,6 +22,7 @@
 #include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
+#include "CodeGenPGO.h"
 #include "TargetInfo.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -82,12 +83,10 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
     return llvm::CallingConv::AArch64_VectorCall;
   case CC_AArch64SVEPCS:
     return llvm::CallingConv::AArch64_SVE_VectorCall;
-  case CC_AMDGPUKernelCall:
-    return llvm::CallingConv::AMDGPU_KERNEL;
   case CC_SpirFunction:
     return llvm::CallingConv::SPIR_FUNC;
-  case CC_OpenCLKernel:
-    return CGM.getTargetCodeGenInfo().getOpenCLKernelCallingConv();
+  case CC_DeviceKernel:
+    return CGM.getTargetCodeGenInfo().getDeviceKernelCallingConv();
   case CC_PreserveMost:
     return llvm::CallingConv::PreserveMost;
   case CC_PreserveAll:
@@ -128,16 +127,16 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
 /// calling a method pointer.
 CanQualType CodeGenTypes::DeriveThisType(const CXXRecordDecl *RD,
                                          const CXXMethodDecl *MD) {
-  QualType RecTy;
+  CanQualType RecTy;
   if (RD)
-    RecTy = Context.getTagDeclType(RD)->getCanonicalTypeInternal();
+    RecTy = Context.getCanonicalTagType(RD);
   else
     RecTy = Context.VoidTy;
 
   if (MD)
-    RecTy = Context.getAddrSpaceQualType(
-        RecTy, MD->getMethodQualifiers().getAddressSpace());
-  return Context.getPointerType(CanQualType::CreateUnsafe(RecTy));
+    RecTy = CanQualType::CreateUnsafe(Context.getAddrSpaceQualType(
+        RecTy, MD->getMethodQualifiers().getAddressSpace()));
+  return Context.getPointerType(RecTy);
 }
 
 /// Returns the canonical formal type of the given C++ method.
@@ -217,7 +216,7 @@ static void appendParameterTypes(
   for (unsigned I = 0, E = FPT->getNumParams(); I != E; ++I) {
     prefix.push_back(FPT->getParamType(I));
     if (ExtInfos[I].hasPassObjectSize())
-      prefix.push_back(CGT.getContext().getSizeType());
+      prefix.push_back(CGT.getContext().getCanonicalSizeType());
   }
 
   addExtParameterInfosForCall(paramInfos, FPT.getTypePtr(), PrefixSize,
@@ -285,8 +284,8 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
   if (D->hasAttr<AArch64SVEPcsAttr>())
     return CC_AArch64SVEPCS;
 
-  if (D->hasAttr<AMDGPUKernelCallAttr>())
-    return CC_AMDGPUKernelCall;
+  if (D->hasAttr<DeviceKernelAttr>())
+    return CC_DeviceKernel;
 
   if (D->hasAttr<IntelOclBiccAttr>())
     return CC_IntelOclBicc;
@@ -334,6 +333,9 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
 #undef CC_VLS_CASE
     }
   }
+
+  if (D->hasAttr<NativeCPULibclcCallAttr>())
+    return CC_SpirFunction;
 
   return CC_C;
 }
@@ -534,7 +536,7 @@ CodeGenTypes::arrangeFunctionDeclaration(const GlobalDecl GD) {
   assert(isa<FunctionType>(FTy));
   setCUDAKernelCallingConvention(FTy, CGM, FD);
 
-  if (FD->hasAttr<OpenCLKernelAttr>() &&
+  if (DeviceKernelAttr::isOpenCLSpelling(FD->getAttr<DeviceKernelAttr>()) &&
       GD.getKernelReferenceKind() == KernelReferenceKind::Stub) {
     const FunctionType *FT = FTy->getAs<FunctionType>();
     CGM.getTargetCodeGenInfo().setOCLKernelStubCallingConvention(FT);
@@ -762,7 +764,7 @@ CodeGenTypes::arrangeSYCLKernelCallerDeclaration(QualType resultType,
 
   return arrangeLLVMFunctionInfo(GetReturnType(resultType), FnInfoOpts::None,
                                  argTypes,
-                                 FunctionType::ExtInfo(CC_OpenCLKernel),
+                                 FunctionType::ExtInfo(CC_DeviceKernel),
                                  /*paramInfos=*/{}, RequiredArgs::All);
 }
 
@@ -1018,7 +1020,7 @@ getTypeExpansion(QualType Ty, const ASTContext &Context) {
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
     SmallVector<const CXXBaseSpecifier *, 1> Bases;
     SmallVector<const FieldDecl *, 1> Fields;
-    const RecordDecl *RD = RT->getDecl();
+    const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
     assert(!RD->hasFlexibleArrayMember() &&
            "Cannot expand structure with flexible array.");
     if (RD->isUnion()) {
@@ -1433,7 +1435,8 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
         SrcSize == CGM.getDataLayout().getTypeAllocSize(Dst.getElementType())) {
       // If the value is supposed to be a pointer, convert it before storing it.
       Src = CoerceIntOrPtrToIntOrPtr(Src, Dst.getElementType(), *this);
-      Builder.CreateStore(Src, Dst, DstIsVolatile);
+      auto *I = Builder.CreateStore(Src, Dst, DstIsVolatile);
+      addInstToCurrentSourceAtom(I, Src);
     } else if (llvm::StructType *STy =
                    dyn_cast<llvm::StructType>(Src->getType())) {
       // Prefer scalar stores to first-class aggregate stores.
@@ -1441,16 +1444,21 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
       for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
         Address EltPtr = Builder.CreateStructGEP(Dst, i);
         llvm::Value *Elt = Builder.CreateExtractValue(Src, i);
-        Builder.CreateStore(Elt, EltPtr, DstIsVolatile);
+        auto *I = Builder.CreateStore(Elt, EltPtr, DstIsVolatile);
+        addInstToCurrentSourceAtom(I, Elt);
       }
     } else {
-      Builder.CreateStore(Src, Dst.withElementType(SrcTy), DstIsVolatile);
+      auto *I =
+          Builder.CreateStore(Src, Dst.withElementType(SrcTy), DstIsVolatile);
+      addInstToCurrentSourceAtom(I, Src);
     }
   } else if (SrcTy->isIntegerTy()) {
     // If the source is a simple integer, coerce it directly.
     llvm::Type *DstIntTy = Builder.getIntNTy(DstSize.getFixedValue() * 8);
     Src = CoerceIntOrPtrToIntOrPtr(Src, DstIntTy, *this);
-    Builder.CreateStore(Src, Dst.withElementType(DstIntTy), DstIsVolatile);
+    auto *I =
+        Builder.CreateStore(Src, Dst.withElementType(DstIntTy), DstIsVolatile);
+    addInstToCurrentSourceAtom(I, Src);
   } else {
     // Otherwise do coercion through memory. This is stupid, but
     // simple.
@@ -1464,10 +1472,11 @@ void CodeGenFunction::CreateCoercedStore(llvm::Value *Src, Address Dst,
     RawAddress Tmp =
         CreateTempAllocaForCoercion(*this, SrcTy, Dst.getAlignment());
     Builder.CreateStore(Src, Tmp);
-    Builder.CreateMemCpy(Dst.emitRawPointer(*this),
-                         Dst.getAlignment().getAsAlign(), Tmp.getPointer(),
-                         Tmp.getAlignment().getAsAlign(),
-                         Builder.CreateTypeSize(IntPtrTy, DstSize));
+    auto *I = Builder.CreateMemCpy(
+        Dst.emitRawPointer(*this), Dst.getAlignment().getAsAlign(),
+        Tmp.getPointer(), Tmp.getAlignment().getAsAlign(),
+        Builder.CreateTypeSize(IntPtrTy, DstSize));
+    addInstToCurrentSourceAtom(I, Src);
   }
 }
 
@@ -1902,7 +1911,7 @@ bool CodeGenModule::MayDropFunctionReturn(const ASTContext &Context,
   // complex destructor or a non-trivially copyable type.
   if (const RecordType *RT =
           ReturnType.getCanonicalType()->getAs<RecordType>()) {
-    if (const auto *ClassDecl = dyn_cast<CXXRecordDecl>(RT->getDecl()))
+    if (const auto *ClassDecl = dyn_cast<CXXRecordDecl>(RT->getOriginalDecl()))
       return ClassDecl->hasTrivialDestructor();
   }
   return ReturnType.isTriviallyCopyableType(Context);
@@ -2442,9 +2451,8 @@ static bool canApplyNoFPClass(const ABIArgInfo &AI, QualType ParamType,
 
   if (llvm::StructType *ST = dyn_cast<llvm::StructType>(IRTy)) {
     return !IsReturn && AI.getCanBeFlattened() &&
-           llvm::all_of(ST->elements(), [](llvm::Type *Ty) {
-             return llvm::AttributeFuncs::isNoFPClassCompatibleType(Ty);
-           });
+           llvm::all_of(ST->elements(),
+                        llvm::AttributeFuncs::isNoFPClassCompatibleType);
   }
 
   return false;
@@ -2614,7 +2622,8 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
                                  NumElemsParam);
     }
 
-    if (TargetDecl->hasAttr<OpenCLKernelAttr>() &&
+    if (TargetDecl->hasAttr<DeviceKernelAttr>() &&
+        (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) &&
         CallingConv != CallingConv::CC_C &&
         CallingConv != CallingConv::CC_SpirFunction) {
       // Check CallingConv to avoid adding uniform-work-group-size attribute to
@@ -2740,6 +2749,13 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // CPU/feature overrides.  addDefaultFunctionDefinitionAttributes
     // handles these separately to set them based on the global defaults.
     GetCPUAndFeaturesAttributes(CalleeInfo.getCalleeDecl(), FuncAttrs);
+
+    // Windows hotpatching support
+    if (!MSHotPatchFunctions.empty()) {
+      bool IsHotPatched = llvm::binary_search(MSHotPatchFunctions, Name);
+      if (IsHotPatched)
+        FuncAttrs.addAttribute("marked_for_windows_hot_patching");
+    }
   }
 
   // Mark functions that are replaceable by the loader.
@@ -2925,8 +2941,30 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       if (AI.getInReg())
         Attrs.addAttribute(llvm::Attribute::InReg);
 
-      if (AI.getIndirectByVal())
-        Attrs.addByValAttr(getTypes().ConvertTypeForMem(ParamType));
+      // HLSL out and inout parameters must not be marked with ByVal or
+      // DeadOnReturn attributes because stores to these parameters by the
+      // callee are visible to the caller.
+      if (auto ParamABI = FI.getExtParameterInfo(ArgNo).getABI();
+          ParamABI != ParameterABI::HLSLOut &&
+          ParamABI != ParameterABI::HLSLInOut) {
+
+        // Depending on the ABI, this may be either a byval or a dead_on_return
+        // argument.
+        if (AI.getIndirectByVal()) {
+          Attrs.addByValAttr(getTypes().ConvertTypeForMem(ParamType));
+        } else {
+          // Add dead_on_return when the object's lifetime ends in the callee.
+          // This includes trivially-destructible objects, as well as objects
+          // whose destruction / clean-up is carried out within the callee
+          // (e.g., Obj-C ARC-managed structs, MSVC callee-destroyed objects).
+          if (!ParamType.isDestructedType() || !ParamType->isRecordType() ||
+              ParamType->castAs<RecordType>()
+                  ->getOriginalDecl()
+                  ->getDefinitionOrSelf()
+                  ->isParamDestroyedInCallee())
+            Attrs.addAttribute(llvm::Attribute::DeadOnReturn);
+        }
+      }
 
       auto *Decl = ParamType->getAsRecordDecl();
       if (CodeGenOpts.PassByValueIsNoAlias && Decl &&
@@ -2997,7 +3035,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // > For arguments to a __kernel function declared to be a pointer to a
     // > data type, the OpenCL compiler can assume that the pointee is always
     // > appropriately aligned as required by the data type.
-    if (TargetDecl && TargetDecl->hasAttr<OpenCLKernelAttr>() &&
+    if (TargetDecl &&
+
+        (TargetDecl->hasAttr<DeviceKernelAttr>() &&
+         (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) &&
         ParamType->isPointerType()) {
       QualType PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
@@ -3912,7 +3953,7 @@ static void setUsedBits(CodeGenModule &CGM, const RecordType *RTy, int Offset,
                         SmallVectorImpl<uint64_t> &Bits) {
   ASTContext &Context = CGM.getContext();
   int CharWidth = Context.getCharWidth();
-  const RecordDecl *RD = RTy->getDecl()->getDefinition();
+  const RecordDecl *RD = RTy->getOriginalDecl()->getDefinition();
   const ASTRecordLayout &ASTLayout = Context.getASTRecordLayout(RD);
   const CGRecordLayout &Layout = CGM.getTypes().getCGRecordLayout(RD);
 
@@ -4041,9 +4082,9 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   return R;
 }
 
-void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
-                                         bool EmitRetDbgLoc,
-                                         SourceLocation EndLoc) {
+void CodeGenFunction::EmitFunctionEpilog(
+    const CGFunctionInfo &FI, bool EmitRetDbgLoc, SourceLocation EndLoc,
+    uint64_t RetKeyInstructionsSourceAtom) {
   if (FI.isNoReturn()) {
     // Noreturn functions don't return.
     EmitUnreachable(EndLoc);
@@ -4058,7 +4099,11 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
 
   // Functions with no result always return void.
   if (!ReturnValue.isValid()) {
-    Builder.CreateRetVoid();
+    auto *I = Builder.CreateRetVoid();
+    if (RetKeyInstructionsSourceAtom)
+      addInstToSpecificSourceAtom(I, nullptr, RetKeyInstructionsSourceAtom);
+    else
+      addInstToNewSourceAtom(I, nullptr);
     return;
   }
 
@@ -4238,6 +4283,12 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
 
   if (RetDbgLoc)
     Ret->setDebugLoc(std::move(RetDbgLoc));
+
+  llvm::Value *Backup = RV ? Ret->getOperand(0) : nullptr;
+  if (RetKeyInstructionsSourceAtom)
+    addInstToSpecificSourceAtom(Ret, Backup, RetKeyInstructionsSourceAtom);
+  else
+    addInstToNewSourceAtom(Ret, Backup);
 }
 
 void CodeGenFunction::EmitReturnValueCheck(llvm::Value *RV) {
@@ -4276,7 +4327,7 @@ void CodeGenFunction::EmitReturnValueCheck(llvm::Value *RV) {
     Handler = SanitizerHandler::NullabilityReturn;
   }
 
-  SanitizerScope SanScope(this);
+  SanitizerDebugLocation SanScope(this, {CheckKind}, Handler);
 
   // Make sure the "return" source location is valid. If we're checking a
   // nullability annotation, make sure the preconditions for the check are met.
@@ -4363,7 +4414,10 @@ void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
 
   // Deactivate the cleanup for the callee-destructed param that was pushed.
   if (type->isRecordType() && !CurFuncIsThunk &&
-      type->castAs<RecordType>()->getDecl()->isParamDestroyedInCallee() &&
+      type->castAs<RecordType>()
+          ->getOriginalDecl()
+          ->getDefinitionOrSelf()
+          ->isParamDestroyedInCallee() &&
       param->needsDestruction(getContext())) {
     EHScopeStack::stable_iterator cleanup =
         CalleeDestructedParamCleanups.lookup(cast<ParmVarDecl>(param));
@@ -4393,10 +4447,7 @@ static void emitWriteback(CodeGenFunction &CGF,
 
   if (writeback.WritebackExpr) {
     CGF.EmitIgnoredExpr(writeback.WritebackExpr);
-
-    if (writeback.LifetimeSz)
-      CGF.EmitLifetimeEnd(writeback.LifetimeSz,
-                          writeback.Temporary.getBasePointer());
+    CGF.EmitLifetimeEnd(writeback.Temporary.getBasePointer());
     return;
   }
 
@@ -4661,7 +4712,7 @@ void CodeGenFunction::EmitNonNullArgCheck(RValue RV, QualType ArgType,
     Handler = SanitizerHandler::NullabilityArg;
   }
 
-  SanitizerScope SanScope(this);
+  SanitizerDebugLocation SanScope(this, {CheckKind}, Handler);
   llvm::Value *Cond = EmitNonNullRValueCheck(RV, ArgType);
   llvm::Constant *StaticData[] = {
       EmitCheckSourceLocation(ArgLoc),
@@ -4959,8 +5010,10 @@ void CodeGenFunction::EmitCallArg(CallArgList &args, const Expr *E,
   // In the Microsoft C++ ABI, aggregate arguments are destructed by the callee.
   // However, we still have to push an EH-only cleanup in case we unwind before
   // we make it to the call.
-  if (type->isRecordType() &&
-      type->castAs<RecordType>()->getDecl()->isParamDestroyedInCallee()) {
+  if (type->isRecordType() && type->castAs<RecordType>()
+                                  ->getOriginalDecl()
+                                  ->getDefinitionOrSelf()
+                                  ->isParamDestroyedInCallee()) {
     // If we're using inalloca, use the argument memory.  Otherwise, use a
     // temporary.
     AggValueSlot Slot = args.isUsingInAlloca()
@@ -5357,7 +5410,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // alloca to hold the result, unless one is given to us.
   Address SRetPtr = Address::invalid();
   RawAddress SRetAlloca = RawAddress::invalid();
-  llvm::Value *UnusedReturnSizePtr = nullptr;
+  bool NeedSRetLifetimeEnd = false;
   if (RetAI.isIndirect() || RetAI.isInAlloca() || RetAI.isCoerceAndExpand()) {
     // For virtual function pointer thunks and musttail calls, we must always
     // forward an incoming SRet pointer to the callee, because a local alloca
@@ -5374,14 +5427,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                     ? CreateMemTempWithoutCast(RetTy, "tmp")
                     : CreateMemTemp(RetTy, "tmp", &SRetAlloca);
       if (HaveInsertPoint() && ReturnValue.isUnused()) {
-        llvm::TypeSize size =
-            CGM.getDataLayout().getTypeAllocSize(ConvertTypeForMem(RetTy));
         if (CGM.getCodeGenOpts().UseAllocaASForSrets)
-          UnusedReturnSizePtr =
-              EmitLifetimeStart(size, SRetPtr.getBasePointer());
+          NeedSRetLifetimeEnd = EmitLifetimeStart(SRetPtr.getBasePointer());
         else
-          UnusedReturnSizePtr =
-              EmitLifetimeStart(size, SRetAlloca.getPointer());
+          NeedSRetLifetimeEnd = EmitLifetimeStart(SRetAlloca.getPointer());
       }
     }
     if (IRFunctionArgs.hasSRetArg()) {
@@ -5569,15 +5618,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         Val = Builder.CreateFreeze(Val);
       IRCallArgs[FirstIRArg] = Val;
 
-      // Emit lifetime markers for the temporary alloca.
-      llvm::TypeSize ByvalTempElementSize =
-          CGM.getDataLayout().getTypeAllocSize(AI.getElementType());
-      llvm::Value *LifetimeSize =
-          EmitLifetimeStart(ByvalTempElementSize, AI.getPointer());
-
-      // Add cleanup code to emit the end lifetime marker after the call.
-      if (LifetimeSize) // In case we disabled lifetime markers.
-        CallLifetimeEndAfterCall.emplace_back(AI, LifetimeSize);
+      // Emit lifetime markers for the temporary alloca and add cleanup code to
+      // emit the end lifetime marker after the call.
+      if (EmitLifetimeStart(AI.getPointer()))
+        CallLifetimeEndAfterCall.emplace_back(AI);
 
       // Generate the copy.
       I->copyInto(*this, AI);
@@ -5739,9 +5783,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       auto unpaddedCoercionType = ArgInfo.getUnpaddedCoerceAndExpandType();
       auto *unpaddedStruct = dyn_cast<llvm::StructType>(unpaddedCoercionType);
 
-      llvm::Value *tempSize = nullptr;
       Address addr = Address::invalid();
       RawAddress AllocaAddr = RawAddress::invalid();
+      bool NeedLifetimeEnd = false;
       if (I->isAggregate()) {
         addr = I->hasLValue() ? I->getKnownLValue().getAddress()
                               : I->getKnownRValue().getAggregateAddress();
@@ -5751,7 +5795,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         assert(RV.isScalar()); // complex should always just be direct
 
         llvm::Type *scalarType = RV.getScalarVal()->getType();
-        auto scalarSize = CGM.getDataLayout().getTypeAllocSize(scalarType);
         auto scalarAlign = CGM.getDataLayout().getPrefTypeAlign(scalarType);
 
         // Materialize to a temporary.
@@ -5760,7 +5803,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                     layout->getAlignment(), scalarAlign)),
                                 "tmp",
                                 /*ArraySize=*/nullptr, &AllocaAddr);
-        tempSize = EmitLifetimeStart(scalarSize, AllocaAddr.getPointer());
+        NeedLifetimeEnd = EmitLifetimeStart(AllocaAddr.getPointer());
 
         Builder.CreateStore(RV.getScalarVal(), addr);
       }
@@ -5785,10 +5828,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       }
       assert(IRArgPos == FirstIRArg + NumIRArgs);
 
-      if (tempSize) {
-        EmitLifetimeEnd(tempSize, AllocaAddr.getPointer());
-      }
-
+      if (NeedLifetimeEnd)
+        EmitLifetimeEnd(AllocaAddr.getPointer());
       break;
     }
 
@@ -5965,13 +6006,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // can't depend on being inside of an ExprWithCleanups, so we need to manually
   // pop this cleanup later on. Being eager about this is OK, since this
   // temporary is 'invisible' outside of the callee.
-  if (UnusedReturnSizePtr) {
+  if (NeedSRetLifetimeEnd) {
     if (CGM.getCodeGenOpts().UseAllocaASForSrets)
-      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr,
-                                           UnusedReturnSizePtr);
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr);
     else
-      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAlloca,
-                                           UnusedReturnSizePtr);
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAlloca);
   }
 
   llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
@@ -6076,7 +6115,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // For more details, see the comment before the definition of
   // IPVK_IndirectCallTarget in InstrProfData.inc.
   if (!CI->getCalledFunction())
-    PGO.valueProfile(Builder, llvm::IPVK_IndirectCallTarget, CI, CalleePtr);
+    PGO->valueProfile(Builder, llvm::IPVK_IndirectCallTarget, CI, CalleePtr);
 
   // In ObjC ARC mode with no ObjC ARC exception safety, tell the ARC
   // optimizer it can aggressively ignore unwind edges.
@@ -6147,7 +6186,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // clear the insertion point; this allows the rest of IRGen to discard
   // unreachable code.
   if (!SyclSkipNoReturn && CI->doesNotReturn()) {
-    if (UnusedReturnSizePtr)
+    if (NeedSRetLifetimeEnd)
       PopCleanupBlock();
 
     // Strip away the noreturn attribute to better diagnose unreachable UB.
@@ -6262,7 +6301,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       case ABIArgInfo::InAlloca:
       case ABIArgInfo::Indirect: {
         RValue ret = convertTempToRValue(SRetPtr, RetTy, SourceLocation());
-        if (UnusedReturnSizePtr)
+        if (NeedSRetLifetimeEnd)
           PopCleanupBlock();
         return ret;
       }

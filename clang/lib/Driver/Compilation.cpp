@@ -182,12 +182,12 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
-  // Save the device code files if -fsycl-dump-device-code option is enabled.
-  if (TheDriver.isDumpDeviceCodeEnabled()) {
-    Arg *DumpDeviceCodeArg =
-        getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+  // Save the device code files if -save-offload-code option is enabled.
+  if (TheDriver.isSaveOffloadCodeEnabled()) {
+    Arg *SaveOffloadCodeArg =
+        getArgs().getLastArg(options::OPT_save_offload_code_EQ);
     std::string ExpectedDir =
-        DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
+        SaveOffloadCodeArg ? SaveOffloadCodeArg->getValue() : "";
     std::string ActualFile(File);
 
     if (ActualFile.find(ExpectedDir) != std::string::npos) {
@@ -356,11 +356,6 @@ static bool ActionFailed(const Action *A,
   return false;
 }
 
-static bool InputsOk(const Command &C,
-                     const FailingCommandList &FailingCommands) {
-  return !ActionFailed(&C.getSource(), FailingCommands);
-}
-
 void Compilation::ExecuteJobs(const JobList &Jobs,
                               FailingCommandList &FailingCommands,
                               bool LogOnly) const {
@@ -369,7 +364,7 @@ void Compilation::ExecuteJobs(const JobList &Jobs,
   // In all but CLMode, execute all the jobs unless the necessary inputs for the
   // job is missing due to previous failures.
   for (const auto &Job : Jobs) {
-    if (!InputsOk(Job, FailingCommands))
+    if (ActionFailed(&Job.getSource(), FailingCommands))
       continue;
     const Command *FailingCommand = nullptr;
     if (int Res = ExecuteCommand(Job, FailingCommand, LogOnly)) {

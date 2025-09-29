@@ -20,6 +20,7 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "device.hpp"
 #include "umf_helpers.hpp"
 
@@ -88,7 +89,7 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
   };
 
   std::vector<ur_device_handle_t> Devices;
-  std::atomic_uint32_t RefCount;
+  ur::RefCount RefCount;
 
   // UMF CUDA memory provider and pool for the host memory
   // (UMF_MEMORY_TYPE_HOST)
@@ -96,7 +97,7 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : handle_base(), Devices{Devs, Devs + NumDevices}, RefCount{1} {
+      : handle_base(), Devices{Devs, Devs + NumDevices} {
     // Create UMF CUDA memory provider for the host memory
     // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
     // it is guaranteed to exist).
@@ -139,12 +140,6 @@ struct ur_context_handle_t_ : ur::cuda::handle_base {
     assert(It != Devices.end());
     return std::distance(Devices.begin(), It);
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   void addPool(ur_usm_pool_handle_t Pool);
 

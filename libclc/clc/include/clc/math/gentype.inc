@@ -20,7 +20,6 @@
 #define __CLC_DOUBLEN __CLC_XCONCAT(double, __CLC_VECSIZE)
 
 #define __CLC_CHARN __CLC_XCONCAT(char, __CLC_VECSIZE)
-#define __CLC_SCHARN __CLC_XCONCAT(schar, __CLC_VECSIZE)
 #define __CLC_SHORTN __CLC_XCONCAT(short, __CLC_VECSIZE)
 #define __CLC_INTN __CLC_XCONCAT(int, __CLC_VECSIZE)
 #define __CLC_LONGN __CLC_XCONCAT(long, __CLC_VECSIZE)
@@ -35,7 +34,6 @@
 #define __CLC_AS_DOUBLEN __CLC_XCONCAT(__clc_as_, __CLC_DOUBLEN)
 
 #define __CLC_AS_CHARN __CLC_XCONCAT(__clc_as_, __CLC_CHARN)
-#define __CLC_AS_SCHARN __CLC_XCONCAT(__clc_as_, __CLC_SCHARN)
 #define __CLC_AS_SHORTN __CLC_XCONCAT(__clc_as_, __CLC_SHORTN)
 #define __CLC_AS_INTN __CLC_XCONCAT(__clc_as_, __CLC_INTN)
 #define __CLC_AS_LONGN __CLC_XCONCAT(__clc_as_, __CLC_LONGN)
@@ -50,7 +48,6 @@
 #define __CLC_CONVERT_DOUBLEN __CLC_XCONCAT(__clc_convert_double, __CLC_VECSIZE)
 
 #define __CLC_CONVERT_CHARN __CLC_XCONCAT(__clc_convert_, __CLC_CHARN)
-#define __CLC_CONVERT_SCHARN __CLC_XCONCAT(__clc_convert_, __CLC_SCHARN)
 #define __CLC_CONVERT_SHORTN __CLC_XCONCAT(__clc_convert_, __CLC_SHORTN)
 #define __CLC_CONVERT_INTN __CLC_XCONCAT(__clc_convert_, __CLC_INTN)
 #define __CLC_CONVERT_LONGN __CLC_XCONCAT(__clc_convert_, __CLC_LONGN)
@@ -73,7 +70,7 @@
 #define __CLC_CONVERT_S_GENTYPE __CLC_XCONCAT(__clc_convert_, __CLC_S_GENTYPE)
 #define __CLC_CONVERT_U_GENTYPE __CLC_XCONCAT(__clc_convert_, __CLC_U_GENTYPE)
 
-#if (!defined(__HALF_ONLY) && !defined(__DOUBLE_ONLY))
+#if (!defined(__CLC_HALF_ONLY) && !defined(__CLC_DOUBLE_ONLY))
 #define __CLC_SCALAR_GENTYPE float
 #define __CLC_FPSIZE 32
 #define __CLC_FP_LIT(x) (__CLC_GENTYPE) x##F
@@ -83,6 +80,7 @@
 #define __CLC_U_GENTYPE __CLC_XCONCAT(uint, __CLC_VECSIZE)
 
 #define __CLC_GENTYPE float
+#define __CLC_BIT_INT int
 #define __CLC_BIT_INTN int
 #define __CLC_SCALAR
 #define __CLC_VECSIZE
@@ -134,6 +132,7 @@
 #include __CLC_BODY
 #undef __CLC_VECSIZE
 #undef __CLC_GENTYPE
+#undef __CLC_BIT_INT
 #undef __CLC_BIT_INTN
 
 #undef __CLC_VECSIZE_OR_1
@@ -146,7 +145,7 @@
 
 #endif
 
-#if (!defined(__HALF_ONLY) && !defined(__FLOAT_ONLY))
+#if (!defined(__CLC_HALF_ONLY) && !defined(__CLC_FLOAT_ONLY))
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
@@ -162,6 +161,7 @@
 #define __CLC_VECSIZE
 #define __CLC_VECSIZE_OR_1 1
 #define __CLC_GENTYPE double
+#define __CLC_BIT_INT long
 #define __CLC_BIT_INTN long
 #include __CLC_BODY
 #undef __CLC_VECSIZE_OR_1
@@ -210,6 +210,7 @@
 #include __CLC_BODY
 #undef __CLC_VECSIZE
 #undef __CLC_GENTYPE
+#undef __CLC_BIT_INT
 #undef __CLC_BIT_INTN
 
 #undef __CLC_VECSIZE_OR_1
@@ -222,7 +223,7 @@
 #endif
 #endif
 
-#if (!defined(__FLOAT_ONLY) && !defined(__DOUBLE_ONLY))
+#if (!defined(__CLC_FLOAT_ONLY) && !defined(__CLC_DOUBLE_ONLY))
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
@@ -238,6 +239,7 @@
 #define __CLC_VECSIZE
 #define __CLC_VECSIZE_OR_1 1
 #define __CLC_GENTYPE half
+#define __CLC_BIT_INT short
 #define __CLC_BIT_INTN short
 #include __CLC_BODY
 #undef __CLC_GENTYPE
@@ -286,6 +288,7 @@
 #include __CLC_BODY
 #undef __CLC_VECSIZE
 #undef __CLC_GENTYPE
+#undef __CLC_BIT_INT
 #undef __CLC_BIT_INTN
 
 #undef __CLC_VECSIZE_OR_1
@@ -344,7 +347,6 @@
 #undef __CLC_LONGN
 #undef __CLC_INTN
 #undef __CLC_SHORTN
-#undef __CLC_SCHARN
 #undef __CLC_CHARN
 
 #undef __CLC_DOUBLEN
@@ -353,3 +355,7 @@
 
 #undef __CLC_AS_GENTYPE
 #undef __CLC_CONVERT_GENTYPE
+
+#undef __CLC_HALF_ONLY
+#undef __CLC_FLOAT_ONLY
+#undef __CLC_DOUBLE_ONLY

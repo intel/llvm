@@ -127,9 +127,11 @@ def err_drv_no_sycl_libspirv : Error<
 def warn_flag_no_sycl_libspirv
     : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
               "libspirv is required for correct behavior">,
-      InGroup<NoLibspirvHipCuda>;
+      InGroup<UnsafeLibspirvNotLinked>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
+def err_drv_mix_offload
+    : Error<"mixed %0 and %1 offloading compilation is not supported">;
 def err_drv_bad_target_id : Error<
   "invalid target ID '%0'; format is a processor name followed by an optional "
   "colon-delimited list of features followed by an enable/disable sign (e.g., "
@@ -158,8 +160,8 @@ def warn_drv_unsupported_option_for_processor : Warning<
 def warn_drv_unsupported_openmp_library : Warning<
   "the library '%0=%1' is not supported, OpenMP will not be enabled">,
   InGroup<OptionIgnored>;
-def warn_openmp_experimental : Warning<
-  "OpenMP support in flang is still experimental">,
+def warn_openmp_incomplete : Warning<
+  "OpenMP support for version %0 in flang is still incomplete">,
   InGroup<ExperimentalOption>;
 
 def err_drv_invalid_thread_model_for_target : Error<
@@ -236,6 +238,9 @@ def err_drv_cannot_open_randomize_layout_seed_file : Error<
   "cannot read randomize layout seed file '%0'">;
 def err_drv_invalid_version_number : Error<
   "invalid version number in '%0'">;
+def err_drv_invalid_version_number_inferred
+    : Error<"invalid version number '%0' inferred from '%1'">;
+def err_drv_missing_version_number : Error<"missing version number in '%0'">;
 def err_drv_kcfi_arity_unsupported_target : Error<
   "target '%0' is unsupported by -fsanitize-kcfi-arity">;
 def err_drv_no_linker_llvm_support : Error<
@@ -412,9 +417,11 @@ def err_drv_sycl_offload_arch_new_driver: Error<
   "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
 def err_drv_sycl_offload_arch_missing_value : Error<
   "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
-def warn_drv_sycl_offload_target_duplicate : Warning<
-  "SYCL offloading target '%0' is similar to target '%1' already specified; "
-  "will be ignored">, InGroup<SyclTarget>;
+def warn_drv_offload_target_duplicate
+    : Warning<
+          "offloading target '%0' is similar to target '%1' already specified; "
+          "will be ignored">,
+      InGroup<OffloadTarget>;
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
   InGroup<SyclTarget>;
@@ -442,11 +449,8 @@ def err_drv_omp_offload_target_missingbcruntime : Error<
   "; use '--libomptarget-%1-bc-path' to specify %1 bitcode library">;
 def err_drv_omp_offload_target_bcruntime_not_found : Error<
   "bitcode library '%0' does not exist">;
-def err_drv_omp_offload_target_cuda_version_not_support : Error<
-  "NVPTX target requires CUDA 9.2 or above; CUDA %0 detected">;
-def warn_drv_omp_offload_target_duplicate : Warning<
-  "OpenMP offloading target '%0' is similar to target '%1' already specified; "
-  "will be ignored">, InGroup<OpenMPTarget>;
+def err_drv_omp_offload_target_cuda_version_not_support
+    : Error<"NVPTX target requires CUDA 9.2 or above; CUDA %0 detected">;
 def err_drv_unsupported_embed_bitcode
     : Error<"%0 is not supported with -fembed-bitcode">;
 def err_drv_bitcode_unsupported_on_toolchain : Error<
@@ -458,6 +462,8 @@ def err_drv_small_columns : Error<
 def warn_drv_fraw_string_literals_in_cxx11 : Warning<
   "ignoring '-f%select{no-|}0raw-string-literals', which is only valid for C and C++ standards before C++11">,
   InGroup<UnusedCommandLineArgument>;
+
+def err_drv_libclc_not_found : Error<"no libclc library '%0' found in the clang resource directory">;
 
 def err_drv_invalid_malign_branch_EQ : Error<
   "invalid argument '%0' to -malign-branch=; each element must be one of: %1">;
@@ -553,6 +559,9 @@ def warn_ignoring_value_using_default : Warning<
 def warn_drv_overriding_option : Warning<
   "overriding '%0' option with '%1'">,
   InGroup<DiagGroup<"overriding-option">>;
+def warn_drv_overriding_deployment_version
+    : Warning<"overriding deployment version from '%0' to '%1'">,
+      InGroup<DiagGroup<"overriding-deployment-version">>;
 def warn_drv_treating_input_as_cxx : Warning<
   "treating '%0' input as '%1' when in C++ mode, this behavior is deprecated">,
   InGroup<Deprecated>;
@@ -928,6 +937,9 @@ def note_drv_available_multilibs : Note<
   "available multilibs are:%0">;
 def err_drv_multilib_custom_error : Error<
   "multilib configuration error: %0">;
+def warn_drv_multilib_not_available_for_target: Warning<
+  "no multilib structure encoded for Arm, Aarch64 and PPC targets">,
+  InGroup<DiagGroup<"multilib-not-found">>;
 
 def err_drv_experimental_crel : Error<
   "-Wa,--allow-experimental-crel must be specified to use -Wa,--crel. "

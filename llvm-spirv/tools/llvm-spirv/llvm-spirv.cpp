@@ -51,7 +51,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
@@ -156,11 +155,10 @@ static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
                    "SPIR-V Friendly IR")),
     cl::init(SPIRV::BIsRepresentation::OpenCL12));
 
-static cl::opt<bool>
-    PreserveOCLKernelArgTypeMetadataThroughString(
-        "preserve-ocl-kernel-arg-type-metadata-through-string", cl::init(false),
-        cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
-                 "metadata through OpString"));
+static cl::opt<bool> PreserveOCLKernelArgTypeMetadataThroughString(
+    "preserve-ocl-kernel-arg-type-metadata-through-string", cl::init(false),
+    cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
+             "metadata through OpString"));
 
 static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
@@ -203,9 +201,10 @@ static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
-static cl::opt<bool> SPIRVPreserveAuxData(
-    "spirv-preserve-auxdata", cl::init(false),
-    cl::desc("Preserve all auxiliary data, such as function attributes and metadata"));
+static cl::opt<bool>
+    SPIRVPreserveAuxData("spirv-preserve-auxdata", cl::init(false),
+                         cl::desc("Preserve all auxiliary data, such as "
+                                  "function attributes and metadata"));
 
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
@@ -286,6 +285,59 @@ static cl::opt<bool> SPIRVUseLLVMSPIRVBackendTarget(
              "it's available. Otherwise has no effect. Default behavior is to "
              "don't use the LLVM SPIR-V Backend target."),
     cl::init(false));
+
+static cl::opt<uint32_t> FnVarCategory(
+    "fnvar-category",
+    cl::desc("Specify architecture category of the target device (omitting "
+             "this flag denotes that the target device can be of any "
+             "category). Used only with -r and --fnvar-spec-enable."),
+    cl::value_desc("category"), cl::ValueRequired);
+
+static cl::opt<uint32_t> FnVarFamily(
+    "fnvar-family",
+    cl::desc("Specify architecture family of the target device (omitting this "
+             "flag denotes that the target device can be of any family). Used "
+             "only with -r and --fnvar-spec-enable."),
+    cl::value_desc("family"), cl::ValueRequired);
+
+static cl::opt<uint32_t> FnVarArch(
+    "fnvar-arch",
+    cl::desc("Specify architecture of the target device (omitting this flag "
+             "denotes that the target device can be of any architecture). Used "
+             "only with -r and --fnvar-spec-enable."),
+    cl::value_desc("architecture"), cl::ValueRequired);
+
+static cl::opt<uint32_t>
+    FnVarTarget("fnvar-target",
+                cl::desc("Specify target of the target device (omitting this "
+                         "flag denotes that the target device can be any "
+                         "target). Used only with -r and --fnvar-spec-enable."),
+                cl::value_desc("target"), cl::ValueRequired);
+
+static cl::list<uint32_t> FnVarFeatures(
+    "fnvar-features", cl::CommaSeparated,
+    cl::desc("Specify features of the target device (omitting this flag "
+             "denotes that the target device supports all features). Used only "
+             "with -r and --fnvar-spec-enable."),
+    cl::value_desc("feature0,feature1,..."), cl::ValueRequired);
+
+static cl::list<uint32_t> FnVarCapabilities(
+    "fnvar-capabilities", cl::CommaSeparated,
+    cl::desc("Specify capabilities of the target device (omitting this flag "
+             "denotes that the target device supports all features). Used only "
+             "with -r and --fnvar-spec-enable."),
+    cl::value_desc("capability0,capability1,..."), cl::ValueRequired);
+
+static cl::opt<std::string> FnVarSpvOut(
+    "fnvar-spv-out",
+    cl::desc("Save the specialized target-specific SPIR-V module to this file. "
+             "Used only with -r and --fnvar-spec-enable."),
+    cl::value_desc("file"), cl::ValueRequired);
+
+static cl::opt<bool> FnVarSpecEnable(
+    "fnvar-spec-enable", cl::init(false),
+    cl::desc("Enable specialization of function variants according to "
+             "SPV_INTEL_function_variants. Requires -r flag."));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -802,8 +854,7 @@ int main(int Ac, char **Av) {
   }
 
   if (SPIRVPreserveAuxData) {
-    Opts.setPreserveAuxData(
-        SPIRVPreserveAuxData);
+    Opts.setPreserveAuxData(SPIRVPreserveAuxData);
     if (!IsReverse)
       Opts.setAllowedToUseExtension(
           SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
@@ -843,9 +894,9 @@ int main(int Ac, char **Av) {
           SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowExtraDIExpressionsEnabled(true);
       if (DebugEIS.getValue() ==
-          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100 ||
+              SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100 ||
           DebugEIS.getValue() ==
-          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
+              SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowedToUseExtension(
             SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
     }
@@ -856,6 +907,56 @@ int main(int Ac, char **Av) {
 
   if (SPIRVEmitFunctionPtrAddrSpace.getNumOccurrences() != 0)
     Opts.setEmitFunctionPtrAddrSpace(true);
+
+  Opts.setFnVarSpecEnable(FnVarSpecEnable);
+
+  if (!IsReverse &&
+      (FnVarSpecEnable || FnVarCategory != 0 || FnVarFamily != 0 ||
+       FnVarArch != 0 || FnVarTarget != 0 || !FnVarFeatures.empty() ||
+       !FnVarCapabilities.empty() || !FnVarSpvOut.empty())) {
+    errs() << "--fnvar-xxx flags can be used only with -r\n";
+    return -1;
+  }
+
+  if (!FnVarSpecEnable &&
+      (FnVarCategory != 0 || FnVarFamily != 0 || FnVarArch != 0 ||
+       FnVarTarget != 0 || !FnVarFeatures.empty() ||
+       !FnVarCapabilities.empty() || !FnVarSpvOut.empty())) {
+    errs() << "--fnvar-xxx flags need to be enabled with --fnvar-spec-enable\n";
+    return -1;
+  }
+
+  if (FnVarCategory.getNumOccurrences() > 0) {
+    Opts.setFnVarCategory(FnVarCategory);
+  }
+
+  if (FnVarFamily.getNumOccurrences() > 0) {
+    Opts.setFnVarFamily(FnVarFamily);
+  }
+
+  if (FnVarArch.getNumOccurrences() > 0) {
+    Opts.setFnVarArch(FnVarArch);
+  }
+
+  if (FnVarTarget.getNumOccurrences() > 0) {
+    Opts.setFnVarTarget(FnVarTarget);
+  }
+
+  if (!FnVarFeatures.empty()) {
+    Opts.setFnVarFeatures(FnVarFeatures);
+  }
+
+  if (!FnVarCapabilities.empty()) {
+    Opts.setFnVarCapabilities(FnVarCapabilities);
+  }
+
+  if (!FnVarSpvOut.empty()) {
+    Opts.setFnVarSpvOut(FnVarSpvOut);
+  }
+
+  if (!Opts.validateFnVarOpts()) {
+    return -1;
+  }
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {
@@ -906,15 +1007,15 @@ int main(int Ac, char **Av) {
     std::optional<SPIRV::SPIRVModuleReport> BinReport =
         SPIRV::getSpirvReport(IFS, ErrCode);
     if (!BinReport) {
-      std::cerr << "Invalid SPIR-V binary: \"" << SPIRV::getErrorMessage(ErrCode) << "\"\n";
+      std::cerr << "Invalid SPIR-V binary: \""
+                << SPIRV::getErrorMessage(ErrCode) << "\"\n";
       return -1;
     }
 
     SPIRV::SPIRVModuleTextReport TextReport =
         SPIRV::formatSpirvReport(BinReport.value());
 
-    std::cout << "SPIR-V module report:"
-              << "\n Version: " << TextReport.Version
+    std::cout << "SPIR-V module report:" << "\n Version: " << TextReport.Version
               << "\n Memory model: " << TextReport.MemoryModel
               << "\n Addressing model: " << TextReport.AddrModel << "\n";
 
@@ -931,7 +1032,8 @@ int main(int Ac, char **Av) {
     std::cout << " Number of extended instruction sets: "
               << TextReport.ExtendedInstructionSets.size() << "\n";
     for (auto &ExtendedInstructionSet : TextReport.ExtendedInstructionSets)
-      std::cout << "  Extended Instruction Set: " << ExtendedInstructionSet << "\n";
+      std::cout << "  Extended Instruction Set: " << ExtendedInstructionSet
+                << "\n";
   }
   return 0;
 }

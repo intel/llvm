@@ -93,7 +93,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     //  case UR_KERNEL_INFO_PROGRAM:
     //    return ReturnValue(ur_program_handle_t{ Kernel->Program });
   case UR_KERNEL_INFO_FUNCTION_NAME:
-    return ReturnValue(hKernel->_name);
+    return ReturnValue(hKernel->_name.c_str());
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{hKernel->getReferenceCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:

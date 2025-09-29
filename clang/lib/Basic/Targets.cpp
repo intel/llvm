@@ -30,7 +30,6 @@
 #include "Targets/NVPTX.h"
 #include "Targets/NativeCPU.h"
 #include "Targets/OSTargets.h"
-#include "Targets/PNaCl.h"
 #include "Targets/PPC.h"
 #include "Targets/RISCV.h"
 #include "Targets/SPIR.h"
@@ -119,10 +118,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     return nullptr;
 
   case llvm::Triple::UnknownArch:
-    // native_cpu is only known to Clang, not to LLVM.
-    if (Triple.str() == "native_cpu")
-      return std::make_unique<NativeCPUTargetInfo>(Triple, Opts);
-
     return nullptr;
 
   case llvm::Triple::arc:
@@ -172,6 +167,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
         return std::make_unique<OHOSTargetInfo<AArch64leTargetInfo>>(Triple,
                                                                      Opts);
       }
+    case llvm::Triple::Managarm:
+      return std::make_unique<ManagarmTargetInfo<AArch64leTargetInfo>>(Triple,
+                                                                       Opts);
     case llvm::Triple::NetBSD:
       return std::make_unique<NetBSDTargetInfo<AArch64leTargetInfo>>(Triple,
                                                                      Opts);
@@ -233,8 +231,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       return std::make_unique<RTEMSTargetInfo<ARMleTargetInfo>>(Triple, Opts);
     case llvm::Triple::Haiku:
       return std::make_unique<HaikuTargetInfo<ARMleTargetInfo>>(Triple, Opts);
-    case llvm::Triple::NaCl:
-      return std::make_unique<NaClTargetInfo<ARMleTargetInfo>>(Triple, Opts);
     case llvm::Triple::Win32:
       switch (Triple.getEnvironment()) {
       case llvm::Triple::Cygnus:
@@ -265,8 +261,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       return std::make_unique<NetBSDTargetInfo<ARMbeTargetInfo>>(Triple, Opts);
     case llvm::Triple::RTEMS:
       return std::make_unique<RTEMSTargetInfo<ARMbeTargetInfo>>(Triple, Opts);
-    case llvm::Triple::NaCl:
-      return std::make_unique<NaClTargetInfo<ARMbeTargetInfo>>(Triple, Opts);
     default:
       return std::make_unique<ARMbeTargetInfo>(Triple, Opts);
     }
@@ -309,9 +303,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       return std::make_unique<FreeBSDTargetInfo<MipsTargetInfo>>(Triple, Opts);
     case llvm::Triple::NetBSD:
       return std::make_unique<NetBSDTargetInfo<MipsTargetInfo>>(Triple, Opts);
-    case llvm::Triple::NaCl:
-      return std::make_unique<NaClTargetInfo<NaClMips32TargetInfo>>(Triple,
-                                                                    Opts);
     case llvm::Triple::Win32:
       switch (Triple.getEnvironment()) {
       case llvm::Triple::GNU:
@@ -474,6 +465,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
         return std::make_unique<OHOSTargetInfo<RISCV64TargetInfo>>(Triple,
                                                                    Opts);
       }
+    case llvm::Triple::Managarm:
+      return std::make_unique<ManagarmTargetInfo<RISCV64TargetInfo>>(Triple,
+                                                                     Opts);
     default:
       return std::make_unique<RISCV64TargetInfo>(Triple, Opts);
     }
@@ -593,8 +587,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       return std::make_unique<HaikuX86_32TargetInfo>(Triple, Opts);
     case llvm::Triple::RTEMS:
       return std::make_unique<RTEMSX86_32TargetInfo>(Triple, Opts);
-    case llvm::Triple::NaCl:
-      return std::make_unique<NaClTargetInfo<X86_32TargetInfo>>(Triple, Opts);
     case llvm::Triple::ELFIAMCU:
       return std::make_unique<MCUX86_32TargetInfo>(Triple, Opts);
     case llvm::Triple::Hurd:
@@ -654,14 +646,15 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     }
     case llvm::Triple::Haiku:
       return std::make_unique<HaikuTargetInfo<X86_64TargetInfo>>(Triple, Opts);
-    case llvm::Triple::NaCl:
-      return std::make_unique<NaClTargetInfo<X86_64TargetInfo>>(Triple, Opts);
     case llvm::Triple::PS4:
       return std::make_unique<PS4OSTargetInfo<X86_64TargetInfo>>(Triple, Opts);
     case llvm::Triple::PS5:
       return std::make_unique<PS5OSTargetInfo<X86_64TargetInfo>>(Triple, Opts);
     case llvm::Triple::Hurd:
       return std::make_unique<HurdTargetInfo<X86_64TargetInfo>>(Triple, Opts);
+    case llvm::Triple::Managarm:
+      return std::make_unique<ManagarmTargetInfo<X86_64TargetInfo>>(Triple,
+                                                                    Opts);
     default:
       return std::make_unique<X86_64TargetInfo>(Triple, Opts);
     }
@@ -693,9 +686,17 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86_64 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple, Opts);
+        switch (HT.getArch()) {
+        case llvm::Triple::aarch64:
+          return std::make_unique<MicrosoftARM64_SPIR64TargetInfo>(Triple,
+                                                                   Opts);
+        case llvm::Triple::x86_64:
+          return std::make_unique<MicrosoftX86_64_SPIR64TargetInfo>(Triple,
+                                                                    Opts);
+        default:
+          llvm::report_fatal_error(
+              "Unsupported host architecture (not x86_64 or aarch64)");
+        }
       }
     case llvm::Triple::Linux:
       if (IsFPGASubArch)
@@ -741,10 +742,17 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       switch (HT.getEnvironment()) {
       default: // Assume MSVC for unknown environments
       case llvm::Triple::MSVC:
-        assert(HT.getArch() == llvm::Triple::x86_64 &&
-               "Unsupported host architecture");
-        return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
-                                                                   Opts);
+        switch (HT.getArch()) {
+        case llvm::Triple::aarch64:
+          return std::make_unique<MicrosoftARM64_SPIRV64TargetInfo>(Triple,
+                                                                    Opts);
+        case llvm::Triple::x86_64:
+          return std::make_unique<MicrosoftX86_64_SPIRV64TargetInfo>(Triple,
+                                                                     Opts);
+        default:
+          llvm::report_fatal_error(
+              "Unsupported host architecture (not x86_64 or aarch64)");
+        }
       }
     default:
       return std::make_unique<SPIRV64TargetInfo>(Triple, Opts);
@@ -822,12 +830,18 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::FreeBSD:
       return std::make_unique<FreeBSDTargetInfo<LoongArch64TargetInfo>>(Triple,
                                                                         Opts);
+    case llvm::Triple::OpenBSD:
+      return std::make_unique<OpenBSDTargetInfo<LoongArch64TargetInfo>>(Triple,
+                                                                        Opts);
     default:
       return std::make_unique<LoongArch64TargetInfo>(Triple, Opts);
     }
 
   case llvm::Triple::xtensa:
     return std::make_unique<XtensaTargetInfo>(Triple, Opts);
+
+  case llvm::Triple::native_cpu:
+    return std::make_unique<NativeCPUTargetInfo>(Triple, Opts);
   }
 }
 } // namespace targets

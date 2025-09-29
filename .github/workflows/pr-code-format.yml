@@ -21,7 +21,7 @@ jobs:
     if: (github.repository == 'llvm/llvm-project' || github.repository == 'intel/llvm') && !contains(github.event.pull_request.labels.*.name, 'disable-lint')
     steps:
       - name: Fetch LLVM sources
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 2
 
@@ -37,7 +37,7 @@ jobs:
       # We need to pull the script from the main branch, so that we ensure
       # we get the latest version of this script.
       - name: Fetch code formatting utils
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: ${{ github.repository }}
           ref: ${{ github.base_ref }}
@@ -55,9 +55,9 @@ jobs:
           echo "$CHANGED_FILES"
 
       - name: Install clang-format
-        uses: aminya/setup-cpp@004edc19527a83d56cda032658aab55c5e2ed48f # v1.7.0
+        uses: aminya/setup-cpp@a276e6e3d1db9160db5edc458e99a30d3b109949 # v1.7.1
         with:
-          clangformat: 19.1.6
+          clangformat: 20.1.8
 
       - name: Setup Python env
         uses: actions/setup-python@v5.6.0

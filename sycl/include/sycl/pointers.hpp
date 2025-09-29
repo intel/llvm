@@ -8,14 +8,10 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp> // for decorated, address_space
+#include <sycl/detail/fwd/multi_ptr.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
 // Template specialization aliases for different pointer address spaces
 
 template <typename ElementType,

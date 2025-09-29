@@ -31,29 +31,16 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
 
-#include <sycl/access/access.hpp>              // for decorated, address_space
-#include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/named_swizzles_mixin.hpp>
-#include <sycl/detail/type_traits.hpp> // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
-#include <sycl/half_type.hpp> // for StorageT, half, Vec16...
 
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
+#include <sycl/detail/fwd/half.hpp>
+#include <sycl/detail/memcpy.hpp>
 
-#include <algorithm>   // for std::min
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t, NULL, byte
-#include <cstdint>     // for uint8_t, int16_t, int...
-#include <functional>  // for divides, multiplies
-#include <iterator>    // for pair
-#include <ostream>     // for operator<<, basic_ost...
-#include <type_traits> // for enable_if_t, is_same
-#include <utility>     // for index_sequence, make_...
+#include <algorithm>
+#include <functional>
 
 namespace sycl {
 
@@ -62,6 +49,9 @@ namespace sycl {
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {
+namespace ext::oneapi {
+class bfloat16;
+}
 
 struct elem {
   static constexpr int x = 0;
@@ -111,7 +101,7 @@ public:
 // conversions are needed as in the case below:
 //
 //   sycl::vec<int, 1> v;
-//   std::ignore = static_cast<bool>(v);
+//   (void)static_cast<bool>(v);
 //
 // Make sure the snippet above compiles. That is important because
 //
@@ -195,6 +185,10 @@ protected:
   alignas(alignment) DataType m_Data;
 
   template <size_t... Is>
+  constexpr vec_base(const DataT &Val, std::index_sequence<Is...>)
+      : m_Data{((void)Is, Val)...} {}
+
+  template <size_t... Is>
   constexpr vec_base(const std::array<DataT, NumElements> &Arr,
                      std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
@@ -262,8 +256,7 @@ public:
   constexpr vec_base &operator=(vec_base &&) = default;
 
   explicit constexpr vec_base(const DataT &arg)
-      : vec_base(RepeatValue<NumElements>(arg),
-                 std::make_index_sequence<NumElements>()) {}
+      : vec_base(arg, std::make_index_sequence<NumElements>()) {}
 
   template <typename... argTN,
             typename = std::enable_if_t<
@@ -508,8 +501,7 @@ class __SYCL_EBO vec :
 #endif
       bool, /*->*/ std::uint8_t,                            //
       sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
-      sycl::ext::oneapi::bfloat16,
-      /*->*/ sycl::ext::oneapi::bfloat16::Bfloat16StorageT, //
+      sycl::ext::oneapi::bfloat16, /*->*/ uint16_t,         //
       char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
       DataT, /*->*/ DataT                                   //
       >::type;
@@ -527,12 +519,15 @@ public:
   // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
   // so we don't even need a smart `enable_if` condition here, the mere fact of
   // this being a template makes the other ctor preferred.
+  // For vectors of length 3, make sure to only copy 3 elements, not 4, to work
+  // around code generation issues, see LLVM #144454.
   template <
       typename vector_t_ = vector_t,
       typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
   constexpr vec(vector_t_ openclVector) {
     sycl::detail::memcpy_no_adl(&this->m_Data, &openclVector,
-                                sizeof(openclVector));
+                                NumElements *
+                                    sizeof(element_type_for_vector_t));
   }
 
   /* @SYCL2020

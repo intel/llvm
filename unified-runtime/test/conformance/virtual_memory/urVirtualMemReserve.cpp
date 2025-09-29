@@ -22,7 +22,7 @@ TEST_P(urVirtualMemReserveTestWithParam, SuccessNoStartPointer) {
                                      &virtual_mem_start));
   ASSERT_NE(virtual_mem_start, nullptr);
 
-  EXPECT_SUCCESS(
+  ASSERT_SUCCESS(
       urVirtualMemFree(context, virtual_mem_start, virtual_mem_size));
 }
 
@@ -41,8 +41,8 @@ TEST_P(urVirtualMemReserveTestWithParam, SuccessWithStartPointer) {
   ASSERT_NE(virtual_mem_ptr, nullptr);
 
   // both pointers have to be freed
-  EXPECT_SUCCESS(urVirtualMemFree(context, origin_ptr, page_size));
-  EXPECT_SUCCESS(urVirtualMemFree(context, virtual_mem_ptr, page_size));
+  ASSERT_SUCCESS(urVirtualMemFree(context, origin_ptr, page_size));
+  ASSERT_SUCCESS(urVirtualMemFree(context, virtual_mem_ptr, page_size));
 }
 
 using urVirtualMemReserveTest = uur::urVirtualMemGranularityTest;

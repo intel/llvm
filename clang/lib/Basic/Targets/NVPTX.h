@@ -49,6 +49,7 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // hlsl_constant
     0, // hlsl_private
     0, // hlsl_device
+    0, // hlsl_input
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
@@ -210,8 +211,9 @@ public:
     return CCCR_Warning;
   }
 
-  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override {
-    TargetInfo::adjust(Diags, Opts);
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts,
+              const TargetInfo *Aux) override {
+    TargetInfo::adjust(Diags, Opts, Aux);
     // FIXME: Needed for compiling SYCL to PTX.
     TLSSupported = TLSSupported || Opts.SYCLIsDevice;
   }

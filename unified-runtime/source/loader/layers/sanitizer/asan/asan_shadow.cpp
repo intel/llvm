@@ -134,6 +134,12 @@ ur_result_t ShadowMemoryGPU::Destory() {
     PrivateShadowOffset = 0;
   }
 
+  if (PrivateBasePtr != 0) {
+    UR_CALL(
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)PrivateBasePtr));
+    PrivateBasePtr = 0;
+  }
+
   if (LocalShadowOffset != 0) {
     UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                  (void *)LocalShadowOffset));
@@ -210,7 +216,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
                  (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
         // Initialize to zero
-        URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
+        URes = EnqueueUSMSet(Queue, (void *)MappedPtr, (char)0, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
           UR_LOG_L(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}",
                    URes);
@@ -222,8 +228,8 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
     }
   }
 
-  auto URes = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
-                                    ShadowEnd - ShadowBegin + 1);
+  auto URes = EnqueueUSMSet(Queue, (void *)ShadowBegin, Value,
+                            ShadowEnd - ShadowBegin + 1);
 
   if (URes != UR_RESULT_SUCCESS) {
     UR_LOG_L(getContext()->logger, ERR,
@@ -241,7 +247,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                               uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
   const size_t RequiredShadowSize =
-      (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
+      (std::min(ASAN_MAX_WG_LOCAL, NumWG) * LocalMemorySize) >>
+      ASAN_SHADOW_SCALE;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {
     ur_context_handle_t QueueContext = GetContext(Queue);
@@ -259,8 +266,8 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
         (void **)&LocalShadowOffset));
 
     // Initialize shadow memory
-    ur_result_t URes = EnqueueUSMBlockingSet(Queue, (void *)LocalShadowOffset,
-                                             0, RequiredShadowSize);
+    ur_result_t URes = EnqueueUSMSet(Queue, (void *)LocalShadowOffset, (char)0,
+                                     RequiredShadowSize);
     if (URes != UR_RESULT_SUCCESS) {
       UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context,
                                                    (void *)LocalShadowOffset));
@@ -279,54 +286,86 @@ ur_result_t ShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
 }
 
 ur_result_t ShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
-                                                uint64_t NumWI, uint32_t NumWG,
-                                                uptr *&Base, uptr &Begin,
-                                                uptr &End) {
-  {
-    const size_t Size = NumWI * sizeof(uptr);
-    ur_usm_desc_t Properties{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
-                             UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
-    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-        Context, Device, &Properties, nullptr, Size, (void **)&Base));
-  }
+                                                uint32_t NumSG, uptr *&Base,
+                                                uptr &Begin, uptr &End) {
+  // Trying to allocate private base array and private shadow, and any one of
+  // them fail to allocate would be a failure
+  static size_t LastPrivateBaseAllocedSize = 0;
+  static size_t LastPrivateShadowAllocedSize = 0;
 
-  {
-    const size_t RequiredShadowSize =
-        (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
-    static size_t LastAllocedSize = 0;
-    if (RequiredShadowSize > LastAllocedSize) {
-      ur_context_handle_t QueueContext = GetContext(Queue);
-      auto ContextInfo = getAsanInterceptor()->getContextInfo(QueueContext);
-      if (PrivateShadowOffset) {
-        UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-            Context, (void *)PrivateShadowOffset));
-        ContextInfo->Stats.UpdateShadowFreed(LastAllocedSize);
-        PrivateShadowOffset = 0;
-        LastAllocedSize = 0;
+  NumSG = std::min(NumSG, ASAN_MAX_SG_PRIVATE);
+
+  try {
+    const size_t NewPrivateBaseSize = NumSG * sizeof(uptr);
+    if (NewPrivateBaseSize > LastPrivateBaseAllocedSize) {
+      if (PrivateBasePtr) {
+        UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)PrivateBasePtr));
+        PrivateBasePtr = 0;
+        LastPrivateBaseAllocedSize = 0;
       }
 
-      UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-          Context, Device, nullptr, nullptr, RequiredShadowSize,
-          (void **)&PrivateShadowOffset));
+      ur_usm_desc_t PrivateBaseProps{UR_STRUCTURE_TYPE_USM_DESC, nullptr,
+                                     UR_USM_ADVICE_FLAG_DEFAULT, sizeof(uptr)};
+      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, &PrivateBaseProps, nullptr, NewPrivateBaseSize,
+          (void **)&PrivateBasePtr));
 
-      // Initialize shadow memory
-      ur_result_t URes = EnqueueUSMBlockingSet(
-          Queue, (void *)PrivateShadowOffset, 0, RequiredShadowSize);
-      if (URes != UR_RESULT_SUCCESS) {
-        UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-            Context, (void *)PrivateShadowOffset));
-        PrivateShadowOffset = 0;
-        LastAllocedSize = 0;
-      }
+      // No need to clean the shadow base, their should be set by work item on
+      // launch
 
-      ContextInfo->Stats.UpdateShadowMalloced(RequiredShadowSize);
-
-      LastAllocedSize = RequiredShadowSize;
+      // FIXME: we should add private base to statistic
+      LastPrivateBaseAllocedSize = NewPrivateBaseSize;
     }
 
+    const size_t NewPrivateShadowSize =
+        (NumSG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
+    if (NewPrivateShadowSize > LastPrivateShadowAllocedSize) {
+      ur_context_handle_t QueueContext = GetContext(Queue);
+      auto ContextInfo = getAsanInterceptor()->getContextInfo(QueueContext);
+
+      if (PrivateShadowOffset) {
+        UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
+            Context, (void *)PrivateShadowOffset));
+        ContextInfo->Stats.UpdateShadowFreed(LastPrivateShadowAllocedSize);
+        PrivateShadowOffset = 0;
+        LastPrivateShadowAllocedSize = 0;
+      }
+
+      UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, nullptr, nullptr, NewPrivateShadowSize,
+          (void **)&PrivateShadowOffset));
+      LastPrivateShadowAllocedSize = NewPrivateShadowSize;
+      UR_CALL_THROWS(EnqueueUSMSet(Queue, (void *)PrivateShadowOffset, (char)0,
+                                   NewPrivateShadowSize));
+      ContextInfo->Stats.UpdateShadowMalloced(NewPrivateShadowSize);
+    }
+
+    Base = (uptr *)PrivateBasePtr;
     Begin = PrivateShadowOffset;
-    End = PrivateShadowOffset + RequiredShadowSize - 1;
+    End = PrivateShadowOffset + NewPrivateShadowSize - 1;
+
+  } catch (ur_result_t &UrRes) {
+    assert(UrRes != UR_RESULT_SUCCESS);
+
+    if (PrivateBasePtr) {
+
+      UR_CALL_NOCHECK(getContext()->urDdiTable.USM.pfnFree(
+          Context, (void *)PrivateBasePtr));
+      PrivateBasePtr = 0;
+      LastPrivateBaseAllocedSize = 0;
+    }
+
+    if (PrivateShadowOffset) {
+      UR_CALL_NOCHECK(getContext()->urDdiTable.USM.pfnFree(
+          Context, (void *)PrivateShadowOffset));
+      PrivateShadowOffset = 0;
+      LastPrivateShadowAllocedSize = 0;
+    }
+
+    return UrRes;
   }
+
   return UR_RESULT_SUCCESS;
 }
 

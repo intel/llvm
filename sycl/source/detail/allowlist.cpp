@@ -364,8 +364,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
 }
 
 void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
-                    ur_platform_handle_t UrPlatform,
-                    const AdapterPtr &Adapter) {
+                    ur_platform_handle_t UrPlatform, adapter_impl &Adapter) {
 
   AllowListParsedT AllowListParsed =
       parseAllowList(SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get());
@@ -396,26 +395,11 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     device_impl &DeviceImpl = PlatformImpl.getOrMakeDeviceImpl(Device);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-    Adapter->call<UrApiKind::urDeviceGetInfo>(
+    Adapter.call<UrApiKind::urDeviceGetInfo>(
         Device, UR_DEVICE_INFO_TYPE, sizeof(UrDevType), &UrDevType, nullptr);
     // TODO need mechanism to do these casts, there's a bunch of this sort of
     // thing
-    sycl::info::device_type DeviceType = info::device_type::all;
-    switch (UrDevType) {
-    default:
-    case UR_DEVICE_TYPE_ALL:
-      DeviceType = info::device_type::all;
-      break;
-    case UR_DEVICE_TYPE_GPU:
-      DeviceType = info::device_type::gpu;
-      break;
-    case UR_DEVICE_TYPE_CPU:
-      DeviceType = info::device_type::cpu;
-      break;
-    case UR_DEVICE_TYPE_FPGA:
-      DeviceType = info::device_type::accelerator;
-      break;
-    }
+    sycl::info::device_type DeviceType = detail::ConvertDeviceType(UrDevType);
     for (const auto &SyclDeviceType :
          getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
       if (SyclDeviceType.second == DeviceType) {

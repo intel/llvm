@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -x c++ %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 // This test checks that all LLVM-IR instructions that work with SPIR-V builtins
@@ -12,8 +14,8 @@
 SYCL_ESIMD_KERNEL SYCL_EXTERNAL void
 kernel_SubgroupLocalInvocationId(size_t *DoNotOptimize,
                                  uint32_t *DoNotOptimize32) {
-  DoNotOptimize[0] = __spirv_SubgroupLocalInvocationId();
-  DoNotOptimize32[0] = __spirv_SubgroupLocalInvocationId() + 3;
+  DoNotOptimize[0] = __spirv_BuiltInSubgroupLocalInvocationId();
+  DoNotOptimize32[0] = __spirv_BuiltInSubgroupLocalInvocationId() + 3;
   // CHECK-LABEL: @{{.*}}kernel_SubgroupLocalInvocationId
   // CHECK: [[ZEXT0:%.*]] = zext i32 0 to i64
   // CHECK: store i64 [[ZEXT0]]
@@ -22,8 +24,8 @@ kernel_SubgroupLocalInvocationId(size_t *DoNotOptimize,
 
 SYCL_ESIMD_KERNEL SYCL_EXTERNAL void
 kernel_SubgroupSize(size_t *DoNotOptimize, uint32_t *DoNotOptimize32) {
-  DoNotOptimize[0] = __spirv_SubgroupSize();
-  DoNotOptimize32[0] = __spirv_SubgroupSize() + 7;
+  DoNotOptimize[0] = __spirv_BuiltInSubgroupSize();
+  DoNotOptimize32[0] = __spirv_BuiltInSubgroupSize() + 7;
   // CHECK-LABEL: @{{.*}}kernel_SubgroupSize
   // CHECK: [[ZEXT0:%.*]] = zext i32 1 to i64
   // CHECK: store i64 [[ZEXT0]]
@@ -32,8 +34,8 @@ kernel_SubgroupSize(size_t *DoNotOptimize, uint32_t *DoNotOptimize32) {
 
 SYCL_ESIMD_KERNEL SYCL_EXTERNAL void
 kernel_SubgroupMaxSize(size_t *DoNotOptimize, uint32_t *DoNotOptimize32) {
-  DoNotOptimize[0] = __spirv_SubgroupMaxSize();
-  DoNotOptimize32[0] = __spirv_SubgroupMaxSize() + 9;
+  DoNotOptimize[0] = __spirv_BuiltInSubgroupMaxSize();
+  DoNotOptimize32[0] = __spirv_BuiltInSubgroupMaxSize() + 9;
   // CHECK-LABEL: @{{.*}}kernel_SubgroupMaxSize
   // CHECK: [[ZEXT0:%.*]] = zext i32 1 to i64
   // CHECK: store i64 [[ZEXT0]]

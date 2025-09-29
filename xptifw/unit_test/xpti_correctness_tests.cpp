@@ -64,7 +64,7 @@ TEST_F(xptiCorrectnessTest, xptiMakeEvent) {
 TEST_F(xptiCorrectnessTest, xptiUnregisterStream) {
   xptiForceSetTraceEnabled(true);
   auto ID = xptiRegisterStream("foo1");
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   auto Result = xptiUnregisterStream("foo2");
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_NOTFOUND);
   // Event though stream exists, no callbacks registered
@@ -72,7 +72,7 @@ TEST_F(xptiCorrectnessTest, xptiUnregisterStream) {
   EXPECT_EQ(NewResult, xpti::result_t::XPTI_RESULT_NOTFOUND);
   // Register again
   ID = xptiRegisterStream("foo1");
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   Result = xptiRegisterCallback(
       ID, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
@@ -184,7 +184,7 @@ TEST_F(xptiCorrectnessTest, xptiCreateTracepoint) {
 TEST_F(xptiCorrectnessTest, xptiRegisterString) {
   char *TStr = nullptr;
   auto ID = xptiRegisterString("foo", &TStr);
-  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_NE(ID, xpti::invalid_id<>);
   EXPECT_NE(TStr, nullptr);
   EXPECT_STREQ("foo", TStr);
 
@@ -255,9 +255,7 @@ TEST_F(xptiCorrectnessTest, xptiTracePointTest) {
 
 void nestedScopeTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
   xpti::framework::tracepoint_scope_t t(p->name, p->source_file, p->line_no,
-                                        p->column_no, false);
-  xpti::hash_t Hash;
-
+                                        p->column_no, nullptr, false);
   auto Tuid = t.uid64();
   uids.push_back(Tuid);
 
@@ -298,7 +296,7 @@ TEST_F(xptiCorrectnessTest, xptiTracePointScopeTest) {
     uint64_t uid;
     {
       xpti::framework::tracepoint_scope_t t(p1.name, p1.source_file, p1.line_no,
-                                            p1.column_no, false);
+                                            p1.column_no, nullptr, false);
       uid = t.uid64();
       EXPECT_NE(t.traceEvent(), nullptr);
       auto ScopeData = xptiGetTracepointScopeData();

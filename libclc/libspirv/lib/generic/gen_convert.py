@@ -42,9 +42,6 @@ from gen_convert_common import (
     clc_core_fn_name,
 )
 
-types.remove("char")
-int_types.remove("char")
-signed_types.remove("char")
 rounding_modes = [""] + rounding_modes
 
 print(
@@ -94,6 +91,15 @@ print(
 #pragma OPENCL EXTENSION cles_khr_int64 : enable
 #endif
 
+// Typedef some signed char types that SPIR-V requires as the destination of
+// certain conversion builtins.
+typedef signed char schar;
+typedef __attribute__((ext_vector_type(2))) signed char schar2;
+typedef __attribute__((ext_vector_type(3))) signed char schar3;
+typedef __attribute__((ext_vector_type(4))) signed char schar4;
+typedef __attribute__((ext_vector_type(8))) signed char schar8;
+typedef __attribute__((ext_vector_type(16))) signed char schar16;
+
 """
 )
 
@@ -112,9 +118,6 @@ def spirv_fn_name(src, dst, size="", mode="", sat="", force_sat_decoration=False
     is_dst_unsigned = dst in unsigned_types
     is_dst_signed = dst in signed_types
     use_sat_insn = sat != "" and not force_sat_decoration
-
-    if dst == "schar":
-        dst = "char"
 
     if is_src_unsigned and is_dst_signed and use_sat_insn:
         return "__spirv_SatConvertUToS_R{DST}{N}".format(DST=dst, N=size)
@@ -157,11 +160,22 @@ def is_signed_unsigned_conversion(src, dst):
 def generate_spirv_fn_impl(src, dst, size="", mode="", sat="", force_decoration=False):
     close_conditional = conditional_guard(src, dst)
 
+    # If the destination is an schar type, we will be converting using the
+    # equivalent char type which in OpenCL C is signed. For vector types, we
+    # cannot rely on implicit casts back to the schar type so insert an
+    # explicit cast.
+    if dst.startswith("schar") and size:
+        cast = "__builtin_convertvector("
+        cast_end = f", {dst}{size})"
+    else:
+        cast = ""
+        cast_end = ""
+
     print(
         """_CLC_DEF _CLC_OVERLOAD _CLC_CONSTFN
 {DST}{N} {FN}({SRC}{N} x)
 {{
-  return {CORE_FN}(x);
+  return {CAST}{CORE_FN}(x){CAST_END};
 }}
 """.format(
             FN=spirv_fn_name(
@@ -172,6 +186,8 @@ def generate_spirv_fn_impl(src, dst, size="", mode="", sat="", force_decoration=
                 mode=mode,
                 force_sat_decoration=force_decoration,
             ),
+            CAST=cast,
+            CAST_END=cast_end,
             CORE_FN=clc_core_fn_name(dst, size=size, sat=sat, mode=mode),
             SRC=src,
             DST=dst,
@@ -209,6 +225,10 @@ for src in float_types:
 
 # __spirv_ConvertUToF / __spirv_ConvertSToF + mode
 for src in int_types:
+    # We're not interested in schar as source types; remangling will do that
+    # for us.
+    if src == "schar":
+        continue
     for dst in float_types:
         for size in vector_sizes:
             for mode in rounding_modes:
@@ -223,6 +243,10 @@ for src in float_types:
 
 # __spirv_UConvert + sat
 for src in int_types:
+    # We're not interested in schar as source types; remangling will do that
+    # for us.
+    if src == "schar":
+        continue
     for dst in unsigned_types:
         for size in vector_sizes:
             for sat in saturation:
@@ -230,6 +254,10 @@ for src in int_types:
 
 # __spirv_SConvert + sat
 for src in int_types:
+    # We're not interested in schar as source types; remangling will do that
+    # for us.
+    if src == "schar":
+        continue
     for dst in signed_types:
         for size in vector_sizes:
             for sat in saturation:

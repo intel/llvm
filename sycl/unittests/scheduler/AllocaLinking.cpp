@@ -50,7 +50,7 @@ TEST_F(SchedulerTest, AllocaLinking) {
   sycl::queue Q{sycl::platform().get_devices()[0]};
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                           &redefinedDeviceGetInfoAfter);
-  sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
+  sycl::detail::queue_impl &QImpl = *detail::getSyclObjImpl(Q);
 
   MockScheduler MS;
   // Should not be linked w/o host unified memory or pinned host memory
@@ -58,10 +58,10 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(&QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+        MS.getOrCreateAllocaForReq(Record, &Req, &QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);
 
@@ -74,10 +74,10 @@ TEST_F(SchedulerTest, AllocaLinking) {
         range<1>(1), {ext::oneapi::property::buffer::use_pinned_host_memory()});
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(&QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+        MS.getOrCreateAllocaForReq(Record, &Req, &QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);
 
@@ -90,10 +90,10 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(&QImpl, &Req);
     std::vector<detail::Command *> AuxCmds;
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+        MS.getOrCreateAllocaForReq(Record, &Req, &QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
         MS.getOrCreateAllocaForReq(Record, &Req, nullptr, AuxCmds);
 

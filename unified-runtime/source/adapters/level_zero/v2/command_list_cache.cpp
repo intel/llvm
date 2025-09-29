@@ -14,8 +14,8 @@
 #include "../device.hpp"
 
 template <>
-ze_structure_type_t
-getZeStructureType<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
+ze_structure_type_ext_t
+getZexStructureType<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>() {
   return ZEX_INTEL_STRUCTURE_TYPE_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_PROPERTIES;
 }
 
@@ -28,7 +28,7 @@ bool v2::immediate_command_list_descriptor_t::operator==(
 bool v2::regular_command_list_descriptor_t::operator==(
     const regular_command_list_descriptor_t &rhs) const {
   return ZeDevice == rhs.ZeDevice && Ordinal == rhs.Ordinal &&
-         IsInOrder == rhs.IsInOrder;
+         IsInOrder == rhs.IsInOrder && Mutable == rhs.Mutable;
 }
 
 namespace v2 {
@@ -42,7 +42,7 @@ inline size_t command_list_descriptor_hash_t::operator()(
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     return combine_hashes(0, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder,
-                          RegCmdDesc.Ordinal);
+                          RegCmdDesc.Ordinal, RegCmdDesc.Mutable);
   }
 }
 
@@ -61,7 +61,8 @@ static bool ForceDisableCopyOffload = [] {
 
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
-  ZeStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t> offloadDesc;
+  ZexStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t>
+      offloadDesc;
   auto requestedCopyOffload =
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
 
@@ -108,6 +109,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     if (!ZeMutableCmdListExtentionSupported && IsMutable) {
       UR_LOG(INFO, "Mutable command lists were requested but are not supported "
                    "by the driver.");
+      UR_DFAILURE("Mutable command lists unsupported");
       throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
@@ -123,8 +125,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "
-           "device: {}, inOrder: {}",
-           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);
+           "device: {}, inOrder: {}, Mutable: {}",
+           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder,
+           RegCmdDesc.Mutable);
 
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,

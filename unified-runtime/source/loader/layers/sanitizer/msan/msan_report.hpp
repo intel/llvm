@@ -21,7 +21,8 @@ struct MsanErrorReport;
 
 namespace msan {
 
-void ReportUsesUninitializedValue(const MsanErrorReport &Report,
+// Abort the program if the return value is true
+bool ReportUsesUninitializedValue(const MsanErrorReport &Report,
                                   ur_kernel_handle_t Kernel);
 
 } // namespace msan

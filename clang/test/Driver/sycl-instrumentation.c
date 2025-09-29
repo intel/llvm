@@ -23,7 +23,7 @@
 // we still link ITT annotations libraries to ensure ABI compatibility with previous release.
 // RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-ITT-LINK-ONLY %s
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-ITT-LINK-ONLY-NOT: "-fsycl-instrument-device-code"
@@ -31,7 +31,7 @@
 
 // RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -nocudalib -### %s 2>&1 \
+// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-libspirv -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"

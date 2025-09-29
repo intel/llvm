@@ -25,6 +25,7 @@
 #include <zes_api.h>
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
 
@@ -36,7 +37,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled,
                         bool ForceDisableProfiling,
-                        bool InterruptBasedEventEnabled);
+                        bool InterruptBasedEventEnabled,
+                        std::optional<bool> IsInternal = std::nullopt);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -262,6 +264,8 @@ struct ur_event_handle_t_ : ur_object {
   // Used only for asynchronous allocations. This is the event originally used
   // on async free to indicate when the allocation can be used again.
   ur_event_handle_t OriginAllocEvent = nullptr;
+
+  ur::RefCount RefCount;
 };
 
 // Helper function to implement zeHostSynchronize.

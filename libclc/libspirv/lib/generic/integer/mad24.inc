@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if __CLC_GENSIZE == 32
+
 #ifdef __CLC_GEN_S
 #define DECL __spirv_ocl_s_mad24
 #else
@@ -18,3 +20,5 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y,
 }
 
 #undef DECL
+
+#endif // __CLC_GENSIZE == 32

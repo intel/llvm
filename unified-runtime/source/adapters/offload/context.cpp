@@ -59,6 +59,7 @@ urContextRelease(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
+// Offload currently doesn't have an equivalent to context handles
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle(ur_context_handle_t, ur_native_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

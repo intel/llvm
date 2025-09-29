@@ -8,8 +8,8 @@
 
 #include <libspirv/spirv.h>
 
-#define SELF __spirv_SubgroupLocalInvocationId();
-#define SUBGROUP_SIZE __spirv_SubgroupMaxSize()
+#define SELF __spirv_BuiltInSubgroupLocalInvocationId();
+#define SUBGROUP_SIZE __spirv_BuiltInSubgroupMaxSize()
 
 // Shuffle
 _CLC_OVERLOAD _CLC_DEF int

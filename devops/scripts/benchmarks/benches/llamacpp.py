@@ -7,7 +7,7 @@ import csv
 import io
 from pathlib import Path
 from utils.utils import download, git_clone
-from .base import Benchmark, Suite
+from .base import Benchmark, Suite, TracingType
 from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
@@ -17,9 +17,6 @@ import os
 
 class LlamaCppBench(Suite):
     def __init__(self, directory):
-        if options.sycl is None:
-            return
-
         self.directory = directory
 
     def name(self) -> str:
@@ -31,7 +28,7 @@ class LlamaCppBench(Suite):
     def git_hash(self) -> str:
         return "916c83bfe7f8b08ada609c3b8e583cf5301e594b"
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -80,12 +77,6 @@ class LlamaCppBench(Suite):
         )
 
     def benchmarks(self) -> list[Benchmark]:
-        if options.sycl is None:
-            return []
-
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
-            return []
-
         return [LlamaBench(self)]
 
 
@@ -93,6 +84,13 @@ class LlamaBench(Benchmark):
     def __init__(self, bench):
         super().__init__(bench.directory, bench)
         self.bench = bench
+
+    def enabled(self):
+        if options.sycl is None:
+            return False
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+            return False
+        return True
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.build_path, "bin", "llama-bench")
@@ -117,7 +115,12 @@ class LlamaBench(Benchmark):
     def lower_is_better(self):
         return False
 
-    def run(self, env_vars) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             "--output",
@@ -143,7 +146,11 @@ class LlamaBench(Benchmark):
         ]
 
         result = self.run_bench(
-            command, env_vars, ld_library=self.bench.oneapi.ld_libraries()
+            command,
+            env_vars,
+            ld_library=self.bench.oneapi.ld_libraries(),
+            run_trace=run_trace,
+            force_trace=force_trace,
         )
         parsed = self.parse_output(result)
         results = []
@@ -156,7 +163,6 @@ class LlamaBench(Benchmark):
                     value=mean,
                     command=command,
                     env=env_vars,
-                    stdout=result,
                     unit="token/s",
                     git_url=self.bench.git_url(),
                     git_hash=self.bench.git_hash(),

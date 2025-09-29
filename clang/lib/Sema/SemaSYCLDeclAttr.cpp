@@ -55,7 +55,7 @@ void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
+  handleSimpleAttribute<DeviceKernelAttr>(*this, D, AL);
 }
 
 // Returns a DupArgResult value; Same means the args have the same value,
@@ -659,7 +659,7 @@ bool isDeviceAspectType(const QualType Ty) {
   if (!ET)
     return false;
 
-  if (const auto *Attr = ET->getDecl()->getAttr<SYCLTypeAttr>())
+  if (const auto *Attr = ET->getOriginalDecl()->getAttr<SYCLTypeAttr>())
     return Attr->getType() == SYCLTypeAttr::aspect;
 
   return false;

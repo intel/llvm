@@ -512,6 +512,16 @@ def _validate_doc(f, d, tags, line_num, meta):
         if d.get("tag") is None:
             raise Exception(f"{d['name']} must include a 'tag' part of the union.")
 
+    def __validate_guard(d):
+        if "guard" not in d:
+            return
+        if not isinstance(d["guard"], str):
+            raise Exception("'guard' must be a string: '%s'" % type(d["guard"]))
+        if not re.match(r"[A-Z][A-Z0-9_]*$", d["guard"]):
+            raise Exception(
+                "'guard' must a valid upper case C identifier: '%s'" % d["guard"]
+            )
+
     try:
         if "type" not in d:
             raise Exception("every document must have 'type'")
@@ -530,6 +540,7 @@ def _validate_doc(f, d, tags, line_num, meta):
 
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "macro" == d["type"]:
             if ("desc" not in d) or ("name" not in d) or ("value" not in d):
@@ -544,6 +555,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "typedef" == d["type"]:
             if ("desc" not in d) or ("name" not in d) or ("value" not in d):
@@ -555,6 +567,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "handle" == d["type"]:
             if ("desc" not in d) or ("name" not in d):
@@ -566,6 +579,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "enum" == d["type"]:
             if ("desc" not in d) or ("name" not in d):
@@ -578,6 +592,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "struct" == d["type"] or "union" == d["type"]:
             if ("desc" not in d) or ("name" not in d):
@@ -594,6 +609,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "function" == d["type"]:
             if ("desc" not in d) or ("name" not in d):
@@ -612,6 +628,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         elif "class" == d["type"]:
             if ("desc" not in d) or ("name" not in d):
@@ -623,6 +640,7 @@ def _validate_doc(f, d, tags, line_num, meta):
             __validate_details(d)
             __validate_ordinal(d)
             __validate_version(d)
+            __validate_guard(d)
 
         return True
 
@@ -1136,6 +1154,9 @@ def parse(section, version, tags, meta, ref):
 
             if d["type"] == "enum" and d.get("extend"):
                 # enum extensions are resolved later
+                if "guard" in header and "guard" not in d:
+                    for etor in d["etors"]:
+                        etor["guard"] = header["guard"]
                 enum_extensions.append(d)
                 continue
 
@@ -1167,6 +1188,8 @@ def parse(section, version, tags, meta, ref):
                     name = name.replace(c, " ")
             elif header:
                 for d in _make_versions(d, version):
+                    if "guard" in header and "guard" not in d:
+                        d["guard"] = header["guard"]
                     objects.append(d)
                     meta = _generate_meta(d, header["ordinal"], meta)
 

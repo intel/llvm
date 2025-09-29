@@ -81,6 +81,20 @@ inline void *aligned_malloc(size_t alignment, size_t size) {
   return ptr;
 }
 
+// In many cases we require aligned memory without being told what the alignment
+// requirement is. This helper function returns maximally aligned memory based
+// on the size.
+inline void *aligned_malloc(size_t size) {
+  constexpr size_t max_alignment = 16 * sizeof(double);
+  size_t alignment = max_alignment;
+  while (alignment > size) {
+    alignment >>= 1;
+  }
+  // aligned_malloc requires size to be a multiple of alignment; round up.
+  size = (size + alignment - 1) & ~(alignment - 1);
+  return aligned_malloc(alignment, size);
+}
+
 inline void aligned_free(void *ptr) {
 #ifdef _MSC_VER
   _aligned_free(ptr);

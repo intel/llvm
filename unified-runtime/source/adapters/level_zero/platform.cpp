@@ -28,19 +28,14 @@ ur_result_t urPlatformGet(
     uint32_t *NumPlatforms) {
   // Platform handles are cached for reuse. This is to ensure consistent
   // handle pointers across invocations and to improve retrieval performance.
-  if (const auto *cached_platforms = GlobalAdapter->PlatformCache->get_value();
-      cached_platforms) {
-    uint32_t nplatforms = (uint32_t)cached_platforms->size();
-    if (NumPlatforms) {
-      *NumPlatforms = nplatforms;
+  uint32_t nplatforms = (uint32_t)GlobalAdapter->Platforms.size();
+  if (NumPlatforms) {
+    *NumPlatforms = nplatforms;
+  }
+  if (Platforms) {
+    for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
+      Platforms[i] = GlobalAdapter->Platforms.at(i).get();
     }
-    if (Platforms) {
-      for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
-        Platforms[i] = cached_platforms->at(i).get();
-      }
-    }
-  } else {
-    return GlobalAdapter->PlatformCache->get_error();
   }
 
   return UR_RESULT_SUCCESS;
@@ -223,7 +218,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
              (ZeDriver, &Count, ZeExtensions.data()));
 
   bool MutableCommandListSpecExtensionSupported = false;
-  bool ZeIntelExternalSemaphoreExtensionSupported = false;
   bool ZeExternalSemaphoreExtensionSupported = false;
   bool ZeImmediateCommandListAppendExtensionFound = false;
   for (auto &extension : ZeExtensions) {
@@ -265,13 +259,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
         MutableCommandListSpecExtensionSupported = true;
       }
     }
-    // Check if extension is available for Exp External Sempahores
-    if (strncmp(extension.name, ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME,
-                strlen(ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME) + 1) == 0) {
-      if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0) {
-        ZeIntelExternalSemaphoreExtensionSupported = true;
-      }
-    }
     // Check if extension is available for Spec External Sempahores
     if (strncmp(extension.name, ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME,
                 strlen(ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME) + 1) == 0) {
@@ -298,6 +285,12 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 strlen(ZE_BINDLESS_IMAGE_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_BINDLESS_IMAGE_EXP_VERSION_1_0) {
         ZeBindlessImagesExtensionSupported = true;
+      }
+    }
+    if (strncmp(extension.name, ZE_DEVICE_LUID_EXT_NAME,
+                strlen(ZE_DEVICE_LUID_EXT_NAME) + 1) == 0) {
+      if (extension.version == ZE_DEVICE_LUID_EXT_VERSION_1_0) {
+        ZeLUIDSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -379,38 +372,6 @@ ur_result_t ur_platform_handle_t_::initialize() {
             .zexCommandListAppendSignalExternalSemaphoresExp != nullptr;
     ZeExternalSemaphoreExt.Supported |=
         ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp != nullptr;
-    ZeExternalSemaphoreExt.LoaderExtension = true;
-  } else if (ZeIntelExternalSemaphoreExtensionSupported) {
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelDeviceImportExternalSemaphoreExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt.zexExpImportExternalSemaphoreExp))) ==
-         0);
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelCommandListAppendWaitExternalSemaphoresExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                       .zexExpCommandListAppendWaitExternalSemaphoresExp))) ==
-         0);
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelCommandListAppendSignalExternalSemaphoresExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                       .zexExpCommandListAppendSignalExternalSemaphoresExp))) ==
-         0);
-    ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(
-             zeDriverGetExtensionFunctionAddress,
-             (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                       .zexExpDeviceReleaseExternalSemaphoreExp))) == 0);
   }
 
   // Check if mutable command list extension is supported and initialize

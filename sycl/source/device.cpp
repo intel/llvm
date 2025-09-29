@@ -33,12 +33,13 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : device(default_selector_v) {}
 
 device::device(cl_device_id DeviceId) {
-  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  detail::adapter_impl &Adapter =
+      sycl::detail::ur::getAdapter<backend::opencl>();
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;
-  Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
-      detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
+  Adapter.call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter.getUrAdapter(),
       nullptr, &Device);
   impl = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter)
              .getOrMakeDeviceImpl(Device)
@@ -219,8 +220,8 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
-    auto Adapter = impl->getAdapter();
-    Adapter->call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
+    detail::adapter_impl &Adapter = impl->getAdapter();
+    Adapter.call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
   }
 }
 
@@ -228,14 +229,19 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
-    auto Adapter = impl->getAdapter();
-    Adapter->call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device,
-                                                                   Peer);
+    detail::adapter_impl &Adapter = impl->getAdapter();
+    Adapter.call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
   }
 }
 
 bool device::ext_oneapi_can_access_peer(const device &peer,
                                         ext::oneapi::peer_access attr) {
+  // Peer access cannot be granted across platforms, but the handles could
+  // potentially mimic device handles from other adapters, so we need to avoid
+  // calling the adapters with handles from other platforms.
+  if (peer.get_platform() != get_platform())
+    return false;
+
   ur_device_handle_t Device = impl->getHandleRef();
   ur_device_handle_t Peer = peer.impl->getHandleRef();
 
@@ -253,9 +259,9 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unrecognized peer access attribute.");
   }();
-  auto Adapter = impl->getAdapter();
+  detail::adapter_impl &Adapter = impl->getAdapter();
   int value = 0;
-  Adapter->call<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
+  Adapter.call<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
       Device, Peer, UrAttr, sizeof(int), &value, nullptr);
 
   return value == 1;
@@ -284,9 +290,9 @@ bool device::ext_oneapi_can_compile(
 
 bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
   ur_device_handle_t Device = impl->getHandleRef();
-  auto Adapter = impl->getAdapter();
+  detail::adapter_impl &Adapter = impl->getAdapter();
   uint32_t ipVersion = 0;
-  auto res = Adapter->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+  auto res = Adapter.call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
       Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return false;
@@ -298,9 +304,9 @@ bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
 bool device::ext_oneapi_supports_cl_c_version(
     const ext::oneapi::experimental::cl_version &Version) const {
   ur_device_handle_t Device = impl->getHandleRef();
-  auto Adapter = impl->getAdapter();
+  detail::adapter_impl &Adapter = impl->getAdapter();
   uint32_t ipVersion = 0;
-  auto res = Adapter->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+  auto res = Adapter.call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
       Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return false;
@@ -313,9 +319,9 @@ bool device::ext_oneapi_supports_cl_extension(
     detail::string_view Name,
     ext::oneapi::experimental::cl_version *VersionPtr) const {
   ur_device_handle_t Device = impl->getHandleRef();
-  auto Adapter = impl->getAdapter();
+  detail::adapter_impl &Adapter = impl->getAdapter();
   uint32_t ipVersion = 0;
-  auto res = Adapter->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+  auto res = Adapter.call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
       Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return false;
@@ -326,9 +332,9 @@ bool device::ext_oneapi_supports_cl_extension(
 
 detail::string device::ext_oneapi_cl_profile_impl() const {
   ur_device_handle_t Device = impl->getHandleRef();
-  auto Adapter = impl->getAdapter();
+  detail::adapter_impl &Adapter = impl->getAdapter();
   uint32_t ipVersion = 0;
-  auto res = Adapter->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+  auto res = Adapter.call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
       Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return detail::string{""};

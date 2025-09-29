@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Driver/SanitizerArgs.h"
+#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Options.h"
@@ -740,7 +741,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                         options::OPT_fno_sanitize_merge_handlers_EQ);
   MergeKinds &= Kinds;
 
-  // Parse -fno-sanitize-top-hot flags
+  // Parse -fno-fsanitize-skip-hot-cutoff flags
   SkipHotCutoffs = parseSanitizeSkipHotCutoffArgs(D, Args, DiagnoseErrors);
 
   // Parse -f(no-)?sanitize-annotate-debug-info flags
@@ -851,6 +852,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   }
 
   if (AllAddedKinds & SanitizerKind::KCFI) {
+    CfiICallGeneralizePointers =
+        Args.hasArg(options::OPT_fsanitize_cfi_icall_generalize_pointers);
     CfiICallNormalizeIntegers =
         Args.hasArg(options::OPT_fsanitize_cfi_icall_normalize_integers);
 
@@ -1157,9 +1160,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         !TC.getTriple().isAndroid() && !TC.getTriple().isOSFuchsia();
   }
 
-  LinkRuntimes =
-      Args.hasFlag(options::OPT_fsanitize_link_runtime,
-                   options::OPT_fno_sanitize_link_runtime, LinkRuntimes);
+  LinkRuntimes = Args.hasFlag(options::OPT_fsanitize_link_runtime,
+                              options::OPT_fno_sanitize_link_runtime,
+                              !Args.hasArg(options::OPT_r));
 
   // Parse -link-cxx-sanitizer flag.
   LinkCXXRuntimes = D.CCCIsCXX();
@@ -1296,6 +1299,8 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack-dynamic-alloca=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-use-after-return=never");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-instrument-dynamic-allocas=0");
 
       if (!RecoverableSanitizers.empty())
         CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +
@@ -1317,6 +1322,16 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-msan-poison-stack-with-call=1");
+
+      if (MsanTrackOrigins) {
+        // FIXME: Support enhanced origins tracking in device offloading.
+        if (MsanTrackOrigins != 1)
+          TC.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
+              << "-fsanitize-memory-track-origins=1";
+        CmdArgs.push_back("-mllvm");
+        CmdArgs.push_back(Args.MakeArgString("-msan-track-origins=" +
+                                             Twine(MsanTrackOrigins)));
+      }
     } else if (Sanitizers.has(SanitizerKind::Thread)) {
       CmdArgs.push_back("-fsanitize=thread");
       // The tsan function entry/exit builtins are used to record stack
@@ -1453,6 +1468,12 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (!AnnotateDebugInfo.empty())
     CmdArgs.push_back(Args.MakeArgString("-fsanitize-annotate-debug-info=" +
                                          toString(AnnotateDebugInfo)));
+
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_fsanitize_debug_trap_reasons,
+                          options::OPT_fno_sanitize_debug_trap_reasons)) {
+    CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
+  }
 
   addSpecialCaseListOpt(Args, CmdArgs,
                         "-fsanitize-ignorelist=", UserIgnorelistFiles);
