@@ -100,23 +100,10 @@ class ComputeBench(Suite):
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
         metadata = {
-            "SubmitKernel": BenchmarkMetadata(
-                type="group",
-                description="Measures CPU time overhead of submitting kernels through different APIs.",
-                notes="Each layer builds on top of the previous layer, adding functionality and overhead.\n"
-                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
-                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
-                "Work is ongoing to reduce the overhead of the SYCL API\n",
-                tags=["submit", "micro", "SYCL", "UR", "L0"],
-                range_min=0.0,
-            ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
                 unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
                 tags=["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
-            ),
-            "SubmitGraph": BenchmarkMetadata(
-                type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
             ),
             "FinalizeGraph": BenchmarkMetadata(
                 type="group", tags=["finalize", "micro", "SYCL", "graph"]
@@ -124,47 +111,45 @@ class ComputeBench(Suite):
         }
 
         # Add metadata for all SubmitKernel group variants
-        base_metadata = metadata["SubmitKernel"]
-
+        submit_kernel_metadata = BenchmarkMetadata(
+            type="group",
+            notes="Each layer builds on top of the previous layer, adding functionality and overhead.\n"
+            "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
+            "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
+            "Work is ongoing to reduce the overhead of the SYCL API\n",
+            tags=["submit", "micro", "SYCL", "UR", "L0"],
+            range_min=0.0,
+        )
         for order in ["in order", "out of order"]:
             for completion in ["", " with completion"]:
                 for events in ["", " using events"]:
                     group_name = f"SubmitKernel {order}{completion}{events} long kernel"
-                    metadata[group_name] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
+                    metadata[group_name] = copy.deepcopy(submit_kernel_metadata)
+                    metadata[group_name].description = (
+                        f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs."
                     )
-
                     # CPU count variants
                     cpu_count_group = f"{group_name}, CPU count"
-                    metadata[cpu_count_group] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
+                    metadata[cpu_count_group] = copy.deepcopy(submit_kernel_metadata)
+                    metadata[cpu_count_group].description = (
+                        f"Measures CPU instructions count overhead of submitting {order} kernels with longer execution times through different APIs."
                     )
 
         # Add metadata for all SubmitGraph group variants
-        base_metadata = metadata["SubmitGraph"]
+        submit_graph_metadata = BenchmarkMetadata(
+            type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
+        )
         for order in ["in order", "out of order"]:
             for completion in ["", " with completion"]:
                 for events in ["", " using events"]:
                     for num_kernels in self.submit_graph_num_kernels:
                         for host_tasks in ["", " use host tasks"]:
                             group_name = f"SubmitGraph {order}{completion}{events}{host_tasks}, {num_kernels} kernels"
-                            metadata[group_name] = BenchmarkMetadata(
-                                type="group",
-                                tags=base_metadata.tags,
-                            )
+                            metadata[group_name] = copy.deepcopy(submit_graph_metadata)
                             # CPU count variants
                             cpu_count_group = f"{group_name}, CPU count"
-                            metadata[cpu_count_group] = BenchmarkMetadata(
-                                type="group",
-                                tags=base_metadata.tags,
+                            metadata[cpu_count_group] = copy.deepcopy(
+                                submit_graph_metadata
                             )
         return metadata
 
