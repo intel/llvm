@@ -21,7 +21,8 @@
 namespace llvm {
 namespace sycl {
 
-/// Handling consists of SpecConsts's lowering depending on the given
+/// Metadata and intrinsics related to SYCL specialization constants are lowered
+/// depending on the given
 /// \p Mode. If \p Mode is std::nullopt, then no lowering happens.
 /// If \p GenerateModuleDescWithDefaultSpecConsts is true, then a generation
 /// of new modules with specialization constants replaced by default values

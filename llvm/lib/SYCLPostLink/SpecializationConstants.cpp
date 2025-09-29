@@ -34,14 +34,15 @@ bool lowerSpecConstants(module_split::ModuleDesc &MD,
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
 
-  // Perform the spec constant intrinsics transformation on resulting module.
+  // Perform the specialization constant intrinsics transformation on resulting
+  // module.
   PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
   MD.Props.SpecConstsMet = !Res.areAllPreserved();
   return MD.Props.SpecConstsMet;
 }
 
 /// Function generates the copy of the given \p MD where all uses of
-/// Specialization Constants are replaced by corresponding default values.
+/// Specialization constants are replaced by corresponding default values.
 /// If the Module in \p MD doesn't contain specialization constants then
 /// std::nullopt is returned.
 std::optional<module_split::ModuleDesc>
@@ -64,7 +65,7 @@ cloneModuleWithSpecConstsReplacedByDefaultValues(
   PreservedAnalyses Res = MPM.run(NewMD->getModule(), MAM);
   NewMD->Props.SpecConstsMet = !Res.areAllPreserved();
   assert(NewMD->Props.SpecConstsMet &&
-         "This property should be true since the presence of SpecConsts "
+         "SpecConstsMet should be true since the presence of SpecConsts "
          "has been checked before the run of the pass");
   NewMD->rebuildEntryPoints();
   return NewMD;
