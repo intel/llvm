@@ -420,6 +420,106 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   return EventImpl;
 }
 
+detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
+    const NDRDescT &NDRDesc,
+    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+
+  KernelData KData;
+
+  KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
+  KData.setKernelFunc(HostKernel->getPtr());
+  KData.setNDRDesc(NDRDesc);
+
+  auto SubmitKernelFunc =
+      [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
+    std::unique_ptr<detail::CG> CommandGroup;
+    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    KData.extractArgsAndReqsFromLambda();
+
+    CommandGroup.reset(new detail::CGExecKernel(
+        KData.getNDRDesc(), HostKernel,
+        nullptr, // Kernel
+        nullptr, // KernelBundle
+        std::move(CGData), std::move(KData).getArgs(),
+        *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
+        std::move(AuxiliaryResources), detail::CGType::Kernel,
+        UR_KERNEL_CACHE_CONFIG_DEFAULT,
+        false, // KernelIsCooperative
+        false, // KernelUsesClusterLaunch
+        0,     // KernelWorkGroupMemorySize
+        CodeLoc));
+    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                  *this, true);
+  };
+
+  return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
+}
+
+template <typename SubmitCommandFuncType>
+detail::EventImplPtr
+queue_impl::submit_direct(bool CallerNeedsEvent,
+                          SubmitCommandFuncType &SubmitCommandFunc) {
+  detail::CG::StorageInitHelper CGData;
+  std::unique_lock<std::mutex> Lock(MMutex);
+
+  // Graphs are not supported yet for the no-handler path
+  assert(!hasCommandGraph());
+
+  // Set the No Last Event Mode to false, since the no-handler path
+  // does not support it yet.
+  MNoLastEventMode.store(false, std::memory_order_relaxed);
+
+  // Used by queue_empty() and getLastEvent()
+  MEmpty.store(false, std::memory_order_release);
+
+  // Sync with an external event
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent) {
+    CGData.MEvents.push_back(getSyclObjImpl(*ExternalEvent));
+  }
+
+  // Sync with the last event for in order queue
+  EventImplPtr &LastEvent = MDefaultGraphDeps.LastEventPtr;
+  if (isInOrder() && LastEvent) {
+    CGData.MEvents.push_back(LastEvent);
+  }
+
+  // Barrier and un-enqueued commands synchronization for out or order queue
+  if (!isInOrder()) {
+    MMissedCleanupRequests.unset(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
+
+    if (MDefaultGraphDeps.LastBarrier &&
+        !MDefaultGraphDeps.LastBarrier->isEnqueued()) {
+      CGData.MEvents.push_back(MDefaultGraphDeps.LastBarrier);
+    }
+  }
+
+  EventImplPtr EventImpl = SubmitCommandFunc(CGData);
+
+  // Sync with the last event for in order queue
+  if (isInOrder() && !EventImpl->isDiscarded()) {
+    LastEvent = EventImpl;
+  }
+
+  // Barrier and un-enqueued commands synchronization for out or order queue
+  if (!isInOrder() && !EventImpl->isEnqueued()) {
+    MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
+  }
+
+  return CallerNeedsEvent ? EventImpl : nullptr;
+}
+
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::vector<event> &DepEvents,
                                     bool CallerNeedsEvent,
