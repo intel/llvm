@@ -25,7 +25,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/nd_item.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 using sycl::ext::oneapi::this_work_item::get_nd_item;
 

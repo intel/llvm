@@ -6,6 +6,13 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_joint_matrix,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; CHECK-SPIRV-DAG: Capability JointMatrixINTEL
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_joint_matrix"
 ; CHECK-SPIRV-DAG: TypeInt [[#Int8Ty:]] 8 0
@@ -70,7 +77,6 @@ entry:
   %sub.i = sub nsw i64 %1, %4
   %cmp.i58.i = icmp ult i64 %5, 2147483648
   %sub5.i = sub nsw i64 %2, %5
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %sub_c.sroa.0.i)
   %call.i.i = tail call spir_func noundef target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) @_Z26__spirv_CompositeConstructIiLm12ELm12ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT3_EXT4_EXT2_EEES6_(i32 noundef 0) #4
   store target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) %call.i.i, ptr %sub_c.sroa.0.i, align 8
   %mul.i = mul nsw i64 %sub.i, 12
@@ -103,13 +109,11 @@ for.body.i:                                       ; preds = %for.cond.i
   %add.ptr.i111.i = getelementptr i8, ptr addrspace(1) %add.ptr.i108140.i, i64 %mul23.i
   %call.ascast.i72.i = addrspacecast ptr addrspace(1) %add.ptr.i111.i to ptr addrspace(4)
   %call1.i73.i = tail call spir_func noundef target("spirv.JointMatrixINTEL", i8, 48, 12, 2, 3, 1) @_Z28__spirv_JointMatrixLoadINTELIaLm48ELm12ELN5__spv9MatrixUseE1ELNS0_12MatrixLayoutE2ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT_XT0_EXT1_EXT3_EXT4_EXT2_EEEPS6_mS2_S4_i(ptr addrspace(4) noundef %call.ascast.i72.i, i64 noundef %mul22.i, i32 noundef 2, i32 noundef 3, i32 noundef 0) #4
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i)
   %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0.125.i = load target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2), ptr %sub_c.sroa.0.i, align 8
   %call.i77.i = tail call spir_func noundef target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) @_Z27__spirv_JointMatrixMadINTELIaiLm12ELm48ELm12ELN5__spv9MatrixUseE0ELS1_1ELS1_2ELNS0_12MatrixLayoutE0ELS2_2ELS2_3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNS5_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNS5_IS9_XT2_EXT3_EXT8_EXT10_EXT5_EEES8_S4_(target("spirv.JointMatrixINTEL", i8, 12, 48, 0, 3, 0) noundef %call1.i.i, target("spirv.JointMatrixINTEL", i8, 48, 12, 2, 3, 1) noundef %call1.i73.i, target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) noundef %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0.125.i, i32 noundef 3) #4
   store target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) %call.i77.i, ptr %ref.tmp29.sroa.0.i, align 8
   %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i = load i64, ptr %ref.tmp29.sroa.0.i, align 8
   store i64 %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i, ptr %sub_c.sroa.0.i, align 8
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i)
   %add.i = add nuw nsw i32 %k.0.i, 1
   br label %for.cond.i
 
@@ -121,7 +125,6 @@ _ZZZ15matrix_multiplyIiaLm24ELm96ELm24ELm96ELm24ELm24EEvR10big_matrixIT_XT5_EXT6
   %call.ascast.i.i = addrspacecast ptr addrspace(1) %add.ptr.i81.i to ptr addrspace(4)
   %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0..i = load target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2), ptr %sub_c.sroa.0.i, align 8
   tail call spir_func void @_Z29__spirv_JointMatrixStoreINTELIiLm12ELm12ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS5_XT0_EXT1_EXT3_EXT4_EXT2_EEEmS2_S4_i(ptr addrspace(4) noundef %call.ascast.i.i, target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) noundef %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0..i, i64 noundef %_arg_N, i32 noundef 0, i32 noundef 3, i32 noundef 0) #4
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %sub_c.sroa.0.i)
   ret void
 }
 
@@ -139,12 +142,6 @@ declare dso_local spir_func noundef target("spirv.JointMatrixINTEL", i32, 12, 12
 
 ; Function Attrs: convergent
 declare dso_local spir_func void @_Z29__spirv_JointMatrixStoreINTELIiLm12ELm12ELN5__spv9MatrixUseE2ELNS0_12MatrixLayoutE3ELNS0_5Scope4FlagE3EEvPT_PNS0_24__spirv_JointMatrixINTELIS5_XT0_EXT1_EXT3_EXT4_EXT2_EEEmS2_S4_i(ptr addrspace(4) noundef, target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2) noundef, i64 noundef, i32 noundef, i32 noundef, i32 noundef) local_unnamed_addr #2
-
-; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #3
-
-; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #3
 
 attributes #0 = { convergent norecurse "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="matrix-int8-test.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }

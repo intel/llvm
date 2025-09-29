@@ -62,30 +62,21 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/event_profiling_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <typename Param> struct IsSubGroupInfo : std::false_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::max_num_sub_groups>
-    : std::true_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::compile_num_sub_groups>
-    : std::true_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::max_sub_group_size>
-    : std::true_type {};
-template <>
-struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
-    : std::true_type {};
-template <typename Param> struct IsKernelInfo : std::false_type {};
-template <>
-struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
-    : std::true_type {};
-
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
 #include <sycl/info/kernel_device_specific_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template <>                                                                  \
+  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
+      : std::true_type {                                                       \
+    using return_type = Namespace::info::DescType::Desc::return_type;          \
+  };
+#include <sycl/info/ext_intel_kernel_info_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
@@ -118,8 +109,19 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
+
+#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
+                                                  ReturnT, UrCode)             \
+  template <int Dimensions>                                                    \
+  struct is_##Desctype##_info_desc<                                            \
+      Namespace::info::Desctype::Desc<Dimensions>> : std::true_type {          \
+    using return_type =                                                        \
+        typename Namespace::info::Desctype::Desc<Dimensions>::return_type;     \
+  };
+
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \
@@ -128,6 +130,20 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
   };
 #include <sycl/info/sycl_backend_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename SyclObject, typename Param>
+constexpr int emit_get_backend_info_error() {
+  // Implementation of get_backend_info doesn't seem to be aligned with the
+  // spec and is likely going to be deprecated/removed. However, in pre-C++11
+  // ABI mode if result in ABI mismatch and causes crashes, so emit
+  // compile-time error under those conditions.
+  constexpr bool False = !std::is_same_v<Param, Param>;
+  static_assert(False,
+                "This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0");
+  return 0;
+}
+#endif
 
 } // namespace detail
 } // namespace _V1

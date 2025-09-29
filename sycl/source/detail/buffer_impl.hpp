@@ -129,8 +129,8 @@ public:
       : BaseT(MemObject, SyclContext, OwnNativeHandle,
               std::move(AvailableEvent), std::move(Allocator)) {}
 
-  void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr, ur_event_handle_t &OutEventToWait) override;
+  void *allocateMem(context_impl *Context, bool InitFromUserData, void *HostPtr,
+                    ur_event_handle_t &OutEventToWait) override;
   void constructorNotification(const detail::code_location &CodeLoc,
                                void *UserObj, const void *HostObj,
                                const void *Type, uint32_t Dim,

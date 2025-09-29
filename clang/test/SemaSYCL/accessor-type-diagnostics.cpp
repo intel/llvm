@@ -1,6 +1,10 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify -verify=expected,all \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only %s
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify \
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify=expected,all \
+// RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only %s
+// RUN: %clang_cc1 -triple nvptx64 -fsycl-is-device -verify=all \
+// RUN:  -aux-triple x86_64-unknown-linux-gnu -fsyntax-only %s
+// RUN: %clang_cc1 -triple nvptx64 -fsycl-is-device -verify=all \
 // RUN:  -aux-triple x86_64-pc-windows-msvc -fsyntax-only %s
 //
 // Ensure SYCL type restrictions are applied to accessors as well.
@@ -45,11 +49,11 @@ int main() {
         ok_acc.use();
 
         // -- accessors using prohibited types
-        // expected-error@+1 {{'__float128' is not supported on this target}}
+        // all-error@+1 {{'__float128' is not supported on this target}}
         f128_acc.use();
         // expected-error@+1 {{'__int128' is not supported on this target}}
         i128_acc.use();
-        // expected-error@+1 {{'long double' is not supported on this target}}
+        // all-error@+1 {{'long double' is not supported on this target}}
         ld_acc.use();
 
         // -- pointers, aliases, auto, typedef, decltype of prohibited type
@@ -57,7 +61,7 @@ int main() {
         i128Ptr_acc.use();
         // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
         aliased_acc.use();
-        // expected-error@+1 {{'__float128' is not supported on this target}}
+        // all-error@+1 {{'__float128' is not supported on this target}}
         typedef_acc.use();
         // expected-error@+1 {{'__int128' is not supported on this target}}
         declty_acc.use();

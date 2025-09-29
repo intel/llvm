@@ -32,7 +32,7 @@
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 ; Function Attrs: nofree norecurse nounwind writeonly
- define spir_kernel void @foo(ptr addrspace(1) nocapture %b, ptr addrspace(1) nocapture %c, ptr addrspace(1) nocapture %s, ptr addrspace(1) nocapture %i, ptr addrspace(1) nocapture %l, ptr addrspace(1) nocapture %h, ptr addrspace(1) nocapture %f, ptr addrspace(1) nocapture %d) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+ define spir_kernel void @foo(ptr addrspace(1) captures(none) %b, ptr addrspace(1) captures(none) %c, ptr addrspace(1) captures(none) %s, ptr addrspace(1) captures(none) %i, ptr addrspace(1) captures(none) %l, ptr addrspace(1) captures(none) %h, ptr addrspace(1) captures(none) %f, ptr addrspace(1) captures(none) %d) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
   ; CHECK-LLVM: store i8 0, ptr addrspace(1) %b, align 1
   ; CHECK-LLVM-SPEC: store i8 1, ptr addrspace(1) %b, align 1

@@ -210,7 +210,7 @@ enum PropKind : uint32_t {
   InputDataPlacement = 65,
   OutputDataPlacement = 66,
   IncludeFiles = 67,
-  RegisteredKernelNames = 68,
+  RegisteredNames = 68,
   ClusterLaunch = 69,
   FPGACluster = 70,
   Balanced = 71,
@@ -221,8 +221,15 @@ enum PropKind : uint32_t {
   Prefetch = 76,
   Deterministic = 77,
   InitializeToIdentity = 78,
+  WorkGroupScratchSize = 79,
+  Unaliased = 80,
+  EventMode = 81,
+  NativeLocalBlockIO = 82,
+  InitialThreshold = 83,
+  MaximumSize = 84,
+  ZeroInit = 85,
   // PropKindSize must always be the last value.
-  PropKindSize = 79,
+  PropKindSize = 86,
 };
 
 template <typename PropertyT> struct PropertyToKind {
@@ -251,7 +258,7 @@ protected:
   // Temporary, to ensure new code matches previous behavior and to catch any
   // silly copy-paste mistakes. MSVC can't compile it, but linux-only is
   // enough for this temporary check.
-  static_assert([]() constexpr {
+  static_assert([]() constexpr -> bool {
     if constexpr (std::is_same_v<property_t, key_t>)
       // key_t is incomplete at this point for runtime properties.
       return true;
@@ -301,11 +308,6 @@ template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 } // namespace detail
 
-template <typename T>
-struct is_property_key
-    : std::bool_constant<!is_property_list_v<T> &&
-                         std::is_base_of_v<detail::property_key_base_tag, T>> {
-};
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
 } // namespace experimental

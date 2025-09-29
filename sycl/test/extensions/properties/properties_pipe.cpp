@@ -11,20 +11,6 @@ constexpr sycl::ext::intel::experimental::protocol_name TestProtocol =
     sycl::ext::intel::experimental::protocol_name::avalon_streaming;
 
 int main() {
-  // Check that is_property_key is correctly specialized.
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::intel::experimental::ready_latency_key>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::intel::experimental::bits_per_symbol_key>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::intel::experimental::uses_valid_key>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_key<
-          sycl::ext::intel::experimental::first_symbol_in_high_order_bits_key>::
-          value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_key<
-                sycl::ext::intel::experimental::protocol_key>::value);
-
   // Check that is_property_value is correctly specialized.
   static_assert(
       sycl::ext::oneapi::experimental::is_property_value<

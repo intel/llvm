@@ -1,9 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 // This test performs basic checks of reductions initialized with a sycl::span
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && cpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <sycl/detail/core.hpp>
 

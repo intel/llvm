@@ -9,6 +9,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
+// REQUIRES: target-amd
 // REQUIRES: arch-amd_gpu_gfx90a
 
 #include "joint_matrix_hip_apply.hpp"

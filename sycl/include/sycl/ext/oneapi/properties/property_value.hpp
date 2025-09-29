@@ -10,23 +10,16 @@
 
 #include <sycl/ext/oneapi/properties/property.hpp>
 
-#include <type_traits> // for enable_if_t
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
-// Checks if a type T has a static value member variable.
-template <typename T, typename U = int> struct HasValue : std::false_type {};
-template <typename T>
-struct HasValue<T, decltype((void)T::value, 0)> : std::true_type {};
-
 // Base class for property values with a single non-type value
 template <typename T, typename = void> struct SingleNontypePropertyValueBase {};
 
 template <typename T>
-struct SingleNontypePropertyValueBase<T, std::enable_if_t<HasValue<T>::value>> {
+struct SingleNontypePropertyValueBase<T, std::void_t<decltype(T::value)>> {
   static constexpr auto value = T::value;
 };
 

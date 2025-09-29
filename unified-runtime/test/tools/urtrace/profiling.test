@@ -1,0 +1,17 @@
+RUN: %trace  --profiling --time-unit ns hello_world | FileCheck %s
+
+REQUIRES: tracing
+
+CHECK: Platform initialized.
+CHECK-NEXT: urAdapterGet(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 0, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}} {{{.*}}}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{.*}})) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: API version: {{.*}}
+CHECK-NEXT: urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}} {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
+CHECK-NEXT: Found a Mock Device gpu.
+CHECK-NEXT: urAdapterRelease(.hAdapter = {{.*}}) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)

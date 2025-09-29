@@ -1,10 +1,12 @@
-// DEFINE: %{cpp23} = %if cl_options %{/std:c++23%} %else %{-std=c++23%}
+// DEFINE: %{cpp23} = %if cl_options %{/clang:-std=c++23%} %else %{-std=c++23%}
 
 // RUN: %{build} %{cpp23} -o %t.out
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
 // Tests the copy ctor on device_global without device_image_scope.
 

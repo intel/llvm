@@ -161,7 +161,7 @@ template <typename T> LifetimeExtender(std::vector<T>) -> LifetimeExtender<T>;
 /// Convenience wrapper for sycl_device_binary_property_set.
 class MockPropertySet {
 public:
-  MockPropertySet() {
+  MockPropertySet(const std::vector<DeviceLibExt> &DeviceLibExts = {}) {
     // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
     // systems that causes incorrect RT installation directory detection, which
     // prevents proper loading of fallback libraries. See intel/llvm#6945
@@ -170,11 +170,23 @@ public:
     // unless there is a special property attached to it or special env variable
     // is set which forces RT to skip fallback libraries.
     //
-    // Setting this property here so unit-tests can be launched under any
-    // environment.
+    // By default, property is set to empty mask here so that unit-tests can be
+    // launched under any environment. Some unit tests might create dummy
+    // fallback libaries and require fallback libraries to be loaded, in such
+    // case input vector will be non-empty.
 
-    std::vector<char> Data(/* eight elements */ 8,
+    std::vector<char> Data(/* four elements */ 4,
                            /* each element is zero */ 0);
+    if (!DeviceLibExts.empty()) {
+      uint32_t DeviceLibReqMask = 0;
+      for (auto Ext : DeviceLibExts) {
+        DeviceLibReqMask |= 0x1
+                            << (static_cast<uint32_t>(Ext) -
+                                static_cast<uint32_t>(
+                                    DeviceLibExt::cl_intel_devicelib_assert));
+      }
+      std::memcpy(Data.data(), &DeviceLibReqMask, sizeof(DeviceLibReqMask));
+    }
     // Name doesn't matter here, it is not used by RT
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
@@ -239,29 +251,62 @@ private:
   MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
                   const std::string &DeviceTargetSpec,
                   const std::string &CompileOptions,
-                  const std::string &LinkOptions, std::vector<char> &&Manifest,
+                  const std::string &LinkOptions,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                  std::vector<char> &&Manifest,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
                   std::vector<unsigned char> &&Binary,
                   internal::LifetimeExtender<MockOffloadEntry> OffloadEntries,
                   MockPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
-        MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
+        MLinkOptions(LinkOptions),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        MManifest(std::move(Manifest)),
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
-        MPropertySet(std::move(PropertySet)) {}
+        MPropertySet(std::move(PropertySet)) {
+    MNativeHandle = {
+        MVersion,
+        MKind,
+        MFormat,
+        MDeviceTargetSpec.c_str(),
+        MCompileOptions.c_str(),
+        MLinkOptions.c_str(),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
+        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        &*MBinary.begin(),
+        (&*MBinary.begin()) + MBinary.size(),
+        MOffloadEntries.begin(),
+        MOffloadEntries.end(),
+        MPropertySet.begin(),
+        MPropertySet.end(),
+    };
+  }
 
 public:
   /// Constructs an arbitrary device image.
   MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
                   const std::string &DeviceTargetSpec,
                   const std::string &CompileOptions,
-                  const std::string &LinkOptions, std::vector<char> &&Manifest,
+                  const std::string &LinkOptions,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                  std::vector<char> &&Manifest,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
                   std::vector<unsigned char> &&Binary,
                   std::vector<MockOffloadEntry> &&OffloadEntries,
                   MockPropertySet PropertySet)
       : MockDeviceImage(Version, Kind, Format, DeviceTargetSpec, CompileOptions,
-                        LinkOptions, std::move(Manifest), std::move(Binary),
+                        LinkOptions,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                        std::move(Manifest),
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+                        std::move(Binary),
                         internal::LifetimeExtender(std::move(OffloadEntries)),
-                        std::move(PropertySet)) {}
+                        std::move(PropertySet)) {
+  }
 
   MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
                   const std::string &CompileOptions,
@@ -271,10 +316,14 @@ public:
                   MockPropertySet PropertySet)
       : MockDeviceImage(SYCL_DEVICE_BINARY_VERSION,
                         SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
-                        DeviceTargetSpec, CompileOptions, LinkOptions, {},
+                        DeviceTargetSpec, CompileOptions, LinkOptions,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                        {}, // Manifest.
+#endif                      // __INTEL_PREVIEW_BREAKING_CHANGES
                         std::move(Binary),
                         internal::LifetimeExtender(std::move(OffloadEntries)),
-                        std::move(PropertySet)) {}
+                        std::move(PropertySet)) {
+  }
 
   /// Constructs a mock SYCL device image with:
   /// - the latest version
@@ -283,12 +332,17 @@ public:
   /// - placeholder binary data
   MockDeviceImage(std::vector<MockOffloadEntry> &&OffloadEntries,
                   MockPropertySet PropertySet)
-      : MockDeviceImage(
-            SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
-            SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
-            "", "", {}, std::vector<unsigned char>{1, 2, 3, 4, 5},
-            internal::LifetimeExtender(std::move(OffloadEntries)),
-            std::move(PropertySet)) {}
+      : MockDeviceImage(SYCL_DEVICE_BINARY_VERSION,
+                        SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+                        SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                        __SYCL_DEVICE_BINARY_TARGET_SPIRV64, "", "",
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                        {}, // Manifest.
+#endif                      // __INTEL_PREVIEW_BREAKING_CHANGES
+                        std::vector<unsigned char>{1, 2, 3, 4, 5},
+                        internal::LifetimeExtender(std::move(OffloadEntries)),
+                        std::move(PropertySet)) {
+  }
 
   /// Constructs a mock SYCL device image with:
   /// - the latest version
@@ -299,24 +353,7 @@ public:
   MockDeviceImage(std::vector<MockOffloadEntry> &&OffloadEntries)
       : MockDeviceImage(std::move(OffloadEntries), {}) {}
 
-  sycl_device_binary_struct convertToNativeType() {
-    return sycl_device_binary_struct{
-        MVersion,
-        MKind,
-        MFormat,
-        MDeviceTargetSpec.c_str(),
-        MCompileOptions.c_str(),
-        MLinkOptions.c_str(),
-        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
-        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
-        &*MBinary.begin(),
-        (&*MBinary.begin()) + MBinary.size(),
-        MOffloadEntries.begin(),
-        MOffloadEntries.end(),
-        MPropertySet.begin(),
-        MPropertySet.end(),
-    };
-  }
+  sycl_device_binary_struct convertToNativeType() { return MNativeHandle; }
   const unsigned char *getBinaryPtr() { return &*MBinary.begin(); }
 
 private:
@@ -326,10 +363,13 @@ private:
   std::string MDeviceTargetSpec;
   std::string MCompileOptions;
   std::string MLinkOptions;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::vector<char> MManifest;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   std::vector<unsigned char> MBinary;
   internal::LifetimeExtender<MockOffloadEntry> MOffloadEntries;
   MockPropertySet MPropertySet;
+  sycl_device_binary_struct MNativeHandle;
 };
 
 /// Convenience wrapper around sycl_device_binaries_struct, that manages mock
@@ -350,10 +390,15 @@ public:
         nullptr, // not used, put here for compatibility with OpenMP
     };
 
-    __sycl_register_lib(&MAllBinaries);
+    sycl::detail::ProgramManager::getInstance().addImages(&MAllBinaries);
   }
 
-  ~MockDeviceImageArray() { __sycl_unregister_lib(&MAllBinaries); }
+  ~MockDeviceImageArray() {
+    // If there is still a global handler, we are not doing full unloading yet.
+    // As such, we need to clean up the images we registered.
+    if (GlobalHandler::isInstanceAlive())
+      sycl::detail::ProgramManager::getInstance().removeImages(&MAllBinaries);
+  }
 
 private:
   sycl_device_binary_struct MNativeImages[NumberOfImages];

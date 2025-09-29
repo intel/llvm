@@ -22,16 +22,25 @@ template <typename T> class optional {
 public:
   constexpr optional() noexcept {}
   constexpr optional(std::nullopt_t) noexcept : optional() {}
+  constexpr optional(const optional &Other)
+      : ContainsValue{Other.ContainsValue} {
+    if (Other.ContainsValue)
+      new (Storage) T(Other.value());
+  }
+  constexpr optional(optional &&Other) : ContainsValue{Other.ContainsValue} {
+    new (Storage) T(std::move(Other.value()));
+    Other.ContainsValue = false;
+  }
 
   template <typename U>
   constexpr optional(const optional<U> &Other)
       : ContainsValue{Other.ContainsValue} {
-    new (Storage) T(Other.Value);
+    new (Storage) T(Other.value());
   }
   template <typename U>
-  constexpr optional(optional<U> &&Other)
-      : ContainsValue{std::move(Other.ContainsValue)} {
-    new (Storage) T(std::move(Other.Value));
+  constexpr optional(optional<U> &&Other) : ContainsValue{Other.ContainsValue} {
+    new (Storage) T(std::move(Other.value()));
+    Other.ContainsValue = false;
   }
 
   constexpr optional(T &&Value) : ContainsValue{true} {
@@ -60,18 +69,33 @@ public:
     return *this;
   }
 
+  optional &operator=(const optional<T> &Other) {
+    if (has_value())
+      reinterpret_cast<T *>(Storage)->~T();
+    ContainsValue = Other.has_value();
+    new (Storage) T(Other.value());
+    return *this;
+  }
+  optional &operator=(optional<T> &&Other) noexcept {
+    if (has_value())
+      reinterpret_cast<T *>(Storage)->~T();
+    ContainsValue = Other.has_value();
+    new (Storage) T(std::move(Other.value()));
+    return *this;
+  }
+
   template <typename U> optional &operator=(const optional<U> &Other) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = Other;
-    new (Storage) T(Other.Value);
+    ContainsValue = Other.has_value();
+    new (Storage) T(Other.value());
     return *this;
   }
   template <typename U> optional &operator=(optional<U> &&Other) noexcept {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = Other;
-    new (Storage) T(std::move(Other.Value));
+    ContainsValue = Other.has_value();
+    new (Storage) T(std::move(Other.value()));
     return *this;
   }
 
@@ -94,7 +118,7 @@ public:
   template <typename U> optional &operator=(const std::optional<U> &Other) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
-    ContainsValue = Other;
+    ContainsValue = Other.has_value();
     if (Other)
       new (Storage) T(*Other);
     return *this;
@@ -136,6 +160,11 @@ public:
   constexpr const T &operator*() const & { return value(); }
   constexpr T &&operator*() && { return value(); }
   constexpr const T &&operator*() const && { return value(); }
+
+  constexpr operator std::optional<T>() {
+    return has_value() ? std::optional<T>{value()}
+                       : std::optional<T>{std::nullopt};
+  }
 
 private:
   alignas(alignof(T)) char Storage[sizeof(T)] = {0};

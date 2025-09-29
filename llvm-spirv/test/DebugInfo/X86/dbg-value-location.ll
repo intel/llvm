@@ -56,7 +56,7 @@ if.else:                                          ; preds = %entry
   ret i32 0
 }
 
-declare hidden fastcc i32 @bar(i32, ptr nocapture) nounwind optsize ssp
+declare hidden fastcc i32 @bar(i32, ptr captures(none)) nounwind optsize ssp
 declare hidden fastcc i32 @bar2(i32) nounwind optsize ssp
 declare hidden fastcc i32 @bar3(i32) nounwind optsize ssp
 declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone

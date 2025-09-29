@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -119,7 +120,9 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     size_t size() const { return std::distance(begin(), end()); }
+    bool empty() const { return begin() == end(); }
     friend class RTDeviceBinaryImage;
+    friend class DynRTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
@@ -138,7 +141,7 @@ public:
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin);
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -214,6 +217,9 @@ public:
     return SpecConstDefaultValuesMap;
   }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getDeviceLibMetadata() const {
+    return DeviceLibMetadata;
+  }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
@@ -222,6 +228,7 @@ public:
   const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
     return ProgramMetadataUR;
   }
+  const PropertyRange &getKernelNames() const { return KernelNames; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
@@ -230,6 +237,11 @@ public:
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
+  const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getRegisteredKernels() const {
+    return RegisteredKernels;
+  }
+  const PropertyRange &getMiscProperties() const { return Misc; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -237,24 +249,28 @@ public:
   }
 
 protected:
-  void init(sycl_device_binary Bin);
   sycl_device_binary get() const { return Bin; }
 
-  sycl_device_binary Bin;
+  sycl_device_binary Bin = nullptr;
 
   ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
+  RTDeviceBinaryImage::PropertyRange KernelNames;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange ImportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
+  RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange RegisteredKernels;
+  RTDeviceBinaryImage::PropertyRange Misc;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
@@ -264,22 +280,32 @@ private:
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
-// data in destructor.
+// data and associated metadata in destructor.
 class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
 public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize);
+  DynRTDeviceBinaryImage(
+      std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
+      size_t DataSize);
   ~DynRTDeviceBinaryImage() override;
+
+  // Merge ctor
+  DynRTDeviceBinaryImage(const std::vector<const RTDeviceBinaryImage *> &Imgs);
 
   void print() const override {
     RTDeviceBinaryImage::print();
     std::cerr << "    DYNAMICALLY CREATED\n";
   }
 
+  static DynRTDeviceBinaryImage
+  merge(const std::vector<const RTDeviceBinaryImage *> &Imgs);
+
 protected:
-  std::unique_ptr<char[]> Data;
+  DynRTDeviceBinaryImage();
+
+  std::unique_ptr<char[], std::function<void(void *)>> Data;
 };
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 // Compressed device binary image. Decompression happens when the image is
 // actually used to build a program.
 // Also, frees the decompressed data in destructor.
@@ -296,17 +322,22 @@ public:
     return m_ImageSize;
   }
 
-  bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
+  bool IsCompressed() const { return m_IsCompressed.load(); }
+
   void print() const override {
     RTDeviceBinaryImage::print();
     std::cerr << "    COMPRESSED\n";
   }
 
 private:
-  std::unique_ptr<char> m_DecompressedData;
-  size_t m_ImageSize;
+  std::unique_ptr<char[]> m_DecompressedData;
+  size_t m_ImageSize = 0;
+
+  // Flag to ensure decompression happens only once.
+  std::once_flag m_InitFlag;
+  std::atomic<bool> m_IsCompressed{true};
 };
-#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE
 
 } // namespace detail
 } // namespace _V1

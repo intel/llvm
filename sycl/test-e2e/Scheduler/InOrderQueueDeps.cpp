@@ -1,10 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-//
-// XFAIL: hip_nvidia
 
 // The tested functionality is disabled with Level Zero until it is supported by
-// the plugin.
+// the adapter.
 // UNSUPPORTED: level_zero
 //==----------------------- InOrderQueueDeps.cpp ---------------------------==//
 //

@@ -36,6 +36,7 @@
 
 #include <sycl/atomic_ref.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
@@ -64,7 +65,7 @@ __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT
     __spirv_GroupNonUniformShuffleUp(__spv::Scope::Flag, T, unsigned) noexcept;
 #endif
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 namespace detail {
 
@@ -85,10 +86,15 @@ template <typename T> struct DataType<sycl::vec<T, 2>> {
   using T2 = detail::complex_type<T>;
 };
 
+template <typename T = void>
 inline void matrix_mem_copy(void *to_ptr, const void *from_ptr, int to_ld,
                             int from_ld, int rows, int cols, int elem_size,
                             sycl::queue queue = syclcompat::get_default_queue(),
                             bool async = false) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::matrix_mem_copy only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   if (to_ptr == from_ptr && to_ld == from_ld) {
     return;
   }
@@ -198,6 +204,110 @@ inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
   return ret;
 }
 
+/// \brief The function performs bitwise logical operations on three input
+/// values of \p a, \p b and \p c based on the specified 8-bit truth table \p
+/// lut and return the result
+///
+/// \param [in] a Input value
+/// \param [in] b Input value
+/// \param [in] c Input value
+/// \param [in] lut truth table for looking up
+/// \returns The result
+inline uint32_t ternary_logic_op(uint32_t a, uint32_t b, uint32_t c,
+                                 uint8_t lut) {
+  uint32_t result = 0;
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  asm volatile("lop3.b32 %0, %1, %2, %3, %4;"
+               : "=r"(result)
+               : "r"(a), "r"(b), "r"(c), "n"(lut));
+#else
+  switch (lut) {
+  case 0x0:
+    result = 0;
+    break;
+  case 0x1:
+    result = ~a & ~b & ~c;
+    break;
+  case 0x2:
+    result = ~a & ~b & c;
+  case 0x4:
+    result = ~a & b & ~c;
+    break;
+  case 0x8:
+    result = ~a & b & c;
+    break;
+  case 0x10:
+    result = a & ~b & ~c;
+    break;
+  case 0x20:
+    result = a & ~b & c;
+    break;
+  case 0x40:
+    result = a & b & ~c;
+    break;
+  case 0x80:
+    result = a & b & c;
+    break;
+  case 0x1a:
+    result = (a & b | c) ^ a;
+    break;
+  case 0x1e:
+    result = a ^ (b | c);
+    break;
+  case 0x2d:
+    result = ~a ^ (~b & c);
+    break;
+  case 0x78:
+    result = a ^ (b & c);
+    break;
+  case 0x96:
+    result = a ^ b ^ c;
+    break;
+  case 0xb4:
+    result = a ^ (b & ~c);
+    break;
+  case 0xb8:
+    result = a ^ (b & (c ^ a));
+    break;
+  case 0xd2:
+    result = a ^ (~b & c);
+    break;
+  case 0xe8:
+    result = a & (b | c) | (b & c);
+    break;
+  case 0xea:
+    result = a & b | c;
+    break;
+  case 0xfe:
+    result = a | b | c;
+    break;
+  case 0xff:
+    result = -1;
+    break;
+  default: {
+    if (lut & 0x01)
+      result |= ~a & ~b & ~c;
+    if (lut & 0x02)
+      result |= ~a & ~b & c;
+    if (lut & 0x04)
+      result |= ~a & b & ~c;
+    if (lut & 0x08)
+      result |= ~a & b & c;
+    if (lut & 0x10)
+      result |= a & ~b & ~c;
+    if (lut & 0x20)
+      result |= a & ~b & c;
+    if (lut & 0x40)
+      result |= a & b & ~c;
+    if (lut & 0x80)
+      result |= a & b & c;
+    break;
+  }
+  }
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return result;
+}
+
 /// Find position of first least significant set bit in an integer.
 /// ffs(0) returns 0.
 ///
@@ -305,6 +415,9 @@ T shift_sub_group_right(sycl::sub_group g, T x, unsigned int delta,
 template <typename T>
 T permute_sub_group_by_xor(sycl::sub_group g, T x, unsigned int mask,
                            int logical_sub_group_size = 32) {
+  if (logical_sub_group_size == 32) {
+    return permute_group_by_xor(g, x, mask);
+  }
   unsigned int id = g.get_local_linear_id();
   unsigned int start_index =
       id / logical_sub_group_size * logical_sub_group_size;
@@ -855,7 +968,7 @@ enum class group_type { work_group, sub_group, logical_group, root_group };
 template <int dimensions = 3> class group_base {
 public:
   group_base(sycl::nd_item<dimensions> item)
-      : nd_item(item), logical_group(item) {}
+      : nd_item(item), _logical_group(item) {}
   ~group_base() {}
   /// Returns the number of work-items in the group.
   size_t get_local_linear_range() {
@@ -865,7 +978,7 @@ public:
     case group_type::sub_group:
       return nd_item.get_sub_group().get_local_linear_range();
     case group_type::logical_group:
-      return logical_group.get_local_linear_range();
+      return _logical_group.get_local_linear_range();
     default:
       return -1; // Unkonwn group type
     }
@@ -878,7 +991,7 @@ public:
     case group_type::sub_group:
       return nd_item.get_sub_group().get_local_linear_id();
     case group_type::logical_group:
-      return logical_group.get_local_linear_id();
+      return _logical_group.get_local_linear_id();
     default:
       return -1; // Unkonwn group type
     }
@@ -900,7 +1013,7 @@ public:
   }
 
 protected:
-  logical_group<dimensions> logical_group;
+  logical_group<dimensions> _logical_group;
   sycl::nd_item<dimensions> nd_item;
   group_type type;
 };

@@ -11,7 +11,7 @@
 
 // RUN: %clang -emit-llvm -S -o - %s | FileCheck %s
 
-#include <spirv/spirv_types.h>
+#include <libspirv/spirv_types.h>
 
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast
@@ -21,26 +21,11 @@ test___spirv_SConvert_Rint8_sat(__clc_vec8_int8_t args_0) {
 }
 
 __attribute__((overloadable)) __clc_vec8_int32_t
-test___spirv_SConvert_Rint8_sat(__clc_vec8_uint8_t args_0) {
-  return __spirv_SConvert_Rint8_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec8_int32_t
 test___spirv_SConvert_Rint8_sat(__clc_vec8_int16_t args_0) {
   return __spirv_SConvert_Rint8_sat(args_0);
 }
 
 __attribute__((overloadable)) __clc_vec8_int32_t
-test___spirv_SConvert_Rint8_sat(__clc_vec8_uint16_t args_0) {
-  return __spirv_SConvert_Rint8_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec8_int32_t
 test___spirv_SConvert_Rint8_sat(__clc_vec8_int64_t args_0) {
-  return __spirv_SConvert_Rint8_sat(args_0);
-}
-
-__attribute__((overloadable)) __clc_vec8_int32_t
-test___spirv_SConvert_Rint8_sat(__clc_vec8_uint64_t args_0) {
   return __spirv_SConvert_Rint8_sat(args_0);
 }

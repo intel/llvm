@@ -31,12 +31,24 @@ public:
   static StringRef getPassName() { return "Add implicit SYCL global offset"; }
 
 private:
+  /// In order to correctly update the debug info (if present) we have to
+  /// populate the global value-to-value map with all original-to-cloned
+  /// function. To achieve that traverse the call stack and create all the
+  /// clones (without providing the body).
+  ///
+  /// \param KCache Kernel bookkeeping helper.
+  /// \param ImplicitOffsetIntrinsic Implicit offset intrinsic, provides a
+  /// starting point in search for all the functions that need to be clone.
+  void createClonesAndPopulateVMap(const TargetHelpers::KernelCache &KCache,
+                                   Function *ImplicitOffsetIntrinsic);
+
   /// After the execution of this function, the module to which the kernel
   /// `Func` belongs, contains both the original function and its clone with the
   /// signature extended with the implicit offset parameter and `_with_offset`
   /// appended to the name.
   ///
   /// \param Func Kernel to be processed.
+  /// \param KCache Kernel bookkeeping helper.
   void processKernelEntryPoint(Function *Func,
                                TargetHelpers::KernelCache &KCache);
 
@@ -61,6 +73,7 @@ private:
   /// `nullptr`) - this is used to know whether calls to it inside clones need
   /// to have the implicit parameter added to it or be replaced with the
   /// implicit  parameter.
+  /// \param KCache Kernel bookkeeping helper.
   void addImplicitParameterToCallers(Module &M, Value *Callee,
                                      Function *CalleeWithImplicitParam,
                                      TargetHelpers::KernelCache &KCache);
@@ -99,6 +112,9 @@ private:
   llvm::Type *KernelImplicitArgumentType = nullptr;
   /// A type used for the alloca holding the values of global offsets.
   llvm::Type *ImplicitOffsetPtrType = nullptr;
+  /// Track newly created DISUbprograms (that are attached to cloned
+  /// functions), for ease of mapping, use the old function's name as the key.
+  llvm::DenseMap<StringRef, DISubprogram *> DISubprogramMap;
 
   unsigned TargetAS = 0;
 };

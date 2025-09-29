@@ -1,7 +1,7 @@
 // This test ensures that a program that has a kernel
 // using various required sub-group sizes can be compiled AOT.
 
-// REQUIRES: ocloc, opencl-aot, any-device-is-cpu
+// REQUIRES: ocloc, opencl-aot, any-device-is-cpu, opencl-cpu-rt
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 

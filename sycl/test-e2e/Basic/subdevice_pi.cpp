@@ -7,6 +7,9 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
@@ -39,8 +42,10 @@ static std::vector<device> partition_affinity(device dev) {
 }
 
 static std::vector<device> partition_equally(device dev) {
+  auto maxUnits = dev.get_info<info::device::max_compute_units>();
   std::vector<device> subdevices =
-      dev.create_sub_devices<info::partition_property::partition_equally>(1);
+      dev.create_sub_devices<info::partition_property::partition_equally>(
+          maxUnits / 2);
 
   return subdevices;
 }

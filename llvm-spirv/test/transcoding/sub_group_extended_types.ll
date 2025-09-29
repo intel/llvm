@@ -990,7 +990,7 @@ declare dso_local spir_func <16 x double> @_Z19sub_group_broadcastDv16_dj(<16 x 
 ; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_exclusive_maxc(i8 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testReduceScanChar(ptr addrspace(1) nocapture) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @testReduceScanChar(ptr addrspace(1) captures(none)) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
   %2 = tail call spir_func signext i8 @_Z20sub_group_reduce_addc(i8 signext 0) #6
   store i8 %2, ptr addrspace(1) %0, align 1, !tbaa !8
   %3 = tail call spir_func signext i8 @_Z20sub_group_reduce_minc(i8 signext 0) #6
@@ -1071,7 +1071,7 @@ declare dso_local spir_func signext i8 @_Z28sub_group_scan_exclusive_maxc(i8 sig
 ; CHECK-LLVM: call spir_func i8 @_Z28sub_group_scan_exclusive_maxh(i8 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testReduceScanUChar(ptr addrspace(1) nocapture) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @testReduceScanUChar(ptr addrspace(1) captures(none)) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !7 {
   %2 = tail call spir_func zeroext i8 @_Z20sub_group_reduce_addh(i8 zeroext 0) #6
   store i8 %2, ptr addrspace(1) %0, align 1, !tbaa !8
   %3 = tail call spir_func zeroext i8 @_Z20sub_group_reduce_minh(i8 zeroext 0) #6
@@ -1152,7 +1152,7 @@ declare dso_local spir_func zeroext i8 @_Z28sub_group_scan_exclusive_maxh(i8 zer
 ; CHECK-LLVM: call spir_func i16 @_Z28sub_group_scan_exclusive_maxs(i16 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testReduceScanShort(ptr addrspace(1) nocapture) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !12 !kernel_arg_base_type !12 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @testReduceScanShort(ptr addrspace(1) captures(none)) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !12 !kernel_arg_base_type !12 !kernel_arg_type_qual !7 {
   %2 = tail call spir_func signext i16 @_Z20sub_group_reduce_adds(i16 signext 0) #6
   store i16 %2, ptr addrspace(1) %0, align 2, !tbaa !13
   %3 = tail call spir_func signext i16 @_Z20sub_group_reduce_mins(i16 signext 0) #6
@@ -1233,7 +1233,7 @@ declare dso_local spir_func signext i16 @_Z28sub_group_scan_exclusive_maxs(i16 s
 ; CHECK-LLVM: call spir_func i16 @_Z28sub_group_scan_exclusive_maxt(i16 0)
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testReduceScanUShort(ptr addrspace(1) nocapture) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @testReduceScanUShort(ptr addrspace(1) captures(none)) local_unnamed_addr #5 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !7 {
   %2 = tail call spir_func zeroext i16 @_Z20sub_group_reduce_addt(i16 zeroext 0) #6
   store i16 %2, ptr addrspace(1) %0, align 2, !tbaa !13
   %3 = tail call spir_func zeroext i16 @_Z20sub_group_reduce_mint(i16 zeroext 0) #6

@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: target-spir
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise

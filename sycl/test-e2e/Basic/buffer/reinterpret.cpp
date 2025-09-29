@@ -2,6 +2,9 @@
 // RUN: %{run} %t.out
 //
 // XFAIL: level_zero&&gpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14430
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 //==---------- reinterpret.cpp --- SYCL buffer reinterpret basic test ------==//
 //

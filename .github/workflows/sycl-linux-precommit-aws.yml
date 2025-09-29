@@ -45,7 +45,7 @@ jobs:
             })
 
   aws-start:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     environment: aws
     steps:
       - uses: actions/checkout@v4
@@ -68,15 +68,14 @@ jobs:
       runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
-      target_devices: ext_oneapi_cuda:gpu
+      target_devices: cuda:gpu
       # No idea why but that seems to work and be in sync with the main
       # pre-commit workflow.
-      ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}
-      merge_ref: ''
+      repo_ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: llvm_sycl.tar.zst
-      sycl_toolchain_decompress_command: zstd
+      toolchain_artifact: sycl_linux_default
+      toolchain_artifact_filename: llvm_sycl.tar.zst
+      toolchain_decompress_command: zstd
 
   update-check:
     needs: [create-check, e2e-cuda]
@@ -107,7 +106,7 @@ jobs:
   aws-stop:
     needs: [aws-start, e2e-cuda]
     if: always()
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     environment: aws
     steps:
       - uses: actions/checkout@v4

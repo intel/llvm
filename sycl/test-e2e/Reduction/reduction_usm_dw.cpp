@@ -1,11 +1,8 @@
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// `Group algorithms are not supported on host device` on Nvidia.
-// XFAIL: hip_nvidia
-
-// Windows doesn't yet have full shutdown().
-// UNSUPPORTED: ze_debug && windows
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var and

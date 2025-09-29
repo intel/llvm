@@ -1,10 +1,19 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
-; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-TYPED-PTR
+
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-UNTYPED-PTR
 
 ; CHECK-SPIRV: TypeInt [[#TypeInt:]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const0:]] 0
@@ -15,18 +24,21 @@
 
 ; CHECK-SPIRV: TypeCooperativeMatrixKHR [[#TypeMatrix:]] [[#TypeInt]] [[#Const3]] [[#Const12]] [[#Const12]] [[#Const0]]
 ; CHECK-SPIRV: TypePointer [[#TypeMatrixPtr:]] 7 [[#TypeMatrix]]
-; CHECK-SPIRV: TypePointer [[#TypeIntPtr:]] 7 [[#TypeInt]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[#TypeIntPtr:]] 7 [[#TypeInt]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[#TypePtr:]] 7
 
 ; CHECK-SPIRV: Variable [[#TypeMatrixPtr]] [[#VarMatrixPtr:]] 7
 ; CHECK-SPIRV: CompositeConstruct [[#TypeMatrix]] [[#Composite:]] [[#Const0]]
 ; CHECK-SPIRV: Store [[#VarMatrixPtr]] [[#Composite]]
-; CHECK-SPIRV: AccessChain [[#TypeIntPtr]] [[#Res:]] [[#VarMatrixPtr]] [[#Const1]]
+; CHECK-SPIRV-TYPED-PTR: AccessChain [[#TypeIntPtr]] [[#Res:]] [[#VarMatrixPtr]] [[#Const1]]
+; CHECK-SPIRV-UNTYPED-PTR: UntypedAccessChainKHR [[#TypePtr]] [[#Res:]] [[#TypeMatrix]] [[#VarMatrixPtr]] [[#Const1]]
 ; CHECK-SPIRV: Store [[#Res]] [[#Const42]]
 
 ; CHECK-LLVM: %0 = alloca target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 0)
 ; CHECK-LLVM: %Obj = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 0) @_Z26__spirv_CompositeConstructi(i32 0)
 ; CHECK-LLVM: store target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 0) %Obj, ptr %0
-; CHECK-LLVM: %call = call spir_func ptr @_Z19__spirv_AccessChainPPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_0i(ptr %0, i32 1)
+; CHECK-LLVM-TYPED-PTR:   %call = call spir_func ptr @_Z19__spirv_AccessChainPPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_0i(ptr %0, i32 1)
+; CHECK-LLVM-UNTYPED-PTR: %call = call spir_func ptr @_Z29__spirv_UntypedAccessChainKHRPPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_0i(ptr %0, i32 1)
 ; CHECK-LLVM: store i32 42, ptr %call
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

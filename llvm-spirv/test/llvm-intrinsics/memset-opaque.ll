@@ -16,9 +16,9 @@
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset21:[0-9]+]] 4
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Lenmemset0:[0-9]+]] 12
 ; CHECK-SPIRV: Constant {{[0-9]+}} [[Const21:[0-9]+]] 21
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8Ptr:[0-9]+]] 8
 ; CHECK-SPIRV: TypeArray [[Int8x4:[0-9]+]] [[Int8]] [[Lenmemset21]]
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8Ptr:[0-9]+]] 8 [[Int8]]
-; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8Ptr:[0-9]+]] 8
 ; CHECK-SPIRV: TypeArray [[Int8x12:[0-9]+]] [[Int8]] [[Lenmemset0]]
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrConst:[0-9]+]] 0 [[Int8]]
 ; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrConst:[0-9]+]] 0
@@ -72,7 +72,7 @@ target triple = "spir"
 ; CHECK-LLVM-OPAQUE: internal unnamed_addr addrspace(2) constant [4 x i8] c"\15\15\15\15"
 
 ; Function Attrs: nounwind
-define spir_func void @_Z5foo11v(ptr addrspace(4) noalias nocapture sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
+define spir_func void @_Z5foo11v(ptr addrspace(4) noalias captures(none) sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
   %x = alloca [4 x i8]
   tail call void @llvm.memset.p4.i32(ptr addrspace(4) align 4 %agg.result, i8 0, i32 12, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p4.p2.i32(ptr addrspace(4) align 4 %1, ptr addrspace(2) align 4 %2, i32 12, i1 false)
@@ -102,10 +102,10 @@ define spir_func void @_Z5foo11v(ptr addrspace(4) noalias nocapture sret(%struct
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memset.p4.i32(ptr addrspace(4) nocapture, i8, i32, i1) #1
+declare void @llvm.memset.p4.i32(ptr addrspace(4) captures(none), i8, i32, i1) #1
 
 ; Function Attrs: nounwind
-declare void @llvm.memset.p0.i32(ptr nocapture, i8, i32, i1) #1
+declare void @llvm.memset.p0.i32(ptr captures(none), i8, i32, i1) #1
 
 ; Function Attrs: nounwind
 declare void @llvm.memset.p3.i32(ptr addrspace(3), i8, i32, i1) #1

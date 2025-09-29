@@ -10,6 +10,7 @@
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 #include "masked_shuffles.hpp"
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -57,8 +58,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsPlus<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsPlus<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -66,8 +67,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsBitAND<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsBitAND<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -75,8 +76,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsBitOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsBitOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -84,8 +85,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsBitXOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsBitXOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -95,9 +96,9 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 
 //// Shuffle based masked reduction impls
 
-// fixed_size_group group reduction using shfls
+// chunk group reduction using shfls
 template <typename Group, typename T, class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<is_fixed_size_group_v<Group>, T>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<sycl::detail::is_chunk_v<Group>, T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
@@ -111,7 +112,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
 template <typename Group, typename T, class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !is_fixed_size_group_v<Group>,
+        !sycl::detail::is_chunk_v<Group>,
     T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
@@ -208,10 +209,10 @@ inline __SYCL_ALWAYS_INLINE
 
 //// Shuffle based masked reduction impls
 
-// fixed_size_group group scan using shfls
+// chunk group scan using shfls
 template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<is_fixed_size_group_v<Group>, T>
+inline __SYCL_ALWAYS_INLINE std::enable_if_t<sycl::detail::is_chunk_v<Group>, T>
 masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                        const uint32_t MemberMask) {
   unsigned localIdVal = g.get_local_id()[0];
@@ -233,7 +234,7 @@ template <__spv::GroupOperation Op, typename Group, typename T,
           class BinaryOperation>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group> &&
-        !is_fixed_size_group_v<Group>,
+        !sycl::detail::is_chunk_v<Group>,
     T>
 masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                        const uint32_t MemberMask) {

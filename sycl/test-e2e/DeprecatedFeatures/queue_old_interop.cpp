@@ -1,9 +1,6 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
-//
-// hip_nvidia has problems constructing queues due to `No device of requested
-// type available`.
-// XFAIL: hip_nvidia
+// RUN: %{run} %t.out
+
 //==-------- queue_old_interop.cpp - SYCL queue OpenCL interop test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 

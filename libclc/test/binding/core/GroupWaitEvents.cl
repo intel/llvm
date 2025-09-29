@@ -11,7 +11,7 @@
 
 // RUN: %clang -emit-llvm -cl-std=CL2.0 -S -o - %s | FileCheck %s
 
-#include <spirv/spirv_types.h>
+#include <libspirv/spirv_types.h>
 
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast

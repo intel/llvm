@@ -6,7 +6,7 @@
 //==--- level-zero-static-link-flow.cpp.cpp - Check L0 static link flow --==//
 //
 // Run a simple program that uses online linking and verify that the sequence
-// of calls to the plugin and to the Level Zero driver are consistent with the
+// of calls to the adapter and to the Level Zero driver are consistent with the
 // "static linking" implementation.
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -21,11 +21,12 @@
 //
 // CHECK: ---> urProgramCreate
 // CHECK: ---> urProgramCompile
-// CHECK-NOT: ZE ---> zeModuleCreate
+// CHECK-NOT: zeModuleCreate
 // CHECK: ---> urProgramLink
-// CHECK: ZE ---> zeModuleCreate
+// CHECK: zeModuleCreate
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class MyKernel;
 

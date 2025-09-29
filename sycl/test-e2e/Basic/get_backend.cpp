@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 
 using namespace sycl;
 
@@ -22,6 +23,7 @@ bool check(backend be) {
   case backend::ext_oneapi_cuda:
   case backend::ext_oneapi_hip:
   case backend::ext_oneapi_native_cpu:
+  case backend::ext_oneapi_offload:
     return true;
   default:
     return false;

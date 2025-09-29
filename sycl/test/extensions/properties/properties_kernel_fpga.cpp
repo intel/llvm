@@ -8,16 +8,6 @@
 using namespace sycl::ext;
 
 int main() {
-  // Check that oneapi::experimental::is_property_key is correctly specialized
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::streaming_interface_key>::value);
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::register_map_interface_key>::value);
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::pipelined_key>::value);
-  static_assert(oneapi::experimental::is_property_key<
-                intel::experimental::fpga_cluster_key>::value);
-
   // Check that oneapi::experimental::detail::HasCompileTimeEffect is
   // correctly specialized
   static_assert(oneapi::experimental::detail::HasCompileTimeEffect<

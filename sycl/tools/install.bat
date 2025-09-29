@@ -78,7 +78,7 @@ IF %NEED_OPENCL_UPGRADE% == True (
   echo Replace %SYSTEM_OCL_ICD_LOADER% with the new downloaded %NEW_OCL_ICD_LOADER%
 
   rem CHANGE THE FILE ATTRIBUTES. OTHERWISE, IT CANNOT BE REPLACED by regular MOVE, DEL, COPY commands.
-  PowerShell -Command "& {$acl = Get-Acl %SYSTEM_OCL_ICD_LOADER%; $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(\"Users\",\"FullControl\",\"Allow\"); $acl.SetAccessRule($AccessRule); $acl | Set-Acl %SYSTEM_OCL_ICD_LOADER%; }"
+  PowerShell -Command "& {$acl = Get-Acl %SYSTEM_OCL_ICD_LOADER%; $AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(\"Administrators\",\"FullControl\",\"Allow\"); $acl.SetAccessRule($AccessRule); $acl | Set-Acl %SYSTEM_OCL_ICD_LOADER%; }"
 
 
   copy /Y %NEW_OCL_ICD_LOADER% %SYSTEM_OCL_ICD_LOADER%

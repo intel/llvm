@@ -7,11 +7,15 @@
 // This test uses interop that has the ownership on a kernel.
 // UNSUPPORTED: ze_debug
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 #include <optional>

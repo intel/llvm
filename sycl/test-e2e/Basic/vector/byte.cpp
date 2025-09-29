@@ -180,6 +180,7 @@ int main() {
       assert(SwizByte2Neg[0] == ~SwizByte2B[0]);
     }
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
     {
       // std::byte is not an arithmetic type and it only supports the following
       // overloads of >> and << operators.
@@ -207,6 +208,7 @@ int main() {
       assert(SwizShiftRight[0] == SwizByte2Shift[0] >> 3 &&
              SwizShiftLeft[1] == SwizByte2Shift[1] << 3);
     }
+#endif
   }
 
   return 0;

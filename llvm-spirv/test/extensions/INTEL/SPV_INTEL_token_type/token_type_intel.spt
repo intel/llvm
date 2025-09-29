@@ -1,0 +1,50 @@
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: declare token @llvm.tokenfoo()
+
+119734787 65536 393230 13 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability TokenTypeINTEL
+7 Extension "SPV_INTEL_token_type"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+4 EntryPoint 6 10 "foo"
+3 Source 3 102000
+6 Name 4 "llvm.tokenfoo"
+3 Name 7 "foo"
+4 Name 8 "entry"
+3 Name 9 "tok"
+
+8 Decorate 4 LinkageAttributes "llvm.tokenfoo" Import
+5 Decorate 7 LinkageAttributes "foo" Export
+2 TypeTokenINTEL 2
+3 TypeFunction 3 2
+2 TypeVoid 5
+3 TypeFunction 6 5
+
+
+
+5 Function 2 4 0 3
+
+1 FunctionEnd
+
+5 Function 5 7 0 6
+
+2 Label 8
+4 FunctionCall 2 9 4
+1 Return
+
+1 FunctionEnd
+
+5 Function 5 10 0 6
+
+2 Label 11
+4 FunctionCall 5 12 7
+1 Return
+
+1 FunctionEnd
+

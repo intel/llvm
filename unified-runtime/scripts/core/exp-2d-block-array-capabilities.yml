@@ -1,0 +1,36 @@
+#
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental device descriptor for querying Intel device 2D block array capabilities"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enum to $x_device_info_t to query Intel device 2D block array capabilities."
+name: $x_device_info_t
+etors:
+    - name: 2D_BLOCK_ARRAY_CAPABILITIES_EXP
+      value: "0x2022"
+      desc: "[$x_exp_device_2d_block_array_capability_flags_t] return a bit-field of Intel GPU 2D block array capabilities"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Intel GPU 2D block array capabilities"
+class: $xDevice
+name: $x_exp_device_2d_block_array_capability_flags_t
+etors:
+    - name: LOAD
+      desc: "Load instructions are supported"
+      value: "$X_BIT(0)"
+    - name: STORE
+      desc: "Store instructions are supported"
+      value: "$X_BIT(1)"
+

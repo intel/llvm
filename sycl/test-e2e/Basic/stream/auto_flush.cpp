@@ -1,7 +1,9 @@
+// UNSUPPORTED: target-nvidia,cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20109
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
-//
-// XFAIL: hip_nvidia
+
 //==-------------- copy.cpp - SYCL stream obect auto flushing test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

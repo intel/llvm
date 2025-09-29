@@ -162,7 +162,7 @@ if.then:                                          ; preds = %entry
 if.end21:                                         ; preds = %if.then, %entry
   %overflow = phi i1 [ 0, %entry ], [ %or.cond40, %if.then ]
   %add24 = add i16 %b, %a
-  %agg = insertvalue {i16, i1} undef, i16 %add24, 0
+  %agg = insertvalue {i16, i1} poison, i16 %add24, 0
   %res = insertvalue {i16, i1} %agg, i1 %overflow, 1
   ret {i16, i1} %res
 }
@@ -202,7 +202,7 @@ if.then12:                                        ; preds = %land.lhs.true, %if.
 if.end23:                                         ; preds = %if.then12, %if.else, %land.lhs.true
   %overflow = phi i1 [ 1, %land.lhs.true ], [ 0, %if.else ], [ %or.cond43, %if.then12 ]
   %add24 = add nsw i32 %b, %a
-  %agg = insertvalue {i32, i1} undef, i32 %add24, 0
+  %agg = insertvalue {i32, i1} poison, i32 %add24, 0
   %res = insertvalue {i32, i1} %agg, i1 %overflow, 1
   ret {i32, i1} %res
 }
@@ -242,7 +242,7 @@ if.then12:                                        ; preds = %land.lhs.true, %if.
 if.end23:                                         ; preds = %if.then12, %if.else, %land.lhs.true
   %overflow = phi i1 [ 1, %land.lhs.true ], [ 0, %if.else ], [ %or.cond42, %if.then12 ]
   %add24 = add nsw i64 %b, %a
-  %agg = insertvalue {i64, i1} undef, i64 %add24, 0
+  %agg = insertvalue {i64, i1} poison, i64 %add24, 0
   %res = insertvalue {i64, i1} %agg, i1 %overflow, 1
   ret {i64, i1} %res
 }

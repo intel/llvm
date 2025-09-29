@@ -1,10 +1,11 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: hip || cuda
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17165
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -fsycl-device-lib-jit-link -o %t2.out
-// RUN: %{run} %t2.out
+// RUN: %if target-spir %{ %{build} -fsycl-device-lib-jit-link -Wno-deprecated -o %t2.out %}
+// RUN: %if target-spir %{ %{run} %t2.out %}
 
 #include <array>
 #include <cassert>

@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux,sg-32,aspect-usm_shared_allocations
+// REQUIRES: sg-32,aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -11,13 +10,25 @@ constexpr size_t problem_size = 32;
 
 class kernel_name;
 
+namespace syclex = sycl::ext::oneapi::experimental;
+
 int main() {
   sycl::queue q;
-
   sycl::device Device = q.get_device();
+  int Failed = 0;
 
   if (!isInlineASMSupported(Device)) {
     std::cout << "Skipping test\n";
+    return 0;
+  }
+
+  syclex::architecture CurrentDeviceArch =
+      Device.get_info<syclex::info::device::architecture>();
+  // This check is carried out because the test is not supported on BMG and
+  // subsequent devices.
+  if (CurrentDeviceArch >= syclex::architecture::intel_gpu_bmg_g21) {
+    std::cout << "This test is not supported on BMG and later. Skipping..."
+              << std::endl;
     return 0;
   }
 
@@ -34,13 +45,17 @@ int main() {
     c[i] = i;
   }
 
-  q.submit([&](sycl::handler &cgh) {
-     cgh.parallel_for<kernel_name>(
-         sycl::range<1>(problem_size),
-         [=](sycl::id<1> idx) [[sycl::reqd_sub_group_size(32)]] {
-           int i = idx[0];
+  q.parallel_for<kernel_name>(
+       sycl::range<1>(problem_size),
+       [=](sycl::id<1> idx) [[sycl::reqd_sub_group_size(32)]] {
+         int i = idx[0];
+         // The use of if_architecture_is_ge is a precaution in case the test is
+         // compiled with the -fsycl-targets flag.
+         syclex::if_architecture_is_ge<syclex::architecture::intel_gpu_bmg_g21>(
+             []() {})
+             .otherwise([&]() {
 #if defined(__SYCL_DEVICE_ONLY__)
-           asm volatile(R"a(
+               asm volatile(R"a(
     {
         .decl V52 v_type=G type=d num_elts=16 align=GRF
         .decl V53 v_type=G type=d num_elts=16 align=GRF
@@ -58,35 +73,26 @@ int main() {
         svm_scatter.4.1 (M1, 16) %1.0 V53.0
     }
     )a" ::"rw"(&b[i]),
-                        "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16),
-                        "rw"(&c[i]), "rw"(&c[i] + 16));
+                            "rw"(&b[i] + 16), "rw"(&a[i]), "rw"(&a[i] + 16),
+                            "rw"(&c[i]), "rw"(&c[i] + 16));
 #else
-           b[i] = a[i] * c[i];
+               b[i] = a[i] * c[i];
 #endif
-         });
-   }).wait();
+             });
+       })
+      .wait();
 
-  bool currect = true;
   for (int i = 0; i < problem_size; i++) {
     if (b[i] != a[i] * c[i]) {
-      currect = false;
       std::cerr << "error in a[" << i << "]=" << b[i] << "!=" << a[i] * c[i]
                 << std::endl;
-      break;
+      ++Failed;
     }
   }
 
-  if (!currect) {
-    std::cerr << "Error" << std::endl;
-    sycl::free(a, ctx);
-    sycl::free(b, ctx);
-    sycl::free(c, ctx);
-    return 1;
-  }
-
-  std::cerr << "Pass" << std::endl;
   sycl::free(a, ctx);
   sycl::free(b, ctx);
   sycl::free(c, ctx);
-  return 0;
+
+  return Failed;
 }

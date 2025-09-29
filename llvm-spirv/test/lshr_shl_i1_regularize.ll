@@ -43,8 +43,8 @@ entry:
 define spir_func void @test_shl_vec_i1(<8 x i1> %a, <8 x i1> %b) {
 entry:
   %0 = shl <8 x i1> %a, %b
-; CHECK-LLVM: [[AI32_2:%[0-9]+]] = select <8 x i1> %a, <8 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>, <8 x i32> zeroinitializer
-; CHECK-LLVM: [[BI32_2:%[0-9]+]] = select <8 x i1> %b, <8 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>, <8 x i32> zeroinitializer
+; CHECK-LLVM: [[AI32_2:%[0-9]+]] = select <8 x i1> %a, <8 x i32> splat (i32 1), <8 x i32> zeroinitializer
+; CHECK-LLVM: [[BI32_2:%[0-9]+]] = select <8 x i1> %b, <8 x i32> splat (i32 1), <8 x i32> zeroinitializer
 ; CHECK-LLVM: [[LSHR32_2:%[0-9]+]] = lshr <8 x i32> [[AI32_2]], [[BI32_2]]
 ; CHECK-LLVM: [[TRUNC_2:%[0-9]+]] = icmp ne <8 x i32> [[LSHR32_2]], zeroinitializer
   %1 = zext <8 x i1> %0 to <8 x i32>

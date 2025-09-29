@@ -24,7 +24,7 @@ namespace __spv {
 
 struct Scope {
 
-  enum Flag : uint32_t {
+  enum Flag : int32_t {
     CrossDevice = 0,
     Device = 1,
     Workgroup = 2,
@@ -34,13 +34,13 @@ struct Scope {
 
   constexpr Scope(Flag flag) : flag_value(flag) {}
 
-  constexpr operator uint32_t() const { return flag_value; }
+  constexpr operator int32_t() const { return flag_value; }
 
   Flag flag_value;
 };
 
 struct StorageClass {
-  enum Flag : uint32_t {
+  enum Flag : int32_t {
     UniformConstant = 0,
     Input = 1,
     Uniform = 2,
@@ -75,13 +75,13 @@ struct StorageClass {
     Max = 0x7fffffff,
   };
   constexpr StorageClass(Flag flag) : flag_value(flag) {}
-  constexpr operator uint32_t() const { return flag_value; }
+  constexpr operator int32_t() const { return flag_value; }
   Flag flag_value;
 };
 
 struct MemorySemanticsMask {
 
-  enum Flag : uint32_t {
+  enum Flag : int32_t {
     None = 0x0,
     Acquire = 0x2,
     Release = 0x4,
@@ -97,12 +97,12 @@ struct MemorySemanticsMask {
 
   constexpr MemorySemanticsMask(Flag flag) : flag_value(flag) {}
 
-  constexpr operator uint32_t() const { return flag_value; }
+  constexpr operator int32_t() const { return flag_value; }
 
   Flag flag_value;
 };
 
-enum class GroupOperation : uint32_t {
+enum class GroupOperation : int32_t {
   Reduce = 0,
   InclusiveScan = 1,
   ExclusiveScan = 2,
@@ -118,7 +118,6 @@ enum class MatrixLayout : uint32_t {
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
-#ifdef __SPIRV_USE_COOPERATIVE_MATRIX
 enum class MatrixOperands : uint32_t {
   // SPV_KHR_cooperative_matrix operands
   NoneKHR = 0,
@@ -133,19 +132,10 @@ enum class MatrixOperands : uint32_t {
   MatrixCBFloat16ComponentsINTEL = 0x80,
   MatrixResultBFloat16ComponentsINTEL = 0x100
 };
-#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
-#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
-
-template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
-          Scope::Flag S = Scope::Flag::Subgroup,
-          MatrixUse U = MatrixUse::MatrixA>
-struct __spirv_JointMatrixINTEL;
-#else
 template <typename T, Scope::Flag S = Scope::Flag::Subgroup, std::size_t R = 1,
           std::size_t C = 1, MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_CooperativeMatrixKHR;
-#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
 struct __spirv_TaskSequenceINTEL;
 

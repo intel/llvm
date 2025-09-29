@@ -14,8 +14,6 @@
 #include <sycl/async_handler.hpp>             // for async_handler
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
-#include <sycl/context.hpp>                   // for context
-#include <sycl/detail/assert_happened.hpp>    // for AssertHappened
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
@@ -31,15 +29,16 @@
 #include <sycl/exception_list.hpp>         // for defaultAsyncHa...
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
-#include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
-#include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
-#include <sycl/handler.hpp>                             // for handler, isDev...
-#include <sycl/id.hpp>                                  // for id
-#include <sycl/kernel.hpp>                              // for auto_name
-#include <sycl/kernel_handler.hpp>                      // for kernel_handler
-#include <sycl/nd_range.hpp>                            // for nd_range
-#include <sycl/property_list.hpp>                       // for property_list
-#include <sycl/range.hpp>                               // for range
+#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>    // for command_graph...
+#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properti...
+#include <sycl/handler.hpp>                          // for handler, isDev...
+#include <sycl/id.hpp>                               // for id
+#include <sycl/kernel.hpp>                           // for auto_name
+#include <sycl/kernel_handler.hpp>                   // for kernel_handler
+#include <sycl/nd_range.hpp>                         // for nd_range
+#include <sycl/property_list.hpp>                    // for property_list
+#include <sycl/range.hpp>                            // for range
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function
@@ -49,18 +48,6 @@
 #include <type_traits> // for remove_all_ext...
 #include <variant>     // for hash
 #include <vector>      // for vector
-
-// having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the KernelFunc param is simplified to be
-// _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
-// these macros are #undef immediately.
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
-#else
-#define _KERNELFUNCPARAM(a) const KernelType &a
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -75,20 +62,24 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
+template <int Dims>
+event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
+    const queue &Queue, const nd_range<Dims> &Range,
+    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+template <int Dims>
+void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
+    const queue &Queue, const nd_range<Dims> &Range,
+    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
 namespace detail {
 class queue_impl;
 
-#if __SYCL_USE_FALLBACK_ASSERT
-inline event submitAssertCapture(queue &, event &, queue *,
-                                 const detail::code_location &);
-#endif
-
-// Function to postprocess submitted command
-// Arguments:
-// bool IsKernel - true if the submitted command was kernel, false otherwise
-// bool KernelUsesAssert - true if submitted kernel uses assert, only
-//                         meaningful when IsKernel is true
-// event &Event - event after which post processing should be executed
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
 struct SubmissionInfoImpl;
@@ -103,9 +94,112 @@ public:
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
 
+  ext::oneapi::experimental::event_mode_enum &EventMode();
+  const ext::oneapi::experimental::event_mode_enum &EventMode() const;
+
 private:
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
+#endif
+
+namespace v1 {
+
+// This class is a part of the ABI, so it's moved to a separate namespace to
+// simplify changes.
+// To perform non-ABI breaking changes:
+// * namespace v(N+1) can be added,
+// * functions that use SubmissionInfo and are NOT part of the ABI should be
+//   switched to use v(N+1) namespace,
+// * functions that use SubmissionInfo and are part of the ABI should be
+//   overloaded with a new variant using v(N+1) namespace,
+// * old namespace vN should be moved under #ifndef
+//   __INTEL_PREVIEW_BREAKING_CHANGES guard.
+// TODO: inline namespace can be employed here after SubmissionInfo removed from
+// the enclosing scope.
+
+class __SYCL_EXPORT SubmissionInfo {
+public:
+  SubmissionInfo() {}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  SubmissionInfo(const detail::SubmissionInfo &SI)
+      : MSecondaryQueue(SI.SecondaryQueue()), MEventMode(SI.EventMode()) {}
+
+  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() {
+    return MPostProcessorFunc;
+  }
+  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const {
+    return MPostProcessorFunc;
+  }
+
+  std::shared_ptr<detail::queue_impl> &SecondaryQueue() {
+    return MSecondaryQueue;
+  }
+  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const {
+    return MSecondaryQueue;
+  }
+#endif
+
+  ext::oneapi::experimental::event_mode_enum &EventMode() { return MEventMode; }
+  const ext::oneapi::experimental::event_mode_enum &EventMode() const {
+    return MEventMode;
+  }
+
+private:
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+#endif
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
+};
+
+} // namespace v1
+
+template <typename KernelName = detail::auto_name, bool EventNeeded = false,
+          typename PropertiesT, typename KernelType, int Dims>
+auto submit_kernel_direct(
+    const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
+    const KernelType &KernelFunc,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  // TODO Properties not supported yet
+  (void)Props;
+  static_assert(
+      std::is_same_v<PropertiesT,
+                     ext::oneapi::experimental::empty_properties_t>,
+      "Setting properties not supported yet for no-CGH kernel submit.");
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  using NameT =
+      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+  static_assert(
+      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+      "must be either sycl::nd_item or be convertible from sycl::nd_item");
+  using TransformedArgType = sycl::nd_item<Dims>;
+
+  std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
+      detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
+
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+      &detail::getDeviceKernelInfo<NameT>();
+
+  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
+
+  if constexpr (EventNeeded) {
+    return submit_kernel_direct_with_event_impl(
+        Queue, Range, HostKernel, DeviceKernelInfoPtr,
+        TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+  } else {
+    submit_kernel_direct_without_event_impl(
+        Queue, Range, HostKernel, DeviceKernelInfoPtr,
+        TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+  }
+}
+
 } // namespace detail
 
 namespace ext ::oneapi ::experimental {
@@ -115,9 +209,14 @@ enum class queue_state { executing, recording };
 struct image_descriptor;
 
 namespace detail {
-template <typename CommandGroupFunc>
-void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+template <typename CommandGroupFunc, typename PropertiesT>
+void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc);
+
+template <typename CommandGroupFunc, typename PropertiesT>
+event submit_with_event_impl(const queue &Q, PropertiesT Props,
+                             CommandGroupFunc &&CGF,
+                             const sycl::detail::code_location &CodeLoc);
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
@@ -345,14 +444,28 @@ public:
   /// Queries SYCL queue for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<queue, Param>()
+#endif
+#endif
+            >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
   bool device_has(aspect Aspect) const;
+#endif
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -365,25 +478,26 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(CGF, /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+    return submit_with_event(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// On a kernel error, this command group function object is then scheduled
-  /// for execution on a secondary queue.
-  ///
   /// \param CGF is a function object containing command group.
-  /// \param SecondaryQueue is a fallback SYCL queue.
+  /// \param SecondaryQueue is a fallback SYCL queue. (unused)
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
-      T CGF, queue &SecondaryQueue,
+      T CGF, [[maybe_unused]] queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(CGF, &SecondaryQueue, CodeLoc);
+    return submit_with_event(
+        sycl::ext::oneapi::experimental::empty_properties_t{},
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -1357,40 +1471,40 @@ public:
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
-  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
-  /// memory region.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. An exception is thrown if either \p Src
+  /// is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p DestImgDesc is inconsistent with the allocated allocated memory
+  /// regions.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param Dest is a wrapper for an opaque image memory handle to the
-  /// destination memory.
-  /// \param DestImgDesc is the image descriptor (format, order, dimensions).
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region. An exception is thrown if either \p
-  /// Src is nullptr or \p CopyExtent is incomplete.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DestImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an offset from the origin where the x, y, and z
   ///                  components are measured in bytes, rows, and slices
-  ///                  respectively
-  /// \param SrcExtent is the extent of the source memory to copy, measured in
-  ///                  pixels (pixel size determined by \p DestImgDesc )
+  ///                  respectively.
+  /// \param SrcExtent is the size of the source memory, measured in
+  ///                  pixels. (Pixel size determined by \p DestImgDesc .)
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
+  ///                   pixels. (Pixel size determined by \p DestImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///                   measured in pixels as determined by \p DestImgDesc
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
@@ -1400,16 +1514,15 @@ public:
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
-  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
-  /// memory region.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. An exception is thrown if either \p Src
+  /// is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p DestImgDesc is inconsistent with the allocated allocated memory
+  /// regions.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param Dest is a wrapper for an opaque image memory handle to the
-  /// destination memory.
-  /// \param DestImgDesc is the destination image descriptor
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1418,24 +1531,25 @@ public:
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region. An exception is thrown if either \p
-  /// Src is nullptr or \p Dest is incomplete.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DestImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an offset from the origin where the x, y, and z
   ///                  components are measured in bytes, rows, and slices
-  ///                  respectively
-  /// \param SrcExtent is the extent of the source memory to copy, measured in
-  ///                  pixels (pixel size determined by \p DestImgDesc )
+  ///                  respectively.
+  /// \param SrcExtent is the size of the source memory, measured in
+  ///                  pixels. (Pixel size determined by \p DestImgDesc .)
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
+  ///                   pixels. (Pixel size determined by \p DestImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels as determined by \p DestImgDesc
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1446,16 +1560,15 @@ public:
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
-  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
-  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
-  /// memory region.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. An exception is thrown if either \p Src
+  /// is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p DestImgDesc is inconsistent with the allocated allocated memory
+  /// regions.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param Dest is a wrapper for an opaque image memory handle to the
-  /// destination memory.
-  /// \param DestImgDesc is the destination image descriptor
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -1465,24 +1578,25 @@ public:
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is a USM
-  /// pointer and \p Dest is an opaque image memory handle. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region. An exception is thrown if either \p
-  /// Src is nullptr or \p Dest is incomplete.
+  /// Copies data from host to device, where \p Src is a USM pointer and \p Dest
+  /// is an opaque image memory handle. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DestImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an offset from the origin where the x, y, and z
   ///                  components are measured in bytes, rows, and slices
-  ///                  respectively
-  /// \param SrcExtent is the extent of the source memory to copy, measured in
-  ///                  pixels (pixel size determined by \p DestImgDesc )
+  ///                  respectively.
+  /// \param SrcExtent is the size of the source memory, measured in
+  ///                  pixels. (Pixel size determined by \p DestImgDesc .)
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
+  ///                   pixels. (Pixel size determined by \p DestImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels as determined by \p DestImgDesc
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
@@ -1494,11 +1608,10 @@ public:
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer.
-  /// An exception is thrown if either \p Src is incomplete or \p Dest is
-  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
-  /// the allocated memory region.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc is inconsistent with the allocated memory regions.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
@@ -1509,26 +1622,25 @@ public:
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region.  Pixel size is determined by \p
-  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
-  /// is incomplete.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an offset from the destination origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DestExtent is the extent of the dest memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DestExtent is the size of the destination memory, measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
@@ -1538,15 +1650,14 @@ public:
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer.
-  /// An exception is thrown if either \p Src is incomplete or \p Dest is
-  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
-  /// the allocated memory region.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc is inconsistent with the allocated memory regions.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param SrcImgDesc is the image descriptor (format, order, dimensions).
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1555,26 +1666,25 @@ public:
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region.  Pixel size is determined by \p
-  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
-  /// is incomplete.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an offset from the destination origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DestExtent is the extent of the dest memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DestExtent is the size of the destination memory, measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1585,15 +1695,14 @@ public:
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer.
-  /// An exception is thrown if either \p Src is incomplete or \p Dest is
-  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
-  /// the allocated memory region.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc is inconsistent with the allocated memory regions.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param SrcImgDesc is the image descriptor (format, order, dimensions).
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -1603,26 +1712,25 @@ public:
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src is an opaque
-  /// image memory handle and \p Dest is a USM pointer. Allows for a
-  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
-  /// are used to determine the sub-region.  Pixel size is determined by \p
-  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
-  /// is incomplete.
+  /// Copies data from device to host, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an offset from the destination origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DestExtent is the extent of the dest memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DestExtent is the size of the destination memory, measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
@@ -1634,16 +1742,17 @@ public:
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
-  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
-  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
-  /// allocated memory region.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is nullptr. The behavior is undefined if
+  /// \p DeviceImgDesc is inconsistent with the allocated memory regions or
+  /// \p DeviceRowPitch is inconsistent with hardware requirements.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor
-  /// \param DeviceRowPitch is the DeviceRowPitch of the rows on the device.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the memory on the
+  ///                       device.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, void *Dest,
@@ -1651,27 +1760,29 @@ public:
       size_t DeviceRowPitch,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region.
-  /// An exception is thrown if either \p Src is nullptr or \p Dest is
-  /// incomplete.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DeviceImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is nullptr. The behavior is
+  /// undefined if \p DeviceRowPitch is inconsistent with hardware requirements
+  /// or \p HostExtent is inconsistent with its respective memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an destination offset from the origin where the
   ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
+  ///                  and slices respectively.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an destination offset from the origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DeviceImgDesc is the device image descriptor
-  /// \param DeviceRowPitch is the row pitch on the device
-  /// \param HostExtent is the extent of the host memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the image on the device.
+  /// \param HostExtent is the size of the host memory, measured in pixels.
+  ///                   (Pixel size determined by \p DeviceImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p DeviceImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p DeviceImgDesc .)
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const void *Src, sycl::range<3> SrcOffset, void *Dest,
@@ -1681,16 +1792,17 @@ public:
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
-  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
-  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
-  /// allocated memory region.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is nullptr. The behavior is undefined if
+  /// \p DeviceImgDesc is inconsistent with the allocated memory regions or
+  /// \p DeviceRowPitch is inconsistent with hardware requirements.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor
-  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the memory on the
+  ///                       device.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1699,161 +1811,29 @@ public:
       size_t DeviceRowPitch, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param ImageDesc is the source image descriptor
-  /// \param DepEvent is an events that specifies the kernel dependency.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
-      event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param ImageDesc is the source image descriptor
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
-      const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param ImageDesc is the source image descriptor
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles. Allows for a sub-region copy, where
-  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region. Pixel size is determined by \p SrcImgDesc
-  /// An exception is thrown if either \p Src or \p Dest is incomplete.
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
-  /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-      sycl::range<3> CopyExtent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles. Allows for a sub-region copy, where
-  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region. Pixel size is determined by \p SrcImgDesc
-  /// An exception is thrown if either \p Src or \p Dest is incomplete.
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param SrcImgDesc is the source image descriptor
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
-  /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
-  /// \param DepEvent is an event that specifies the kernel dependencies.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-      sycl::range<3> CopyExtent, event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from device to device memory, where \p Src and \p Dest
-  /// are opaque image memory handles. Allows for a sub-region copy, where
-  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region. Pixel size is determined by \p SrcImgDesc
-  /// An exception is thrown if either \p Src or \p Dest is incomplete.
-  ///
-  /// \param Src is an opaque image memory handle to the source memory.
-  /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImgDesc )
-  /// \param srcImgDesc is the source image descriptor
-  /// \param Dest is an opaque image memory handle to the destination memory.
-  /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImgDesc )
-  /// \param DestImgDesc is the destination image descriptor
-  /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p SrcImgDesc )
-  /// \param DepEvents is a vector of events that specifies the kernel
-  ///                  dependencies.
-  /// \return an event representing the copy operation.
-  event ext_oneapi_copy(
-      const ext::oneapi::experimental::image_mem_handle Src,
-      sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-      ext::oneapi::experimental::image_mem_handle Dest,
-      sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current());
-
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region.
-  /// An exception is thrown if either \p Src is nullptr or \p Dest is
-  /// incomplete.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DeviceImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is nullptr. The behavior is
+  /// undefined if \p DeviceRowPitch is inconsistent with hardware requirements
+  /// or \p HostExtent is inconsistent with its respective memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an destination offset from the origin where the
   ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
+  ///                  and slices respectively.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an destination offset from the origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DeviceImgDesc is the destination image descriptor
-  /// \param DeviceRowPitch is the row pitch on the device
-  /// \param HostExtent is the extent of the host memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the image on the device.
+  /// \param HostExtent is the size of the host memory, measured in pixels.
+  ///                   (Pixel size determined by \p DeviceImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p DeviceImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p DeviceImgDesc .)
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
@@ -1864,16 +1844,17 @@ public:
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
-  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
-  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
-  /// allocated memory region.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. An exception is thrown if either \p Src is
+  /// nullptr or \p Dest is nullptr. The behavior is undefined if
+  /// \p DeviceImgDesc is inconsistent with the allocated memory regions or
+  /// \p DeviceRowPitch is inconsistent with hardware requirements.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DeviceImgDesc is the image descriptor
-  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the memory on the
+  ///                       device.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the copy operation.
@@ -1883,27 +1864,29 @@ public:
       size_t DeviceRowPitch, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
-  /// Copies data from one memory region to another, where \p Src and \p Dest
-  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
-  /// \p DestOffset , and \p Extent are used to determine the sub-region.
-  /// An exception is thrown if either \p Src is nullptr or \p Dest is
-  /// incomplete.
+  /// Copies data from host to device or device to host, where \p Src and
+  /// \p Dest are USM pointers. Allows for a sub-region copy, where
+  /// \p SrcOffset , \p DestOffset , and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p DeviceImgDesc . An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is nullptr. The behavior is
+  /// undefined if \p DeviceRowPitch is inconsistent with hardware requirements
+  /// or \p HostExtent is inconsistent with its respective memory region.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param SrcOffset is an destination offset from the origin where the
   ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
+  ///                  and slices respectively.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestOffset is an destination offset from the origin where the
-  ///                  x, y, and z components are measured in bytes, rows,
-  ///                  and slices respectively
-  /// \param DeviceImgDesc is the destination image descriptor
-  /// \param DeviceRowPitch is the row pitch on the device
-  /// \param HostExtent is the extent of the host memory to copy, measured in
-  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  ///                   x, y, and z components are measured in bytes, rows,
+  ///                   and slices respectively.
+  /// \param DeviceImgDesc is the device image descriptor.
+  /// \param DeviceRowPitch is the pitch of the rows of the image on the device.
+  /// \param HostExtent is the size of the host memory, measured in pixels.
+  ///                   (Pixel size determined by \p DeviceImgDesc .)
   /// \param CopyExtent is the width, height, and depth of the region to copy
-  ///               measured in pixels (pixel size determined by
-  ///               \p DeviceImgDesc )
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p DeviceImgDesc .)
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
@@ -1913,6 +1896,627 @@ public:
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. An exception is thrown if either \p Src or \p Dest
+  /// are incomplete. The behavior is undefined if \p SrcImgDesc or
+  /// \p DestImgDesc are inconsistent with their respective allocated memory
+  /// regions.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset and \p CopyExtent are used to determine the sub-region.
+  /// Pixel size is determined by \p SrcImgDesc . An exception is thrown if
+  /// either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. An exception is thrown if either \p Src or \p Dest
+  /// are incomplete. The behavior is undefined if \p SrcImgDesc or
+  /// \p DestImgDesc are inconsistent with their respective allocated memory
+  /// regions.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvent is an events that specifies the kernel dependency.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset and \p CopyExtent are used to determine the sub-region.
+  /// Pixel size is determined by \p SrcImgDesc . An exception is thrown if
+  /// either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. An exception is thrown if either \p Src or \p Dest
+  /// are incomplete. The behavior is undefined if \p SrcImgDesc or
+  /// \p DestImgDesc are inconsistent with their respective allocated memory
+  /// regions.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src and \p Dest are opaque
+  /// image memory handles. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset and \p CopyExtent are used to determine the sub-region.
+  /// Pixel size is determined by \p SrcImgDesc . An exception is thrown if
+  /// either \p Src or \p Dest is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels.
+  ///                  (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels. (Pixel size determined by
+  ///                   \p SrcImgDesc .)
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is incomplete or \p Dest is nullptr. The behavior
+  /// is undefined if \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in Pixels
+  ///                   (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels. (Pixel size determined by
+  ///               \p SrcImgDesc .)
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is incomplete or \p Dest is nullptr. The behavior
+  /// is undefined if \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in Pixels
+  ///                   (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels. (Pixel size determined by
+  ///               \p SrcImgDesc .)
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. An exception is thrown if either
+  /// \p Src is incomplete or \p Dest is nullptr. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device, where \p Src is an opaque image memory
+  /// handle and \p Dest is a USM pointer. Allows for a sub-region copy, where
+  /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
+  /// sub-region. Pixel size is determined by \p SrcImgDesc . An exception is
+  /// thrown if either \p Src is incomplete or \p Dest is nullptr. The behavior
+  /// is undefined if \p DestRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in Pixels
+  ///                   (Pixel size determined by \p SrcImgDesc .)
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels. (Pixel size determined by \p SrcImgDesc .)
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels. (Pixel size determined by
+  ///               \p SrcImgDesc .)
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. An exception is thrown if either
+  /// \p Src is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. Allows for a sub-region
+  /// copy, where \p SrcOffset, \p DestOffset and \p CopyExtent are used to
+  /// determine the sub-region. Pixel size is determined by \p SrcImgDesc . An
+  /// exception is thrown if either \p Src is nullptr or \p Dest is incomplete.
+  /// The behavior is undefined if \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. An exception is thrown if either
+  /// \p Src is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. Allows for a sub-region
+  /// copy, where \p SrcOffset, \p DestOffset and \p CopyExtent are used to
+  /// determine the sub-region. Pixel size is determined by \p SrcImgDesc . An
+  /// exception is thrown if either \p Src is nullptr or \p Dest is incomplete.
+  /// The behavior is undefined if \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. An exception is thrown if either
+  /// \p Src is nullptr or \p Dest is incomplete. The behavior is undefined if
+  /// \p SrcImgDesc or \p DestImgDesc are inconsistent with their respective
+  /// allocated memory regions or \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from device to device memory, where \p Src is USM pointer and
+  /// \p Dest is an opaque image memory handle. Allows for a sub-region
+  /// copy, where \p SrcOffset, \p DestOffset and \p CopyExtent are used to
+  /// determine the sub-region. Pixel size is determined by \p SrcImgDesc . An
+  /// exception is thrown if either \p Src is nullptr or \p Dest is incomplete.
+  /// The behavior is undefined if \p SrcRowPitch is inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. An exception is thrown if either \p Src or \p Dest are nullptr.
+  /// The behavior is undefined if \p SrcImgDesc or \p DestImgDesc are
+  /// inconsistent with their respective allocated memory regions or
+  /// \p SrcRowPitch or \p DestRowPitch are inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. Allows for a sub-region copy, where \p SrcOffset, \p DestOffset
+  /// and \p CopyExtent are used to determine the sub-region. Pixel size is
+  /// determined by \p SrcImgDesc . An exception is thrown if either \p Src or
+  /// \p Dest are nullptr. The behavior is undefined if \p SrcRowPitch or
+  /// \p DestRowPitch are inconsistent with hardware requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. An exception is thrown if either \p Src or \p Dest are nullptr.
+  /// The behavior is undefined if \p SrcImgDesc or \p DestImgDesc are
+  /// inconsistent with their respective allocated memory regions or
+  /// \p SrcRowPitch or \p DestRowPitch are inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. Allows for a sub-region copy, where \p SrcOffset, \p DestOffset
+  /// and \p CopyExtent are used to determine the sub-region. Pixel size is
+  /// determined by \p SrcImgDesc . An exception is thrown if either \p Src or
+  /// \p Dest are nullptr. The behavior is undefined if \p SrcRowPitch or
+  /// \p DestRowPitch are inconsistent with hardware requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. An exception is thrown if either \p Src or \p Dest are nullptr.
+  /// The behavior is undefined if \p SrcImgDesc or \p DestImgDesc are
+  /// inconsistent with their respective allocated memory regions or
+  /// \p SrcRowPitch or \p DestRowPitch are inconsistent with hardware
+  /// requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestImgDesc is the destination image descriptor.
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Copies data from DtoD or HtoH memory, where \p Src and \p Dest are USM
+  /// pointers. Allows for a sub-region copy, where \p SrcOffset, \p DestOffset
+  /// and \p CopyExtent are used to determine the sub-region. Pixel size is
+  /// determined by \p SrcImgDesc . An exception is thrown if either \p Src or
+  /// \p Dest are nullptr. The behavior is undefined if \p SrcRowPitch or
+  /// \p DestRowPitch are inconsistent with hardware requirements.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the source origin measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param SrcRowPitch is the pitch of the rows of the destination memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p SrcImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DestRowPitch is the pitch of the rows of the destination memory.
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch, sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
@@ -2089,11 +2693,15 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(PropertiesT Properties, const KernelType &KernelFunc,
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2117,7 +2725,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      _KERNELFUNCPARAM(KernelFunc),
+      const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
         ext::oneapi::experimental::empty_properties_t{}, KernelFunc, CodeLoc);
@@ -2131,11 +2739,16 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      event DepEvent, PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(event DepEvent, PropertiesT Properties,
+                         const KernelType &KernelFunc,
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2161,7 +2774,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      event DepEvent, _KERNELFUNCPARAM(KernelFunc),
+      event DepEvent, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
         DepEvent, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
@@ -2177,12 +2790,16 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      const std::vector<event> &DepEvents, PropertiesT Properties,
-      _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(const std::vector<event> &DepEvents,
+                         PropertiesT Properties, const KernelType &KernelFunc,
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2209,11 +2826,31 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(
-      const std::vector<event> &DepEvents, _KERNELFUNCPARAM(KernelFunc),
+      const std::vector<event> &DepEvents, const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
         DepEvents, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
         CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2231,6 +2868,26 @@ public:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
@@ -2242,11 +2899,52 @@ public:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2266,6 +2964,27 @@ public:
   ///
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
@@ -2278,11 +2997,54 @@ public:
   ///
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvent, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<3> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvent, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<1> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2305,12 +3067,56 @@ public:
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<2> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, typename... RestT>
   event parallel_for(range<2> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(range<3> Range, const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(Range, DepEvents, Properties, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2341,7 +3147,7 @@ public:
             int Dim>
   event parallel_for(range<Dim> Range, id<Dim> WorkItemOffset,
                      const std::vector<event> &DepEvents,
-                     _KERNELFUNCPARAM(KernelFunc)) {
+                     const KernelType &KernelFunc) {
     static_assert(1 <= Dim && Dim <= 3, "Invalid number of dimensions");
     return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
                                          KernelFunc);
@@ -2358,7 +3164,7 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                          _KERNELFUNCPARAM(KernelFunc)) {
+                          const KernelType &KernelFunc) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -2381,7 +3187,7 @@ public:
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
-                          event DepEvent, _KERNELFUNCPARAM(KernelFunc)) {
+                          event DepEvent, const KernelType &KernelFunc) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -2407,7 +3213,7 @@ public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   event parallel_for_impl(range<Dims> Range, id<Dims> WorkItemOffset,
                           const std::vector<event> &DepEvents,
-                          _KERNELFUNCPARAM(KernelFunc)) {
+                          const KernelType &KernelFunc) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
@@ -2428,11 +3234,15 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+      event> parallel_for(nd_range<Dims> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2452,8 +3262,52 @@ public:
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
-    return parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    // TODO The handler-less path does not support reductions yet.
+    if constexpr (sizeof...(RestT) == 1) {
+      return detail::submit_kernel_direct<KernelName, true>(
+          *this, ext::oneapi::experimental::empty_properties_t{}, Range,
+          Rest...);
+    } else
+#endif
+    {
+      return submit(
+          [&](handler &CGH) {
+            CGH.template parallel_for<KernelName>(Range, Rest...);
+          },
+          TlsCodeLocCapture.query());
+    }
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(nd_range<Dims> Range, event DepEvent,
+                          PropertiesT Properties, RestT &&...Rest) {
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -2465,7 +3319,8 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2482,12 +3337,44 @@ public:
   /// \param Range specifies the global and local work spaces of the kernel
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
+  __SYCL_DEPRECATED("To specify properties, use a launch configuration object "
+                    "of type launch_config or a kernel functor with a "
+                    "get(sycl::ext::oneapi::experimental::properties_tag) "
+                    "member function instead.")
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> parallel_for(nd_range<Dims> Range,
+                          const std::vector<event> &DepEvents,
+                          PropertiesT Properties, RestT &&...Rest) {
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        TlsCodeLocCapture.query());
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
-                     RestT &&...Rest) {
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
+               RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2637,6 +3524,7 @@ public:
         CodeLoc);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// @brief Returns true if the queue was created with the
   /// ext::codeplay::experimental::property::queue::enable_fusion property.
   ///
@@ -2644,10 +3532,10 @@ public:
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
   // TODO(#15184) Remove this function in the next ABI-breaking window.
+  __SYCL_DEPRECATED(
+      "Support for ext_codeplay_kernel_fusion extesnsion is dropped")
   bool ext_codeplay_supports_fusion() const;
-
-// Clean KERNELFUNC macros.
-#undef _KERNELFUNCPARAM
+#endif
 
   /// Shortcut for executing a graph of commands.
   ///
@@ -2716,43 +3604,92 @@ public:
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
 
-  /// Allows to check status of the queue (completed vs noncompleted).
+  /// Allows to check status of the queue (completed vs incomplete).
   ///
   /// \return returns true if all enqueued commands in the queue have been
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
 
-  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+  /// Allows to check status of the queue (completed vs incomplete).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+#ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
+  bool khr_empty() const;
+#endif
 
-  event ext_oneapi_get_last_event() const;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: to be made private in the next ABI-breaking window
+  __SYCL_DEPRECATED(
+      "This is a non-standard method, use sycl::get_native instead")
+  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+#endif
+
+  std::optional<event> ext_oneapi_get_last_event() const {
+    return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
+  }
 
   void ext_oneapi_set_external_event(const event &external_event);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+#endif
+
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
   template <class Obj>
-  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 
+  template <backend BackendName>
+  friend auto get_native(const queue &Obj)
+      -> backend_return_t<BackendName, queue>;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(queue &, event &, queue *,
+  friend event detail::submitAssertCapture(const queue &, event &,
                                            const detail::code_location &);
 #endif
+#endif
 
-  template <typename CommandGroupFunc>
+  template <typename CommandGroupFunc, typename PropertiesT>
   friend void ext::oneapi::experimental::detail::submit_impl(
-      queue &Q, CommandGroupFunc &&CGF,
+      const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
+
+  template <typename CommandGroupFunc, typename PropertiesT>
+  friend event ext::oneapi::experimental::detail::submit_with_event_impl(
+      const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
+      const sycl::detail::code_location &CodeLoc);
+
+  template <typename PropertiesT>
+  void ProcessSubmitProperties(PropertiesT Props,
+                               detail::v1::SubmissionInfo &SI) const {
+    if constexpr (Props.template has_property<
+                      ext::oneapi::experimental::event_mode_key>()) {
+      ext::oneapi::experimental::event_mode EventModeProp =
+          Props.template get_property<ext::oneapi::experimental::event_mode>();
+      if (EventModeProp.value !=
+          ext::oneapi::experimental::event_mode_enum::none)
+        SI.EventMode() = EventModeProp.value;
+    }
+  }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
+  /// Not using `type_erased_cgfo_ty` on purpose.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
   event submit_impl(std::function<void(handler &)> CGH,
@@ -2782,50 +3719,70 @@ private:
       std::function<void(handler &)> CGH, queue secondQueue,
       const detail::code_location &CodeLoc,
       const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
-  /// A template-free versions of submit.
+  // Old version when `std::function` was used in place of
+  // `std::function<void(handler &)>`.
   event submit_with_event_impl(std::function<void(handler &)> CGH,
                                const detail::SubmissionInfo &SubmitInfo,
                                const detail::code_location &CodeLoc,
                                bool IsTopCodeLoc);
 
-  /// A template-free version of submit_without_event.
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::SubmissionInfo &SubmitInfo,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
+
+  /// A template-free versions of submit.
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc);
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+  /// A template-free version of submit as const member function.
+  event submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                               const detail::v1::SubmissionInfo &SubmitInfo,
+                               const detail::code_location &CodeLoc,
+                               bool IsTopCodeLoc) const;
+
+  /// A template-free version of submit_without_event as const member function.
+  void submit_without_event_impl(const detail::type_erased_cgfo_ty &CGH,
+                                 const detail::v1::SubmissionInfo &SubmitInfo,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc) const;
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
+  /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
-  template <typename T>
-  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event>
-  submit_with_event(
-      T CGF, queue *SecondaryQueuePtr,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+  //
+  // UseFallBackAssert as template param vs `#if` in function body is necessary
+  // to prevent ODR-violation between TUs built with different fallback assert
+  // modes.
+  template <typename PropertiesT>
+  event submit_with_event(PropertiesT Props,
+                          const detail::type_erased_cgfo_ty &CGF,
+                          const detail::code_location &CodeLoc =
+                              detail::code_location::current()) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
-    if (SecondaryQueuePtr)
-      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
-#if __SYCL_USE_FALLBACK_ASSERT
-    SI.PostProcessorFunc() =
-        [this, &SecondaryQueuePtr,
-         &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
-          if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-              KernelUsesAssert && !device_has(aspect::accelerator)) {
-            // __devicelib_assert_fail isn't supported by Device-side Runtime
-            // Linking against fallback impl of __devicelib_assert_fail is
-            // performed by program manager class
-            // Fallback assert isn't supported for FPGA
-            submitAssertCapture(*this, E, SecondaryQueuePtr,
-                                TlsCodeLocCapture.query());
-          }
-        };
-#endif // __SYCL_USE_FALLBACK_ASSERT
+    detail::v1::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }
@@ -2833,21 +3790,22 @@ private:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
+  /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
   /// \param CodeLoc is the code location of the submit call (default argument)
-  template <typename T>
-  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
-  submit_without_event(T CGF, const detail::code_location &CodeLoc) {
-#if __SYCL_USE_FALLBACK_ASSERT
-    // If post-processing is needed, fall back to the regular submit.
-    // TODO: Revisit whether we can avoid this.
-    submit_with_event(CGF, nullptr, CodeLoc);
-#else
+  //
+  // UseFallBackAssert as template param vs `#if` in function body is necessary
+  // to prevent ODR-violation between TUs built with different fallback assert
+  // modes.
+  template <typename PropertiesT>
+  void submit_without_event(PropertiesT Props,
+                            const detail::type_erased_cgfo_ty &CGF,
+                            const detail::code_location &CodeLoc) const {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    detail::SubmissionInfo SI{};
+    detail::v1::SubmissionInfo SI{};
+    ProcessSubmitProperties(Props, SI);
     submit_without_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                               TlsCodeLocCapture.isToplevel());
-#endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -2971,12 +3929,16 @@ private:
                                const std::vector<event> &DepEvents);
   const property_list &getPropList() const;
 
+  // Helper implementation for ext_oneapi_get_last_event. This is needed to
+  // avoid issues where std::optional has a different layout between user-code
+  // and library.
+  sycl::detail::optional<event> ext_oneapi_get_last_event_impl() const;
+
   template <typename KernelName>
   static constexpr detail::code_location getCodeLocation() {
-    return {detail::getKernelFileName<KernelName>(),
-            detail::getKernelFunctionName<KernelName>(),
-            detail::getKernelLineNumber<KernelName>(),
-            detail::getKernelColumnNumber<KernelName>()};
+    constexpr auto Info = detail::CompileTimeKernelInfo<KernelName>;
+    return {Info.FileName.data(), Info.FunctionName.data(), Info.LineNumber,
+            Info.ColumnNumber};
   }
 };
 
@@ -2988,97 +3950,3 @@ template <> struct __SYCL_EXPORT hash<sycl::queue> {
   size_t operator()(const sycl::queue &Q) const;
 };
 } // namespace std
-
-#if __SYCL_USE_FALLBACK_ASSERT
-// Explicitly request format macros
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS 1
-#endif
-#include <cinttypes>
-
-namespace sycl {
-inline namespace _V1 {
-
-namespace detail {
-#define __SYCL_ASSERT_START 1
-
-namespace __sycl_service_kernel__ {
-class AssertInfoCopier;
-} // namespace __sycl_service_kernel__
-
-/**
- * Submit copy task for assert failure flag and host-task to check the flag
- * \param Event kernel's event to depend on i.e. the event represents the
- *              kernel to check for assertion failure
- * \param SecondaryQueue secondary queue for submit process, null if not used
- * \returns host tasks event
- *
- * This method doesn't belong to queue class to overcome msvc behaviour due to
- * which it gets compiled and exported without any integration header and, thus,
- * with no proper KernelInfo instance.
- */
-event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
-                          const detail::code_location &CodeLoc) {
-  buffer<detail::AssertHappened, 1> Buffer{1};
-
-  event CopierEv, CheckerEv, PostCheckerEv;
-  auto CopierCGF = [&](handler &CGH) {
-    CGH.depends_on(Event);
-
-    auto Acc = Buffer.get_access<access::mode::write>(CGH);
-
-    CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
-#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
-      __devicelib_assert_read(&Acc[0]);
-#else
-      (void)Acc;
-#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
-    });
-  };
-  auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {
-    CGH.depends_on(CopierEv);
-    using mode = access::mode;
-    using target = access::target;
-
-    auto Acc = Buffer.get_access<mode::read, target::host_buffer>(CGH);
-
-    CGH.host_task([=] {
-      const detail::AssertHappened *AH = &Acc[0];
-
-      // Don't use assert here as msvc will insert reference to __imp__wassert
-      // which won't be properly resolved in separate compile use-case
-#ifndef NDEBUG
-      if (AH->Flag == __SYCL_ASSERT_START)
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Internal Error. Invalid value in assert description.");
-#endif
-
-      if (AH->Flag) {
-        const char *Expr = AH->Expr[0] ? AH->Expr : "<unknown expr>";
-        const char *File = AH->File[0] ? AH->File : "<unknown file>";
-        const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
-
-        fprintf(stderr,
-                "%s:%d: %s: global id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64
-                "], local id: [%" PRIu64 ",%" PRIu64 ",%" PRIu64 "] "
-                "Assertion `%s` failed.\n",
-                File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
-                AH->LID1, AH->LID2, Expr);
-        fflush(stderr);
-        abort(); // no need to release memory as it's abort anyway
-      }
-    });
-  };
-
-  CopierEv = Self.submit_with_event(CopierCGF, SecondaryQueue, CodeLoc);
-  CheckerEv = Self.submit_with_event(CheckerCGF, SecondaryQueue, CodeLoc);
-
-  return CheckerEv;
-}
-#undef __SYCL_ASSERT_START
-} // namespace detail
-
-} // namespace _V1
-} // namespace sycl
-#endif // __SYCL_USE_FALLBACK_ASSERT

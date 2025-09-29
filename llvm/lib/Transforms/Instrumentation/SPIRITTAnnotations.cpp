@@ -243,7 +243,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
 
 PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
-  assert(StringRef(M.getTargetTriple()).starts_with("spir"));
+  assert(StringRef(M.getTargetTriple().str()).starts_with("spir"));
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
       SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL,  SPIRV_GROUP_ANY,
@@ -266,7 +266,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
     if (IsSPIRKernel) {
       Instruction *InsertPt = &*inst_begin(F);
       if (InsertPt->isDebugOrPseudoInst())
-        InsertPt = InsertPt->getNextNonDebugInstruction();
+        InsertPt = InsertPt->getNextNode();
       assert(InsertPt && "Function does not have any real instructions.");
       insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_START, InsertPt,
                                       InsertPt->getDebugLoc());

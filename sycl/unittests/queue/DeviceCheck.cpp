@@ -62,6 +62,18 @@ ur_result_t redefinedDevicePartitionAfter(void *pParams) {
     **params.ppNumDevicesRet = *params.pNumDevices;
   return UR_RESULT_SUCCESS;
 }
+ur_result_t redefinedPlatformGet(void *pParams) {
+  auto params = reinterpret_cast<ur_platform_get_params_t *>(pParams);
+  if (*params->ppNumPlatforms)
+    **params->ppNumPlatforms = 2;
+
+  if (*params->pphPlatforms && *params->pNumEntries > 0) {
+    (*params->pphPlatforms)[0] = reinterpret_cast<ur_platform_handle_t>(1);
+    (*params->pphPlatforms)[1] = reinterpret_cast<ur_platform_handle_t>(2);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 
 // Check that the device is verified to be either a member of the context or a
 // descendant of its member.
@@ -71,6 +83,8 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
   sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urPlatformGet",
+                                            &redefinedPlatformGet);
   sycl::platform Plt = sycl::platform();
 
   UrPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
@@ -116,11 +130,15 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
   // Device is neither of the two.
   {
     ParentDevice = nullptr;
-    device Device = detail::createSyclObjFromImpl<device>(
-        std::make_shared<detail::device_impl>(reinterpret_cast<ur_device_handle_t>(0x01),
-                                              detail::getSyclObjImpl(Plt)));
+
+    auto Plts = sycl::platform::get_platforms();
+    EXPECT_TRUE(Plts.size() == 2);
+    sycl::platform OtherPlt = Plts[1];
+
+    device Device = OtherPlt.get_devices()[0];
     queue Q{Device};
-    EXPECT_NE(Q.get_context(), DefaultCtx);
+    auto Ctx = Q.get_context();
+    EXPECT_NE(Ctx, DefaultCtx);
     try {
       queue Q2{DefaultCtx, Device};
       EXPECT_TRUE(false);

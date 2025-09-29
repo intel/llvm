@@ -135,6 +135,12 @@ public:
     SYCLCachePersistentChanged = true;
   }
 
+  // Set SYCL_CACHE_MAX_SIZE.
+  void SetDiskCacheEvictionEnv(const char *NewValue) {
+    set_env("SYCL_CACHE_MAX_SIZE", NewValue);
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_MAX_SIZE>::reset();
+  }
+
   void AppendToSYCLCacheDirEnv(const char *SubDir) {
     std::string NewSYCLCacheDirPath{RootSYCLCacheDir};
     if (NewSYCLCacheDirPath.back() != '\\' && NewSYCLCacheDirPath.back() != '/')
@@ -142,6 +148,24 @@ public:
     NewSYCLCacheDirPath += SubDir;
     set_env("SYCL_CACHE_DIR", NewSYCLCacheDirPath.c_str());
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
+  }
+
+  // Get the list of binary files in the cache directory.
+  std::vector<std::string> getBinaryFileNames(std::string CachePath) {
+
+    std::vector<std::string> FileNames;
+    std::error_code EC;
+    for (llvm::sys::fs::directory_iterator DirIt(CachePath, EC);
+         DirIt != llvm::sys::fs::directory_iterator(); DirIt.increment(EC)) {
+      // Check if the file is a binary file.
+      std::string filename = DirIt->path();
+      if (filename.find(".bin") != std::string::npos) {
+        // Just return the file name without the path.
+        FileNames.push_back(filename.substr(filename.find_last_of("/\\") + 1));
+      }
+    }
+
+    return FileNames;
   }
 
   void ResetSYCLCacheDirEnv() {
@@ -169,6 +193,9 @@ public:
       SetSYCLCachePersistentEnv(SYCLCachePersistentBefore
                                     ? SYCLCachePersistentBefore->c_str()
                                     : nullptr);
+
+    // Reset SYCL_CACHE_MAX_SIZE.
+    SetDiskCacheEvictionEnv(nullptr);
     ResetSYCLCacheDirEnv();
   }
 
@@ -197,8 +224,8 @@ public:
                              std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
     std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-        {Dev}, {&Img}, {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID},
-        BuildOptions);
+        *getSyclObjImpl(Dev), {&Img},
+        {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}, BuildOptions);
     ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
     Barrier b(ThreadCount);
@@ -236,20 +263,28 @@ protected:
   _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-  sycl_device_binary_struct BinStruct{/*Version*/ 1,
-                                      /*Kind*/ 4,
-                                      /*Format*/ GetParam(),
-                                      /*DeviceTargetSpec*/ nullptr,
-                                      /*CompileOptions*/ nullptr,
-                                      /*LinkOptions*/ nullptr,
-                                      /*ManifestStart*/ nullptr,
-                                      /*ManifestEnd*/ nullptr,
-                                      /*BinaryStart*/ nullptr,
-                                      /*BinaryEnd*/ nullptr,
-                                      /*EntriesBegin*/ &EntryStruct,
-                                      /*EntriesEnd*/ &EntryStruct + 1,
-                                      /*PropertySetsBegin*/ nullptr,
-                                      /*PropertySetsEnd*/ nullptr};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  sycl_device_binary_struct BinStruct { /*Version*/
+    1,
+#else
+  sycl_device_binary_struct BinStruct{/*Version*/ 3,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*Kind*/ 4,
+        /*Format*/ GetParam(),
+        /*DeviceTargetSpec*/ nullptr,
+        /*CompileOptions*/ nullptr,
+        /*LinkOptions*/ nullptr,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        /*ManifestStart*/ nullptr,
+        /*ManifestEnd*/ nullptr,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*BinaryStart*/ nullptr,
+        /*BinaryEnd*/ nullptr,
+        /*EntriesBegin*/ &EntryStruct,
+        /*EntriesEnd*/ &EntryStruct + 1,
+        /*PropertySetsBegin*/ nullptr,
+        /*PropertySetsEnd*/ nullptr
+  };
   sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
   ur_program_handle_t NativeProg;
@@ -261,7 +296,7 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, {&Img}, SpecConst, Key);
+      *getSyclObjImpl(Dev), {&Img}, SpecConst, Key);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, SpecConst,
@@ -286,20 +321,28 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
-  sycl_device_binary_struct ExtraBinStruct{/*Version*/ 1,
-                                           /*Kind*/ 4,
-                                           /*Format*/ GetParam(),
-                                           /*DeviceTargetSpec*/ nullptr,
-                                           /*CompileOptions*/ nullptr,
-                                           /*LinkOptions*/ nullptr,
-                                           /*ManifestStart*/ nullptr,
-                                           /*ManifestEnd*/ nullptr,
-                                           /*BinaryStart*/ nullptr,
-                                           /*BinaryEnd*/ nullptr,
-                                           /*EntriesBegin*/ &ExtraEntryStruct,
-                                           /*EntriesEnd*/ &ExtraEntryStruct + 1,
-                                           /*PropertySetsBegin*/ nullptr,
-                                           /*PropertySetsEnd*/ nullptr};
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  sycl_device_binary_struct ExtraBinStruct { /*Version*/
+    1,
+#else
+  sycl_device_binary_struct ExtraBinStruct{/*Version*/ 3,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*Kind*/ 4,
+        /*Format*/ GetParam(),
+        /*DeviceTargetSpec*/ nullptr,
+        /*CompileOptions*/ nullptr,
+        /*LinkOptions*/ nullptr,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        /*ManifestStart*/ nullptr,
+        /*ManifestEnd*/ nullptr,
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+        /*BinaryStart*/ nullptr,
+        /*BinaryEnd*/ nullptr,
+        /*EntriesBegin*/ &ExtraEntryStruct,
+        /*EntriesEnd*/ &ExtraEntryStruct + 1,
+        /*PropertySetsBegin*/ nullptr,
+        /*PropertySetsEnd*/ nullptr
+  };
   sycl_device_binary ExtraBin = &ExtraBinStruct;
   detail::RTDeviceBinaryImage ExtraImg{ExtraBin};
   std::string BuildOptions{"--multiple-images"};
@@ -309,11 +352,11 @@ TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   std::sort(Imgs.begin(), Imgs.end(),
             [](const detail::RTDeviceBinaryImage *A,
                const detail::RTDeviceBinaryImage *B) {
-              return std::strcmp(A->getRawData().EntriesBegin->name,
-                                 B->getRawData().EntriesBegin->name) < 0;
+              return std::strcmp(A->getRawData().EntriesBegin->GetName(),
+                                 B->getRawData().EntriesBegin->GetName()) < 0;
             });
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, Imgs, {}, BuildOptions);
+      *getSyclObjImpl(Dev), Imgs, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, Imgs, {},
@@ -366,7 +409,7 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
 TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, {&Img}, {}, BuildOptions);
+      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Only source file is present
@@ -394,14 +437,14 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   // Binary file is corrupted
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
-  std::ofstream FileStream(ItemDir + "/0.bin",
-                           std::ofstream::out | std::ofstream::trunc);
-  /* Emulate binary built for 2 devices: first is OK, second is trancated
-   * from 23 bytes to 4
-   */
-  FileStream << 2 << 12 << "123456789012" << 23 << "1234";
-  FileStream.close();
-  EXPECT_FALSE(FileStream.fail()) << "Failed to create trancated binary file";
+  {
+    std::ofstream FileStream(ItemDir + "/0.bin",
+                             std::ofstream::out | std::ofstream::trunc);
+    // Emulate binary which is truncated from 23 bytes to 4.
+    FileStream << 1 << 23 << "1234";
+    FileStream.close();
+    EXPECT_FALSE(FileStream.fail()) << "Failed to create trancated binary file";
+  }
   Res = detail::PersistentDeviceCodeCache::getItemFromDisc({Dev}, {&Img}, {},
                                                            BuildOptions);
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
@@ -421,6 +464,27 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   EXPECT_EQ(Res.size(), static_cast<size_t>(0))
       << "Item with corrupted binary file was read";
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+
+// Death tests (ASSERT_DEATH) rely on assert which is not available in release
+// mode.
+#ifndef NDEBUG
+  // Unexpected 2 binaries in a single file.
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+  {
+    std::ofstream FileStream(ItemDir + "/0.bin",
+                             std::ofstream::out | std::ofstream::trunc);
+    // Emulate binaries for 2 devices in a single file.
+    FileStream << 2 << 12 << "123456789012" << 4 << "1234";
+    FileStream.close();
+    EXPECT_FALSE(FileStream.fail())
+        << "Failed to create a file containing 2 binaries";
+  }
+  ASSERT_DEATH(detail::PersistentDeviceCodeCache::getItemFromDisc(
+                   {Dev}, {&Img}, {}, BuildOptions),
+               "NumBinaries == 1");
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+#endif
 }
 
 /* Checks that lock file affects cache operations as expected:
@@ -430,7 +494,7 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
 TEST_P(PersistentDeviceCodeCache, LockFile) {
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, {&Img}, {}, BuildOptions);
+      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 
   // Create 1st cahe item
@@ -480,7 +544,7 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
 TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
-      Dev, {&Img}, {}, BuildOptions);
+      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
   detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
                                                    BuildOptions, NativeProg);
@@ -518,6 +582,125 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 #endif //_WIN32
+
+// Unit tests for testing eviction in persistent cache.
+TEST_P(PersistentDeviceCodeCache, BasicEviction) {
+
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  // Disable eviction for the time being.
+  SetDiskCacheEvictionEnv("9000000");
+
+  std::string BuildOptions{"--eviction"};
+  // Put 3 items to the cache.
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+
+  std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
+      *getSyclObjImpl(Dev), {&Img}, {}, BuildOptions);
+  size_t SizeOfOneEntry = (size_t)(detail::getDirectorySize(ItemDir));
+
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+
+  // Retrieve 0.bin from the cache.
+  auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
+      {Dev}, {&Img}, {}, BuildOptions);
+
+  // Get the number of binary files in the cached item folder.
+  auto BinFiles = getBinaryFileNames(ItemDir);
+  EXPECT_EQ(BinFiles.size(), static_cast<size_t>(3))
+      << "Missing binary files. Eviction should not have happened.";
+
+  // Set SYCL_CACHE_MAX_SIZE.
+  SetDiskCacheEvictionEnv(std::to_string(3 * SizeOfOneEntry).c_str());
+
+  // Put 4th item to the cache. This should trigger eviction. Three of the
+  // items should be evicted as we evict till the size of cache is less than
+  // the half of cache size.
+  detail::PersistentDeviceCodeCache::putItemToDisc({Dev}, {&Img}, {},
+                                                   BuildOptions, NativeProg);
+
+  // We should have two binary files: 0.bin, 3.bin.
+  BinFiles = getBinaryFileNames(ItemDir);
+  EXPECT_EQ(BinFiles.size(), static_cast<size_t>(1))
+      << "Eviction failed. Wrong number of binary files in the cache.";
+
+  // Check that 1.bin, 2.bin, and 0.bin was evicted.
+  for (const auto &File : BinFiles) {
+    EXPECT_NE(File, "1.bin")
+        << "Eviction failed. 1.bin should have been evicted.";
+    EXPECT_NE(File, "2.bin")
+        << "Eviction failed. 2.bin should have been evicted.";
+    EXPECT_NE(File, "0.bin")
+        << "Eviction failed. 0.bin should have been evicted.";
+  }
+
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
+}
+
+// Unit test for testing size file creation and update, concurrently.
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheFileSize) {
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  // Insanely large value (1GB) to not trigger eviction. This test just
+  // checks for deadlocks/crashes when updating the size file concurrently.
+  SetDiskCacheEvictionEnv("1000000000");
+  ConcurentReadWriteCache(1, 100);
+}
+
+// Unit test for adding and evicting cache, concurrently.
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheEviction) {
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  SetDiskCacheEvictionEnv("1000");
+  ConcurentReadWriteCache(2, 100);
+}
+
+// Unit test for ensuring that os_utils::getDirectorySize is thread-safe.
+TEST_P(PersistentDeviceCodeCache, ConcurentDirectorySizeCalculation) {
+  // Cleanup the cache directory.
+  std::string CacheRoot = detail::PersistentDeviceCodeCache::getRootDir();
+  ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(CacheRoot));
+  ASSERT_NO_ERROR(llvm::sys::fs::create_directories(CacheRoot));
+
+  // Spawn multiple threads to calculate the size of the directory concurrently
+  // and adding/removing file simultaneously.
+  constexpr size_t ThreadCount = 50;
+  Barrier b(ThreadCount);
+  {
+    auto testLambda = [&](std::size_t threadId) {
+      b.wait();
+      // Create a file named: test_file_<thread_id>.txt
+      std::string FileName =
+          CacheRoot + "/test_file_" + std::to_string(threadId) + ".txt";
+      std::ofstream FileStream(FileName,
+                               std::ofstream::out | std::ofstream::trunc);
+      FileStream << "Test file for thread: " << threadId;
+      FileStream.close();
+
+      // Calculate the size of the directory.
+      [[maybe_unused]] auto i = detail::getDirectorySize(CacheRoot, true);
+
+      // Remove the created file.
+      ASSERT_NO_ERROR(llvm::sys::fs::remove(FileName));
+    };
+
+    ThreadPool MPool(ThreadCount, testLambda);
+  }
+}
 
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
                          PersistentDeviceCodeCache,

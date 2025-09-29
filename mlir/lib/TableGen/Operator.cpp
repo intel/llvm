@@ -15,7 +15,6 @@
 #include "mlir/TableGen/Predicate.h"
 #include "mlir/TableGen/Trait.h"
 #include "mlir/TableGen/Type.h"
-#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -26,7 +25,6 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
-#include <list>
 
 #define DEBUG_TYPE "mlir-tblgen-operator"
 
@@ -35,9 +33,12 @@ using namespace mlir::tblgen;
 
 using llvm::DagInit;
 using llvm::DefInit;
+using llvm::Init;
+using llvm::ListInit;
 using llvm::Record;
+using llvm::StringInit;
 
-Operator::Operator(const llvm::Record &def)
+Operator::Operator(const Record &def)
     : dialect(def.getValueAsDef("opDialect")), def(def) {
   // The first `_` in the op's TableGen def name is treated as separating the
   // dialect prefix and the op class name. The dialect prefix will be ignored if
@@ -179,7 +180,7 @@ StringRef Operator::getExtraClassDefinition() const {
   return def.getValueAsString(attr);
 }
 
-const llvm::Record &Operator::getDef() const { return def; }
+const Record &Operator::getDef() const { return def; }
 
 bool Operator::skipDefaultBuilders() const {
   return def.getValueAsBit("skipDefaultBuilders");
@@ -228,7 +229,7 @@ unsigned Operator::getNumVariableLengthOperands() const {
 }
 
 bool Operator::hasSingleVariadicArg() const {
-  return getNumArgs() == 1 && getArg(0).is<NamedTypeConstraint *>() &&
+  return getNumArgs() == 1 && isa<NamedTypeConstraint *>(getArg(0)) &&
          getOperand(0).isVariadic();
 }
 
@@ -429,7 +430,7 @@ void Operator::populateTypeInferenceInfo(
   // Use `AllTypesMatch` and `TypesMatchWith` operation traits to build the
   // result type inference graph.
   for (const Trait &trait : traits) {
-    const llvm::Record &def = trait.getDef();
+    const Record &def = trait.getDef();
 
     // If the infer type op interface was manually added, then treat it as
     // intention that the op needs special handling.
@@ -462,6 +463,37 @@ void Operator::populateTypeInferenceInfo(
       infer.inferred =
           InferredResultType::isArgIndex(sourceIndex) ||
           inference[InferredResultType::unmapResultIndex(sourceIndex)].inferred;
+      continue;
+    }
+
+    // The `ShapedTypeMatchesElementCountAndTypes` trait represents a 1 -> 1
+    // type inference edge where a shaped type matches element count and types
+    // of variadic elements.
+    if (def.isSubClassOf("ShapedTypeMatchesElementCountAndTypes")) {
+      StringRef shapedArg = def.getValueAsString("shaped");
+      StringRef elementsArg = def.getValueAsString("elements");
+
+      int shapedIndex = argumentsAndResultsIndex.lookup(shapedArg);
+      int elementsIndex = argumentsAndResultsIndex.lookup(elementsArg);
+
+      // Handle result type inference from shaped type to variadic elements.
+      if (InferredResultType::isResultIndex(elementsIndex) &&
+          InferredResultType::isArgIndex(shapedIndex)) {
+        int resultIndex = InferredResultType::unmapResultIndex(elementsIndex);
+        ResultTypeInference &infer = inference[resultIndex];
+        if (!infer.inferred) {
+          infer.sources.emplace_back(
+              shapedIndex,
+              "::llvm::SmallVector<::mlir::Type>(::llvm::cast<::mlir::"
+              "ShapedType>($_self).getNumElements(), "
+              "::llvm::cast<::mlir::ShapedType>($_self).getElementType())");
+          infer.inferred = true;
+        }
+      }
+
+      // Type inference in the opposite direction is not possible as the actual
+      // shaped type can't be inferred from the variadic elements.
+
       continue;
     }
 
@@ -500,8 +532,8 @@ void Operator::populateTypeInferenceInfo(
         for (int otherResultIndex : resultIndices) {
           if (resultIndex == otherResultIndex)
             continue;
-          inference[resultIndex].sources.emplace_back(otherResultIndex,
-                                                      "$_self");
+          inference[resultIndex].sources.emplace_back(
+              InferredResultType::unmapResultIndex(otherResultIndex), "$_self");
         }
       }
     }
@@ -614,9 +646,8 @@ void Operator::populateOpStructure() {
             def.getLoc(),
             "unsupported attribute modelling, only single class expected");
       }
-      attributes.push_back(
-          {cast<llvm::StringInit>(val.getNameInit())->getValue(),
-           Attribute(cast<DefInit>(val.getValue()))});
+      attributes.push_back({cast<StringInit>(val.getNameInit())->getValue(),
+                            Attribute(cast<DefInit>(val.getValue()))});
     }
   }
 
@@ -701,7 +732,7 @@ void Operator::populateOpStructure() {
   // tablegen is easy, making them unique less so, so dedupe here.
   if (auto *traitList = def.getValueAsListInit("traits")) {
     // This is uniquing based on pointers of the trait.
-    SmallPtrSet<const llvm::Init *, 32> traitSet;
+    SmallPtrSet<const Init *, 32> traitSet;
     traits.reserve(traitSet.size());
 
     // The declaration order of traits imply the verification order of traits.
@@ -721,8 +752,8 @@ void Operator::populateOpStructure() {
                   " to precede it in traits list");
     };
 
-    std::function<void(const llvm::ListInit *)> insert;
-    insert = [&](const llvm::ListInit *traitList) {
+    std::function<void(const ListInit *)> insert;
+    insert = [&](const ListInit *traitList) {
       for (auto *traitInit : *traitList) {
         auto *def = cast<DefInit>(traitInit)->getDef();
         if (def->isSubClassOf("TraitList")) {
@@ -777,11 +808,10 @@ void Operator::populateOpStructure() {
   }
 
   // Populate the builders.
-  auto *builderList =
-      dyn_cast_or_null<llvm::ListInit>(def.getValueInit("builders"));
+  auto *builderList = dyn_cast_or_null<ListInit>(def.getValueInit("builders"));
   if (builderList && !builderList->empty()) {
-    for (const llvm::Init *init : builderList->getValues())
-      builders.emplace_back(cast<llvm::DefInit>(init)->getDef(), def.getLoc());
+    for (const Init *init : builderList->getElements())
+      builders.emplace_back(cast<DefInit>(init)->getDef(), def.getLoc());
   } else if (skipDefaultBuilders()) {
     PrintFatalError(
         def.getLoc(),
@@ -814,13 +844,12 @@ StringRef Operator::getSummary() const {
 
 bool Operator::hasAssemblyFormat() const {
   auto *valueInit = def.getValueInit("assemblyFormat");
-  return isa<llvm::StringInit>(valueInit);
+  return isa<StringInit>(valueInit);
 }
 
 StringRef Operator::getAssemblyFormat() const {
-  return TypeSwitch<const llvm::Init *, StringRef>(
-             def.getValueInit("assemblyFormat"))
-      .Case<llvm::StringInit>([&](auto *init) { return init->getValue(); });
+  return TypeSwitch<const Init *, StringRef>(def.getValueInit("assemblyFormat"))
+      .Case<StringInit>([&](auto *init) { return init->getValue(); });
 }
 
 void Operator::print(llvm::raw_ostream &os) const {
@@ -829,13 +858,13 @@ void Operator::print(llvm::raw_ostream &os) const {
     if (auto *attr = llvm::dyn_cast_if_present<NamedAttribute *>(arg))
       os << "[attribute] " << attr->name << '\n';
     else
-      os << "[operand] " << arg.get<NamedTypeConstraint *>()->name << '\n';
+      os << "[operand] " << cast<NamedTypeConstraint *>(arg)->name << '\n';
   }
 }
 
-auto Operator::VariableDecoratorIterator::unwrap(const llvm::Init *init)
+auto Operator::VariableDecoratorIterator::unwrap(const Init *init)
     -> VariableDecorator {
-  return VariableDecorator(cast<llvm::DefInit>(init)->getDef());
+  return VariableDecorator(cast<DefInit>(init)->getDef());
 }
 
 auto Operator::getArgToOperandOrAttribute(int index) const

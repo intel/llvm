@@ -35,7 +35,7 @@
 
 2 Label 18
 4 Variable 16 27 7
-6 Load 8 19 6 2 0
+4 Load 8 19 6
 5 CompositeExtract 7 20 19 0
 5 ShiftLeftLogical 7 21 20 13
 5 ShiftRightArithmetic 7 22 21 13

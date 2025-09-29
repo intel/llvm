@@ -26,11 +26,13 @@ entry:
   %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
   %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
   %call.i35 = call spir_func ptr @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
+  %1 = getelementptr inbounds { i16 }, ptr %call.i35, i64 0, i32 0
 ; CHECK-NOT: call void @__asan_load
 ; CHECK-NOT: call void @__asan_store
-  %1 = load float, ptr %call.i35, align 4
+  %2 = load i16, ptr %1, align 4
   %call.i42 = call spir_func ptr @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
-  store float %1, ptr %call.i42, align 4
+  %3 = getelementptr inbounds { i16 }, ptr %call.i42, i64 0, i32 0
+  store i16 %2, ptr %3, align 4
   ret void
 }
 

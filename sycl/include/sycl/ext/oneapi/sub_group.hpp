@@ -26,7 +26,7 @@ struct __SYCL_DEPRECATED("use sycl::sub_group() instead") sub_group
   // sycl::ext::oneapi::sub_group sg = item.get_sub_group();
   // Note: this constructor is used for implicit conversion. Since the
   // sub_group class doesn't have any members, just ignore the arg.
-  sub_group(const sycl::sub_group &sg) : sub_group() { std::ignore = sg; }
+  sub_group(const sycl::sub_group &sg) : sub_group() { (void)sg; }
 
 private:
   sub_group() = default;

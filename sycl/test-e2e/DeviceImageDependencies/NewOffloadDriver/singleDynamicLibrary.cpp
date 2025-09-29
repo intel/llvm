@@ -1,9 +1,6 @@
 // Test -fsycl-allow-device-image-dependencies with a single dynamic library on
 // Windows and Linux.
 
-// UNSUPPORTED: cuda || hip
-// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
-
 // RUN: %clangxx --offload-new-driver -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \
 // RUN:    %S/Inputs/b.cpp                                                              \
@@ -19,6 +16,9 @@
 // RUN:   %{-L%T -ldevice_single -Wl,-rpath=%T%}
 
 // RUN: %{run} %t.out
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include "wrapper.hpp"
 

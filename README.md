@@ -46,10 +46,10 @@ Project documentation is available at:
 
 ### How to use DPC++
 
-#### Docker containers
+#### Dockerfiles
 
-See available containers with pre-built/pre-installed DPC++ compiler at:
-[Containers](./sycl/doc/developer/DockerBKMs.md#sycl-containers-overview)
+See available Dockerfiles to create containers with pre-built/pre-installed DPC++ compiler at:
+[Containers](./sycl/doc/developer/DockerBKMs.md#sycl-dockerfiles-overview)
 
 #### Releases
 
@@ -78,10 +78,6 @@ This project welcomes contributions from the community. Please refer to [CONTRIB
 for general guidelines around contributing to this project. You can then see 
 [ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md) for DPC++ specific 
 guidelines.
-
-## Late-outline OpenMP\* and OpenMP\* Offload
-
-See [openmp](/openmp) branch.
 
 # License
 

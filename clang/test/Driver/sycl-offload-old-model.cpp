@@ -68,46 +68,31 @@
 // RUN:  touch %t_empty.o
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %S/Inputs/SYCL/objlin64.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64_{{.*}}-unknown-unknown,{{.*}}sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga %S/Inputs/SYCL/liblin64.a %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %S/Inputs/SYCL/liblin64.a %s 2>&1 \
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -L%S/Inputs/SYCL -l:liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=aoo"{{.*}} "-targets=sycl-spir64_{{.*}}-unknown-unknown,sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 /// Check that the default device triple is not used with -fno-sycl-link-spirv
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-link-spirv -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_CPU %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-link-spirv -fsycl-targets=spir64_fpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_FPGA %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-link-spirv -fsycl-targets=spir64_gen %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_GEN %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fno-sycl-link-spirv -fintelfpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_FPGA %s
 // NO_IMPLIED_DEVICE_CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
-// NO_IMPLIED_DEVICE_FPGA: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"
 // NO_IMPLIED_DEVICE_GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown{{.*}}" "-unbundle"
 
 // RUN:  %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
-// RUN:  %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
 // RUN:  %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
 // NO_IMPLIED_DEVICE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown{{.*}}" "-unbundle"
@@ -123,33 +108,25 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
-// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -Xsycl-target-backend -DFOO %S/Inputs/SYCL/objlin64.o 2>&1 \
-// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
-// SYCL_TARGET_OPT_AOT: {{opencl-aot|ocloc|aoc}}{{.*}} "-DFOO"
+// SYCL_TARGET_OPT_AOT: {{opencl-aot|ocloc}}{{.*}} "-DFOO"
 
 /// Do not process directories when checking for default sections in fat objs
 // RUN:  %clangxx -### -Wl,-rpath,%S -fsycl --no-offload-new-driver -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
-// RUN:  %clangxx -### -Xlinker -rpath -Xlinker %S -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
 // RUN:  %clangxx -### -Wl,-rpath,%S -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
-// RUN:  %clangxx -### -Wl,-rpath,%S -fintelfpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
 // NO_DIR_CHECK-NOT: clang-offload-bundler: error: '{{.*}}': Is a directory
 
 // Device section checking only occur when offloading is enabled
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver %S/Inputs/SYCL/liblin64.a %s 2>&1 \
-// RUN:    | FileCheck -check-prefix CHECK_SECTION %s
+// RUN:    | FileCheck -check-prefix CHECK_LIST %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -L%S/Inputs/SYCL -l:liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix CHECK_LIST %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_CHECK_SECTION %s
-// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
-// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
-// CHECK_SECTION: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
-// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-unknown"{{.*}} "-check-section"
-// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-unknown"{{.*}} "-check-section"
-// NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
+// RUN:    | FileCheck -check-prefix NO_CHECK_LIST %s
+// CHECK_LIST: {{(/|\\)}}clang-offload-bundler{{.*}} "-type=ao"{{.*}} "-list"
+// NO_CHECK_LIST-NOT: clang-offload-bundler{{.*}} "-type=ao"{{.*}} "-list"
 
 /// Check -fsycl-targets=spir64 enables addition of -ffine-grained-bitfield-accesses option
 // RUN:   %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
@@ -170,7 +147,6 @@
 // CHECK-FSYCL-WITH-CLANG: "-lstdc++"
 
 /// Check selective passing of -emit-only-kernels-as-entry-points to sycl-post-link tool
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_PASS: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
@@ -178,10 +154,8 @@
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 
 /// Check selective passing of -allow-device-image-dependencies to sycl-post-link tool
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
 // RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
 // RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
 

@@ -12,8 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
-#include "llvm/SYCLLowerIR/FAtomicsNativeCPU.h"
-#include "llvm/SYCLLowerIR/FixABIMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
@@ -71,11 +69,9 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     OptimizationLevel OptLevel) {
   MPM.addPass(SpecConstantsPass(SpecConstantsPass::HandlingMode::emulation));
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
-  MPM.addPass(FAtomicsNativeCPU());
 #ifdef NATIVECPU_USE_OCK
   MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::TransferKernelMetadataPass());
-  MPM.addPass(FixABIMuxBuiltinsPass());
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
   if (OptLevel != OptimizationLevel::O0 && !SYCLNativeCPUNoVecz) {
     MAM.registerPass([] { return vecz::TargetInfoAnalysis(); });
@@ -86,7 +82,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
       if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL) {
         return false;
       }
-      compiler::utils::VectorizationFactor VF(NativeCPUVeczWidth, false);
+      auto VF = llvm::ElementCount::getFixed(NativeCPUVeczWidth);
       vecz::VeczPassOptions VPO;
       VPO.factor = std::move(VF);
       Opts.emplace_back(std::move(VPO));

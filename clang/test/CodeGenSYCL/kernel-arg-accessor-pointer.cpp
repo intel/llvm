@@ -1,4 +1,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -internal-isystem %S/Inputs -triple spirv64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -aux-triple aarch64-pc-windows-msvc -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -aux-triple aarch64-pc-windows-msvc -fsycl-is-device -internal-isystem %S/Inputs -triple spirv64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // This test checks if the metadata "kernel-arg-runtime-aligned" and "kernel_arg_exclusive_ptr"
 // are generated if the kernel captures an accessor.

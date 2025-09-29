@@ -8,6 +8,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17075
+
 #include "esimd_test_utils.hpp"
 
 #define MAX_TS_WIDTH 1024

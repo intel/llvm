@@ -8,14 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/aliases.hpp>                   // for half, cl_char, cl_double
-#include <sycl/detail/helpers.hpp>            // for marray
-#include <sycl/detail/type_traits.hpp>        // for is_gen_based_on_type_s...
-#include <sycl/half_type.hpp>                 // for BIsRepresentationT
-#include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
-
-#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
+#include <sycl/access/access.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/bit_cast.hpp>
+#include <sycl/detail/fwd/half.hpp>
+#include <sycl/detail/type_traits.hpp>
 
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
@@ -24,6 +21,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi {
+class bfloat16;
+}
 namespace detail {
 template <typename T>
 using is_byte = typename
@@ -137,17 +137,22 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     return reinterpret_cast<result_type>(x);
   } else if constexpr (is_vec_v<no_ref>) {
     using ElemTy = typename no_ref::element_type;
-    // sycl::half may convert to _Float16, and we would try to instantiate
-    // vec class with _Float16 DataType, which is not expected there. As
-    // such, leave vector<half, N> as-is.
-    using MatchingVec =
-        vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
-                               decltype(convertToOpenCLType(
-                                   std::declval<ElemTy>()))>,
-            no_ref::size()>;
+    using ConvertedElemTy =
+        decltype(convertToOpenCLType(std::declval<ElemTy>()));
+    static constexpr int NumElements = no_ref::size();
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+    using vector_t =
+        std::conditional_t<NumElements == 1, ConvertedElemTy,
+                           ConvertedElemTy
+                           __attribute__((ext_vector_type(NumElements)))>;
+    return sycl::bit_cast<vector_t>(x);
 #else
+    // sycl::half may convert to _Float16, and we would try to
+    // instantiate vec class with _Float16 DataType, which is not
+    // expected there. As such, leave vector<half, N> as-is.
+    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>,
+                                               ElemTy, ConvertedElemTy>,
+                            NumElements>;
     return x.template as<MatchingVec>();
 #endif
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -161,14 +166,16 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (std::is_same_v<no_ref, half>) {
-    using OpenCLType = sycl::detail::half_impl::BIsRepresentationT;
+    // Make it template-param-dependent to compile with incomplete `half`:
+    using OpenCLType =
+        std::enable_if_t<std::is_same_v<no_ref, half>,
+                         sycl::detail::half_impl::BIsRepresentationT>;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (std::is_same_v<no_ref, ext::oneapi::bfloat16>) {
     // On host, don't interpret BF16 as uint16.
 #ifdef __SYCL_DEVICE_ONLY__
-    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
-    return sycl::bit_cast<OpenCLType>(x);
+    return sycl::bit_cast<uint16_t>(x);
 #else
     return std::forward<T>(x);
 #endif
@@ -203,7 +210,7 @@ template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
     if constexpr (is_vec_v<To_noref> && is_vec_v<From_noref>)
       return x.template as<To_noref>();
     else if constexpr (is_vec_v<To_noref> && is_ext_vector_v<From_noref>)
-      return To_noref{bit_cast<typename To_noref::vector_t>(x)};
+      return bit_cast<To>(x);
     else
       return static_cast<To>(x);
   }

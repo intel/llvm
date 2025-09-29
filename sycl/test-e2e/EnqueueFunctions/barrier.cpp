@@ -50,5 +50,5 @@ int main() {
   return 0;
 }
 
-// CHECK-COUNT-4: <--- urEnqueueEventsWaitWithBarrier
-// CHECK-NOT: <--- urEnqueueEventsWaitWithBarrier
+// CHECK-COUNT-4: <--- urEnqueueEventsWaitWithBarrierExt
+// CHECK-NOT: <--- urEnqueueEventsWaitWithBarrierExt

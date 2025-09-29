@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;

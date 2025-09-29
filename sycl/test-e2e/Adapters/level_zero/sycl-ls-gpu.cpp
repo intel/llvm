@@ -1,0 +1,15 @@
+// REQUIRES: gpu, level_zero
+
+// RUN: %{run-unfiltered-devices} sycl-ls --verbose | \
+// RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM
+
+// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}Level-Zero
+// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}Level-Zero
+
+//==-- sycl-ls-gpu-level-zero.cpp - Test Level-Zero selected gpu device ----==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Basic/FileManager.h"
+#include "clang/Basic/DiagnosticLex.h"
 #include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/MacroBuilder.h"
 #include "clang/Basic/SourceManager.h"
@@ -32,7 +32,7 @@ using namespace clang;
 static bool MacroBodyEndsInBackslash(StringRef MacroBody) {
   while (!MacroBody.empty() && isWhitespace(MacroBody.back()))
     MacroBody = MacroBody.drop_back();
-  return !MacroBody.empty() && MacroBody.back() == '\\';
+  return MacroBody.ends_with('\\');
 }
 
 // Append a #define line to Buf for Macro.  Macro should be of the form XXX,
@@ -253,6 +253,8 @@ static void DefineExactWidthIntType(const LangOptions &LangOpts,
 
   StringRef ConstSuffix(TI.getTypeConstantSuffix(Ty));
   Builder.defineMacro(Prefix + Twine(TypeWidth) + "_C_SUFFIX__", ConstSuffix);
+  Builder.defineMacro(Prefix + Twine(TypeWidth) + "_C(c)",
+                      ConstSuffix.size() ? Twine("c##") + ConstSuffix : "c");
 }
 
 static void DefineExactWidthIntTypeSize(TargetInfo::IntType Ty,
@@ -392,6 +394,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     // HLSL Version
     Builder.defineMacro("__HLSL_VERSION",
                         Twine((unsigned)LangOpts.getHLSLVersion()));
+    Builder.defineMacro("__HLSL_202x",
+                        Twine((unsigned)LangOptions::HLSLLangStd::HLSL_202x));
+    Builder.defineMacro("__HLSL_202y",
+                        Twine((unsigned)LangOptions::HLSLLangStd::HLSL_202y));
 
     if (LangOpts.NativeHalfType)
       Builder.defineMacro("__HLSL_ENABLE_16_BIT", "1");
@@ -633,8 +639,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIPCC__");
     if (LangOpts.HIPStdPar) {
       Builder.defineMacro("__HIPSTDPAR__");
-      if (LangOpts.HIPStdParInterposeAlloc)
+      if (LangOpts.HIPStdParInterposeAlloc) {
         Builder.defineMacro("__HIPSTDPAR_INTERPOSE_ALLOC__");
+        Builder.defineMacro("__HIPSTDPAR_INTERPOSE_ALLOC_V1__");
+      }
     }
     if (LangOpts.CUDAIsDevice) {
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
@@ -659,16 +667,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
   }
 
-  if (LangOpts.OpenACC) {
-    // FIXME: When we have full support for OpenACC, we should set this to the
-    // version we support. Until then, set as '1' by default, but provide a
-    // temporary mechanism for users to override this so real-world examples can
-    // be tested against.
-    if (!LangOpts.OpenACCMacroOverride.empty())
-      Builder.defineMacro("_OPENACC", LangOpts.OpenACCMacroOverride);
-    else
-      Builder.defineMacro("_OPENACC", "1");
-  }
+  if (LangOpts.OpenACC)
+    Builder.defineMacro("_OPENACC", "202506");
 }
 
 /// Initialize the predefined C++ language feature test macros defined in
@@ -690,7 +690,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_lambdas", "200907L");
     Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus26   ? "202406L"
                                            : LangOpts.CPlusPlus23 ? "202211L"
-                                           : LangOpts.CPlusPlus20 ? "201907L"
+                                           : LangOpts.CPlusPlus20 ? "202002L"
                                            : LangOpts.CPlusPlus17 ? "201603L"
                                            : LangOpts.CPlusPlus14 ? "201304L"
                                                                   : "200704");
@@ -746,7 +746,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_nested_namespace_definitions", "201411L");
     Builder.defineMacro("__cpp_variadic_using", "201611L");
     Builder.defineMacro("__cpp_aggregate_bases", "201603L");
-    Builder.defineMacro("__cpp_structured_bindings", "202403L");
+    Builder.defineMacro("__cpp_structured_bindings", "202411L");
     Builder.defineMacro("__cpp_nontype_template_args",
                         "201411L"); // (not latest)
     Builder.defineMacro("__cpp_fold_expressions", "201603L");
@@ -755,8 +755,8 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   }
   if (LangOpts.AlignedAllocation && !LangOpts.AlignedAllocationUnavailable)
     Builder.defineMacro("__cpp_aligned_new", "201606L");
-  if (LangOpts.RelaxedTemplateTemplateArgs)
-    Builder.defineMacro("__cpp_template_template_args", "201611L");
+
+  Builder.defineMacro("__cpp_template_template_args", "201611L");
 
   // C++20 features.
   if (LangOpts.CPlusPlus20) {
@@ -780,6 +780,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_if_consteval", "202106L");
     Builder.defineMacro("__cpp_multidimensional_subscript", "202211L");
     Builder.defineMacro("__cpp_auto_cast", "202110L");
+    Builder.defineMacro("__cpp_explicit_this_parameter", "202110L");
   }
 
   // We provide those C++23 features as extensions in earlier language modes, so
@@ -793,6 +794,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   Builder.defineMacro("__cpp_pack_indexing", "202311L");
   Builder.defineMacro("__cpp_deleted_function", "202403L");
   Builder.defineMacro("__cpp_variadic_friend", "202403L");
+  // Builder.defineMacro("__cpp_trivial_relocatability", "202502L");
 
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "202207L");
@@ -880,6 +882,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
                                        const LangOptions &LangOpts,
                                        const FrontendOptions &FEOpts,
                                        const PreprocessorOptions &PPOpts,
+                                       const CodeGenOptions &CGOpts,
                                        MacroBuilder &Builder) {
   // Compiler version introspection macros.
   Builder.defineMacro("__llvm__");  // LLVM Backend
@@ -970,8 +973,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.GNUCVersion && LangOpts.CPlusPlus11)
     Builder.defineMacro("__GXX_EXPERIMENTAL_CXX0X__");
 
-  if (TI.getTriple().isWindowsGNUEnvironment()) {
-    // Set ABI defining macros for libstdc++ for MinGW, where the
+  if (TI.getTriple().isOSCygMing()) {
+    // Set ABI defining macros for libstdc++ for MinGW and Cygwin, where the
     // default in libstdc++ differs from the defaults for this target.
     Builder.defineMacro("__GXX_TYPEINFO_EQUALITY_INLINE", "0");
   }
@@ -992,7 +995,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
     if (LangOpts.ObjCRuntime.getKind() == ObjCRuntime::GNUstep) {
       auto version = LangOpts.ObjCRuntime.getVersion();
-      std::string versionString = "1";
       // Don't rely on the tuple argument, because we can be asked to target
       // later ABIs than we actually support, so clamp these values to those
       // currently supported
@@ -1050,14 +1052,14 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.GNUCVersion && LangOpts.RTTI)
     Builder.defineMacro("__GXX_RTTI");
 
-  if (LangOpts.hasSjLjExceptions())
+  if (CGOpts.hasSjLjExceptions())
     Builder.defineMacro("__USING_SJLJ_EXCEPTIONS__");
-  else if (LangOpts.hasSEHExceptions())
+  else if (CGOpts.hasSEHExceptions())
     Builder.defineMacro("__SEH__");
-  else if (LangOpts.hasDWARFExceptions() &&
+  else if (CGOpts.hasDWARFExceptions() &&
            (TI.getTriple().isThumb() || TI.getTriple().isARM()))
     Builder.defineMacro("__ARM_DWARF_EH__");
-  else if (LangOpts.hasWasmExceptions() && TI.getTriple().isWasm())
+  else if (CGOpts.hasWasmExceptions() && TI.getTriple().isWasm())
     Builder.defineMacro("__WASM_EXCEPTIONS__");
 
   if (LangOpts.Deprecated)
@@ -1089,9 +1091,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__clang_wide_literal_encoding__", "\"UTF-16\"");
   }
 
-  if (LangOpts.Optimize)
+  if (CGOpts.OptimizationLevel != 0)
     Builder.defineMacro("__OPTIMIZE__");
-  if (LangOpts.OptimizeSize)
+  if (CGOpts.OptimizeSize != 0)
     Builder.defineMacro("__OPTIMIZE_SIZE__");
 
   if (LangOpts.FastMath)
@@ -1131,7 +1133,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   assert(TI.getCharWidth() == 8 && "Only support 8-bit char so far");
   Builder.defineMacro("__CHAR_BIT__", Twine(TI.getCharWidth()));
 
-  Builder.defineMacro("__BOOL_WIDTH__", Twine(TI.getBoolWidth()));
+  // The macro is specifying the number of bits in the width, not the number of
+  // bits the object requires for its in-memory representation, which is what
+  // getBoolWidth() will return. The bool/_Bool data type is only ever one bit
+  // wide. See C23 6.2.6.2p2 for the rules in C. Note that
+  // C++23 [basic.fundamental]p10 allows an implementation-defined value
+  // representation for bool; when lowering to LLVM, Clang represents bool as an
+  // i8 in memory but as an i1 when the value is needed, so '1' is also correct
+  // for C++.
+  Builder.defineMacro("__BOOL_WIDTH__", "1");
   Builder.defineMacro("__SHRT_WIDTH__", Twine(TI.getShortWidth()));
   Builder.defineMacro("__INT_WIDTH__", Twine(TI.getIntWidth()));
   Builder.defineMacro("__LONG_WIDTH__", Twine(TI.getLongWidth()));
@@ -1183,12 +1193,16 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   DefineType("__INTMAX_TYPE__", TI.getIntMaxType(), Builder);
   DefineFmt(LangOpts, "__INTMAX", TI.getIntMaxType(), TI, Builder);
-  Builder.defineMacro("__INTMAX_C_SUFFIX__",
-                      TI.getTypeConstantSuffix(TI.getIntMaxType()));
+  StringRef ConstSuffix(TI.getTypeConstantSuffix(TI.getIntMaxType()));
+  Builder.defineMacro("__INTMAX_C_SUFFIX__", ConstSuffix);
+  Builder.defineMacro("__INTMAX_C(c)",
+                      ConstSuffix.size() ? Twine("c##") + ConstSuffix : "c");
   DefineType("__UINTMAX_TYPE__", TI.getUIntMaxType(), Builder);
   DefineFmt(LangOpts, "__UINTMAX", TI.getUIntMaxType(), TI, Builder);
-  Builder.defineMacro("__UINTMAX_C_SUFFIX__",
-                      TI.getTypeConstantSuffix(TI.getUIntMaxType()));
+  ConstSuffix = TI.getTypeConstantSuffix(TI.getUIntMaxType());
+  Builder.defineMacro("__UINTMAX_C_SUFFIX__", ConstSuffix);
+  Builder.defineMacro("__UINTMAX_C(c)",
+                      ConstSuffix.size() ? Twine("c##") + ConstSuffix : "c");
   DefineType("__PTRDIFF_TYPE__", TI.getPtrDiffType(LangAS::Default), Builder);
   DefineFmt(LangOpts, "__PTRDIFF", TI.getPtrDiffType(LangAS::Default), TI,
             Builder);
@@ -1400,7 +1414,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   if (LangOpts.GNUCVersion)
     addLockFreeMacros("__GCC_ATOMIC_");
 
-  if (LangOpts.NoInlineDefine)
+  if (CGOpts.getInlining() == CodeGenOptions::OnlyAlwaysInlining)
     Builder.defineMacro("__NO_INLINE__");
 
   if (unsigned PICLevel = LangOpts.PICLevel) {
@@ -1479,8 +1493,14 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     case 50:
       Builder.defineMacro("_OPENMP", "201811");
       break;
+    case 51:
+      Builder.defineMacro("_OPENMP", "202011");
+      break;
     case 52:
       Builder.defineMacro("_OPENMP", "202111");
+      break;
+    case 60:
+      Builder.defineMacro("_OPENMP", "202411");
       break;
     default: // case 51:
       // Default version is OpenMP 5.1
@@ -1490,10 +1510,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // CUDA device path compilaton
-  if (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL()) {
+  // Enabled if CUDA device compilation mode is on unless HIP is
+  // active or SYCL is active without CUDA compatibility enabled.
+  bool EnableCUDADevicePath = LangOpts.CUDAIsDevice && !LangOpts.HIP &&
+                              (!LangOpts.isSYCL() || LangOpts.SYCLCUDACompat);
+  if (EnableCUDADevicePath) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
-    // Note: SYCL targeting nvptx-cuda relies on __SYCL_CUDA_ARCH__ instead.
+    // Note: SYCL targeting nvptx-cuda without SYCL-CUDA compatibility relies on
+    // __SYCL_CUDA_ARCH__ only instead.
     Builder.defineMacro("__CUDA_ARCH__");
   }
 
@@ -1509,17 +1534,21 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     if (LangOpts.GPURelocatableDeviceCode)
       Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
-    const llvm::Triple &DeviceTriple = TI.getTriple();
-    const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
-    if (DeviceTriple.isNVPTX() || DeviceTriple.isAMDGPU() ||
-        (DeviceTriple.isSPIR() &&
-         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga) ||
-        LangOpts.SYCLIsNativeCPU)
-      Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+    // This gets called twice, once with TI set to the host TargetInfo, once
+    // with TI set to the device TargetInfo.
+    const llvm::Triple &Triple = TI.getTriple();
+    const llvm::Triple::SubArchType SubArch = Triple.getSubArch();
+
     // Enable generation of USM address spaces for FPGA.
-    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga) {
+    if (SubArch == llvm::Triple::SPIRSubArch_fpga) {
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
+    }
+
+    if (Triple.isWindowsMSVCEnvironment()) {
+      // MSVC inline definitions of stdio functions should not be used for SYCL
+      // device code.
+      Builder.defineMacro("_NO_CRT_STDIO_INLINE");
     }
   } else if (LangOpts.SYCLIsHost && LangOpts.SYCLESIMDBuildHostCode) {
     Builder.defineMacro("__ESIMD_BUILD_HOST_CODE");
@@ -1551,6 +1580,13 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // ELF targets define __ELF__
   if (TI.getTriple().isOSBinFormatELF())
     Builder.defineMacro("__ELF__");
+
+  if (LangOpts.Sanitize.has(SanitizerKind::Address))
+    Builder.defineMacro("__SANITIZE_ADDRESS__");
+  if (LangOpts.Sanitize.has(SanitizerKind::HWAddress))
+    Builder.defineMacro("__SANITIZE_HWADDRESS__");
+  if (LangOpts.Sanitize.has(SanitizerKind::Thread))
+    Builder.defineMacro("__SANITIZE_THREAD__");
 
   // Target OS macro definitions.
   if (PPOpts.DefineTargetOSMacros) {
@@ -1596,14 +1632,13 @@ void clang::InitializePreprocessor(Preprocessor &PP,
   if (InitOpts.UsePredefines) {
     // FIXME: This will create multiple definitions for most of the predefined
     // macros. This is not the right way to handle this.
-    if ((LangOpts.CUDA || LangOpts.OpenMPIsTargetDevice ||
-         LangOpts.SYCLIsDevice) &&
-        PP.getAuxTargetInfo())
+    if ((LangOpts.CUDA || LangOpts.isTargetDevice()) && PP.getAuxTargetInfo())
       InitializePredefinedMacros(*PP.getAuxTargetInfo(), LangOpts, FEOpts,
-                                 PP.getPreprocessorOpts(), Builder);
+                                 PP.getPreprocessorOpts(), CodeGenOpts,
+                                 Builder);
 
     InitializePredefinedMacros(PP.getTargetInfo(), LangOpts, FEOpts,
-                               PP.getPreprocessorOpts(), Builder);
+                               PP.getPreprocessorOpts(), CodeGenOpts, Builder);
 
     // Install definitions to make Objective-C++ ARC work well with various
     // C++ Standard Library implementations.
@@ -1677,4 +1712,11 @@ void clang::InitializePreprocessor(Preprocessor &PP,
 
   // Copy PredefinedBuffer into the Preprocessor.
   PP.setPredefines(std::move(PredefineBuffer));
+
+  // Match gcc behavior regarding gnu-line-directive diagnostics, assuming that
+  // '-x <*>-cpp-output' is analogous to '-fpreprocessed'.
+  if (FEOpts.DashX.isPreprocessed()) {
+    PP.getDiagnostics().setSeverity(diag::ext_pp_gnu_line_directive,
+                                    diag::Severity::Ignored, SourceLocation());
+  }
 }

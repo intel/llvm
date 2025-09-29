@@ -1,0 +1,119 @@
+#
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for enqueuing work through native APIs"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support native enqueue."
+name: $x_device_info_t
+etors:
+    - name: ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP
+      value: "0x2020"
+      desc: "[$x_bool_t] returns true if the device supports enqueueing of native work"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: ENQUEUE_NATIVE_EXP
+      value: "0x2004"
+      desc: Event created by $xEnqueueNativeCommandExp
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Native enqueue properties"
+name: $x_exp_enqueue_native_command_flags_t
+etors:
+    - name: TBD
+      desc: "reserved for future use."
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Native enqueue properties"
+name: $x_exp_enqueue_native_command_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_enqueue_native_command_flags_t
+      name: flags
+      desc: "[in] native enqueue flags"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES
+      desc: $x_exp_enqueue_native_command_properties_t
+      value: "0x3000"
+
+--- #--------------------------------------------------------------------------
+type: fptr_typedef
+desc: "Function enqueueing work through the native API to be executed immediately."
+name: $x_exp_enqueue_native_command_function_t
+return: void
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: void*
+      name: pUserData
+      desc: "[in][out] pointer to data to be passed to callback"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Immediately enqueue work through a native backend API"
+class: $xEnqueue
+name: NativeCommandExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_exp_enqueue_native_command_function_t
+      desc: "[in] function calling the native underlying API, to be executed immediately."
+      name: pfnNativeEnqueue
+    - type: void*
+      name: data
+      desc: "[in][optional] data used by pfnNativeEnqueue"
+    - type: uint32_t
+      name: numMemsInMemList
+      desc: "[in] size of the mem list"
+    - type: const $x_mem_handle_t*
+      name: phMemList
+      desc: |
+            [in][optional][range(0, numMemsInMemList)] mems that are used within pfnNativeEnqueue using $xMemGetNativeHandle.
+            If nullptr, the numMemsInMemList must be 0, indicating that no mems are accessed with $xMemGetNativeHandle within pfnNativeEnqueue.
+    - type: const $x_exp_enqueue_native_command_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the native enqueue properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional][alloc] return an event object that identifies the work that has
+            been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST

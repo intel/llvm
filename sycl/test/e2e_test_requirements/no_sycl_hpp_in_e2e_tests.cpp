@@ -1,12 +1,12 @@
 // REQUIRES: linux
 //
 // RUN: grep -r -l 'sycl.hpp' %S/../../test-e2e | FileCheck  %s
-// RUN: grep -r -l 'sycl.hpp' %S/../../test-e2e | wc -l | FileCheck %s --check-prefix CHECK-NUM-MATCHES
+// RUN: grep -r -l 'sycl.hpp' %S/../../test-e2e | grep -v 'test-e2e/PerformanceTests/' | wc -l | FileCheck %s --check-prefix CHECK-NUM-MATCHES
 //
 // CHECK-DAG: README.md
 // CHECK-DAG: lit.cfg.py
 //
-// CHECK-NUM-MATCHES: 5
+// CHECK-NUM-MATCHES: 29
 //
 // This test verifies that `<sycl/sycl.hpp>` isn't used in E2E tests. Instead,
 // fine-grained includes should used, see

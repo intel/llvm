@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
@@ -66,8 +67,7 @@ annotated_arg(T, Args...)
     -> annotated_arg<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
-annotated_arg(annotated_arg<T, old>,
-              properties<detail::properties_type_list<ArgT...>>)
+annotated_arg(annotated_arg<T, old>, detail::properties_t<ArgT...>)
     -> annotated_arg<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 

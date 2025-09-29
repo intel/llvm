@@ -40,7 +40,6 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVENTRY_H
 #define SPIRV_LIBSPIRV_SPIRVENTRY_H
 
-#include "LLVMSPIRVOpts.h"
 #include "SPIRVEnum.h"
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
@@ -413,7 +412,10 @@ public:
       std::stringstream SS;
       SS << "Id: " << Id << ", OpCode: " << OpCodeNameMap::map(OpCode)
          << ", Name: \"" << Name << "\"\n";
-      getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+      getErrorLog().checkError(
+          false, SPIRVEC_InvalidWordCount,
+          "Can't encode instruction with word count greater than 65535:\n" +
+              SS.str());
     }
   }
   void validateFunctionControlMask(SPIRVWord FCtlMask) const;
@@ -807,6 +809,12 @@ public:
       return nullptr;
     return Loc->second;
   }
+  SPIRVExecutionModeId *getExecutionModeId(SPIRVExecutionModeKind EMK) const {
+    auto Loc = ExecModes.find(EMK);
+    if (Loc == ExecModes.end())
+      return nullptr;
+    return static_cast<SPIRVExecutionModeId *>(Loc->second);
+  }
   SPIRVExecutionModeRange
   getExecutionModeRange(SPIRVExecutionModeKind EMK) const {
     return ExecModes.equal_range(EMK);
@@ -904,10 +912,15 @@ public:
     case CapabilityVectorComputeINTEL:
     case CapabilityVectorAnyINTEL:
       return ExtensionID::SPV_INTEL_vector_compute;
-    case internal::CapabilityFastCompositeINTEL:
-      return ExtensionID::SPV_INTEL_fast_composite;
     case internal::CapabilitySubgroupRequirementsINTEL:
       return ExtensionID::SPV_INTEL_subgroup_requirements;
+    case CapabilityFPFastMathModeINTEL:
+      return ExtensionID::SPV_INTEL_fp_fast_math_mode;
+    case CapabilityFunctionVariantsINTEL:
+    case CapabilitySpecConditionalINTEL:
+      return ExtensionID::SPV_INTEL_function_variants;
+    case internal::CapabilityBFloat16ArithmeticINTEL:
+      return ExtensionID::SPV_INTEL_bfloat16_arithmetic;
     default:
       return {};
     }
@@ -960,7 +973,7 @@ public:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_long_constant_composite;
+    return ExtensionID::SPV_INTEL_long_composites;
   }
 
   SPIRVWord getNumElements() const { return Elements.size(); }
@@ -1043,7 +1056,6 @@ private:
 _SPIRV_OP(Nop)
 _SPIRV_OP(SourceContinued)
 _SPIRV_OP(TypeRuntimeArray)
-_SPIRV_OP(Image)
 _SPIRV_OP(ImageTexelPointer)
 _SPIRV_OP(ImageSampleDrefImplicitLod)
 _SPIRV_OP(ImageSampleDrefExplicitLod)
@@ -1089,7 +1101,6 @@ _SPIRV_OP(NamedBarrierInitialize)
 _SPIRV_OP(MemoryNamedBarrier)
 _SPIRV_OP(GetKernelMaxNumSubgroups)
 _SPIRV_OP(GetKernelLocalSizeForSubgroupCount)
-_SPIRV_OP(SizeOf)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

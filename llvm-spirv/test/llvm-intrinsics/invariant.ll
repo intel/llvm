@@ -14,10 +14,10 @@ target triple = "spir64-unknown-linux"
 @WGSharedVar = internal addrspace(3) constant i64 0, align 8
 
 ; Function Attrs: argmemonly nounwind
-declare ptr @llvm.invariant.start.p3(i64 immarg, ptr addrspace(3) nocapture) #0
+declare ptr @llvm.invariant.start.p3(i64 immarg, ptr addrspace(3) captures(none)) #0
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.invariant.end.p3(ptr, i64 immarg, ptr addrspace(3) nocapture) #0
+declare void @llvm.invariant.end.p3(ptr, i64 immarg, ptr addrspace(3) captures(none)) #0
 
 define linkonce_odr dso_local spir_func void @func() {
   store i64 2, ptr addrspace(3) @WGSharedVar

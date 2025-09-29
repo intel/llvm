@@ -34,8 +34,8 @@ target triple = "spir64-unknown-unknown"
 ; Make sure the condition test is attributed to the inline function, not the
 ; location of the test's operands within the caller.
 
-; ASM: # inline-seldag-test.c:2:0
-; ASM-NOT: .loc
+; ASM: # inline-seldag-test.c:
+; ASM: .loc 1 2 0 # inline-seldag-test.c:2 @[ inline-seldag-test.c:6
 ; ASM: testl
 
 ; Function Attrs: nounwind uwtable

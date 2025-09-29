@@ -1,9 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests how the nd-range of a node is overwritten by the active command-group
 
@@ -36,10 +34,10 @@ int main() {
   sycl::range<1> UpdateRange(NewRange);
   DynamicCGNode.update_range(UpdateRange);
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
 
   // Check that the UpdateRange from active CGF 0 is preserved
-  DynamicCG.set_active_cgf(0);
+  DynamicCG.set_active_index(0);
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();

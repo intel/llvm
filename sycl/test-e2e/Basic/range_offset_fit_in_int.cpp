@@ -8,21 +8,17 @@
 
 namespace S = sycl;
 
-void checkRangeException(S::exception &E) {
-  constexpr char Msg[] = "Provided range is out of integer limits. "
-                         "Pass `-fno-sycl-id-queries-fit-in-int' to "
-                         "disable range check.";
+constexpr char Msg[] = "Provided range and/or offset does not fit in int. "
+                       "Pass `-fno-sycl-id-queries-fit-in-int' to "
+                       "remove this limit.";
 
+void checkRangeException(S::exception &E) {
   std::cerr << E.what() << std::endl;
 
   assert(std::string(E.what()).find(Msg) == 0 && "Unexpected message");
 }
 
 void checkOffsetException(S::exception &E) {
-  constexpr char Msg[] = "Provided offset is out of integer limits. "
-                         "Pass `-fno-sycl-id-queries-fit-in-int' to "
-                         "disable offset check.";
-
   std::cerr << E.what() << std::endl;
 
   assert(std::string(E.what()).find(Msg) == 0 && "Unexpected message");
@@ -47,8 +43,6 @@ void test() {
   S::id<2> OffsetInLimits{1, 1};
   S::id<2> OffsetInLimits_Large{(OutOfLimitsSize / 4) * 3, 1};
   S::nd_range<2> NDRange_ROL_LIL_OIL{RangeOutOfLimits, RangeInLimits,
-                                     OffsetInLimits};
-  S::nd_range<2> NDRange_RIL_LOL_OIL{RangeInLimits, RangeOutOfLimits,
                                      OffsetInLimits};
   S::nd_range<2> NDRange_RIL_LIL_OOL{RangeInLimits, RangeInLimits,
                                      OffsetOutOfLimits};
@@ -175,22 +169,6 @@ void test() {
 
       CGH.parallel_for<class PF_ND_GOL_LIL_OIL>(
           NDRange_ROL_LIL_OIL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
-    });
-
-    assert(false && "Exception expected");
-  } catch (S::exception &E) {
-    checkRangeException(E);
-  } catch (...) {
-    assert(false && "Unexpected exception catched");
-  }
-
-  // small offset, local range is out of limits
-  try {
-    Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
-
-      CGH.parallel_for<class PF_ND_GIL_LOL_OIL>(
-          NDRange_RIL_LOL_OIL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
     });
 
     assert(false && "Exception expected");

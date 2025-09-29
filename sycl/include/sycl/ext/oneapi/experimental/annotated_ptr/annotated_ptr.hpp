@@ -236,8 +236,7 @@ annotated_ptr(T *, Args...)
     -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
-annotated_ptr(annotated_ptr<T, old>,
-              properties<detail::properties_type_list<ArgT...>>)
+annotated_ptr(annotated_ptr<T, old>, detail::properties_t<ArgT...>)
     -> annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides

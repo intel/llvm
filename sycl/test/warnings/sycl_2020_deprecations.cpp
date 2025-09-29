@@ -2,7 +2,6 @@
 
 // expected-warning@CL/sycl.hpp:* {{CL/sycl.hpp is deprecated, use sycl/sycl.hpp}}
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -88,11 +87,6 @@ int main() {
   // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
   sycl::exception ex;
 
-  // expected-warning@+1{{'online_compiler<sycl::ext::intel::experimental::source_language::opencl_c>' is deprecated}}
-  sycl::ext::intel::experimental::online_compiler<
-      sycl::ext::intel::experimental::source_language::opencl_c>
-      oc(Device);
-
   Queue.submit([](sycl::handler &CGH) {
     // expected-warning@+3{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
     // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
@@ -137,7 +131,7 @@ int main() {
   using PIUS = sycl::info::device::preferred_interop_user_sync;
   // expected-warning@+1{{'image_max_array_size' is deprecated: support for image arrays has been removed in SYCL 2020}}
   using IMAS = sycl::info::device::image_max_array_size;
-  // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_backend_info instead}}
+  // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_info instead}}
   using OCV = sycl::info::device::opencl_c_version;
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
@@ -288,7 +282,7 @@ int main() {
           int PrivateVal = 0;
 
           // expected-warning@+8{{'get_pointer' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
-          // expected-warning@+7{{'get_pointer<sycl::access::target::global_buffer, void>' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
+          // expected-warning@+7{{'get_pointer<sycl::access::target::device, void>' is deprecated: accessor::get_pointer() is deprecated, please use get_multi_ptr()}}
           // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::legacy, void>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
           sycl::multi_ptr<int, sycl::access::address_space::global_space,
                           sycl::access::decorated::legacy>

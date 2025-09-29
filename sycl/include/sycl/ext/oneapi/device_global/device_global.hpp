@@ -83,7 +83,7 @@ protected:
 
 #ifndef __SYCL_DEVICE_ONLY__
   template <typename OtherT, typename OtherProps>
-  static constexpr const T &
+  static constexpr const OtherT &
   ExtractInitialVal(const device_global_base<OtherT, OtherProps> &Other) {
     if constexpr (OtherProps::template has_property<device_image_scope_key>())
       return Other.val;

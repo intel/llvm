@@ -78,7 +78,7 @@ template <int N> inline bool any(simd_mask<N> m, simd_mask<N> ignore_mask) {
 // The main test function
 
 template <class T, int N, template <class, int> class ImplF, bool UseMask>
-bool test_slm(queue q) {
+bool test_slm(queue &q) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
@@ -202,7 +202,7 @@ bool test_slm(queue q) {
 }
 
 template <class T, int N, template <class, int> class ImplF, bool UseMask>
-bool test_slm_acc(queue q) {
+bool test_slm_acc(queue &q) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
@@ -542,7 +542,7 @@ struct ImplLSCFcmpwr : ImplCmpxchgBase<T, N, atomic_op, atomic_op::fcmpxchg> {};
 
 template <bool UseAcc, class T, int N, template <class, int> class ImplF,
           bool UseMask>
-auto run_test(queue q) {
+auto run_test(queue &q) {
   if constexpr (UseAcc) {
     return test_slm_acc<T, N, ImplF, UseMask>(q);
   } else {
@@ -553,7 +553,7 @@ auto run_test(queue q) {
 template <int N, template <class, int> class Op, bool UseMask,
           TestFeatures Features, bool UseAcc,
           int SignMask = (Signed | Unsigned)>
-bool test_int_types(queue q) {
+bool test_int_types(queue &q) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
     if constexpr (Features == TestFeatures::DG2 ||
@@ -585,7 +585,7 @@ bool test_int_types(queue q) {
 
 template <int N, template <class, int> class Op, bool UseMask,
           TestFeatures Features, bool UseAcc>
-bool test_fp_types(queue q) {
+bool test_fp_types(queue &q) {
   bool passed = true;
 
   // TODO: Enable 'half' FADD/FSUB on DG2 when the error in GPU driver is fixed.
@@ -612,7 +612,7 @@ bool test_fp_types(queue q) {
 
 template <template <class, int> class Op, bool UseMask, TestFeatures Features,
           bool UseAcc, int SignMask = (Signed | Unsigned)>
-bool test_int_types_and_sizes(queue q) {
+bool test_int_types_and_sizes(queue &q) {
   bool passed = true;
   passed &= test_int_types<1, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<2, Op, UseMask, Features, UseAcc, SignMask>(q);
@@ -636,7 +636,7 @@ bool test_int_types_and_sizes(queue q) {
 
 template <template <class, int> class Op, bool UseMask, TestFeatures Features,
           bool UseAcc>
-bool test_fp_types_and_sizes(queue q) {
+bool test_fp_types_and_sizes(queue &q) {
   bool passed = true;
   passed &= test_fp_types<1, Op, UseMask, Features, UseAcc>(q);
   passed &= test_fp_types<2, Op, UseMask, Features, UseAcc>(q);
@@ -656,7 +656,7 @@ bool test_fp_types_and_sizes(queue q) {
 }
 
 template <bool UseMask, TestFeatures Features, bool UseAcc>
-int test_with_mask(queue q) {
+int test_with_mask(queue &q) {
   bool passed = true;
 #ifndef CMPXCHG_TEST
   passed &= test_int_types_and_sizes<ImplInc, UseMask, Features, UseAcc>(q);
@@ -708,26 +708,38 @@ int test_with_mask(queue q) {
   return passed;
 }
 
-template <TestFeatures Features> bool test_main(queue q) {
+template <TestFeatures Features, bool PartOne> bool test_main(queue &q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
   constexpr const bool UseAcc = true;
 
-  passed &= test_with_mask<UseMask, Features, !UseAcc>(q);
-  passed &= test_with_mask<!UseMask, Features, !UseAcc>(q);
+  if constexpr (PartOne)
+    passed &= test_with_mask<UseMask, Features, !UseAcc>(q);
+  else
+    passed &= test_with_mask<!UseMask, Features, !UseAcc>(q);
 
   return passed;
 }
 
-template <TestFeatures Features> bool test_main_acc(queue q) {
+template <TestFeatures Features> bool test_main(queue &q) {
+  return test_main<Features, true>(q) && test_main<Features, false>(q);
+}
+
+template <TestFeatures Features, bool PartOne> bool test_main_acc(queue &q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
   constexpr const bool UseAcc = true;
 
-  passed &= test_with_mask<UseMask, Features, UseAcc>(q);
-  passed &= test_with_mask<!UseMask, Features, UseAcc>(q);
+  if constexpr (PartOne)
+    passed &= test_with_mask<UseMask, Features, UseAcc>(q);
+  else
+    passed &= test_with_mask<!UseMask, Features, UseAcc>(q);
 
   return passed;
+}
+
+template <TestFeatures Features> bool test_main_acc(queue &q) {
+  return test_main_acc<Features, true>(q) && test_main_acc<Features, false>(q);
 }

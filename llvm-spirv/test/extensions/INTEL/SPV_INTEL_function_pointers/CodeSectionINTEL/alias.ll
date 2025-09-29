@@ -10,11 +10,11 @@ target triple = "spir64-unknown-unknown"
 ; when used since they can't be translated directly.
 
 ; CHECK-SPIRV-DAG: Name [[#FOO:]] "foo"
-; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#BAR:]] "bar"
+; CHECK-SPIRV-DAG: Name [[#BAR:]] "bar"
 ; CHECK-SPIRV-DAG: Name [[#Y:]] "y"
 ; CHECK-SPIRV-DAG: Name [[#FOOPTR:]] "foo.alias"
 ; CHECK-SPIRV-DAG: Decorate [[#FOO]] LinkageAttributes "foo" Export
-; INTEL-CHECK-SPIRV-DAG: Decorate [[#BAR]] LinkageAttributes "bar" Export
+; CHECK-SPIRV-DAG: Decorate [[#BAR]] LinkageAttributes "bar" Export
 ; CHECK-SPIRV-DAG: TypeInt [[#I32:]] 32 0
 ; CHECK-SPIRV-DAG: TypeInt [[#I64:]] 64 0
 ; CHECK-SPIRV-DAG: TypeFunction [[#FOO_TYPE:]] [[#I32]] [[#I32]]

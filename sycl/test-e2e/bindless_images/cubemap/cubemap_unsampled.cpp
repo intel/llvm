@@ -1,4 +1,4 @@
-// REQUIRES: cuda,aspect-ext_oneapi_cubemap
+// REQUIRES: aspect-ext_oneapi_cubemap
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out

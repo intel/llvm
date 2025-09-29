@@ -104,6 +104,11 @@ struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
+
+private:
+  constexpr size_t size() const { return sizeof...(Dims) + 1; }
+
+  template <typename, typename> friend struct detail::ConflictingProperties;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -190,6 +195,11 @@ struct property_value<max_work_group_size_key,
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
+
+private:
+  constexpr size_t size() const { return sizeof...(Dims) + 1; }
+
+  template <typename, typename> friend struct detail::ConflictingProperties;
 };
 
 template <>
@@ -317,10 +327,6 @@ template <forward_progress_guarantee Guarantee,
 inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope>
     work_item_progress;
 
-template <> struct is_property_key<work_group_progress_key> : std::true_type {};
-template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
-template <> struct is_property_key<work_item_progress_key> : std::true_type {};
-
 namespace detail {
 
 template <size_t... Dims>
@@ -389,78 +395,53 @@ struct HasKernelPropertiesGetMethod<T,
       decltype(std::declval<T>().get(std::declval<properties_tag>()));
 };
 
-// Trait for property compile-time meta names and values.
-template <typename PropertyT> struct WGSizePropertyMetaInfo {
-  static constexpr std::array<size_t, 0> WGSize = {};
-  static constexpr size_t LinearSize = 0;
-};
-
-template <size_t Dim0, size_t... Dims>
-struct WGSizePropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
-  static constexpr std::array<size_t, sizeof...(Dims) + 1> WGSize = {Dim0,
-                                                                     Dims...};
-  static constexpr size_t LinearSize = (Dim0 * ... * Dims);
-};
-
-template <size_t Dim0, size_t... Dims>
-struct WGSizePropertyMetaInfo<max_work_group_size_key::value_t<Dim0, Dims...>> {
-  static constexpr std::array<size_t, sizeof...(Dims) + 1> WGSize = {Dim0,
-                                                                     Dims...};
-  static constexpr size_t LinearSize = (Dim0 * ... * Dims);
-};
-
-// Get the value of a work-group size related property from a property list
-template <typename PropKey, typename PropertiesT>
-struct GetWGPropertyFromPropList {};
-
-template <typename PropKey, typename... PropertiesT>
-struct GetWGPropertyFromPropList<PropKey, std::tuple<PropertiesT...>> {
-  using prop_val_t = std::conditional_t<
-      ContainsProperty<PropKey, std::tuple<PropertiesT...>>::value,
-      typename FindCompileTimePropertyValueType<
-          PropKey, std::tuple<PropertiesT...>>::type,
-      void>;
-  static constexpr auto WGSize =
-      WGSizePropertyMetaInfo<std::remove_const_t<prop_val_t>>::WGSize;
-  static constexpr size_t LinearSize =
-      WGSizePropertyMetaInfo<std::remove_const_t<prop_val_t>>::LinearSize;
-};
-
 // If work_group_size and max_work_group_size coexist, check that the
 // dimensionality matches and that the required work-group size doesn't
 // trivially exceed the maximum size.
 template <typename Properties>
-struct ConflictingProperties<max_work_group_size_key, Properties>
-    : std::false_type {
-  using WGSizeVal = GetWGPropertyFromPropList<work_group_size_key, Properties>;
-  using MaxWGSizeVal =
-      GetWGPropertyFromPropList<max_work_group_size_key, Properties>;
-  // If work_group_size_key doesn't exist in the list of properties, WGSize is
-  // an empty array and so Dims == 0.
-  static constexpr size_t Dims = WGSizeVal::WGSize.size();
-  static_assert(
-      Dims == 0 || Dims == MaxWGSizeVal::WGSize.size(),
-      "work_group_size and max_work_group_size dimensionality must match");
-  static_assert(Dims < 1 || WGSizeVal::WGSize[0] <= MaxWGSizeVal::WGSize[0],
-                "work_group_size must not exceed max_work_group_size");
-  static_assert(Dims < 2 || WGSizeVal::WGSize[1] <= MaxWGSizeVal::WGSize[1],
-                "work_group_size must not exceed max_work_group_size");
-  static_assert(Dims < 3 || WGSizeVal::WGSize[2] <= MaxWGSizeVal::WGSize[2],
-                "work_group_size must not exceed max_work_group_size");
+struct ConflictingProperties<max_work_group_size_key, Properties> {
+  static constexpr bool value = []() constexpr {
+    if constexpr (Properties::template has_property<work_group_size_key>()) {
+      constexpr auto wg_size =
+          Properties::template get_property<work_group_size_key>();
+      constexpr auto max_wg_size =
+          Properties::template get_property<max_work_group_size_key>();
+      static_assert(
+          wg_size.size() == max_wg_size.size(),
+          "work_group_size and max_work_group_size dimensionality must match");
+      if constexpr (wg_size.size() == max_wg_size.size()) {
+        constexpr auto Dims = wg_size.size();
+        static_assert(Dims < 1 || wg_size[0] <= max_wg_size[0],
+                      "work_group_size must not exceed max_work_group_size");
+        static_assert(Dims < 2 || wg_size[1] <= max_wg_size[1],
+                      "work_group_size must not exceed max_work_group_size");
+        static_assert(Dims < 3 || wg_size[2] <= max_wg_size[2],
+                      "work_group_size must not exceed max_work_group_size");
+      }
+    }
+    return false;
+  }();
 };
 
 // If work_group_size and max_linear_work_group_size coexist, check that the
 // required linear work-group size doesn't trivially exceed the maximum size.
 template <typename Properties>
-struct ConflictingProperties<max_linear_work_group_size_key, Properties>
-    : std::false_type {
-  using WGSizeVal = GetWGPropertyFromPropList<work_group_size_key, Properties>;
-  using MaxLinearWGSizeVal =
-      GetPropertyValueFromPropList<max_linear_work_group_size_key, size_t, void,
-                                   Properties>;
-  static_assert(WGSizeVal::WGSize.empty() ||
-                    WGSizeVal::LinearSize <= MaxLinearWGSizeVal::value,
-                "work_group_size must not exceed max_linear_work_group_size");
+struct ConflictingProperties<max_linear_work_group_size_key, Properties> {
+  static constexpr bool value = []() constexpr {
+    if constexpr (Properties::template has_property<work_group_size_key>()) {
+      constexpr auto wg_size =
+          Properties::template get_property<work_group_size_key>();
+      constexpr auto dims = wg_size.size();
+      constexpr auto linear_size = wg_size[0] * (dims > 1 ? wg_size[1] : 1) *
+                                   (dims > 2 ? wg_size[2] : 1);
+      constexpr auto max_linear_wg_size =
+          Properties::template get_property<max_linear_work_group_size_key>();
+      static_assert(
+          linear_size < max_linear_wg_size.value,
+          "work_group_size must not exceed max_linear_work_group_size");
+    }
+    return false;
+  }();
 };
 
 } // namespace detail

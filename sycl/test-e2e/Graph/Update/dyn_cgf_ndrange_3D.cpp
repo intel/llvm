@@ -1,12 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-// Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-
-// XFAIL: level_zero
-// XFAIL-TRACKER: OFNAAO-307
+// RUN: %if level_zero %{%{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests updating a dynamic command-group node where the dynamic command-groups
 // have different range/nd-range dimensions
@@ -57,7 +52,7 @@ int main() {
     assert(HostData[i] == PatternA);
   }
 
-  DynamicCG.set_active_cgf(1);
+  DynamicCG.set_active_index(1);
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
@@ -66,7 +61,7 @@ int main() {
     assert(HostData[i] == PatternB);
   }
 
-  DynamicCG.set_active_cgf(2);
+  DynamicCG.set_active_index(2);
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();

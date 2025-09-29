@@ -1,10 +1,20 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
+
+// The following is an ugly hack to make CI pass. The issue here is that when
+// sycl-toolchain is built with assertions enabled, then we hit one at
+// `DeviceGlobalUSMMem::~DeviceGlobalUSMMem()` and exit with abort. If not, then
+// sanitizer does `exit(1)`.
+
 // RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
 // RUN: %{run} not %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+
+// Flakily timesout on PVC
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16401
 
 #include <sycl/detail/core.hpp>
 

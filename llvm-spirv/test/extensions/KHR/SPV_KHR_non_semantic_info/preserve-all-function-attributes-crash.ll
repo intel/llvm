@@ -15,7 +15,7 @@ define spir_kernel void @test_array(ptr addrspace(1) %in, ptr addrspace(1) %out)
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memmove.p1.p1.i32(ptr addrspace(1) nocapture, ptr addrspace(1) nocapture readonly, i32, i1) #0
+declare void @llvm.memmove.p1.p1.i32(ptr addrspace(1) captures(none), ptr addrspace(1) captures(none) readonly, i32, i1) #0
 ; CHECK-SPIRV: Name [[#ID:]] "llvm.memmove.p1.p1.i32"
 ; CHECK-LLVM-NOT: llvm.memmove
 

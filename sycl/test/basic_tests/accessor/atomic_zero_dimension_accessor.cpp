@@ -1,10 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %clangxx -fsycl -fsyntax-only -fsycl-targets=spir64_fpga %s
 
 // When using zero dimension accessors with atomic access we
-// want to make sure they are compiling correctly on all devices,
-// especially FPGA which changes some of the template specializations
-// with the __ENABLE_USM_ADDR_SPACE__ macro.
+// want to make sure they are compiling correctly on all devices.
 
 #include <sycl/sycl.hpp>
 

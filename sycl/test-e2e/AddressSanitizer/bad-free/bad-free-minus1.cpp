@@ -1,4 +1,4 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
 // RUN: %force_device_asan_rt %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
 // RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t2.out
@@ -31,3 +31,4 @@ int main() {
 // CHECK-HOST: in main {{.*bad-free-minus1.cpp:}}[[@LINE-15]]
 // CHECK-SHARED: in main {{.*bad-free-minus1.cpp:}}[[@LINE-14]]
 // CHECK-DEVICE: in main {{.*bad-free-minus1.cpp:}}[[@LINE-13]]
+// CHECK-NOT: terminate called after throwing an instance

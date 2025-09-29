@@ -17,7 +17,7 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
   queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
+  detail::queue_impl &QueueDevImpl = *detail::getSyclObjImpl(QueueDev);
 
   std::vector<detail::Command *> ToEnqueue;
 
@@ -27,14 +27,14 @@ TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
   sycl::accessor<int, 0, sycl::access::mode::read_write, sycl::target::device>
       B;
 
-  MockCGH.single_task<class acc_with_zero_dim>([=]() {
+  MockCGH.single_task<class TestKernelWithAcc>([=]() {
     int size = B.size();
     (void)size;
   });
 
   std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
 
-  detail::Command *NewCmd = MS.addCG(std::move(CmdGroup), QueueDevImpl,
+  detail::Command *NewCmd = MS.addCG(std::move(CmdGroup), &QueueDevImpl,
                                      ToEnqueue, /*EventNeeded=*/true);
 
   // if MDeps is empty, accessor built from default ctor does not affect

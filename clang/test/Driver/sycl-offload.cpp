@@ -48,8 +48,6 @@
 // RUN:  touch %t_empty.o
 // RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
-// RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
 // RUN:  %clangxx -### -fsycl --offload-new-driver -target x86_64-unknown-linux-gnu -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix DEFAULT_LINK %s
 // DEFAULT_LINK: clang-linker-wrapper{{.*}}
@@ -103,7 +101,7 @@
 // RUN:  | FileCheck %s -check-prefixes=CHECK_FSYCL_FP64_CONV_EMU_WIN
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
-// CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
+// CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
 
 /// Compilation checks to make sure an early empty -fsycl-targets does not
 /// crash.

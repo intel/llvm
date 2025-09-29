@@ -11,10 +11,14 @@
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
+
 #include <sycl/ext/oneapi/get_kernel_info.hpp>
 
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi;
+
+class SingleTask;
 
 auto checkExceptionIsThrown = [](auto &getInfoFunc,
                                  const std::string &refErrMsg,
@@ -38,13 +42,13 @@ int main() {
   queue q;
   auto ctx = q.get_context();
   buffer<int, 1> buf(range<1>(1));
-  auto kernelID = sycl::get_kernel_id<class SingleTask>();
+  auto kernelID = sycl::get_kernel_id<SingleTask>();
   auto kb = get_kernel_bundle<bundle_state::executable>(ctx, {kernelID});
   kernel krn = kb.get_kernel(kernelID);
 
   q.submit([&](handler &cgh) {
     auto acc = buf.get_access<access::mode::read_write>(cgh);
-    cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
+    cgh.single_task<SingleTask>([=]() { acc[0] = acc[0] + 1; });
   });
 
   const std::string krnName = krn.get_info<info::kernel::function_name>();
@@ -99,6 +103,12 @@ int main() {
       krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
   assert(compileNumSg <= maxNumSg);
 
+  size_t spillMemSz = 0;
+  if (dev.has(aspect::ext_intel_spill_memory_size)) {
+    spillMemSz = krn.get_info<
+        ext::intel::info::kernel_device_specific::spill_memory_size>(dev);
+  }
+
   // Use ext_oneapi_get_kernel_info extension and check that answers match.
   const size_t wgSizeExt = syclex::get_kernel_info<
       SingleTask, info::kernel_device_specific::work_group_size>(ctx, dev);
@@ -122,6 +132,13 @@ int main() {
       SingleTask, info::kernel_device_specific::compile_num_sub_groups>(ctx,
                                                                         dev);
   assert(compileNumSgExt == compileNumSg);
+
+  if (dev.has(aspect::ext_intel_spill_memory_size)) {
+    const size_t spillMemSizeExt = syclex::get_kernel_info<
+        SingleTask,
+        ext::intel::info::kernel_device_specific::spill_memory_size>(ctx, dev);
+    assert(spillMemSizeExt == spillMemSz);
+  }
 
   // Use ext_oneapi_get_kernel_info extension with queue parameter and check the
   // result.

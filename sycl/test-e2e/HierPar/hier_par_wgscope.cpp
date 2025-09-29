@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 //
 // Test hangs on AMD
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 
 //==- hier_par_wgscope.cpp --- hierarchical parallelism test for WG scope---==//
 //

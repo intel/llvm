@@ -1,0 +1,1 @@
+RUN: UR_ENABLE_LOADER_INTERCEPT=1 %use-mock loader-handles-test

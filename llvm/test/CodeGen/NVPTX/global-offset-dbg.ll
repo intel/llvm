@@ -8,7 +8,7 @@ target triple = "nvptx64-nvidia-cuda"
 
 declare ptr @llvm.nvvm.implicit.offset()
 
-define i64 @_ZTS14other_function() !dbg !11 {
+define i64 @_ZTS14other_function() !dbg !10 {
   %1 = tail call ptr @llvm.nvvm.implicit.offset()
   %2 = getelementptr inbounds i32, ptr %1, i64 2
   %3 = load i32, ptr %2, align 4
@@ -16,58 +16,57 @@ define i64 @_ZTS14other_function() !dbg !11 {
   ret i64 %4
 }
 
-define void @_ZTS14example_kernel() !dbg !14 {
+define ptx_kernel void @_ZTS14example_kernel() !dbg !13 {
 entry:
-  %0 = call i64 @_ZTS14other_function(), !dbg !15
+  %0 = call i64 @_ZTS14other_function(), !dbg !14
   ret void
 }
 
 !llvm.dbg.cu = !{!0}
-!llvm.module.flags = !{!3, !4, !10}
-!nvvm.annotations = !{!5, !6, !7, !6, !8, !8, !8, !8, !9, !9, !8}
-!nvvmir.version = !{!6}
+!llvm.module.flags = !{!3, !4, !9}
+!nvvm.annotations = !{!5, !6, !5, !7, !7, !7, !7, !8, !8, !7}
+!nvvmir.version = !{!5}
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus, file: !1, producer: "clang version 0.0.0", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None)
 !1 = !DIFile(filename: "global-offset-debug.cpp", directory: "/tmp")
 !2 = !{}
 !3 = !{i32 2, !"Dwarf Version", i32 4}
 !4 = !{i32 2, !"Debug Info Version", i32 3}
-!5 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
-!6 = !{i32 1, i32 4}
-!7 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
-!8 = !{null, !"align", i32 16}
-!9 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
-!10 = !{i32 1, !"sycl-device", i32 1}
-!11 = distinct !DISubprogram(name: "other_function", scope: !1, file: !1, line: 3, type: !12, scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
-!12 = !DISubroutineType(types: !13)
-!13 = !{null}
-!14 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !12, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
-!15 = !DILocation(line: 1, column: 2, scope: !14)
+!5 = !{i32 1, i32 4}
+!6 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
+!7 = !{null, !"align", i32 16}
+!8 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
+!9 = !{i32 1, !"sycl-device", i32 1}
+!10 = distinct !DISubprogram(name: "other_function", scope: !1, file: !1, line: 3, type: !11, scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
+!11 = !DISubroutineType(types: !12)
+!12 = !{null}
+!13 = distinct !DISubprogram(name: "example_kernel", scope: !1, file: !1, line: 10, type: !11, scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: !0, retainedNodes: !2)
+!14 = !DILocation(line: 1, column: 2, scope: !13)
 ; CHECK-LABEL: define i64 @_ZTS14other_function(
-; CHECK-SAME: ) !dbg [[DBG12:![0-9]+]] {
+; CHECK-SAME: ) !dbg [[DBG7:![0-9]+]] {
 ; CHECK-NEXT:    [[TMP1:%.*]] = zext i32 0 to i64
 ; CHECK-NEXT:    ret i64 [[TMP1]]
 ;
 ;
 ; CHECK-LABEL: define i64 @_ZTS14other_function_with_offset(
-; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG15:![0-9]+]] {
+; CHECK-SAME: ptr [[TMP0:%.*]]) !dbg [[DBG10:![0-9]+]] {
 ; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds i32, ptr [[TMP0]], i64 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = zext i32 [[TMP3]] to i64
 ; CHECK-NEXT:    ret i64 [[TMP4]]
 ;
 ;
-; CHECK-LABEL: define void @_ZTS14example_kernel(
-; CHECK-SAME: ) !dbg [[DBG16:![0-9]+]] {
+; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel(
+; CHECK-SAME: ) !dbg [[DBG11:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
-; CHECK-NEXT:    [[TMP0:%.*]] = call i64 @_ZTS14other_function(), !dbg [[DBG17:![0-9]+]]
+; CHECK-NEXT:    [[TMP0:%.*]] = call i64 @_ZTS14other_function(), !dbg [[DBG12:![0-9]+]]
 ; CHECK-NEXT:    ret void
 ;
 ;
-; CHECK-LABEL: define void @_ZTS14example_kernel_with_offset(
-; CHECK-SAME: ptr byval([3 x i32]) [[TMP0:%.*]]) !dbg [[DBG18:![0-9]+]] {
+; CHECK-LABEL: define ptx_kernel void @_ZTS14example_kernel_with_offset(
+; CHECK-SAME: ptr byval([3 x i32]) [[TMP0:%.*]]) !dbg [[DBG13:![0-9]+]] {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
-; CHECK-NEXT:    [[TMP1:%.*]] = call i64 @_ZTS14other_function_with_offset(ptr [[TMP0]]), !dbg [[DBG19:![0-9]+]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i64 @_ZTS14other_function_with_offset(ptr [[TMP0]]), !dbg [[DBG14:![0-9]+]]
 ; CHECK-NEXT:    ret void
 ;
 ;.
@@ -77,18 +76,13 @@ entry:
 ; CHECK: [[META3:![0-9]+]] = !{i32 2, !"Dwarf Version", i32 4}
 ; CHECK: [[META4:![0-9]+]] = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: [[META5:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
-; CHECK: [[META6:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
-; CHECK: [[META7:![0-9]+]] = !{i32 1, i32 4}
-; CHECK: [[META8:![0-9]+]] = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
-; CHECK: [[META9:![0-9]+]] = !{null, !"align", i32 16}
-; CHECK: [[META10:![0-9]+]] = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
-; CHECK: [[META11:![0-9]+]] = !{ptr @_ZTS14example_kernel_with_offset, !"kernel", i32 1}
-; CHECK: [[DBG12]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META13:![0-9]+]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[META13]] = !DISubroutineType(types: [[META14:![0-9]+]])
-; CHECK: [[META14]] = !{null}
-; CHECK: [[DBG15]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META13]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[DBG16]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META13]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[DBG17]] = !DILocation(line: 1, column: 2, scope: [[DBG16]])
-; CHECK: [[DBG18]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META13]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
-; CHECK: [[DBG19]] = !DILocation(line: 1, column: 2, scope: [[DBG18]])
+; CHECK: [[META6:![0-9]+]] = !{i32 1, i32 4}
+; CHECK: [[DBG7]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META8:![0-9]+]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[META8]] = !DISubroutineType(types: [[META9:![0-9]+]])
+; CHECK: [[META9]] = !{null}
+; CHECK: [[DBG10]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META8]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[DBG11]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META8]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[DBG12]] = !DILocation(line: 1, column: 2, scope: [[DBG11]])
+; CHECK: [[DBG13]] = distinct !DISubprogram(name: "example_kernel", scope: [[META1]], file: [[META1]], line: 10, type: [[META8]], scopeLine: 10, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
+; CHECK: [[DBG14]] = !DILocation(line: 1, column: 2, scope: [[DBG13]])
 ;.

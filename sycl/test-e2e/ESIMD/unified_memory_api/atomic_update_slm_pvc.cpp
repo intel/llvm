@@ -19,7 +19,7 @@ int main(void) {
   esimd_test::printTestLabel(q);
 
   constexpr auto Features = TestFeatures::PVC;
-  bool passed = test_main<Features>(q);
+  bool passed = test_main<Features, true>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

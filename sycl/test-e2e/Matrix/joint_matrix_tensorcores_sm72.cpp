@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: cuda
+// REQUIRES: target-nvidia
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_72 -o %t.out
 // RUN: %{run} %t.out
 //

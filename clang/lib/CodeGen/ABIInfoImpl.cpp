@@ -21,14 +21,21 @@ ABIArgInfo DefaultABIInfo::classifyArgumentType(QualType Ty) const {
     // Records with non-trivial destructors/copy-constructors should not be
     // passed by value.
     if (CGCXXABI::RecordArgABI RAA = getRecordArgABI(Ty, getCXXABI()))
-      return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty),
+                                     RAA == CGCXXABI::RAA_DirectInMemory);
 
-    return getNaturalAlignIndirect(Ty);
+    return getNaturalAlignIndirect(Ty,
+                                   getCodeGenOpts().UseAllocaASForSrets
+                                       ? getDataLayout().getAllocaAddrSpace()
+                                       : CGT.getTargetAddressSpace(Ty));
   }
 
   // Treat an enum type as its underlying type.
   if (const EnumType *EnumTy = Ty->getAs<EnumType>())
-    Ty = EnumTy->getDecl()->getIntegerType();
+    Ty = EnumTy->getOriginalDecl()->getDefinitionOrSelf()->getIntegerType();
 
   ASTContext &Context = getContext();
   if (const auto *EIT = Ty->getAs<BitIntType>())
@@ -36,7 +43,10 @@ ABIArgInfo DefaultABIInfo::classifyArgumentType(QualType Ty) const {
         Context.getTypeSize(Context.getTargetInfo().hasInt128Type()
                                 ? Context.Int128Ty
                                 : Context.LongLongTy))
-      return getNaturalAlignIndirect(Ty);
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty));
 
   return (isPromotableIntegerTypeForABI(Ty)
               ? ABIArgInfo::getExtend(Ty, CGT.ConvertType(Ty))
@@ -48,18 +58,24 @@ ABIArgInfo DefaultABIInfo::classifyReturnType(QualType RetTy) const {
     return ABIArgInfo::getIgnore();
 
   if (isAggregateTypeForABI(RetTy))
-    return getNaturalAlignIndirect(RetTy);
+    return getNaturalAlignIndirect(RetTy,
+                                   getCodeGenOpts().UseAllocaASForSrets
+                                       ? getDataLayout().getAllocaAddrSpace()
+                                       : CGT.getTargetAddressSpace(RetTy));
 
   // Treat an enum type as its underlying type.
   if (const EnumType *EnumTy = RetTy->getAs<EnumType>())
-    RetTy = EnumTy->getDecl()->getIntegerType();
+    RetTy = EnumTy->getOriginalDecl()->getDefinitionOrSelf()->getIntegerType();
 
   if (const auto *EIT = RetTy->getAs<BitIntType>())
     if (EIT->getNumBits() >
         getContext().getTypeSize(getContext().getTargetInfo().hasInt128Type()
                                      ? getContext().Int128Ty
                                      : getContext().LongLongTy))
-      return getNaturalAlignIndirect(RetTy);
+      return getNaturalAlignIndirect(RetTy,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(RetTy));
 
   return (isPromotableIntegerTypeForABI(RetTy) ? ABIArgInfo::getExtend(RetTy)
                                                : ABIArgInfo::getDirect());
@@ -78,16 +94,6 @@ RValue DefaultABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
       CGF.MakeAddrLValue(
           EmitVAArgInstr(CGF, VAListAddr, Ty, classifyArgumentType(Ty)), Ty),
       Slot);
-}
-
-ABIArgInfo CodeGen::coerceToIntArray(QualType Ty, ASTContext &Context,
-                                     llvm::LLVMContext &LLVMContext) {
-  // Alignment and Size are measured in bits.
-  const uint64_t Size = Context.getTypeSize(Ty);
-  const uint64_t Alignment = Context.getTypeAlign(Ty);
-  llvm::Type *IntType = llvm::Type::getIntNTy(LLVMContext, Alignment);
-  const uint64_t NumElements = (Size + Alignment - 1) / Alignment;
-  return ABIArgInfo::getDirect(llvm::ArrayType::get(IntType, NumElements));
 }
 
 void CodeGen::AssignToArrayRange(CodeGen::CGBuilderTy &Builder,
@@ -113,13 +119,12 @@ llvm::Type *CodeGen::getVAListElementType(CodeGenFunction &CGF) {
 
 CGCXXABI::RecordArgABI CodeGen::getRecordArgABI(const RecordType *RT,
                                                 CGCXXABI &CXXABI) {
-  const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-  if (!RD) {
-    if (!RT->getDecl()->canPassInRegisters())
-      return CGCXXABI::RAA_Indirect;
-    return CGCXXABI::RAA_Default;
-  }
-  return CXXABI.getRecordArgABI(RD);
+  const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
+  if (const auto *CXXRD = dyn_cast<CXXRecordDecl>(RD))
+    return CXXABI.getRecordArgABI(CXXRD);
+  if (!RD->canPassInRegisters())
+    return CGCXXABI::RAA_Indirect;
+  return CGCXXABI::RAA_Default;
 }
 
 CGCXXABI::RecordArgABI CodeGen::getRecordArgABI(QualType T, CGCXXABI &CXXABI) {
@@ -130,22 +135,26 @@ CGCXXABI::RecordArgABI CodeGen::getRecordArgABI(QualType T, CGCXXABI &CXXABI) {
 }
 
 bool CodeGen::classifyReturnType(const CGCXXABI &CXXABI, CGFunctionInfo &FI,
-                                 const ABIInfo &Info) {
+                                 const ABIInfo &Info, CodeGenTypes &CGT) {
   QualType Ty = FI.getReturnType();
 
-  if (const auto *RT = Ty->getAs<RecordType>())
-    if (!isa<CXXRecordDecl>(RT->getDecl()) &&
-        !RT->getDecl()->canPassInRegisters()) {
-      FI.getReturnInfo() = Info.getNaturalAlignIndirect(Ty);
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
+    if (!isa<CXXRecordDecl>(RD) && !RD->canPassInRegisters()) {
+      FI.getReturnInfo() = Info.getNaturalAlignIndirect(
+          Ty, Info.getCodeGenOpts().UseAllocaASForSrets
+                  ? Info.getDataLayout().getAllocaAddrSpace()
+                  : CGT.getTargetAddressSpace(Ty));
       return true;
     }
+  }
 
   return CXXABI.classifyReturnType(FI);
 }
 
 QualType CodeGen::useFirstFieldIfTransparentUnion(QualType Ty) {
   if (const RecordType *UT = Ty->getAsUnionType()) {
-    const RecordDecl *UD = UT->getDecl();
+    const RecordDecl *UD = UT->getOriginalDecl()->getDefinitionOrSelf();
     if (UD->hasAttr<TransparentUnionAttr>()) {
       assert(!UD->field_empty() && "sema created an empty transparent union");
       return UD->field_begin()->getType();
@@ -283,7 +292,7 @@ bool CodeGen::isEmptyField(ASTContext &Context, const FieldDecl *FD,
   // according to the Itanium ABI.  The exception applies only to records,
   // not arrays of records, so we must also check whether we stripped off an
   // array type above.
-  if (isa<CXXRecordDecl>(RT->getDecl()) &&
+  if (isa<CXXRecordDecl>(RT->getOriginalDecl()) &&
       (WasArray || (!AsIfNoUniqueAddr && !FD->hasAttr<NoUniqueAddressAttr>())))
     return false;
 
@@ -295,7 +304,7 @@ bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays,
   const RecordType *RT = T->getAs<RecordType>();
   if (!RT)
     return false;
-  const RecordDecl *RD = RT->getDecl();
+  const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
   if (RD->hasFlexibleArrayMember())
     return false;
 
@@ -313,7 +322,7 @@ bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays,
 
 bool CodeGen::isEmptyFieldForLayout(const ASTContext &Context,
                                     const FieldDecl *FD) {
-  if (FD->isZeroLengthBitField(Context))
+  if (FD->isZeroLengthBitField())
     return true;
 
   if (FD->isUnnamedBitField())
@@ -327,7 +336,7 @@ bool CodeGen::isEmptyRecordForLayout(const ASTContext &Context, QualType T) {
   if (!RT)
     return false;
 
-  const RecordDecl *RD = RT->getDecl();
+  const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
 
   // If this is a C++ record, check the bases first.
   if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD)) {
@@ -351,7 +360,7 @@ const Type *CodeGen::isSingleElementStruct(QualType T, ASTContext &Context) {
   if (!RT)
     return nullptr;
 
-  const RecordDecl *RD = RT->getDecl();
+  const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
   if (RD->hasFlexibleArrayMember())
     return nullptr;
 
@@ -437,7 +446,7 @@ Address CodeGen::EmitVAArgInstr(CodeGenFunction &CGF, Address VAListAddr,
     CharUnits TyAlignForABI = TyInfo.Align;
 
     llvm::Type *ElementTy = CGF.ConvertTypeForMem(Ty);
-    llvm::Type *BaseTy = llvm::PointerType::getUnqual(ElementTy);
+    llvm::Type *BaseTy = llvm::PointerType::getUnqual(CGF.getLLVMContext());
     llvm::Value *Addr =
         CGF.Builder.CreateVAArg(VAListAddr.emitRawPointer(CGF), BaseTy);
     return Address(Addr, ElementTy, TyAlignForABI);
@@ -470,7 +479,7 @@ bool CodeGen::isRecordWithSIMDVectorType(ASTContext &Context, QualType Ty) {
   const RecordType *RT = Ty->getAs<RecordType>();
   if (!RT)
     return false;
-  const RecordDecl *RD = RT->getDecl();
+  const RecordDecl *RD = RT->getOriginalDecl()->getDefinitionOrSelf();
 
   // If this is a C++ record, check the bases first.
   if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD))

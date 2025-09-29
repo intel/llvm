@@ -131,9 +131,21 @@ public:
   /// Queries the kernel object for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<kernel, Param>()
+#endif
+#endif
+            >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
@@ -178,8 +190,64 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
   ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<3> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &WG) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
@@ -187,8 +255,10 @@ private:
 
   ur_native_handle_t getNative() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   __SYCL_DEPRECATED("Use getNative() member function")
   ur_native_handle_t getNativeImpl() const;
+#endif
 
   std::shared_ptr<detail::kernel_impl> impl;
 
@@ -196,7 +266,11 @@ private:
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
@@ -208,11 +282,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::kernel> {
-  size_t operator()(const sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<sycl::detail::kernel_impl>>()(
-        sycl::detail::getSyclObjImpl(Kernel));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::kernel>
+    : public sycl::detail::sycl_obj_hash<sycl::kernel> {};

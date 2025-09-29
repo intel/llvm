@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda || hip
+// REQUIRES: target-spir
 // Test with `--offload-new-driver`
 // RUN: %clangxx -fsycl -fsycl-device-obj=spirv --offload-new-driver -c -o %t.o %s
 // RUN: %clangxx -fsycl --offload-new-driver -Wno-unused-command-line-argument -o %t.out %t.o

@@ -1,4 +1,4 @@
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 // HIP doesn't support printf.
 // CUDA doesn't support vector format specifiers ("%v").
 //
@@ -59,10 +59,11 @@ int main() {
         sycl::vec<int, 4> v4{5, 6, 7, 8};
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
         // On SPIRV devices, vectors can be printed via native OpenCL types:
-        using ocl_int4 = sycl::vec<int, 4>::vector_t;
+        using ocl_int4 = int __attribute__((ext_vector_type(4)));
         {
           static const CONSTANT char format[] = "%v4hld\n";
-          ext::oneapi::experimental::printf(format, (ocl_int4)v4);
+          ext::oneapi::experimental::printf(format,
+                                            sycl::bit_cast<ocl_int4>(v4));
         }
 
         // However, you are still able to print them by-element:
