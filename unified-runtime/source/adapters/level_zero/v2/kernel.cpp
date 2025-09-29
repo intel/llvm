@@ -422,7 +422,7 @@ ur_result_t urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_pointer_properties_t
-        *pProperties, ///< [in][optional] argument properties
+        * /*pProperties*/, ///< [in][optional] argument properties
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
     ) try {
