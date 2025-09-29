@@ -152,19 +152,9 @@ public:
 private:
   uint16_t value;
 
-  // Private tag used to avoid constructor ambiguity.
-  struct private_tag {
-    explicit private_tag() = default;
-  };
-
-  constexpr bfloat16(uint16_t Value, private_tag) : value{Value} {}
-
   // Explicit conversion functions
   static float to_float(const uint16_t &a);
   static uint16_t from_float(const float &a);
-
-  // Friend traits.
-  friend std::numeric_limits<bfloat16>;
 
   // Friend classes for vector operations
   friend class sycl::vec<bfloat16, 1>;
@@ -676,39 +666,39 @@ template <> struct numeric_limits<sycl::ext::oneapi::bfloat16> {
   static constexpr float_round_style round_style = round_to_nearest;
 
   static constexpr const sycl::ext::oneapi::bfloat16(min)() noexcept {
-    return {uint16_t(0x80), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x80);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16(max)() noexcept {
-    return {uint16_t(0x7f7f), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x7f7f);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 lowest() noexcept {
-    return {uint16_t(0xff7f), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0xff7f);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 epsilon() noexcept {
-    return {uint16_t(0x3c00), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x3c00);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 round_error() noexcept {
-    return {uint16_t(0x3f00), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x3f00);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 infinity() noexcept {
-    return {uint16_t(0x7f80), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x7f80);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 quiet_NaN() noexcept {
-    return {uint16_t(0x7fc0), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x7fc0);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 signaling_NaN() noexcept {
-    return {uint16_t(0xff81), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0xff81);
   }
 
   static constexpr const sycl::ext::oneapi::bfloat16 denorm_min() noexcept {
-    return {uint16_t(0x1), sycl::ext::oneapi::bfloat16::private_tag{}};
+    return sycl::bit_cast<sycl::ext::oneapi::bfloat16, uint16_t>(0x1);
   }
 };
 
