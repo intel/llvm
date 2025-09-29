@@ -21,7 +21,8 @@ inline namespace _V1 {
 namespace detail {
 #if !defined(__SYCL_DEVICE_ONLY__) || defined(__NVPTX__) || defined(__AMDGCN__)
 // Host implementation of the ternary bitwise operation LUT.
-template <uint8_t LUTIndex, typename T> T applyTernaryBitwise(T A, T B, T C) {
+// Note: LUTIndex is made a function parameter to avoid excessive templating.
+template <typename T> T applyTernaryBitwise(uint8_t LUTIndex, T A, T B, T C) {
   switch (LUTIndex) {
   case 0:
     return T(0);
@@ -560,8 +561,8 @@ sycl::detail::builtin_enable_integer_t<T> ternary_bitwise(T A, T B, T C) {
                                      sycl::detail::builtins::convert_arg(C),
                                      static_cast<uint32_t>(LUTIndex)));
 #else
-    return sycl::detail::applyTernaryBitwise<LUTIndex>(
-        sycl::detail::simplify_if_swizzle_t<T>{A},
+    return sycl::detail::applyTernaryBitwise(
+        LUTIndex, sycl::detail::simplify_if_swizzle_t<T>{A},
         sycl::detail::simplify_if_swizzle_t<T>{B},
         sycl::detail::simplify_if_swizzle_t<T>{C});
 #endif

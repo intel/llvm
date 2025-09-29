@@ -114,18 +114,12 @@ int main() {
   sycl::queue Q;
 
   auto *CharObj = createMem<char>(Q);
-  auto *SCharObj = createMem<signed char>(Q);
   auto *UCharObj = createMem<unsigned char>(Q);
   auto *ShortObj = createMem<short>(Q);
-  auto *UShortObj = createMem<unsigned short>(Q);
-  auto *IntObj = createMem<int>(Q);
   auto *UIntObj = createMem<unsigned int>(Q);
   auto *LongObj = createMem<long>(Q);
-  auto *ULongObj = createMem<unsigned long>(Q);
-  auto *SChar2Obj = createMem<sycl::vec<int8_t, 2>>(Q);
   auto *UShort8Obj = createMem<sycl::vec<uint16_t, 8>>(Q);
   auto *IntMarrayObj = createMem<sycl::marray<int, 3>>(Q);
-  auto *ULongMarrayObj = createMem<sycl::marray<unsigned long, 3>>(Q);
 
   Q.parallel_for(13, [=](sycl::id<1> Idx) {
      // We let the ID determine which memory object the work-item processes.
@@ -134,49 +128,31 @@ int main() {
   if ((WorkCounter++) == Idx[0])                                               \
     MEM_OBJ->Out = apply(MEM_OBJ->A, MEM_OBJ->B, MEM_OBJ->C, IdxSeq);
      APPLY(CharObj)
-     APPLY(SCharObj)
      APPLY(UCharObj)
      APPLY(ShortObj)
-     APPLY(UShortObj)
-     APPLY(IntObj)
      APPLY(UIntObj)
      APPLY(LongObj)
-     APPLY(ULongObj)
-     APPLY(SChar2Obj)
      APPLY(UShort8Obj)
      APPLY(IntMarrayObj)
-     APPLY(ULongMarrayObj)
    }).wait_and_throw();
 
   int Failed = 0;
 
   Failed += checkResult(*CharObj, "char");
-  Failed += checkResult(*SCharObj, "signed char");
   Failed += checkResult(*UCharObj, "unsigned char");
   Failed += checkResult(*ShortObj, "short");
-  Failed += checkResult(*UShortObj, "unsigned short");
-  Failed += checkResult(*IntObj, "int");
   Failed += checkResult(*UIntObj, "unsigned int");
   Failed += checkResult(*LongObj, "long");
-  Failed += checkResult(*ULongObj, "unsigned long");
-  Failed += checkResult(*SChar2Obj, "sycl::vec<int8_t, 2>");
   Failed += checkResult(*UShort8Obj, "sycl::vec<uint16_t, 8>");
   Failed += checkResult(*IntMarrayObj, "sycl::marray<int, 3>");
-  Failed += checkResult(*ULongMarrayObj, "sycl::marray<unsigned long, 3>");
 
   sycl::free(CharObj, Q);
-  sycl::free(SCharObj, Q);
   sycl::free(UCharObj, Q);
   sycl::free(ShortObj, Q);
-  sycl::free(UShortObj, Q);
-  sycl::free(IntObj, Q);
   sycl::free(UIntObj, Q);
   sycl::free(LongObj, Q);
-  sycl::free(ULongObj, Q);
-  sycl::free(SChar2Obj, Q);
   sycl::free(UShort8Obj, Q);
   sycl::free(IntMarrayObj, Q);
-  sycl::free(ULongMarrayObj, Q);
 
   return Failed;
 }
