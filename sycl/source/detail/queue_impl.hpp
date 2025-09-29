@@ -361,8 +361,7 @@ public:
 
   template <int Dims>
   event submit_kernel_direct_with_event(
-      const nd_range<Dims> &Range,
-      detail::HostKernelRefBase &HostKernel,
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =

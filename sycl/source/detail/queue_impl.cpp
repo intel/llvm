@@ -421,14 +421,14 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    const NDRDescT &NDRDesc,
-    detail::HostKernelRefBase &HostKernel,
+    const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernelPtr = HostKernel.takeOrCopyOwnership();
+  std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
+      HostKernel.takeOrCopyOwnership();
 
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
   KData.setKernelFunc(HostKernelPtr->getPtr());

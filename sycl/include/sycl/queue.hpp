@@ -186,8 +186,8 @@ auto submit_kernel_direct(
   // Passing this pointer to another translation unit prevents optimization.
 #ifndef NDEBUG
   // TODO: call library to prevent dropping call due to optimization
-  (void)detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
-                                              Dims>();
+  (void)
+      detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>();
 #endif
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
