@@ -55,10 +55,8 @@ OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
 
 bool DeviceGlobalMapEntry::isAvailableInContext(const context_impl *CtxImpl) {
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
-  for (const auto &It : MDeviceToUSMPtrMap)
-    if (It.first.second == CtxImpl)
-      return true;
-  return false;
+  std::any_of(MDeviceToUSMPtrMap.begin(), MDeviceToUSMPtrMap.end(),
+              [CtxImpl](const auto &It) { return It.first.second == CtxImpl; });
 }
 
 bool DeviceGlobalMapEntry::isProfileCounter() {
