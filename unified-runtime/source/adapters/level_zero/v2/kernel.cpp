@@ -426,14 +426,10 @@ ur_result_t urKernelSetArgPointer(
   TRACK_SCOPE_LATENCY("urKernelSetArgPointer");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  // In multi-device context store the raw pointer value and defer setting the
+  // Store the raw pointer value and defer setting the
   // argument until we know the device where kernel is being submitted.
-  if (hKernel->getContext()->getDevices().size() > 1) {
-    hKernel->addPendingPointerArgument(argIndex, pArgValue);
-    return UR_RESULT_SUCCESS;
-  }
-
-  return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
+  hKernel->addPendingPointerArgument(argIndex, pArgValue);
+  return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
