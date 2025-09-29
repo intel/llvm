@@ -1125,11 +1125,10 @@ Value *InstrLowerer::getCounterAddress(InstrProfCntrInstBase *I) {
     auto *Addr = Builder.CreateLoad(PointerType::get(M.getContext(), 1),
                                     Counters, "pgocount.addr");
     const std::uint64_t Index = I->getIndex()->getZExtValue();
-    if (Index > 0) {
-      auto *Offset = Builder.getInt64(Index * sizeof(std::uint64_t));
-      return Builder.CreatePtrAdd(Addr, Offset, "pgocount.offset");
-    }
-    return Addr;
+    if (Index == 0)
+      return Addr;
+    auto *Offset = Builder.getInt64(Index * sizeof(std::uint64_t));
+    return Builder.CreatePtrAdd(Addr, Offset, "pgocount.offset");
   }
 
   auto *Counters = getOrCreateRegionCounters(I);
@@ -1679,8 +1678,8 @@ InstrLowerer::createRegionCounters(InstrProfCntrInstBase *Inc, StringRef Name,
     auto *PtrTy = PointerType::get(Ctx, 1);
     auto *IntTy = Type::getInt64Ty(Ctx);
     auto *StructTy = StructType::get(Ctx, {PtrTy, IntTy});
-    GlobalVariable *GV = new GlobalVariable(M, StructTy, false, Linkage,
-                            Constant::getNullValue(StructTy), Name);
+    GlobalVariable *GV = new GlobalVariable(
+        M, StructTy, false, Linkage, Constant::getNullValue(StructTy), Name);
     const std::uint64_t FnHash = IndexedInstrProf::ComputeHash(
         getPGOFuncNameVarInitializer(Inc->getName()));
     const std::string FnName = std::string{"__profc_"} + std::to_string(FnHash);

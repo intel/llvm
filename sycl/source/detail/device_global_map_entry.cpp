@@ -53,17 +53,24 @@ OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(adapter_impl &Adapter) {
   }
 }
 
-bool DeviceGlobalMapEntry::isAvailableInContext(const context_impl *CtxImpl) {
+bool DeviceGlobalMapEntry::isAvailableInContext(
+    const context_impl *CtxImpl) const {
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
-  std::any_of(MDeviceToUSMPtrMap.begin(), MDeviceToUSMPtrMap.end(),
-              [CtxImpl](const auto &It) { return It.first.second == CtxImpl; });
+  return std::any_of(
+      MDeviceToUSMPtrMap.begin(), MDeviceToUSMPtrMap.end(),
+      [CtxImpl](const auto &It) { return It.first.second == CtxImpl; });
 }
 
-bool DeviceGlobalMapEntry::isProfileCounter() {
+bool DeviceGlobalMapEntry::isProfileCounter() const {
   constexpr std::string_view CounterPrefix = "__profc_";
-  return std::string_view{MUniqueId}.substr(0, CounterPrefix.size()) == CounterPrefix;
+  return std::string_view{MUniqueId}.substr(0, CounterPrefix.size()) ==
+         CounterPrefix;
 }
 
+// __sycl_increment_profile_counters must be defined as a weak symbol so that
+// the program will link even if the profiling runtime is not linked in. When
+// compiling with MSVC there is no weak attribute, so we use a pragma comment
+// and default function to achieve the same effect.
 #ifdef _MSC_VER
 extern "C" void
 __sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
@@ -87,7 +94,7 @@ __sycl_increment_profile_counters(std::uint64_t FnHash, std::size_t NumCounters,
 
 void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
   std::lock_guard<std::mutex> Lock{MDeviceToUSMPtrMapMutex};
-  assert(isProfileCounter());
+  assert(isProfileCounter() && "Not a profile counter device global.");
   const std::size_t NumCounters = MDeviceGlobalTSize / sizeof(std::uint64_t);
   const std::uint64_t FnHash = [&] {
     constexpr size_t PrefixSize = std::string_view{"__profc_"}.size();
@@ -97,31 +104,30 @@ void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
   }();
   for (const device_impl &Device : CtxImpl->getDevices()) {
     auto USMPtrIt = MDeviceToUSMPtrMap.find({&Device, CtxImpl});
-    if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
-      DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
+    if (USMPtrIt == MDeviceToUSMPtrMap.end())
+      continue;
 
-      // Get the increments from the USM pointer.
-      std::vector<std::uint64_t> Increments(NumCounters);
-      const std::uint64_t *Counters = static_cast<std::uint64_t *>(USMMem.MPtr);
-      for (std::size_t I = 0; I < NumCounters; ++I)
-        Increments[I] = Counters[I];
+    // Get the increments from the USM pointer.
+    DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
+    std::vector<std::uint64_t> Increments(NumCounters);
+    const std::uint64_t *Counters = static_cast<std::uint64_t *>(USMMem.MPtr);
+    for (std::size_t I = 0; I < NumCounters; ++I)
+      Increments[I] = Counters[I];
 
-      // Call the weak symbol to update the profile counters.
-      if (&__sycl_increment_profile_counters)
-        __sycl_increment_profile_counters(FnHash, Increments.size(),
-                                          Increments.data());
+    // Call the weak symbol to update the profile counters.
+    if (&__sycl_increment_profile_counters)
+      __sycl_increment_profile_counters(FnHash, Increments.size(),
+                                        Increments.data());
 
-      // Free the USM memory and release the event if it exists.
-      detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
-      if (USMMem.MInitEvent != nullptr)
-        CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
-            USMMem.MInitEvent);
+    // Free the USM memory and release the event if it exists.
+    detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
+    if (USMMem.MInitEvent != nullptr)
+      CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(USMMem.MInitEvent);
 
-      // Set to nullptr to avoid double free.
-      USMMem.MPtr = nullptr;
-      USMMem.MInitEvent = nullptr;
-      MDeviceToUSMPtrMap.erase(USMPtrIt);
-    }
+    // Set to nullptr to avoid double free.
+    USMMem.MPtr = nullptr;
+    USMMem.MInitEvent = nullptr;
+    MDeviceToUSMPtrMap.erase(USMPtrIt);
   }
 }
 

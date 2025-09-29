@@ -12,6 +12,8 @@ Profiling counters for code coverage are lowered by the compiler as device globa
 
 Each counter is annotated with a unique identifier (`sycl-unique-id`) of the form `__profc_<fn_hash>`, where `<fn_hash>` is a 64-bit unsigned integer uniquely identifying the instrumented function. The counter's size is also recorded via the `sycl-device-global-size` attribute. These attributes ensure that counters are discoverable and manageable by the SYCL runtime and integration headers/footers.
 
+The profile counter device global is represented as an array of 8-byte integers (`std::uint64_t`). The number of elements in this array corresponds to the number of regions in the function being instrumented, where a region typically represents a distinct code branch or block. The size of the device global variable is therefore determined by multiplying the number of regions by eight bytes, and this value is recorded in the `sycl-device-global-size` attribute for use by the runtime and integration logic.
+
 ### Integration with Device Global Infrastructure
 
 The device global infrastructure, as described in [DeviceGlobal.md](DeviceGlobal.md), provides mechanisms for mapping host and device instances of global variables, managing their lifetimes, and facilitating data transfer. Device-side coverage counters are treated as a special class of device globals:
