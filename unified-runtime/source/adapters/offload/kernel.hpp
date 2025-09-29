@@ -19,10 +19,26 @@
 
 #include "common.hpp"
 
+namespace {
+template <typename T> T nextPowerOf2(T Val) {
+  // https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
+  Val--;
+  Val |= Val >> 1;
+  Val |= Val >> 2;
+  Val |= Val >> 4;
+  Val |= Val >> 8;
+  Val |= Val >> 16;
+  if constexpr (sizeof(Val) > 4) {
+    Val |= Val >> 32;
+  }
+  return ++Val;
+}
+} // namespace
+
 struct ur_kernel_handle_t_ : RefCounted {
 
   // Simplified version of the CUDA adapter's argument implementation
-  struct alignas(32) OffloadKernelArguments {
+  struct OffloadKernelArguments {
     static constexpr size_t MaxParamBytes = 4096u;
     using final_buffer_t = std::array<char, MaxParamBytes>;
     using args_t = std::vector<char>;
@@ -78,25 +94,31 @@ struct ur_kernel_handle_t_ : RefCounted {
       }
 
       size_t Space = sizeof(RealisedBuffer);
-      void *Offset = &RealisedBuffer[0];
+      void *Offset = reinterpret_cast<void *>(0);
+      char *Base = &RealisedBuffer[0];
       for (size_t I = 0; I < Pointers.size(); I++) {
         void *ValueBase = &ParamStorage[Pointers[I]];
         size_t Size = ParamSizes[I];
+        size_t Align = nextPowerOf2(Size);
 
         // Align the value to a multiple of the size
         // TODO: This is probably not correct, but UR doesn't allow specifying
         // the alignment of arguments
-        if (!std::align(Size, Size, Offset, Space)) {
+        if (!std::align(Align, Size, Offset, Space) && Offset) {
           // Ran out of space. TODO: Handle properly
+          // TODO: Since we start at address 0, there's no way to check whether
+          // the first allocation is a success or not.
           abort();
         }
+        Space -= Size;
 
-        std::memcpy(Offset, ValueBase, Size);
+        std::memcpy(&Base[reinterpret_cast<uintptr_t>(Offset)], ValueBase,
+                    Size);
         Offset = &reinterpret_cast<char *>(Offset)[Size];
       }
 
       Dirty = false;
-      RealisedSpace = reinterpret_cast<char *>(Offset) - &RealisedBuffer[0];
+      RealisedSpace = reinterpret_cast<uintptr_t>(Offset);
     }
 
     const char *getStorage() noexcept {
