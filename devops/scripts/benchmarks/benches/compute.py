@@ -154,12 +154,18 @@ class ComputeBench(Suite):
             for completion in ["", " with completion"]:
                 for events in ["", " using events"]:
                     for num_kernels in self.submit_graph_num_kernels:
-                        group_name = f"SubmitGraph {order}{completion}{events}, {num_kernels} kernels"
-                        metadata[group_name] = BenchmarkMetadata(
-                            type="group",
-                            tags=base_metadata.tags,
-                        )
-
+                        for host_tasks in ["", " use host tasks"]:
+                            group_name = f"SubmitGraph {order}{completion}{events}{host_tasks}, {num_kernels} kernels"
+                            metadata[group_name] = BenchmarkMetadata(
+                                type="group",
+                                tags=base_metadata.tags,
+                            )
+                            # CPU count variants
+                            cpu_count_group = f"{group_name}, CPU count"
+                            metadata[cpu_count_group] = BenchmarkMetadata(
+                                type="group",
+                                tags=base_metadata.tags,
+                            )
         return metadata
 
     def benchmarks(self) -> list[Benchmark]:
@@ -1087,6 +1093,22 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         if self.runtime == RUNTIMES.SYCL:
             bin_args.append(f"--profilerType={self.profiler_type.value}")
         return bin_args
+
+    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
+        metadata_dict = super().get_metadata()
+
+        # Create CPU count variant with modified display name and explicit_group
+        cpu_count_name = self.name() + " CPU count"
+        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
+        cpu_count_display_name = self.display_name() + ", CPU count"
+        cpu_count_explicit_group = (
+            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
+        )
+        cpu_count_metadata.display_name = cpu_count_display_name
+        cpu_count_metadata.explicit_group = cpu_count_explicit_group
+        metadata_dict[cpu_count_name] = cpu_count_metadata
+
+        return metadata_dict
 
 
 class UllsEmptyKernel(ComputeBenchmark):
