@@ -431,8 +431,7 @@ ur_result_t urKernelSetArgPointer(
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   // Store the raw pointer value and defer setting the
   // argument until we know the device where kernel is being submitted.
-  hKernel->addPendingPointerArgument(argIndex, pArgValue);
-  return UR_RESULT_SUCCESS;
+  return hKernel->addPendingPointerArgument(argIndex, pArgValue);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
