@@ -567,7 +567,7 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
-  if (!isInOrder() && EventImpl && !EventImpl->isEnqueued()) {
+  if (!isInOrder() && !EventImpl->isEnqueued()) {
     MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
