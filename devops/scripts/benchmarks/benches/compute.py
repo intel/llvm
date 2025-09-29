@@ -3,19 +3,19 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from itertools import product
+import copy
 import csv
 import io
-import copy
 import math
 from enum import Enum
+from itertools import product
 from pathlib import Path
 
-from .base import Benchmark, Suite, TracingType
-from utils.result import BenchmarkMetadata, Result
-from .base import Benchmark, Suite
-from options import options
 from git_project import GitProject
+from options import options
+from utils.result import BenchmarkMetadata, Result
+
+from .base import Benchmark, Suite, TracingType
 
 
 class RUNTIMES(Enum):
