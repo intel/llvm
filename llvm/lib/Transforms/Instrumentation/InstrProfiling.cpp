@@ -1676,11 +1676,10 @@ InstrLowerer::createRegionCounters(InstrProfCntrInstBase *Inc, StringRef Name,
   if (M.getTargetTriple().isSPIR()) {
     uint64_t NumCounters = Inc->getNumCounters()->getZExtValue();
     auto &Ctx = M.getContext();
-    GlobalVariable *GV;
     auto *PtrTy = PointerType::get(Ctx, 1);
     auto *IntTy = Type::getInt64Ty(Ctx);
     auto *StructTy = StructType::get(Ctx, {PtrTy, IntTy});
-    GV = new GlobalVariable(M, StructTy, false, Linkage,
+    GlobalVariable *GV = new GlobalVariable(M, StructTy, false, Linkage,
                             Constant::getNullValue(StructTy), Name);
     const std::uint64_t FnHash = IndexedInstrProf::ComputeHash(
         getPGOFuncNameVarInitializer(Inc->getName()));
