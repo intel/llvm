@@ -90,7 +90,7 @@ void DeviceGlobalMapEntry::cleanupProfileCounter(context_impl *CtxImpl) {
   assert(isProfileCounter());
   const std::size_t NumCounters = MDeviceGlobalTSize / sizeof(std::uint64_t);
   const std::uint64_t FnHash = [&] {
-    const auto PrefixSize = std::string{"__profc_"}.size();
+    constexpr size_t PrefixSize = std::string_view{"__profc_"}.size();
     constexpr int DecimalBase = 10;
     return std::strtoull(MUniqueId.substr(PrefixSize).c_str(), nullptr,
                          DecimalBase);
