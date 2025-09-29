@@ -1,7 +1,7 @@
 // REQUIRES: aspect-usm_shared_allocations
 
 // XFAIL: opencl && cpu
-// XFAIL-TRACKER: TODO
+// XFAIL-TRACKER: CMPLRLLVM-70834
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
