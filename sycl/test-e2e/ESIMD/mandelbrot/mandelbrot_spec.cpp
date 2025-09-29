@@ -9,7 +9,8 @@
 // TODO enable on Windows
 // REQUIRES: linux && gpu
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out %T/output_spec.ppm %S/golden_hw.ppm 512 -2.09798 -1.19798 0.004 4.0
 
 #include "../esimd_test_utils.hpp"

@@ -122,7 +122,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   uint32_t CPU = M.cpu();
   std::string Name;
 
-  if (Payload->name_sid() != xpti::invalid_id) {
+  if (xpti::is_valid_payload(Payload) && Payload->name) {
     Name = truncate(Payload->name);
   } else {
     Name = "<unknown>";
@@ -143,7 +143,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
     std::cout << xpti::readMetadata(Item) << "\n";
   }
 
-  if (Payload->source_file_sid() != xpti::invalid_id && Payload->line_no > 0) {
+  if (xpti::is_valid_payload(Payload)) {
     printf("---[Source file:line no] %s:%d\n", Payload->source_file,
            Payload->line_no);
   }

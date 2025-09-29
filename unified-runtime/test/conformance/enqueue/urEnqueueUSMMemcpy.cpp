@@ -105,7 +105,7 @@ TEST_P(urEnqueueUSMMemcpyTest, BlockingWithEvent) {
       urEventGetInfo(memcpy_event, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
                      sizeof(ur_event_status_t), &event_status, nullptr));
   ASSERT_EQ(event_status, UR_EVENT_STATUS_COMPLETE);
-  EXPECT_SUCCESS(urEventRelease(memcpy_event));
+  ASSERT_SUCCESS(urEventRelease(memcpy_event));
   ASSERT_NO_FATAL_FAILURE(verifyData());
 }
 

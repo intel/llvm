@@ -76,11 +76,16 @@ using provider_unique_handle_t =
     return UMF_RESULT_ERROR_NOT_SUPPORTED;                                     \
   }
 
-DEFINE_CHECK_OP(get_ipc_handle_size)
-DEFINE_CHECK_OP(get_ipc_handle)
-DEFINE_CHECK_OP(put_ipc_handle)
-DEFINE_CHECK_OP(open_ipc_handle)
-DEFINE_CHECK_OP(close_ipc_handle)
+DEFINE_CHECK_OP(ext_purge_lazy)
+DEFINE_CHECK_OP(ext_purge_force)
+DEFINE_CHECK_OP(ext_allocation_merge)
+DEFINE_CHECK_OP(ext_allocation_split)
+DEFINE_CHECK_OP(ext_get_ipc_handle_size)
+DEFINE_CHECK_OP(ext_get_ipc_handle)
+DEFINE_CHECK_OP(ext_put_ipc_handle)
+DEFINE_CHECK_OP(ext_open_ipc_handle)
+DEFINE_CHECK_OP(ext_close_ipc_handle)
+DEFINE_CHECK_OP(ext_ctl)
 
 #define UMF_ASSIGN_OP(ops, type, func, default_return)                         \
   ops.func = [](void *obj, auto... args) {                                     \
@@ -179,23 +184,27 @@ auto memoryProviderMakeUnique(Args &&...args) {
         reinterpret_cast<T *>(*obj),
         *reinterpret_cast<decltype(argsTuple) *>(const_cast<void *>(params)));
   };
-  ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
+  ops.finalize = [](void *obj) -> umf_result_t {
+    delete reinterpret_cast<T *>(obj);
+    return UMF_RESULT_SUCCESS;
+  };
 
   UMF_ASSIGN_OP(ops, T, alloc, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_NORETURN(ops, T, get_last_native_error);
+  UMF_ASSIGN_OP(ops, T, get_last_native_error, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_recommended_page_size, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, get_min_page_size, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP(ops, T, get_name, "");
+  UMF_ASSIGN_OP(ops, T, get_name, UMF_RESULT_ERROR_UNKNOWN);
   UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP(ops.ext, T, purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP(ops.ext, T, purge_force, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP(ops.ext, T, allocation_merge, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP(ops.ext, T, allocation_split, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops.ipc, T, get_ipc_handle_size, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops.ipc, T, get_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops.ipc, T, put_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops.ipc, T, open_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
-  UMF_ASSIGN_OP_OPT(ops.ipc, T, close_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_purge_force, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_allocation_merge, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_allocation_split, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_get_ipc_handle_size, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_get_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_put_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_open_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_close_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+  UMF_ASSIGN_OP_OPT(ops, T, ext_ctl, UMF_RESULT_ERROR_UNKNOWN);
 
   umf_memory_provider_handle_t hProvider = nullptr;
   auto ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);
@@ -287,8 +296,9 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
   case UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY:
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   case UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC: {
-    auto hProvider = umfGetLastFailedMemoryProvider();
-    if (hProvider == nullptr) {
+    umf_memory_provider_handle_t hProvider = nullptr;
+    auto umfRet = umfGetLastFailedMemoryProvider(&hProvider);
+    if (umfRet != UMF_RESULT_SUCCESS || hProvider == nullptr) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
 
@@ -300,7 +310,13 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
       UR_LOG(ERR, "UMF failed with: {}", Msg);
     }
 
-    return getProviderNativeError(umfMemoryProviderGetName(hProvider), Err);
+    const char *Name = nullptr;
+    umfRet = umfMemoryProviderGetName(hProvider, &Name);
+    if (umfRet != UMF_RESULT_SUCCESS) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+
+    return getProviderNativeError(Name, Err);
   }
   case UMF_RESULT_ERROR_INVALID_ARGUMENT:
     return UR_RESULT_ERROR_INVALID_ARGUMENT;

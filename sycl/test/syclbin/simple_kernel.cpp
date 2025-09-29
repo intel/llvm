@@ -32,6 +32,7 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-INPUT-NEXT:       Metadata:
 // CHECK-INPUT-NEXT:         SYCLBIN/ir module metadata:
 // CHECK-INPUT-NEXT:           type: 0
+// CHECK-INPUT-NEXT:           target:
 // CHECK-INPUT-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
 // CHECK-INPUT-NEXT:   Number of Native Device Code Images: 0
 
@@ -47,6 +48,7 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-OBJECT-NEXT:       Metadata:
 // CHECK-OBJECT-NEXT:         SYCLBIN/ir module metadata:
 // CHECK-OBJECT-NEXT:           type: 0
+// CHECK-OBJECT-NEXT:           target:
 // CHECK-OBJECT-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
 // CHECK-OBJECT-NEXT:   Number of Native Device Code Images: 0
 
@@ -62,5 +64,6 @@ void TestKernel(int *Ptr, int Size) {
 // CHECK-EXECUTABLE-NEXT:       Metadata:
 // CHECK-EXECUTABLE-NEXT:         SYCLBIN/ir module metadata:
 // CHECK-EXECUTABLE-NEXT:           type: 0
+// CHECK-EXECUTABLE-NEXT:           target:
 // CHECK-EXECUTABLE-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
 // CHECK-EXECUTABLE-NEXT:   Number of Native Device Code Images: 0

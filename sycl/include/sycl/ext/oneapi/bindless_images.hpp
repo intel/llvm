@@ -334,6 +334,16 @@ inline void unmap_external_image_memory(image_mem_handle mappedImageMem,
 }
 
 /**
+ * @brief  Check if the device supports importing a handle of a specific type
+ * @param  externMemHandleType Type of external memory handle
+ * @param  syclDevice The device where we want to import memory
+ * @return true if the device supports importing the specified handle type
+ */
+__SYCL_EXPORT bool
+supports_importing_handle_type(external_mem_handle_type externMemHandleType,
+                               const sycl::device &syclDevice);
+
+/**
  *  @brief   Create an image and return the device image handle
  *
  *  @param   memHandle Device memory handle wrapper for allocated image memory
@@ -1026,15 +1036,19 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "HintT must always be a recognized standard type");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // Convert the raw handle to an image and use FETCH_UNSAMPLED_IMAGE since
+  // fetch_image should not use the sampler
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return FETCH_SAMPLED_IMAGE(
+    return FETCH_UNSAMPLED_IMAGE(
         DataT,
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
         coords);
   } else {
-    return sycl::bit_cast<DataT>(FETCH_SAMPLED_IMAGE(
+    return sycl::bit_cast<DataT>(FETCH_UNSAMPLED_IMAGE(
         HintT,
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
         coords));
   }
 #else

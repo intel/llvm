@@ -147,6 +147,17 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
   /// Initialize the device, which is a no-op
   Error initImpl(GenericPluginTy &Plugin) override { return Plugin::success(); }
 
+  /// Unload the binary image
+  ///
+  /// TODO: This currently does nothing, and should be implemented as part of
+  /// broader memory handling logic for this plugin
+  Error unloadBinaryImpl(DeviceImageTy *Image) override {
+    auto Elf = reinterpret_cast<GenELF64DeviceImageTy *>(Image);
+    DynamicLibrary::closeLibrary(Elf->getDynamicLibrary());
+    Plugin.free(Elf);
+    return Plugin::success();
+  }
+
   /// Deinitialize the device, which is a no-op
   Error deinitImpl() override { return Plugin::success(); }
 
@@ -206,8 +217,7 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
 
     // Load the temporary file as a dynamic library.
     std::string ErrMsg;
-    DynamicLibrary DynLib =
-        DynamicLibrary::getPermanentLibrary(TmpFileName, &ErrMsg);
+    DynamicLibrary DynLib = DynamicLibrary::getLibrary(TmpFileName, &ErrMsg);
 
     // Check if the loaded library is valid.
     if (!DynLib.isValid())
@@ -285,9 +295,17 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
                          "dataExchangeImpl not supported");
   }
 
+  /// Insert a data fence between previous data operations and the following
+  /// operations. This is a no-op for Host devices as operations inserted into
+  /// a queue are in-order.
+  Error dataFence(__tgt_async_info *Async) override {
+    return Plugin::success();
+  }
+
   /// All functions are already synchronous. No need to do anything on this
   /// synchronization function.
-  Error synchronizeImpl(__tgt_async_info &AsyncInfo) override {
+  Error synchronizeImpl(__tgt_async_info &AsyncInfo,
+                        bool ReleaseQueue) override {
     return Plugin::success();
   }
 
@@ -309,6 +327,12 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
                          "initDeviceInfoImpl not supported");
   }
 
+  Error enqueueHostCallImpl(void (*Callback)(void *), void *UserData,
+                            AsyncInfoWrapperTy &AsyncInfo) override {
+    Callback(UserData);
+    return Plugin::success();
+  };
+
   /// This plugin does not support the event API. Do nothing without failing.
   Error createEventImpl(void **EventPtrStorage) override {
     *EventPtrStorage = nullptr;
@@ -323,12 +347,16 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
                       AsyncInfoWrapperTy &AsyncInfoWrapper) override {
     return Plugin::success();
   }
+  Expected<bool> hasPendingWorkImpl(AsyncInfoWrapperTy &AsyncInfo) override {
+    return true;
+  }
   Error syncEventImpl(void *EventPtr) override { return Plugin::success(); }
 
   /// Print information about the device.
-  Error obtainInfoImpl(InfoQueueTy &Info) override {
+  Expected<InfoTreeNode> obtainInfoImpl() override {
+    InfoTreeNode Info;
     Info.add("Device Type", "Generic-elf-64bit");
-    return Plugin::success();
+    return Info;
   }
 
   /// This plugin should not setup the device environment or memory pool.

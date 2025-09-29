@@ -112,6 +112,7 @@ int main() {
     // Extension: cleanup
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle1, q);
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle2, q);
+    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle3, q);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return 1;

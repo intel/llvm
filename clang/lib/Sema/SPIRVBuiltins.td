@@ -803,7 +803,7 @@ foreach rnd = ["", "_rte", "_rtn", "_rtp", "_rtz"] in {
 }
 
 foreach sat = ["", "_sat"] in {
-  foreach InType = TLAllInts.List in {
+  foreach InType = TLUnsignedInts.List in {
     foreach OutType = TLUnsignedInts.List in {
       if !ne(OutType.ElementSize, InType.ElementSize) then {
         def : SPVBuiltin<"UConvert_R" # OutType.Name # sat, [OutType, InType], Attr.Const>;
@@ -814,6 +814,8 @@ foreach sat = ["", "_sat"] in {
         }
       }
     }
+  }
+  foreach InType = TLSignedInts.List in {
     foreach OutType = TLSignedInts.List in {
       if !ne(OutType.ElementSize, InType.ElementSize) then {
         def : SPVBuiltin<"SConvert_R" # OutType.Name # sat, [OutType, InType], Attr.Const>;

@@ -8,9 +8,7 @@
 
 #include "llvm/Linker/IRMover.h"
 #include "LinkDiagnosticInfo.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/AutoUpgrade.h"
 #include "llvm/IR/Constants.h"
@@ -27,7 +25,6 @@
 #include "llvm/IR/TypeFinder.h"
 #include "llvm/Object/ModuleSymbolTable.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/Path.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <optional>
@@ -597,7 +594,6 @@ Function *IRLinker::copyFunctionProto(const Function *SF) {
                              SF->getAddressSpace(), SF->getName(), &DstM);
   F->copyAttributesFrom(SF);
   F->setAttributes(mapAttributeTypes(F->getContext(), F->getAttributes()));
-  F->IsNewDbgInfoFormat = SF->IsNewDbgInfoFormat;
   return F;
 }
 
@@ -1031,7 +1027,6 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
     Dst.setPrologueData(Src.getPrologueData());
   if (Src.hasPersonalityFn())
     Dst.setPersonalityFn(Src.getPersonalityFn());
-  assert(Src.IsNewDbgInfoFormat == Dst.IsNewDbgInfoFormat);
 
   // Copy over the metadata attachments without remapping.
   Dst.copyMetadata(&Src, 0);
@@ -1137,8 +1132,11 @@ void IRLinker::linkNamedMDNodes() {
 
     NamedMDNode *DestNMD = DstM.getOrInsertNamedMetadata(NMD.getName());
     // Add Src elements into Dest node.
-    for (const MDNode *Op : NMD.operands())
-      DestNMD->addOperand(Mapper.mapMDNode(*Op));
+    for (const MDNode *Op : NMD.operands()) {
+      MDNode *MD = Mapper.mapMDNode(*Op);
+      if (!is_contained(DestNMD->operands(), MD))
+        DestNMD->addOperand(MD);
+    }
   }
 }
 
@@ -1445,9 +1443,6 @@ Error IRLinker::run() {
     if (Error Err = SrcM->getMaterializer()->materializeMetadata())
       return Err;
 
-  // Convert source module to match dest for the duration of the link.
-  ScopedDbgInfoFormatSetter FormatSetter(*SrcM, DstM.IsNewDbgInfoFormat);
-
   // Inherit the target data from the source module if the destination
   // module doesn't have one already.
   if (DstM.getDataLayout().isDefault())
@@ -1479,6 +1474,13 @@ Error IRLinker::run() {
                                   SrcTriple.getOSName() == "unknown");
     EnableTripleWarning = !SrcHasLibDeviceTriple;
     EnableDLWarning = !(SrcHasLibDeviceTriple && SrcHasLibDeviceDL);
+  }
+  // Likewise, during SYCL Native CPU compilation we link with bitcode with a
+  // generic data layout, which is compatible with the concrete host data layout
+  // and the concrete host target that we use later on.
+  if (SrcTriple.isNativeCPU()) {
+    EnableDLWarning = false;
+    EnableTripleWarning = false;
   }
 
   if (EnableDLWarning && (SrcM->getDataLayout() != DstM.getDataLayout())) {

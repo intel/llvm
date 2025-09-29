@@ -26,7 +26,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   detail::Requirement MockReqA = getMockRequirement(BufA);
   detail::Requirement MockReqB = getMockRequirement(BufB);
   detail::MemObjRecord *RecA =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReqA);
+      MS.getOrInsertMemObjRecord(&QueueImpl, &MockReqA);
 
   // Create 2 fake allocas, one of which will be cleaned up
   detail::AllocaCommand *MockAllocaA =
@@ -49,7 +49,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
   addEdge(MockIndirectUser, MockDirectUser.get(), MockAllocaA);
 
   MS.cleanupCommandsForRecord(RecA);
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(BufA).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(BufA));
 
   // Check that the direct user has been left with the second alloca
   // as the only dependency, while the indirect user has been cleaned up.
@@ -68,7 +68,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
   buffer<int, 1> Buf(range<1>(1));
   detail::Requirement MockReq = getMockRequirement(Buf);
   detail::MemObjRecord *MemObjRec =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq);
+      MS.getOrInsertMemObjRecord(&QueueImpl, &MockReq);
 
   // Create a fake alloca.
   detail::AllocaCommand *MockAllocaCmd =
@@ -84,7 +84,7 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
   ASSERT_EQ(DepCmd.MUsers.count(MockAllocaCmd), 1U);
 
   MS.cleanupCommandsForRecord(MemObjRec);
-  MS.removeRecordForMemObj(detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(&*detail::getSyclObjImpl(Buf));
 
   // Check that DepCmd has its MUsers field cleared.
   ASSERT_EQ(DepCmd.MUsers.size(), 0U);

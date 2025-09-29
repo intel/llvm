@@ -6,16 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/workitem/clc_get_num_groups.h>
 #include <libspirv/spirv.h>
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_NumWorkgroups_x() {
-  return __nvvm_read_ptx_sreg_nctaid_x();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_NumWorkgroups_y() {
-  return __nvvm_read_ptx_sreg_nctaid_y();
-}
-
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_NumWorkgroups_z() {
-  return __nvvm_read_ptx_sreg_nctaid_z();
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_BuiltInNumWorkgroups(int dim) {
+  return __clc_get_num_groups(dim);
 }

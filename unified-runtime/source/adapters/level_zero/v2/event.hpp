@@ -17,6 +17,7 @@
 
 #include "adapters/level_zero/v2/queue_api.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "event_provider.hpp"
 
 namespace v2 {
@@ -111,6 +112,8 @@ public:
 
   uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
+
+  ur::RefCount RefCount;
 
 private:
   ur_event_handle_t_(ur_context_handle_t hContext, event_variant hZeEvent,

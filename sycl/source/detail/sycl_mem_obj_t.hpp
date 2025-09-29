@@ -33,10 +33,8 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class Adapter;
-using AdapterPtr = std::shared_ptr<Adapter>;
+class adapter_impl;
 
-using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
 // The class serves as a base for all SYCL memory objects.
@@ -91,7 +89,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const AdapterPtr &getAdapter() const;
+  adapter_impl &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -281,7 +279,9 @@ public:
 
   MemObjType getType() const override { return MemObjType::Undefined; }
 
-  ContextImplPtr getInteropContext() const override { return MInteropContext; }
+  context_impl *getInteropContext() const override {
+    return MInteropContext.get();
+  }
 
   bool isInterop() const override;
 
@@ -339,7 +339,7 @@ protected:
   // Should wait on this event before start working with such memory object.
   EventImplPtr MInteropEvent;
   // Context passed by user to interoperability constructor.
-  ContextImplPtr MInteropContext;
+  std::shared_ptr<context_impl> MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
   ur_mem_handle_t MInteropMemObject;

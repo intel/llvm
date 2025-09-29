@@ -22,7 +22,6 @@ class context_impl;
 struct MemObjRecord;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 // The class serves as an interface in the scheduler for all SYCL memory
 // objects.
@@ -72,7 +71,7 @@ public:
 
   // Returns the context which is passed if a memory object is created using
   // interoperability constructor, nullptr otherwise.
-  virtual ContextImplPtr getInteropContext() const = 0;
+  virtual detail::context_impl *getInteropContext() const = 0;
 
 protected:
   // Pointer to the record that contains the memory commands. This is managed

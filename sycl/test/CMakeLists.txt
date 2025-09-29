@@ -20,6 +20,8 @@ if(SYCL_ENABLE_EXTENSION_JIT)
   list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
   list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include)
 endif(SYCL_ENABLE_EXTENSION_JIT)
+get_target_property(EMHASH_INCLUDES emhash::emhash INTERFACE_INCLUDE_DIRECTORIES)
+list(APPEND test_includes ${EMHASH_INCLUDES})
 list(JOIN test_includes ":" TEST_INCLUDE_PATH)
 
 configure_lit_site_cfg(

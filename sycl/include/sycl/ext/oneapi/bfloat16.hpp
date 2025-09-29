@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>                   // for half
-#include <sycl/bit_cast.hpp>                  // for bit_cast
-#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
-#include <sycl/half_type.hpp>                 // for half
+#include <sycl/aliases.hpp>
+#include <sycl/bit_cast.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/half_type.hpp>
 
-#include <cstdint> // for uint16_t, uint32_t
+#include <cstdint>
 
 namespace sycl {
 inline namespace _V1 {
@@ -21,7 +21,11 @@ namespace ext::oneapi {
 
 class bfloat16 {
 public:
-  using Bfloat16StorageT = uint16_t;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  using Bfloat16StorageT
+      __SYCL_DEPRECATED("bfloat16::Bfloat16StorageT is non-standard and has "
+                        "been deprecated.") = uint16_t;
+#endif
 
   bfloat16() = default;
   ~bfloat16() = default;
@@ -58,7 +62,7 @@ public:
   friend bfloat16 operator-(const bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-    Bfloat16StorageT res;
+    uint16_t res;
     asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
     return bit_cast<bfloat16>(res);
 #else
@@ -126,6 +130,12 @@ public:
   // for floating-point types.
 
   // Stream Operator << and >>
+#ifdef __SYCL_DEVICE_ONLY__
+  // std::istream/std::ostream aren't usable on device, so don't provide a
+  // definition to save compile time by using lightweight `<iosfwd>`.
+  inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs);
+  inline friend std::istream &operator>>(std::istream &I, bfloat16 &rhs);
+#else
   inline friend std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
     O << static_cast<float>(rhs);
     return O;
@@ -137,13 +147,24 @@ public:
     rhs = ValFloat;
     return I;
   }
+#endif
 
 private:
-  Bfloat16StorageT value;
+  uint16_t value;
+
+  // Private tag used to avoid constructor ambiguity.
+  struct private_tag {
+    explicit private_tag() = default;
+  };
+
+  constexpr bfloat16(uint16_t Value, private_tag) : value{Value} {}
 
   // Explicit conversion functions
-  static float to_float(const Bfloat16StorageT &a);
-  static Bfloat16StorageT from_float(const float &a);
+  static float to_float(const uint16_t &a);
+  static uint16_t from_float(const float &a);
+
+  // Friend traits.
+  friend std::numeric_limits<bfloat16>;
 
   // Friend classes for vector operations
   friend class sycl::vec<bfloat16, 1>;
@@ -161,7 +182,7 @@ private:
 extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 #endif
-inline float bfloat16::to_float(const bfloat16::Bfloat16StorageT &a) {
+inline float bfloat16::to_float(const uint16_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   return __devicelib_ConvertBF16ToFINTEL(a);
 #else
@@ -196,11 +217,11 @@ inline uint16_t from_float_to_uint16_t(const float &a) {
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
 #endif
-inline bfloat16::Bfloat16StorageT bfloat16::from_float(const float &a) {
+inline uint16_t bfloat16::from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #if (__SYCL_CUDA_ARCH__ >= 800)
-  Bfloat16StorageT res;
+  uint16_t res;
   asm("cvt.rn.bf16.f32 %0, %1;" : "=h"(res) : "f"(a));
   return res;
 #else
@@ -615,3 +636,80 @@ inline bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+// Specialization of some functions in namespace `std`.
+namespace std {
+
+// Specialization of `std::hash<sycl::ext::oneapi::bfloat16>`.
+template <> struct hash<sycl::ext::oneapi::bfloat16> {
+  size_t operator()(sycl::ext::oneapi::bfloat16 const &Key) const noexcept {
+    return hash<uint16_t>{}(sycl::bit_cast<uint16_t>(Key));
+  }
+};
+
+// Specialization of `std::numeric_limits<sycl::ext::oneapi::bfloat16>`.
+template <> struct numeric_limits<sycl::ext::oneapi::bfloat16> {
+  // All following values are calculated based on description of each
+  // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits.
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = true;
+  static constexpr bool is_integer = false;
+  static constexpr bool is_exact = false;
+  static constexpr bool has_infinity = true;
+  static constexpr bool has_quiet_NaN = true;
+  static constexpr bool has_signaling_NaN = true;
+  static constexpr float_denorm_style has_denorm = denorm_present;
+  static constexpr bool has_denorm_loss = false;
+  static constexpr bool tinyness_before = false;
+  static constexpr bool traps = false;
+  static constexpr int max_exponent10 = 35;
+  static constexpr int max_exponent = 127;
+  static constexpr int min_exponent10 = -37;
+  static constexpr int min_exponent = -126;
+  static constexpr int radix = 2;
+  static constexpr int max_digits10 = 4;
+  static constexpr int digits = 8;
+  static constexpr bool is_bounded = true;
+  static constexpr int digits10 = 2;
+  static constexpr bool is_modulo = false;
+  static constexpr bool is_iec559 = true;
+  static constexpr float_round_style round_style = round_to_nearest;
+
+  static constexpr const sycl::ext::oneapi::bfloat16(min)() noexcept {
+    return {uint16_t(0x80), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16(max)() noexcept {
+    return {uint16_t(0x7f7f), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 lowest() noexcept {
+    return {uint16_t(0xff7f), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 epsilon() noexcept {
+    return {uint16_t(0x3c00), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 round_error() noexcept {
+    return {uint16_t(0x3f00), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 infinity() noexcept {
+    return {uint16_t(0x7f80), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 quiet_NaN() noexcept {
+    return {uint16_t(0x7fc0), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 signaling_NaN() noexcept {
+    return {uint16_t(0xff81), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+
+  static constexpr const sycl::ext::oneapi::bfloat16 denorm_min() noexcept {
+    return {uint16_t(0x1), sycl::ext::oneapi::bfloat16::private_tag{}};
+  }
+};
+
+} // namespace std

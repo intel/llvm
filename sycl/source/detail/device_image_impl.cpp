@@ -7,51 +7,54 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/device_image_impl.hpp>
+#include <detail/kernel_arg_mask.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-std::shared_ptr<kernel_impl> device_image_impl::tryGetSourceBasedKernel(
+std::shared_ptr<kernel_impl> device_image_impl::tryGetExtensionKernel(
     std::string_view Name, const context &Context,
-    const kernel_bundle_impl &OwnerBundle,
-    const std::shared_ptr<device_image_impl> &Self) const {
-  if (!(getOriginMask() & ImageOriginKernelCompiler))
+    const kernel_bundle_impl &OwnerBundle) {
+  if (!(getOriginMask() & ImageOriginKernelCompiler) &&
+      !((getOriginMask() & ImageOriginSYCLBIN) && hasKernelName(Name)))
     return nullptr;
 
-  assert(MRTCBinInfo);
-  std::string AdjustedName = adjustKernelName(Name);
-  if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
+  std::string_view AdjustedName = getAdjustedKernelNameStrView(Name);
+  if (MRTCBinInfo && MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
     auto &PM = ProgramManager::getInstance();
     for (const std::string &Prefix : MRTCBinInfo->MPrefixes) {
-      auto KID = PM.tryGetSYCLKernelID(Prefix + AdjustedName);
+      auto KID = PM.tryGetSYCLKernelID(Prefix + std::string(AdjustedName));
 
       if (!KID || !has_kernel(*KID))
         continue;
 
-      auto UrProgram = get_ur_program_ref();
+      auto UrProgram = get_ur_program();
       auto [UrKernel, CacheMutex, ArgMask] =
-          PM.getOrCreateKernel(Context, AdjustedName,
+          PM.getOrCreateKernel(Context, KernelNameStrT(AdjustedName),
                                /*PropList=*/{}, UrProgram);
-      return std::make_shared<kernel_impl>(UrKernel, *getSyclObjImpl(Context),
-                                           Self, OwnerBundle.shared_from_this(),
-                                           ArgMask, UrProgram, CacheMutex);
+      return std::make_shared<kernel_impl>(
+          std::move(UrKernel), *getSyclObjImpl(Context), shared_from_this(),
+          OwnerBundle, ArgMask, UrProgram, CacheMutex);
     }
     return nullptr;
   }
 
-  ur_program_handle_t UrProgram = get_ur_program_ref();
-  const AdapterPtr &Adapter = getSyclObjImpl(Context)->getAdapter();
-  ur_kernel_handle_t UrKernel = nullptr;
-  Adapter->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
-                                           &UrKernel);
-  // Kernel created by urKernelCreate is implicitly retained.
+  ur_program_handle_t UrProgram = get_ur_program();
+  detail::adapter_impl &Adapter = getSyclObjImpl(Context)->getAdapter();
+  Managed<ur_kernel_handle_t> UrKernel{Adapter};
+  Adapter.call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.data(),
+                                          &UrKernel);
+
+  const KernelArgMask *ArgMask = nullptr;
+  if (auto ArgMaskIt = MEliminatedKernelArgMasks.find(AdjustedName);
+      ArgMaskIt != MEliminatedKernelArgMasks.end())
+    ArgMask = &ArgMaskIt->second;
 
   return std::make_shared<kernel_impl>(
-      UrKernel, *detail::getSyclObjImpl(Context), Self,
-      OwnerBundle.shared_from_this(), /*ArgMask=*/nullptr, UrProgram,
-      /*CacheMutex=*/nullptr);
+      std::move(UrKernel), *detail::getSyclObjImpl(Context), shared_from_this(),
+      OwnerBundle, ArgMask, UrProgram, /*CacheMutex=*/nullptr);
 }
 
 } // namespace detail

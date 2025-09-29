@@ -29,7 +29,7 @@ static ur_result_t validateProcInputs(ur_api_version_t version,
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 namespace ur::level_zero {
-#elif defined(__cplusplus)
+#else
 extern "C" {
 #endif
 
@@ -92,6 +92,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       ur::level_zero::urBindlessImagesReleaseExternalMemoryExp;
   pDdiTable->pfnFreeMappedLinearMemoryExp =
       ur::level_zero::urBindlessImagesFreeMappedLinearMemoryExp;
+  pDdiTable->pfnSupportsImportingHandleTypeExp =
+      ur::level_zero::urBindlessImagesSupportsImportingHandleTypeExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
       ur::level_zero::urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =
@@ -306,6 +308,23 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
       ur::level_zero::urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = ur::level_zero::urMemGetInfo;
   pDdiTable->pfnImageGetInfo = ur::level_zero::urMemImageGetInfo;
+
+  return result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urGetMemoryExportExpProcAddrTable(
+    ur_api_version_t version, ur_memory_export_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnAllocExportableMemoryExp =
+      ur::level_zero::urMemoryExportAllocExportableMemoryExp;
+  pDdiTable->pfnFreeExportableMemoryExp =
+      ur::level_zero::urMemoryExportFreeExportableMemoryExp;
+  pDdiTable->pfnExportMemoryHandleExp =
+      ur::level_zero::urMemoryExportExportMemoryHandleExp;
 
   return result;
 }
@@ -530,7 +549,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 } // namespace ur::level_zero
-#elif defined(__cplusplus)
+#else
 } // extern "C"
 #endif
 
@@ -581,6 +600,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetMemProcAddrTable(UR_API_VERSION_CURRENT, &ddi->Mem);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetMemoryExportExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &ddi->MemoryExportExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = NAMESPACE_::urGetPhysicalMemProcAddrTable(UR_API_VERSION_CURRENT,

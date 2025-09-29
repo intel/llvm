@@ -175,7 +175,7 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
     return ReturnValue(hSampler->Context);
   }
   case UR_SAMPLER_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hSampler->getReferenceCount());
+    return ReturnValue(hSampler->RefCount.getCount());
   }
   // ur_bool_t have a size of uint8_t, but cl_bool size have the size of
   // uint32_t so this adjust UR_SAMPLER_INFO_NORMALIZED_COORDS info to map
@@ -221,13 +221,13 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
-  hSampler->incrementReferenceCount();
+  hSampler->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
-  if (hSampler->decrementReferenceCount() == 0) {
+  if (hSampler->RefCount.release()) {
     delete hSampler;
   }
   return UR_RESULT_SUCCESS;

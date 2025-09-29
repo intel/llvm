@@ -31,9 +31,11 @@ ur_usm_type_t GetUSMType(ur_context_handle_t Context, const void *MemPtr) {
 } // namespace
 
 ManagedQueue::ManagedQueue(ur_context_handle_t Context,
-                           ur_device_handle_t Device) {
+                           ur_device_handle_t Device, bool IsOutOfOrder) {
+  ur_queue_properties_t Prop{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+                             UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE};
   [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnCreate(
-      Context, Device, nullptr, &Handle);
+      Context, Device, IsOutOfOrder ? &Prop : nullptr, &Handle);
   assert(Result == UR_RESULT_SUCCESS && "Failed to create ManagedQueue");
   UR_LOG_L(getContext()->logger, DEBUG, ">>> ManagedQueue {}", (void *)Handle);
 }
@@ -137,6 +139,33 @@ std::string GetKernelName(ur_kernel_handle_t Kernel) {
   return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
+size_t GetSubGroupSize(ur_kernel_handle_t Kernel, ur_device_handle_t Device) {
+  uint32_t SubGroupSize = 0;
+  [[maybe_unused]] auto Result =
+      getContext()->urDdiTable.Kernel.pfnGetSubGroupInfo(
+          Kernel, Device, UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL,
+          sizeof(uint32_t), &SubGroupSize, nullptr);
+  assert(Result == UR_RESULT_SUCCESS && "getSubGroupSize() failed");
+
+  // If user doesn't require the subgroup size, choose device supported smallest
+  // one.
+  if (SubGroupSize == 0) {
+    size_t PropertySize = 0;
+    Result = getContext()->urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0, nullptr,
+        &PropertySize);
+    assert(Result == UR_RESULT_SUCCESS && "getDeviceInfo() failed");
+    std::vector<uint32_t> SupportedSubGroupSize(PropertySize /
+                                                sizeof(uint32_t));
+    Result = getContext()->urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, PropertySize,
+        SupportedSubGroupSize.data(), nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDeviceInfo() failed");
+    SubGroupSize = SupportedSubGroupSize[0];
+  }
+  return SubGroupSize;
+}
+
 bool IsUSM(ur_context_handle_t Context, const void *MemPtr) {
   ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
   return USMType != UR_USM_TYPE_UNKNOWN;
@@ -145,6 +174,11 @@ bool IsUSM(ur_context_handle_t Context, const void *MemPtr) {
 bool IsHostUSM(ur_context_handle_t Context, const void *MemPtr) {
   ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
   return USMType == UR_USM_TYPE_HOST;
+}
+
+bool IsDeviceUSM(ur_context_handle_t Context, const void *MemPtr) {
+  ur_usm_type_t USMType = GetUSMType(Context, MemPtr);
+  return USMType == UR_USM_TYPE_DEVICE;
 }
 
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
@@ -272,10 +306,13 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device) {
   size_t Size;
+  const size_t allocationSize =
+      1; // probably we want to use actual allocation size
   [[maybe_unused]] auto Result =
       getContext()->urDdiTable.VirtualMem.pfnGranularityGetInfo(
-          Context, Device, UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
-          sizeof(Size), &Size, nullptr);
+          Context, Device, allocationSize,
+          UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED, sizeof(Size), &Size,
+          nullptr);
   assert(Result == UR_RESULT_SUCCESS);
   return Size;
 }
@@ -285,6 +322,11 @@ void PrintUrBuildLogIfError(ur_result_t Result, ur_program_handle_t Program,
   if (Result == UR_RESULT_SUCCESS ||
       Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     return;
+
+  if (!Program || !Devices || NumDevices == 0) {
+    UR_LOG_L(getContext()->logger, ERR, "Failed to get build log.");
+    return;
+  }
 
   UR_LOG_L(getContext()->logger, ERR, "Printing build log for program {}",
            (void *)Program);

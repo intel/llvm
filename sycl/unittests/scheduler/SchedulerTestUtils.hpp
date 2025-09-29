@@ -75,10 +75,10 @@ public:
   ur_result_t MRetVal = UR_RESULT_SUCCESS;
 
   void waitForEventsCall(
-      std::shared_ptr<sycl::detail::queue_impl> Queue,
+      sycl::detail::queue_impl *Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
       ur_event_handle_t &Event) {
-    Command::waitForEvents(Queue.get(), RawEvents, Event);
+    Command::waitForEvents(Queue, RawEvents, Event);
   }
 
   std::shared_ptr<sycl::detail::event_impl> getEvent() { return MEvent; }
@@ -109,7 +109,7 @@ public:
   using sycl::detail::Scheduler::MDeferredMemObjRelease;
 
   sycl::detail::MemObjRecord *
-  getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
+  getOrInsertMemObjRecord(sycl::detail::queue_impl *Queue,
                           sycl::detail::Requirement *Req) {
     return MGraphBuilder.getOrInsertMemObjRecord(Queue, Req);
   }
@@ -153,7 +153,7 @@ public:
   sycl::detail::AllocaCommandBase *
   getOrCreateAllocaForReq(sycl::detail::MemObjRecord *Record,
                           const sycl::detail::Requirement *Req,
-                          sycl::detail::QueueImplPtr Queue,
+                          sycl::detail::queue_impl *Queue,
                           std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   }
@@ -167,7 +167,7 @@ public:
   sycl::detail::Command *
   insertMemoryMove(sycl::detail::MemObjRecord *Record,
                    sycl::detail::Requirement *Req,
-                   const sycl::detail::QueueImplPtr &Queue,
+                   sycl::detail::queue_impl *Queue,
                    std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertMemoryMove(Record, Req, Queue, ToEnqueue);
   }
@@ -181,7 +181,7 @@ public:
   sycl::detail::UpdateHostRequirementCommand *
   insertUpdateHostReqCmd(sycl::detail::MemObjRecord *Record,
                          sycl::detail::Requirement *Req,
-                         const sycl::detail::QueueImplPtr &Queue,
+                         sycl::detail::queue_impl *Queue,
                          std::vector<sycl::detail::Command *> &ToEnqueue) {
     return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
   }
@@ -195,7 +195,7 @@ public:
   }
 
   sycl::detail::Command *addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
-                               sycl::detail::QueueImplPtr Queue,
+                               sycl::detail::queue_impl *Queue,
                                std::vector<sycl::detail::Command *> &ToEnqueue,
                                bool EventNeeded) {
     return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
@@ -212,7 +212,7 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessRange*/ {0, 0, 0},
           /*MemoryRange*/ {0, 0, 0},
           /*AccessMode*/ sycl::access::mode::read_write,
-          /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
+          /*SYCLMemObj*/ &*sycl::detail::getSyclObjImpl(MemObj),
           /*Dims*/ 0,
           /*ElementSize*/ 0,
           /*Offset*/ size_t(0)};
@@ -220,16 +220,18 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> &Queue,
-              bool CallerNeedsEvent)
-      : sycl::handler(Queue, CallerNeedsEvent) {}
+  MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
+      : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
+            Queue, CallerNeedsEvent)) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
   using sycl::handler::impl;
   using sycl::handler::setNDRangeDescriptor;
 
-  sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
+  sycl::detail::NDRDescT &getNDRDesc() {
+    return impl->MKernelData.getNDRDesc();
+  }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;
@@ -252,17 +254,15 @@ public:
   std::vector<sycl::detail::EventImplPtr> &getEvents() {
     return impl->CGData.MEvents;
   }
-  std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
-  sycl::detail::KernelNameStrT getKernelName() {
-    return toKernelNameStrT(MKernelName);
+  std::vector<sycl::detail::ArgDesc> &getArgs() {
+    return impl->MKernelData.getArgs();
   }
+  std::string_view getKernelName() { return impl->MKernelData.getKernelName(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  const std::shared_ptr<sycl::detail::queue_impl> getQueue() {
-    return impl->get_queue().shared_from_this();
-  }
+  sycl::detail::queue_impl *getQueue() { return impl->get_queue_or_null(); }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
@@ -291,7 +291,7 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> &Queue,
+  MockHandlerCustomFinalize(sycl::detail::queue_impl &Queue,
                             bool CallerNeedsEvent)
       : MockHandler(Queue, CallerNeedsEvent) {}
 
@@ -305,17 +305,17 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
-          impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-          getCodeLoc()));
+          *impl->MKernelData.getDeviceKernelInfoPtr(), getStreamStorage(),
+          impl->MAuxiliaryResources, getType(), {},
+          impl->MKernelData.isCooperative(),
+          impl->MKernelData.usesClusterLaunch(),
+          impl->MKernelData.getKernelWorkGroupMemorySize(), getCodeLoc()));
       break;
     }
     case sycl::detail::CGType::CodeplayHostTask: {
       CommandGroup.reset(new sycl::detail::CGHostTask(
-          std::move(getHostTask()), getQueue().get(),
-          getQueue()->getContextImplPtr(), getArgs(), std::move(CGData),
-          getType(), getCodeLoc()));
+          std::move(getHostTask()), getQueue(), &getQueue()->getContextImpl(),
+          getArgs(), std::move(CGData), getType(), getCodeLoc()));
       break;
     }
     default:

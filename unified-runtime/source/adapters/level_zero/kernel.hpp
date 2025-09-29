@@ -9,9 +9,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
-#include "memory.hpp"
 #include <unordered_set>
+#include <variant>
+
+#include "common.hpp"
+#include "common/ur_ref_count.hpp"
+#include "memory.hpp"
 
 struct ur_kernel_handle_t_ : ur_object {
   ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
@@ -95,8 +98,10 @@ struct ur_kernel_handle_t_ : ur_object {
   struct ArgumentInfo {
     uint32_t Index;
     size_t Size;
-    // const ur_mem_handle_t_ *Value;
-    ur_mem_handle_t_ *Value;
+    // Value may be either a memory object or a raw pointer value (for pointer
+    // arguments). Resolve at enqueue time per-device to ensure correct handle
+    // is used for that device.
+    std::variant<ur_mem_handle_t, const void *> Value;
     ur_mem_handle_t_::access_mode_t AccessMode{ur_mem_handle_t_::unknown};
   };
   // Arguments that still need to be set (with zeKernelSetArgumentValue)
@@ -106,6 +111,8 @@ struct ur_kernel_handle_t_ : ur_object {
   // Cache of the kernel properties.
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
   ZeCache<std::string> ZeKernelName;
+
+  ur::RefCount RefCount;
 };
 
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,

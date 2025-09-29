@@ -32,7 +32,7 @@ entry:
   %vecinit3 = insertelement <2 x i32> %vecinit, i32 %conv2, i32 1
   %call4 = tail call spir_func <4 x float> @_Z11read_imagef11ocl_image2d11ocl_samplerDv2_i(ptr addrspace(1) %image1, i32 20, <2 x i32> %vecinit3) #3
   tail call spir_func void @_Z12write_imagef11ocl_image2dDv2_iDv4_f(ptr addrspace(1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #4
-; CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(ptr addrspace(1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #0
+; CHECK-LLVM: call spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #0
 ; CHECK-SPV-IR: call spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %image2, <2 x i32> %vecinit3, <4 x float> %call4) #0
   ret void
 }
@@ -44,7 +44,7 @@ declare spir_func i64 @_Z13get_global_idj(i32) #1
 declare spir_func <4 x float> @_Z11read_imagef11ocl_image2d11ocl_samplerDv2_i(ptr addrspace(1), i32, <2 x i32>) #1
 
 declare spir_func void @_Z12write_imagef11ocl_image2dDv2_iDv4_f(ptr addrspace(1), <2 x i32>, <4 x float>) #2
-; CHECK-LLVM: declare spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(ptr addrspace(1), <2 x i32>, <4 x float>)
+; CHECK-LLVM: declare spir_func void @_Z12write_imagef14ocl_image2d_woDv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, <4 x float>)
 ; CHECK-SPV-IR: declare spir_func void @_Z18__spirv_ImageWritePU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv4_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1), <2 x i32>, <4 x float>)
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

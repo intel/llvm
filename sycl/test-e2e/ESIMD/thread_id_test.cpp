@@ -62,19 +62,13 @@ int test_thread_id() {
 
   int Result = 0;
 
-  // Check if all returned elements are non negative
+  // Check if all returned elements are zero
   Result |=
       !std::all_of(VectorOutputSubdeviceId.begin(),
-                   VectorOutputSubdeviceId.end(), [](int i) { return i >= 0; });
+                   VectorOutputSubdeviceId.end(), [](int i) { return i == 0; });
   Result |=
       !std::all_of(VectorOutputThreadId.begin(), VectorOutputThreadId.end(),
-                   [](int i) { return i >= 0; });
-
-  // Check if returned values are not the same
-  std::sort(VectorOutputThreadId.begin(), VectorOutputThreadId.end());
-  Result |=
-      std::equal(VectorOutputThreadId.begin() + 1, VectorOutputThreadId.end(),
-                 VectorOutputThreadId.begin());
+                   [](int i) { return i == 0; });
 
   return Result;
 }

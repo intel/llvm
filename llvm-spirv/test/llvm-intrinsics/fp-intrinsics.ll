@@ -231,6 +231,20 @@ declare float @llvm.minimum.f32(float, float)
 ; CHECK: Function
 ; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
 ; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
+; CHECK: ExtInst {{[0-9]+}} [[res:[0-9]+]] {{[0-9]+}} fmin [[x]] [[y]]
+; CHECK: ReturnValue [[res]]
+
+define spir_func float @TestMinimumnum(float %x, float %y) {
+entry:
+  %t = call float @llvm.minimumnum.f32(float %x, float %y)
+  ret float %t
+}
+
+declare float @llvm.minimumnum.f32(float, float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
 ; CHECK: ExtInst {{[0-9]+}} [[res:[0-9]+]] {{[0-9]+}} fmax [[x]] [[y]]
 ; CHECK: ReturnValue [[res]]
 
@@ -241,6 +255,20 @@ entry:
 }
 
 declare float @llvm.maximum.f32(float, float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
+; CHECK: ExtInst {{[0-9]+}} [[res:[0-9]+]] {{[0-9]+}} fmax [[x]] [[y]]
+; CHECK: ReturnValue [[res]]
+
+define spir_func float @TestMaximumnum(float %x, float %y) {
+entry:
+  %t = call float @llvm.maximumnum.f32(float %x, float %y)
+  ret float %t
+}
+
+declare float @llvm.maximumnum.f32(float, float)
 
 ; CHECK: Function
 ; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]

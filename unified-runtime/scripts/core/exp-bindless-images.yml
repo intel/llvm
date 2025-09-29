@@ -174,6 +174,20 @@ etors:
     desc: "Host to host"
 --- #--------------------------------------------------------------------------
 type: enum
+desc: "Dictates the types of memory copy input and output."
+class: $xBindlessImages
+name: $x_exp_image_copy_input_types_t
+etors:
+  - name: MEM_TO_IMAGE
+    desc: "Memory to image handle"
+  - name: IMAGE_TO_MEM
+    desc: "Image handle to memory"
+  - name: MEM_TO_MEM
+    desc: "Memory to Memory"
+  - name: IMAGE_TO_IMAGE
+    desc: "Image handle to image handle"
+--- #--------------------------------------------------------------------------
+type: enum
 extend: True
 desc: "Memory types"
 name: $x_mem_type_t
@@ -212,6 +226,10 @@ etors:
     desc: "Win32 NT handle"
   - name: WIN32_NT_DX12_RESOURCE
     desc: "Win32 NT DirectX 12 resource handle"
+  - name: DMA_BUF
+    desc: "dma_buf file descriptor"
+  - name: WIN32_NT_DX11_RESOURCE
+    desc: "Win32 NT DirectX 11 resource handle"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Dictates the type of external semaphore handle."
@@ -598,6 +616,9 @@ params:
     - type: $x_exp_image_copy_flags_t
       name: imageCopyFlags
       desc: "[in] flags describing copy direction e.g. H2D or D2H"
+    - type: $x_exp_image_copy_input_types_t
+      name: imageCopyInputTypes
+      desc: "[in] flag describing types of source and destination pointers (USM vs image handle)"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -923,6 +944,25 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`pMem == NULL`"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Checks whether the device supports importing the specified external memory handle type"
+class: $xBindlessImages
+name: SupportsImportingHandleTypeExp
+ordinal: "0"
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_external_mem_type_t
+      name: memHandleType
+      desc: "[in] type of external memory handle"
+    - type: $x_bool_t*
+      name: pSupportedRet
+      desc: "[out] whether the device supports importing the specified external memory handle type"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Import an external semaphore"

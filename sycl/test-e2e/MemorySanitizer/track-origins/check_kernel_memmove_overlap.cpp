@@ -1,6 +1,11 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
+// XFAIL: run-mode && linux && arch-intel_gpu_pvc && level_zero_v2_adapter
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19585
+
+// RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O0 -g -o %t0.out
+// RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes CHECK,CHECK-ORIGIN-STACK
 // RUN: %{build} %device_msan_flags -Xarch_device -fsanitize-memory-track-origins=1 -O2 -g -o %t1.out
-// RUN: %{run} %t1.out 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_MSAN_OPTIONS=msan_check_host_and_shared_usm:1 %{run} %t1.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -30,7 +35,7 @@ void overlap() {
   // CHECK: kernel <{{.*MyKernel2}}>
   // CHECK: #{{.*}} {{.*check_kernel_memmove_overlap.cpp}}:[[@LINE-6]]
   // CHECK: ORIGIN: Shared USM allocation
-  // CHECK: #{{.*}} {{.*check_kernel_memmove_overlap.cpp}}:[[@LINE-20]]
+  // CHECK-ORIGIN-STACK: #{{.*}} {{.*check_kernel_memmove_overlap.cpp}}:[[@LINE-20]]
 
   sycl::free(array, Q);
 }

@@ -55,14 +55,11 @@ void ur_usm_handle_t::unmapHostPtr(void * /*pMappedPtr*/,
 
 ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
-    host_ptr_action_t hostPtrAction, device_access_mode_t accessMode)
+    device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  bool hostPtrImported = false;
-  if (hostPtrAction == host_ptr_action_t::import) {
-    hostPtrImported =
-        maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
-                       hContext->getZeHandle(), hostPtr, size);
-  }
+  bool hostPtrImported =
+      maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                     hContext->getZeHandle(), hostPtr, size);
 
   if (hostPtrImported) {
     this->ptr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
@@ -201,8 +198,23 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     device_access_mode_t accessMode)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
-      activeAllocationDevice(nullptr), mapToPtr(hostPtr), hostAllocations() {
+      activeAllocationDevice(nullptr), mapToPtr(nullptr, nullptr),
+      hostAllocations() {
   if (hostPtr) {
+    // Try importing the pointer to speed up memory copies for map/unmap
+    bool hostPtrImported =
+        maybeImportUSM(hContext->getPlatform()->ZeDriverHandleExpTranslated,
+                       hContext->getZeHandle(), hostPtr, size);
+
+    if (hostPtrImported) {
+      mapToPtr = usm_unique_ptr_t(hostPtr, [hContext](void *ptr) {
+        ZeUSMImport.doZeUSMRelease(
+            hContext->getPlatform()->ZeDriverHandleExpTranslated, ptr);
+      });
+    } else {
+      mapToPtr = usm_unique_ptr_t(hostPtr, [](void *) {});
+    }
+
     auto initialDevice = hContext->getDevices()[0];
     UR_CALL_THROWS(migrateBufferTo(initialDevice, hostPtr, size));
   }
@@ -290,6 +302,7 @@ static void migrateMemory(ze_command_list_handle_t cmdList, void *src,
                           void *dst, size_t size,
                           wait_list_view &waitListView) {
   if (!cmdList) {
+    UR_DFAILURE("invalid handle in migrateMemory");
     throw UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
@@ -305,18 +318,18 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(ur_map_flags_t flags,
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::mapHostPtr");
   // TODO: use async alloc?
 
-  void *ptr = mapToPtr;
+  void *ptr = mapToPtr.get();
   if (!ptr) {
     UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
         hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &ptr));
   }
 
   usm_unique_ptr_t mappedPtr =
-      usm_unique_ptr_t(ptr, [ownsAlloc = bool(mapToPtr), this](void *p) {
+      usm_unique_ptr_t(ptr, [ownsAlloc = !bool(mapToPtr), this](void *p) {
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
+            UR_LOG(ERR, "Failed to free mapped memory: {}", ret);
           }
         }
       });
@@ -344,6 +357,7 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(void *pMappedPtr,
                    });
 
   if (hostAlloc == hostAllocations.end()) {
+    UR_DFAILURE("could not find pMappedPtr:" << pMappedPtr);
     throw UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
 
@@ -495,11 +509,15 @@ static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
          rowPitch == 4 * 2 * zeRegion.width) ||
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-         rowPitch == 4 * zeRegion.width)))
+         rowPitch == 4 * zeRegion.width))) {
+    UR_DFAILURE("image size is invalid");
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
+  }
 #endif
-  if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height))
+  if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height)) {
+    UR_DFAILURE("image size is invalid");
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
+  }
 }
 
 std::pair<ze_image_handle_t, ze_image_region_t>
@@ -541,16 +559,16 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
     // ignore the flag for now.
   }
 
+  if (flags & UR_MEM_FLAG_USE_HOST_POINTER) {
+    // To speed up copies, we always import the host ptr to USM memory
+  }
+
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
   auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
-    auto hostPtrAction =
-        flags & UR_MEM_FLAG_USE_HOST_POINTER
-            ? ur_integrated_buffer_handle_t::host_ptr_action_t::import
-            : ur_integrated_buffer_handle_t::host_ptr_action_t::copy;
     *phBuffer = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, hostPtr, size, hostPtrAction, accessMode);
+        hContext, hostPtr, size, accessMode);
   } else {
     *phBuffer = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
         hContext, hostPtr, size, accessMode);
@@ -671,7 +689,7 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
     return returnValue(size_t{hMem->getBuffer()->getSize()});
   }
   case UR_MEM_INFO_REFERENCE_COUNT: {
-    return returnValue(hMem->getObject()->RefCount.load());
+    return returnValue(hMem->RefCount.getCount());
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -684,14 +702,14 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMem, ur_mem_info_t propName,
 }
 
 ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
-  hMem->getObject()->RefCount.increment();
+  hMem->RefCount.retain();
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
-  if (!hMem->getObject()->RefCount.decrementAndTest())
+  if (!hMem->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete hMem;

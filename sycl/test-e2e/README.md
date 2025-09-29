@@ -210,6 +210,10 @@ or via the ***LIT_OPTS*** environment variable.
 compilation command line for GPU device. If not specified "-device *" value is
 used.
 
+***OFFLOAD_BUILD_TARGET*** - when testing the Offload backend, this must be set
+to specify the correct build target type for the available Offload device.
+Valid values are `target-nvidia` and `target-amd`.
+
 ***USE_DEBUG_LIBRARIES*** - enable the use of Windows debug libraries by setting
 this to "ON". "OFF" by default.
 

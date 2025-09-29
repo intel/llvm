@@ -53,6 +53,7 @@ function(add_sycl_rt_library LIB_TARGET_NAME LIB_OBJ_NAME LIB_OUTPUT_NAME)
       __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
       __SYCL_INTERNAL_API
       SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      __SYCL_DISABLE_DEPRECATION_WARNINGS
       $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
   )
 
@@ -147,14 +148,7 @@ function(add_sycl_rt_library LIB_TARGET_NAME LIB_OBJ_NAME LIB_OUTPUT_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
-  if (EMHASH_SYS_LOC)
-    # If we are using system emhash, include the system directory
-    # containing the emhash folder and note this location so
-    # other modules using emhash can find it.
-    cmake_path(GET EMHASH_SYS_LOC PARENT_PATH EMHASH_SYS_LOC)
-    set(SYCL_EMHASH_DIR ${EMHASH_SYS_LOC} CACHE INTERNAL "")
-    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${EMHASH_SYS_LOC})
-  endif()
+  target_link_libraries(${LIB_OBJ_NAME} PRIVATE emhash::emhash)
 
   # ur_win_proxy_loader
   if (WIN32)
@@ -261,6 +255,8 @@ set(SYCL_COMMON_SOURCES
     "detail/device_filter.cpp"
     "detail/host_pipe_map.cpp"
     "detail/device_global_map.cpp"
+    "detail/kernel_data.cpp"
+    "detail/kernel_global_info.cpp"
     "detail/device_global_map_entry.cpp"
     "detail/device_image_impl.cpp"
     "detail/device_impl.cpp"
@@ -269,7 +265,9 @@ set(SYCL_COMMON_SOURCES
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
     "detail/global_handler.cpp"
-    "detail/graph_impl.cpp"
+    "detail/graph/graph_impl.cpp"
+    "detail/graph/dynamic_impl.cpp"
+    "detail/graph/node_impl.cpp"
     "detail/helpers.cpp"
     "detail/handler_proxy.cpp"
     "detail/image_accessor_util.cpp"
@@ -279,8 +277,10 @@ set(SYCL_COMMON_SOURCES
     "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_compiler/kernel_compiler_sycl.cpp"
     "detail/kernel_impl.cpp"
-    "detail/kernel_name_based_cache.cpp"
+    "detail/get_device_kernel_info.cpp"
+    "detail/device_kernel_info.cpp"
     "detail/kernel_program_cache.cpp"
+    "detail/memory_export.cpp"
     "detail/memory_manager.cpp"
     "detail/pipes.cpp"
     "detail/platform_impl.cpp"
@@ -288,11 +288,11 @@ set(SYCL_COMMON_SOURCES
     "detail/queue_impl.cpp"
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
-    "detail/platform_util.cpp"
     "detail/preview_marker.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
+    "detail/syclbin.cpp"
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
@@ -323,17 +323,17 @@ set(SYCL_COMMON_SOURCES
     "queue.cpp"
     "sampler.cpp"
     "stream.cpp"
-    "spirv_ops.cpp"
     "virtual_mem.cpp"
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
     "detail/memory_pool.cpp"
-    "detail/graph_memory_pool.cpp"
+    "detail/graph/memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+  "spirv_ops.cpp"
 )
 
 

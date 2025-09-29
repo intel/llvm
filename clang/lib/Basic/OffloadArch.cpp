@@ -33,8 +33,12 @@ static const OffloadArchToStringMap ArchNames[] = {
     SM(100a),                        // Blackwell
     SM(101),                         // Blackwell
     SM(101a),                        // Blackwell
+    SM(103),                         // Blackwell
+    SM(103a),                        // Blackwell
     SM(120),                         // Blackwell
     SM(120a),                        // Blackwell
+    SM(121),                         // Blackwell
+    SM(121a),                        // Blackwell
     GFX(600),  // gfx600
     GFX(601),  // gfx601
     GFX(602),  // gfx602
@@ -86,11 +90,65 @@ static const OffloadArchToStringMap ArchNames[] = {
     {OffloadArch::GFX12_GENERIC, "gfx12-generic", "compute_amdgcn"},
     GFX(1200), // gfx1200
     GFX(1201), // gfx1201
+    GFX(1250), // gfx1250
     {OffloadArch::AMDGCNSPIRV, "amdgcnspirv", "compute_amdgcn"},
     // Intel CPUs
+    {OffloadArch::SKYLAKEAVX512, "skylake-avx512", ""},
+    {OffloadArch::COREAVX2, "core-avx2", ""},
+    {OffloadArch::COREI7AVX, "corei7-avx", ""},
+    {OffloadArch::COREI7, "corei7", ""},
+    {OffloadArch::WESTMERE, "westmere", ""},
+    {OffloadArch::SANDYBRIDGE, "sandybridge", ""},
+    {OffloadArch::IVYBRIDGE, "ivybridge", ""},
+    {OffloadArch::BROADWELL, "broadwell", ""},
+    {OffloadArch::COFFEELAKE, "coffeelake", ""},
+    {OffloadArch::ALDERLAKE, "alderlake", ""},
+    {OffloadArch::SKYLAKE, "skylake", ""},
+    {OffloadArch::SKX, "skx", ""},
+    {OffloadArch::CASCADELAKE, "cascadelake", ""},
+    {OffloadArch::ICELAKECLIENT, "icelake-client", ""},
+    {OffloadArch::ICELAKESERVER, "icelake-server", ""},
+    {OffloadArch::SAPPHIRERAPIDS, "sapphirerapids", ""},
     {OffloadArch::GRANITERAPIDS, "graniterapids", ""},
     // Intel GPUS
+    {OffloadArch::BDW, "bdw", ""},
+    {OffloadArch::SKL, "skl", ""},
+    {OffloadArch::KBL, "kbl", ""},
+    {OffloadArch::CFL, "cfl", ""},
+    {OffloadArch::APL, "apl", ""},
+    {OffloadArch::BXT, "bxt", ""},
+    {OffloadArch::GLK, "glk", ""},
+    {OffloadArch::WHL, "whl", ""},
+    {OffloadArch::AML, "aml", ""},
+    {OffloadArch::CML, "cml", ""},
+    {OffloadArch::ICLLP, "icllp", ""},
+    {OffloadArch::ICL, "icl", ""},
+    {OffloadArch::EHL, "ehl", ""},
+    {OffloadArch::JSL, "jsl", ""},
+    {OffloadArch::TGLLP, "tgllp", ""},
+    {OffloadArch::TGL, "tgl", ""},
+    {OffloadArch::RKL, "rkl", ""},
+    {OffloadArch::ADL_S, "adl_s", ""},
+    {OffloadArch::RPL_S, "rpl_s", ""},
+    {OffloadArch::ADL_P, "adl_p", ""},
+    {OffloadArch::ADL_N, "adl_n", ""},
+    {OffloadArch::DG1, "dg1", ""},
+    {OffloadArch::ACM_G10, "acm_g10", ""},
+    {OffloadArch::DG2_G10, "dg2_g10", ""},
+    {OffloadArch::ACM_G11, "acm_g11", ""},
+    {OffloadArch::DG2_G11, "dg2_g11", ""},
+    {OffloadArch::ACM_G12, "acm_g12", ""},
+    {OffloadArch::DG2_G12, "dg2_g12", ""},
+    {OffloadArch::PVC, "pvc", ""},
+    {OffloadArch::PVC_VG, "pvc_vg", ""},
+    {OffloadArch::MTL_U, "mtl_u", ""},
+    {OffloadArch::MTL_S, "mtl_s", ""},
+    {OffloadArch::ARL_U, "arl_u", ""},
+    {OffloadArch::ARL_S, "arl_s", ""},
+    {OffloadArch::MTL_H, "mtl_h", ""},
+    {OffloadArch::ARL_H, "arl_h", ""},
     {OffloadArch::BMG_G21, "bmg_g21", ""},
+    {OffloadArch::LNL_M, "lnl_m", ""},
     {OffloadArch::Generic, "generic", ""},
     // clang-format on
 };

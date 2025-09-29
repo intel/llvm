@@ -75,10 +75,10 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
     static std::shared_ptr<MsanShadowMemory> ShadowDG2 =
         std::make_shared<MsanShadowMemoryDG2>(Context, Device);
     return ShadowDG2;
-  } else {
-    UR_LOG_L(getContext()->logger, ERR, "Unsupport device type");
-    return nullptr;
   }
+
+  die("GetMsanShadowMemory: Unsupport device type");
+  return nullptr;
 }
 
 ur_result_t MsanShadowMemoryCPU::Setup() {
@@ -88,12 +88,9 @@ ur_result_t MsanShadowMemoryCPU::Setup() {
       uptr End = kMemoryLayout[i].end;
       uptr Size = End - Start;
       MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool InitOrigins = true;
 
-      bool IsMap = Type == MappingDesc::SHADOW ||
-                   (InitOrigins && Type == MappingDesc::ORIGIN);
-      bool IsProtect = Type == MappingDesc::INVALID ||
-                       (!InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+      bool IsProtect = Type == MappingDesc::INVALID;
 
       if (IsMap) {
         if (MmapFixedNoReserve(Start, Size) == 0) {
@@ -124,9 +121,7 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
       uptr End = kMemoryLayout[i].end;
       uptr Size = End - Start;
       MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool InitOrigins = true;
-      bool IsMap = Type == MappingDesc::SHADOW ||
-                   (InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
       if (IsMap) {
         if (Munmap(Start, Size)) {
           return UR_RESULT_ERROR_UNKNOWN;
@@ -168,7 +163,7 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
                (void *)(uptr)Value);
       memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
     }
-    {
+    if (Origin) {
       const uptr OriginBegin = MemToOrigin(Ptr);
       const uptr OriginEnd =
           MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
@@ -333,14 +328,16 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
     UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
 
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "EnqueuePoisonOrigin(addr={}, size={}, value={})",
-             (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-             (void *)(uptr)Origin);
+    if (Origin) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "EnqueuePoisonOrigin(addr={}, size={}, value={})",
+               (void *)OriginBegin, OriginEnd - OriginBegin + 1,
+               (void *)(uptr)Origin);
 
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
-        OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+      UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+          Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
+          OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -378,7 +375,8 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                                   uint32_t NumWG, uptr &Begin,
                                                   uptr &End) {
   const size_t LocalMemorySize = GetDeviceLocalMemorySize(Device);
-  const size_t RequiredShadowSize = NumWG * LocalMemorySize;
+  const size_t RequiredShadowSize =
+      std::min(NumWG, MSAN_MAX_WG_LOCAL) * LocalMemorySize;
   static size_t LastAllocedSize = 0;
   if (RequiredShadowSize > LastAllocedSize) {
     auto ContextInfo = getMsanInterceptor()->getContextInfo(Context);
@@ -414,16 +412,17 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
 }
 
 ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
-                                                    uint64_t NumWI,
-                                                    uint32_t NumWG, uptr *&Base,
+                                                    uint32_t NumSG, uptr *&Base,
                                                     uptr &Begin, uptr &End) {
   // Trying to allocate private base array and private shadow, and any one of
   // them fail to allocate would be a failure
   static size_t LastPrivateBaseAllocedSize = 0;
   static size_t LastPrivateShadowAllocedSize = 0;
 
+  NumSG = std::min(NumSG, MSAN_MAX_SG_PRIVATE);
+
   try {
-    const size_t NewPrivateBaseSize = NumWI * sizeof(uptr);
+    const size_t NewPrivateBaseSize = NumSG * sizeof(uptr);
     if (NewPrivateBaseSize > LastPrivateBaseAllocedSize) {
       if (PrivateBasePtr) {
         UR_CALL_THROWS(getContext()->urDdiTable.USM.pfnFree(
@@ -445,7 +444,7 @@ ur_result_t MsanShadowMemoryGPU::AllocPrivateShadow(ur_queue_handle_t Queue,
       LastPrivateBaseAllocedSize = NewPrivateBaseSize;
     }
 
-    const size_t NewPrivateShadowSize = NumWG * MSAN_PRIVATE_SIZE;
+    const size_t NewPrivateShadowSize = NumSG * MSAN_PRIVATE_SIZE;
     if (NewPrivateShadowSize > LastPrivateShadowAllocedSize) {
 
       if (PrivateShadowOffset) {

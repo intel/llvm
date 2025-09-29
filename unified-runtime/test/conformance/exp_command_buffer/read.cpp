@@ -15,6 +15,10 @@ struct testParametersRead {
 struct urCommandBufferReadCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<testParametersRead> {
   void SetUp() override {
+    // Buffer read not supported on OpenCL
+    // see https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersRead>::SetUp());

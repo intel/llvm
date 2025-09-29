@@ -35,20 +35,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   auto AllocMode = BufferMem::AllocMode::Default;
 
   if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-    auto Res = olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_HOST, size, &HostPtr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_HOST, size, &HostPtr));
+
     // TODO: We (probably) need something like cuMemHostGetDevicePointer
     // for this to work everywhere. For now assume the managed host pointer is
     // device-accessible.
     Ptr = HostPtr;
     AllocMode = BufferMem::AllocMode::AllocHostPtr;
   } else {
-    auto Res = olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_DEVICE, size, &Ptr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(
+        olMemAlloc(OffloadDevice, OL_ALLOC_TYPE_DEVICE, size, &Ptr));
     if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
       AllocMode = BufferMem::AllocMode::CopyIn;
     }
@@ -59,11 +56,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       hContext, ParentBuffer, flags, AllocMode, Ptr, HostPtr, size});
 
   if (PerformInitialCopy) {
-    auto Res = olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
-                        Adapter->HostDevice, size, nullptr);
-    if (Res) {
-      return offloadResultToUR(Res);
-    }
+    OL_RETURN_ON_ERR(olMemcpy(nullptr, Ptr, OffloadDevice, HostPtr,
+                              Adapter->HostDevice, size));
   }
 
   *phBuffer = URMemObj.release();
@@ -82,12 +76,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   }
 
   std::unique_ptr<ur_mem_handle_t_> MemObjPtr(hMem);
-  if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
-    // TODO: Handle registered host memory
-    auto &BufferImpl = std::get<BufferMem>(MemObjPtr->Mem);
-    auto Res = olMemFree(BufferImpl.Ptr);
-    if (Res) {
-      return offloadResultToUR(Res);
+  if (auto *BufferImpl = MemObjPtr->AsBufferMem()) {
+    // Subbuffers should not free their parents
+    if (!BufferImpl->Parent) {
+      // TODO: Handle registered host memory
+      OL_RETURN_ON_ERR(olMemFree(BufferImpl->Ptr));
+    } else {
+      return urMemRelease(BufferImpl->Parent);
     }
   }
 
@@ -115,4 +110,54 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
+    ur_buffer_create_type_t /*BufferCreateType*/,
+    const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
+  auto *SrcBuffer = hBuffer->AsBufferMem();
+  if (!SrcBuffer || SrcBuffer->Parent) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // Default value for flags means UR_MEM_FLAG_READ_WRITE.
+  if (flags == 0) {
+    flags = UR_MEM_FLAG_READ_WRITE;
+  }
+  UR_ASSERT(subBufferFlagsAreLegal(hBuffer->MemFlags, flags),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  UR_ASSERT(((pRegion->origin + pRegion->size) <= SrcBuffer->getSize()),
+            UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+
+  void *DeviceBase =
+      reinterpret_cast<uint8_t *>(SrcBuffer->Ptr) + pRegion->origin;
+  void *HostBase =
+      reinterpret_cast<uint8_t *>(SrcBuffer->HostPtr) + pRegion->origin;
+  auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+      hBuffer->getContext(), hBuffer, flags, SrcBuffer->MemAllocMode,
+      DeviceBase, HostBase, pRegion->size});
+  *phMem = URMemObj.release();
+
+  return urMemRetain(hBuffer);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urMemImageCreate(ur_context_handle_t, ur_mem_flags_t, const ur_image_format_t *,
+                 const ur_image_desc_t *, void *, ur_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t, const ur_image_format_t *,
+    const ur_image_desc_t *, const ur_mem_native_properties_t *,
+    ur_mem_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t,
+                                                      ur_image_info_t, size_t,
+                                                      void *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

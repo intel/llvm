@@ -41,7 +41,7 @@
 // CHECK: %this1 = load ptr addrspace(4), ptr addrspace(4) [[ADDR1_CAST]], align 8
 // CHECK: ret void
 
-// CHECK: define dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E12kernel_name5()
+// CHECK: define {{.*}}spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E12kernel_name5()
 // CHECK: entry:
 // CHECK: [[H1:%.*]] = alloca [[H:%.*]], align 1
 // CHECK: [[H2:%.*]] = addrspacecast ptr [[H1]] to ptr addrspace(4)

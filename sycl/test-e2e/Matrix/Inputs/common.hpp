@@ -67,7 +67,7 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
     for (unsigned int n = 0; n < N; n++) {
       int c_ind = transpose_c ? (n * M + m) : m * N + n;
       Tc acc = *(C + c_ind);
-
+      float tmp = 0.f;
       for (unsigned int k = 0; k < K; k++) {
         int a_ind = colmajor_a ? (k * M + m) : m * K + k;
         int b_ind = colmajor_b ? (n * K + k) : k * N + n;
@@ -80,6 +80,9 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
           else if constexpr (std::is_same_v<Ta, sycl::half>)
             acc += (float)va[i] * (float)vb[i];
+          else if constexpr (std::is_same_v<Ta, bfloat16> &&
+                             std::is_same_v<Tc, bfloat16>)
+            tmp += (float)va[i] * (float)vb[i];
           else if constexpr (std::is_same_v<Ta, float> &&
                                  std::is_same_v<Tc, float> ||
                              std::is_integral_v<Ta> && std::is_integral_v<Tc> ||
@@ -92,6 +95,9 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
       }
+      if constexpr (std::is_same_v<Ta, bfloat16> &&
+                    std::is_same_v<Tc, bfloat16>)
+        acc += (bfloat16)tmp;
 
       if constexpr (!std::is_same_v<F, std::nullptr_t>) {
         lambda(acc);
@@ -182,10 +188,11 @@ template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if constexpr (!exact && (std::is_same_v<T1, float> ||
-                               std::is_same_v<T1, bfloat16> ||
-                               (std::is_same_v<T1, double> &&
-                                std::is_same_v<T2, double>))) {
+      if constexpr (!exact &&
+                    (std::is_same_v<T1, float> ||
+                     std::is_same_v<T1, bfloat16> || std::is_same_v<T1, half> ||
+                     (std::is_same_v<T1, double> &&
+                      std::is_same_v<T2, double>))) {
         float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cerr << "Incorrect result in matrix. "

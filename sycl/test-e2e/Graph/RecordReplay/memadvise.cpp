@@ -3,11 +3,8 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Intended - Mem advise command not supported for OpenCL
 // UNSUPPORTED: opencl
-
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/19034
+// UNSUPPORTED-INTENDED: Mem advise command not supported for OpenCL
 
 // Since Mem advise is only a memory hint that doesn't
 // impact results but only performances, we verify
