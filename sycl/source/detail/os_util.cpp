@@ -299,7 +299,9 @@ size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
 // The library must already have been loaded (perhaps by UR), otherwise this
 // function throws a SYCL runtime exception.
 void *dynLookup([[maybe_unused]] const char *WinName,
-                [[maybe_unused]] const char *LinName, const char *FunName) {
+                [[maybe_unused]] const char *LinName,
+                [[maybe_unused]] const char *LinuxFallbackLibName,
+                const char *FunName) {
 #ifdef __SYCL_RT_OS_WINDOWS
   auto handle = GetModuleHandleA(WinName);
   if (!handle) {
@@ -310,8 +312,14 @@ void *dynLookup([[maybe_unused]] const char *WinName,
 #else
   auto handle = dlopen(LinName, RTLD_LAZY | RTLD_NOLOAD);
   if (!handle) {
-    throw sycl::exception(make_error_code(errc::runtime),
-                          std::string(LinName) + " library is not loaded");
+
+    // Try to open fallback library if provided.
+    if (LinuxFallbackLibName)
+      handle = dlopen(LinuxFallbackLibName, RTLD_LAZY | RTLD_NOLOAD);
+
+    if (!handle)
+      throw sycl::exception(make_error_code(errc::runtime),
+                            std::string(LinName) + " library is not loaded");
   }
   auto *retVal = dlsym(handle, FunName);
   dlclose(handle);
