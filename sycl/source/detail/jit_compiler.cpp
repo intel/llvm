@@ -263,6 +263,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
       Binary.addOffloadEntry(std::move(Entry));
     }
 
+    bool FinalizationTagAdded = false;
     for (const auto &FPS : DevImgInfo.Properties) {
       bool IsDeviceGlobalsPropSet =
           FPS.Name == __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS;
@@ -279,18 +280,50 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
               sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
         }
       }
+      if (FPS.Name == __SYCL_PROPERTY_SET_PROGRAM_METADATA &&
+          DevImgInfo.BinaryInfo.Format ==
+              ::jit_compiler::BinaryFormat::AMDGCN) {
+        PropSet.addProperty(PropertyContainer{
+            __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1});
+        FinalizationTagAdded = true;
+      }
       Binary.addProperty(std::move(PropSet));
 
       Binary.setCompileOptions(BundleInfo.CompileOptions.c_str());
     }
 
-    Collection->addDeviceBinary(std::move(Binary),
-                                DevImgInfo.BinaryInfo.BinaryStart,
-                                DevImgInfo.BinaryInfo.BinarySize,
-                                (DevImgInfo.BinaryInfo.AddressBits == 64)
-                                    ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
-                                    : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
-                                SYCL_DEVICE_BINARY_TYPE_SPIRV);
+    auto BinaryTarget = "";
+    auto Format = SYCL_DEVICE_BINARY_TYPE_NONE;
+    switch (DevImgInfo.BinaryInfo.Format) {
+    case ::jit_compiler::BinaryFormat::SPIRV:
+      BinaryTarget = DevImgInfo.BinaryInfo.AddressBits == 64
+                         ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                         : __SYCL_DEVICE_BINARY_TARGET_SPIRV32;
+      Format = SYCL_DEVICE_BINARY_TYPE_SPIRV;
+      break;
+    case ::jit_compiler::BinaryFormat::PTX:
+      BinaryTarget = __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64;
+      Format = SYCL_DEVICE_BINARY_TYPE_NONE;
+      break;
+    case ::jit_compiler::BinaryFormat::AMDGCN: {
+      BinaryTarget = __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN;
+      Format = SYCL_DEVICE_BINARY_TYPE_NONE;
+      // If the program had no properties, the tag needs to be added now.
+      if (!FinalizationTagAdded) {
+        PropertySetContainer ProgramMetadata{
+            __SYCL_PROPERTY_SET_PROGRAM_METADATA};
+        ProgramMetadata.addProperty(PropertyContainer{
+            __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1});
+        Binary.addProperty(std::move(ProgramMetadata));
+      }
+      break;
+    }
+    default:
+      assert(false && "Unsupported format");
+    };
+    Collection->addDeviceBinary(
+        std::move(Binary), DevImgInfo.BinaryInfo.BinaryStart,
+        DevImgInfo.BinaryInfo.BinarySize, BinaryTarget, Format);
   }
 
   sycl_device_binaries Binaries = Collection->getPIDeviceStruct();
@@ -311,7 +344,26 @@ void jit_compiler::destroyDeviceBinaries(sycl_device_binaries Binaries) {
 std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
     const std::string &CompilationID, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-    const std::vector<std::string> &UserArgs, std::string *LogPtr) {
+    const std::vector<std::string> &UserArgs, std::string *LogPtr,
+    ::jit_compiler::BinaryFormat Format) {
+  if (Format == ::jit_compiler::BinaryFormat::PTX ||
+      Format == ::jit_compiler::BinaryFormat::AMDGCN) {
+    // If present, set-up the config with env variables describing CPU and
+    // features.
+    auto SetUpOption = [](const std::string &Value) {
+      ::jit_compiler::JITEnvVar Option(Value.begin(), Value.end());
+      return Option;
+    };
+    ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(
+        detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get());
+    this->AddToConfigHandle(
+        ::jit_compiler::option::JITTargetCPU::set(TargetCPUOpt));
+    ::jit_compiler::JITEnvVar TargetFeaturesOpt = SetUpOption(
+        detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get());
+    this->AddToConfigHandle(
+        ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
+  }
+
   auto appendToLog = [LogPtr](const char *Msg) {
     if (LogPtr) {
       LogPtr->append(Msg);
@@ -339,7 +391,7 @@ std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
   std::vector<char> CachedIR;
   if (PersistentDeviceCodeCache::isEnabled()) {
     auto Result =
-        CalculateHashHandle(SourceFile, IncludeFilesView, UserArgsView);
+        CalculateHashHandle(SourceFile, IncludeFilesView, UserArgsView, Format);
 
     if (Result.failed()) {
       appendToLog(Result.getPreprocLog());
@@ -349,8 +401,9 @@ std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
     }
   }
 
-  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView,
-                                  CachedIR, /*SaveIR=*/!CacheKey.empty());
+  auto Result =
+      CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView, CachedIR,
+                        /*SaveIR=*/!CacheKey.empty(), Format);
 
   const char *BuildLog = Result.getBuildLog();
   appendToLog(BuildLog);

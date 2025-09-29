@@ -3,12 +3,15 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+
 from pathlib import Path
-from .base import Suite, Benchmark
+
+from .base import Suite, Benchmark, TracingType
 from options import options
 from utils.utils import git_clone, run, create_build_path
 from utils.result import Result
 from utils.oneapi import get_oneapi
+from utils.logger import log
 from .benchdnn_list import get_bench_dnn_list
 
 
@@ -55,7 +58,7 @@ class OneDnnBench(Suite):
                 )
         return benchmarks
 
-    def setup(self):
+    def setup(self) -> None:
         if options.sycl is None:
             return
 
@@ -77,7 +80,7 @@ class OneDnnBench(Suite):
             "-DCMAKE_BUILD_TYPE=Release",
             "-DDNNL_BUILD_TESTS=ON",
             "-DDNNL_BUILD_EXAMPLES=OFF",
-            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL support
+            "-DDNNL_CPU_RUNTIME=NONE",  # Disable SYCL CPU support
             "-DDNNL_GPU_RUNTIME=SYCL",  # Enable SYCL GPU support
         ]
         run(
@@ -89,6 +92,7 @@ class OneDnnBench(Suite):
             f"cmake --build {self.build_dir} --target benchdnn -j {options.build_jobs}",
             add_sycl=True,
             ld_library=[str(self.build_dir) + "/src"] + self.oneapi.ld_libraries(),
+            timeout=60 * 20,
         )
 
     def teardown(self):
@@ -128,7 +132,18 @@ class OneDnnBenchmark(Benchmark):
         if not self.bench_bin.exists():
             raise FileNotFoundError(f"Benchmark binary not found: {self.bench_bin}")
 
-    def run(self, env_vars):
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
+        # Determine extra trace options based on tracing type
+        if run_trace == TracingType.UNITRACE:
+            extra_trace_opt = ["--chrome-dnn-logging"]
+        else:
+            extra_trace_opt = None
+
         command = [
             str(self.bench_bin),
             *self.bench_args.split(),
@@ -147,11 +162,13 @@ class OneDnnBenchmark(Benchmark):
             add_sycl=True,
             ld_library=ld_library,
             use_stdout=True,
+            run_trace=run_trace,
+            extra_trace_opt=extra_trace_opt,
+            force_trace=force_trace,
         )
         result_value = self._extract_time(output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Output: {output}")
+        log.debug(f"[{self.name()}] Output: {output}")
 
         return [
             Result(
@@ -160,7 +177,6 @@ class OneDnnBenchmark(Benchmark):
                 unit="ms",
                 command=command,
                 env=env_vars,
-                stdout=output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )

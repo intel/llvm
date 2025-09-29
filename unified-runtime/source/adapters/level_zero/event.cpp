@@ -505,7 +505,7 @@ ur_result_t urEventGetInfo(
     return ReturnValue(Result);
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return ReturnValue(Event->RefCount.load());
+    return ReturnValue(Event->RefCount.getCount());
   }
   default:
     UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
@@ -874,7 +874,7 @@ ur_result_t
 /// [in] handle of the event object
 urEventRetain(/** [in] handle of the event object */ ur_event_handle_t Event) {
   Event->RefCountExternal++;
-  Event->RefCount.increment();
+  Event->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
@@ -1088,7 +1088,7 @@ ur_event_handle_t_::~ur_event_handle_t_() {
 
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event,
                                    bool *isEventDeleted) {
-  if (!Event->RefCount.decrementAndTest())
+  if (!Event->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (Event->OriginAllocEvent) {
@@ -1349,15 +1349,17 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 // The "HostVisible" argument specifies if event needs to be allocated from
 // a host-visible pool.
 //
-ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool IsMultiDevice, bool HostVisible,
-                        ur_event_handle_t *RetEvent,
-                        bool CounterBasedEventEnabled,
-                        bool ForceDisableProfiling,
-                        bool InterruptBasedEventEnabled) {
+ur_result_t
+EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
+            bool IsMultiDevice, bool HostVisible, ur_event_handle_t *RetEvent,
+            bool CounterBasedEventEnabled, bool ForceDisableProfiling,
+            bool InterruptBasedEventEnabled, std::optional<bool> IsInternal) {
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
+
+  // Handle optional IsInternal parameter - default to false if not provided
+  bool isInternalValue = IsInternal.value_or(false);
 
   ur_device_handle_t Device = nullptr;
 
@@ -1380,7 +1382,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
           CounterBasedEventEnabled, UsingImmediateCommandlists,
-          InterruptBasedEventEnabled))
+          InterruptBasedEventEnabled, Queue, isInternalValue))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
@@ -1524,7 +1526,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
       std::shared_lock<ur_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
       this->UrEventList[0] = CurQueue->LastCommandEvent;
-      this->UrEventList[0]->RefCount.increment();
+      this->UrEventList[0]->RefCount.retain();
       TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
@@ -1660,7 +1662,7 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
               IsInternal, IsMultiDevice));
           MultiDeviceZeEvent = MultiDeviceEvent->ZeEvent;
           const auto &ZeCommandList = CommandList->first;
-          EventList[I]->RefCount.increment();
+          EventList[I]->RefCount.retain();
 
           // Append a Barrier to wait on the original event while signalling the
           // new multi device event.
@@ -1676,11 +1678,11 @@ ur_result_t ur_ze_event_list_t::createAndRetainUrZeEventList(
 
           this->ZeEventList[TmpListLength] = MultiDeviceZeEvent;
           this->UrEventList[TmpListLength] = MultiDeviceEvent;
-          this->UrEventList[TmpListLength]->RefCount.increment();
+          this->UrEventList[TmpListLength]->RefCount.retain();
         } else {
           this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
           this->UrEventList[TmpListLength] = EventList[I];
-          this->UrEventList[TmpListLength]->RefCount.increment();
+          this->UrEventList[TmpListLength]->RefCount.retain();
         }
 
         if (QueueLock.has_value()) {

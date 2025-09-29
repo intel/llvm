@@ -1,5 +1,5 @@
 // Fails with opencl non-cpu, enable when fixed.
-// XFAIL: (opencl && !cpu && !accelerator)
+// XFAIL: (opencl && !cpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641
 
 // RUN: %{build} -I . -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
@@ -7,6 +7,9 @@
 
 // Disabled temporarily while investigation into the failure is ongoing.
 // UNSUPPORTED: gpu-intel-dg2
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <cassert>
 #include <cstdlib>

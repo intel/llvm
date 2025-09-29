@@ -67,7 +67,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // Capture the dependencies
     DepCommands.insert(Cmd);
 #endif
-    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    GraphProcessor::waitForEvent(*Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
@@ -82,7 +82,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     DepCommands.insert(Cmd);
 #endif
-    GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
+    GraphProcessor::waitForEvent(*Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
@@ -97,7 +97,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // reported as edges
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
-    GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
+    GraphProcessor::waitForEvent(*ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }
 }
@@ -144,7 +144,7 @@ EventImplPtr Scheduler::addCG(
     }
   }
 
-  enqueueCommandForCG(NewEvent, AuxiliaryCmds);
+  enqueueCommandForCG(*NewEvent, AuxiliaryCmds);
 
   if (!AuxiliaryResources.empty())
     registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
@@ -152,24 +152,21 @@ EventImplPtr Scheduler::addCG(
   return NewEvent;
 }
 
-void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
+void Scheduler::enqueueCommandForCG(event_impl &Event,
                                     std::vector<Command *> &AuxiliaryCmds,
                                     BlockingT Blocking) {
   std::vector<Command *> ToCleanUp;
   {
     ReadLockT Lock = acquireReadLock();
 
-    Command *NewCmd =
-        (NewEvent) ? static_cast<Command *>(NewEvent->getCommand()) : nullptr;
+    Command *NewCmd = Event.getCommand();
 
     EnqueueResultT Res;
     bool Enqueued;
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (NewEvent) {
-          NewEvent->setCommand(nullptr);
-        }
+        Event.setCommand(nullptr);
         delete NewCmd;
       }
       cleanupCommands(ToCleanUp);
@@ -279,12 +276,12 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
+void Scheduler::waitForEvent(event_impl &Event, bool *Success) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
-  GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
+  GraphProcessor::waitForEvent(Event, Lock, ToCleanUp,
                                /*LockTheLock=*/false, Success);
   cleanupCommands(ToCleanUp);
 }
@@ -366,7 +363,7 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
                         "Enqueue process failed.");
     }
 
-    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+    if (Command *NewCmd = NewCmdEvent->getCommand()) {
       Enqueued =
           GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -414,11 +411,11 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnblockedCommands(
-    const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
-    std::vector<Command *> &ToCleanUp) {
-  for (auto &Event : ToEnqueue) {
-    Command *Cmd = static_cast<Command *>(Event->getCommand());
+void Scheduler::enqueueUnblockedCommands(events_range ToEnqueue,
+                                         ReadLockT &GraphReadLock,
+                                         std::vector<Command *> &ToCleanUp) {
+  for (event_impl &Event : ToEnqueue) {
+    Command *Cmd = Event.getCommand();
     if (!Cmd)
       continue;
     EnqueueResultT Res;
@@ -644,9 +641,8 @@ ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
 
 EventImplPtr Scheduler::addCommandGraphUpdate(
     ext::oneapi::experimental::detail::exec_graph_impl *Graph,
-    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
-        Nodes,
-    queue_impl *Queue, std::vector<Requirement *> Requirements,
+    ext::oneapi::experimental::detail::nodes_range Nodes, queue_impl *Queue,
+    std::vector<Requirement *> Requirements,
     std::vector<detail::EventImplPtr> &Events) {
   std::vector<Command *> AuxiliaryCmds;
   EventImplPtr NewCmdEvent = nullptr;
@@ -655,7 +651,8 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
     WriteLockT Lock = acquireWriteLock();
 
     Command *NewCmd = MGraphBuilder.addCommandGraphUpdate(
-        Graph, Nodes, Queue, Requirements, Events, AuxiliaryCmds);
+        Graph, std::move(Nodes), Queue, std::move(Requirements), Events,
+        AuxiliaryCmds);
     if (!NewCmd)
       return nullptr;
     NewCmdEvent = NewCmd->getEvent();
@@ -674,7 +671,7 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
                         "Enqueue process failed.");
     }
 
-    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+    if (Command *NewCmd = NewCmdEvent->getCommand()) {
       Enqueued =
           GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -687,46 +684,28 @@ EventImplPtr Scheduler::addCommandGraphUpdate(
   return NewCmdEvent;
 }
 
-bool Scheduler::CheckEventReadiness(context_impl &Context,
-                                    const EventImplPtr &SyclEventImplPtr) {
-  // Events that don't have an initialized context are throwaway events that
-  // don't represent actual dependencies. Calling getContextImpl() would set
-  // their context, which we wish to avoid as it is expensive.
-  // NOP events also don't represent actual dependencies.
-  if (SyclEventImplPtr->isDefaultConstructed() || SyclEventImplPtr->isNOP()) {
-    return true;
-  }
-  if (SyclEventImplPtr->isHost()) {
-    return SyclEventImplPtr->isCompleted();
-  }
-  // Cross-context dependencies can't be passed to the backend directly.
-  if (&SyclEventImplPtr->getContextImpl() != &Context)
-    return false;
+bool Scheduler::areEventsSafeForSchedulerBypass(events_range DepEvents,
+                                                context_impl &Context) {
+  return all_of(DepEvents, [&Context](sycl::detail::event_impl &Event) {
+    // Events that don't have an initialized context are throwaway events that
+    // don't represent actual dependencies. Calling getContextImpl() would set
+    // their context, which we wish to avoid as it is expensive.
+    // NOP events also don't represent actual dependencies.
+    if (Event.isDefaultConstructed() || Event.isNOP())
+      return true;
 
-  // A nullptr here means that the commmand does not produce a UR event or it
-  // hasn't been enqueued yet.
-  return SyclEventImplPtr->getHandle() != nullptr;
+    if (Event.isHost())
+      return Event.isCompleted();
+
+    // Cross-context dependencies can't be passed to the backend directly.
+    if (&Event.getContextImpl() != &Context)
+      return false;
+
+    // A nullptr here means that the commmand does not produce a UR event or it
+    // hasn't been enqueued yet.
+    return Event.getHandle() != nullptr;
+  });
 }
-
-bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, context_impl &Context) {
-
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
-        const EventImplPtr &SyclEventImplPtr = detail::getSyclObjImpl(Event);
-        return CheckEventReadiness(Context, SyclEventImplPtr);
-      });
-}
-
-bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, context_impl &Context) {
-
-  return std::all_of(DepEvents.begin(), DepEvents.end(),
-                     [&Context](const EventImplPtr &SyclEventImplPtr) {
-                       return CheckEventReadiness(Context, SyclEventImplPtr);
-                     });
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

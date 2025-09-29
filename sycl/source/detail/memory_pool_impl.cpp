@@ -100,11 +100,11 @@ memory_pool_impl::~memory_pool_impl() {
 }
 
 size_t memory_pool_impl::get_threshold() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   size_t threshold = 0;
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &threshold,
           nullptr);
 
@@ -112,11 +112,11 @@ size_t memory_pool_impl::get_threshold() const {
 }
 
 size_t memory_pool_impl::get_reserved_size_current() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   size_t resSizeCurrent = 0;
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RESERVED_CURRENT_EXP, &resSizeCurrent,
           nullptr);
 
@@ -124,11 +124,11 @@ size_t memory_pool_impl::get_reserved_size_current() const {
 }
 
 size_t memory_pool_impl::get_reserved_size_high() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   size_t resSizeHigh = 0;
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP, &resSizeHigh,
           nullptr);
 
@@ -136,11 +136,11 @@ size_t memory_pool_impl::get_reserved_size_high() const {
 }
 
 size_t memory_pool_impl::get_used_size_current() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   size_t usedSizeCurrent = 0;
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_USED_CURRENT_EXP, &usedSizeCurrent,
           nullptr);
 
@@ -148,43 +148,43 @@ size_t memory_pool_impl::get_used_size_current() const {
 }
 
 size_t memory_pool_impl::get_used_size_high() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   size_t usedSizeHigh = 0;
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP, &usedSizeHigh, nullptr);
 
   return usedSizeHigh;
 }
 
 void memory_pool_impl::set_new_threshold(size_t newThreshold) {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &newThreshold,
-          8 /*uint64_t*/);
+          8u /*uint64_t*/);
 }
 
 void memory_pool_impl::reset_reserved_size_high() {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   uint64_t resetVal = 0; // Reset to zero
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP,
-          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
+          static_cast<void *>(&resetVal), 8u /*uint64_t*/);
 }
 
 void memory_pool_impl::reset_used_size_high() {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
+  detail::adapter_impl &Adapter = MContextImplPtr->getAdapter();
 
   uint64_t resetVal = 0; // Reset to zero
   Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
+      .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
-          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
+          static_cast<void *>(&resetVal), 8u /*uint64_t*/);
 }
 
 } // namespace detail

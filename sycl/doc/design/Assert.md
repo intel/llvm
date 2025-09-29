@@ -126,6 +126,8 @@ The following sequence of events describes how user code gets notified:
 
 ## Fallback approach
 
+**The fallback approach has been deprecated and will be removed in the future.**
+
 If Device-side Runtime doesn't support `__devicelib_assert_fail` (as reported
 via "cl_intel_devicelib_assert" extension query) then a fallback approach comes
 in place. The approach doesn't require any support from Device-side Runtime and

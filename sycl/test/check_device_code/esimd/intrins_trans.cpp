@@ -1,9 +1,13 @@
 // RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=true -O0 -S %t -o %t.table
+// -O0 lowering, requires `-force-disable-esimd-opt` to disable all
+// optimizations.
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=true -O0 -force-disable-esimd-opt -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation with opaque pointers.

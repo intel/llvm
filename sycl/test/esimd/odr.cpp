@@ -10,6 +10,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown -DSOURCE2 -c %s -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown %t1.o %t2.o -o %t.exe
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

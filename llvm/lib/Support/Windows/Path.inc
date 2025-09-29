@@ -748,7 +748,7 @@ static std::error_code getStatus(HANDLE FileHandle, file_status &Result) {
     PathHash = (static_cast<uint64_t>(Info.nFileIndexHigh) << 32ULL) |
                static_cast<uint64_t>(Info.nFileIndexLow);
   } else {
-    PathHash = hash_combine_range(ntPath.begin(), ntPath.end());
+    PathHash = hash_combine_range(ntPath);
   }
 
   Result = file_status(
@@ -1005,6 +1005,14 @@ void mapped_file_region::unmapImpl() {
 }
 
 void mapped_file_region::dontNeedImpl() {}
+
+std::error_code mapped_file_region::sync() const {
+  if (!::FlushViewOfFile(Mapping, Size))
+    return mapWindowsError(GetLastError());
+  if (!::FlushFileBuffers(FileHandle))
+    return mapWindowsError(GetLastError());
+  return std::error_code();
+}
 
 int mapped_file_region::alignment() {
   SYSTEM_INFO SysInfo;

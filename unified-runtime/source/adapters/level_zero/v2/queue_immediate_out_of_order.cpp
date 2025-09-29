@@ -54,7 +54,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueGetInfo(
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hDevice);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{RefCount.load()});
+    return ReturnValue(uint32_t{RefCount.getCount()});
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(flags);
   case UR_QUEUE_INFO_SIZE:
@@ -68,6 +68,7 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueGetInfo(
       } else if (status == ZE_RESULT_NOT_READY) {
         return false;
       } else {
+        UR_DFAILURE("getting queue info failed with: " << status);
         throw ze2urResult(status);
       }
     };
@@ -94,10 +95,14 @@ ur_result_t ur_queue_immediate_out_of_order_t::queueGetInfo(
 }
 
 ur_result_t ur_queue_immediate_out_of_order_t::queueGetNativeHandle(
-    ur_queue_native_desc_t * /*pDesc*/, ur_native_handle_t *phNativeQueue) {
+    ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
       (*commandListManagers.get_no_lock())[getNextCommandListId()]
           .getZeCommandList());
+  if (pDesc && pDesc->pNativeData) {
+    // pNativeData == isImmediateQueue
+    *(reinterpret_cast<int32_t *>(pDesc->pNativeData)) = 1;
+  }
   return UR_RESULT_SUCCESS;
 }
 

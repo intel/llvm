@@ -16,10 +16,6 @@ struct urInOrderCommandBufferExpTest
   virtual void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urCommandBufferExpExecutionTest::SetUp());
 
-    // Level-Zero bug https://github.com/intel/llvm/issues/18544
-    // Re-enable these tests once fixed
-    UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
-
     ur_exp_command_buffer_desc_t desc{
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, // stype
         nullptr,                                   // pnext
@@ -105,7 +101,7 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
     if (hints) {
       ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
           in_order_cb, device_ptrs[0], allocation_size,
-          UR_USM_MIGRATION_FLAG_DEFAULT, 0, nullptr, 0, nullptr, nullptr,
+          UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0, nullptr, 0, nullptr, nullptr,
           nullptr, nullptr));
     }
 
@@ -128,7 +124,7 @@ struct urInOrderUSMCommandBufferExpTest : urInOrderCommandBufferExpTest {
     if (hints) {
       ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
           in_order_cb, device_ptrs[0], allocation_size,
-          UR_USM_MIGRATION_FLAG_DEFAULT, 0, nullptr, 0, nullptr, nullptr,
+          UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE, 0, nullptr, 0, nullptr, nullptr,
           nullptr, nullptr));
     }
 

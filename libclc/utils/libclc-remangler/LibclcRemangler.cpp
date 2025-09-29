@@ -270,7 +270,7 @@ clang::QualType getBaseType(StringRef Name, clang::ASTContext *AST,
     auto *DC = AST->getTranslationUnitDecl();
     auto *ED = EnumDecl::Create(*AST, DC, SourceLocation(), SourceLocation(),
                                 &II, nullptr, false, false, true);
-    Res = AST->getEnumType(ED);
+    Res = AST->getCanonicalTagType(ED);
   }
   return Res;
 }
@@ -339,7 +339,7 @@ private:
     auto ArgTys{InputArgTys};
     // Create this with a void ret no args prototype, will be fixed up after
     // we've seen all the params.
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
     Info.Variadic = IsVariadic;
     clang::QualType const VoidFuncType =
         AST->getFunctionType(AST->VoidTy, {}, Info);
@@ -620,9 +620,10 @@ private:
             StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
         RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
-        auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
-        auto RecordQT = AST->getRecordType(RD);
-        NNS = NestedNameSpecifier::Create(*AST, NNS, RecordQT.getTypePtr());
+        NestedNameSpecifier NNS =
+            NestedNameSpecifier(*AST, SpvNamespace, /*Prefix=*/std::nullopt);
+        auto RecordQT = AST->getCanonicalTagType(RD);
+        NNS = NestedNameSpecifier(RecordQT->getTypePtr());
         auto &EnumName =
             AST->Idents.get(Res.getBaseTypeIdentifier()->getName());
         // We need to recreate the enum, now that we have access to all the
@@ -630,8 +631,9 @@ private:
         auto *ED =
             EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
                              &EnumName, nullptr, false, false, true);
-        Res = AST->getEnumType(ED);
-        Res = AST->getElaboratedType(ElaboratedTypeKeyword::None, NNS, Res);
+        Res = AST->getCanonicalTagType(ED);
+        Res = AST->getTagType(ElaboratedTypeKeyword::None, NNS, ED,
+                              /*OwnsTag=*/false);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -883,6 +885,9 @@ private:
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
+    if (Func.hasLocalLinkage())
+      return true;
+
     if (!Func.getName().starts_with("_Z"))
       return true;
 

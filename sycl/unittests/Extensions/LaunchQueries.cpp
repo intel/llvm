@@ -13,7 +13,7 @@
 #include <detail/context_impl.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
-const auto KernelID = sycl::get_kernel_id<TestKernel<>>();
+const auto KernelID = sycl::get_kernel_id<TestKernel>();
 
 inline ur_result_t redefine_urKernelGetGroupInfo_Success(void *pParams) {
   auto params = reinterpret_cast<ur_kernel_get_group_info_params_t *>(pParams);
@@ -61,6 +61,9 @@ auto getKernel(const sycl::queue &Q) {
   return KernelBundle.get_kernel(KernelID);
 }
 
+// These tests fail in preview breaking mode.
+// Failure Tracker: https://github.com/intel/llvm/issues/18910
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 TEST(LaunchQueries, GetWorkGroupSizeSuccess) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_replace_callback(
@@ -146,6 +149,7 @@ TEST(LaunchQueries, GetMaxWorkGroupItemSizesExceptionCode) {
           syclex::info::kernel_queue_specific::max_work_item_sizes<3>>(Queue),
       sycl::exception);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 TEST(LaunchQueries, GetMaxSubGroupSize3DSuccess) {
   sycl::unittest::UrMock<> Mock;

@@ -1025,7 +1025,7 @@ params:
       desc: "[in] size in bytes to be fetched."
     - type: $x_usm_migration_flags_t
       name: flags
-      desc: "[in] USM prefetch flags"
+      desc: "[in] USM migration flags"
     - type: uint32_t
       name: numSyncPointsInWaitList
       desc: "[in] The number of sync points in the provided dependency list."

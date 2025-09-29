@@ -7,7 +7,7 @@
 //===--------------------------------------------------------------===//
 #pragma once
 #include <detail/hashers.hpp>
-#include <emhash/hash_table8.hpp>
+#include <hash_table8.hpp>
 
 #include <utility>
 #include <vector>

@@ -1,41 +1,18 @@
 
 #pragma once
 
-// Reduce the size of Win32 header files
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-// Define NOMINMAX to enable compilation on Windows
-#define NOMINMAX
-
-#include <windows.h>
-
-#include <d3d12.h>
-#include <dxgi1_4.h>
-
 #include <iostream>
 #include <string>
-#include <wrl.h>
+
+#include "../helpers/common.hpp"
+#include "../helpers/dx_interop_common.hpp"
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 #include <sycl/properties/queue_properties.hpp>
 
-using Microsoft::WRL::ComPtr;
+using namespace dx_helpers;
 namespace syclexp = sycl::ext::oneapi::experimental;
-
-inline std::string ResultToString(HRESULT result) {
-  char s_str[64] = {};
-  sprintf_s(s_str, "Error result == 0x%08X", static_cast<uint32_t>(result));
-  return std::string(s_str);
-}
-
-inline void ThrowIfFailed(HRESULT result) {
-  if (result != S_OK) {
-    throw std::runtime_error(ResultToString(result));
-  }
-}
 
 class DX12SYCLDevice {
 public:
@@ -44,9 +21,11 @@ public:
   DX12SYCLDevice(const DX12SYCLDevice &) = delete;
   DX12SYCLDevice &operator=(const DX12SYCLDevice &) = delete;
 
+private:
   void initDX12Device();
   void initDX12CommandList();
 
+public:
   ID3D12Device *getDx12Device() { return m_dx12Device.Get(); }
   ID3D12CommandQueue *getDx12CommandQueue() { return m_dx12CommandQueue.Get(); }
   ID3D12GraphicsCommandList *getDx12CommandList() {
@@ -59,8 +38,6 @@ public:
   }
 
 private:
-  void getDX12Adapter(IDXGIFactory2 *pFactory, IDXGIAdapter1 **ppAdapter);
-
   // DX12 Objects
   ComPtr<IDXGIFactory4> m_dx12Factory;
   ComPtr<IDXGIAdapter1> m_dx12HardwareAdapter;
@@ -70,8 +47,8 @@ private:
   ComPtr<ID3D12CommandAllocator> m_dx12CommandAllocator;
 
   // SYCL Objects
-  sycl::device m_syclDevice;
   sycl::queue m_syclQueue;
+  sycl::device m_syclDevice;
 };
 
 template <int NDims, typename DType, int NChannels> class DX12InteropTest {

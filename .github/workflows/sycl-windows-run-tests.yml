@@ -39,11 +39,11 @@ on:
         required: False
         description: Commit SHA or branch to checkout e2e/cts tests.
 
-      sycl_toolchain_artifact:
+      toolchain_artifact:
         type: string
         default: 'sycl_windows_default'
         required: False
-      sycl_toolchain_archive:
+      toolchain_artifact_filename:
         type: string
         default: ''
         required: False
@@ -131,13 +131,13 @@ jobs:
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.sycl_toolchain_artifact }}
+        name: ${{ inputs.toolchain_artifact }}
     - name: Extract SYCL toolchain
       shell: bash
       run: |
         mkdir install
-        tar -xf ${{ inputs.sycl_toolchain_archive }} -C install
-        rm ${{ inputs.sycl_toolchain_archive }}
+        tar -xf ${{ inputs.toolchain_artifact_filename }} -C install
+        rm ${{ inputs.toolchain_artifact_filename }}
     - name: Setup SYCL toolchain
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

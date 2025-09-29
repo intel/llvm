@@ -311,11 +311,6 @@ inline exception::exception(context Ctx, int EV,
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::context> {
-  size_t operator()(const sycl::context &Context) const {
-    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
-        sycl::detail::getSyclObjImpl(Context));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::context>
+    : public sycl::detail::sycl_obj_hash<sycl::context> {};

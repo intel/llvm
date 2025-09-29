@@ -84,10 +84,6 @@ bool setEnvVar(const char *name, const char *value) {
   return true;
 }
 
-ZeUSMImportExtension ZeUSMImport;
-
-std::map<std::string, int> *ZeCallCount = nullptr;
-
 void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
 #define ZE_ERRCASE(ERR)                                                        \
@@ -137,31 +133,10 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *, const char *,
                            bool) {
   return ZeResult;
 }
-#else
-ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
-                           const char *ZeArgs, bool TraceError) {
-  UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
-
-  if (ZeResult == ZE_RESULT_SUCCESS) {
-    if (UrL0LeaksDebug) {
-      ++(*ZeCallCount)[ZeName];
-    }
-    return ZE_RESULT_SUCCESS;
-  }
-
-  if (TraceError) {
-    const char *ErrorString = "Unknown";
-    zeParseError(ZeResult, ErrorString);
-    UR_LOG(ERR, "Error ({}) in {}", ErrorString, ZeName);
-  }
-  return ZeResult;
-}
-#endif
 
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
@@ -352,8 +327,8 @@ ze_structure_type_t getZeStructureType<ze_device_cache_line_size_ext_t>() {
 
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 template <>
-ze_structure_type_t
-getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
+ze_structure_type_ext_t
+getZexStructureType<ze_intel_device_block_array_exp_properties_t>() {
   return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
 }
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME

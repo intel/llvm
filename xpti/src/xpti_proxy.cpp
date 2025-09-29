@@ -454,7 +454,7 @@ XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
 }
 
 XPTI_EXPORT_API xpti::result_t
-xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
+xptiRegisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
                      xpti::tracepoint_callback_api_t cb) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
@@ -467,7 +467,7 @@ xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
 }
 
 XPTI_EXPORT_API xpti::result_t
-xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
+xptiUnregisterCallback(xpti::stream_id_t stream_id, uint16_t trace_type,
                        xpti::tracepoint_callback_api_t cb) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
@@ -480,7 +480,7 @@ xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
 }
 
 XPTI_EXPORT_API xpti::result_t
-xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
+xptiNotifySubscribers(xpti::stream_id_t stream_id, uint16_t trace_type,
                       xpti::trace_event_data_t *parent,
                       xpti::trace_event_data_t *object, uint64_t instance,
                       const void *user_data) {
@@ -505,7 +505,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
   return false;
 }
 
-XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(xpti::stream_id_t stream,
+                                           uint16_t ttype) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
         xpti::ProxyLoader::instance().functionByIndex(XPTI_CHECK_TRACE_ENABLED);
@@ -588,16 +589,15 @@ XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
   return false;
 }
 
-XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *name,
-                                                        const char *source_file,
-                                                        uint32_t line_no,
-                                                        uint32_t column_no) {
+XPTI_EXPORT_API xpti_tracepoint_t *
+xptiCreateTracepoint(const char *name, const char *source_file,
+                     uint32_t line_no, uint32_t column_no, void *code_ptr_va) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =
         xpti::ProxyLoader::instance().functionByIndex(XPTI_CREATE_TRACEPOINT);
     if (f) {
       return (*(xpti_create_tracepoint_t)f)(name, source_file, line_no,
-                                            column_no);
+                                            column_no, code_ptr_va);
     }
   }
   return nullptr;
@@ -669,19 +669,20 @@ XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
 
 XPTI_EXPORT_API const xpti_tracepoint_t *
 xptiRegisterTracepointScope(const char *FuncName, const char *FileName,
-                            uint32_t LineNo, uint32_t ColumnNo) {
+                            uint32_t LineNo, uint32_t ColumnNo,
+                            void *CodePtrVa) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_REGISTER_TRACEPOINT_SCOPE);
     if (f) {
       return (*(xpti_register_tracepoint_scope_t)f)(FuncName, FileName, LineNo,
-                                                    ColumnNo);
+                                                    ColumnNo, CodePtrVa);
     }
   }
   return nullptr;
 }
 
-XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
+XPTI_EXPORT_API xpti::stream_id_t xptiGetDefaultStreamID() {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_GET_DEFAULT_STREAM_ID);
@@ -689,10 +690,11 @@ XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
       return (*(xpti_get_default_stream_id_t)f)();
     }
   }
-  return xpti::invalid_id<uint8_t>;
+  return xpti::invalid_id<xpti::stream_id_t>;
 }
 
-XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t stream_id) {
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultStreamID(xpti::stream_id_t stream_id) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_SET_DEFAULT_STREAM_ID);

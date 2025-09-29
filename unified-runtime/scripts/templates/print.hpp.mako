@@ -194,6 +194,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 %endfor
 } // namespace ${x}::details
 
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool_t value);
 %for spec in specs:
 %for obj in spec['objects']:
 %if re.match(r"enum", obj['type']):
@@ -283,7 +284,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
                 %>case ${ename}: {
                     %if th.value_traits.is_array(vtype):
                     <% atype = th.value_traits.get_array_name(vtype) %>
-                    %if 'void' in atype:
+                    %if 'void' in atype or '*' in atype:
                     const ${atype} const *tptr = (const ${atype} const*)ptr;
                     %else:
                     const ${atype} *tptr = (const ${atype} *)ptr;

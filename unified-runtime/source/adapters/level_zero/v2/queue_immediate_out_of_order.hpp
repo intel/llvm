@@ -11,6 +11,7 @@
 
 #include "../common.hpp"
 #include "../device.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include "context.hpp"
 #include "event.hpp"
@@ -432,14 +433,15 @@ public:
       const ur_image_format_t *pSrcImageFormat,
       const ur_image_format_t *pDstImageFormat,
       ur_exp_image_copy_region_t *pCopyRegion,
-      ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
+      ur_exp_image_copy_flags_t imageCopyFlags,
+      ur_exp_image_copy_input_types_t imageCopyInputTypes,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override {
     auto commandListId = getNextCommandListId();
     return commandListManagers.lock()[commandListId].bindlessImagesImageCopyExp(
         pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-        pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-        phEventWaitList,
+        pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+        numEventsInWaitList, phEventWaitList,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
 
@@ -503,6 +505,8 @@ public:
         numEventsInWaitList, phEventWaitList,
         createEventIfRequested(eventPool.get(), phEvent, this));
   }
+
+  ur::RefCount RefCount;
 };
 
 } // namespace v2

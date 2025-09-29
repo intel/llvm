@@ -11,22 +11,22 @@ constexpr const char AttrVal2[] = "Val2";
 constexpr const char AttrVal3[] = "Val3";
 
 template <int... Is> struct ClassWithAnnotFieldTemplate1 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", "Attr3", Is...)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member("Attr1", "Attr2", "Attr3", Is...)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 template <int... Is> struct ClassWithAnnotFieldTemplate2 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", Is...)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Names> struct ClassWithAnnotFieldTemplate3 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(Names..., 1, 2, 3)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(Names..., 1, 2, 3)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Names> struct ClassWithAnnotFieldTemplate4 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr1", "Attr3"}, Names..., 1, 2, 3)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr1", "Attr3"}, Names..., 1, 2, 3)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Strs> struct ClassWithAnnotFieldTemplate5 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member(Strs...)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member(Strs...)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 template <const char *...Strs> struct ClassWithAnnotFieldTemplate6 {
-  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr1", "Attr3"}, Strs...)]]; // expected-error {{attribute 'add_ir_annotations_member' must specify a value for each specified name in the argument list}}
+  int *ptr [[__sycl_detail__::add_ir_annotations_member({"Attr1", "Attr3"}, Strs...)]]; // expected-error {{attribute '__sycl_detail__::add_ir_annotations_member' must specify a value for each specified name in the argument list}}
 };
 
 void InstantiateClassWithAnnotFieldTemplates() {

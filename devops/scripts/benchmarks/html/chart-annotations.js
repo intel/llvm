@@ -83,6 +83,9 @@ function addVersionChangeAnnotations(data, options) {
             
             // Create annotation for each unique change
             Object.values(changes).forEach(change => {
+                // Skip if the change version is null or undefined
+                if (!change.newVersion || change.newVersion === 'unknown') return;
+
                 const annotationId = `${change.date}`;
                 // If annotation at a given date already exists, update it
                 if (options.plugins.annotation.annotations[annotationId]) {

@@ -4,6 +4,8 @@
 // from ptxas that crashes clang. The JIT part is not relevant, because the
 // flow is such that the AOT compilation still happens, it’s just that if we
 // request JIT, it will do the thing again at the run time.
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

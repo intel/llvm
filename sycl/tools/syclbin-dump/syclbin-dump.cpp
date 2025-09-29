@@ -50,19 +50,6 @@ raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &) {
   return OS.indent(CurrentIndentationLevel);
 }
 
-std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
-  switch (State) {
-  case llvm::object::SYCLBIN::BundleState::Input:
-    return "input";
-  case llvm::object::SYCLBIN::BundleState::Object:
-    return "object";
-  case llvm::object::SYCLBIN::BundleState::Executable:
-    return "executable";
-  default:
-    return "UNKNOWN";
-  }
-}
-
 std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   switch (PropVal.getType()) {
   case llvm::util::PropertyValue::UINT32:
@@ -113,8 +100,9 @@ int main(int argc, char **argv) {
 
   auto FileMemBufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(
       TargetFilename, /*IsText=*/false, /*RequiresNullTerminator=*/false);
-  if (!FileMemBufferOrError) {
-    errs() << "Failed to open or read file " << TargetFilename << "\n";
+  if (std::error_code EC = FileMemBufferOrError.getError()) {
+    errs() << "Failed to open or read file " << TargetFilename << ": "
+           << EC.message() << "\n";
     return 1;
   }
 
@@ -129,19 +117,25 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<llvm::object::OffloadBinary> ParsedOffloadBinary;
   MemoryBufferRef SYCLBINImageBuffer = [&]() {
-    // If we failed to load as an offload binary, it may still be a SYCLBIN at
-    // an outer level.
-    if (llvm::object::OffloadBinary::create(**FileMemBufferOrError)
-            .moveInto(ParsedOffloadBinary))
+    if (llvm::Error E =
+            llvm::object::OffloadBinary::create(**FileMemBufferOrError)
+                .moveInto(ParsedOffloadBinary)) {
+      // If we failed to load as an offload binary, it may still be a SYCLBIN at
+      // an outer level.
+      std::ignore = (bool)llvm::handleErrors(
+          std::move(E),
+          [](std::unique_ptr<ECError>) -> Error { return Error::success(); });
       return MemoryBufferRef(**FileMemBufferOrError);
-    else
+    } else {
       return MemoryBufferRef(ParsedOffloadBinary->getImage(), "");
+    }
   }();
 
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
-  if (llvm::object::SYCLBIN::read(SYCLBINImageBuffer).moveInto(ParsedSYCLBIN)) {
-    errs() << "Failed to parse SYCLBIN file.\n";
-    return 1;
+  if (llvm::Error E = llvm::object::SYCLBIN::read(SYCLBINImageBuffer)
+                          .moveInto(ParsedSYCLBIN)) {
+    errs() << "Failed to parse SYCLBIN file: " << E << "\n";
+    std::abort();
   }
 
   OS << "Version: " << ParsedSYCLBIN->Version << "\n";

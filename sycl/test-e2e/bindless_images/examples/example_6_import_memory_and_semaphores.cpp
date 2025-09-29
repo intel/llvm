@@ -50,7 +50,7 @@ int main() {
       sycl::ext::oneapi::experimental::resource_fd>
       output_ext_mem_desc{
           external_output_image_file_descriptor,
-          sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+          sycl::ext::oneapi::experimental::external_mem_handle_type::dma_buf,
           img_size_in_bytes};
 
   // An external API semaphore will signal this semaphore before our SYCL

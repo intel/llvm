@@ -757,10 +757,9 @@ void CodeGenFunction::LexicalScope::rescopeLabels() {
     = CGF.EHStack.getInnermostNormalCleanup();
 
   // Change the scope depth of all the labels.
-  for (SmallVectorImpl<const LabelDecl*>::const_iterator
-         i = Labels.begin(), e = Labels.end(); i != e; ++i) {
-    assert(CGF.LabelMap.count(*i));
-    JumpDest &dest = CGF.LabelMap.find(*i)->second;
+  for (const LabelDecl *Label : Labels) {
+    assert(CGF.LabelMap.count(Label));
+    JumpDest &dest = CGF.LabelMap.find(Label)->second;
     assert(dest.getScopeDepth().isValid());
     assert(innermostScope.encloses(dest.getScopeDepth()));
     dest.setScopeDepth(innermostScope);
@@ -847,11 +846,13 @@ void CodeGenFunction::EmitGotoStmt(const GotoStmt &S) {
   if (HaveInsertPoint())
     EmitStopPoint(&S);
 
+  ApplyAtomGroup Grp(getDebugInfo());
   EmitBranchThroughCleanup(getJumpDestForLabel(S.getLabel()));
 }
 
 
 void CodeGenFunction::EmitIndirectGotoStmt(const IndirectGotoStmt &S) {
+  ApplyAtomGroup Grp(getDebugInfo());
   if (const LabelDecl *Target = S.getConstantTarget()) {
     EmitBranchThroughCleanup(getJumpDestForLabel(Target));
     return;
@@ -870,6 +871,8 @@ void CodeGenFunction::EmitIndirectGotoStmt(const IndirectGotoStmt &S) {
   cast<llvm::PHINode>(IndGotoBB->begin())->addIncoming(V, CurBB);
 
   EmitBranch(IndGotoBB);
+  if (CurBB && CurBB->getTerminator())
+    addInstToCurrentSourceAtom(CurBB->getTerminator(), nullptr);
 }
 
 void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
@@ -1605,6 +1608,7 @@ static bool isSwiftAsyncCallee(const CallExpr *CE) {
 /// if the function returns void, or may be missing one if the function returns
 /// non-void.  Fun stuff :).
 void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
+  ApplyAtomGroup Grp(getDebugInfo());
   if (requiresReturnValueCheck()) {
     llvm::Constant *SLoc = EmitCheckSourceLocation(S.getBeginLoc());
     auto *SLocPtr =
@@ -1680,16 +1684,19 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     // If this function returns a reference, take the address of the expression
     // rather than the value.
     RValue Result = EmitReferenceBindingToExpr(RV);
-    Builder.CreateStore(Result.getScalarVal(), ReturnValue);
+    auto *I = Builder.CreateStore(Result.getScalarVal(), ReturnValue);
+    addInstToCurrentSourceAtom(I, I->getValueOperand());
   } else {
     switch (getEvaluationKind(RV->getType())) {
     case TEK_Scalar: {
       llvm::Value *Ret = EmitScalarExpr(RV);
-      if (CurFnInfo->getReturnInfo().getKind() == ABIArgInfo::Indirect)
+      if (CurFnInfo->getReturnInfo().getKind() == ABIArgInfo::Indirect) {
         EmitStoreOfScalar(Ret, MakeAddrLValue(ReturnValue, RV->getType()),
                           /*isInit*/ true);
-      else
-        Builder.CreateStore(Ret, ReturnValue);
+      } else {
+        auto *I = Builder.CreateStore(Ret, ReturnValue);
+        addInstToCurrentSourceAtom(I, I->getValueOperand());
+      }
       break;
     }
     case TEK_Complex:
@@ -2298,8 +2305,8 @@ void CodeGenFunction::EmitSwitchStmt(const SwitchStmt &S) {
 
       // Okay, we can dead code eliminate everything except this case.  Emit the
       // specified series of statements and we're good.
-      for (unsigned i = 0, e = CaseStmts.size(); i != e; ++i)
-        EmitStmt(CaseStmts[i]);
+      for (const Stmt *CaseStmt : CaseStmts)
+        EmitStmt(CaseStmt);
       incrementProfileCounter(&S);
       PGO->markStmtMaybeUsed(S.getBody());
 
@@ -2669,6 +2676,9 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
                                          llvm::ConstantAsMetadata::get(Loc)));
   }
 
+  // Make inline-asm calls Key for the debug info feature Key Instructions.
+  CGF.addInstToNewSourceAtom(&Result, nullptr);
+
   if (!NoConvergent && CGF.getLangOpts().assumeFunctionsAreConvergent())
     // Conservatively, mark all inline asm blocks in CUDA or OpenCL as
     // convergent (meaning, they may call an intrinsically convergent op, such
@@ -2747,6 +2757,7 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
       }
     }
 
+    ApplyAtomGroup Grp(CGF.getDebugInfo());
     LValue Dest = ResultRegDests[i];
     // ResultTypeRequiresCast elements correspond to the first
     // ResultTypeRequiresCast.size() elements of RegResults.
@@ -2754,7 +2765,8 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
       unsigned Size = CGF.getContext().getTypeSize(ResultRegQualTys[i]);
       Address A = Dest.getAddress().withElementType(ResultRegTypes[i]);
       if (CGF.getTargetHooks().isScalarizableAsmOperand(CGF, TruncTy)) {
-        Builder.CreateStore(Tmp, A);
+        llvm::StoreInst *S = Builder.CreateStore(Tmp, A);
+        CGF.addInstToCurrentSourceAtom(S, S->getValueOperand());
         continue;
       }
 
@@ -3267,7 +3279,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
 
 LValue CodeGenFunction::InitCapturedStruct(const CapturedStmt &S) {
   const RecordDecl *RD = S.getCapturedRecordDecl();
-  QualType RecordTy = getContext().getRecordType(RD);
+  CanQualType RecordTy = getContext().getCanonicalTagType(RD);
 
   // Initialize the captured struct.
   LValue SlotLV =
@@ -3347,7 +3359,7 @@ CodeGenFunction::GenerateCapturedStmtFunction(const CapturedStmt &S) {
 
   // Initialize variable-length arrays.
   LValue Base = MakeNaturalAlignRawAddrLValue(
-      CapturedStmtInfo->getContextValue(), Ctx.getTagDeclType(RD));
+      CapturedStmtInfo->getContextValue(), Ctx.getCanonicalTagType(RD));
   for (auto *FD : RD->fields()) {
     if (FD->hasCapturedVLAType()) {
       auto *ExprArg =

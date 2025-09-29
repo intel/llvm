@@ -9,15 +9,17 @@
 #pragma once
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/exception.hpp> // for sycl::exception, sycl::errc
+#ifndef __SYCL_DEVICE_ONLY__
+#include <sycl/exception.hpp>
+#endif
 #endif                        // #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t
-#include <string>      // for allocator, operator+
+#include <array>   // for array
+#include <cassert> // for assert
+#include <cstddef> // for size_t
+#include <cstdint>
 #include <type_traits> // for enable_if_t
 #include <utility>     // for index_sequence, make_i...
 
@@ -69,8 +71,8 @@ struct code_location {
   static constexpr code_location
   current(const char *fileName = __CODELOC_FILE_NAME,
           const char *funcName = __CODELOC_FUNCTION,
-          unsigned long lineNo = __CODELOC_LINE,
-          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
+          uint32_t lineNo = __CODELOC_LINE,
+          uint32_t columnNo = __CODELOC_COLUMN) noexcept {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 
@@ -79,23 +81,34 @@ struct code_location {
 #undef __CODELOC_LINE
 #undef __CODELOC_COLUMN
 
-  constexpr code_location(const char *file, const char *func, int line,
-                          int col) noexcept
+  constexpr code_location(const char *file, const char *func, uint32_t line,
+                          uint32_t col) noexcept
       : MFileName(file), MFunctionName(func), MLineNo(line), MColumnNo(col) {}
 
   constexpr code_location() noexcept
-      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0), MColumnNo(0) {}
+      : MFileName(nullptr), MFunctionName(nullptr), MLineNo(0u), MColumnNo(0u) {
+  }
 
-  constexpr unsigned long lineNumber() const noexcept { return MLineNo; }
-  constexpr unsigned long columnNumber() const noexcept { return MColumnNo; }
+  constexpr uint32_t lineNumber() const noexcept {
+    return static_cast<uint32_t>(MLineNo);
+  }
+  constexpr uint32_t columnNumber() const noexcept {
+    return static_cast<uint32_t>(MColumnNo);
+  }
   constexpr const char *fileName() const noexcept { return MFileName; }
   constexpr const char *functionName() const noexcept { return MFunctionName; }
 
 private:
   const char *MFileName;
   const char *MFunctionName;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // For preserving layout of handler class
   unsigned long MLineNo;
   unsigned long MColumnNo;
+#else
+  uint32_t MLineNo;
+  uint32_t MColumnNo;
+#endif
 };
 
 /// @brief Data type that manages the code_location information in TLS
@@ -147,8 +160,10 @@ public:
     // Should never be called. In PREVIEW we marked it as deleted, but
     // before ABI breaking change we need to keep it for backward compatibility.
     assert(false && "tls_code_loc_t should not be copied");
+#ifndef __SYCL_DEVICE_ONLY__
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "tls_code_loc_t should not be copied");
+#endif
     return *this;
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -183,12 +198,6 @@ private:
 #else
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
-
-#define __SYCL_UR_ERROR_REPORT(backend)                                        \
-  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
-      " backend failed with error: "
-
-#include <sycl/exception.hpp>
 
 namespace sycl {
 inline namespace _V1 {

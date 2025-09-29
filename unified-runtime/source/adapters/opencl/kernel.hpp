@@ -11,6 +11,7 @@
 
 #include "adapter.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "context.hpp"
 #include "program.hpp"
 
@@ -21,14 +22,16 @@ struct ur_kernel_handle_t_ : ur::opencl::handle_base {
   native_type CLKernel;
   ur_program_handle_t Program;
   ur_context_handle_t Context;
-  std::atomic<uint32_t> RefCount = 0;
   bool IsNativeHandleOwned = true;
   clSetKernelArgMemPointerINTEL_fn clSetKernelArgMemPointerINTEL = nullptr;
+  ur::RefCount RefCount;
+
+  ur_kernel_handle_t_(const ur_kernel_handle_t_ &) = delete;
+  ur_kernel_handle_t_ &operator=(const ur_kernel_handle_t_ &) = delete;
 
   ur_kernel_handle_t_(native_type Kernel, ur_program_handle_t Program,
                       ur_context_handle_t Context)
       : handle_base(), CLKernel(Kernel), Program(Program), Context(Context) {
-    RefCount = 1;
     urProgramRetain(Program);
     urContextRetain(Context);
 
@@ -45,12 +48,6 @@ struct ur_kernel_handle_t_ : ur::opencl::handle_base {
       clReleaseKernel(CLKernel);
     }
   }
-
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
 
   static ur_result_t makeWithNative(native_type NativeKernel,
                                     ur_program_handle_t Program,

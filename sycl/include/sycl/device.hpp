@@ -63,7 +63,8 @@ enum class peer_access {
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
+class __SYCL_STANDALONE_DEBUG __SYCL_EXPORT device
+    : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -406,11 +407,6 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::device> {
-  size_t operator()(const sycl::device &Device) const {
-    return hash<std::shared_ptr<sycl::detail::device_impl>>()(
-        sycl::detail::getSyclObjImpl(Device));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::device>
+    : public sycl::detail::sycl_obj_hash<sycl::device> {};

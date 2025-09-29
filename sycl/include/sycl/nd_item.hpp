@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_types.hpp>       // for Scope
-#include <sycl/__spirv/spirv_vars.hpp>        // for initLocalInvocationId
+#include <sycl/__spirv/spirv_vars.hpp> // for initBuiltInLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
@@ -17,7 +17,6 @@
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
 #include <sycl/detail/type_traits.hpp>        // for is_bool, change_base_...
 #include <sycl/device_event.hpp>              // for device_event
-#include <sycl/exception.hpp> // for make_error_code, errc, exce...
 #include <sycl/group.hpp>     // for group
 #include <sycl/id.hpp>        // for id
 #include <sycl/item.hpp>      // for item
@@ -50,7 +49,7 @@ public:
 
   id<Dimensions> get_global_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
     return {};
 #endif
@@ -81,7 +80,7 @@ public:
 
   id<Dimensions> get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
     return {};
 #endif
@@ -143,7 +142,7 @@ public:
 
   range<Dimensions> get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initNumWorkgroups<Dimensions, range<Dimensions>>();
+    return __spirv::initBuiltInNumWorkgroups<Dimensions, range<Dimensions>>();
 #else
     return {};
 #endif
@@ -157,7 +156,7 @@ public:
 
   range<Dimensions> get_global_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initGlobalSize<Dimensions, range<Dimensions>>();
+    return __spirv::initBuiltInGlobalSize<Dimensions, range<Dimensions>>();
 #else
     return {};
 #endif
@@ -171,7 +170,7 @@ public:
 
   range<Dimensions> get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>();
+    return __spirv::initBuiltInWorkgroupSize<Dimensions, range<Dimensions>>();
 #else
     return {};
 #endif
@@ -186,7 +185,7 @@ public:
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   id<Dimensions> get_offset() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initGlobalOffset<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInGlobalOffset<Dimensions, id<Dimensions>>();
 #else
     return {};
 #endif
@@ -544,7 +543,7 @@ protected:
 
   id<Dimensions> get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
+    return __spirv::initBuiltInWorkgroupId<Dimensions, id<Dimensions>>();
 #else
     return {};
 #endif

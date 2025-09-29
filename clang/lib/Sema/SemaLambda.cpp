@@ -249,8 +249,6 @@ Sema::createLambdaClosureType(SourceRange IntroducerRange, TypeSourceInfo *Info,
                               unsigned LambdaDependencyKind,
                               LambdaCaptureDefault CaptureDefault) {
   DeclContext *DC = CurContext;
-  while (!(DC->isFunctionOrMethod() || DC->isRecord() || DC->isFileContext()))
-    DC = DC->getParent();
 
   bool IsGenericLambda =
       Info && getGenericLambdaTemplateParameterList(getCurLambda(), *this);
@@ -358,7 +356,14 @@ Sema::getCurrentMangleNumberContext(const DeclContext *DC) {
       return std::make_tuple(&Context.getManglingNumberContext(DC), nullptr);
     }
 
-    return std::make_tuple(nullptr, nullptr);
+    if (ManglingContextDecl) {
+      // Lambdas defined in the initializer of a local variable are mangled
+      // in the enclosing function context.
+      if (auto *VD = dyn_cast<VarDecl>(ManglingContextDecl);
+          VD && !VD->hasGlobalStorage())
+        ManglingContextDecl = nullptr;
+    }
+    return std::make_tuple(nullptr, ManglingContextDecl);
   }
 
   case NonInlineInModulePurview:
@@ -427,7 +432,7 @@ bool Sema::DiagnoseInvalidExplicitObjectParameterInLambda(
                                              .getNonReferenceType()
                                              .getUnqualifiedType()
                                              .getDesugaredType(getASTContext());
-  QualType LambdaType = getASTContext().getRecordType(RD);
+  CanQualType LambdaType = getASTContext().getCanonicalTagType(RD);
   if (LambdaType == ExplicitObjectParameterType)
     return false;
 
@@ -459,7 +464,7 @@ bool Sema::DiagnoseInvalidExplicitObjectParameterInLambda(
     return true;
   }
 
-  if (Paths.isAmbiguous(LambdaType->getCanonicalTypeUnqualified())) {
+  if (Paths.isAmbiguous(LambdaType)) {
     std::string PathsDisplay = getAmbiguousPathsDisplayString(Paths);
     Diag(CallLoc, diag::err_explicit_object_lambda_ambiguous_base)
         << LambdaType << PathsDisplay;
@@ -644,7 +649,7 @@ static EnumDecl *findEnumForBlockReturn(Expr *E) {
 
   //   - it is an expression of that formal enum type.
   if (const EnumType *ET = E->getType()->getAs<EnumType>()) {
-    return ET->getDecl();
+    return ET->getOriginalDecl()->getDefinitionOrSelf();
   }
 
   // Otherwise, nope.
@@ -761,7 +766,7 @@ void Sema::deduceClosureReturnType(CapturingScopeInfo &CSI) {
     assert(isa<BlockScopeInfo>(CSI));
     const EnumDecl *ED = findCommonEnumForBlockReturns(CSI.Returns);
     if (ED) {
-      CSI.ReturnType = Context.getTypeDeclType(ED);
+      CSI.ReturnType = Context.getCanonicalTagType(ED);
       adjustBlockReturnsToEnum(*this, CSI.Returns, CSI.ReturnType);
       return;
     }

@@ -25,6 +25,8 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
+using sycl::detail::getSyclObjImpl;
+
 // Common Test fixture
 class CommandGraphTest : public ::testing::Test {
 public:

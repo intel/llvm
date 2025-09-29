@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 #include <ur/ur.hpp>
 
@@ -22,7 +23,6 @@ private:
   using native_type = hipDevice_t;
 
   native_type HIPDevice;
-  std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
   hipEvent_t EvBase; // HIP event used as base counter
   uint32_t DeviceIndex;
@@ -38,8 +38,8 @@ private:
 public:
   ur_device_handle_t_(native_type HipDevice, hipEvent_t EvBase,
                       ur_platform_handle_t Platform, uint32_t DeviceIndex)
-      : handle_base(), HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
-        EvBase(EvBase), DeviceIndex(DeviceIndex) {
+      : handle_base(), HIPDevice(HipDevice), Platform(Platform), EvBase(EvBase),
+        DeviceIndex(DeviceIndex) {
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxWorkGroupSize, hipDeviceAttributeMaxThreadsPerBlock, HIPDevice));
@@ -99,8 +99,6 @@ public:
 
   native_type get() const noexcept { return HIPDevice; };
 
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
-
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
   uint64_t getElapsedTime(hipEvent_t) const;
@@ -126,6 +124,8 @@ public:
   };
 
   bool supportsHardwareImages() const noexcept { return HardwareImageSupport; }
+
+  ur::RefCount RefCount;
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);

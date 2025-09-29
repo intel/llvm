@@ -101,6 +101,13 @@ public:
                          const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
+  /// Constructor with default context.
+  /// @param SyclDevice Device all nodes will be associated with.
+  /// @param PropList Optional list of properties to pass.
+  explicit command_graph(const device &SyclDevice,
+                         const property_list &PropList = {})
+      : modifiable_command_graph(SyclDevice, PropList) {}
+
 private:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.

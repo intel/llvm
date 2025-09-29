@@ -40,6 +40,8 @@ public:
   SYCLBIN(const SYCLBIN &Other) = delete;
   SYCLBIN(SYCLBIN &&Other) = default;
 
+  ~SYCLBIN() = default;
+
   SYCLBIN &operator=(const SYCLBIN &Other) = delete;
   SYCLBIN &operator=(SYCLBIN &&Other) = default;
 
@@ -119,12 +121,14 @@ struct SYCLBINBinaries {
 
   SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize);
 
-  std::vector<const RTDeviceBinaryImage *>
-  getBestCompatibleImages(const device &Dev);
-  std::vector<const RTDeviceBinaryImage *>
-  getBestCompatibleImages(const std::vector<device> &Dev);
+  ~SYCLBINBinaries() = default;
 
-  uint8_t getState() const noexcept {
+  std::vector<const RTDeviceBinaryImage *>
+  getBestCompatibleImages(device_impl &Dev);
+  std::vector<const RTDeviceBinaryImage *>
+  getBestCompatibleImages(devices_range Dev);
+
+  uint8_t getState() const {
     PropertySet &GlobalMetadata =
         (*ParsedSYCLBIN
               .GlobalMetadata)[PropertySetRegistry::SYCLBIN_GLOBAL_METADATA];

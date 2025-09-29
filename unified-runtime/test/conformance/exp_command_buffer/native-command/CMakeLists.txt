@@ -20,6 +20,5 @@ endif()
 
 if (UR_BUILD_ADAPTER_OPENCL)
     target_sources(exp_command_buffer-test PRIVATE "append_native_opencl.cpp")
-    target_compile_definitions(exp_command_buffer-test PRIVATE CL_TARGET_OPENCL_VERSION=300)
-    target_link_libraries(exp_command_buffer-test PRIVATE OpenCLICDLoader)
+    target_link_libraries(exp_command_buffer-test PRIVATE ${OpenCL_LIBRARY} OpenCL-Headers)
 endif()

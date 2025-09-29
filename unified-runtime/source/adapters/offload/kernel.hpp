@@ -77,6 +77,8 @@ struct ur_kernel_handle_t_ : RefCounted {
     }
   };
 
-  ol_kernel_handle_t OffloadKernel;
+  ol_symbol_handle_t OffloadKernel;
+  ur_program_handle_t Program;
   OffloadKernelArguments Args{};
+  std::string Name;
 };
