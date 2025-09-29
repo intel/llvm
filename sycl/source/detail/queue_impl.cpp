@@ -432,30 +432,75 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
   KData.setKernelFunc(HostKernel->getPtr());
   KData.setNDRDesc(NDRDesc);
 
-  auto SubmitKernelFunc =
-      [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
-    std::unique_ptr<detail::CG> CommandGroup;
-    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
-    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+                              bool SchedulerBypass) -> EventImplPtr {
+    if (SchedulerBypass) {
+      bool DiscardEvent = !CallerNeedsEvent && supportsDiscardingPiEvents();
+      std::vector<ur_event_handle_t> RawEvents;
 
-    KData.extractArgsAndReqsFromLambda();
+      if (CGData.MEvents.size() > 0) {
+        RawEvents = detail::Command::getUrEvents(CGData.MEvents, this, false);
+      }
 
-    CommandGroup.reset(new detail::CGExecKernel(
-        KData.getNDRDesc(), HostKernel,
-        nullptr, // Kernel
-        nullptr, // KernelBundle
-        std::move(CGData), std::move(KData).getArgs(),
-        *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
-        std::move(AuxiliaryResources), detail::CGType::Kernel,
-        UR_KERNEL_CACHE_CONFIG_DEFAULT,
-        false, // KernelIsCooperative
-        false, // KernelUsesClusterLaunch
-        0,     // KernelWorkGroupMemorySize
-        CodeLoc));
-    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+      std::shared_ptr<detail::event_impl> ResultEvent =
+          DiscardEvent ? nullptr
+                       : detail::event_impl::create_device_event(*this);
 
-    return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
-                                                  *this, true);
+      if (!DiscardEvent) {
+        ResultEvent->setWorkerQueue(weak_from_this());
+        ResultEvent->setStateIncomplete();
+        ResultEvent->setSubmissionTime();
+      }
+
+      enqueueImpKernel(*this, KData.getNDRDesc(), KData.getArgs(),
+                       nullptr, // KernelBundle
+                       nullptr, // Kernel
+                       *KData.getDeviceKernelInfoPtr(), RawEvents,
+                       ResultEvent.get(),
+                       nullptr, // getMemAllocationFunc
+                       UR_KERNEL_CACHE_CONFIG_DEFAULT,
+                       false,   // KernelIsCooperative
+                       false,   // KernelUsesClusterLaunch
+                       0,       // WorkGroupMemorySize
+                       nullptr, // BinImage
+                       KData.getKernelFuncPtr());
+
+      if (!DiscardEvent) {
+        ResultEvent->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          // MEvents is not used anymore, so can move.
+          ResultEvent->getPreparedDepsEvents() = std::move(CGData.MEvents);
+          // ResultEvent is local for current thread, no need to lock.
+          ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
+        }
+      }
+
+      return ResultEvent;
+    } else {
+      std::unique_ptr<detail::CG> CommandGroup;
+      std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+      std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+      KData.extractArgsAndReqsFromLambda();
+
+      CommandGroup.reset(new detail::CGExecKernel(
+          KData.getNDRDesc(), HostKernel,
+          nullptr, // Kernel
+          nullptr, // KernelBundle
+          std::move(CGData), std::move(KData).getArgs(),
+          *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
+          std::move(AuxiliaryResources), detail::CGType::Kernel,
+          UR_KERNEL_CACHE_CONFIG_DEFAULT,
+          false, // KernelIsCooperative
+          false, // KernelUsesClusterLaunch
+          0,     // KernelWorkGroupMemorySize
+          CodeLoc));
+      CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+      return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                    *this, true);
+    }
   };
 
   return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
@@ -505,15 +550,24 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     }
   }
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData);
+  bool SchedulerBypass =
+      CGData.MEvents.size() > 0
+          ? detail::Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
+                                                               getContextImpl())
+          : true;
 
-  // Sync with the last event for in order queue
-  if (isInOrder() && !EventImpl->isDiscarded()) {
-    LastEvent = EventImpl;
+  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+
+  // Sync with the last event for in order queue. For scheduler-bypass flow,
+  // the ordering is done at the layers below the SYCL runtime,
+  // but for the scheduler-based flow, it needs to be done here, as the
+  // scheduler handles host task submissions.
+  if (isInOrder()) {
+    LastEvent = SchedulerBypass ? nullptr : EventImpl;
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
-  if (!isInOrder() && !EventImpl->isEnqueued()) {
+  if (!isInOrder() && EventImpl && !EventImpl->isEnqueued()) {
     MDefaultGraphDeps.UnenqueuedCmdEvents.push_back(EventImpl);
   }
 
