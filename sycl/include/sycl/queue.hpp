@@ -65,14 +65,14 @@ auto get_native(const SyclObjectT &Obj)
 template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -180,8 +180,15 @@ auto submit_kernel_direct(
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
-      detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
+  HostKernelRef<KernelType, TransformedArgType, Dims> HostKernel(KernelFunc);
+
+  // Instantiating the kernel on the host improves debugging.
+  // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+  // TODO: call library to prevent dropping call due to optimization
+  (void)detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType,
+                                              Dims>();
+#endif
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
       &detail::getDeviceKernelInfo<NameT>();
