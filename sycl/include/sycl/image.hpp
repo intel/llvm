@@ -413,24 +413,7 @@ private:
         });
   }
 };
-
-template <typename DataT, int Dims, access::mode AccMode,
-          access::target AccTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-
 } // namespace detail
-
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-class unsampled_image_accessor;
-
-template <typename DataT, int Dimensions, access_mode AccessMode>
-class host_unsampled_image_accessor;
-
-template <typename DataT, int Dimensions, image_target AccessTarget>
-class sampled_image_accessor;
-
-template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 /// Defines a shared image data.
 ///
@@ -1160,30 +1143,17 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::image<Dimensions, AllocatorT>> {
-  size_t operator()(const sycl::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl>>()(
-        sycl::detail::getSyclObjImpl(I));
-  }
+struct std::hash<sycl::image<Dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<sycl::image<Dimensions, AllocatorT>> {
 };
 
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::unsampled_image<Dimensions, AllocatorT>> {
-  size_t
-  operator()(const sycl::unsampled_image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl>>()(
-        sycl::detail::getSyclObjImpl(I));
-  }
-};
+struct std::hash<sycl::unsampled_image<Dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::unsampled_image<Dimensions, AllocatorT>> {};
 
 template <int Dimensions, typename AllocatorT>
-struct hash<sycl::sampled_image<Dimensions, AllocatorT>> {
-  size_t
-  operator()(const sycl::sampled_image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<sycl::detail::image_impl>>()(
-        sycl::detail::getSyclObjImpl(I));
-  }
-};
-} // namespace std
+struct std::hash<sycl::sampled_image<Dimensions, AllocatorT>>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::sampled_image<Dimensions, AllocatorT>> {};

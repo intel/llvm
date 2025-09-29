@@ -73,6 +73,7 @@ if(LLVM_LIBCXX_USED)
 endif()
 
 if (WIN32)
+  list(APPEND compile_opts "-std=c++17")
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
 endif()
@@ -655,6 +656,10 @@ set(imf_host_cxx_flags -c
 
 if(LLVM_LIBCXX_USED)
   list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
+endif()
+
+if (WIN32)
+  list(APPEND imf_host_cxx_flags "-std=c++17")
 endif()
 
 macro(mangle_name str output)

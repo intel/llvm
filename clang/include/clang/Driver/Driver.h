@@ -339,6 +339,10 @@ private:
   /// "clang" as it's first argument.
   const char *PrependArg;
 
+  /// The default value of -fuse-ld= option. An empty string means the default
+  /// system linker.
+  std::string PreferredLinker;
+
   /// Whether to check that input files exist when constructing compilation
   /// jobs.
   LLVM_PREFERRED_TYPE(bool)
@@ -356,6 +360,8 @@ public:
   //       handleArguments.
   phases::ID getFinalPhase(const llvm::opt::DerivedArgList &DAL,
                            llvm::opt::Arg **FinalPhaseArg = nullptr) const;
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  executeProgram(llvm::ArrayRef<llvm::StringRef> Args) const;
 
 private:
   /// Certain options suppress the 'no input files' warning.
@@ -452,8 +458,12 @@ public:
     return ClangExecutable.c_str();
   }
 
-  bool isSaveOffloadCodeEnabled() const { return SaveOffloadCode; }
+  StringRef getPreferredLinker() const { return PreferredLinker; }
+  void setPreferredLinker(std::string Value) {
+    PreferredLinker = std::move(Value);
+  }
 
+  bool isSaveOffloadCodeEnabled() const { return SaveOffloadCode; }
   bool isSaveTempsEnabled() const { return SaveTemps != SaveTempsNone; }
   bool isSaveTempsObj() const { return SaveTemps == SaveTempsObj; }
 
@@ -541,8 +551,7 @@ public:
   /// empty string.
   llvm::SmallVector<StringRef>
   getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
-                  Action::OffloadKind Kind, const ToolChain *TC,
-                  bool SpecificToolchain = true) const;
+                  Action::OffloadKind Kind, const ToolChain &TC) const;
 
   /// Check that the file referenced by Value exists. If it doesn't,
   /// issue a diagnostic and return false.
@@ -989,6 +998,9 @@ bool isObjectFile(std::string FileName);
 
 /// \return True if the filename has a static archive/lib extension.
 bool isStaticArchiveFile(const StringRef &FileName);
+
+/// \return True if the filename is an Offload Binary file.
+bool isOffloadBinaryFile(const StringRef &FileName);
 
 /// \return True if the argument combination will end up generating remarks.
 bool willEmitRemarks(const llvm::opt::ArgList &Args);

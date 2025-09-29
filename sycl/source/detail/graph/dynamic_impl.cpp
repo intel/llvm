@@ -343,7 +343,7 @@ void dynamic_command_group_impl::finalizeCGFList(
     MCommandGroups.push_back(std::shared_ptr<sycl::detail::CG>(RawCGPtr));
 
     // Track dynamic_parameter usage in command-group
-    auto &DynamicParams = Handler.impl->MDynamicParameters;
+    auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
     if (DynamicParams.size() > 0 &&
         Handler.getType() == sycl::detail::CGType::CodeplayHostTask) {

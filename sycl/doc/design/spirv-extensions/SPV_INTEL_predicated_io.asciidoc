@@ -1,0 +1,203 @@
+:extension_name: SPV_INTEL_predicated_io
+:capability_name: PredicatedIOINTEL
+:capability_token: 6257
+:op_pred_load: OpPredicatedLoadINTEL
+:op_pred_load_token: 6258
+:op_pred_store: OpPredicatedStoreINTEL
+:op_pred_store_token: 6259
+
+= {extension_name}
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Registry
+
+== Contributors
+
+// spell-checker: disable
+* Ben Ashbaugh, Intel
+* Yury Plyakhin, Intel
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2025 Intel Corporation. All rights reserved.
+
+== Status
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2025-07-14
+| Revision           | 1
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6, Revision 6.
+
+This extension requires SPIR-V 1.0.
+
+This extension interacts with the _SPV_KHR_untyped_pointers_ extension, by accepting untyped pointers as pointer operands.
+
+This extension interacts with the _SPV_INTEL_cache_controls_ extension, by supporting cache control decorations on the pointer operands.
+
+== Overview
+
+This extension adds predicated load and store instructions. Predicated load performs load from memory if _predicate_ is *true*, otherwise, it uses _default_value_ as a _result_:
+[source]
+----
+if (predicate)
+    result = load(address);
+else
+    result = default_value;
+----
+Predicated store performs store of _value_ to memory if _predicate_ is *true*. Otherwise, it does nothing:
+[source]
+----
+if (predicate)
+    store(address, value);
+----
+These instructions allow to reduce branches and hence simplify control flow graph resulting in more efficient machine code.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Validation Rules
+
+Add a validation rule to section 2.16.1 Universal Validation Rules:
+
+* For *{op_pred_load}* and *{op_pred_store}* instructions, _Memory Operands_ must not include *Volatile*.
+
+=== Capabilities
+
+Modify Section 3.2.30, Capability, adding rows to the Capability table:
+--
+[cols="^.^2,16,15",options="header",width = "100%"]
+|====
+2+^.^| Capability | Implicitly Declares
+| {capability_token} | *{capability_name}* |
+|====
+--
+
+=== Instructions
+
+Modify Section 3.3.8, Memory Instructions, adding to the end of the list of instructions:
+
+[cols="1,1,6*3",width="100%"]
+|=====
+7+a|[[{op_pred_load}]]*{op_pred_load}*
+
+Load through a _Pointer_, if _Predicate_ is *true*, otherwise use _Default Value_ as a result of the operation.
+
+_Result Type_ is the type of the loaded object. It must be a scalar or vector of _numerical-type_.
+
+_Pointer_ is the pointer to load through. Its type must be a pointer.
+
+_Predicate_ must be a Scalar Boolean type.
+
+The type of _Default Value_ must be the same as _Result Type_.
+
+If present, any _Memory Operands_ must begin with a memory operand literal. If not present, it is the same as specifying the memory operand *None*.
+*Volatile* is not allowed.
+
+|Capability: +
+*{capability_name}*
+| 5 + variable | {op_pred_load_token}
+| _<id>_ +
+_Result Type_
+| _<id>_ +
+_Result_
+| _<id>_ +
+_Pointer_
+| _<id>_ +
+_Predicate_
+| _<id>_ +
+_Default Value_
+| Optional +
+_Memory Operands_
+|=====
+
+[cols="1,1,4*3",width="100%"]
+|=====
+5+a|[[{op_pred_store}]]*{op_pred_store}*
+
+Store through a _Pointer_, if _Predicate_ is *true*.
+
+_Pointer_ is the pointer to store through. Its type must be a pointer.
+
+_Object_ is the object to store. It's type must be a scalar or vector of _numerical-type_.
+
+_Predicate_ must be a Scalar Boolean type.
+
+If present, any _Memory Operands_ must begin with a memory operand literal. If not present, it is the same as specifying the memory operand *None*.
+*Volatile* is not allowed.
+
+|Capability: +
+*{capability_name}*
+| 3 + variable | {op_pred_store_token}
+| _<id>_ +
+_Pointer_
+| _<id>_ +
+_Object_
+| _<id>_ +
+_Predicate_
+| Optional +
+_Memory Operands_
+|=====
+
+== Issues
+
+. Should we require *Aligned* to always be provided as memory operand?
++
+--
+*RESOLVED*: No, we do not need to require that the alignment memory operand is present, since alignment requirements are well-defined without it.
+For typed pointers the compiler can assert that the pointer is aligned to the type that it points to: https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_alignment_of_types
+For untyped pointers, we expect untyped pointers will have the alignment memory operand in general.
+--
+
+. Should we document that *Aligned* is the only supported memory operand?
++
+--
+*RESOLVED*: No, we should not. Potentially other memory operands can be also useful. We will not document requirements for memory operands (except *Volatile*) in this spec.
+--
+
+. Should we allow *Volatile* memory operand?
++
+--
+*RESOLVED*: No, we should not. We don't expect customers for volatile predicated load/stores. Predicated load/stores are a performance feature. If anyone needs volatile load/store, they can use normal control flow.
+Since, supporting volatile semantics doesn't look necessary for predicated memory access and requires additional efforts (both implementation and testing), we have decided to disallow it.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2025-07-14|Yury Plyakhin|Initial draft version
+|========================================

@@ -110,7 +110,7 @@ public:
   static _dataT read(queue &Q, bool &Success,
                      memory_order Order = memory_order::seq_cst) {
     // Order is currently unused.
-    std::ignore = Order;
+    (void)Order;
 
     const device Dev = Q.get_device();
     bool IsPipeSupported =
@@ -139,7 +139,7 @@ public:
   static void write(queue &Q, const _dataT &Data, bool &Success,
                     memory_order Order = memory_order::seq_cst) {
     // Order is currently unused.
-    std::ignore = Order;
+    (void)Order;
 
     const device Dev = Q.get_device();
     bool IsPipeSupported =
@@ -267,7 +267,7 @@ public:
   // Host API
   static _dataT read(queue &Q, memory_order Order = memory_order::seq_cst) {
     // Order is currently unused.
-    std::ignore = Order;
+    (void)Order;
 
     const device Dev = Q.get_device();
     bool IsPipeSupported =
@@ -290,7 +290,7 @@ public:
   static void write(queue &Q, const _dataT &Data,
                     memory_order Order = memory_order::seq_cst) {
     // Order is currently unused.
-    std::ignore = Order;
+    (void)Order;
 
     const device Dev = Q.get_device();
     bool IsPipeSupported =

@@ -83,7 +83,7 @@ if(MSVC)
 endif()
 
 include(FetchEmhash)
-include(FetchUnifiedRuntime)
+include(BuildUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -190,7 +190,33 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
+
+if(NOT DEFINED SYCL_COMPILER_VERSION)
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    # Get the date of the latest commit
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} log -1 --format=%cd --date=format:%Y%m%d
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      RESULT_VARIABLE GIT_RESULT
+      OUTPUT_VARIABLE GIT_DATE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(GIT_RESULT EQUAL 0 AND GIT_DATE)
+      set(SYCL_COMPILER_VERSION "${GIT_DATE}")
+    endif()
+  endif()
+
+  if(NOT DEFINED SYCL_COMPILER_VERSION)
+    message(WARNING "No value for SYCL_COMPILER_VERSION passed and couldn't determine timestamp of last commit, falling back to current timestamp.")
+    string(TIMESTAMP SYCL_COMPILER_VERSION "%Y%m%d")
+  endif()
+endif()
+
+set(__SYCL_COMPILER_VERSION "${SYCL_COMPILER_VERSION}")
+message(STATUS "SYCL Compiler Version: ${__SYCL_COMPILER_VERSION}")
+
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
@@ -530,6 +556,15 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
+endif()
+
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  if(NOT TARGET lld)
+    message(FATAL_ERROR
+      "Offload support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+  add_dependencies(sycl-toolchain ur_adapter_offload)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_offload)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

@@ -2155,7 +2155,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
   return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, byte_offset),
                            flags);
 #else
-  std::ignore = flags;
+  (void)flags;
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");

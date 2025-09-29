@@ -29,12 +29,6 @@ public:
     return m_BinImg2KernelIDs;
   }
 
-  std::unordered_multimap<sycl::detail::KernelNameStrT,
-                          const sycl::detail::RTDeviceBinaryImage *> &
-  getServiceKernels() {
-    return m_ServiceKernels;
-  }
-
   std::unordered_multimap<std::string,
                           const sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
@@ -59,6 +53,12 @@ public:
                 const sycl::detail::RTDeviceBinaryImage *>> &
   getNativePrograms() {
     return NativePrograms;
+  }
+
+  std::unordered_map<sycl::detail::KernelNameStrT,
+                     sycl::detail::DeviceKernelInfo> &
+  getDeviceKernelInfoMap() {
+    return m_DeviceKernelInfoMap;
   }
 
   std::unordered_map<sycl::detail::KernelNameStrT, int> &
@@ -163,8 +163,7 @@ sycl::unittest::MockDeviceImage generateImage(const std::string &ImageId,
   sycl::unittest::MockPropertySet PropSet;
 
   std::initializer_list<std::string> KernelNames{
-      generateRefName(ImageId, "Kernel"),
-      generateRefName(ImageId, "__sycl_service_kernel__")};
+      generateRefName(ImageId, "Kernel")};
   const std::vector<std::string> ExportedSymbols{
       generateRefName(ImageId, "Exported")};
   const std::vector<std::string> ImportedSymbols{
@@ -295,9 +294,6 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
                  "KernelName2KernelID " + CommentPostfix);
   EXPECT_EQ(PM.getBinImage2KernelId().size(), ExpectedImgCount)
       << CommentPostfix;
-  checkContainer(PM.getServiceKernels(), ExpectedImgCount,
-                 generateRefNames(ImgIds, "__sycl_service_kernel__"),
-                 "Service kernels " + CommentPostfix);
   checkContainer(PM.getExportedSymbolImages(), ExpectedImgCount,
                  generateRefNames(ImgIds, "Exported"),
                  "Exported symbol images " + CommentPostfix);
@@ -307,6 +303,9 @@ void checkAllInvolvedContainers(ProgramManagerExposed &PM,
   checkContainer(PM.getVFSet2BinImage(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "VF"),
                  "VFSet2BinImage " + CommentPostfix);
+  checkContainer(PM.getDeviceKernelInfoMap(), ExpectedEntryCount,
+                 generateRefNames(ImgIds, "Kernel"),
+                 "Device kernel info map " + CommentPostfix);
   checkContainer(PM.getKernelNameRefCount(), ExpectedEntryCount,
                  generateRefNames(ImgIds, "Kernel"),
                  "Kernel name reference count " + CommentPostfix);
@@ -366,6 +365,10 @@ TEST(ImageRemoval, BaseContainers) {
                             generateRefName("B", "HostPipe").c_str());
   PM.addOrInitHostPipeEntry(PipeC::get_host_ptr(),
                             generateRefName("C", "HostPipe").c_str());
+  std::vector<std::string> KernelNames =
+      generateRefNames({"A", "B", "C"}, "Kernel");
+  for (const std::string &Name : KernelNames)
+    PM.getOrCreateDeviceKernelInfo(Name);
 
   checkAllInvolvedContainers(PM, ImagesToRemove.size() + ImagesToKeep.size(),
                              {"A", "B", "C"}, "check failed before removal");
@@ -389,6 +392,8 @@ TEST(ImageRemoval, MultipleImagesPerEntry) {
   convertAndAddImages(PM, ImagesToRemoveSameEntries, NativeImagesForRemoval,
                       TestBinaries);
 
+  std::string KernelName = generateRefName("A", "Kernel");
+  PM.getOrCreateDeviceKernelInfo(KernelName);
   checkAllInvolvedContainers(
       PM, ImagesToRemoveSameEntries.size() + ImagesToKeepSameEntries.size(),
       /*ExpectedEntryCount*/ 1, {"A"}, "check failed before removal",

@@ -1132,8 +1132,11 @@ void IRLinker::linkNamedMDNodes() {
 
     NamedMDNode *DestNMD = DstM.getOrInsertNamedMetadata(NMD.getName());
     // Add Src elements into Dest node.
-    for (const MDNode *Op : NMD.operands())
-      DestNMD->addOperand(Mapper.mapMDNode(*Op));
+    for (const MDNode *Op : NMD.operands()) {
+      MDNode *MD = Mapper.mapMDNode(*Op);
+      if (!is_contained(DestNMD->operands(), MD))
+        DestNMD->addOperand(MD);
+    }
   }
 }
 
@@ -1471,6 +1474,13 @@ Error IRLinker::run() {
                                   SrcTriple.getOSName() == "unknown");
     EnableTripleWarning = !SrcHasLibDeviceTriple;
     EnableDLWarning = !(SrcHasLibDeviceTriple && SrcHasLibDeviceDL);
+  }
+  // Likewise, during SYCL Native CPU compilation we link with bitcode with a
+  // generic data layout, which is compatible with the concrete host data layout
+  // and the concrete host target that we use later on.
+  if (SrcTriple.isNativeCPU()) {
+    EnableDLWarning = false;
+    EnableTripleWarning = false;
   }
 
   if (EnableDLWarning && (SrcM->getDataLayout() != DstM.getDataLayout())) {

@@ -36,6 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   case UR_DEVICE_TYPE_VPU:
     Type = CL_DEVICE_TYPE_ACCELERATOR;
     break;
+  case UR_DEVICE_TYPE_CUSTOM:
+    Type = CL_DEVICE_TYPE_CUSTOM;
+    break;
   case UR_DEVICE_TYPE_DEFAULT:
     Type = CL_DEVICE_TYPE_DEFAULT;
     break;
@@ -47,11 +50,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
     uint32_t DeviceNumIter = 0;
     for (uint32_t i = 0; i < AllDevicesNum; i++) {
       cl_device_type DevTy = hPlatform->Devices[i]->Type;
-      if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL) {
+      if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL ||
+          Type == CL_DEVICE_TYPE_DEFAULT) {
         if (phDevices) {
           phDevices[DeviceNumIter] = hPlatform->Devices[i].get();
         }
         DeviceNumIter++;
+        // For default, the first device is the only returned device.
+        if (Type == CL_DEVICE_TYPE_DEFAULT)
+          break;
       }
     }
     if (pNumDevices) {
@@ -141,6 +148,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       URDeviceType = UR_DEVICE_TYPE_GPU;
     } else if (CLType & CL_DEVICE_TYPE_ACCELERATOR) {
       URDeviceType = UR_DEVICE_TYPE_FPGA;
+    } else if (CLType & CL_DEVICE_TYPE_CUSTOM) {
+      URDeviceType = UR_DEVICE_TYPE_CUSTOM;
     }
 
     return ReturnValue(URDeviceType);
@@ -1470,6 +1479,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                          sizeof(cl_int), &nodeMask, nullptr));
 
     return ReturnValue(nodeMask);
+  }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP: {
+    bool Supported = false;
+    size_t ExtSize = 0;
+
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        hDevice->CLDevice, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+    std::string ExtStr(ExtSize, '\0');
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_EXTENSIONS, ExtSize,
+                                         ExtStr.data(), nullptr));
+
+    if (ExtStr.find("cl_khr_kernel_clock") != std::string::npos) {
+      cl_device_kernel_clock_capabilities_khr caps = 0;
+
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+          hDevice->CLDevice, CL_DEVICE_KERNEL_CLOCK_CAPABILITIES_KHR,
+          sizeof(cl_device_kernel_clock_capabilities_khr), &caps, nullptr));
+
+      if ((propName == UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_SUB_GROUP_KHR)) ||
+          (propName == UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_WORK_GROUP_KHR)) ||
+          (propName == UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_DEVICE_KHR)))
+        Supported = true;
+    }
+    return ReturnValue(Supported);
   }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.

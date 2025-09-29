@@ -28,8 +28,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -43,7 +45,17 @@ ur_result_t urBindlessImagesImageCopyExp(
   UR_ASSERT(!(pSrcImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pSrcImageDesc->type),
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
-  bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
+  // When we do a region copy from an image handle to USM with non-zero offest
+  // into a USM region, then copy engine would ignore the offset and always
+  // write data at the beginning of the USM allocation.
+  // On the other hand, when performing memory to memory copies if copy engine
+  // is not used, then only half the lines are copied.
+  // This is wild and the change is only added because we continue to test
+  // both V1 and V2 L0 adapters for all HW, regardless of the default adapter
+  // there.
+  bool UseCopyEngine =
+      hQueue->useCopyEngine(/*PreferCopyEngine*/ imageCopyInputTypes ==
+                            UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
   if (is3ChannelOrder(
@@ -84,8 +96,8 @@ ur_result_t urBindlessImagesImageCopyExp(
 
   auto res = bindlessImagesHandleCopyFlags(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, ZeCommandList, ZeEvent,
-      WaitList.Length, WaitList.ZeEventList);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      ZeCommandList, ZeEvent, WaitList.Length, WaitList.ZeEventList);
 
   if (res == UR_RESULT_SUCCESS)
     UR_CALL(hQueue->executeCommandList(CommandList, Blocking, OkToBatch));
@@ -136,44 +148,17 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
-    ze_external_semaphore_wait_params_ext_t WaitParams = {
-        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
-    WaitParams.value = hasValue ? waitValue : 0;
-    ze_external_semaphore_ext_handle_t hExtSemaphore =
-        reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexCommandListAppendWaitExternalSemaphoresExp,
-               (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
-                WaitList.Length, WaitList.ZeEventList));
-  } else {
-    ze_command_list_handle_t translatedCommandList;
-    ZE2UR_CALL(zelLoaderTranslateHandle,
-               (ZEL_HANDLE_COMMAND_LIST, ZeCommandList,
-                (void **)&translatedCommandList));
-    ze_event_handle_t translatedEvent = ZeEvent;
-    if (ZeEvent) {
-      ZE2UR_CALL(zelLoaderTranslateHandle,
-                 (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
-    }
-    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
-    if (WaitList.Length > 0) {
-      for (size_t i = 0; i < WaitList.Length; i++) {
-        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
-        ZE2UR_CALL(zelLoaderTranslateHandle,
-                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
-      }
-    }
-    ze_intel_external_semaphore_wait_params_exp_t WaitParams = {
-        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
-    WaitParams.value = hasValue ? waitValue : 0;
-    const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
-        reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexExpCommandListAppendWaitExternalSemaphoresExp,
-               (translatedCommandList, 1, &hExtSemaphore, &WaitParams,
-                translatedEvent, WaitList.Length, EventHandles.data()));
-  }
+  ze_external_semaphore_wait_params_ext_t WaitParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
+  WaitParams.value = hasValue ? waitValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendWaitExternalSemaphoresExp,
+             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
+              WaitList.Length, WaitList.ZeEventList));
+
+  UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }
@@ -221,47 +206,18 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
-    ze_external_semaphore_signal_params_ext_t SignalParams = {
-        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
-    SignalParams.value = hasValue ? signalValue : 0;
-    ze_external_semaphore_ext_handle_t hExtSemaphore =
-        reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+  ze_external_semaphore_signal_params_ext_t SignalParams = {
+      ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
+  SignalParams.value = hasValue ? signalValue : 0;
+  ze_external_semaphore_ext_handle_t hExtSemaphore =
+      reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
 
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexCommandListAppendSignalExternalSemaphoresExp,
-               (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
-                WaitList.Length, WaitList.ZeEventList));
-  } else {
-    ze_intel_external_semaphore_signal_params_exp_t SignalParams = {
-        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP, nullptr,
-        0};
-    SignalParams.value = hasValue ? signalValue : 0;
-    const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
-        reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
+  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                 .zexCommandListAppendSignalExternalSemaphoresExp,
+             (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
+              WaitList.Length, WaitList.ZeEventList));
 
-    ze_command_list_handle_t translatedCommandList;
-    ZE2UR_CALL(zelLoaderTranslateHandle,
-               (ZEL_HANDLE_COMMAND_LIST, ZeCommandList,
-                (void **)&translatedCommandList));
-    ze_event_handle_t translatedEvent = ZeEvent;
-    if (ZeEvent) {
-      ZE2UR_CALL(zelLoaderTranslateHandle,
-                 (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
-    }
-    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
-    if (WaitList.Length > 0) {
-      for (size_t i = 0; i < WaitList.Length; i++) {
-        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
-        ZE2UR_CALL(zelLoaderTranslateHandle,
-                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
-      }
-    }
-    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                   .zexExpCommandListAppendSignalExternalSemaphoresExp,
-               (translatedCommandList, 1, &hExtSemaphore, &SignalParams,
-                translatedEvent, WaitList.Length, EventHandles.data()));
-  }
+  UR_CALL(hQueue->executeCommandList(CommandList, false, OkToBatch));
 
   return UR_RESULT_SUCCESS;
 }

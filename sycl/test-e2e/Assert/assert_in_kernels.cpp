@@ -5,18 +5,21 @@
 //
 // XFAIL: (opencl && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
+//
+// L0 does not currently abort after synchronizing with a failing kernel.
+// UNSUPPORTED: level_zero
+// UNSUPPORTED-TRACKER: GSD-11097
 
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
-// Shouldn't fail on ACC as fallback assert isn't enqueued there
-// RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if fpga %{ --check-prefix=CHECK-ACC %}
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // CHECK-NOT:  One shouldn't see this message
 // CHECK:      {{.*}}assert_in_kernels.hpp:27: void kernelFunc2(int *, int): {{.*}} [{{[0,2]}},0,0], {{.*}} [0,0,0]
 // CHECK-SAME: Assertion `Buf[wiID] == 0 && "from assert statement"` failed
 // CHECK-NOT:  test aborts earlier, one shouldn't see this message
 // CHECK-NOT:  The test ended.
-//
-// CHECK-ACC-NOT: {{.*}}assert_in_kernels.hpp:27: void kernelFunc2(int *, int): {{.*}} [{{[0,2]}},0,0], {{.*}} [0,0,0]
-// CHECK-ACC: The test ended.
 
 #include "assert_in_kernels.hpp"

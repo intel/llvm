@@ -35,20 +35,20 @@
 
 ; CHECK-LLVM-LABEL: lifetime_simple
 ; CHECK-LLVM: %[[#Alloca:]] = alloca i32
-; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 -1, ptr %[[#Alloca]])
-; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 -1, ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[#Alloca]])
 
 ; CHECK-LLVM-LABEL: lifetime_sized
 ; CHECK-LLVM: %[[#Alloca:]] = alloca i8
-; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 1, ptr %[[#Alloca]])
-; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 1, ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[#Alloca]])
 
 ; CHECK-LLVM-LABEL: lifetime_generic
 ; CHECK-LLVM: %[[#Alloca:]] = alloca %class.anon
 ; CHECK-LLVM: %[[#Cast1:]] = addrspacecast ptr %[[#Alloca]] to ptr addrspace(4)
-; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 -1, ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[#Alloca]])
 ; CHECK-LLVM: call spir_func void @boo(ptr addrspace(4) %[[#Cast1]])
-; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 -1, ptr %[[#Alloca]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[#Alloca]])
 
 ; ModuleID = 'main'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

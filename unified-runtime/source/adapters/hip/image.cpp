@@ -625,8 +625,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+    ur_exp_image_copy_flags_t imageCopyFlags, ur_exp_image_copy_input_types_t,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
   UR_ASSERT((imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
              imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST ||
              imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE),
@@ -635,7 +636,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             UR_RESULT_ERROR_INVALID_ARGUMENT);
 
   unsigned int NumChannels = 0;
-  size_t PixelSizeBytes = 0;
+  [[maybe_unused]] size_t PixelSizeBytes = 0;
 
   UR_CALL(urCalculateNumChannels(pSrcImageFormat->channelOrder, &NumChannels));
 
@@ -665,29 +666,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                       memType == hipMemoryTypeArray,
                   UR_RESULT_ERROR_INVALID_VALUE);
 
-        size_t CopyExtentBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
-        const char *SrcWithOffset = static_cast<const char *>(pSrc) +
-                                    (pCopyRegion->srcOffset.x * PixelSizeBytes);
+        size_t CopyExtentBytes = pCopyRegion->copyExtent.width;
+        const char *SrcWithOffset =
+            static_cast<const char *>(pSrc) + pCopyRegion->srcOffset.x;
 
         if (memType == hipMemoryTypeArray) {
           // HIP doesn not provide async copies between host and image arrays
           // memory in versions earlier than 6.2.
 #if HIP_VERSION >= 60200000
-          UR_CHECK_ERROR(
-              hipMemcpyHtoAAsync(static_cast<hipArray_t>(pDst),
-                                 pCopyRegion->dstOffset.x * PixelSizeBytes,
-                                 static_cast<const void *>(SrcWithOffset),
-                                 CopyExtentBytes, Stream));
+          UR_CHECK_ERROR(hipMemcpyHtoAAsync(
+              static_cast<hipArray_t>(pDst), pCopyRegion->dstOffset.x,
+              static_cast<const void *>(SrcWithOffset), CopyExtentBytes,
+              Stream));
 #else
           UR_CHECK_ERROR(hipMemcpyHtoA(
-              static_cast<hipArray_t>(pDst),
-              pCopyRegion->dstOffset.x * PixelSizeBytes,
+              static_cast<hipArray_t>(pDst), pCopyRegion->dstOffset.x,
               static_cast<const void *>(SrcWithOffset), CopyExtentBytes));
 #endif
         } else if (memType == hipMemoryTypeDevice) {
-          void *DstWithOffset =
-              static_cast<void *>(static_cast<char *>(pDst) +
-                                  (PixelSizeBytes * pCopyRegion->dstOffset.x));
+          void *DstWithOffset = static_cast<void *>(static_cast<char *>(pDst) +
+                                                    pCopyRegion->dstOffset.x);
           UR_CHECK_ERROR(hipMemcpyHtoDAsync(
               static_cast<hipDeviceptr_t>(DstWithOffset),
               const_cast<void *>(static_cast<const void *>(SrcWithOffset)),
@@ -700,9 +698,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         hip_Memcpy2D cpy_desc = {};
         cpy_desc.srcMemoryType = hipMemoryTypeHost;
         cpy_desc.srcHost = pSrc;
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.srcPitch = pSrcImageDesc->rowPitch;
         if (pDstImageDesc->rowPitch == 0) {
@@ -714,15 +712,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
           cpy_desc.dstDevice = static_cast<hipDeviceptr_t>(pDst);
           cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         }
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         UR_CHECK_ERROR(hipMemcpyParam2DAsync(&cpy_desc, Stream));
       } else if (pDstImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         HIP_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeHost;
@@ -731,7 +729,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcHeight = pSrcImageDesc->height;
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         // 'hipMemcpy3DAsync' requires us to correctly create 'hipMemcpy3DParms'
@@ -741,10 +739,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                  pDstImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
                  pDstImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         HIP_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeHost;
@@ -753,7 +751,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.srcHeight = std::max(MinCopyHeight, pSrcImageDesc->height);
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height =
             std::max(MinCopyHeight, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
@@ -774,10 +772,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                       memType == hipMemoryTypeArray,
                   UR_RESULT_ERROR_INVALID_VALUE);
 
-        size_t CopyExtentBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
-        void *DstWithOffset =
-            static_cast<void *>(static_cast<char *>(pDst) +
-                                (PixelSizeBytes * pCopyRegion->dstOffset.x));
+        size_t CopyExtentBytes = pCopyRegion->copyExtent.width;
+        void *DstWithOffset = static_cast<void *>(static_cast<char *>(pDst) +
+                                                  pCopyRegion->dstOffset.x);
 
         if (memType == hipMemoryTypeArray) {
           // HIP doesn not provide async copies between image arrays and host
@@ -785,17 +782,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 #if HIP_VERSION >= 60200000
           UR_CHECK_ERROR(hipMemcpyAtoHAsync(
               DstWithOffset, static_cast<hipArray_t>(const_cast<void *>(pSrc)),
-              PixelSizeBytes * pCopyRegion->srcOffset.x, CopyExtentBytes,
-              Stream));
+              pCopyRegion->srcOffset.x, CopyExtentBytes, Stream));
 #else
           UR_CHECK_ERROR(hipMemcpyAtoH(
               DstWithOffset, static_cast<hipArray_t>(const_cast<void *>(pSrc)),
-              PixelSizeBytes * pCopyRegion->srcOffset.x, CopyExtentBytes));
+              pCopyRegion->srcOffset.x, CopyExtentBytes));
 #endif
         } else if (memType == hipMemoryTypeDevice) {
           const char *SrcWithOffset =
-              static_cast<const char *>(pSrc) +
-              (pCopyRegion->srcOffset.x * PixelSizeBytes);
+              static_cast<const char *>(pSrc) + pCopyRegion->srcOffset.x;
           UR_CHECK_ERROR(hipMemcpyDtoHAsync(
               DstWithOffset,
               static_cast<hipDeviceptr_t>(const_cast<char *>(SrcWithOffset)),
@@ -806,9 +801,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         }
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         hip_Memcpy2D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstMemoryType = hipMemoryTypeHost;
         cpy_desc.dstHost = pDst;
@@ -825,15 +820,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstMemoryType = hipMemoryTypeHost;
         cpy_desc.dstHost = pDst;
         cpy_desc.dstPitch = pDstImageDesc->rowPitch;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         UR_CHECK_ERROR(hipMemcpyParam2DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         HIP_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeArray;
@@ -842,7 +837,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstHost = pDst;
         cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = pDstImageDesc->height;
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         // 'hipMemcpy3DAsync' requires us to correctly create
@@ -853,10 +848,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         HIP_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeArray;
@@ -865,7 +860,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         cpy_desc.dstHost = pDst;
         cpy_desc.dstPitch = pDstImageDesc->rowPitch;
         cpy_desc.dstHeight = std::max(MinCopyHeight, pDstImageDesc->height);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height =
             std::max(MinCopyHeight, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
@@ -889,43 +884,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
       // the end
       if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
         hip_Memcpy2D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = 0;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = 0;
         cpy_desc.srcMemoryType = hipMemoryTypeArray;
         cpy_desc.srcArray = static_cast<hipArray_t>(const_cast<void *>(pSrc));
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = 1;
         UR_CHECK_ERROR(hipMemcpyParam2DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         hip_Memcpy2D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.srcMemoryType = hipMemoryTypeArray;
         cpy_desc.srcArray = static_cast<hipArray_t>(const_cast<void *>(pSrc));
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         UR_CHECK_ERROR(hipMemcpyParam2DAsync(&cpy_desc, Stream));
       } else if (pSrcImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         HIP_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeArray;
         cpy_desc.srcArray = static_cast<hipArray_t>(const_cast<void *>(pSrc));
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height = pCopyRegion->copyExtent.height;
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;
         // 'hipMemcpy3DAsync' requires us to correctly create
@@ -936,17 +931,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY ||
                  pSrcImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
         HIP_MEMCPY3D cpy_desc = {};
-        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x * PixelSizeBytes;
+        cpy_desc.srcXInBytes = pCopyRegion->srcOffset.x;
         cpy_desc.srcY = pCopyRegion->srcOffset.y;
         cpy_desc.srcZ = pCopyRegion->srcOffset.z;
-        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x * PixelSizeBytes;
+        cpy_desc.dstXInBytes = pCopyRegion->dstOffset.x;
         cpy_desc.dstY = pCopyRegion->dstOffset.y;
         cpy_desc.dstZ = pCopyRegion->dstOffset.z;
         cpy_desc.srcMemoryType = hipMemoryTypeArray;
         cpy_desc.srcArray = static_cast<hipArray_t>(const_cast<void *>(pSrc));
         cpy_desc.dstMemoryType = hipMemoryTypeArray;
         cpy_desc.dstArray = static_cast<hipArray_t>(pDst);
-        cpy_desc.WidthInBytes = PixelSizeBytes * pCopyRegion->copyExtent.width;
+        cpy_desc.WidthInBytes = pCopyRegion->copyExtent.width;
         cpy_desc.Height =
             std::max(MinCopyHeight, pCopyRegion->copyExtent.height);
         cpy_desc.Depth = pCopyRegion->copyExtent.depth;

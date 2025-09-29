@@ -76,10 +76,9 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
 //                                    Type V, Type C);
 #define __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,         \
                                    OP_MANGLED, ADDR_SPACE, ADDR_SPACE_NV)      \
-  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
-      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
-                                 int semantics1, int semantics2, TYPE cmp,     \
-                                 TYPE value) {                                 \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_Atomic##OP_MANGLED(                      \
+      ADDR_SPACE TYPE *pointer, int scope, int semantics1, int semantics2,     \
+      TYPE cmp, TYPE value) {                                                  \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics1 & 0x1F;                                    \
