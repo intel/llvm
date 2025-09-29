@@ -60,8 +60,8 @@ bool DeviceGlobalMapEntry::isAvailableInContext(const context_impl *CtxImpl) {
 }
 
 bool DeviceGlobalMapEntry::isProfileCounter() {
-  const std::string CounterPrefix = "__profc_";
-  return MUniqueId.substr(0, CounterPrefix.size()) == CounterPrefix;
+  constexpr std::string_view CounterPrefix = "__profc_";
+  return std::string_view{MUniqueId}.substr(0, CounterPrefix.size()) == CounterPrefix;
 }
 
 #ifdef _MSC_VER
