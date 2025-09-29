@@ -1126,8 +1126,7 @@ Value *InstrLowerer::getCounterAddress(InstrProfCntrInstBase *I) {
                                     Counters, "pgocount.addr");
     const std::uint64_t Index = I->getIndex()->getZExtValue();
     if (Index > 0) {
-      auto *Offset = Builder.getInt64(I->getIndex()->getZExtValue() *
-                                      sizeof(std::uint64_t));
+      auto *Offset = Builder.getInt64(Index * sizeof(std::uint64_t));
       auto *AddrWithOffset =
           Builder.CreatePtrAdd(Addr, Offset, "pgocount.offset");
       return AddrWithOffset;
