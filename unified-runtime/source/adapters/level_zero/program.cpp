@@ -590,22 +590,6 @@ ur_result_t urProgramRelease(
       return UR_RESULT_ERROR_INVALID_PROGRAM;
     }
 
-    if (!Program->AssociatedDevices.empty()) {
-      for (const auto &Device : Program->AssociatedDevices) {
-        if (Device && Device->ZeDevice) {
-          ze_module_handle_t zeModuleHandle =
-              Program->getZeModuleHandle(Device->ZeDevice);
-
-          // Validate that the retrieved module handle is valid
-          // A null module handle in certain states could indicate corruption or
-          // double-release
-          if (!zeModuleHandle) {
-            return UR_RESULT_ERROR_INVALID_PROGRAM;
-          }
-        }
-      }
-    }
-
   } catch (...) {
     // If we can't safely access the program members, it's likely
     // corrupted/freed This catches the case where urProgramRelease is called on
