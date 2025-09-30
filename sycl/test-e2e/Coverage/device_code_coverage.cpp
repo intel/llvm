@@ -25,6 +25,9 @@ int main() {
 // REQUIRES: target-spir
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
+// UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED: On Windows, compiler-rt requires /MT but the flag
+//                       cannot be used with SYCL.
 
 // CHECK: main:
 // CHECK:     8|      1|int main() {
