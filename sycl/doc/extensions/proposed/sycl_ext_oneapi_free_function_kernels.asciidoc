@@ -243,6 +243,13 @@ A function decorated with one of these properties can still be called as a
 normal function in either host or device code.
 The property has no effect in such cases.
 
+[_Note:_ Many of the APIs specified below have a template parameter `Func`,
+which identifies a free function kernel.
+This kernel function may be defined in any translation unit in the application.
+It is not necessary for the function to be defined in the same translation unit
+as the instantiation of the template taking the `Func` parameter.
+_{endnote}_]
+
 === New traits for kernel functions
 
 This extension defines the following traits that can be used to tell whether a
@@ -441,11 +448,6 @@ Each value in the `args` pack is passed to the corresponding argument in
 
 This extension adds the following new functions which add kernel bundle support
 for free function kernels.
-
-[_Note:_ Many of the functions in this section have a template parameter
-`Func`, which identifies a free function kernel.
-This kernel function may be defined in any translation unit in the application.
-_{endnote}_]
 
 |====
 a|
