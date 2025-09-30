@@ -261,7 +261,7 @@ public:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // This function can't be called from old user code, because there is no
   // HostKernelRef in old user code. So, make it empty.
-  void InstantiateKernelOnHost() override { }
+  void InstantiateKernelOnHost() override {}
 #endif
 };
 
