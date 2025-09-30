@@ -47,10 +47,13 @@ template <auto *Func>
 inline constexpr bool is_kernel_v = is_kernel<Func>::value;
 
 namespace detail {
-// A struct with special type is a struct type that contains special types.
-// The frontend defines this trait to be true after analyzing the struct at
-// compile time and contains information about Offset, Size and kind(accessor,
-// etc...) inside the struct
+// A struct with special type is a struct type that contains special types
+// passed as a paremeter to a free function kernel. It is decomposed into its
+// consituents by the frontend which puts the relevant informaton about each of
+// them into the struct below, namely offset, size and parameter kind for each
+// one of them. The runtime then calls the addArg function to add each one of
+// them as kernel arguments. The value bool is used to distinguish these structs
+// from ordinary e.g standard layout structs.
 template <typename T> struct is_struct_with_special_type {
   static constexpr bool value = false;
   static constexpr int offsets[] = {-1};

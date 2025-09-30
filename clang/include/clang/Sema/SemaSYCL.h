@@ -65,7 +65,7 @@ public:
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
     kind_dynamic_accessor,
-    kind_struct_with_special_type,
+    kind_struct_with_special_type, // structs that contain special types
     kind_last = kind_struct_with_special_type
   };
 

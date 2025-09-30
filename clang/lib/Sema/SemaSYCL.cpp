@@ -4523,8 +4523,11 @@ public:
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
-    // Being inside this function means there is a struct parameter to the free
-    // function kernel that contains a special type.
+    // FD represents a special type which is a field of a struct parameter
+    // passed to a free function kernel Get this struct parameter using
+    // getParentStruct and build the __init call. Also add the struct to the
+    // list of special structs needed later by the integration header to
+    // generate some helper structs for the runtime.
     Expr *Base = createParamReferenceExpr(DeclCreator.getParentStruct());
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
@@ -4532,7 +4535,8 @@ public:
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
     createSpecialMethodCall(FieldTy->getAsCXXRecordDecl(), InitMethodName,
                             MemberAccess, BodyStmts);
-    SemaSYCLRef.addStructWithSpecialType(DeclCreator.getParentStruct()->getType()->getAsCXXRecordDecl());
+    SemaSYCLRef.addStructWithSpecialType(
+        DeclCreator.getParentStruct()->getType()->getAsCXXRecordDecl());
     return true;
   }
 
