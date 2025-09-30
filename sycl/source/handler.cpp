@@ -639,15 +639,16 @@ event handler::finalize() {
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
 
-      detail::EventImplPtr EventImpl =
+      detail::EventImplPtr ResultEvent =
           impl->get_queue().submit_kernel_scheduler_bypass(
               impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
               MKernel, KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      return EventImpl;
+      return ResultEvent;
 #else
       return detail::createSyclObjFromImpl<event>(
-          EventImpl ? EventImpl : detail::event_impl::create_discarded_event());
+          ResultEvent ? ResultEvent
+                      : detail::event_impl::create_discarded_event());
 #endif
     }
   }
