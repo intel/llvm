@@ -295,7 +295,7 @@ size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
 //
 // These library must already have been loaded (perhaps by UR), otherwise this
 // function throws a SYCL runtime exception.
-void *dynLookup(const std::vector<const char *> &LibNames,
+void *dynLookup(const char *const *LibNames, size_t LibNameSizes,
                 const char *FunName) {
 #ifdef __SYCL_RT_OS_WINDOWS
   HMODULE handle = nullptr;
@@ -316,9 +316,9 @@ void *dynLookup(const std::vector<const char *> &LibNames,
 #endif
 
   // Iterate over the list of libraries and try to find one that is loaded.
-  auto LibNameIt = LibNames.begin();
-  while (!handle && LibNameIt != LibNames.end())
-    handle = GetHandleF(*(LibNameIt++));
+  size_t LibNameIterator = 0;
+  while (!handle && LibNameIterator < LibNameSizes)
+    handle = GetHandleF(LibNames[LibNameIterator++]);
   if (!handle)
     throw sycl::exception(make_error_code(errc::runtime),
                           "Libraries could not be loaded");

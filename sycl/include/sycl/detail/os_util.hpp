@@ -112,12 +112,13 @@ void fileTreeWalk(const std::string Path,
 //
 // The library must already have been loaded (perhaps by UR), otherwise this
 // function throws a SYCL runtime exception.
-void *dynLookup(const std::vector<const char *> &LibNames, const char *FunName);
+void *dynLookup(const char *const *LibNames, size_t LibNameSizes,
+                const char *FunName);
 
 template <typename fn>
-fn *dynLookupFunction(const std::vector<const char *> LibNames,
+fn *dynLookupFunction(const char *const *LibNames, size_t LibNameSize,
                       const char *FunName) {
-  return reinterpret_cast<fn *>(dynLookup(LibNames, FunName));
+  return reinterpret_cast<fn *>(dynLookup(LibNames, LibNameSize, FunName));
 }
 
 // On Linux, first try to load from libur_adapter_opencl.so, then
@@ -127,14 +128,16 @@ fn *dynLookupFunction(const std::vector<const char *> LibNames,
 // We can't load libur_adapter_opencl.so.0 always as the first choice because
 // that would break SYCL unittests, which rely on mocking libur_adapter_opencl.
 #ifdef __SYCL_RT_OS_WINDOWS
-#define OCLLibNames {"OpenCL"}
+constexpr std::array<const char *, 1> OCLLibNames = {"OpenCL"};
 #else
-#define OCLLibNames {"libur_adapter_opencl.so", "libur_adapter_opencl.so.0"}
+constexpr std::array<const char *, 2> OCLLibNames = {
+    "libur_adapter_opencl.so", "libur_adapter_opencl.so.0"};
 #endif
 
 #define __SYCL_OCL_CALL(FN, ...)                                               \
-  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(OCLLibNames,             \
-                                                      #FN)(__VA_ARGS__))
+  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
+      sycl::detail::OCLLibNames.data(), sycl::detail::OCLLibNames.size(),      \
+      #FN)(__VA_ARGS__))
 
 } // namespace detail
 } // namespace _V1
