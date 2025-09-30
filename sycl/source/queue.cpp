@@ -440,6 +440,16 @@ void queue::remember_kernel_single_task(const char *KernelName) {
   impl->remember_kernel_single_task(KernelName);
 }
 
+void queue::remember_range(range<3> R) {
+  impl->remember_range(R);
+}
+void queue::remember_range(range<2> R) {
+  impl->remember_range(R);
+}
+void queue::remember_range(range<1> R) {
+  impl->remember_range(R);
+}
+
 void queue::enqueue_remembered_kernel() {
   remembered_event =
       detail::createSyclObjFromImpl<event>(impl->enqueue_remembered_kernel());

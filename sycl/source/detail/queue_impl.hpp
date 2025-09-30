@@ -246,6 +246,11 @@ public:
   }
 
   ur_kernel_handle_t UrKernel = nullptr;
+  //range<3> remembered_range;
+  NDRDescT RememberedNDRDesc;
+  void remember_range(range<1> R);
+  void remember_range(range<2> R);
+  void remember_range(range<3> R);
   void remember_kernel_single_task(const char *);
   void set_std_layout_arg(int ArgIndex, const char *ArgPtr, size_t ArgSize);
   EventImplPtr enqueue_remembered_kernel();

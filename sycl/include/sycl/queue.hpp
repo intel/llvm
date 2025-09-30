@@ -3723,6 +3723,9 @@ private:
   void set_std_layout_arg(int, const char *, size_t);
   void remember_kernel_single_task(const char *);
   void enqueue_remembered_kernel();
+  void remember_range(range<3> R);
+  void remember_range(range<2> R);
+  void remember_range(range<1> R);
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     set_std_layout_arg(ArgIndex, reinterpret_cast<const char *>(&Arg), sizeof(T));
@@ -3752,12 +3755,30 @@ private:
     KernelFunc();
   }
 
+  template <typename KernelName, typename IterIndexTy, typename KernelType>
+  [[clang::sycl_kernel_entry_point(KernelName)]]
+  void __kernel_parallel_for(const KernelType KernelFunc) {
+    // Builder is only defined for device
+#ifdef __SYCL_DEVICE_ONLY__
+    KernelFunc(detail::Builder::getElement(detail::declptr<IterIndexTy>()));
+#endif
+  }
+
   /// special overload that does not accept properties or reductions (to
   /// simplify a prototype)
   template <typename KernelName, typename KernelFunctor>
   event single_task_impl(KernelFunctor &&Functor) {
-    // save range to impl for parallel for
+    remember_range({1, 1, 1});
     __kernel_single_task<KernelName>(Functor);
+    return remembered_event;
+  }
+
+  template <typename KernelName, int Dims, typename KernelFunctor>
+  event parallel_for_impl(range<Dims> R, KernelFunctor &&Functor) {
+    // save range to impl for parallel for
+    using KernelObjectArgTy = item<Dims>;
+    remember_range(R);
+    __kernel_parallel_for<KernelName, KernelObjectArgTy>(Functor);
     return remembered_event;
   }
 

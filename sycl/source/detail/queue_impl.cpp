@@ -860,6 +860,16 @@ void queue_impl::verifyProps(const property_list &Props) const {
                                                 CheckPropertiesWithData);
 }
 
+void queue_impl::remember_range(range<3> R) {
+ this->RememberedNDRDesc = NDRDescT(R);
+}
+void queue_impl::remember_range(range<2> R) {
+ this->RememberedNDRDesc = NDRDescT(R);
+}
+void queue_impl::remember_range(range<1> R) {
+ this->RememberedNDRDesc = NDRDescT(R);
+}
+
 void queue_impl::remember_kernel_single_task(const char *KernelName) {
 
   DeviceKernelInfo Info;
@@ -869,7 +879,7 @@ void queue_impl::remember_kernel_single_task(const char *KernelName) {
   FastKernelCacheValPtr KernelCacheVal =
       detail::ProgramManager::getInstance().getOrCreateKernel(
           getContextImpl(), getDeviceImpl(), Info,
-          NDRDescT(sycl::range{1, 1, 1}));
+          RememberedNDRDesc);
   UrKernel = KernelCacheVal->MKernelHandle;
 }
 void queue_impl::set_std_layout_arg(int ArgIndex, const char *ArgPtr, size_t ArgSize) {
@@ -879,8 +889,7 @@ void queue_impl::set_std_layout_arg(int ArgIndex, const char *ArgPtr, size_t Arg
 }
 EventImplPtr queue_impl::enqueue_remembered_kernel() {
   adapter_impl &Adapter = getAdapter();
-  sycl::range<1> Range = {1};
-  NDRDescT NDRDesc(Range);
+  NDRDescT NDRDesc = RememberedNDRDesc ;
   // COPY-PASTE from commands.cpp ON
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
