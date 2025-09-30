@@ -119,6 +119,13 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
+  /// Add an Offset and a size entry to the map OffsetSizeInfo with key Struct.
+  void addOffsetSizeInfo(ParmVarDecl *Struct,
+                         std::pair<size_t, size_t> OffsetSize);
+
+  /// Add a parameter Kind entry to the map KindInfo with key Struct.
+  void addKindInfo(ParmVarDecl *Struct, kernel_param_kind_t Kind);
+
 private:
   // Kernel actual parameter descriptor.
   struct KernelParamDesc {
@@ -206,6 +213,16 @@ private:
   /// Keeps track of whether declaration of __sycl_host_pipe_registration
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
+
+  // For every struct that contains a special type, record the offset and size
+  // of every special type inside of it at any nesting level. Store the
+  // information in the variable below.
+  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
+      OffsetSizeInfo;
+  // Likewise for the kind of a special type i.e accessor etc...
+  llvm::DenseMap<ParmVarDecl *,
+                 llvm::SmallVector<SYCLIntegrationHeader::kernel_param_kind_t>>
+      KindInfo;
 };
 
 class SYCLIntegrationFooter {

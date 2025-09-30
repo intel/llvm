@@ -1661,9 +1661,17 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
     if constexpr (ext::oneapi::experimental::detail::
                       is_struct_with_special_type<remove_cv_ref_t<T>>::value) {
-      int NumArgs;
-      ext::oneapi::experimental::detail::struct_with_special_type_info<
-          remove_cv_ref_t<T>>::set_arg(ArgIndex + 1, Arg, *this, NumArgs);
+      int NumArgs = 0;
+      using type =
+          ext::oneapi::experimental::detail::is_struct_with_special_type<
+              remove_cv_ref_t<T>>;
+      int index = 0;
+      while (type::offsets[index] != -1) {
+        ++NumArgs;
+        addArg(type::kinds[index], (char *)(&Arg) + type::offsets[index],
+               type::sizes[index], ArgIndex + NumArgs);
+        ++index;
+      }
       updateArgShift(NumArgs);
     }
   }

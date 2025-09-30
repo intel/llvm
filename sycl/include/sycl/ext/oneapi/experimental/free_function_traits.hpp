@@ -53,8 +53,10 @@ namespace detail {
 // etc...) inside the struct
 template <typename T> struct is_struct_with_special_type {
   static constexpr bool value = false;
-  static constexpr size_t offsetsSizes[2][];
-  static constexpr detail::kernel_param_kind_t kinds[];
+  static constexpr int offsets[] = {-1};
+  static constexpr int sizes[] = {-1};
+  static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+      sycl::detail::kernel_param_kind_t::kind_invalid};
 };
 
 } // namespace detail
