@@ -45,6 +45,7 @@ jobs:
       benchmark_upload_results: true
       benchmark_save_name: ${{ matrix.save_name }}
       benchmark_preset: ${{ matrix.preset }}
+      benchmark_profiler_type: cpuCounter
       repo_ref: ${{ matrix.ref }}
       toolchain_artifact: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.ubuntu2204_build.outputs.toolchain_artifact_filename }}

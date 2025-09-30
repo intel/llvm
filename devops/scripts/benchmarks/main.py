@@ -689,6 +689,14 @@ if __name__ == "__main__":
         help="Set the logging level",
         default="info",
     )
+    parser.add_argument(
+        "--profiler-type",
+        type=str,
+        choices=["timer", "cpuCounter"],
+        help="Set the profiler type for benchmarks. 'timer' measures execution time, "
+        "'cpuCounter' measures CPU instruction count for supported benchmarks.",
+        default="timer",
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -720,6 +728,7 @@ if __name__ == "__main__":
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
     options.flamegraph = args.flamegraph is not None
+    options.profiler_type = args.profiler_type
 
     # Initialize logger with command line arguments
     log.initialize(args.verbose, args.log_level)
