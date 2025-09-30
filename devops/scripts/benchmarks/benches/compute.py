@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Sep 25, 2025
-        return "7ba2e629404e34c635a46f28550a0952717d120f"
+        # Sep 26, 2025
+        return "db0d6708a37de69d844d6521ca06ef35b1cc55af"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -152,7 +152,7 @@ class ComputeBench(Suite):
                         kernel_exec_time,
                     )
                 )
-                if runtime == RUNTIMES.SYCL:
+                if runtime in (RUNTIMES.SYCL, RUNTIMES.UR):
                     # Create CPU count variant
                     benches.append(
                         SubmitKernel(
@@ -576,7 +576,7 @@ class SubmitKernel(ComputeBenchmark):
             f"--KernelExecTime={self.KernelExecTime}",
             f"--UseEvents={self.UseEvents}",
         ]
-        if self.runtime == RUNTIMES.SYCL:
+        if self.runtime == RUNTIMES.SYCL or self.runtime == RUNTIMES.UR:
             bin_args.append(f"--profilerType={self.profiler_type.value}")
         return bin_args
 
