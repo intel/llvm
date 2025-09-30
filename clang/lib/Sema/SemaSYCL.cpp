@@ -7183,11 +7183,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
       FwdDeclEmitter.Visit(type.getDesugaredType(S.getASTContext()));
 
-      //  this is a struct that contains a special type so its neither a
-      //  special type nor a trivially copyable type. We therefore need to
-      //  explicitly communicate to the runtime that this argument should be
-      //  allowed as a free function kernel argument. We do this by defining
-      //   is_struct_with_special_type to be true.
+      // this is a struct that contains a special type so its neither a
+      // special type nor a trivially copyable type. We therefore need to
+      // explicitly communicate to the runtime that this argument should be
+      // allowed as a free function kernel argument. We do this by defining
+      // is_struct_with_special_type to be true. This helper struct also
+      // contains information about the offset, size and parameter
+      // kind of every field inside the struct at any nesting level
+      // This facilitates setting the arguments in the runtime.
       O << "template <>\n";
       O << "struct "
            "sycl::ext::oneapi::experimental::detail::is_struct_with_special_"
