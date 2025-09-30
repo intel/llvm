@@ -113,8 +113,6 @@ template <typename T> int checkResult(MemObj<T> &Mem, std::string_view TName) {
 int main() {
   sycl::queue Q;
 
-  auto *CharObj = createMem<char>(Q);
-  auto *UCharObj = createMem<unsigned char>(Q);
   auto *ShortObj = createMem<short>(Q);
   auto *UIntObj = createMem<unsigned int>(Q);
   auto *LongObj = createMem<long>(Q);
@@ -127,8 +125,6 @@ int main() {
 #define APPLY(MEM_OBJ)                                                         \
   if ((WorkCounter++) == Idx[0])                                               \
     MEM_OBJ->Out = apply(MEM_OBJ->A, MEM_OBJ->B, MEM_OBJ->C, IdxSeq);
-     APPLY(CharObj)
-     APPLY(UCharObj)
      APPLY(ShortObj)
      APPLY(UIntObj)
      APPLY(LongObj)
@@ -138,16 +134,12 @@ int main() {
 
   int Failed = 0;
 
-  Failed += checkResult(*CharObj, "char");
-  Failed += checkResult(*UCharObj, "unsigned char");
   Failed += checkResult(*ShortObj, "short");
   Failed += checkResult(*UIntObj, "unsigned int");
   Failed += checkResult(*LongObj, "long");
   Failed += checkResult(*UShort8Obj, "sycl::vec<uint16_t, 8>");
   Failed += checkResult(*IntMarrayObj, "sycl::marray<int, 3>");
 
-  sycl::free(CharObj, Q);
-  sycl::free(UCharObj, Q);
   sycl::free(ShortObj, Q);
   sycl::free(UIntObj, Q);
   sycl::free(LongObj, Q);

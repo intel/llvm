@@ -910,7 +910,7 @@ foreach name = ["BitCount"] in {
 }
 
 def : SPVBuiltin<"BitwiseFunctionINTEL",
-                 [AUIGenTypeN, AUIGenTypeN, AUIGenTypeN, AUIGenTypeN, Int]>;
+                 [AIGenTypeN, AIGenTypeN, AIGenTypeN, AIGenTypeN, Int]>;
 
 // 3.32.20. Barrier Instructions
 

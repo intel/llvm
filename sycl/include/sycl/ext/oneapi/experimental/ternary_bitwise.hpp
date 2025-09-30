@@ -555,15 +555,11 @@ sycl::detail::builtin_enable_integer_t<T> ternary_bitwise(T A, T B, T C) {
 #if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__) && !defined(__AMDGCN__)
     // TODO: Implement __spirv_BitwiseFunctionINTEL for NVPTX and AMDGCN.
     using ret_type = sycl::detail::builtin_enable_integer_t<T>;
-    using UnsignedT = sycl::detail::make_unsigned_t<T>;
-    auto UnsignedA = sycl::bit_cast<UnsignedT>(A);
-    auto UnsignedB = sycl::bit_cast<UnsignedT>(B);
-    auto UnsignedC = sycl::bit_cast<UnsignedT>(C);
-    return sycl::bit_cast<ret_type>(__spirv_BitwiseFunctionINTEL(
-        sycl::detail::builtins::convert_arg(UnsignedA),
-        sycl::detail::builtins::convert_arg(UnsignedB),
-        sycl::detail::builtins::convert_arg(UnsignedC),
-        static_cast<uint32_t>(LUTIndex)));
+    return sycl::bit_cast<ret_type>(
+        __spirv_BitwiseFunctionINTEL(sycl::detail::builtins::convert_arg(A),
+                                     sycl::detail::builtins::convert_arg(B),
+                                     sycl::detail::builtins::convert_arg(C),
+                                     static_cast<uint32_t>(LUTIndex)));
 #else
     return sycl::detail::applyTernaryBitwise(
         LUTIndex, sycl::detail::simplify_if_swizzle_t<T>{A},
