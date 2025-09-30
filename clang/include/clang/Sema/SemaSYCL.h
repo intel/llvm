@@ -119,12 +119,8 @@ public:
   /// integration header is required.
   void addHostPipeRegistration() { NeedToEmitHostPipeRegistration = true; }
 
-  /// Add an Offset and a size entry to the map OffsetSizeInfo with key Struct.
-  void addOffsetSizeInfo(ParmVarDecl *Struct,
-                         std::pair<size_t, size_t> OffsetSize);
-
-  /// Add a parameter Kind entry to the map KindInfo with key Struct.
-  void addKindInfo(ParmVarDecl *Struct, kernel_param_kind_t Kind);
+  /// Set the ParentStruct field
+  void setParentStruct(ParmVarDecl *parent);
 
 private:
   // Kernel actual parameter descriptor.
@@ -214,9 +210,14 @@ private:
   /// type and __sycl_host_pipe_registrar variable are required to emit.
   bool NeedToEmitHostPipeRegistration = false;
 
-  // For every struct that contains a special type, record the offset and size
-  // of every special type inside of it at any nesting level. Store the
-  // information in the variable below.
+  // For free function kernels, keeps track of the parameter that is currently
+  // being analyzed if it is a struct that contains special types.
+  ParmVarDecl *ParentStruct;
+
+  // For every struct that contains a special type which is given by
+  // the ParentStruct field above, record the offset and size of every special
+  // type inside of it at any nesting level. Store the information in the
+  // variable below.
   llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
       OffsetSizeInfo;
   // Likewise for the kind of a special type i.e accessor etc...

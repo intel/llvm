@@ -1774,7 +1774,7 @@ protected:
   // Holds the last handled kernel struct parameter that contains a special
   // type. Set in the enterStruct functions. Only relevant for free function
   // kernels
-  ParmVarDecl *TopLevelStruct = nullptr;
+  ParmVarDecl *ParentStruct = nullptr;
 
   // Returns 'true' if the thing we're visiting (Based on the FD/QualType pair)
   // is an element of an array. FD will always be the array field. When
@@ -1783,8 +1783,6 @@ protected:
   bool isArrayElement(const FieldDecl *FD, QualType Ty) const {
     return !SemaSYCLRef.getASTContext().hasSameType(FD->getType(), Ty);
   }
-
-  ParmVarDecl *getTopLevelStructForCurrentField() { return TopLevelStruct; }
 };
 
 // A class to represent the 'do nothing' case for filtering purposes.
@@ -2975,7 +2973,7 @@ public:
     ++StructDepth;
     StringRef Name = "_arg_struct";
     addParam(Name, Ty);
-    TopLevelStruct = Params.back();
+    ParentStruct = Params.back();
     return true;
   }
 
@@ -3175,7 +3173,7 @@ public:
     return ArrayRef<ParmVarDecl *>(std::begin(Params) + LastParamIndex,
                                    std::end(Params));
   }
-  ParmVarDecl *getTopLevelStruct() { return TopLevelStruct; }
+  ParmVarDecl *getParentStruct() { return ParentStruct; }
 };
 
 // This Visitor traverses the AST of the function with
@@ -4527,14 +4525,14 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     // Being inside this function means there is a struct parameter to the free
     // function kernel that contains a special type.
-    Expr *Base = createParamReferenceExpr(DeclCreator.getTopLevelStruct());
+    Expr *Base = createParamReferenceExpr(DeclCreator.getParentStruct());
     for (const auto &child : CurrentStructs) {
       Base = buildMemberExpr(Base, child);
     }
     MemberExpr *MemberAccess = buildMemberExpr(Base, FD);
     createSpecialMethodCall(FieldTy->getAsCXXRecordDecl(), InitMethodName,
                             MemberAccess, BodyStmts);
-    SemaSYCLRef.addStructWithSpecialType(DeclCreator.getTopLevelStruct()->getType()->getAsCXXRecordDecl());
+    SemaSYCLRef.addStructWithSpecialType(DeclCreator.getParentStruct()->getType()->getAsCXXRecordDecl());
     return true;
   }
 
@@ -4674,8 +4672,8 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        DeclCreator.getTopLevelStruct(),
-        DeclCreator.getTopLevelStruct()->getType(), VK_PRValue,
+        DeclCreator.getParentStruct(),
+        DeclCreator.getParentStruct()->getType(), VK_PRValue,
         FreeFunctionSrcLoc));
     return true;
   }
@@ -4740,13 +4738,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   SYCLIntegrationHeader &Header;
   int64_t CurOffset = 0;
   llvm::SmallVector<size_t, 16> ArrayBaseOffsets;
-  // For every struct that contains a special type, record the offset and size
-  // of every special type inside of it at any nesting level. Store the
-  // information in the variable below.
-  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
-      OffsetSizeInfo;
-  // Likewise for the kind of a special type i.e accessor etc...
-  llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<SYCLIntegrationHeader::kernel_param_kind_t>> KindInfo;
   int StructDepth = 0;
 
   // A series of functions to calculate the change in offset based on the type.
@@ -4768,11 +4759,7 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
 
   void addParam(const FieldDecl *FD, QualType ArgTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
-    // If we are dealing with a field of a free function kernel parameter struct
-    // do not add the parameter. The offset, Size, Kind information has been
-    // stored in OffsetSizeInfo and KindInfo
-    if (TopLevelStruct)
-      addParam(ArgTy, Kind, offsetOf(FD, ArgTy));
+    addParam(ArgTy, Kind, offsetOf(FD, ArgTy));
   }
 
   // For free functions we increment the current offset as each parameter is
@@ -4850,16 +4837,6 @@ public:
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
-    // If TopLevelStruct is set, it means we are traversing the fields of a free
-    // function parameter struct. In this case, we simply record the current
-    // field's offset and size in OffsetSizeInfo and Kind in KindInfo.
-    if (TopLevelStruct) {
-      Header.addOffsetSizeInfo(
-          TopLevelStruct,
-          std::make_pair(offsetOf(FD, FieldTy), SemaSYCLRef.getASTContext()
-                                                    .getTypeSizeInChars(FieldTy)
-                                                    .getQuantity()));
-    }
 
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
@@ -4877,21 +4854,15 @@ public:
               ? SYCLIntegrationHeader::kind_dynamic_accessor
               : SYCLIntegrationHeader::kind_accessor;
       Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
-      Header.addKindInfo(TopLevelStruct, ParamKind);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-      Header.addKindInfo(TopLevelStruct, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
                offsetOf(FD, FieldTy));
-      Header.addKindInfo(TopLevelStruct,
-                         SYCLIntegrationHeader::kind_work_group_memory);
     } else if (SemaSYCL::isSyclType(FieldTy,
                                     SYCLTypeAttr::dynamic_work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_dynamic_work_group_memory,
                offsetOf(FD, FieldTy));
-      Header.addKindInfo(TopLevelStruct,
-                         SYCLIntegrationHeader::kind_dynamic_work_group_memory);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
@@ -4906,7 +4877,6 @@ public:
               : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
                                     : SYCLIntegrationHeader::kind_std_layout);
       addParam(T, ParamKind, offsetOf(FD, FieldTy));
-      Header.addKindInfo(TopLevelStruct, ParamKind);
     } else {
       llvm_unreachable(
           "Unexpected SYCL special class when generating integration header");
@@ -5037,10 +5007,10 @@ public:
       return true;
     }
 
-    bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty)
-        final {
+    bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD,
+                     QualType Ty) final {
       addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
-      TopLevelStruct = PD;
+      Header.setParentStruct(PD);
       return true;
     }
 
@@ -5051,6 +5021,7 @@ public:
     }
 
     bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+      Header.setParentStruct(nullptr);
       return true;
     }
 
@@ -7235,28 +7206,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
       O << " static constexpr sycl::detail::kernel_param_kind_t kinds[] = {\n ";
       for (const auto Kind : KindInfo[Param]) {
-        switch (Kind) {
-        case SYCLIntegrationHeader::kind_accessor:
-          O << "sycl::detail::kernel_param_kind_t::kind_accessor";
-          break;
-        case SYCLIntegrationHeader::kind_sampler:
-          O << "sycl::detail::kernel_param_kind_t::kind_accessor";
-          break;
-        case SYCLIntegrationHeader::kind_pointer:
-          O << "sycl::detail::kernel_param_kind_t::kind_accessor";
-          break;
-        case SYCLIntegrationHeader::kind_stream:
-          O << "sycl::detail::kernel_param_kind_t::kind_accessor";
-          break;
-        case SYCLIntegrationHeader::kind_work_group_memory:
-          O << "sycl::detail::kernel_param_kind_t::kind_accessor";
-          break;
-        case SYCLIntegrationHeader::kind_dynamic_accessor:
-          O << "sycl::detail::kernel_param_kind_t::kind_accessor";
-          break;
-        default:
-          break;
-        }
+        O << "sycl::detail::kernel_param_kind_t::" << paramKind2Str(Kind);
         O << ",\n ";
       }
       O << "sycl::detail::kernel_param_kind_t::kind_invalid }; \n};\n\n ";
@@ -7349,16 +7299,12 @@ void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
   PD.Kind = Kind;
   PD.Info = Info;
   PD.Offset = Offset;
+  OffsetSizeInfo[ParentStruct].emplace_back(std::make_pair(Offset, Info));
+  KindInfo[ParentStruct].emplace_back(Kind);
 }
 
-void SYCLIntegrationHeader::addOffsetSizeInfo(
-    ParmVarDecl *Struct, std::pair<size_t, size_t> OffsetSize) {
-  OffsetSizeInfo[Struct].emplace_back(OffsetSize);
-}
-
-void SYCLIntegrationHeader::addKindInfo(
-    ParmVarDecl *Struct, SYCLIntegrationHeader::kernel_param_kind_t Kind) {
-  KindInfo[Struct].emplace_back(Kind);
+void SYCLIntegrationHeader::setParentStruct(ParmVarDecl *parent) {
+  ParentStruct = parent;
 }
 
 void SYCLIntegrationHeader::endKernel() {
