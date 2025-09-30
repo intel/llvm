@@ -31,7 +31,7 @@ int main() {
     sycl::buffer<int, 1> Buf(&Data, sycl::range<1>(1));
     Q.submit([&](sycl::handler &Cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<File1Kern1>(Krn1, [=]() { Acc[0] = 1; });
+      Cgh.single_task<File1Kern1>([=]() { Acc[0] = 1; });
     });
   }
   assert(Data == 1);
@@ -40,7 +40,7 @@ int main() {
     sycl::buffer<int, 1> Buf(&Data, sycl::range<1>(1));
     Q.submit([&](sycl::handler &Cgh) {
       auto Acc = Buf.get_access<sycl::access::mode::read_write>(Cgh);
-      Cgh.single_task<File1Kern2>(Krn2, [=]() { Acc[0] = 2; });
+      Cgh.single_task<File1Kern2>([=]() { Acc[0] = 2; });
     });
   }
   assert(Data == 2);

@@ -50,10 +50,11 @@ void sycl_enqueue_kernel_launch(const char *, Tys &&...Args) {}
 ////////////////////////////////////////////////////////////////////////////////
 
 // Function declaration with GNU attribute spelling
+// expected-warning@+1 {{unknown attribute 'sycl_kernel_entry_point' ignored}}
 __attribute__((sycl_kernel_entry_point(KN<1>)))
 void ok1();
 
-// Function declaration with Clang attribute spelling.
+// Function declaration with C++11 attribute spelling.
 [[clang::sycl_kernel_entry_point(KN<2>)]]
 void ok2();
 
@@ -159,7 +160,7 @@ auto ok17 = [] [[clang::sycl_kernel_entry_point(KN<17>)]] -> void {};
 // on occassion), main() still can't function as a SYCL kernel entry point,
 // so this test ensures such attempted uses of the attribute are rejected.
 struct Smain;
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute only applies to functions with a 'void' return type}}
+// expected-error@+1 {{'clang::sycl_kernel_entry_point' attribute only applies to functions with a 'void' return type}}
 [[clang::sycl_kernel_entry_point(Smain)]]
 int main();
 
@@ -220,14 +221,14 @@ enum {
 };
 
 // Attribute added after the definition.
-// expected-error@+3 {{'sycl_kernel_entry_point' attribute cannot be added to a function after the function is defined}}
+// expected-error@+3 {{the 'clang::sycl_kernel_entry_point' attribute cannot be added to a function after the function is defined}}
 // expected-note@+1 {{previous definition is here}}
 void bad15() {}
 [[clang::sycl_kernel_entry_point(BADKN<15>)]]
 void bad15();
 
 // The function must return void.
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute only applies to functions with a 'void' return type}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute only applies to functions with a 'void' return type}}
 [[clang::sycl_kernel_entry_point(BADKN<16>)]]
 int bad16();
 
@@ -240,12 +241,12 @@ void bad17(void (fp [[clang::sycl_kernel_entry_point(BADKN<17>)]])());
 // FIXME: and the C++ standard is unclear regarding whether such attributes are
 // FIXME: permitted. P3324 (Attributes for namespace aliases, template
 // FIXME: parameters, and lambda captures) seeks to clarify the situation.
-// FIXME-expected-error@+1 {{'sycl_kernel_entry_point' attribute only applies to functions}}
+// FIXME-expected-error@+1 {{'clang::sycl_kernel_entry_point' attribute only applies to functions}}
 template<void (fp [[clang::sycl_kernel_entry_point(BADKN<18>)]])()>
 void bad18();
 
 #if __cplusplus >= 202002L
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a coroutine}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a coroutine}}
 [[clang::sycl_kernel_entry_point(BADKN<19>)]]
 void bad19() {
   co_return;
@@ -253,36 +254,36 @@ void bad19() {
 #endif
 
 struct B20 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a constructor}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a constructor}}
   [[clang::sycl_kernel_entry_point(BADKN<20>)]]
   B20();
 };
 
 struct B21 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a destructor}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a destructor}}
   [[clang::sycl_kernel_entry_point(BADKN<21>)]]
   ~B21();
 };
 
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a variadic function}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a variadic function}}
 [[clang::sycl_kernel_entry_point(BADKN<22>)]]
 void bad22(...);
 
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a deleted function}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a deleted function}}
 [[clang::sycl_kernel_entry_point(BADKN<23>)]]
 void bad23() = delete;
 
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a constexpr function}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a constexpr function}}
 [[clang::sycl_kernel_entry_point(BADKN<24>)]]
 constexpr void bad24() {}
 
 #if __cplusplus >= 202002L
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a consteval function}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a consteval function}}
 [[clang::sycl_kernel_entry_point(BADKN<25>)]]
 consteval void bad25() {}
 #endif
 
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a function declared with the 'noreturn' attribute}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a function declared with the 'noreturn' attribute}}
 [[clang::sycl_kernel_entry_point(BADKN<26>)]]
 [[noreturn]] void bad26();
 
@@ -293,7 +294,7 @@ __attribute__((target("sse4.2"))) void bad27();
 
 template<typename KNT>
 struct B28 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a deleted function}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a deleted function}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   friend void bad28() = delete;
 };
@@ -301,7 +302,7 @@ struct B28 {
 #if __cplusplus >= 202002L
 template<typename KNT, typename T>
 struct B29 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a defaulted function}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a defaulted function}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   friend T operator==(B29, B29) = default;
 };
@@ -310,7 +311,7 @@ struct B29 {
 #if __cplusplus >= 202002L
 template<typename KNT>
 struct B30 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a coroutine}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a coroutine}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   friend void bad30() { co_return; }
 };
@@ -318,14 +319,14 @@ struct B30 {
 
 template<typename KNT>
 struct B31 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a variadic function}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a variadic function}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   friend void bad31(...) {}
 };
 
 template<typename KNT>
 struct B32 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a constexpr function}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a constexpr function}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   friend constexpr void bad32() {}
 };
@@ -333,7 +334,7 @@ struct B32 {
 #if __cplusplus >= 202002L
 template<typename KNT>
 struct B33 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a consteval function}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a consteval function}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   friend consteval void bad33() {}
 };
@@ -341,26 +342,26 @@ struct B33 {
 
 template<typename KNT>
 struct B34 {
-  // expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a function declared with the 'noreturn' attribute}}
+  // expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a function declared with the 'noreturn' attribute}}
   [[clang::sycl_kernel_entry_point(KNT)]]
   [[noreturn]] friend void bad34() {}
 };
 
 #if __cplusplus >= 202302L
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute only applies to functions with a non-deduced 'void' return type}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute only applies to functions with a non-deduced 'void' return type}}
 auto bad36 = [] [[clang::sycl_kernel_entry_point(BADKN<36>)]] static {};
 #endif
 
 #if __cplusplus >= 202302L
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a coroutine}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a coroutine}}
 auto bad37 = [] [[clang::sycl_kernel_entry_point(BADKN<37>)]] static -> void { co_return; };
 #endif
 
-// expected-error@+1 {{'sycl_kernel_entry_point' attribute cannot be applied to a function defined with a function try block}}
+// expected-error@+1 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a function defined with a function try block}}
 [[clang::sycl_kernel_entry_point(BADKN<38>)]]
 void bad38() try {} catch(...) {}
 
-// expected-error@+2 {{'sycl_kernel_entry_point' attribute cannot be applied to a function defined with a function try block}}
+// expected-error@+2 {{the 'clang::sycl_kernel_entry_point' attribute cannot be applied to a function defined with a function try block}}
 template<typename>
 [[clang::sycl_kernel_entry_point(BADKN<39>)]]
 void bad39() try {} catch(...) {}

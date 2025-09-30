@@ -18,10 +18,13 @@
     _ZN10__host_std*;
 
     /* Export SPIR-V built-ins for host device */
+    /* #ifndef __INTEL_PREVIEW_BREAKING_CHANGES */
+    /* TODO: drop those in the next ABI-breaking window */
     _Z23__spirv_GroupWaitEvents*;
     _Z22__spirv_ControlBarrier*;
     _Z21__spirv_MemoryBarrier*;
     _Z20__spirv_ocl_prefetch*;
+    /* #endif // __INTEL_PREVIEW_BREAKING_CHANGES */
 
     /* Export offload image hooks */
     __sycl_register_lib;

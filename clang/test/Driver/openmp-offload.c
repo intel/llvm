@@ -7,7 +7,7 @@
 /// Check whether an invalid OpenMP target is specified:
 // RUN:   not %clang -### -fopenmp=libomp -fopenmp-targets=aaa-bbb-ccc-ddd %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
-// CHK-INVALID-TARGET: error: OpenMP target is invalid: 'aaa-bbb-ccc-ddd'
+// CHK-INVALID-TARGET: error: invalid or unsupported offload target: 'aaa-bbb-ccc-ddd'
 
 /// ###########################################################################
 
@@ -16,21 +16,10 @@
 // RUN:   | FileCheck -check-prefix=CHK-EMPTY-OMPTARGETS %s
 // CHK-EMPTY-OMPTARGETS: warning: joined argument expects additional value: '-fopenmp-targets='
 
-/// ###########################################################################
-
-/// Check error for no -fopenmp option
-// RUN:   not %clang -### -fopenmp-targets=powerpc64le-ibm-linux-gnu  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-NO-FOPENMP %s
-// RUN:   not %clang -### -fopenmp=libgomp -fopenmp-targets=powerpc64le-ibm-linux-gnu  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-NO-FOPENMP %s
-// CHK-NO-FOPENMP: error: '-fopenmp-targets' must be used in conjunction with a '-fopenmp' option compatible with offloading; e.g., '-fopenmp=libomp' or '-fopenmp=libiomp5'
-
-/// ###########################################################################
-
 /// Check warning for duplicate offloading targets.
 // RUN:   %clang -### -ccc-print-phases -fopenmp=libomp -fopenmp-targets=powerpc64le-ibm-linux-gnu,powerpc64le-ibm-linux-gnu  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
-// CHK-DUPLICATES: warning: OpenMP offloading target 'powerpc64le-ibm-linux-gnu' is similar to target 'powerpc64le-ibm-linux-gnu' already specified; will be ignored
+// CHK-DUPLICATES: warning: offloading target 'powerpc64le-ibm-linux-gnu' is similar to target 'powerpc64le-ibm-linux-gnu' already specified; will be ignored
 
 /// ###########################################################################
 

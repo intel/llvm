@@ -31,21 +31,21 @@ template<int, int=0> struct KN;
 template <typename KernelName, typename... Tys>
 void sycl_enqueue_kernel_launch(const char *, Tys &&...Args) {}
 
-__attribute__((sycl_kernel_entry_point(KN<1>)))
+[[clang::sycl_kernel_entry_point(KN<1>)]]
 void skep1() {
 }
 // CHECK:      |-FunctionDecl {{.*}} skep1 'void ()'
 // CHECK:      | `-SYCLKernelEntryPointAttr {{.*}} KN<1>
 
 using KN2 = KN<2>;
-__attribute__((sycl_kernel_entry_point(KN2)))
+[[clang::sycl_kernel_entry_point(KN2)]]
 void skep2() {
 }
 // CHECK:      |-FunctionDecl {{.*}} skep2 'void ()'
 // CHECK:      | `-SYCLKernelEntryPointAttr {{.*}} KN2
 
 template<int I> using KNT = KN<I>;
-__attribute__((sycl_kernel_entry_point(KNT<3>)))
+[[clang::sycl_kernel_entry_point(KNT<3>)]]
 void skep3() {
 }
 // CHECK:      |-FunctionDecl {{.*}} skep3 'void ()'

@@ -11,11 +11,8 @@
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
-#include <array>       // for tuple_element
 #include <stddef.h>    // for size_t
-#include <tuple>       // for tuple
 #include <type_traits> // for false_type, true_...
-#include <variant>     // for tuple
 
 namespace sycl {
 inline namespace _V1 {
