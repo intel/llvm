@@ -320,7 +320,7 @@ function(add_devicelibs filename)
       FILETYPE ${filetype}
       SRC ${ARG_SRC}
       DEPENDENCIES ${ARG_DEPENDENCIES}
-      EXTRA_OPTS ${ARG_EXTRA_OPTS} ${${filetype}_device_compile_opts})
+      EXTRA_OPTS ${ARG_EXTRA_OPTS})
   endforeach()
 
   foreach(arch IN LISTS ARG_BUILD_ARCHS)
