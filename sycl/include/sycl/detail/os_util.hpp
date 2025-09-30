@@ -12,6 +12,7 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
+#include <array>
 #include <cstdlib> // for size_t
 #include <functional>
 #include <string>     // for string
