@@ -106,21 +106,18 @@ void fileTreeWalk(const std::string Path,
                   std::function<void(const std::string)> Func,
                   bool ignoreErrors = false);
 
-void *dynLookup(const char *WinName, const char *LinName,
-                const char *LinuxFallbackLibName, const char *FunName);
-
 // Look up a function name that was dynamically linked
-// This is used by the runtime where it needs to manipulate native handles (e.g.
-// retaining OpenCL handles). On Windows, the symbol name is looked up in
-// `WinName`. In Linux, it uses `LinName` or `LinuxFallbackLibName`.
+// This is used by the runtime where it needs to manipulate native handles
+// (e.g. retaining OpenCL handles).
 //
 // The library must already have been loaded (perhaps by UR), otherwise this
 // function throws a SYCL runtime exception.
+void *dynLookup(const std::vector<const char *> &LibNames, const char *FunName);
+
 template <typename fn>
-fn *dynLookupFunction(const char *WinName, const char *LinName,
-                      const char *LinuxFallbackLibName, const char *FunName) {
-  return reinterpret_cast<fn *>(
-      dynLookup(WinName, LinName, LinuxFallbackLibName, FunName));
+fn *dynLookupFunction(const std::vector<const char *> LibNames,
+                      const char *FunName) {
+  return reinterpret_cast<fn *>(dynLookup(LibNames, FunName));
 }
 
 // On Linux, first try to load from libur_adapter_opencl.so, then
@@ -129,10 +126,15 @@ fn *dynLookupFunction(const char *WinName, const char *LinName,
 // symlinked, which is the case with PyPi compiler distribution package.
 // We can't load libur_adapter_opencl.so.0 always as the first choice because
 // that would break SYCL unittests, which rely on mocking libur_adapter_opencl.
+#ifdef __SYCL_RT_OS_WINDOWS
+#define OCLLibNames {"OpenCL"}
+#else
+#define OCLLibNames {"libur_adapter_opencl.so", "libur_adapter_opencl.so.0"}
+#endif
+
 #define __SYCL_OCL_CALL(FN, ...)                                               \
-  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
-      "OpenCL", "libur_adapter_opencl.so", "libur_adapter_opencl.so.0",        \
-      #FN)(__VA_ARGS__))
+  (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(OCLLibNames,             \
+                                                      #FN)(__VA_ARGS__))
 
 } // namespace detail
 } // namespace _V1
