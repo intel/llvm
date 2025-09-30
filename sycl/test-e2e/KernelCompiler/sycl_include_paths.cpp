@@ -15,6 +15,9 @@
 //      `header1.hpp`
 // RUN: cd %S/include/C ; %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>

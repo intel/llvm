@@ -114,6 +114,7 @@ public:
   ur_image_format_t MSrcImageFormat = {};
   ur_image_format_t MDstImageFormat = {};
   ur_exp_image_copy_flags_t MImageCopyFlags = {};
+  ur_exp_image_copy_input_types_t MImageCopyInputTypes = {};
 
   ur_rect_offset_t MSrcOffset = {};
   ur_rect_offset_t MDestOffset = {};

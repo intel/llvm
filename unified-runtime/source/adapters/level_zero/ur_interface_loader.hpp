@@ -562,8 +562,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
 ur_result_t urBindlessImagesImageGetInfoExp(
     ur_context_handle_t hContext, ur_exp_image_mem_native_handle_t hImageMem,
     ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet);

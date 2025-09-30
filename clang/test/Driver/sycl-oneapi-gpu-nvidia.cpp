@@ -53,14 +53,14 @@
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
-// BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'nvptx64-nvidia-cuda-sycl'
+// BAD_TARGET_TRIPLE_ENV: error: invalid or unsupported offload target: 'nvptx64-nvidia-cuda-sycl'
 
 // Check for invalid SYCL triple for NVidia GPUs.
 // RUN: not %clangxx -c -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
-// BAD_TARGET_TRIPLE: error: SYCL target is invalid: 'nvptx-nvidia-cuda'
+// BAD_TARGET_TRIPLE: error: invalid or unsupported offload target: 'nvptx-nvidia-cuda'
 
 /// Test for proper creation of fat object
 // RUN: %clangxx -c -fsycl -fno-sycl-libspirv -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \

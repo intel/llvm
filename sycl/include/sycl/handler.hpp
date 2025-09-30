@@ -528,6 +528,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 #endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// \return a string containing name of SYCL kernel.
   detail::ABINeutralKernelNameStrT getKernelName();
 
@@ -543,6 +544,7 @@ private:
     detail::ABINeutralKernelNameStrT KernelName = getKernelName();
     return KernelName == LambdaName;
   }
+#endif
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
@@ -1897,6 +1899,10 @@ public:
                       Kernel);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Implementation for something that had to be removed long ago but now stuck
+  // until next major release...
+
   /// Defines and invokes a SYCL kernel function.
   ///
   /// \param Kernel is a SYCL kernel that is executed on a SYCL device
@@ -1904,6 +1910,7 @@ public:
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType>
+  __SYCL_DEPRECATED("This overload isn't part of SYCL2020 and will be removed.")
   void single_task(kernel Kernel, const KernelType &KernelFunc) {
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -1931,6 +1938,7 @@ public:
     detail::CheckDeviceCopyable<KernelType>();
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Defines and invokes a SYCL kernel function for the specified range.

@@ -192,8 +192,7 @@ void CodeGenFunction::CGFPOptionsRAII::ConstructorHelper(FPOptions FPFeatures) {
   llvm::RoundingMode NewRoundingBehavior = FPFeatures.getRoundingMode();
   CGF.Builder.setDefaultConstrainedRounding(NewRoundingBehavior);
   auto NewExceptionBehavior =
-      ToConstrainedExceptMD(static_cast<LangOptions::FPExceptionModeKind>(
-          FPFeatures.getExceptionMode()));
+      ToConstrainedExceptMD(FPFeatures.getExceptionMode());
   CGF.Builder.setDefaultConstrainedExcept(NewExceptionBehavior);
 
   CGF.SetFastMathFlags(FPFeatures);
@@ -959,7 +958,7 @@ static bool matchesStlAllocatorFn(const Decl *D, const ASTContext &Ctx) {
       (MD->getNumParams() != 1 && MD->getNumParams() != 2))
     return false;
 
-  if (MD->parameters()[0]->getType().getCanonicalType() != Ctx.getSizeType())
+  if (!Ctx.hasSameType(MD->parameters()[0]->getType(), Ctx.getSizeType()))
     return false;
 
   if (MD->getNumParams() == 2) {
@@ -2561,7 +2560,9 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
   // Ignore empty classes in C++.
   if (getLangOpts().CPlusPlus) {
     if (const RecordType *RT = Ty->getAs<RecordType>()) {
-      if (cast<CXXRecordDecl>(RT->getDecl())->isEmpty())
+      if (cast<CXXRecordDecl>(RT->getOriginalDecl())
+              ->getDefinitionOrSelf()
+              ->isEmpty())
         return;
     }
   }
@@ -2829,11 +2830,8 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::ObjCObjectPointer:
     case Type::BitInt:
     case Type::HLSLInlineSpirv:
+    case Type::PredefinedSugar:
       llvm_unreachable("type class is never variably-modified!");
-
-    case Type::Elaborated:
-      type = cast<ElaboratedType>(ty)->getNamedType();
-      break;
 
     case Type::Adjusted:
       type = cast<AdjustedType>(ty)->getAdjustedType();
@@ -3336,10 +3334,16 @@ void CodeGenFunction::EmitSanitizerStatReport(llvm::SanitizerStatKind SSK) {
 
 void CodeGenFunction::EmitKCFIOperandBundle(
     const CGCallee &Callee, SmallVectorImpl<llvm::OperandBundleDef> &Bundles) {
-  const FunctionProtoType *FP =
-      Callee.getAbstractInfo().getCalleeFunctionProtoType();
-  if (FP)
-    Bundles.emplace_back("kcfi", CGM.CreateKCFITypeId(FP->desugar()));
+  const CGCalleeInfo &CI = Callee.getAbstractInfo();
+  const FunctionProtoType *FP = CI.getCalleeFunctionProtoType();
+  if (!FP)
+    return;
+
+  StringRef Salt;
+  if (const auto &Info = FP->getExtraAttributeInfo())
+    Salt = Info.CFISalt;
+
+  Bundles.emplace_back("kcfi", CGM.CreateKCFITypeId(FP->desugar(), Salt));
 }
 
 llvm::Value *
