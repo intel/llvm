@@ -234,7 +234,8 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
 }
 
 #if __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutMoveKernelNoEvent) {
+TEST_F(FreeFunctionCommandsEventsTests,
+       LaunchGroupedShortcutMoveKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
                                             &redefined_urEnqueueKernelLaunch);
 

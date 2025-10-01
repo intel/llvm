@@ -271,7 +271,7 @@ public:
 // specialization for copyable lambda objects
 template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
           int Dims>
-class HostKernelRef<KernelType, KernelTypeUniversalRef&, KernelArgType, Dims>
+class HostKernelRef<KernelType, KernelTypeUniversalRef &, KernelArgType, Dims>
     : public HostKernelRefBase {
   const KernelType &MKernel;
 

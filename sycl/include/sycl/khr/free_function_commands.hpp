@@ -153,8 +153,7 @@ template <
     // overload of launch_grouped for sycl::kernel must be preferred
     typename = typename std::enable_if<!std::is_same<
         typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
-void launch_grouped(const queue &q, range<1> r, range<1> size,
-                    KernelType &&k,
+void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
@@ -172,8 +171,7 @@ template <
     // overload of launch_grouped for sycl::kernel must be preferred
     typename = typename std::enable_if<!std::is_same<
         typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
-void launch_grouped(const queue &q, range<2> r, range<2> size,
-                    KernelType &&k,
+void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
@@ -191,8 +189,7 @@ template <
     // overload of launch_grouped for sycl::kernel must be preferred
     typename = typename std::enable_if<!std::is_same<
         typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
-void launch_grouped(const queue &q, range<3> r, range<3> size,
-                    KernelType &&k,
+void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
