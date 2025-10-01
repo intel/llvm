@@ -90,12 +90,14 @@ class ComputeRuntime:
         rebuilt = False
         if igc_project.needs_rebuild(check_install=True):
             # Clone igc dependencies by creating a GitProject instance for each dependency.
+            # Repos with commit hashes as refs can't be cloned shallowly.
             GitProject(
                 "https://github.com/intel/vc-intrinsics",
                 "9d255266e1df8f1dc5d11e1fbb03213acfaa4fc7",
                 Path(options.workdir),
                 "vc-intrinsics",
                 no_suffix_src=True,
+                shallow_clone=False,
             )
             llvm_project = GitProject(
                 "https://github.com/llvm/llvm-project",
@@ -125,6 +127,7 @@ class ComputeRuntime:
                 Path(options.workdir),
                 "SPIRV-Tools",
                 no_suffix_src=True,
+                shallow_clone=False,
             )
             GitProject(
                 "https://github.com/KhronosGroup/SPIRV-Headers.git",
@@ -132,6 +135,7 @@ class ComputeRuntime:
                 Path(options.workdir),
                 "SPIRV-Headers",
                 no_suffix_src=True,
+                shallow_clone=False,
             )
 
             configure_args = [
