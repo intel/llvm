@@ -2727,6 +2727,7 @@ public:
   event single_task(
       const KernelType &KernelFunc,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
+    (void)CodeLoc;
     return single_task_impl<KernelName>(KernelFunc);
   }
 
@@ -3838,13 +3839,13 @@ private:
   }
 
   template <typename KernelName, typename KernelType>
-  [[clang::sycl_kernel_entry_point(KernelName)]]
+  __SYCL_ENTRY_POINT_ATTR__(KernelName)
   void __kernel_single_task(const KernelType KernelFunc) {
     KernelFunc();
   }
 
   template <typename KernelName, typename IterIndexTy, typename KernelType>
-  [[clang::sycl_kernel_entry_point(KernelName)]]
+  __SYCL_ENTRY_POINT_ATTR__(KernelName)
   void __kernel_parallel_for(const KernelType KernelFunc) {
     // Builder is only defined for device
 #ifdef __SYCL_DEVICE_ONLY__
