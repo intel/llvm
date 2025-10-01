@@ -247,7 +247,8 @@ public:
 };
 
 // primary template for movable lambda objects
-template <class KernelType, class KernelTypeUniversalRef, class KernelArgType, int Dims>
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
+          int Dims>
 class HostKernelRef : public HostKernelRefBase {
   KernelType &&MKernel;
 
@@ -259,7 +260,8 @@ public:
   }
   virtual std::shared_ptr<HostKernelBase> takeOrCopyOwnership() const override {
     std::shared_ptr<HostKernelBase> Kernel;
-    Kernel.reset(new HostKernel<KernelType, KernelArgType, Dims>(std::move(MKernel)));
+    Kernel.reset(
+        new HostKernel<KernelType, KernelArgType, Dims>(std::move(MKernel)));
     return Kernel;
   }
 
@@ -267,8 +269,10 @@ public:
 };
 
 // specialization for copyable lambda objects
-template <class KernelType, class KernelTypeUniversalRef, class KernelArgType, int Dims>
-class HostKernelRef<KernelType, KernelTypeUniversalRef&, KernelArgType, Dims> : public HostKernelRefBase {
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
+          int Dims>
+class HostKernelRef<KernelType, KernelTypeUniversalRef&, KernelArgType, Dims>
+    : public HostKernelRefBase {
   const KernelType &MKernel;
 
 public:

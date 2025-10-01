@@ -148,56 +148,57 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
   h.parallel_for(nd_range<3>(r, size), k);
 }
 
-template <typename KernelType,
-          // overload of launch_grouped for sycl::kernel must be preferred
-          typename = typename std::enable_if<!std::is_same<typename std::decay<KernelType>::type,
-                                                           sycl::kernel>::value
-                                             >::type>
+template <
+    typename KernelType,
+    // overload of launch_grouped for sycl::kernel must be preferred
+    typename = typename std::enable_if<!std::is_same<
+        typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
 void launch_grouped(const queue &q, range<1> r, range<1> size,
                     KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(q,
-                               ext::oneapi::experimental::empty_properties_t{},
-                               nd_range<1>(r, size), std::forward<KernelType>(k));
+  detail::submit_kernel_direct(
+      q, ext::oneapi::experimental::empty_properties_t{}, nd_range<1>(r, size),
+      std::forward<KernelType>(k));
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
       codeLoc);
 #endif
 }
-template <typename KernelType,
-          typename = typename std::enable_if<!std::is_same<typename std::decay<KernelType>::type,
-                                                             sycl::kernel>::value
-                                             >::type>
+template <
+    typename KernelType,
+    // overload of launch_grouped for sycl::kernel must be preferred
+    typename = typename std::enable_if<!std::is_same<
+        typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
 void launch_grouped(const queue &q, range<2> r, range<2> size,
                     KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(q,
-                               ext::oneapi::experimental::empty_properties_t{},
-                               nd_range<2>(r, size),
-                               std::forward<KernelType>(k));
+  detail::submit_kernel_direct(
+      q, ext::oneapi::experimental::empty_properties_t{}, nd_range<2>(r, size),
+      std::forward<KernelType>(k));
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
       codeLoc);
 #endif
 }
-template <typename KernelType,
-          typename = typename std::enable_if<!std::is_same<typename std::decay<KernelType>::type,
-                                                             sycl::kernel>::value
-                                             >::type>
+template <
+    typename KernelType,
+    // overload of launch_grouped for sycl::kernel must be preferred
+    typename = typename std::enable_if<!std::is_same<
+        typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
 void launch_grouped(const queue &q, range<3> r, range<3> size,
                     KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(q,
-                               ext::oneapi::experimental::empty_properties_t{},
-                               nd_range<3>(r, size), std::forward<KernelType>(k));
+  detail::submit_kernel_direct(
+      q, ext::oneapi::experimental::empty_properties_t{}, nd_range<3>(r, size),
+      std::forward<KernelType>(k));
 #else
   submit(
       q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
