@@ -956,7 +956,7 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
     auto EventImpl = Queue->submit_command_to_graph(
-        *GraphImpl, CommandGroup, type, impl->MUserFacingNodeType);
+        *GraphImpl, std::move(CommandGroup), type, impl->MUserFacingNodeType);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;

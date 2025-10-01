@@ -628,7 +628,7 @@ public:
 
   EventImplPtr submit_command_to_graph(
       ext::oneapi::experimental::detail::graph_impl &GraphImpl,
-      std::unique_ptr<detail::CG> &CommandGroup, sycl::detail::CGType CGType,
+      std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
       sycl::ext::oneapi::experimental::node_type UserFacingNodeType =
           ext::oneapi::experimental::node_type::empty);
 

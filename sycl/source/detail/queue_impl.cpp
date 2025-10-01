@@ -422,7 +422,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
 EventImplPtr queue_impl::submit_command_to_graph(
     ext::oneapi::experimental::detail::graph_impl &GraphImpl,
-    std::unique_ptr<detail::CG> &CommandGroup, sycl::detail::CGType CGType,
+    std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
     sycl::ext::oneapi::experimental::node_type UserFacingNodeType) {
   auto EventImpl = detail::event_impl::create_completed_host_event();
   EventImpl->setSubmittedQueue(weak_from_this());
@@ -510,7 +510,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
     if (auto GraphImpl = getCommandGraph(); GraphImpl) {
-      return submit_command_to_graph(*GraphImpl, CommandGroup,
+      return submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
                                      detail::CGType::Kernel);
     }
 
