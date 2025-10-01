@@ -3851,6 +3851,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc(detail::Builder::getElement(detail::declptr<IterIndexTy>()));
 #endif
+    (void)KernelFunc;
   }
 
   /// special overload that does not accept properties or reductions (to
