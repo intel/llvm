@@ -205,7 +205,7 @@ bool specializeFnVariants(SPIRVModule *BM, std::string &ErrMsg) {
   }
 
   for (const auto &CondExt : CondExtensions) {
-    const auto Ext = CondExt.first;
+    const auto &Ext = CondExt.first;
     const bool ShouldKeep = CondExt.second;
     if (ShouldKeep) {
       BM->getExtension().insert(Ext.second);
