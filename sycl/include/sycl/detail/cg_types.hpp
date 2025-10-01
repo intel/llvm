@@ -238,7 +238,7 @@ public:
 // the class keeps reference to a lambda allocated externally on stack
 class HostKernelRefBase : public HostKernelBase {
 public:
-  virtual std::shared_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // This function can't be called from old user code, because there is no
   // HostKernelRef in old user code. So, make it empty.
@@ -258,8 +258,8 @@ public:
   virtual char *getPtr() override {
     return const_cast<char *>(reinterpret_cast<const char *>(&MKernel));
   }
-  virtual std::shared_ptr<HostKernelBase> takeOrCopyOwnership() const override {
-    std::shared_ptr<HostKernelBase> Kernel;
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::unique_ptr<HostKernelBase> Kernel;
     Kernel.reset(
         new HostKernel<KernelType, KernelArgType, Dims>(std::move(MKernel)));
     return Kernel;
@@ -281,8 +281,8 @@ public:
   virtual char *getPtr() override {
     return const_cast<char *>(reinterpret_cast<const char *>(&MKernel));
   }
-  virtual std::shared_ptr<HostKernelBase> takeOrCopyOwnership() const override {
-    std::shared_ptr<HostKernelBase> Kernel;
+  virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::unique_ptr<HostKernelBase> Kernel;
     Kernel.reset(new HostKernel<KernelType, KernelArgType, Dims>(MKernel));
     return Kernel;
   }
