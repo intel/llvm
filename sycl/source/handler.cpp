@@ -642,7 +642,7 @@ event handler::finalize() {
       detail::EventImplPtr ResultEvent =
           impl->get_queue().submit_kernel_scheduler_bypass(
               impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
-              MKernel, KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
+              MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return ResultEvent;
 #else

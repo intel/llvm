@@ -422,7 +422,7 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
 EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
-    bool EventNeeded, std::shared_ptr<detail::kernel_impl> &Kernel,
+    bool EventNeeded, detail::kernel_impl *KernelImplPtr,
     detail::kernel_bundle_impl *KernelBundleImpPtr,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
   std::vector<ur_event_handle_t> RawEvents;
@@ -437,7 +437,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   if (DiscardEvent) {
     // Kernel only uses assert if it's non interop one
     bool KernelUsesAssert =
-        !(Kernel && Kernel->isInterop()) && KData.usesAssert();
+        !(KernelImplPtr && KernelImplPtr->isInterop()) && KData.usesAssert();
     DiscardEvent = !KernelUsesAssert;
   }
 
@@ -454,7 +454,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
     const bool xptiEnabled = xptiCheckTraceEnabled(StreamID);
     if (xptiEnabled) {
       std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-          StreamID, Kernel, CodeLoc, IsTopCodeLoc,
+          StreamID, KernelImplPtr, CodeLoc, IsTopCodeLoc,
           *KData.getDeviceKernelInfoPtr(), this, KData.getNDRDesc(),
           KernelBundleImpPtr, KData.getArgs());
       detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
@@ -467,7 +467,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(*this, KData.getNDRDesc(), KData.getArgs(),
-                     KernelBundleImpPtr, Kernel.get(),
+                     KernelBundleImpPtr, KernelImplPtr,
                      *KData.getDeviceKernelInfoPtr(), RawEvents,
                      ResultEvent.get(), nullptr, KData.getKernelCacheConfig(),
                      KData.isCooperative(), KData.usesClusterLaunch(),
@@ -523,9 +523,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
-      std::shared_ptr<detail::kernel_impl> Kernel;
       return submit_kernel_scheduler_bypass(KData, CGData.MEvents,
-                                            CallerNeedsEvent, Kernel, nullptr,
+                                            CallerNeedsEvent, nullptr, nullptr,
                                             CodeLoc, IsTopCodeLoc);
     }
     std::unique_ptr<detail::CG> CommandGroup;

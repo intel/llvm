@@ -189,6 +189,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
+    // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t) * 3;
+    }
+
+    if (pPropValue) {
+      ol_dimensions_t olVec;
+      size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
+      OL_RETURN_ON_ERR(olGetDeviceInfo(
+          hDevice->OffloadDevice, OL_DEVICE_INFO_MAX_WORK_SIZE_PER_DIMENSION,
+          sizeof(olVec), &olVec));
+
+      urVec[0] = olVec.x;
+      urVec[1] = olVec.y;
+      urVec[2] = olVec.z;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
+
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -200,6 +221,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
+  case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
+  case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
@@ -244,6 +267,91 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // device.
     return ReturnValue("");
   }
+  case UR_DEVICE_INFO_ENDIAN_LITTLE: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
+    // Liboffload has no profiling timers yet
+    return ReturnValue(size_t{0});
+  }
+  case UR_DEVICE_INFO_LOCAL_MEM_TYPE: {
+    return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_NONE);
+  }
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
+    return ReturnValue(size_t{0});
+  }
+
+  // The following properties are lifted from the minimum supported
+  // intersection of the HIP and CUDA backends until liboffload adds a specific
+  // query
+  case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
+    auto Capability = ur_device_exec_capability_flags_t{
+        UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL};
+    return ReturnValue(Capability);
+  }
+  case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    return ReturnValue(int32_t{1});
+  }
+  case UR_DEVICE_INFO_MAX_PARAMETER_SIZE: {
+    return ReturnValue(size_t{4000});
+  }
+  case UR_DEVICE_INFO_MAX_CONSTANT_ARGS: {
+    return ReturnValue(uint32_t{9});
+  }
+  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
+    // The minimum value for the FULL profile is 1 MB.
+    return ReturnValue(size_t(1024));
+  }
+
+  // No image support in liboffload yet, so just return 0 for these properties
+  case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
+  case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
+  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
+  case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
+    return ReturnValue(size_t{0});
+  case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_SAMPLERS:
+    return ReturnValue(uint32_t{0});
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
