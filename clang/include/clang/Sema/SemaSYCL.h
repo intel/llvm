@@ -215,9 +215,8 @@ private:
   ParmVarDecl *ParentStruct;
 
   // For every struct that contains a special type which is given by
-  // the ParentStruct field above, record the offset and size of every special
-  // type inside of it at any nesting level. Store the information in the
-  // variable below.
+  // the ParentStruct field above, record the offset and size of its fields
+  // at any nesting level. Store the information in the variable below.
   llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
       OffsetSizeInfo;
   // Likewise for the kind of a special type i.e accessor etc...
