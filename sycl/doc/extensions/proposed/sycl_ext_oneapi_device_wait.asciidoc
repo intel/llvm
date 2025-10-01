@@ -83,7 +83,35 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== New member function for the device class
+=== New aspect
+
+This extension adds the following aspect.
+
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect {
+  // ...
+  ext_oneapi_device_wait
+};
+
+} // namespace sycl
+----
+
+'''
+
+[source,c++]
+----
+ext_oneapi_device_wait
+----
+
+Indicates that the device supports the `device::ext_oneapi_wait_and_throw`
+member functions.
+
+'''
+
+=== New member functions for the device class
 
 This extension adds the following member functions to the `device` class.
 
@@ -113,6 +141,9 @@ Any unconsumed asynchronous errors from these commands are reported to the
 `h` handler as defined in section 4.13.1.1 "Asynchronous error handler" of the
 core SYCL specification.
 
+_Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
+error code if the device does not have `aspect::ext_oneapi_device_wait`.
+
 '''
 
 [source,c++]
@@ -125,6 +156,9 @@ any queue on this device have completed.
 Any unconsumed asynchronous errors from these commands are reported to the
 default async handler as defined in section 4.13.1.2 "Behavior without an async
 handler" of the core SYCL specification.
+
+_Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
+error code if the device does not have `aspect::ext_oneapi_device_wait`.
 
 [_Note:_ The default async handler terminates the application when an
 asynchronous error occurs, so applications should use the other overload of
