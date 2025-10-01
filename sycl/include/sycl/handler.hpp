@@ -1649,6 +1649,8 @@ public:
                remove_cv_ref_t<T>>::value; // Structs that contain special types
   };
 
+  constexpr static int AccessTargetMask = 0x7ff;
+
   /// Sets argument for OpenCL interoperability kernels.
   ///
   /// Registers Arg passed as argument # ArgIndex.
@@ -1659,18 +1661,47 @@ public:
   typename std::enable_if_t<ShouldEnableSetArg<T>::value, void>
   set_arg(int ArgIndex, T &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+    ++ArgIndex;
+    // The following concerns free function kernels only.
+    // if we are dealing with a struct parameter that contains special types
+    // inside, we call addArg for each field of the struct(special and standard
+    // layout included) at any nesting level using the information provided by
+    // the frontend with the arrays offsets, sizes, and kinds which as the name
+    // suggests, provide the offset, size and kind of each such field.
     if constexpr (ext::oneapi::experimental::detail::
                       is_struct_with_special_type<remove_cv_ref_t<T>>::value) {
-      int NumArgs = 0;
       using type =
           ext::oneapi::experimental::detail::is_struct_with_special_type<
               remove_cv_ref_t<T>>;
-      int index = 0;
-      while (type::offsets[index] != -1) {
+      int NumArgs = 0;
+      while (type::offsets[NumArgs] != -1) {
+        void *FieldArg = (char *)(&Arg) + type::offsets[NumArgs];
+        // treat accessors separately since we have to fetch the data ptr and
+        // pass that to the addArg function rather than the address of the
+        // accessor object itself.
+        if (type::kinds[NumArgs] ==
+            detail::kernel_param_kind_t::kind_accessor) {
+          const access::target target = static_cast<access::target>(
+              type::sizes[NumArgs] & AccessTargetMask);
+          if (target == target::local) {
+            detail::LocalAccessorBaseHost *LocalAccBase =
+                (detail::LocalAccessorBaseHost *)(FieldArg);
+            setLocalAccessorArgHelper(ArgIndex + NumArgs, *LocalAccBase);
+          } else {
+            detail::AccessorBaseHost *AccBase =
+                (detail::AccessorBaseHost *)(FieldArg);
+            const detail::AccessorImplPtr &AccImpl =
+                detail::getSyclObjImpl(*AccBase);
+            detail::AccessorImplHost *Req = AccImpl.get();
+            addArg(type::kinds[NumArgs], Req, type::sizes[NumArgs],
+                   ArgIndex + NumArgs);
+          }
+        } else {
+          // for non-accessors, simply call addArg normally.
+          addArg(type::kinds[NumArgs], FieldArg, type::sizes[NumArgs],
+                 ArgIndex + NumArgs);
+        }
         ++NumArgs;
-        addArg(type::kinds[index], (char *)(&Arg) + type::offsets[index],
-               type::sizes[index], ArgIndex + NumArgs);
-        ++index;
       }
       updateArgShift(NumArgs);
     }
@@ -3533,7 +3564,6 @@ private:
   // during device compilations (by reducing amount of templates we have to
   // instantiate), those are only available during host compilation pass.
 #ifndef __SYCL_DEVICE_ONLY__
-  constexpr static int AccessTargetMask = 0x7ff;
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.

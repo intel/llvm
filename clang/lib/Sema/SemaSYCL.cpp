@@ -4771,8 +4771,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   void addParam(const ParmVarDecl *PD, QualType ParamTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
     addParam(ParamTy, Kind, offsetOf(PD, ParamTy));
-    CurOffset +=
-        SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
+    //CurOffset +=
+      //  SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
   }
 
   void addParam(QualType ParamTy,
