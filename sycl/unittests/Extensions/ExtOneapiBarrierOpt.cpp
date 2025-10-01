@@ -42,7 +42,7 @@ TEST_F(ExtOneapiBarrierOptTest, EmptyEventTest) {
 
   // To avoid current optimizations for empty queues, we trick q1 into thinking
   // that it isn't empty.
-  int dummyInt;
+  int dummyInt = 0;
   q1.prefetch(&dummyInt, sizeof(int));
 
   mock::getCallbacks().set_after_callback(
