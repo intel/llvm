@@ -107,6 +107,7 @@ def FC1Option : OptionVisibility;
 // are made available when the driver is running in DXC compatibility mode.
 def DXCOption : OptionVisibility;
 
+// SYCLRTCOnlyOption - only acceptable for the SYCL RTC (Run Time Compilation).
 def SYCLRTCOnlyOption : OptionVisibility;
 
 /////////
@@ -7518,6 +7519,8 @@ def fsyclbin : Flag<["-"], "fsyclbin">, Alias<fsyclbin_EQ>,
   AliasArgs<["executable"]>;
 } // let Group = sycl_Group
 
+// Options specific to the SYCL RTC and only available for JIT compilation (not
+// through regular `clang++ -fsycl` in command line):
 let Visibility = [SYCLRTCOnlyOption] in {
   let Group = sycl_rtc_only_Group in {
     def auto_pch : Flag<["--"], "auto-pch">,
