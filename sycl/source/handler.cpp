@@ -670,7 +670,7 @@ event handler::finalize() {
         const bool xptiEnabled = xptiCheckTraceEnabled(StreamID);
         if (xptiEnabled) {
           std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-              StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc,
+              StreamID, MKernel.get(), MCodeLoc, impl->MIsTopCodeLoc,
               *impl->MKernelData.getDeviceKernelInfoPtr(),
               impl->get_queue_or_null(), impl->MKernelData.getNDRDesc(),
               KernelBundleImpPtr, impl->MKernelData.getArgs());
