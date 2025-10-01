@@ -515,15 +515,6 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
-  detail::code_location CLoc;
-  bool IsTopCLoc = true;
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
-    CLoc = CodeLoc;
-    IsTopCLoc = IsTopCodeLoc;
-  }
-#endif
 
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
   KData.setKernelFunc(HostKernel->getPtr());
@@ -535,31 +526,28 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
       std::shared_ptr<detail::kernel_impl> Kernel;
       return submit_kernel_scheduler_bypass(KData, CGData.MEvents,
                                             CallerNeedsEvent, Kernel, nullptr,
-                                            CLoc, IsTopCLoc);
-    } else {
-      std::unique_ptr<detail::CG> CommandGroup;
-      std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
-      std::vector<std::shared_ptr<const void>> AuxiliaryResources;
-
-      KData.extractArgsAndReqsFromLambda();
-
-      CommandGroup.reset(new detail::CGExecKernel(
-          KData.getNDRDesc(), HostKernel,
-          nullptr, // Kernel
-          nullptr, // KernelBundle
-          std::move(CGData), std::move(KData).getArgs(),
-          *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
-          std::move(AuxiliaryResources), detail::CGType::Kernel,
-          UR_KERNEL_CACHE_CONFIG_DEFAULT,
-          false, // KernelIsCooperative
-          false, // KernelUsesClusterLaunch
-          0,     // KernelWorkGroupMemorySize
-          CLoc));
-      CommandGroup->MIsTopCodeLoc = IsTopCLoc;
-
-      return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
-                                                    *this, true);
+                                            CodeLoc, IsTopCodeLoc);
     }
+    std::unique_ptr<detail::CG> CommandGroup;
+    std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
+    std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    KData.extractArgsAndReqsFromLambda();
+
+    CommandGroup.reset(new detail::CGExecKernel(
+        KData.getNDRDesc(), HostKernel,
+        nullptr, // Kernel
+        nullptr, // KernelBundle
+        std::move(CGData), std::move(KData).getArgs(),
+        *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
+        std::move(AuxiliaryResources), detail::CGType::Kernel,
+        KData.getKernelCacheConfig(), KData.isCooperative(),
+        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
+        CodeLoc));
+    CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
+                                                  *this, true);
   };
 
   return submit_direct(CallerNeedsEvent, SubmitKernelFunc);
