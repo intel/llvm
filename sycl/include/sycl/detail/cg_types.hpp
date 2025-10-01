@@ -246,7 +246,7 @@ public:
 #endif
 };
 
-// primary template for movable lambda objects
+// Primary template for movable objects.
 template <class KernelType, class KernelTypeUniversalRef, class KernelArgType,
           int Dims>
 class HostKernelRef : public HostKernelRefBase {
