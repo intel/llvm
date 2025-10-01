@@ -21,6 +21,22 @@ public:
   void operator()(sycl::item<1>) const {}
   void operator()(sycl::nd_item<1> Item) const {}
 };
+
+class TestMoveFunctor {
+public:
+  static int MoveCtorCalls;
+
+  TestMoveFunctor() = default;
+  TestMoveFunctor(const TestMoveFunctor &) = default;
+  TestMoveFunctor(TestMoveFunctor &&) { ++MoveCtorCalls; }
+  void operator()() const {}
+  void operator()(sycl::item<1>) const {}
+  void operator()(sycl::nd_item<1> Item) const {}
+  void operator()(sycl::nd_item<3> Item) const {}
+};
+
+int TestMoveFunctor::MoveCtorCalls;
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -35,13 +51,27 @@ struct KernelInfo<TestFunctor> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getLineNumber() { return 13; }
   static constexpr unsigned getColumnNumber() { return 8; }
 };
+
+template <>
+struct KernelInfo<class TestMoveFunctor> : public unittest::MockKernelInfoBase {
+  static constexpr const char *getName() { return "TestMoveFunctor"; }
+  static constexpr int64_t getKernelSize() { return sizeof(TestMoveFunctor); }
+  static constexpr const char *getFileName() { return "TestMoveFunctor.hpp"; }
+  static constexpr const char *getFunctionName() {
+    return "TestMoveFunctorFunctionName";
+  }
+  static constexpr unsigned getLineNumber() { return 13; }
+  static constexpr unsigned getColumnNumber() { return 8; }
+};
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::MockDeviceImage Img =
-    sycl::unittest::generateDefaultImage({"TestFunctor"});
-static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Imgs[2] = {
+    sycl::unittest::generateDefaultImage({"TestFunctor"}),
+    sycl::unittest::generateDefaultImage({"TestMoveFunctor"})};
+static sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 namespace {
 
@@ -202,6 +232,24 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
 
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
+
+#if __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutMoveKernelNoEvent) {
+  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
+                                            &redefined_urEnqueueKernelLaunch);
+
+  TestMoveFunctor::MoveCtorCalls = 0;
+  TestMoveFunctor MoveOnly;
+  sycl::khr::launch_grouped(Queue, sycl::range<1>{32}, sycl::range<1>{32},
+                            std::move(MoveOnly));
+  // Move ctor for TestMoveFunctor is called during move construction of
+  // HostKernel. Copy ctor is called by InstantiateKernelOnHost, can't delete
+  // it.
+  ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 1);
+
+  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+}
+#endif
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
