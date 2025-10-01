@@ -12,6 +12,7 @@
 #include "Resource.h"
 #include "translation/Translation.h"
 
+#include "clang/Lex/PreprocessorOptions.h"
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -224,7 +225,11 @@ class SYCLToolchain {
       assert(Preamble->CanReuse(*Invocation, **MainFileBuffer, Bounds,
                                 Files->getVirtualFileSystem()));
 
-      // FIXME: WHY release????
+      assert(Invocation->getPreprocessorOpts().RetainRemappedFileBuffers ==
+             false);
+      // `PreprocessorOptions::RetainRemappedFileBuffers` defaults to false, so
+      // MemoryBuffer will be cleaned up by the CompilerInstance, thus
+      // `std::unique_ptr::release`.
       auto Buf = llvm::MemoryBuffer::getMemBufferCopy(
                      (*MainFileBuffer)->getBuffer(), MainFilePath)
                      .release();
