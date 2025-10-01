@@ -141,7 +141,7 @@ public:
 
   /// The list of arguments for the kernel.
   std::vector<detail::ArgDesc> MArgs;
-  
+
   /// The list of associated accessors with this handler.
   /// These accessors were created with this handler as argument or
   /// have become required for this handler via require method.

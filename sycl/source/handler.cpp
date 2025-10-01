@@ -2248,8 +2248,10 @@ void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
   impl->MKernelData.addArg(ArgKind, Req, AccessTarget, ArgIndex);
 }
 
-void handler::incrementArgShift(int Shift) { impl->MKernelData.incrementArgShift(Shift); }
-  
+void handler::incrementArgShift(int Shift) {
+  impl->MKernelData.incrementArgShift(Shift);
+}
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::clearArgs() { impl->MKernelData.clearArgs(); }
 #endif

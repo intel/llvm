@@ -181,6 +181,8 @@ public:
 
   void extractArgsAndReqsFromLambda();
 
+  void incrementArgShift(int Shift) { MArgShift += Shift; }
+
 private:
   // Storage for any SYCL Graph dynamic parameters which have been flagged for
   // registration in the CG, along with the argument index for the parameter.
@@ -204,6 +206,14 @@ private:
   // A pointer to device kernel information. Cached on the application side in
   // headers or retrieved from program manager.
   DeviceKernelInfo *MDeviceKernelInfoPtr = nullptr;
+
+  // Certain arguments such as structs that contain SYCL special types entail
+  // several hidden set_arg calls for every set_arg called by the user. This
+  // shift is required to make sure the following arguments set by the user have
+  // the correct index. It keeps track of how many of these hidden set_arg calls
+  // have been made so far. The user cannot possibly know this, hence we need to
+  // keep track of this information.
+  int MArgShift = 0;
 };
 
 } // namespace detail

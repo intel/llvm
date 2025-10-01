@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <type_traits>
 #include <sycl/detail/kernel_desc.hpp>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {

@@ -3660,14 +3660,14 @@ private:
 
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
-  
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // TODO: remove in the next ABI-breaking window
   void clearArgs();
 #endif
 
   void incrementArgShift(int);
-  
+
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,

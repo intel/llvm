@@ -4708,9 +4708,8 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     ArgExprs.push_back(SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        DeclCreator.getParentStruct(),
-        DeclCreator.getParentStruct()->getType(), VK_PRValue,
-        FreeFunctionSrcLoc));
+        DeclCreator.getParentStruct(), DeclCreator.getParentStruct()->getType(),
+        VK_PRValue, FreeFunctionSrcLoc));
     return true;
   }
 
@@ -4803,8 +4802,8 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
   void addParam(const ParmVarDecl *PD, QualType ParamTy,
                 SYCLIntegrationHeader::kernel_param_kind_t Kind) {
     addParam(ParamTy, Kind, offsetOf(PD, ParamTy));
-    //CurOffset +=
-      //  SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
+    // CurOffset +=
+    //   SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
   }
 
   void addParam(QualType ParamTy,
@@ -4965,149 +4964,148 @@ public:
     return true;
   }
 
-    bool handlePointerType(FieldDecl * FD, QualType FieldTy) final {
-      addParam(FD, FieldTy,
-               ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
-                              : SYCLIntegrationHeader::kind_pointer));
-      return true;
-    }
+  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy,
+             ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
+                            : SYCLIntegrationHeader::kind_pointer));
+    return true;
+  }
 
-    bool handlePointerType(ParmVarDecl * PD, QualType ParamTy) final {
-      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_pointer);
-      return true;
-    }
+  bool handlePointerType(ParmVarDecl *PD, QualType ParamTy) final {
+    addParam(PD, ParamTy, SYCLIntegrationHeader::kind_pointer);
+    return true;
+  }
 
-    bool handleScalarType(FieldDecl * FD, QualType FieldTy) final {
-      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-      return true;
-    }
+  bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
 
-    bool handleScalarType(ParmVarDecl * PD, QualType ParamTy) final {
-      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
-      return true;
-    }
+  bool handleScalarType(ParmVarDecl *PD, QualType ParamTy) final {
+    addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
 
-    bool handleSimpleArrayType(FieldDecl * FD, QualType FieldTy) final {
-      // Arrays are always wrapped inside of structs, so just treat it as a
-      // simple struct.
-      addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
-      return true;
-    }
+  bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
+    // Arrays are always wrapped inside of structs, so just treat it as a
+    // simple struct.
+    addParam(FD, FieldTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
 
-    bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
-      addParam(Ty, SYCLIntegrationHeader::kind_std_layout, /*Offset=*/0);
-      return true;
-    }
+  bool handleTopLevelStruct(const CXXRecordDecl *, QualType Ty) final {
+    addParam(Ty, SYCLIntegrationHeader::kind_std_layout, /*Offset=*/0);
+    return true;
+  }
 
-    bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
-                               QualType Ty) final {
-      addParam(FD, Ty, SYCLIntegrationHeader::kind_std_layout);
-      return true;
-    }
+  bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
+                             QualType Ty) final {
+    addParam(FD, Ty, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
 
-    bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
-                               QualType ParamTy) final {
-      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
-      return true;
-    }
+  bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
+                             QualType ParamTy) final {
+    addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
+    return true;
+  }
 
-    bool handleNonDecompStruct(const CXXRecordDecl *Base,
-                               const CXXBaseSpecifier &, QualType Ty) final {
-      addParam(Ty, SYCLIntegrationHeader::kind_std_layout,
-               offsetOf(Base, Ty->getAsCXXRecordDecl()));
-      return true;
-    }
+  bool handleNonDecompStruct(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &, QualType Ty) final {
+    addParam(Ty, SYCLIntegrationHeader::kind_std_layout,
+             offsetOf(Base, Ty->getAsCXXRecordDecl()));
+    return true;
+  }
 
-    bool handleUnionType(FieldDecl * FD, QualType FieldTy) final {
-      return handleScalarType(FD, FieldTy);
-    }
+  bool handleUnionType(FieldDecl *FD, QualType FieldTy) final {
+    return handleScalarType(FD, FieldTy);
+  }
 
-    bool handleUnionType(ParmVarDecl *, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool handleUnionType(ParmVarDecl *, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    void handleSyclKernelHandlerType(QualType) {
-      // The compiler generated kernel argument used to initialize SYCL 2020
-      // specialization constants, `specialization_constants_buffer`, should
-      // have corresponding entry in integration header.
-      ASTContext &Context = SemaSYCLRef.getASTContext();
-      // Offset is zero since kernel_handler argument is not part of
-      // kernel object (i.e. it is not captured)
-      addParam(Context.getPointerType(Context.CharTy),
-               SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
-    }
+  void handleSyclKernelHandlerType(QualType) {
+    // The compiler generated kernel argument used to initialize SYCL 2020
+    // specialization constants, `specialization_constants_buffer`, should
+    // have corresponding entry in integration header.
+    ASTContext &Context = SemaSYCLRef.getASTContext();
+    // Offset is zero since kernel_handler argument is not part of
+    // kernel object (i.e. it is not captured)
+    addParam(Context.getPointerType(Context.CharTy),
+             SYCLIntegrationHeader::kind_specialization_constants_buffer, 0);
+  }
 
-    bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-      ++StructDepth;
-      CurOffset += offsetOf(FD, Ty);
-      return true;
-    }
+  bool enterStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    ++StructDepth;
+    CurOffset += offsetOf(FD, Ty);
+    return true;
+  }
 
-    bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD,
-                     QualType Ty) final {
-      addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
-      Header.setParentStruct(PD);
-      return true;
-    }
+  bool enterStruct(const CXXRecordDecl *, ParmVarDecl *PD, QualType Ty) final {
+    addParam(PD, Ty, SYCLIntegrationHeader::kind_struct_with_special_type);
+    Header.setParentStruct(PD);
+    return true;
+  }
 
-    bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
-      --StructDepth;
-      CurOffset -= offsetOf(FD, Ty);
-      return true;
-    }
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
+    --StructDepth;
+    CurOffset -= offsetOf(FD, Ty);
+    return true;
+  }
 
-    bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-      Header.setParentStruct(nullptr);
-      return true;
-    }
+  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+    Header.setParentStruct(nullptr);
+    return true;
+  }
 
-    bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
-                     QualType) final {
-      CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
-      return true;
-    }
+  bool enterStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
+    CurOffset += offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
+    return true;
+  }
 
-    bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
-                     QualType) final {
-      CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
-      return true;
-    }
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+                   QualType) final {
+    CurOffset -= offsetOf(RD, BS.getType()->getAsCXXRecordDecl());
+    return true;
+  }
 
-    bool enterArray(FieldDecl * FD, QualType ArrayTy, QualType) final {
-      ArrayBaseOffsets.push_back(CurOffset + offsetOf(FD, ArrayTy));
-      return true;
-    }
+  bool enterArray(FieldDecl *FD, QualType ArrayTy, QualType) final {
+    ArrayBaseOffsets.push_back(CurOffset + offsetOf(FD, ArrayTy));
+    return true;
+  }
 
-    bool enterArray(ParmVarDecl *, QualType, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool enterArray(ParmVarDecl *, QualType, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    bool nextElement(QualType ET, uint64_t Index) final {
-      int64_t Size =
-          SemaSYCLRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
-      CurOffset = ArrayBaseOffsets.back() + Size * Index;
-      return true;
-    }
+  bool nextElement(QualType ET, uint64_t Index) final {
+    int64_t Size =
+        SemaSYCLRef.getASTContext().getTypeSizeInChars(ET).getQuantity();
+    CurOffset = ArrayBaseOffsets.back() + Size * Index;
+    return true;
+  }
 
-    bool leaveArray(FieldDecl * FD, QualType ArrayTy, QualType) final {
-      CurOffset = ArrayBaseOffsets.pop_back_val();
-      CurOffset -= offsetOf(FD, ArrayTy);
-      return true;
-    }
+  bool leaveArray(FieldDecl *FD, QualType ArrayTy, QualType) final {
+    CurOffset = ArrayBaseOffsets.pop_back_val();
+    CurOffset -= offsetOf(FD, ArrayTy);
+    return true;
+  }
 
-    bool leaveArray(ParmVarDecl *, QualType, QualType) final {
-      // TODO
-      unsupportedFreeFunctionParamType();
-      return true;
-    }
+  bool leaveArray(ParmVarDecl *, QualType, QualType) final {
+    // TODO
+    unsupportedFreeFunctionParamType();
+    return true;
+  }
 
-    using SyclKernelFieldHandler::enterStruct;
-    using SyclKernelFieldHandler::leaveStruct;
-  };
+  using SyclKernelFieldHandler::enterStruct;
+  using SyclKernelFieldHandler::leaveStruct;
+};
 
 class SyclKernelIntFooterCreator : public SyclKernelFieldHandler {
   SYCLIntegrationFooter &Footer;
