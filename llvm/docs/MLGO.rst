@@ -1,5 +1,5 @@
 =============================================
-Machine Learning - Guided Optimization (MLGO)
+Machine Learning - Guided Optimization (MLGO) 
 =============================================
 
 Introduction
