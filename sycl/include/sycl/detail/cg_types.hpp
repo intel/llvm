@@ -239,10 +239,36 @@ public:
 class HostKernelRefBase : public HostKernelBase {
 public:
   virtual std::shared_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // This function can't be called from old user code, because there is no
+  // HostKernelRef in old user code. So, make it empty.
+  void InstantiateKernelOnHost() override {}
+#endif
 };
 
-template <class KernelType, class KernelArgType, int Dims>
+// primary template for movable lambda objects
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType, int Dims>
 class HostKernelRef : public HostKernelRefBase {
+  KernelType &&MKernel;
+
+public:
+  HostKernelRef(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
+
+  virtual char *getPtr() override {
+    return const_cast<char *>(reinterpret_cast<const char *>(&MKernel));
+  }
+  virtual std::shared_ptr<HostKernelBase> takeOrCopyOwnership() const override {
+    std::shared_ptr<HostKernelBase> Kernel;
+    Kernel.reset(new HostKernel<KernelType, KernelArgType, Dims>(std::move(MKernel)));
+    return Kernel;
+  }
+
+  ~HostKernelRef() noexcept override = default;
+};
+
+// specialization for copyable lambda objects
+template <class KernelType, class KernelTypeUniversalRef, class KernelArgType, int Dims>
+class HostKernelRef<KernelType, KernelTypeUniversalRef&, KernelArgType, Dims> : public HostKernelRefBase {
   const KernelType &MKernel;
 
 public:

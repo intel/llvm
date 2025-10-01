@@ -157,10 +157,10 @@ private:
 } // namespace v1
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
-          typename PropertiesT, typename KernelType, int Dims>
+          typename PropertiesT, typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
     const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
-    const KernelType &KernelFunc,
+    KernelTypeUniversalRef &&KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
   (void)Props;
@@ -169,6 +169,9 @@ auto submit_kernel_direct(
                      ext::oneapi::experimental::empty_properties_t>,
       "Setting properties not supported yet for no-CGH kernel submit.");
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
 
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -180,7 +183,11 @@ auto submit_kernel_direct(
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
 
-  HostKernelRef<KernelType, TransformedArgType, Dims> HostKernel(KernelFunc);
+  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
+
+  HostKernelRef<KernelType, KernelTypeUniversalRef, TransformedArgType, Dims>
+      HostKernel(std::forward<KernelTypeUniversalRef>(KernelFunc));
 
   // Instantiating the kernel on the host improves debugging.
   // Passing this pointer to another translation unit prevents optimization.
@@ -192,9 +199,6 @@ auto submit_kernel_direct(
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
       &detail::getDeviceKernelInfo<NameT>();
-
-  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
