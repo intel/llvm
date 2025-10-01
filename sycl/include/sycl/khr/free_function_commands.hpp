@@ -150,9 +150,9 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
 
 template <
     typename KernelType,
-    // overload of launch_grouped for sycl::kernel must be preferred
-    typename = typename std::enable_if<!std::is_same<
-        typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
+    // exclude sycl::kernel from overload resolution
+    typename = typename std::enable_if_t<!std::is_same_v<
+        typename std::decay_t<KernelType>, sycl::kernel>>>
 void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
@@ -168,9 +168,8 @@ void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
 }
 template <
     typename KernelType,
-    // overload of launch_grouped for sycl::kernel must be preferred
-    typename = typename std::enable_if<!std::is_same<
-        typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
+    typename = typename std::enable_if_t<!std::is_same_v<
+        typename std::decay_t<KernelType>, sycl::kernel>>>
 void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
@@ -186,9 +185,8 @@ void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
 }
 template <
     typename KernelType,
-    // overload of launch_grouped for sycl::kernel must be preferred
-    typename = typename std::enable_if<!std::is_same<
-        typename std::decay<KernelType>::type, sycl::kernel>::value>::type>
+    typename = typename std::enable_if_t<!std::is_same_v<
+        typename std::decay_t<KernelType>, sycl::kernel>>>
 void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
