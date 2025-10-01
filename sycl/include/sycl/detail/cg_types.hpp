@@ -256,7 +256,7 @@ public:
   HostKernelRef(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
 
   virtual char *getPtr() override {
-    return const_cast<char *>(reinterpret_cast<const char *>(&MKernel));
+    return reinterpret_cast<char *>(&MKernel);
   }
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
     std::unique_ptr<HostKernelBase> Kernel;
