@@ -7,12 +7,23 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from enum import Enum
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 from abc import ABC, abstractmethod
 from utils.unitrace import get_unitrace
+from utils.flamegraph import get_flamegraph
 from utils.logger import log
+
+
+class TracingType(Enum):
+    """Enumeration of available tracing types."""
+
+    NONE = ""
+    UNITRACE = "unitrace"
+    FLAMEGRAPH = "flamegraph"
+
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -38,8 +49,7 @@ benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
 
 
 class Benchmark(ABC):
-    def __init__(self, directory, suite):
-        self.directory = directory
+    def __init__(self, suite):
         self.suite = suite
 
     @abstractmethod
@@ -62,14 +72,19 @@ class Benchmark(ABC):
         By default, it returns True, but can be overridden to disable a benchmark."""
         return True
 
-    def traceable(self) -> bool:
-        """Returns whether this benchmark should be traced by Unitrace.
-        By default, it returns True, but can be overridden to disable tracing for a benchmark.
+    def traceable(self, tracing_type: TracingType) -> bool:
+        """Returns whether this benchmark should be traced by the specified tracing method.
+        By default, it returns True for all tracing types, but can be overridden
+        to disable specific tracing methods for a benchmark.
         """
         return True
 
-    @abstractmethod
+    def tracing_enabled(self, run_trace, force_trace, tr_type: TracingType):
+        """Returns whether tracing is enabled for the given type."""
+        return (self.traceable(tr_type) or force_trace) and run_trace == tr_type
+
     def setup(self):
+        """Extra setup steps to be performed before running the benchmark."""
         pass
 
     @abstractmethod
@@ -77,12 +92,18 @@ class Benchmark(ABC):
         pass
 
     @abstractmethod
-    def run(self, env_vars, run_unitrace: bool = False) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         """Execute the benchmark with the given environment variables.
 
         Args:
             env_vars: Environment variables to use when running the benchmark.
-            run_unitrace: Whether to run benchmark under Unitrace.
+            run_trace: The type of tracing to run (NONE, UNITRACE, or FLAMEGRAPH).
+            force_trace: If True, ignore the traceable() method and force tracing.
 
         Returns:
             A list of Result objects with the benchmark results.
@@ -111,8 +132,9 @@ class Benchmark(ABC):
         ld_library=[],
         add_sycl=True,
         use_stdout=True,
-        run_unitrace=False,
-        extra_unitrace_opt=None,
+        run_trace: TracingType = TracingType.NONE,
+        extra_trace_opt=None,
+        force_trace: bool = False,
     ):
         env_vars = env_vars.copy()
         if options.ur is not None:
@@ -125,14 +147,25 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        if self.traceable() and run_unitrace:
-            if extra_unitrace_opt is None:
-                extra_unitrace_opt = []
+        unitrace_output = None
+        if self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE):
+            if extra_trace_opt is None:
+                extra_trace_opt = []
             unitrace_output, command = get_unitrace().setup(
-                self.name(), command, extra_unitrace_opt
+                self.name(), command, extra_trace_opt
             )
             log.debug(f"Unitrace output: {unitrace_output}")
             log.debug(f"Unitrace command: {' '.join(command)}")
+
+        # flamegraph run
+
+        perf_data_file = None
+        if self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH):
+            perf_data_file, command = get_flamegraph().setup(
+                self.name(), self.get_suite_name(), command
+            )
+            log.debug(f"FlameGraph perf data: {perf_data_file}")
+            log.debug(f"FlameGraph command: {' '.join(command)}")
 
         try:
             result = run(
@@ -143,12 +176,26 @@ class Benchmark(ABC):
                 ld_library=ld_libraries,
             )
         except subprocess.CalledProcessError:
-            if run_unitrace:
+            if run_trace == TracingType.UNITRACE and unitrace_output:
                 get_unitrace().cleanup(options.benchmark_cwd, unitrace_output)
+            if run_trace == TracingType.FLAMEGRAPH and perf_data_file:
+                get_flamegraph().cleanup(perf_data_file)
             raise
 
-        if self.traceable() and run_unitrace:
+        if (
+            self.tracing_enabled(run_trace, force_trace, TracingType.UNITRACE)
+            and unitrace_output
+        ):
             get_unitrace().handle_output(unitrace_output)
+
+        if (
+            self.tracing_enabled(run_trace, force_trace, TracingType.FLAMEGRAPH)
+            and perf_data_file
+        ):
+            svg_file = get_flamegraph().handle_output(
+                self.name(), perf_data_file, self.get_suite_name()
+            )
+            log.info(f"FlameGraph generated: {svg_file}")
 
         if use_stdout:
             return result.stdout.decode()
@@ -157,9 +204,9 @@ class Benchmark(ABC):
 
     def create_data_path(self, name, skip_data_dir=False):
         if skip_data_dir:
-            data_path = os.path.join(self.directory, name)
+            data_path = os.path.join(options.workdir, name)
         else:
-            data_path = os.path.join(self.directory, "data", name)
+            data_path = os.path.join(options.workdir, "data", name)
             if options.redownload and Path(data_path).exists():
                 shutil.rmtree(data_path)
 

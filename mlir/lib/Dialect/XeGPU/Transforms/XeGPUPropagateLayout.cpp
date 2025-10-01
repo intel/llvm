@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/SparseAnalysis.h"
 #include "mlir/Analysis/DataFlow/Utils.h"
@@ -15,6 +14,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/XeGPU/IR/XeGPU.h"
+#include "mlir/Dialect/XeGPU/IR/XeGPUTargetInfo.h"
 #include "mlir/Dialect/XeGPU/Transforms/Passes.h"
 #include "mlir/Dialect/XeGPU/Utils/XeGPUUtils.h"
 #include "mlir/IR/Attributes.h"
@@ -194,7 +194,8 @@ static LayoutInfo getDefaultSIMTLayoutInfo(unsigned rank) {
 }
 
 /// Helper to get the default layout for a vector type.
-static LayoutInfo getDefaultSIMTLayoutInfo(VectorType vectorTy) {
+static LayoutInfo getDefaultSIMTLayoutInfo(VectorType vectorTy,
+                                           bool isScattered = false) {
   // Expecting a 1D or 2D vector.
   assert((vectorTy.getRank() == 1 || vectorTy.getRank() == 2) &&
          "Expected 1D or 2D vector.");
@@ -207,8 +208,48 @@ static LayoutInfo getDefaultSIMTLayoutInfo(VectorType vectorTy) {
   // Packing factor is determined by the element type bitwidth.
   int packingFactor = 1;
   unsigned bitwidth = vectorTy.getElementType().getIntOrFloatBitWidth();
+  if (isScattered) {
+    packingFactor =
+        bitwidth < xegpu::targetinfo::packedSizeInBitsForGatherScatter
+            ? xegpu::targetinfo::packedSizeInBitsForGatherScatter / bitwidth
+            : 1;
+    return LayoutInfo(LaneLayout({xegpu::targetinfo::subgroupSize, 1}),
+                      LaneData({1, packingFactor}));
+  }
   if (bitwidth < xegpu::targetinfo::packedSizeInBitsForDefault)
     packingFactor = xegpu::targetinfo::packedSizeInBitsForDefault / bitwidth;
+  return LayoutInfo(LaneLayout({1, xegpu::targetinfo::subgroupSize}),
+                    LaneData({1, packingFactor}));
+}
+
+/// Helper to get the default layout for a vector type.
+static LayoutInfo getDefaultSIMTLayoutInfo(xegpu::TensorDescType tdescTy,
+                                           bool isScattered = false) {
+  // Expecting a 1D or 2D vector.
+  assert((tdescTy.getRank() == 1 || tdescTy.getRank() == 2) &&
+         "Expected 1D or 2D TensorDesc.");
+  // Expecting int or float element type.
+  assert(tdescTy.getElementType().isIntOrFloat() &&
+         "Expected int or float element type.");
+  // If the rank is 1, then return default layout for 1D vector.
+  if (tdescTy.getRank() == 1)
+    return getDefaultSIMTLayoutInfo(1);
+  // Packing factor is determined by the element type bitwidth.
+  unsigned bitwidth = tdescTy.getElementType().getIntOrFloatBitWidth();
+
+  if (isScattered) {
+    int packingFactor =
+        bitwidth < xegpu::targetinfo::packedSizeInBitsForGatherScatter
+            ? xegpu::targetinfo::packedSizeInBitsForGatherScatter / bitwidth
+            : 1;
+    return LayoutInfo(LaneLayout({xegpu::targetinfo::subgroupSize, 1}),
+                      LaneData({1, packingFactor}));
+  }
+
+  int packingFactor =
+      (bitwidth < xegpu::targetinfo::packedSizeInBitsForDefault)
+          ? xegpu::targetinfo::packedSizeInBitsForDefault / bitwidth
+          : 1;
   return LayoutInfo(LaneLayout({1, xegpu::targetinfo::subgroupSize}),
                     LaneData({1, packingFactor}));
 }
@@ -379,8 +420,7 @@ void LayoutInfoPropagation::visitPrefetchNdOp(
   // Here we assign the default layout to the tensor descriptor operand of
   // prefetch.
   auto tdescTy = prefetch.getTensorDescType();
-  auto prefetchLayout = getDefaultSIMTLayoutInfo(
-      VectorType::get(tdescTy.getShape(), tdescTy.getElementType()));
+  auto prefetchLayout = getDefaultSIMTLayoutInfo(tdescTy);
   // Propagate the layout to the source tensor descriptor.
   propagateIfChanged(operands[0], operands[0]->meet(prefetchLayout));
 }
@@ -511,31 +551,29 @@ void LayoutInfoPropagation::visitVectorBitcastOp(
   propagateIfChanged(operands[0], operands[0]->meet(resultLayout));
 }
 
-/// Propagate the layout of the result to the tensor descriptor and mask
+/// Propagate the layout of the result to the tensor descriptor, mask and offset
 /// operands in LoadGatherOp.
 void LayoutInfoPropagation::visitLoadGatherOp(
     xegpu::LoadGatherOp load, ArrayRef<LayoutInfoLattice *> operands,
     ArrayRef<const LayoutInfoLattice *> results) {
-  LayoutInfo valueLayout = results[0]->getValue();
-  // Need the layout of the value to propagate to the tensor descriptor.
-  if (!valueLayout.isAssigned())
+  // The layout is strictly determined by the payload type.
+  auto payloadTy = dyn_cast<VectorType>(load.getValueType());
+  if (!payloadTy) {
+    load.emitWarning("Not propagating, non-vector payload supplied.");
     return;
-
-  LayoutInfo tensorDescLayout = valueLayout;
-  if (load.getTranspose()) {
-    // LoadGatherOp has the transpose effect. However, at the stage of this
-    // analyis this effect is not expected and should be abstracted away. Emit
-    // a warning.
-    load.emitWarning("Transpose effect is not expected for LoadGatherOp at "
-                     "LayoutInfoPropagation stage.");
-    tensorDescLayout = valueLayout.getTransposedLayout({1, 0});
   }
+  LayoutInfo layout = getDefaultSIMTLayoutInfo(payloadTy, /*scattered*/ true);
+
   // Mask operand should have 1D default layout.
   LayoutInfo maskLayout = getDefaultSIMTLayoutInfo(1);
+
   // Propagate the new layout to the tensor descriptor operand.
-  propagateIfChanged(operands[0], operands[0]->meet(tensorDescLayout));
-  // Propagate the new layout to the mask operand.
+  if (isa<xegpu::TensorDescType>(load.getSourceType()))
+    propagateIfChanged(operands[0], operands[0]->meet(layout));
+  // Propagate the new layout to the mask and optional offset operand.
   propagateIfChanged(operands[1], operands[1]->meet(maskLayout));
+  if (load.getOffsets())
+    propagateIfChanged(operands[2], operands[2]->meet(maskLayout));
 }
 
 /// Propagate the layout of the descriptor to the vector offset operand in
@@ -552,39 +590,39 @@ void LayoutInfoPropagation::visitCreateDescOp(
   propagateIfChanged(operands[1], operands[1]->meet(layout));
 }
 
-/// Set the layout for the value, tensor descriptor, and mask operands in the
-/// StoreScatterOp.
+/// Set the layout for the value, tensor descriptor, offset and mask operands in
+/// the StoreScatterOp.
 void LayoutInfoPropagation::visitStoreScatterOp(
     xegpu::StoreScatterOp storeScatter, ArrayRef<LayoutInfoLattice *> operands,
     ArrayRef<const LayoutInfoLattice *> results) {
   // Currently, for 2D StoreScatterOp we expect that the height dimension of
   // the tensor descriptor is equal to the subgroup size. This is ensured by
   // the op verifier.
-  ArrayRef<int64_t> tdescShape = storeScatter.getTensorDescType().getShape();
-  if (tdescShape.size() > 1)
+  auto payloadTy = dyn_cast<VectorType>(storeScatter.getValueType());
+  if (!payloadTy) {
+    storeScatter.emitWarning("Not propagating, non-vector payload supplied.");
+    return;
+  }
+  auto payloadShape = payloadTy.getShape();
+  if (payloadShape.size() > 1)
     assert(
-        tdescShape[0] == xegpu::targetinfo::subgroupSize &&
+        payloadShape[0] == xegpu::targetinfo::subgroupSize &&
         "Expected the first dimension of 2D tensor descriptor to be equal to "
         "subgroup size.");
 
-  LayoutInfo valueLayout =
-      getDefaultSIMTLayoutInfo(storeScatter.getValueType());
-  LayoutInfo storeScatterLayout = valueLayout;
-  if (storeScatter.getTranspose()) {
-    // StoreScatteOp allows transpose effect. However, at the stage of this
-    // analyis this effect is not expected and should be abstracted away. Emit
-    // a warning.
-    storeScatter.emitWarning("Transpose effect is not expected for "
-                             "StoreScatterOp at LayoutInfoPropagation stage.");
-    storeScatterLayout = valueLayout.getTransposedLayout({1, 0});
-  }
-  // Propagate the value layout.
-  propagateIfChanged(operands[0], operands[0]->meet(valueLayout));
-  // Propagate the tensor descriptor layout.
-  propagateIfChanged(operands[1], operands[1]->meet(storeScatterLayout));
-  // Use default 1D layout for mask operand.
+  LayoutInfo payloadLayout =
+      getDefaultSIMTLayoutInfo(payloadTy, /*scattered=*/true);
+
   LayoutInfo maskLayout = getDefaultSIMTLayoutInfo(1);
+  // Propagate the payload operand layout
+  propagateIfChanged(operands[0], operands[0]->meet(payloadLayout));
+  // Propagate the destination (if tdesc) operand layout
+  if (isa<xegpu::TensorDescType>(storeScatter.getDestType()))
+    propagateIfChanged(operands[1], operands[1]->meet(payloadLayout));
+  // Propagate the new layout to the mask and optional offset operand.
   propagateIfChanged(operands[2], operands[2]->meet(maskLayout));
+  if (storeScatter.getOffsets())
+    propagateIfChanged(operands[3], operands[3]->meet(maskLayout));
 }
 
 namespace {
@@ -706,7 +744,7 @@ static LogicalResult updateOp(mlir::OpBuilder &builder, mlir::Operation *op,
     }
     // If the result is a vector type, add a temporary layout attribute to the
     // op.
-    xegpu::setLayoutAttr(result, layout);
+    xegpu::setDistributeLayoutAttr(result, layout);
   }
   return success();
 }
@@ -788,7 +826,7 @@ updateControlFlowOps(mlir::OpBuilder &builder,
       // If the type is a vector type and this region argument is an OpResult,
       // set the layout attribute on the OpResult.
       if (auto result = dyn_cast<OpResult>(successorInput))
-        xegpu::setLayoutAttr(result, successorOperandLayout);
+        xegpu::setDistributeLayoutAttr(result, successorOperandLayout);
     }
   }
   return success();

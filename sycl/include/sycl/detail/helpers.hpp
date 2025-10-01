@@ -18,11 +18,9 @@
 #endif
 
 #include <cstddef>     // for size_t
-#include <memory>      // for shared_ptr
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for enable_if_t, integral_constant
 #include <utility>     // for forward, integer_sequence, mak...
-#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -38,11 +36,6 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-class buffer_impl;
-
-__SYCL_EXPORT void
-markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
-
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
 // Function to get or store id, item, nd_item, group for the host implementation

@@ -8,6 +8,7 @@
 
 #include <gtest/gtest.h>
 #include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -20,7 +21,8 @@ using arg_type = syclext::work_group_memory<int>;
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <> struct KernelInfo<WorkGroupMemoryKernel> {
+template <>
+struct KernelInfo<WorkGroupMemoryKernel> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 1; }
   static constexpr const detail::kernel_param_desc_t &getParamDesc(int) {
     return WorkGroupMemory;

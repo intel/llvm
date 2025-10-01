@@ -8,14 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/aliases.hpp>                   // for half, cl_char, cl_double
-#include <sycl/detail/helpers.hpp>            // for marray
-#include <sycl/detail/type_traits.hpp>        // for is_gen_based_on_type_s...
-#include <sycl/half_type.hpp>                 // for BIsRepresentationT
-#include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
-
-#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
+#include <sycl/access/access.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/bit_cast.hpp>
+#include <sycl/detail/fwd/half.hpp>
+#include <sycl/detail/type_traits.hpp>
 
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
@@ -24,6 +21,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi {
+class bfloat16;
+}
 namespace detail {
 template <typename T>
 using is_byte = typename
@@ -166,14 +166,16 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (std::is_same_v<no_ref, half>) {
-    using OpenCLType = sycl::detail::half_impl::BIsRepresentationT;
+    // Make it template-param-dependent to compile with incomplete `half`:
+    using OpenCLType =
+        std::enable_if_t<std::is_same_v<no_ref, half>,
+                         sycl::detail::half_impl::BIsRepresentationT>;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (std::is_same_v<no_ref, ext::oneapi::bfloat16>) {
     // On host, don't interpret BF16 as uint16.
 #ifdef __SYCL_DEVICE_ONLY__
-    using OpenCLType = sycl::ext::oneapi::bfloat16::Bfloat16StorageT;
-    return sycl::bit_cast<OpenCLType>(x);
+    return sycl::bit_cast<uint16_t>(x);
 #else
     return std::forward<T>(x);
 #endif

@@ -155,8 +155,13 @@ ur_result_t urDeviceGet(
       bool isComposite =
           isCombinedMode && (D->ZeDeviceProperties->flags &
                              ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (!isComposite)
+      if (!isComposite) {
         MatchedDevices.push_back(D.get());
+        // For UR_DEVICE_TYPE_DEFAULT only a single device should be returned,
+        // so exit the loop after first proper match.
+        if (DeviceType == UR_DEVICE_TYPE_DEFAULT)
+          break;
+      }
     }
   }
 
@@ -1278,7 +1283,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
-    return ReturnValue(false);
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
@@ -1447,6 +1452,15 @@ ur_result_t urDeviceGetInfo(
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
   }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    // IGC supports this since v.2.16.0
+    return ReturnValue(
+        Device->Platform->isDriverVersionNewerOrSimilar(1, 6, 34666));
+  }
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    // Currently GPUs only support sub-group clock.
+    return ReturnValue(false);
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1790,12 +1804,19 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    bool isIntelMTLDevice = this->isIntelMTL();
+    bool isIntelARLDevice = this->isIntelARL();
     // Disable immediate command lists for DG2 devices on Windows due to driver
     // limitations.
     bool isLinux = true;
 #ifdef _WIN32
     isLinux = false;
 #endif
+    // Disable immediate command lists for Intel MTL/ARL devices on Linux by
+    // default due to driver limitations.
+    if ((isIntelMTLDevice || isIntelARLDevice) && isLinux) {
+      return NotUsed;
+    }
     if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
         isNewerThanIntelDG2()) {
       return PerQueue;
@@ -1952,7 +1973,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
       [ZeDevice](
-          ZeStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;

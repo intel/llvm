@@ -92,7 +92,6 @@ struct BufferMem {
 struct ur_mem_handle_t_ : RefCounted {
   ur_context_handle_t Context;
 
-  enum class Type { Buffer } MemType;
   ur_mem_flags_t MemFlags;
 
   // For now we only support BufferMem. Eventually we'll support images, so use
@@ -102,7 +101,7 @@ struct ur_mem_handle_t_ : RefCounted {
   ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_handle_t Parent,
                    ur_mem_flags_t MemFlags, BufferMem::AllocMode Mode,
                    void *Ptr, void *HostPtr, size_t Size)
-      : Context{Context}, MemType{Type::Buffer}, MemFlags{MemFlags},
+      : Context{Context}, MemFlags{MemFlags},
         Mem{BufferMem{Parent, Mode, Ptr, HostPtr, Size}} {
     urContextRetain(Context);
   };
@@ -110,4 +109,11 @@ struct ur_mem_handle_t_ : RefCounted {
   ~ur_mem_handle_t_() { urContextRelease(Context); }
 
   ur_context_handle_t getContext() const noexcept { return Context; }
+
+  BufferMem *AsBufferMem() noexcept {
+    if (std::holds_alternative<BufferMem>(Mem)) {
+      return &std::get<BufferMem>(Mem);
+    }
+    return nullptr;
+  }
 };

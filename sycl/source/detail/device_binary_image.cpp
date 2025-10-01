@@ -219,8 +219,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->ManifestStart = nullptr;
   Bin->ManifestEnd = nullptr;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->BinaryStart = nullptr;
   Bin->BinaryEnd = nullptr;
   Bin->EntriesBegin = nullptr;
@@ -710,22 +712,29 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
       static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
 }
 
+// std::call_once ensures that this function is thread_safe and prevents
+// race during image decompression.
 void CompressedRTDeviceBinaryImage::Decompress() {
+  auto DecompressFunc = [&]() {
+    size_t CompressedDataSize =
+        static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
 
-  size_t CompressedDataSize =
-      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
+    size_t DecompressedSize = 0;
+    m_DecompressedData = ZSTDCompressor::DecompressBlob(
+        reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
+        DecompressedSize);
 
-  size_t DecompressedSize = 0;
-  m_DecompressedData = ZSTDCompressor::DecompressBlob(
-      reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
-      DecompressedSize);
+    Bin->BinaryStart =
+        reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
+    Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
-  Bin->BinaryStart =
-      reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
-  Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
+    Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 
-  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
-  Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
+    m_IsCompressed.store(false);
+  };
+
+  std::call_once(m_InitFlag, DecompressFunc);
 }
 
 CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {

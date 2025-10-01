@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/platform_util.hpp>
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/exception.hpp>
@@ -45,7 +44,4 @@ __SYCL_EXPORT void __spirv_MemoryBarrier(__spv::Scope Memory,
   atomic_thread_fence(std::memory_order_seq_cst);
 }
 
-__SYCL_EXPORT void __spirv_ocl_prefetch(const char *Ptr,
-                                        size_t NumBytes) noexcept {
-  sycl::detail::PlatformUtil::prefetch(Ptr, NumBytes);
-}
+__SYCL_EXPORT void __spirv_ocl_prefetch(const char *, size_t) noexcept {}

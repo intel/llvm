@@ -88,12 +88,9 @@ ur_result_t MsanShadowMemoryCPU::Setup() {
       uptr End = kMemoryLayout[i].end;
       uptr Size = End - Start;
       MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool InitOrigins = true;
 
-      bool IsMap = Type == MappingDesc::SHADOW ||
-                   (InitOrigins && Type == MappingDesc::ORIGIN);
-      bool IsProtect = Type == MappingDesc::INVALID ||
-                       (!InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
+      bool IsProtect = Type == MappingDesc::INVALID;
 
       if (IsMap) {
         if (MmapFixedNoReserve(Start, Size) == 0) {
@@ -124,9 +121,7 @@ ur_result_t MsanShadowMemoryCPU::Destory() {
       uptr End = kMemoryLayout[i].end;
       uptr Size = End - Start;
       MappingDesc::Type Type = kMemoryLayout[i].type;
-      bool InitOrigins = true;
-      bool IsMap = Type == MappingDesc::SHADOW ||
-                   (InitOrigins && Type == MappingDesc::ORIGIN);
+      bool IsMap = Type == MappingDesc::SHADOW || Type == MappingDesc::ORIGIN;
       if (IsMap) {
         if (Munmap(Start, Size)) {
           return UR_RESULT_ERROR_UNKNOWN;
@@ -168,7 +163,7 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
                (void *)(uptr)Value);
       memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
     }
-    {
+    if (Origin) {
       const uptr OriginBegin = MemToOrigin(Ptr);
       const uptr OriginEnd =
           MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
@@ -333,14 +328,16 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
     UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
 
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "EnqueuePoisonOrigin(addr={}, size={}, value={})",
-             (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-             (void *)(uptr)Origin);
+    if (Origin) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "EnqueuePoisonOrigin(addr={}, size={}, value={})",
+               (void *)OriginBegin, OriginEnd - OriginBegin + 1,
+               (void *)(uptr)Origin);
 
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
-        OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+      UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+          Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
+          OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+    }
   }
 
   return UR_RESULT_SUCCESS;

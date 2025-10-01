@@ -335,6 +335,20 @@ class accessor {
 ...
 ```
 
+The `handler::require` function is modified to reflect this type change:
+
+```c++
+namespace sycl {
+class handler {
+public:
+  template <typename DataT, int Dimensions, access_mode AccessMode,
+            target AccessTarget, access::placeholder IsPlaceholder,
+            typename property_listT>
+  void require(accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder, property_listT> acc);
+};
+} // namespace sycl
+```
+
 Modify the code listing to add variants of all the accessor constructors that take a property_list 
 that instead take an accessor_property_list:
 

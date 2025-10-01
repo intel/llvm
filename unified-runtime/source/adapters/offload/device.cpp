@@ -62,11 +62,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VENDOR:
     olInfo = OL_DEVICE_INFO_VENDOR;
     break;
+  case UR_DEVICE_INFO_VENDOR_ID:
+    olInfo = OL_DEVICE_INFO_VENDOR_ID;
+    break;
   case UR_DEVICE_INFO_DRIVER_VERSION:
     olInfo = OL_DEVICE_INFO_DRIVER_VERSION;
     break;
   case UR_DEVICE_INFO_PLATFORM:
     return ReturnValue(hDevice->Platform);
+    break;
+  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
+    return ReturnValue((std::to_string(OL_VERSION_MAJOR) + "." +
+                        std::to_string(OL_VERSION_MINOR) + "." +
+                        std::to_string(OL_VERSION_PATCH))
+                           .c_str());
+  case UR_DEVICE_INFO_PROFILE:
+    // This doesn't make sense for non-opencl devices, copy other backends and
+    // just return FULL_PROFILE
+    return ReturnValue("FULL_PROFILE");
+  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
+  case UR_DEVICE_INFO_NUM_COMPUTE_UNITS:
+    olInfo = OL_DEVICE_INFO_NUM_COMPUTE_UNITS;
+    break;
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
+    olInfo = OL_DEVICE_INFO_SINGLE_FP_CONFIG;
+    break;
+  case UR_DEVICE_INFO_HALF_FP_CONFIG:
+    olInfo = OL_DEVICE_INFO_HALF_FP_CONFIG;
+    break;
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG:
+    olInfo = OL_DEVICE_INFO_DOUBLE_FP_CONFIG;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE;
+    break;
+  case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+  case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
+    olInfo = OL_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF;
+    break;
+  case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
+    olInfo = OL_DEVICE_INFO_MAX_CLOCK_FREQUENCY;
+    break;
+  case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
+    olInfo = OL_DEVICE_INFO_MEMORY_CLOCK_RATE;
+    break;
+  case UR_DEVICE_INFO_ADDRESS_BITS:
+    olInfo = OL_DEVICE_INFO_ADDRESS_BITS;
+    break;
+  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
+    olInfo = OL_DEVICE_INFO_MAX_MEM_ALLOC_SIZE;
+    break;
+  case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
+    olInfo = OL_DEVICE_INFO_GLOBAL_MEM_SIZE;
     break;
   case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
   case UR_DEVICE_INFO_USM_HOST_SUPPORT:
@@ -85,6 +153,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     // TODO: Implement subgroups in Offload
     return ReturnValue(1);
+  case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t);
+    }
+
+    if (pPropValue) {
+      uint32_t as32;
+      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
+                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                       sizeof(as32), &as32));
+
+      *reinterpret_cast<size_t *>(pPropValue) = as32;
+    }
+
+    return UR_RESULT_SUCCESS;
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
     if (pPropSizeRet) {
@@ -94,9 +177,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     if (pPropValue) {
       ol_dimensions_t olVec;
       size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
-      OL_RETURN_ON_ERR(olGetDeviceInfo(hDevice->OffloadDevice,
-                                       OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                                       sizeof(olVec), &olVec));
+      OL_RETURN_ON_ERR(
+          olGetDeviceInfo(hDevice->OffloadDevice,
+                          OL_DEVICE_INFO_MAX_WORK_GROUP_SIZE_PER_DIMENSION,
+                          sizeof(olVec), &olVec));
 
       urVec[0] = olVec.x;
       urVec[1] = olVec.y;
@@ -105,27 +189,56 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
+    // OL dimensions are uint32_t while UR is size_t, so they need to be mapped
+    if (pPropSizeRet) {
+      *pPropSizeRet = sizeof(size_t) * 3;
+    }
+
+    if (pPropValue) {
+      ol_dimensions_t olVec;
+      size_t *urVec = reinterpret_cast<size_t *>(pPropValue);
+      OL_RETURN_ON_ERR(olGetDeviceInfo(
+          hDevice->OffloadDevice, OL_DEVICE_INFO_MAX_WORK_SIZE_PER_DIMENSION,
+          sizeof(olVec), &olVec));
+
+      urVec[0] = olVec.x;
+      urVec[1] = olVec.y;
+      urVec[2] = olVec.z;
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
+
   // Unimplemented features
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_IMAGE_SUPPORT:
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_ESIMD_SUPPORT:
+  case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
+  case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
+  case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
   case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
-  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
     return ReturnValue(
         ur_queue_flags_t{UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE});
+  case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
+    return ReturnValue(0);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
@@ -134,6 +247,111 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
+    return ReturnValue(0u);
+  }
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    return ReturnValue(0u);
+  }
+  case UR_DEVICE_INFO_PARTITION_TYPE: {
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_AVAILABLE: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
+    // An empty string is returned if no built-in kernels are supported by the
+    // device.
+    return ReturnValue("");
+  }
+  case UR_DEVICE_INFO_ENDIAN_LITTLE: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION: {
+    // Liboffload has no profiling timers yet
+    return ReturnValue(size_t{0});
+  }
+  case UR_DEVICE_INFO_LOCAL_MEM_TYPE: {
+    return ReturnValue(UR_DEVICE_LOCAL_MEM_TYPE_NONE);
+  }
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
+    return ReturnValue(size_t{0});
+  }
+
+  // The following properties are lifted from the minimum supported
+  // intersection of the HIP and CUDA backends until liboffload adds a specific
+  // query
+  case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    ur_memory_scope_capability_flags_t Capabilities =
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+        UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
+    auto Capability = ur_device_exec_capability_flags_t{
+        UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL};
+    return ReturnValue(Capability);
+  }
+  case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    return ReturnValue(int32_t{1});
+  }
+  case UR_DEVICE_INFO_MAX_PARAMETER_SIZE: {
+    return ReturnValue(size_t{4000});
+  }
+  case UR_DEVICE_INFO_MAX_CONSTANT_ARGS: {
+    return ReturnValue(uint32_t{9});
+  }
+  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
+    return ReturnValue(ur_bool_t{true});
+  }
+  case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
+    // The minimum value for the FULL profile is 1 MB.
+    return ReturnValue(size_t(1024));
+  }
+
+  // No image support in liboffload yet, so just return 0 for these properties
+  case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
+  case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
+  case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
+  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
+  case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
+    return ReturnValue(size_t{0});
+  case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS:
+  case UR_DEVICE_INFO_MAX_SAMPLERS:
+    return ReturnValue(uint32_t{0});
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
@@ -146,10 +364,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   if (pPropValue) {
     OL_RETURN_ON_ERR(
         olGetDeviceInfo(hDevice->OffloadDevice, olInfo, propSize, pPropValue));
-    // Need to explicitly map this type
-    if (olInfo == OL_DEVICE_INFO_TYPE) {
-      auto urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
-      auto olPropPtr = reinterpret_cast<ol_device_type_t *>(pPropValue);
+
+    // Need to explicitly map these types
+    switch (olInfo) {
+    case OL_DEVICE_INFO_TYPE: {
+      auto *urPropPtr = reinterpret_cast<ur_device_type_t *>(pPropValue);
+      auto *olPropPtr = reinterpret_cast<ol_device_type_t *>(pPropValue);
 
       switch (*olPropPtr) {
       case OL_DEVICE_TYPE_CPU:
@@ -161,6 +381,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       default:
         break;
       }
+      break;
+    }
+    case OL_DEVICE_INFO_SINGLE_FP_CONFIG:
+    case OL_DEVICE_INFO_HALF_FP_CONFIG:
+    case OL_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+      auto olValue =
+          *reinterpret_cast<ol_device_fp_capability_flags_t *>(pPropValue);
+      ur_device_fp_capability_flags_t urValue{0};
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_INF_NAN)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_DENORM)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_DENORM;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_FMA)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+      if (olValue & OL_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT)
+        urValue |= UR_DEVICE_FP_CAPABILITY_FLAG_SOFT_FLOAT;
+      auto *urPropPtr =
+          reinterpret_cast<ur_device_fp_capability_flags_t *>(pPropValue);
+      *urPropPtr = urValue;
+    }
+    default:
+      break;
     }
   }
 

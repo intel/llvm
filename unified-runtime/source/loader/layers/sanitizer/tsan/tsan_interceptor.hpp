@@ -44,9 +44,14 @@ struct DeviceInfo {
 
   std::shared_ptr<ShadowMemory> Shadow;
 
+  ur_shared_mutex AllocInfosMutex;
+  std::set<TsanAllocInfo> AllocInfos;
+
   explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
 
   ur_result_t allocShadowMemory();
+
+  void insertAllocInfo(TsanAllocInfo AI);
 };
 
 struct ContextInfo {
@@ -55,9 +60,6 @@ struct ContextInfo {
   std::atomic<uint32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
-
-  ur_shared_mutex AllocInfosMutex;
-  std::set<TsanAllocInfo> AllocInfos;
 
   ur_shared_mutex InternalQueueMapMutex;
   std::unordered_map<ur_device_handle_t, std::optional<ManagedQueue>>
@@ -79,8 +81,6 @@ struct ContextInfo {
   ContextInfo(const ContextInfo &) = delete;
 
   ContextInfo &operator=(const ContextInfo &) = delete;
-
-  void insertAllocInfo(TsanAllocInfo AI);
 
   ur_queue_handle_t getInternalQueue(ur_device_handle_t);
 };
@@ -297,8 +297,7 @@ public:
   ur_shared_mutex KernelLaunchMutex;
 
 private:
-  ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
-                                 std::shared_ptr<DeviceInfo> &DI,
+  ur_result_t updateShadowMemory(std::shared_ptr<DeviceInfo> &DI,
                                  ur_kernel_handle_t Kernel,
                                  ur_queue_handle_t Queue);
 

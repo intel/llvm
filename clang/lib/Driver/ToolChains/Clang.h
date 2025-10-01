@@ -190,6 +190,19 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Offload binary extract tool.
+class LLVM_LIBRARY_VISIBILITY OffloadPackagerExtract final : public Tool {
+public:
+  OffloadPackagerExtract(const ToolChain &TC)
+      : Tool("Offload::PackagerExtract", "clang-offload-packager", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 /// Offload deps tool.
 class LLVM_LIBRARY_VISIBILITY OffloadDeps final : public Tool {
   void constructJob(Compilation &C, const JobAction &JA,

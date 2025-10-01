@@ -63,14 +63,14 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+      IMPORTED_IMPLIB               "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 else()
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+      IMPORTED_LOCATION             "${CUDA_cuda_driver_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${CUDAToolkit_INCLUDE_DIRS}"
   )
 endif()
 

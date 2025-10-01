@@ -21,6 +21,18 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
+  auto ContextImplPtr = MAllocatingContext.lock();
+  if (ContextImplPtr) {
+    if (MPtr != nullptr) {
+      detail::usm::freeInternal(MPtr, ContextImplPtr.get());
+      MPtr = nullptr;
+    }
+    if (MInitEvent != nullptr) {
+      ContextImplPtr->getAdapter().call<UrApiKind::urEventRelease>(MInitEvent);
+      MInitEvent = nullptr;
+    }
+  }
+
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
   assert(MInitEvent == nullptr && "MInitEvent has not been cleaned up.");
 }
@@ -63,6 +75,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(queue_impl &QueueImpl) {
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
+  NewAlloc.MAllocatingContext = CtxImpl.shared_from_this();
 
   // Initialize here and save the event.
   {
@@ -120,6 +133,7 @@ DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(const context &Context) {
   assert(NewAllocIt.second &&
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
+  NewAlloc.MAllocatingContext = CtxImpl.shared_from_this();
 
   if (MDeviceGlobalPtr) {
     // C++ guarantees members appear in memory in the order they are declared,
@@ -161,12 +175,9 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       if (USMMem.MInitEvent != nullptr)
         CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(
             USMMem.MInitEvent);
-#ifndef NDEBUG
-      // For debugging we set the event and memory to some recognizable values
-      // to allow us to check that this cleanup happens before erasure.
+      // Set to nullptr to avoid double free.
       USMMem.MPtr = nullptr;
       USMMem.MInitEvent = nullptr;
-#endif
       MDeviceToUSMPtrMap.erase(USMPtrIt);
     }
   }
@@ -185,12 +196,9 @@ void DeviceGlobalMapEntry::cleanup() {
     detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
     if (USMMem.MInitEvent != nullptr)
       CtxImpl->getAdapter().call<UrApiKind::urEventRelease>(USMMem.MInitEvent);
-#ifndef NDEBUG
-    // For debugging we set the event and memory to some recognizable values
-    // to allow us to check that this cleanup happens before erasure.
+    // Set to nullptr to avoid double free.
     USMMem.MPtr = nullptr;
     USMMem.MInitEvent = nullptr;
-#endif
   }
   MDeviceToUSMPtrMap.clear();
 }

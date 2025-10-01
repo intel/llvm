@@ -2,7 +2,7 @@
 // XFAIL: opencl && gpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
-// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
+// RUN: %{build} -o %t.out
 //
 // RUN: not env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False \
 // RUN: %{run} %t.out 2>&1 >/dev/null | FileCheck %s --check-prefix=CHECK-MESSAGE

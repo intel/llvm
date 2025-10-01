@@ -106,13 +106,34 @@ device_impl::get_backend_info<info::device::backend_version>() const {
 #endif
 
 bool device_impl::has_extension(const std::string &ExtensionName) const {
+  if (ExtensionName.empty())
+    return false;
+
   const std::string AllExtensionNames{
       get_info_impl<UR_DEVICE_INFO_EXTENSIONS>()};
 
-  // We add a space to both sides of both the extension string and the query
-  // string. This prevents to lookup from finding partial extension matches.
-  return ((" " + AllExtensionNames + " ").find(" " + ExtensionName + " ") !=
-          std::string::npos);
+  size_t FoundExtPos = AllExtensionNames.find(ExtensionName);
+  while (FoundExtPos != std::string::npos) {
+    // If the extension name was found, we need to ensure it is not a partial
+    // match. That is, the following must hold:
+    //  * The match must be at the start of the list of names or have a
+    //    whitespace before it and
+    //  * the match must end at the end of the list of names or have a
+    //    whitespace after it.
+    bool IsStartOrTerminated =
+        FoundExtPos == 0 || AllExtensionNames[FoundExtPos - 1] == ' ';
+    bool IsEndOrTerminated =
+        FoundExtPos + ExtensionName.size() == AllExtensionNames.size() ||
+        AllExtensionNames[FoundExtPos + ExtensionName.size()] == ' ';
+    if (IsStartOrTerminated && IsEndOrTerminated)
+      return true;
+
+    // If the match was partial, the extension name could still be later in the
+    // list. As such, search for the next match and recheck.
+    FoundExtPos = AllExtensionNames.find(ExtensionName,
+                                         FoundExtPos + ExtensionName.size());
+  }
+  return false;
 }
 
 bool device_impl::is_partition_supported(info::partition_property Prop) const {
@@ -262,7 +283,7 @@ std::vector<device> device_impl::create_sub_devices(
                               affinityDomainToString(AffinityDomain) + ".");
   }
 
-  ur_device_partition_property_t Prop;
+  ur_device_partition_property_t Prop{};
   Prop.type = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
   Prop.value.affinity_domain =
       static_cast<ur_device_affinity_domain_flags_t>(AffinityDomain);
@@ -289,9 +310,8 @@ std::vector<device> device_impl::create_sub_devices() const {
         "sycl::info::partition_property::ext_intel_partition_by_cslice.");
   }
 
-  ur_device_partition_property_t Prop;
+  ur_device_partition_property_t Prop{};
   Prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
-
   ur_device_partition_properties_t Properties{};
   Properties.stype = UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES;
   Properties.pProperties = &Prop;

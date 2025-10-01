@@ -43,7 +43,8 @@ class EmitC_UnaryOp<string mnemonic, list<Trait> traits = []> :
 
   let extraClassDeclaration = [{
     bool hasSideEffects() {
-      return false;
+      // If operand is fundamental type, the operation is pure.
+      return !isFundamentalType(getOperand().getType());
     }
   }];
 }
@@ -57,7 +58,9 @@ class EmitC_BinaryOp<string mnemonic, list<Trait> traits = []> :
 
   let extraClassDeclaration = [{
     bool hasSideEffects() {
-      return false;
+      // If both operands are fundamental types, the operation is pure.
+      return !isFundamentalType(getOperand(0).getType()) ||
+        !isFundamentalType(getOperand(1).getType());
     }
   }];
 }
@@ -399,7 +402,8 @@ def EmitC_CmpOp : EmitC_BinaryOp<"cmp", []> {
   let assemblyFormat = "$predicate `,` operands attr-dict `:` functional-type(operands, results)";
 }
 
-def EmitC_ConstantOp : EmitC_Op<"constant", [ConstantLike]> {
+def EmitC_ConstantOp
+    : EmitC_Op<"constant", [ConstantLike, CExpressionInterface]> {
   let summary = "Constant operation";
   let description = [{
     The `emitc.constant` operation produces an SSA value equal to some constant
@@ -426,6 +430,13 @@ def EmitC_ConstantOp : EmitC_Op<"constant", [ConstantLike]> {
 
   let hasFolder = 1;
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    bool hasSideEffects() {
+      // If operand is fundamental type, the operation is pure.
+      return !isFundamentalType(getResult().getType());
+    }
+  }];
 }
 
 def EmitC_DivOp : EmitC_BinaryOp<"div", []> {
@@ -452,17 +463,20 @@ def EmitC_DivOp : EmitC_BinaryOp<"div", []> {
   let results = (outs FloatIntegerIndexOrOpaqueType);
 }
 
-def EmitC_ExpressionOp : EmitC_Op<"expression",
-      [HasOnlyGraphRegion, OpAsmOpInterface,
-       SingleBlockImplicitTerminator<"emitc::YieldOp">, NoRegionArguments]> {
+def EmitC_ExpressionOp
+    : EmitC_Op<
+          "expression", [HasOnlyGraphRegion, OpAsmOpInterface,
+                         IsolatedFromAbove,
+                         SingleBlockImplicitTerminator<"emitc::YieldOp">]> {
   let summary = "Expression operation";
   let description = [{
     The `emitc.expression` operation returns a single SSA value which is yielded by
     its single-basic-block region. The operation doesn't take any arguments.
 
     As the operation is to be emitted as a C expression, the operations within
-    its body must form a single Def-Use tree of emitc ops whose result is
-    yielded by a terminating `emitc.yield`.
+    its body must form a single Def-Use tree, or a DAG trivially expandable to
+    one, i.e. a DAG where each operation with side effects is only reachable
+    once from the expression root.
 
     Example:
 
@@ -491,12 +505,13 @@ def EmitC_ExpressionOp : EmitC_Op<"expression",
     at its use.
   }];
 
-  let arguments = (ins UnitAttr:$do_not_inline);
+  let arguments = (ins Variadic<AnyTypeOf<[EmitCType, EmitC_LValueType]>>:$defs,
+      UnitAttr:$do_not_inline);
   let results = (outs EmitCType:$result);
   let regions = (region SizedRegion<1>:$region);
 
   let hasVerifier = 1;
-  let assemblyFormat = "attr-dict (`noinline` $do_not_inline^)? `:` type($result) $region";
+  let hasCustomAssemblyFormat = 1;
 
   let extraClassDeclaration = [{
     bool hasSideEffects() {
@@ -507,6 +522,13 @@ def EmitC_ExpressionOp : EmitC_Op<"expression",
       return llvm::any_of(getRegion().front().without_terminator(), predicate);
     };
     Operation *getRootOp();
+    Block &createBody() {
+      assert(getRegion().empty() && "expression already has a body");
+      Block &block = getRegion().emplaceBlock();
+      for (auto operand : getOperands())
+        block.addArgument(operand.getType(), operand.getLoc());
+      return block;
+    }
 
     //===------------------------------------------------------------------===//
     // OpAsmOpInterface Methods
@@ -1051,6 +1073,8 @@ def EmitC_MemberOp : EmitC_Op<"member"> {
     ```mlir
     %0 = "emitc.member" (%arg0) {member = "a"}
         : (!emitc.lvalue<!emitc.opaque<"mystruct">>) -> !emitc.lvalue<i32>
+    %1 = "emitc.member" (%arg0) {member = "b"}
+        : (!emitc.lvalue<!emitc.opaque<"mystruct">>) -> !emitc.array<2xi32>
     ```
   }];
 
@@ -1058,7 +1082,7 @@ def EmitC_MemberOp : EmitC_Op<"member"> {
     Arg<StrAttr, "the member to access">:$member,
     EmitC_LValueOf<[EmitC_OpaqueType]>:$operand
   );
-  let results = (outs EmitC_LValueOf<[EmitCType]>);
+  let results = (outs AnyTypeOf<[EmitC_ArrayType, EmitC_LValueType]>);
 }
 
 def EmitC_MemberOfPtrOp : EmitC_Op<"member_of_ptr"> {
@@ -1073,6 +1097,9 @@ def EmitC_MemberOfPtrOp : EmitC_Op<"member_of_ptr"> {
     %0 = "emitc.member_of_ptr" (%arg0) {member = "a"}
         : (!emitc.lvalue<!emitc.ptr<!emitc.opaque<"mystruct">>>)
         -> !emitc.lvalue<i32>
+    %1 = "emitc.member_of_ptr" (%arg0) {member = "b"}
+        : (!emitc.lvalue<!emitc.ptr<!emitc.opaque<"mystruct">>>)
+        -> !emitc.array<2xi32>
     ```
   }];
 
@@ -1080,7 +1107,7 @@ def EmitC_MemberOfPtrOp : EmitC_Op<"member_of_ptr"> {
     Arg<StrAttr, "the member to access">:$member,
     EmitC_LValueOf<[EmitC_OpaqueType,EmitC_PointerType]>:$operand
   );
-  let results = (outs EmitC_LValueOf<[EmitCType]>);
+  let results = (outs AnyTypeOf<[EmitC_ArrayType, EmitC_LValueType]>);
 }
 
 def EmitC_ConditionalOp : EmitC_Op<"conditional",
@@ -1590,6 +1617,113 @@ def EmitC_SwitchOp : EmitC_Op<"switch", [RecursiveMemoryEffects,
     }
   }];
 
+  let hasVerifier = 1;
+}
+
+def EmitC_ClassOp
+    : EmitC_Op<"class", [AutomaticAllocationScope, IsolatedFromAbove,
+                         OpAsmOpInterface, SymbolTable,
+                         Symbol]#GraphRegionNoTerminator.traits> {
+  let summary =
+      "Represents a C++ class definition, encapsulating fields and methods.";
+
+  let description = [{
+    The `emitc.class` operation defines a C++ class, acting as a container
+    for its data fields (`emitc.field`) and methods (`emitc.func`).
+    It creates a distinct scope, isolating its contents from the surrounding
+    MLIR region, similar to how C++ classes encapsulate their internals.
+
+    Example:
+
+    ```mlir
+    emitc.class @modelClass {
+      emitc.field @fieldName0 : !emitc.array<1xf32> = {emitc.opaque = "input_tensor"}
+      emitc.func @execute() {
+        %0 = "emitc.constant"() <{value = 0 : index}> : () -> !emitc.size_t
+        %1 = get_field @fieldName0 : !emitc.array<1xf32>
+        %2 = subscript %1[%0] : (!emitc.array<1xf32>, !emitc.size_t) -> !emitc.lvalue<f32>
+        return
+      }
+    }
+    // Class with a final speciferAdd commentMore actions
+    emitc.class final @modelClass {
+      emitc.field @fieldName0 : !emitc.array<1xf32> = {emitc.opaque = "input_tensor"}
+      emitc.func @execute() {
+        %0 = "emitc.constant"() <{value = 0 : index}> : () -> !emitc.size_t
+        %1 = get_field @fieldName0 : !emitc.array<1xf32>
+        %2 = subscript %1[%0] : (!emitc.array<1xf32>, !emitc.size_t) -> !emitc.lvalue<f32>
+        return
+      }
+    }
+    ```
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name, UnitAttr:$final_specifier);
+
+  let regions = (region AnyRegion:$body);
+
+  let extraClassDeclaration = [{
+    // Returns the body block containing class members and methods.
+    Block &getBlock();
+  }];
+
+  let hasCustomAssemblyFormat = 1;
+
+  let assemblyFormat =
+      [{ (`final` $final_specifier^)? $sym_name attr-dict-with-keyword $body }];
+}
+
+def EmitC_FieldOp : EmitC_Op<"field", [Symbol]> {
+  let summary = "A field within a class";
+  let description = [{
+    The `emitc.field` operation declares a named field within an `emitc.class`
+    operation. The field's type must be an EmitC type. 
+
+    Example:
+
+    ```mlir
+    // Example with an attribute:
+    emitc.field @fieldName0 : !emitc.array<1xf32>  {emitc.opaque = "another_feature"}
+    // Example with no attribute:
+    emitc.field @fieldName0 : !emitc.array<1xf32>
+    // Example with an initial value:
+    emitc.field @fieldName0 : !emitc.array<1xf32> = dense<0.0>
+    // Example with an initial value and attributes:
+    emitc.field @fieldName0 : !emitc.array<1xf32> = dense<0.0> {
+      emitc.opaque = "input_tensor"}
+    ```
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name, TypeAttr:$type,
+      OptionalAttr<EmitC_OpaqueOrTypedAttr>:$initial_value);
+
+  let assemblyFormat = [{
+       $sym_name
+       `:` custom<EmitCFieldOpTypeAndInitialValue>($type, $initial_value)
+       attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def EmitC_GetFieldOp
+    : EmitC_Op<"get_field", [Pure, DeclareOpInterfaceMethods<
+                                       SymbolUserOpInterface>]> {
+  let summary = "Obtain access to a field within a class instance";
+  let description = [{
+     The `emitc.get_field` operation retrieves the lvalue of a
+     named field from a given class instance.
+
+     Example:
+
+     ```mlir
+     %0 = get_field @fieldName0 : !emitc.array<1xf32>
+     ```
+  }];
+
+  let arguments = (ins FlatSymbolRefAttr:$field_name);
+  let results = (outs EmitCType:$result);
+  let assemblyFormat = "$field_name `:` type($result) attr-dict";
   let hasVerifier = 1;
 }
 

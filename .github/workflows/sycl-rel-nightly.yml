@@ -1,5 +1,6 @@
-# The actual version of this workflow can be found on the latest sycl-rel-*
-# branch. This file is still needed to launch the workflow on another branches.
+# The actual version of this file can be found on the latest sycl-rel-* branch.
+# A new release branch copies this file from the latest release branch.
+# This file is still needed to launch the workflow on another branches.
 
 name: SYCL Release Branch Nightly
 

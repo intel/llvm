@@ -18,7 +18,7 @@ AMDGPU_ATOMIC(__spirv_AtomicIAdd, long, __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(__spirv_AtomicIAdd, unsigned long, __hip_atomic_fetch_add)
 
 #define AMDGPU_ATOMIC_FP32_ADD_IMPL(AS, CHECK, NEW_BUILTIN)                    \
-  _CLC_OVERLOAD _CLC_DECL float __spirv_AtomicFAddEXT(                         \
+  _CLC_OVERLOAD _CLC_DEF float __spirv_AtomicFAddEXT(                          \
       AS float *p, int scope, int semantics, float val) {                      \
     if (CHECK)                                                                 \
       return NEW_BUILTIN(p, val);                                              \
@@ -40,7 +40,7 @@ AMDGPU_ATOMIC_FP32_ADD_IMPL(, AMDGPU_ARCH_BETWEEN(9400, 10000),
                             __builtin_amdgcn_flat_atomic_fadd_f32)
 
 #define AMDGPU_ATOMIC_FP64_ADD_IMPL(AS, CHECK, NEW_BUILTIN)                    \
-  _CLC_OVERLOAD _CLC_DECL double __spirv_AtomicFAddEXT(                        \
+  _CLC_OVERLOAD _CLC_DEF double __spirv_AtomicFAddEXT(                         \
       AS double *p, int scope, int semantics, double val) {                    \
     if (CHECK)                                                                 \
       return NEW_BUILTIN(p, val);                                              \

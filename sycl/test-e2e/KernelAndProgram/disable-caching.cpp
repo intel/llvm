@@ -19,6 +19,16 @@ constexpr specialization_id<int> spec_id;
 
 int main() {
   queue q;
+  // iteration 0:
+  // CHECK: <--- urProgramCreate
+  // CHECK-NOT: <--- urProgramRetain
+  // CHECK: <--- urKernelCreate
+  // CHECK-NOT: <--- urKernelRetain
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urProgramRelease
+  // CHECK: <--- urKernelRelease
+  // CHECK: <--- urEventWait
+  // iteration 1:
   // CHECK: <--- urProgramCreate
   // CHECK-NOT: <--- urProgramRetain
   // CHECK: <--- urKernelCreate
@@ -28,6 +38,7 @@ int main() {
   // CHECK: <--- urKernelRelease
   // CHECK: <--- urEventWait
 
+  // iteration 0:
   // CHECK-CACHE: <--- urProgramCreate
   // CHECK-CACHE: <--- urProgramRetain
   // CHECK-CACHE-NOT: <--- urProgramRetain
@@ -35,8 +46,14 @@ int main() {
   // CHECK-CACHE: <--- urKernelRetain
   // CHECK-CACHE-NOT: <--- urKernelCreate
   // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE-NOT: <--- urProgramRelease
   // CHECK-CACHE: <--- urEventWait
-  q.single_task([] {}).wait();
+  // iteration 1:
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE-NOT: <--- urProgramRelease
+  // CHECK-CACHE: <--- urEventWait
+  for (int i = 0; i < 2; ++i)
+    q.single_task([] {}).wait();
 
   // CHECK: <--- urProgramCreate
   // CHECK-NOT: <--- urProgramRetain

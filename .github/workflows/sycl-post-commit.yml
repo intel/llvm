@@ -57,7 +57,6 @@ jobs:
             target_devices: level_zero:gpu
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Linux", "arc"]'
-            extra_lit_opts: --param matrix-xmx8=True
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
           #  - ask llvm-lit to show all the output, even for PASS (-a)
