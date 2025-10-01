@@ -21,6 +21,7 @@ on:
     - ./devops/dependencies.json
     - ./devops/dependencies-igc-dev.json
 
+
 concurrency:
   #  Cancel a currently running workflow from the same PR or commit hash.
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
