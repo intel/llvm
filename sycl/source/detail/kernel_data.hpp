@@ -59,7 +59,10 @@ public:
     MArgs.emplace_back(std::forward<Args>(args)...);
   }
 
-  void clearArgs() { MArgs.clear(); }
+  void clearArgs() {
+    MArgs.clear();
+    MArgShift = 0;
+  }
 
   detail::NDRDescT &getNDRDesc() & { return MNDRDesc; }
 
@@ -181,7 +184,9 @@ public:
 
   void extractArgsAndReqsFromLambda();
 
-  void incrementArgShift(int Shift) { MArgShift += Shift; }
+  void incrementArgShift(int Shift);
+
+  int getArgShift() const;
 
 private:
   // Storage for any SYCL Graph dynamic parameters which have been flagged for

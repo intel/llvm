@@ -4870,7 +4870,6 @@ public:
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
-
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
     if (isSyclAccessorType(FieldTy)) {
@@ -4886,6 +4885,7 @@ public:
           SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::dynamic_local_accessor)
               ? SYCLIntegrationHeader::kind_dynamic_accessor
               : SYCLIntegrationHeader::kind_accessor;
+
       Header.addParamDesc(ParamKind, Info, CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
@@ -5053,7 +5053,6 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    Header.setParentStruct(nullptr);
     return true;
   }
 
@@ -7278,7 +7277,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       if (!Param->getType()->isStructureType())
         continue;
       const RecordDecl *Struct =
-          Param->getType()->getAsStructureType()->getDecl();
+          Param->getType()->getAsRecordDecl();
       QualType type = Param->getType();
       if (!S.getStructsWithSpecialType().count(Struct) ||
           visitedStructWithSpecialType.count(Struct))

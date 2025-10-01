@@ -1696,7 +1696,7 @@ public:
         }
         ++NumArgs;
       }
-      updateArgShift(NumArgs);
+      incrementArgShift(NumArgs);
     }
   }
 
@@ -3666,8 +3666,6 @@ private:
   void clearArgs();
 #endif
 
-  void incrementArgShift(int);
-
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
@@ -3751,6 +3749,7 @@ private:
 
   queue getQueue();
 
+  void incrementArgShift(int Shift);
 protected:
   /// Registers event dependencies in this command group.
   void depends_on(const detail::EventImplPtr &Event);
