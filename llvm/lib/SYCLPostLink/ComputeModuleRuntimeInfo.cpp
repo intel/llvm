@@ -132,7 +132,7 @@ static std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 // Returns an empty vector if not present.
 template <typename T>
 static std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
-                                            const char *MDName) {
+                                                 const char *MDName) {
   MDNode *WorkGroupMD = Func.getMetadata(MDName);
   if (!WorkGroupMD)
     return {};
@@ -150,7 +150,7 @@ static std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
 // Returns std::nullopt if metadata is not present.
 template <typename T>
 static std::optional<T> getKernelSingleEltMetadata(const Function &Func,
-                                              const char *MDName) {
+                                                   const char *MDName) {
   if (MDNode *MaxDimMD = Func.getMetadata(MDName)) {
     assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
     return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))
