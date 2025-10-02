@@ -1129,12 +1129,27 @@ forward-declarable.
 
 ===== `--auto-pch`
 
-Enable auto-detection of the preamble and use it as a pre-compiled header to
-speed up subsequent compilations of TUs matching the preamble/compilation
-options. Example of the code that can benefit from this:
+The first time this option is passed, the compiler finds the initial set of
+preprocessor directives (e.g., `#define`/`#include`) and comments in the
+compiled source string (the preamble) and pre-compiles it. Essentialy, it
+behaves like a precompiled header containing that preamble. On subsequent
+compilations, if the compiled source string has the same preamble and the same
+compilation options are used, the precompiled preamble is used, which speeds up
+compilation.
+
+If the compiled source string has a different preamble or compilation options
+differ, a new precompiled preamble is generated, and that preamble can also be
+used to speed up subsequent compilations. These precompiled preambles are stored
+internally in memory, so they do not persist from one execution of the
+application to the next.
+
+The preamble ends with the first statement that is not a preprocessor directive
+or a comment. For example, in the code below, the preamble ends immediately
+before the namespace syclext = statement.
 
 [source,c++]
 ----
+#define SYCL_SIMPLE_SWIZZLES
 #include <sycl/sycl.hpp>
 
 // Auto-detected preamble ends before next line:
@@ -1143,28 +1158,23 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 extern "C"
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void iota(float start, float *ptr) {
+void iota(sycl::vec<int, 2> *p) {
     size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-    ptr[id] = start + static_cast<float>(id);
+    p[id] = p[id].xx();
 }
 ----
 
-Limitations:
+The compiler uses the following factors when deciding whether a previously
+generated precompiled preamble can be used:
 
-* Any changes in either preamble or compilation options (including
-  `-DSOMETHING`!) result in a creation of a new pre-compiled header/preamble.
+* The preamble must exactly match (including whitespace and comments).
+* The compilation options must match (including the same order and the same spelling).
+* There are also certain restrictions that the user must avoid:
 
-* No support (including not reporting any errors) for `+__DATE__+`/`+__TIME__+`
-  macros inside auto-detected preamble (transitively in regards to the
-  includes).
-
-* Files used inside preamble must not change between different compilations (at
-  least for the same auto-detected preamble).
-
-* Auto-generated pre-compiled headers/preambles are stored in memory only. That means:
-  - No persistency between invocations
-  - Currently there is no eviction mechanism, so application is expected to use
-     the option only when number of preambles is limited.
+  - The content of each header file in the preamble must not change from one
+    compilation to another.
+  - The header files in the preamble must not use the `+__DATE__+` or
+    `+__TIME__+` macros.
 
 === Known issues and limitations when the language is `sycl`
 

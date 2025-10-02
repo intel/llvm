@@ -42,16 +42,11 @@ int main(int argc, char **argv) {
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-auto foo(sycl::vec<int, 4> v) {
-  // Wouldn't work without SYCL_SIMPLE_SWIZZLES
-  return v.xx();
-}
-
 extern "C"
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void iota(float start, float *ptr) {
+void iota(sycl::vec<int, 2> *p) {
     size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-    ptr[id] = start + static_cast<float>(id);
+    p[id] = p[id].xx();
 }
 )""");
 }
