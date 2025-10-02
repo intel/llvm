@@ -256,6 +256,7 @@ class HostKernelRef : public HostKernelRefBase {
 
 public:
   HostKernelRef(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
+  HostKernelRef(const KernelType &Kernel) = delete;
 
   virtual char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
@@ -291,7 +292,7 @@ public:
 };
 
 // This function is needed for host-side compilation to keep kernels
-// instantitated. This is important for debuggers to be able to associate
+// instantiated. This is important for debuggers to be able to associate
 // kernel code instructions with source code lines.
 template <class KernelType, class KernelArgType, int Dims>
 constexpr void *GetInstantiateKernelOnHostPtr() {
