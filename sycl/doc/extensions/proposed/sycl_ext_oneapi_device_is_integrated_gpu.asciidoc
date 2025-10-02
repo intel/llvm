@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_device_is_integrated
+= sycl_ext_oneapi_device_is_integrated_gpu
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -53,8 +53,11 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension allows host code to check whether a physical device, represented
-by a SYCL device, is integrated with the host.
+This extension allows host code to check whether a SYCL GPU device is "integrated"
+or "discrete". An integrated GPU device often shares memory with the host CPU,
+while a discrete GPU is often a separate card with its own memory. However, some
+GPU devices may not fit neatly into either category, so implementors may provide
+their own judgement when categorizing a GPU device as "integrated" vs. "discrete".
 
 
 == Specification
@@ -63,9 +66,9 @@ by a SYCL device, is integrated with the host.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification. An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_DEVICE_IS_INTEGRATED` to one of the values defined in the
-implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features the implementation
+macro `SYCL_EXT_ONEAPI_DEVICE_IS_INTEGRATED_GPU` to one of the values defined
+in the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
 supports.
 
 [%header,cols="1,5"]
@@ -78,7 +81,7 @@ supports.
  macro always has this value.
 |===
 
-=== New device aspects
+=== New device aspect
 
 This extension adds new device aspect:
 
@@ -86,7 +89,7 @@ This extension adds new device aspect:
 namespace sycl {
 
 enum class aspect : /*unspecified*/ {
-  ext_oneapi_device_is_integrated
+  ext_oneapi_is_integrated_gpu
 };
 
 } // namespace sycl
@@ -97,23 +100,9 @@ enum class aspect : /*unspecified*/ {
 |Aspect
 |Description
 
-|`ext_oneapi_device_is_integrated`
-|Indicates that the device supports the
- `sycl::device::get_info<sycl::ext::oneapi::info::device::device_is_integrated>()`
- call.
-|===
-
-=== New device descriptor
-
-[width="100%",%header,cols="50%,50%,50%"]
-|===
-|Device descriptor
-|Return type
-|Description
-
-|`sycl::ext::oneapi::info::device::device_is_integrated`
-|bool
-|Returns `true` if device is integrated, otherwise returns `false`.
+|`ext_oneapi_is_integrated_gpu`
+|Indicates that the implementation identifies this device as integrated GPU. All devices
+that have this aspect also have `aspect::gpu`.
 |===
 
 == Issues
