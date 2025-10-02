@@ -350,6 +350,7 @@
 		urPrintExpImageCopyRegion;
 		urPrintExpImageMemType;
 		urPrintExpPeerInfo;
+		urPrintExpProgramFlags;
 		urPrintExpSamplerAddrModes;
 		urPrintExpSamplerCubemapFilterMode;
 		urPrintExpSamplerCubemapProperties;
@@ -451,6 +452,7 @@
 		urPrintProgramCreateWithBinaryParams;
 		urPrintProgramCreateWithIlParams;
 		urPrintProgramCreateWithNativeHandleParams;
+		urPrintProgramDynamicLinkExpParams;
 		urPrintProgramGetBuildInfoParams;
 		urPrintProgramGetFunctionPointerParams;
 		urPrintProgramGetGlobalVariablePointerParams;
@@ -552,6 +554,7 @@
 		urProgramCreateWithBinary;
 		urProgramCreateWithIL;
 		urProgramCreateWithNativeHandle;
+		urProgramDynamicLinkExp;
 		urProgramGetBuildInfo;
 		urProgramGetFunctionPointer;
 		urProgramGetGlobalVariablePointer;

@@ -1416,6 +1416,16 @@ urPrintExpCommandBufferUpdateKernelLaunchDesc(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_program_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintExpProgramFlags(enum ur_exp_program_flag_t value, char *buffer,
+                       const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_peer_info_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1844,6 +1854,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramCreateWithBinaryParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramBuildParams(
     const struct ur_program_build_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_program_dynamic_link_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramDynamicLinkExpParams(
+    const struct ur_program_dynamic_link_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -475,6 +475,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP = 287,
   /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
   UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 288,
+  /// Enumerator for ::urProgramDynamicLinkExp
+  UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP = 289,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2444,6 +2446,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports the multi device
   /// compile experimental feature.
   UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
+  /// [::ur_bool_t] Returns true if the device supports the dynamic linking
+  /// experimental feature.
+  UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP = 0x6001,
   /// [::ur_bool_t] returns true if the device supports
   /// ::urUSMContextMemcpyExp
   UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP = 0x7000,
@@ -12346,6 +12351,47 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for dynamic linking
+#if !defined(__GNUC__)
+#pragma region dynamic_link_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Creates dynamic links between exported and imported symbols in one or
+///        more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point the programs in
+///       `phPrograms` will have all external symbols resolved and kernels
+///       inside these programs would be ready for use.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPrograms`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program
+///         object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+UR_APIEXPORT ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for enqueuing timestamp
 // recordings
 #if !defined(__GNUC__)
@@ -12521,6 +12567,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
 #pragma region multi_device_compile_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Program operation behavior control flags
+typedef uint32_t ur_exp_program_flags_t;
+typedef enum ur_exp_program_flag_t {
+  /// Allow unresolved symbols in the program resulting from the
+  /// corresponding operation
+  UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS = UR_BIT(0),
+  /// @cond
+  UR_EXP_PROGRAM_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_program_flag_t;
+/// @brief Bit Mask for validating ur_exp_program_flags_t
+#define UR_EXP_PROGRAM_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Produces an executable program from one program, negates need for the
 ///        linking step.
 ///
@@ -12543,6 +12604,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
@@ -12554,6 +12617,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions);
 
@@ -12579,6 +12644,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
@@ -12590,6 +12657,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions);
 
@@ -12623,6 +12692,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(
 ///         + `NULL == phDevices`
 ///         + `NULL == phPrograms`
 ///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If one of the programs in `phPrograms` isn't a valid program
 ///         object.
@@ -12637,6 +12708,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -13465,6 +13538,16 @@ typedef struct ur_program_build_params_t {
 } ur_program_build_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramDynamicLinkExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_dynamic_link_exp_params_t {
+  ur_context_handle_t *phContext;
+  uint32_t *pcount;
+  const ur_program_handle_t **pphPrograms;
+} ur_program_dynamic_link_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramBuildExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -13472,6 +13555,7 @@ typedef struct ur_program_build_exp_params_t {
   ur_program_handle_t *phProgram;
   uint32_t *pnumDevices;
   ur_device_handle_t **pphDevices;
+  ur_exp_program_flags_t *pflags;
   const char **ppOptions;
 } ur_program_build_exp_params_t;
 
@@ -13493,6 +13577,7 @@ typedef struct ur_program_compile_exp_params_t {
   ur_program_handle_t *phProgram;
   uint32_t *pnumDevices;
   ur_device_handle_t **pphDevices;
+  ur_exp_program_flags_t *pflags;
   const char **ppOptions;
 } ur_program_compile_exp_params_t;
 
@@ -13516,6 +13601,7 @@ typedef struct ur_program_link_exp_params_t {
   ur_context_handle_t *phContext;
   uint32_t *pnumDevices;
   ur_device_handle_t **pphDevices;
+  ur_exp_program_flags_t *pflags;
   uint32_t *pcount;
   const ur_program_handle_t **pphPrograms;
   const char **ppOptions;

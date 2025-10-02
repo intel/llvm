@@ -4,7 +4,7 @@
     X=x.upper()
 %>
 
-.. _experimental-multi-device-compile:
+.. _experimental-dynamic-link:
 
 ================================================================================
 Multi Device Compile
@@ -24,10 +24,9 @@ Multi Device Compile
 Motivation
 --------------------------------------------------------------------------------
 
-Instead of relying on the list of devices used to create a context, provide
-interfaces which instead take a list of devices. This more closely aligns with
-PI and OpenCL. Introduced to workaround a regression. May be superseded in
-future.
+Some adapters support the ability to do dynamic linking between programs,
+resolving external symbols through that. This may allow AOT compiled binaries to
+be linked, despite already having been built.
 
 API
 --------------------------------------------------------------------------------
@@ -35,16 +34,12 @@ API
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_device_info_t
-    * ${X}_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP
-* ${x}_exp_program_flags_t
-    * ${X}_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS
+    * ${X}_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* ${x}ProgramBuildExp
-* ${x}ProgramCompileExp
-* ${x}ProgramLinkExp
+* ${x}ProgramDynamicLinkExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -54,15 +49,12 @@ Changelog
 +===========+=============================================+
 | 1.0       | Initial Draft                               |
 +-----------+---------------------------------------------+
-| 1.1       | Switch from extension string macro to       |
-|           | device info enum for reporting support.     |
-+-----------+---------------------------------------------+
 
 Support
 --------------------------------------------------------------------------------
 
 Adapters which support this experimental feature *must* return ``true`` when
-queried for ${X}_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP via
+queried for ${X}_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP via
 ${x}DeviceGetInfo. Conversely, before using any of the functionality defined
 in this experimental feature the user *must* use the device query to determine
 if the adapter supports this feature.
@@ -70,5 +62,4 @@ if the adapter supports this feature.
 Contributors
 --------------------------------------------------------------------------------
 
-* Kenneth Benzie (Benie) `k.benzie@codeplay.com <k.benzie@codeplay.com>`_
-* Aaron Greig `aaron.greig@codeplay.com <aaron.greig@codeplay.com>`_
+* Steffen Larsen `steffen.larsen@intel.com <steffen.larsen@intel.com>`_
