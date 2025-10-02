@@ -303,11 +303,13 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints,
                       bool AllowDeviceImageDependencies);
 
-#ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
-void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *Msg = "", int Tab = 0);
-#endif // NDEBUG
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
+                                      const char *Msg = "", int Tab = 0);
+LLVM_DUMP_METHOD void dumpEntryPoints(const Module &M,
+                                      bool OnlyKernelsAreEntryPoints = false,
+                                      const char *Msg = "", int Tab = 0);
+#endif
 
 struct SplitModule {
   std::string ModuleFilePath;
