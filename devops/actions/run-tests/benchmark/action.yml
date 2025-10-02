@@ -172,7 +172,7 @@ runs:
       esac
       case "$RUNNER_TAG" in
         '["PVC_PERF"]') MACHINE_TYPE="PVC" ;;
-        '["BMG_PERF"]') MACHINE_TYPE="BMG" ;;
+        '["test-runner"]') MACHINE_TYPE="BMG" ;;
         # Best effort at matching
         *)
           MACHINE_TYPE="${RUNNER_TAG#[\"}"
