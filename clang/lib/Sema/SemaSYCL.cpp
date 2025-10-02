@@ -5053,6 +5053,7 @@ public:
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+    Header.setParentStruct(nullptr);
     return true;
   }
 
@@ -7276,8 +7277,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (!Param->getType()->isStructureType())
         continue;
-      const RecordDecl *Struct =
-          Param->getType()->getAsRecordDecl();
+      const RecordDecl *Struct = Param->getType()->getAsRecordDecl();
       QualType type = Param->getType();
       if (!S.getStructsWithSpecialType().count(Struct) ||
           visitedStructWithSpecialType.count(Struct))
@@ -7408,8 +7408,16 @@ void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
   PD.Kind = Kind;
   PD.Info = Info;
   PD.Offset = Offset;
-  OffsetSizeInfo[ParentStruct].emplace_back(std::make_pair(Offset, Info));
-  KindInfo[ParentStruct].emplace_back(Kind);
+  // If we are adding a free function kernel parameter that is a struct that
+  // contains a special type, a little more work needs to be done in order to
+  // help the runtime set the kernel arguments properly. Add the offset, size,
+  // and Kind information to the integration header for each field inside this
+  // struct. Also, verify that we are actually adding a field and not the struct
+  // itself by checking the Kind.
+  if (ParentStruct && Kind != kernel_param_kind_t::kind_struct_with_special_type) {
+    OffsetSizeInfo[ParentStruct].emplace_back(std::make_pair(Offset, Info));
+    KindInfo[ParentStruct].emplace_back(Kind);
+  }
 }
 
 void SYCLIntegrationHeader::setParentStruct(ParmVarDecl *parent) {

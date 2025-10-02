@@ -282,6 +282,7 @@ void KernelData::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
 }
 
+
 void KernelData::extractArgsAndReqs(bool IsKernelCreatedFromSource) {
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(MArgs);
   clearArgs();

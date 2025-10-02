@@ -63,7 +63,7 @@ public:
 
   KernelNameStrRefT getKernelName() const {
     return MKernelData.getKernelName();
-  } 
+  }
 
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
