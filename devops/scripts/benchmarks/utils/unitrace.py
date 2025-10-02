@@ -5,17 +5,18 @@
 import os
 import shutil
 
+from datetime import datetime, timezone
+from pathlib import Path
+
 from options import options
 from utils.utils import (
     run,
-    git_clone,
     prune_old_files,
     remove_by_prefix,
     remove_by_extension,
 )
 from utils.logger import log
-
-from datetime import datetime, timezone
+from git_project import GitProject
 
 
 class Unitrace:
@@ -29,14 +30,14 @@ class Unitrace:
         )
 
         log.info("Downloading and building Unitrace...")
-        repo_dir = git_clone(
-            options.workdir,
-            "pti-gpu-repo",
+        self.project = GitProject(
             "https://github.com/intel/pti-gpu.git",
             "pti-0.12.4",
+            Path(options.workdir),
+            "pti-gpu",
         )
         build_dir = os.path.join(options.workdir, "unitrace-build")
-        unitrace_src = os.path.join(repo_dir, "tools", "unitrace")
+        unitrace_src = self.project.src_dir / "tools" / "unitrace"
         os.makedirs(build_dir, exist_ok=True)
 
         unitrace_exe = os.path.join(build_dir, "unitrace")

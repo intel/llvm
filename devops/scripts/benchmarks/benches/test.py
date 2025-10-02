@@ -4,12 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import random
-from utils.utils import git_clone
 from .base import Benchmark, Suite, TracingType
 from utils.result import BenchmarkMetadata, Result
-from utils.utils import run, create_build_path
-from options import options
-import os
 
 
 class TestSuite(Suite):
@@ -62,7 +58,7 @@ class TestSuite(Suite):
 
 class TestBench(Benchmark):
     def __init__(self, suite, name, value, diff, group="", notes=None, unstable=None):
-        super().__init__("", suite)
+        super().__init__(suite)
         self.bname = name
         self.value = value
         self.diff = diff

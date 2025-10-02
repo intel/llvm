@@ -20,9 +20,9 @@ target triple = "spirv64-unknown-unknown"
 ; CHECK-LLVM: %addrB = alloca <2 x bfloat>
 ; CHECK-LLVM: %dataA = load <2 x bfloat>, ptr %addrA
 ; CHECK-LLVM: %dataB = load <2 x bfloat>, ptr %addrB
-; CHECK-LLVM: %call = call spir_func bfloat @_Z3dotDv2_u6__bf16S_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
+; CHECK-LLVM: %call = call spir_func bfloat @_Z3dotDv2_DF16bS_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
 
-declare spir_func bfloat @_Z3dotDv2_u6__bf16Dv2_S_(<2 x bfloat>, <2 x bfloat>)
+declare spir_func bfloat @_Z3dotDv2_DF16bDv2_S_(<2 x bfloat>, <2 x bfloat>)
 
 define spir_kernel void @test() {
 entry:
@@ -30,7 +30,7 @@ entry:
   %addrB = alloca <2 x bfloat>
   %dataA = load <2 x bfloat>, ptr %addrA
   %dataB = load <2 x bfloat>, ptr %addrB
-  %call = call spir_func bfloat @_Z3dotDv2_u6__bf16Dv2_S_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
+  %call = call spir_func bfloat @_Z3dotDv2_DF16bDv2_S_(<2 x bfloat> %dataA, <2 x bfloat> %dataB)
   ret void
 }
 

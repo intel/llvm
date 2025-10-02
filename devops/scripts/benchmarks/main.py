@@ -195,13 +195,13 @@ def main(directory, additional_env_vars, compare_names, filter):
         options.extra_env_vars.update(cr.env_vars())
 
     suites = [
-        ComputeBench(directory),
-        VelocityBench(directory),
-        SyclBench(directory),
-        LlamaCppBench(directory),
-        UMFSuite(directory),
-        GromacsBench(directory),
-        OneDnnBench(directory),
+        ComputeBench(),
+        VelocityBench(),
+        SyclBench(),
+        LlamaCppBench(),
+        UMFSuite(),
+        GromacsBench(),
+        OneDnnBench(),
         TestSuite(),
     ]
 

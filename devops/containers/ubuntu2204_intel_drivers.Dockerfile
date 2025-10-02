@@ -9,7 +9,6 @@ USER root
 
 RUN apt update && apt install -yqq wget
 
-COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
 COPY dependencies.json /
 

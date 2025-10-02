@@ -739,7 +739,7 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
                                         CGExec->MFunctionName.c_str(),
                                         CGExec->MLine, CGExec->MColumn);
     std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-        StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+        StreamID, CGExec->MSyclKernel.get(), CodeLoc, CGExec->MIsTopCodeLoc,
         CGExec->MDeviceKernelInfo, nullptr, CGExec->MNDRDesc,
         CGExec->MKernelBundle.get(), CGExec->MArgs);
     if (CmdTraceEvent)

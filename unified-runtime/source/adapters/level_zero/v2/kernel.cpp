@@ -33,6 +33,17 @@ ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
       };
 }
 
+ur_result_t ur_single_device_kernel_t::setArgValue(uint32_t argIndex,
+                                                   size_t argSize,
+                                                   const void *pArgValue) {
+  return setArgValueOnZeKernel(hKernel.get(), argIndex, argSize, pArgValue);
+}
+
+ur_result_t ur_single_device_kernel_t::setArgPointer(uint32_t argIndex,
+                                                     const void *pArgValue) {
+  return setArgValue(argIndex, sizeof(void *), &pArgValue);
+}
+
 ur_result_t ur_single_device_kernel_t::release() {
   hKernel.reset();
   return UR_RESULT_SUCCESS;
@@ -187,19 +198,6 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
     uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
-
-  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
-  // in which case a NULL value will be used as the value for the argument
-  // declared as a pointer to global or constant memory in the kernel"
-  //
-  // We don't know the type of the argument but it seems that the only time
-  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
-  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
-  if (argSize == sizeof(void *) && pArgValue &&
-      *(void **)(const_cast<void *>(pArgValue)) == nullptr) {
-    pArgValue = nullptr;
-  }
-
   if (argIndex > zeCommonProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
@@ -209,15 +207,8 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
       continue;
     }
 
-    auto zeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                                    (singleDeviceKernel.value().hKernel.get(),
-                                     argIndex, argSize, pArgValue));
-
-    if (zeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
-      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
-    } else if (zeResult != ZE_RESULT_SUCCESS) {
-      return ze2urResult(zeResult);
-    }
+    UR_CALL(setArgValueOnZeKernel(singleDeviceKernel.value().hKernel.get(),
+                                  argIndex, argSize, pArgValue));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -281,7 +272,11 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
     ze_command_list_handle_t commandList, wait_list_view &waitListView) {
-  auto hZeKernel = getZeHandle(hDevice);
+  auto &deviceKernelOpt = deviceKernels[deviceIndex(hDevice)];
+  if (!deviceKernelOpt.has_value())
+    return UR_RESULT_ERROR_INVALID_KERNEL;
+  auto &deviceKernel = deviceKernelOpt.value();
+  auto hZeKernel = deviceKernel.hKernel.get();
 
   if (pGlobalWorkOffset != NULL) {
     UR_CALL(
@@ -304,9 +299,16 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
         zePtr = reinterpret_cast<void *>(hImage->getZeImage());
       }
     }
-    UR_CALL(setArgPointer(pending.argIndex, nullptr, zePtr));
+    // Set the argument only on this device's kernel.
+    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
   }
   pending_allocations.clear();
+
+  // Apply any pending raw pointer arguments (USM pointers) for this device.
+  for (auto &pending : pending_pointer_args) {
+    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, pending.ptrArgValue));
+  }
+  pending_pointer_args.clear();
 
   return UR_RESULT_SUCCESS;
 }
@@ -318,6 +320,18 @@ ur_result_t ur_kernel_handle_t_::addPendingMemoryAllocation(
   }
 
   pending_allocations.push_back(allocation);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+ur_kernel_handle_t_::addPendingPointerArgument(uint32_t argIndex,
+                                               const void *pArgValue) {
+  if (argIndex > zeCommonProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
+  pending_pointer_args.push_back({argIndex, pArgValue});
 
   return UR_RESULT_SUCCESS;
 }
@@ -408,14 +422,16 @@ ur_result_t urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_pointer_properties_t
-        *pProperties, ///< [in][optional] argument properties
+        * /*pProperties*/, ///< [in][optional] argument properties
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
     ) try {
   TRACK_SCOPE_LATENCY("urKernelSetArgPointer");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
-  return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
+  // Store the raw pointer value and defer setting the
+  // argument until we know the device where kernel is being submitted.
+  return hKernel->addPendingPointerArgument(argIndex, pArgValue);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

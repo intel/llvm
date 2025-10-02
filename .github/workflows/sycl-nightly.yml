@@ -14,7 +14,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     container: ghcr.io/intel/llvm/ubuntu2404_build
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         sparse-checkout: |
           sycl/test/abi
@@ -346,10 +346,10 @@ jobs:
       contents: write
       id-token: write
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: sycl_linux_default
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: sycl_windows_default
     - name: Sign with sigstore/cosign
@@ -366,7 +366,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@v2.3.2
+      uses: softprops/action-gh-release@v2.3.3
       with:
         files: |
           sycl_linux.tar.gz
@@ -386,8 +386,8 @@ jobs:
       packages: write
     needs: ubuntu2204_build
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v5
       with:
         name: sycl_linux_default
         path: devops/
