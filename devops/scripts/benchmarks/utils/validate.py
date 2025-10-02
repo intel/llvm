@@ -27,7 +27,7 @@ class Validate:
         """
         Returns True if runner_name is clean (no illegal characters).
         """
-        return Validate.on_re(runner_name, r"^[a-zA-Z0-9_]+$", throw=throw)
+        return Validate.on_re(runner_name, r"^[a-zA-Z0-9_-]+$", throw=throw)
 
     @staticmethod
     def timestamp(t: str, throw: Exception = None):
