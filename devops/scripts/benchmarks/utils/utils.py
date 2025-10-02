@@ -92,25 +92,6 @@ def run(
         raise
 
 
-def git_clone(dir, name, repo, commit):
-    repo_path = os.path.join(dir, name)
-    log.debug(f"Cloning {repo} into {repo_path} at commit {commit}")
-
-    if os.path.isdir(repo_path) and os.path.isdir(os.path.join(repo_path, ".git")):
-        run("git fetch", cwd=repo_path)
-        run("git reset --hard", cwd=repo_path)
-        run(f"git checkout {commit}", cwd=repo_path)
-    elif not os.path.exists(repo_path):
-        run(f"git clone --recursive {repo} {repo_path}")
-        run(f"git checkout {commit}", cwd=repo_path)
-    else:
-        raise Exception(
-            f"The directory {repo_path} exists but is not a git repository."
-        )
-    log.debug(f"Cloned {repo} into {repo_path} at commit {commit}")
-    return repo_path
-
-
 def prepare_bench_cwd(dir):
     # we need 2 deep to workaround a problem with a fixed relative paths in some velocity benchmarks
     options.benchmark_cwd = os.path.join(dir, "bcwd", "bcwd")
@@ -144,17 +125,6 @@ def prepare_workdir(dir, version):
 
     with open(version_file_path, "w") as version_file:
         version_file.write(version)
-
-
-def create_build_path(directory, name):
-    build_path = os.path.join(directory, name)
-
-    if options.rebuild and Path(build_path).exists():
-        shutil.rmtree(build_path)
-
-    Path(build_path).mkdir(parents=True, exist_ok=True)
-
-    return build_path
 
 
 def calculate_checksum(file_path):

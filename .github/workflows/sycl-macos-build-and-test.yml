@@ -31,7 +31,7 @@ jobs:
     steps:
     - name: Install dependencies
       run: brew install ccache ninja hwloc zstd
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         ref: ${{ inputs.build_ref }}
         path: src

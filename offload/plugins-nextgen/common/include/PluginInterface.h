@@ -388,6 +388,9 @@ struct GenericKernelTy {
                            KernelLaunchParamsTy LaunchParams,
                            AsyncInfoWrapperTy &AsyncInfoWrapper) const = 0;
 
+  virtual Expected<uint64_t> maxGroupSize(GenericDeviceTy &GenericDevice,
+                                          uint64_t DynamicMemSize) const = 0;
+
   /// Get the kernel name.
   const char *getName() const { return Name.c_str(); }
 
@@ -414,6 +417,7 @@ struct GenericKernelTy {
     case OMP_TGT_EXEC_MODE_SPMD:
     case OMP_TGT_EXEC_MODE_GENERIC:
     case OMP_TGT_EXEC_MODE_GENERIC_SPMD:
+    case OMP_TGT_EXEC_MODE_SPMD_NO_LOOP:
       return true;
     }
     return false;
@@ -431,6 +435,8 @@ protected:
       return "Generic";
     case OMP_TGT_EXEC_MODE_GENERIC_SPMD:
       return "Generic-SPMD";
+    case OMP_TGT_EXEC_MODE_SPMD_NO_LOOP:
+      return "SPMD-No-Loop";
     }
     llvm_unreachable("Unknown execution mode!");
   }
@@ -468,7 +474,8 @@ private:
                         uint32_t BlockLimitClause[3], uint64_t LoopTripCount,
                         uint32_t &NumThreads, bool IsNumThreadsFromUser) const;
 
-  /// Indicate if the kernel works in Generic SPMD, Generic or SPMD mode.
+  /// Indicate if the kernel works in Generic SPMD, Generic, No-Loop
+  /// or SPMD mode.
   bool isGenericSPMDMode() const {
     return KernelEnvironment.Configuration.ExecMode ==
            OMP_TGT_EXEC_MODE_GENERIC_SPMD;
@@ -482,6 +489,10 @@ private:
   }
   bool isBareMode() const {
     return KernelEnvironment.Configuration.ExecMode == OMP_TGT_EXEC_MODE_BARE;
+  }
+  bool isNoLoopMode() const {
+    return KernelEnvironment.Configuration.ExecMode ==
+           OMP_TGT_EXEC_MODE_SPMD_NO_LOOP;
   }
 
   /// The kernel name.
@@ -828,11 +839,6 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
   Error unloadBinary(DeviceImageTy *Image);
   virtual Error unloadBinaryImpl(DeviceImageTy *Image) = 0;
 
-  /// Setup the device environment if needed. Notice this setup may not be run
-  /// on some plugins. By default, it will be executed, but plugins can change
-  /// this behavior by overriding the shouldSetupDeviceEnvironment function.
-  Error setupDeviceEnvironment(GenericPluginTy &Plugin, DeviceImageTy &Image);
-
   /// Setup the global device memory pool, if the plugin requires one.
   Error setupDeviceMemoryPool(GenericPluginTy &Plugin, DeviceImageTy &Image,
                               uint64_t PoolSize);
@@ -957,6 +963,13 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
                                  void *DstPtr, int64_t Size,
                                  AsyncInfoWrapperTy &AsyncInfoWrapper) = 0;
 
+  /// Fill data on the device with a pattern from the host
+  Error dataFill(void *TgtPtr, const void *PatternPtr, int64_t PatternSize,
+                 int64_t Size, __tgt_async_info *AsyncInfo);
+  virtual Error dataFillImpl(void *TgtPtr, const void *PatternPtr,
+                             int64_t PatternSize, int64_t Size,
+                             AsyncInfoWrapperTy &AsyncInfoWrapper) = 0;
+
   /// Run the kernel associated with \p EntryPtr
   Error launchKernel(void *EntryPtr, void **ArgPtrs, ptrdiff_t *ArgOffsets,
                      KernelArgsTy &KernelArgs, __tgt_async_info *AsyncInfo);
@@ -994,6 +1007,11 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
   virtual Error waitEventImpl(void *EventPtr,
                               AsyncInfoWrapperTy &AsyncInfoWrapper) = 0;
 
+  /// Check if the event enqueued to AsyncInfo is complete
+  Expected<bool> isEventComplete(void *Event, __tgt_async_info *AsyncInfo);
+  virtual Expected<bool>
+  isEventCompleteImpl(void *EventPtr, AsyncInfoWrapperTy &AsyncInfoWrapper) = 0;
+
   /// Synchronize the current thread with the event.
   Error syncEvent(void *EventPtr);
   virtual Error syncEventImpl(void *EventPtr) = 0;
@@ -1020,6 +1038,7 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
   uint32_t getDefaultNumBlocks() const {
     return GridValues.GV_Default_Num_Teams;
   }
+  uint32_t getDebugKind() const { return OMPX_DebugKind; }
   uint32_t getDynamicMemorySize() const { return OMPX_SharedMemorySize; }
   virtual uint64_t getClockFrequency() const { return CLOCKS_PER_SEC; }
 
@@ -1160,11 +1179,6 @@ private:
   virtual Error getDeviceHeapSize(uint64_t &V) = 0;
   virtual Error setDeviceHeapSize(uint64_t V) = 0;
 
-  /// Indicate whether the device should setup the device environment. Notice
-  /// that returning false in this function will change the behavior of the
-  /// setupDeviceEnvironment() function.
-  virtual bool shouldSetupDeviceEnvironment() const { return true; }
-
   /// Indicate whether the device should setup the global device memory pool. If
   /// false is return the value on the device will be uninitialized.
   virtual bool shouldSetupDeviceMemoryPool() const { return true; }
@@ -1220,7 +1234,7 @@ protected:
   enum class PeerAccessState : uint8_t { AVAILABLE, UNAVAILABLE, PENDING };
 
   /// Array of peer access states with the rest of devices. This means that if
-  /// the device I has a matrix PeerAccesses with PeerAccesses[J] == AVAILABLE,
+  /// the device I has a matrix PeerAccesses with PeerAccesses == AVAILABLE,
   /// the device I can access device J's memory directly. However, notice this
   /// does not mean that device J can access device I's memory directly.
   llvm::SmallVector<PeerAccessState> PeerAccesses;

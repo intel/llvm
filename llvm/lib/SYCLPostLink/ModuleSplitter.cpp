@@ -861,7 +861,7 @@ void ModuleDesc::dump() const {
 void ModuleDesc::saveSplitInformationAsMetadata() {
   // Add metadata to the module so we can identify what kind of SYCL/ESIMD split
   // later.
-  auto *SplitMD = M->getOrInsertNamedMetadata(SYCL_ESIMD_SPLIT_MD_NAME);
+  auto *SplitMD = M->getOrInsertNamedMetadata(SyclEsimdSplitMdName);
   auto *SplitMDOp = MDNode::get(
       M->getContext(), ConstantAsMetadata::get(ConstantInt::get(
                            Type::getInt8Ty(M->getContext()),
