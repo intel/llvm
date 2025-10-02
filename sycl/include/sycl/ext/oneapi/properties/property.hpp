@@ -228,8 +228,9 @@ enum PropKind : uint32_t {
   InitialThreshold = 83,
   MaximumSize = 84,
   ZeroInit = 85,
+  FastLink = 86,
   // PropKindSize must always be the last value.
-  PropKindSize = 86,
+  PropKindSize = 87,
 };
 
 template <typename PropertyT> struct PropertyToKind {

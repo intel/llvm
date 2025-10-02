@@ -1302,7 +1302,7 @@ static ur_result_t doCompile(adapter_impl &Adapter, ur_program_handle_t Program,
   // Try to compile with given devices, fall back to compiling with the program
   // context if unsupported by the adapter
   auto Result = Adapter.call_nocheck<UrApiKind::urProgramCompileExp>(
-      Program, NumDevs, Devs, Opts);
+      Program, NumDevs, Devs, ur_exp_program_flags_t{}, Opts);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     return Adapter.call_nocheck<UrApiKind::urProgramCompile>(Ctx, Program,
                                                              Opts);
@@ -1723,7 +1723,8 @@ Managed<ur_program_handle_t> ProgramManager::build(
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
     ur_result_t Error = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        Program, Devices.size(), Devices.data(), Options.c_str());
+        Program, Devices.size(), Devices.data(), ur_exp_program_flags_t{},
+        Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Error = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
           Context.getHandleRef(), Program, Options.c_str());
@@ -1759,8 +1760,8 @@ Managed<ur_program_handle_t> ProgramManager::build(
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         Context.getHandleRef(), Devices.size(), Devices.data(),
-        LinkPrograms.size(), LinkPrograms.data(), LinkOptions.c_str(),
-        &LinkedProg);
+        ur_exp_program_flags_t{}, LinkPrograms.size(), LinkPrograms.data(),
+        LinkOptions.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           Context.getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
@@ -2908,7 +2909,7 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
 // Returns a merged device binary image, new set of kernel IDs and new
 // specialization constant data.
 static const RTDeviceBinaryImage *
-mergeImageData(const std::vector<device_image_plain> &Imgs,
+mergeImageData(sycl::span<const device_image_plain, dynamic_extent> Imgs,
                std::vector<kernel_id> &KernelIDs,
                std::vector<unsigned char> &NewSpecConstBlob,
                device_image_impl::SpecConstMapT &NewSpecConstMap,
@@ -2969,8 +2970,9 @@ mergeImageData(const std::vector<device_image_plain> &Imgs,
 }
 
 std::vector<device_image_plain>
-ProgramManager::link(const std::vector<device_image_plain> &Imgs,
-                     devices_range Devs, const property_list &PropList) {
+ProgramManager::link(sycl::span<const device_image_plain, dynamic_extent> Imgs,
+                     devices_range Devs, const property_list &PropList,
+                     bool AllowUnresolvedSymbols) {
   {
     auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
@@ -2997,12 +2999,16 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
   context_impl &ContextImpl = *getSyclObjImpl(Context);
   adapter_impl &Adapter = ContextImpl.getAdapter();
 
+  ur_exp_program_flags_t UrLinkFlags{};
+  if (AllowUnresolvedSymbols)
+    UrLinkFlags &= UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+
   Managed<ur_program_handle_t> LinkedProg{Adapter};
   auto doLink = [&] {
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
         ContextImpl.getHandleRef(), URDevices.size(), URDevices.data(),
-        URPrograms.size(), URPrograms.data(), LinkOptionsStr.c_str(),
-        &LinkedProg);
+        UrLinkFlags, URPrograms.size(), URPrograms.data(),
+        LinkOptionsStr.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
           ContextImpl.getHandleRef(), URPrograms.size(), URPrograms.data(),
@@ -3082,6 +3088,23 @@ ProgramManager::link(const std::vector<device_image_plain> &Imgs,
       std::move(NewSpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
       std::move(MergedKernelNames), std::move(MergedEliminatedKernelArgMasks),
       std::move(MergedImageStorage)))};
+}
+
+void ProgramManager::dynamicLink(
+    sycl::span<const device_image_plain, dynamic_extent> Imgs) {
+  if (Imgs.empty())
+    return;
+
+  std::vector<ur_program_handle_t> URPrograms;
+  URPrograms.reserve(Imgs.size());
+  for (const device_image_plain &Img : Imgs)
+    URPrograms.push_back(getSyclObjImpl(Img)->get_ur_program());
+
+  device_image_impl &FirstImgImpl = *getSyclObjImpl(Imgs[0]);
+  context_impl &ContextImpl = *getSyclObjImpl(FirstImgImpl.get_context());
+  adapter_impl &Adapter = ContextImpl.getAdapter();
+  Adapter.call<UrApiKind::urProgramDynamicLinkExp>(
+      ContextImpl.getHandleRef(), URPrograms.size(), URPrograms.data());
 }
 
 // The function duplicates most of the code from existing getBuiltPIProgram.

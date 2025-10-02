@@ -135,20 +135,23 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
   auto second_subset = std::vector<ur_device_handle_t>(
       devices.begin() + devices.size() / 2, devices.end());
   ASSERT_SUCCESS(urProgramBuildExp(binary_program, first_subset.size(),
-                                   first_subset.data(), nullptr));
+                                   first_subset.data(),
+                                   ur_exp_program_flags_t{}, nullptr));
   auto kernelName =
       uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
   uur::raii::Kernel kernel;
   ASSERT_SUCCESS(
       urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
   ASSERT_SUCCESS(urProgramBuildExp(binary_program, second_subset.size(),
-                                   second_subset.data(), nullptr));
+                                   second_subset.data(),
+                                   ur_exp_program_flags_t{}, nullptr));
   ASSERT_SUCCESS(
       urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
 
   // Building for the same subset of devices should not fail.
   ASSERT_SUCCESS(urProgramBuildExp(binary_program, first_subset.size(),
-                                   first_subset.data(), nullptr));
+                                   first_subset.data(),
+                                   ur_exp_program_flags_t{}, nullptr));
 }
 
 // Test the case we get native binaries from program created with multiple
