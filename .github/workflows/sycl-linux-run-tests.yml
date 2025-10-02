@@ -140,6 +140,12 @@ on:
         type: string
         default: 'false'
         required: False
+      enable_unitrace:
+        description: |
+          Enable --unitrace
+        type: string
+        default: 'false'
+        required: False
 
   workflow_dispatch:
     inputs:
@@ -359,6 +365,7 @@ jobs:
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
         build_ref: ${{ inputs.repo_ref }}
+        enable_unitrace: ${{ inputs.enable_unitrace }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
