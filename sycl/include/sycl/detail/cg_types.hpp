@@ -255,9 +255,7 @@ class HostKernelRef : public HostKernelRefBase {
 public:
   HostKernelRef(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
 
-  virtual char *getPtr() override {
-    return reinterpret_cast<char *>(&MKernel);
-  }
+  virtual char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const override {
     std::unique_ptr<HostKernelBase> Kernel;
     Kernel.reset(
