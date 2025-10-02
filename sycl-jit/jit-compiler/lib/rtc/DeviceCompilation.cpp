@@ -100,8 +100,12 @@ private:
 
 class SYCLToolchain {
   SYCLToolchain() {
+    using namespace jit_compiler::resource;
+
     for (size_t i = 0; i < NumToolchainFiles; ++i) {
-      auto [Path, Content] = ToolchainFiles[i];
+      resource_file RF = ToolchainFiles[i];
+      std::string_view Path{RF.Path.S, RF.Path.Size};
+      std::string_view Content{RF.Content.S, RF.Content.Size};
       ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
     }
   }
@@ -196,12 +200,14 @@ public:
     return std::move(Lib);
   }
 
+  std::string_view getPrefix() const { return Prefix; }
   std::string_view getClangXXExe() const { return ClangXXExe; }
 
 private:
   clang::IgnoringDiagConsumer IgnoreDiag;
-  std::string ClangXXExe =
-      (jit_compiler::ToolchainPrefix + "/bin/clang++").str();
+  std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
+                          jit_compiler::resource::ToolchainPrefix.Size};
+  std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
       llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
 };
@@ -500,7 +506,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   LLVMContext &Context = Module.getContext();
   for (const std::string &LibName : LibNames) {
     std::string LibPath =
-        (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
+        (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
     if (auto Error = SYCLToolchain::instance()
@@ -519,7 +525,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
     Triple T{Module.getTargetTriple()};
-    Driver D{(jit_compiler::ToolchainPrefix + "/bin/clang++").str(),
+    Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
              T.getTriple(), Diags};
     auto [CPU, Features] =
         Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
@@ -765,7 +771,7 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath =
-          (jit_compiler::ToolchainPrefix + "/lib/" + LibName).str();
+          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
       ModuleUPtr LibModule;
       if (auto Error = SYCLToolchain::instance()
                            .loadBitcodeLibrary(LibPath, Ctx)

@@ -84,6 +84,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
   ze_kernel_handle_t zeKernel = ur_cast<ze_kernel_handle_t>(hNativeKernel);
 
   if (!zeKernel) {
+    UR_DFAILURE("could not create kernel");
     throw UR_RESULT_ERROR_INVALID_KERNEL;
   }
 
@@ -136,6 +137,7 @@ void ur_kernel_handle_t_::completeInitialization() {
 
 size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
   if (!hDevice) {
+    UR_DFAILURE("invalid handle:" << hDevice);
     throw UR_RESULT_ERROR_INVALID_DEVICE;
   }
 
@@ -145,6 +147,7 @@ size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
   }
 
   if (!deviceKernels[hDevice->Id.value()].has_value()) {
+    UR_DFAILURE("invalid device:" << hDevice << ", not found in deviceKernels");
     throw UR_RESULT_ERROR_INVALID_DEVICE;
   }
 

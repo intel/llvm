@@ -334,24 +334,6 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-static event
-getBarrierEventForInorderQueueHelper(detail::queue_impl &QueueImpl) {
-  // This function should not be called when a queue is recording to a graph,
-  // as a graph can record from multiple queues and we cannot guarantee the
-  // last node added by an in-order queue will be the last node added to the
-  // graph.
-  assert(!QueueImpl.hasCommandGraph() &&
-         "Should not be called in on graph recording.");
-
-  sycl::detail::optional<event> LastEvent = QueueImpl.getLastEvent();
-  if (LastEvent)
-    return *LastEvent;
-
-  // If there was no last event, we create an empty one.
-  return detail::createSyclObjFromImpl<event>(
-      detail::event_impl::create_default_event());
-}
-
 /// Prevents any commands submitted afterward to this queue from executing
 /// until all commands previously submitted to this queue have entered the
 /// complete state.
@@ -374,18 +356,17 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
+
+  // If waitlist contains only empty, default constructed events, ignore
+  // them.
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
         detail::event_impl &EventImpl = *detail::getSyclObjImpl(Event);
         return (EventImpl.isDefaultConstructed() || EventImpl.isNOP()) &&
                !EventImpl.hasCommandGraph();
       });
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MIsProfilingEnabled &&
-      AllEventsEmptyOrNop) {
-    return getBarrierEventForInorderQueueHelper(*impl);
-  }
 
-  if (WaitList.empty())
+  if (WaitList.empty() || AllEventsEmptyOrNop)
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
   else
     return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
@@ -453,6 +434,7 @@ event queue::memcpyFromDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                       /*CallerNeedsEvent=*/true);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImpl().has(Aspect);
@@ -460,6 +442,7 @@ bool queue::device_has(aspect Aspect) const {
 
 // TODO(#15184) Remove this function in the next ABI-breaking window.
 bool queue::ext_codeplay_supports_fusion() const { return false; }
+#endif
 
 sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
   if (!is_in_order())

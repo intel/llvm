@@ -715,6 +715,7 @@ static void *getGlobalPointerFromModule(ze_module_handle_t hModule,
   ZE2UR_CALL_THROWS(zeModuleGetGlobalPointer,
                     (hModule, name, &globalVarSize, &globalVarPtr));
   if (globalVarSize < offset + count) {
+    UR_DFAILURE("Write device global variable is out of range");
     setErrorMessage("Write device global variable is out of range.",
                     UR_RESULT_ERROR_INVALID_VALUE,
                     static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
@@ -820,8 +821,7 @@ ur_result_t ur_command_list_manager::appendUSMAllocHelper(
     commandType = UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP;
     break;
   default:
-    UR_LOG(ERR, "enqueueUSMAllocHelper: unsupported USM type");
-    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+    UR_FFAILURE("enqueueUSMAllocHelper: unsupported USM type:" << type);
   }
 
   auto zeSignalEvent = getSignalEvent(phEvent, commandType);

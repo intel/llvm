@@ -21,7 +21,11 @@ namespace ext::oneapi {
 
 class bfloat16 {
 public:
-  using Bfloat16StorageT = uint16_t;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  using Bfloat16StorageT
+      __SYCL_DEPRECATED("bfloat16::Bfloat16StorageT is non-standard and has "
+                        "been deprecated.") = uint16_t;
+#endif
 
   bfloat16() = default;
   ~bfloat16() = default;
@@ -58,7 +62,7 @@ public:
   friend bfloat16 operator-(const bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-    Bfloat16StorageT res;
+    uint16_t res;
     asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
     return bit_cast<bfloat16>(res);
 #else
@@ -146,18 +150,18 @@ public:
 #endif
 
 private:
-  Bfloat16StorageT value;
+  uint16_t value;
 
   // Private tag used to avoid constructor ambiguity.
   struct private_tag {
     explicit private_tag() = default;
   };
 
-  constexpr bfloat16(Bfloat16StorageT Value, private_tag) : value{Value} {}
+  constexpr bfloat16(uint16_t Value, private_tag) : value{Value} {}
 
   // Explicit conversion functions
-  static float to_float(const Bfloat16StorageT &a);
-  static Bfloat16StorageT from_float(const float &a);
+  static float to_float(const uint16_t &a);
+  static uint16_t from_float(const float &a);
 
   // Friend traits.
   friend std::numeric_limits<bfloat16>;
@@ -178,7 +182,7 @@ private:
 extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 #endif
-inline float bfloat16::to_float(const bfloat16::Bfloat16StorageT &a) {
+inline float bfloat16::to_float(const uint16_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   return __devicelib_ConvertBF16ToFINTEL(a);
 #else
@@ -213,11 +217,11 @@ inline uint16_t from_float_to_uint16_t(const float &a) {
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
 #endif
-inline bfloat16::Bfloat16StorageT bfloat16::from_float(const float &a) {
+inline uint16_t bfloat16::from_float(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #if (__SYCL_CUDA_ARCH__ >= 800)
-  Bfloat16StorageT res;
+  uint16_t res;
   asm("cvt.rn.bf16.f32 %0, %1;" : "=h"(res) : "f"(a));
   return res;
 #else

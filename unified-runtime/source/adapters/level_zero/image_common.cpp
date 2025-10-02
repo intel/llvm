@@ -172,6 +172,13 @@ ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
     } else if (ZeImageFormatTypeSize == 32) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
+    } else {
+      UR_LOG(
+          ERR,
+          "ze2urImageFormat: unexpected image format type size for UINT: size "
+          "= {}",
+          ZeImageFormatTypeSize);
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   case ZE_IMAGE_FORMAT_TYPE_SINT:
@@ -181,6 +188,13 @@ ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
     } else if (ZeImageFormatTypeSize == 32) {
       ChannelType = UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
+    } else {
+      UR_LOG(
+          ERR,
+          "ze2urImageFormat: unexpected image format type size for SINT: size "
+          "= {}",
+          ZeImageFormatTypeSize);
+      return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   case ZE_IMAGE_FORMAT_TYPE_UNORM:

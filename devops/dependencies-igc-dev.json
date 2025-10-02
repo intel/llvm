@@ -1,10 +1,10 @@
 {
   "linux": {
     "igc_dev": {
-      "github_tag": "igc-dev-5a47189",
-      "version": "5a47189",
-      "updated_at": "2025-09-18T02:11:35Z",
-      "url": "https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts/4041051864/zip",
+      "github_tag": "igc-dev-6d3f69e",
+      "version": "6d3f69e",
+      "updated_at": "2025-09-20T11:44:56Z",
+      "url": "https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts/4062749149/zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     }
   }
