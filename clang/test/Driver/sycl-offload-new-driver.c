@@ -224,13 +224,14 @@
 // RUN:  -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908,gfx1010 \
 // RUN:  -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86,sm_87,sm_89 \
 // RUN:  -Xsycl-target-backend=spir64_gen "-device pvc,bdw" \
+// RUN:  -Xsycl-target-linker=spir64_gen "-DFOO,BAR" \
 // RUN:  -nogpulib %s 2>&1 | FileCheck -check-prefix=MULTI_ARCH2 %s
 // MULTI_ARCH2: clang-offload-packager{{.*}} "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx1010,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=amdgcn-amd-amdhsa,arch=gfx908,kind=sycl,compile-opts=--offload-arch=gfx908,compile-opts=gfx1010"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_86,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_87,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
 // MULTI_ARCH2-SAME: "--image=file={{.*}}triple=nvptx64-nvidia-cuda,arch=sm_89,kind=sycl,compile-opts=--offload-arch=sm_86,compile-opts=sm_87,compile-opts=sm_89"
-// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw"
+// MULTI_ARCH2-SAME: "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,arch=bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode -device pvc,compile-opts=bdw,link-opts=-DFOO,link-opts=BAR"
 
 // Verify that the driver correctly handles link-opt and compile-opt values with commas
 // RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
