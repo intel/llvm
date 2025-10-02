@@ -35,7 +35,7 @@ public:
   void operator()(sycl::nd_item<3> Item) const {}
 };
 
-int TestMoveFunctor::MoveCtorCalls;
+int TestMoveFunctor::MoveCtorCalls = 0;
 
 namespace sycl {
 inline namespace _V1 {
@@ -44,12 +44,6 @@ template <>
 struct KernelInfo<TestFunctor> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "TestFunctor"; }
   static constexpr int64_t getKernelSize() { return sizeof(TestFunctor); }
-  static constexpr const char *getFileName() { return "TestFunctor.hpp"; }
-  static constexpr const char *getFunctionName() {
-    return "TestFunctorFunctionName";
-  }
-  static constexpr unsigned getLineNumber() { return 13; }
-  static constexpr unsigned getColumnNumber() { return 8; }
 };
 
 template <>

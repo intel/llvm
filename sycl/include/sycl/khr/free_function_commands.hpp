@@ -148,11 +148,14 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
   h.parallel_for(nd_range<3>(r, size), k);
 }
 
+template <typename KernelType>
+constexpr bool enable_kernel_function_overload = !std::is_same_v<
+    typename std::decay_t<KernelType>, sycl::kernel>;
+
 template <
     typename KernelType,
-    // exclude sycl::kernel from overload resolution
-    typename = typename std::enable_if_t<!std::is_same_v<
-        typename std::decay_t<KernelType>, sycl::kernel>>>
+    typename = typename std::enable_if_t<enable_kernel_function_overload<
+        KernelType>>>
 void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
@@ -168,8 +171,8 @@ void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
 }
 template <
     typename KernelType,
-    typename = typename std::enable_if_t<!std::is_same_v<
-        typename std::decay_t<KernelType>, sycl::kernel>>>
+    typename = typename std::enable_if_t<enable_kernel_function_overload<
+        KernelType>>>
 void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
@@ -185,8 +188,8 @@ void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
 }
 template <
     typename KernelType,
-    typename = typename std::enable_if_t<!std::is_same_v<
-        typename std::decay_t<KernelType>, sycl::kernel>>>
+    typename = typename std::enable_if_t<enable_kernel_function_overload<
+        KernelType>>>
 void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {

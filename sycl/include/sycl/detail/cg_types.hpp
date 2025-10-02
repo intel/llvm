@@ -240,8 +240,8 @@ class HostKernelRefBase : public HostKernelBase {
 public:
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function can't be called from old user code, because there is no
-  // HostKernelRef in old user code. So, make it empty.
+  // The kernels that are passed via HostKernelRefBase are instantiated along
+  // ctor call with GetInstantiateKernelOnHostPtr().
   void InstantiateKernelOnHost() override {}
 #endif
 };
@@ -288,11 +288,6 @@ public:
   }
 
   ~HostKernelRef() noexcept override = default;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  // This function can't be called from old user code, because there is no
-  // HostKernelRef in old user code. So, make it empty.
-  void InstantiateKernelOnHost() override {}
-#endif
 };
 
 // This function is needed for host-side compilation to keep kernels
