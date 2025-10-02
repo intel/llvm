@@ -1,0 +1,261 @@
+= SPV_INTEL_subgroup_requirements
+
+== Name Strings
+
+SPV_INTEL_subgroup_requirements
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Registry
+
+== Contributors
+
+// spell-checker: disable
+* Ben Ashbaugh, Intel
+* Pekka Jääskeläinen, Intel
+* Henry Linjamäki, Intel
+* John Pennycook, Intel
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback.
+When the feature matures, this specification may be released as a formal
+extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+If you are interested in using this feature in your software product, please let
+us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | C
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6 Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension allows a compiler generating SPIR-V to add additional
+subgroup requirements to entry points (kernels) in a SPIR-V module.
+These requirements enable programmers and compilers to reason better about how
+subgroups behave for an entry point.
+
+Specifically, this extension adds two new execution modes:
+
+* The ability to specify a symbolic *NamedSubgroupSizeINTEL* subgroup size for
+an entry point.
+* The ability to specify the *SubgroupLaneMappingINTEL* for an entry point.
+The subgroup lane mapping defines how the invocations (work-items) in a
+workgroup are assigned to subgroups.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_subgroup_requirements"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Validation Rules
+
+Add validation rules to section 2.16.1 Universal Validation Rules under Entry Point:
+
+* Each *OpEntryPoint* must contain at most one of the *SubgroupSize* or
+*NamedSubgroupSizeINTEL* execution modes.
+* Each *OpEntryPoint* must contain at most one of the *SubgroupLaneMappingINTEL*
+execution modes.
+
+=== Execution Mode
+
+Modify Section 3.6, "Execution Mode", adding these rows to the Execution Mode table:
+
+--
+[cols="^4,20,3*5,22",options="header"]
+|=====
+2+^.^| Execution Mode 3+<.^| Extra Operands | Enabling Capabilities
+| 6446 | *NamedSubgroupSizeINTEL*
+   3+| _Named Subgroup Size_ | *SubgroupRequirementsINTEL*
+| 6447 | *SubgroupLaneMappingINTEL*
+   3+| _Subgroup Lane Mapping_ | *SubgroupRequirementsINTEL*
+|=====
+--
+
+=== Capabilities
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[cols="^.^2,16,15",options="header"]
+|====
+2+^.^| Capability | Implicitly Declares
+| 6445 | *SubgroupRequirementsINTEL* +
+Indicates that additional named subgroup size or subgroup lane mapping
+requirements may be specified.
+|
+|====
+--
+
+=== Named Subgroup Size
+
+Add a new Section 3.XX, "Named Subgroup Size":
+
+Specify a required subgroup size by name.
+A named subgroup size is a symbolic subgroup size with specific properties.
+If an entry point does not specify a specific *SubgroupSize* or
+*NamedSubgroupSizeINTEL* then the subgroup size for the entry point is
+implementation-defined and may vary per entry point or per execution of the
+entry point.  See the client API specification for more detail.
+
+--
+[cols="^.^4,16,15",options="header"]
+|====
+2+^.^| Named Subgroup Size | Enabling Capabilities
+| 0 | *PrimarySubgroupSizeINTEL* +
+A subgroup size that must support all of the core language features for the
+device.
+The primary subgroup size may differ from device-to-device, but will be the same
+for all kernels compiled for a specific device.
+   | *SubgroupRequirementsINTEL*
+|====
+--
+
+=== Subgroup Lane Mapping
+
+Add a new Section 3.XX, "Subgroup Lane Mapping":
+
+Specify a required subgroup lane mapping.
+The subgroup lane mapping defines how the invocations in a workgroup
+(work-items in a work-group) are assigned to subgroups.
+If an entry point does not specify a specific *SubgroupLaneMappingINTEL* then
+the subgroup lane mapping is implementation-defined.
+
+--
+[cols="^.^4,16,15",options="header"]
+|====
+2+^.^| Subgroup Lane Mapping | Enabling Capabilities
+| 0 | *WrapINTEL* +
+Assign invocations in a workgroup to subgroups in a linear order, such that the
+*SubgroupLocalInvocationId* is equal to the *LocalInvocationIndex* modulo the
+*SubgroupMaxSize* (or, that `get_sub_group_local_id()` equals
+`get_local_linear_id() % get_max_sub_group_size()`)
+   | *SubgroupRequirementsINTEL*
+| 1 | *RowsINTEL* +
+Assign invocations in a workgroup to subgroups in a linear order along rows of
+the workgroup (the inner-most dimension, typically the first component of the
+*LocalInvocationId*), adding inactive invocations (padding) if the row size is
+not evenly divisible by the *SubgroupMaxSize*.
+The inactive invocations are not accessible or included in any invocation
+indexing.
+With this mapping, the *SubgroupLocalInvocationId* is equal to the inner-most
+dimension of the workgroup local ID modulo the *SubgroupMaxSize* (or, that
+`get_sub_group_local_id()` equals `get_local_id(0) % get_max_sub_group_size()`).
+   | *SubgroupRequirementsINTEL*
+|====
+--
+
+== Issues
+
+. What should this extension be called?
++
+--
+*UNRESOLVED*: The current name is `SPV_INTEL_subgroup_requirements`, which seems
+general-purpose but not too general-purpose.
+--
+
+. Should we allow the named subgroup size or the subgroup lane mapping to be
+specified with a specialization constant?
++
+--
+*RESOLVED*: No, this is not required.
+Note, there is no way to specify the existing *SubgroupSize* execution mode
+with a specialization constant.
+--
+
+. Are the subgroup requirements added by this extension new execution modes
+affecting the entry point and any called functions or do they need to be more
+fine-grained?
++
+--
+*RESOLVED*: They are new execution modes only.
+This aligns with the existing *SubgroupSize* execution mode.
+It also avoids complicated mix-and-match cases where a function or kernel with
+one subgroup requirement calls another function with a different subgroup
+requirement.
+--
+
+. Do we also need to define an explicit *AutomaticSubgroupSize*, or is the
+subgroup size implicitly automatically determined when the *NamedSubgroupSize*
+and *SubgroupSize* execution modes are absent?
++
+--
+*UNRESOLVED*: The proposed
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc[SYCL
+extension] has an explicit named automatic subgroup size property.
+It is not clear that this is needed in SPIR-V.
+It is not included in the current version of this extension because current
+device compilers already treat the subgroup size as implementation-defined in
+the absence of any specific subgroup size requirements.
+--
+
+. Do we need an explicit *SubgroupLaneMappingINTEL* to request any lane mapping
+such that a) all subgroups have the same size and b) all invocations in the
+subgroup have linear *LocalInvocationIDs*, so long as the inner-most dimension
+of the workgroup is divisible by the subgroup size?
++
+--
+*UNRESOLVED*: This is a desirable subgroup requirement.
+It is sufficient to reason about many subgroup algorithms even though it is a
+weaker requirement than the specific *WrapINTEL* and *RowsINTEL* subgroup lane
+mappings.
+
+As an alternative, if we do not add an explicit *SubgroupLaneMappingINTEL*
+requirement, we could add this requirement to a client API requirement
+specification supporting this SPIR-V extension.
+
+Note, this property is satisfied by both the *WrapINTEL* and *RowsINTEL*
+subgroup plane mappings.
+--
+
+. Do we need to define a mapping for the *SubgroupId* also?
+If we do define a mapping for the *SubgroupId* is it defined based on the
+*SubgroupLaneMappingINTEL* also or is it something different?
++
+--
+*UNRESOLVED*: There are some "obvious" mappings but this is another case where
+the specs do not define any specific mapping.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2023-04-24|Ben Ashbaugh|*Initial internal revision*
+|B|2023-07-10|Ben Ashbaugh|Fix bug where some cases of *SubgroupSize* should have been *SubgroupMaxSize*.
+|C|2023-07-11|Ben Ashbaugh|Incorporated review feedback.
+|D|2023-09-22|Ben Ashbaugh|Assigned enums, final edits before public preview.
+|========================================
