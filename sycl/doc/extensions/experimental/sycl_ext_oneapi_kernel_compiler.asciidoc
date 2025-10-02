@@ -1151,18 +1151,6 @@ void iota(float start, float *ptr) {
 
 Limitations:
 
-* Preamble detection is done at the Lexer level and can't handle code like
-
-[source,c++]
-----
-#if 1
-#include <sycl/sycl.hpp>
-#else
-// Auto-detected preamble ends in the middle of `#else` and would fail to compile.
-void foo() {}
-#endif
-----
-
 * Any changes in either preamble or compilation options (including
   `-DSOMETHING`!) result in a creation of a new pre-compiled header/preamble.
 
