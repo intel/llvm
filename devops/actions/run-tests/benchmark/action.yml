@@ -212,8 +212,8 @@ runs:
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
-        --regression-filter '^[a-z_]+_sycl ' \
-        --regression-filter-type 'SYCL' \
+        --regression-filter '^[a-z_]+_sycl .* CPU count' \
+        --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
         --verbose \
         --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \
