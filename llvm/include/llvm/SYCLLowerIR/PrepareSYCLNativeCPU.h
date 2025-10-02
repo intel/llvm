@@ -16,6 +16,7 @@
 
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Passes/OptimizationLevel.h"
 
 namespace llvm {
 
@@ -23,7 +24,10 @@ class ModulePass;
 
 class PrepareSYCLNativeCPUPass
     : public PassInfoMixin<PrepareSYCLNativeCPUPass> {
+  const OptimizationLevel OptLevel;
+
 public:
+  PrepareSYCLNativeCPUPass(OptimizationLevel OL) : OptLevel(OL) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 
