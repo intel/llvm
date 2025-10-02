@@ -125,16 +125,22 @@ ur_result_t urEnqueueKernelLaunch(
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
-    // The ArgValue may be a NULL pointer in which case a NULL value is used for
-    // the kernel argument declared as a pointer to global or constant memory.
+    // The Arg.Value can be either a ur_mem_handle_t or a raw pointer
+    // (const void*). Resolve per-device: for mem handles obtain the device
+    // specific handle, otherwise pass the raw pointer value.
     char **ZeHandlePtr = nullptr;
-    if (Arg.Value) {
-      UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        Queue->Device, EventWaitList,
-                                        NumEventsInWaitList));
+    if (auto MemObjPtr = std::get_if<ur_mem_handle_t>(&Arg.Value)) {
+      ur_mem_handle_t MemObj = *MemObjPtr;
+      if (MemObj) {
+        UR_CALL(MemObj->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
+                                       Queue->Device, EventWaitList,
+                                       NumEventsInWaitList));
+      }
+    } else {
+      auto Ptr = const_cast<void **>(&std::get<const void *>(Arg.Value));
+      ZeHandlePtr = reinterpret_cast<char **>(Ptr);
     }
-    ZE2UR_CALL(zeKernelSetArgumentValue,
-               (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
+    UR_CALL(setArgValueOnZeKernel(ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
   }
   Kernel->PendingArguments.clear();
 
@@ -422,41 +428,21 @@ ur_result_t urKernelSetArgValue(
 
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
-  // in which case a NULL value will be used as the value for the argument
-  // declared as a pointer to global or constant memory in the kernel"
-  //
-  // We don't know the type of the argument but it seems that the only time
-  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
-  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
-  if (ArgSize == sizeof(void *) && PArgValue &&
-      *(void **)(const_cast<void *>(PArgValue)) == nullptr) {
-    PArgValue = nullptr;
-  }
-
   if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  ze_result_t ZeResult = ZE_RESULT_SUCCESS;
   if (Kernel->ZeKernelMap.empty()) {
     auto ZeKernel = Kernel->ZeKernel;
-    ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                               (ZeKernel, ArgIndex, ArgSize, PArgValue));
+    UR_CALL(setArgValueOnZeKernel(ZeKernel, ArgIndex, ArgSize, PArgValue))
   } else {
     for (auto It : Kernel->ZeKernelMap) {
       auto ZeKernel = It.second;
-      ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
-                                 (ZeKernel, ArgIndex, ArgSize, PArgValue));
+      UR_CALL(setArgValueOnZeKernel(ZeKernel, ArgIndex, ArgSize, PArgValue))
     }
   }
-
-  if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
-    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
-  }
-
-  return ze2urResult(ZeResult);
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urKernelSetArgLocal(
@@ -732,6 +718,23 @@ ur_result_t urKernelSetArgPointer(
     /// [in][optional] SVM pointer to memory location holding the argument
     /// value. If null then argument value is considered null.
     const void *ArgValue) {
+  UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  {
+    std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+    // In multi-device context instead of setting pointer arguments immediately
+    // across all device kernels, store them as pending so they can be resolved
+    // per-device at enqueue time. This ensures the correct handle is used for
+    // the device of the queue.
+    if (Kernel->Program->Context->getDevices().size() > 1) {
+      if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+        return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+      }
+      Kernel->PendingArguments.push_back({ArgIndex, sizeof(const void *),
+                                          ArgValue, ur_mem_handle_t_::unknown});
+
+      return UR_RESULT_SUCCESS;
+    }
+  }
 
   // KernelSetArgValue is expecting a pointer to the argument
   UR_CALL(ur::level_zero::urKernelSetArgValue(

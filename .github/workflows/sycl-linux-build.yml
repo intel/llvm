@@ -93,11 +93,13 @@ on:
         type: choice
         options:
           - "[]"
+          - '[sycl]'
           - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc]'
       build_image:
         type: choice
         options:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+          - 'ghcr.io/intel/llvm/ubuntu2204_build:latest'
       cc:
         type: choice
         options:
@@ -167,7 +169,7 @@ jobs:
           echo "Unsupported extension"
           exit 1
         fi
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         sparse-checkout: |
           devops/actions

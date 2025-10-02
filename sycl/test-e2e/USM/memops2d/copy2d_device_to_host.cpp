@@ -13,9 +13,6 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10157
 
-// Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: level_zero && windows
-
 // XFAIL: spirv-backend && gpu-intel-dg2
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160892
 
