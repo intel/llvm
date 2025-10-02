@@ -43,11 +43,17 @@ This extension is written against the SYCL 2020 revision 10 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
-[_Note:_ The `khr_get_default_context` function from {khr-default-context}[
-sycl_khr_default_context] is used in the description for the behavior of the
-APIs added by this extension.
-However, sycl_khr_default_context is not needed to use or implement them, so it
-is not a dependency.
+[_Note:_ The APIs in this extension depend on the concept of a per-platform
+default context as specified in section 4.6.2 "Platform class" of the core SYCL
+specification.
+As a convenience, this extension specification describes the behavior of its
+APIs by using the `khr_get_default_context` function from {khr-default-context}[
+sycl_khr_default_context], however there is no true dependency on that
+extension.
+An implementation could still implement sycl_ext_oneapi_usm_shortcuts even
+without implementing sycl_khr_default_context because the core SYCL
+specification still requires there to be a per-platform default context even if
+the core SYCL specification does not provide a convenient way to get it.
 _{endnote}_]
 
 
