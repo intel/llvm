@@ -1570,8 +1570,10 @@ void MemoryManager::copy_image_bindless(
     queue_impl &Queue, const void *Src, void *Dst,
     const ur_image_desc_t &SrcDesc, const ur_image_desc_t &DstDesc,
     const ur_image_format_t &SrcFormat, const ur_image_format_t &DstFormat,
-    const ur_exp_image_copy_flags_t Flags, ur_rect_offset_t SrcOffset,
-    ur_rect_offset_t DstOffset, ur_rect_region_t CopyExtent,
+    const ur_exp_image_copy_flags_t Flags,
+    const ur_exp_image_copy_input_types_t InputTypes,
+    ur_rect_offset_t SrcOffset, ur_rect_offset_t DstOffset,
+    ur_rect_region_t CopyExtent,
     const std::vector<ur_event_handle_t> &DepEvents,
     ur_event_handle_t *OutEvent) {
   assert((Flags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
@@ -1594,8 +1596,8 @@ void MemoryManager::copy_image_bindless(
 
   Adapter.call<UrApiKind::urBindlessImagesImageCopyExp>(
       Queue.getHandleRef(), Src, Dst, &SrcDesc, &DstDesc, &SrcFormat,
-      &DstFormat, &CopyRegion, Flags, DepEvents.size(), DepEvents.data(),
-      OutEvent);
+      &DstFormat, &CopyRegion, Flags, InputTypes, DepEvents.size(),
+      DepEvents.data(), OutEvent);
 }
 
 } // namespace detail

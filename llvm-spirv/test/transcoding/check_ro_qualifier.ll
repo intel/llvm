@@ -8,15 +8,15 @@
 ; RUN: llvm-spirv %t.rev.bc -o %t.back.spv
 ; RUN: llvm-spirv %t.back.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
-; CHECK-LLVM: define spir_kernel void @sample_kernel(ptr addrspace(1)
+; CHECK-LLVM: define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
 ; CHECK-LLVM-SAME: !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME: !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-SAME: !kernel_arg_base_type [[TYPE]]
 
-; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(ptr addrspace(1)
-; CHECK-LLVM: declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(ptr addrspace(1)
-; CHECK-LLVM: declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(ptr addrspace(1)
+; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
+; CHECK-LLVM: declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
+; CHECK-LLVM: declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
 
 ; CHECK-SPV-LLVM: call spir_func <3 x i32> @_Z31__spirv_ImageQuerySizeLod_Rint3PU3AS133__spirv_Image__void_1_0_1_0_0_0_0i(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
 ; CHECK-SPV-LLVM: call spir_func <3 x i64> @_Z32__spirv_ImageQuerySizeLod_Rlong3PU3AS133__spirv_Image__void_1_0_1_0_0_0_0i(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)

@@ -1225,22 +1225,26 @@ EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_fixed_topology_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
+ControlBarrier(Group, [[maybe_unused]] memory_scope FenceScope,
+               [[maybe_unused]] memory_order Order) {
+#ifdef __SYCL_DEVICE_ONLY__
   __spirv_ControlBarrier(group_scope<Group>::value, getScope(FenceScope),
                          getMemorySemanticsMask(Order) |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#endif
 }
 
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
+ControlBarrier([[maybe_unused]] Group g,
+               [[maybe_unused]] memory_scope FenceScope,
+               [[maybe_unused]] memory_order Order) {
 #if defined(__NVPTX__)
   __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
-#else
-  (void)g;
+#elif defined(__SYCL_DEVICE_ONLY__)
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.

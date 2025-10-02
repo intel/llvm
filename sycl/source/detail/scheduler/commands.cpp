@@ -1970,10 +1970,11 @@ ExecCGCommand::ExecCGCommand(
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::string instrumentationGetKernelName(
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string_view FunctionName, const std::string_view SyclKernelName,
-    void *&Address, std::optional<bool> &FromSource) {
+std::string instrumentationGetKernelName(const kernel_impl *SyclKernel,
+                                         const std::string_view FunctionName,
+                                         const std::string_view SyclKernelName,
+                                         void *&Address,
+                                         std::optional<bool> &FromSource) {
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
@@ -1990,8 +1991,8 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     detail::kernel_bundle_impl *KernelBundleImplPtr,
-    DeviceKernelInfo &DeviceKernelInfo,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel, queue_impl *Queue,
+    DeviceKernelInfo &DeviceKernelInfo, const kernel_impl *SyclKernel,
+    queue_impl *Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
                                   // sorted in this function
 {
@@ -2091,8 +2092,7 @@ void instrumentationFillCommonData(
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    xpti::stream_id_t StreamID,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID, const kernel_impl *SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
@@ -2163,7 +2163,7 @@ void ExecCGCommand::emitInstrumentationData() {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     KernelName = instrumentationGetKernelName(
-        KernelCG->MSyclKernel, MCommandGroup->MFunctionName,
+        KernelCG->MSyclKernel.get(), MCommandGroup->MFunctionName,
         KernelCG->getKernelName(), MAddress, FromSource);
   } break;
   default:
@@ -2192,8 +2192,8 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle().get(),
-          KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel, MQueue.get(),
-          KernelCG->MArgs);
+          KernelCG->MDeviceKernelInfo, KernelCG->MSyclKernel.get(),
+          MQueue.get(), KernelCG->MArgs);
     }
 
     xptiNotifySubscribers(
@@ -3664,8 +3664,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MemoryManager::copy_image_bindless, *MQueue, Copy->getSrc(),
             Copy->getDst(), Copy->getSrcDesc(), Copy->getDstDesc(),
             Copy->getSrcFormat(), Copy->getDstFormat(), Copy->getCopyFlags(),
-            Copy->getSrcOffset(), Copy->getDstOffset(), Copy->getCopyExtent(),
-            std::move(RawEvents), Event);
+            Copy->getCopyInputTypes(), Copy->getSrcOffset(),
+            Copy->getDstOffset(), Copy->getCopyExtent(), std::move(RawEvents),
+            Event);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

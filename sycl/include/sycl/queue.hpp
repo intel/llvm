@@ -62,6 +62,20 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
+template <int Dims>
+event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
+    const queue &Queue, const nd_range<Dims> &Range,
+    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+template <int Dims>
+void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
+    const queue &Queue, const nd_range<Dims> &Range,
+    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
 namespace detail {
 class queue_impl;
 
@@ -141,6 +155,51 @@ private:
 };
 
 } // namespace v1
+
+template <typename KernelName = detail::auto_name, bool EventNeeded = false,
+          typename PropertiesT, typename KernelType, int Dims>
+auto submit_kernel_direct(
+    const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
+    const KernelType &KernelFunc,
+    const detail::code_location &CodeLoc = detail::code_location::current()) {
+  // TODO Properties not supported yet
+  (void)Props;
+  static_assert(
+      std::is_same_v<PropertiesT,
+                     ext::oneapi::experimental::empty_properties_t>,
+      "Setting properties not supported yet for no-CGH kernel submit.");
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  using NameT =
+      typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+  using LambdaArgType =
+      sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+  static_assert(
+      std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+      "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+      "must be either sycl::nd_item or be convertible from sycl::nd_item");
+  using TransformedArgType = sycl::nd_item<Dims>;
+
+  std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
+      detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
+
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+      &detail::getDeviceKernelInfo<NameT>();
+
+  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
+
+  if constexpr (EventNeeded) {
+    return submit_kernel_direct_with_event_impl(
+        Queue, Range, HostKernel, DeviceKernelInfoPtr,
+        TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+  } else {
+    submit_kernel_direct_without_event_impl(
+        Queue, Range, HostKernel, DeviceKernelInfoPtr,
+        TlsCodeLocCapture.query(), TlsCodeLocCapture.isToplevel());
+  }
+}
+
 } // namespace detail
 
 namespace ext ::oneapi ::experimental {
@@ -401,10 +460,12 @@ public:
   typename detail::is_backend_info_desc<Param>::return_type
       get_backend_info() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
   bool device_has(aspect Aspect) const;
+#endif
 
 public:
   /// Submits a command group function object to the queue, in order to be
@@ -3203,11 +3264,21 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        TlsCodeLocCapture.query());
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+    // TODO The handler-less path does not support reductions yet.
+    if constexpr (sizeof...(RestT) == 1) {
+      return detail::submit_kernel_direct<KernelName, true>(
+          *this, ext::oneapi::experimental::empty_properties_t{}, Range,
+          Rest...);
+    } else
+#endif
+    {
+      return submit(
+          [&](handler &CGH) {
+            CGH.template parallel_for<KernelName>(Range, Rest...);
+          },
+          TlsCodeLocCapture.query());
+    }
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -3453,6 +3524,7 @@ public:
         CodeLoc);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// @brief Returns true if the queue was created with the
   /// ext::codeplay::experimental::property::queue::enable_fusion property.
   ///
@@ -3460,7 +3532,10 @@ public:
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
   // TODO(#15184) Remove this function in the next ABI-breaking window.
+  __SYCL_DEPRECATED(
+      "Support for ext_codeplay_kernel_fusion extesnsion is dropped")
   bool ext_codeplay_supports_fusion() const;
+#endif
 
   /// Shortcut for executing a graph of commands.
   ///
@@ -3543,7 +3618,12 @@ public:
   bool khr_empty() const;
 #endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: to be made private in the next ABI-breaking window
+  __SYCL_DEPRECATED(
+      "This is a non-standard method, use sycl::get_native instead")
   ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+#endif
 
   std::optional<event> ext_oneapi_get_last_event() const {
     return static_cast<std::optional<event>>(ext_oneapi_get_last_event_impl());
@@ -3552,6 +3632,10 @@ public:
   void ext_oneapi_set_external_event(const event &external_event);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
+#endif
+
   std::shared_ptr<detail::queue_impl> impl;
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
@@ -3568,6 +3652,10 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+  template <backend BackendName>
+  friend auto get_native(const queue &Obj)
+      -> backend_return_t<BackendName, queue>;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #if __SYCL_USE_FALLBACK_ASSERT

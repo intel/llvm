@@ -17,15 +17,15 @@ using get_uint_type_of_size = typename std::conditional_t<
                            std::conditional_t<Size == 8, uint64_t, void>>>>;
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
-using Bfloat16StorageT = get_uint_type_of_size<sizeof(bfloat16)>;
+static_assert(sizeof(bfloat16) == sizeof(uint16_t));
 
-bool test(float Val, Bfloat16StorageT Bits) {
+bool test(float Val, uint16_t Bits) {
   std::cout << "Value: " << Val << " Bits: " << std::hex << "0x" << Bits
             << std::dec << "...\n";
   bool Passed = true;
   {
     std::cout << "  float -> bfloat16 conversion ...";
-    Bfloat16StorageT RawVal = sycl::bit_cast<Bfloat16StorageT>(bfloat16(Val));
+    auto RawVal = sycl::bit_cast<uint16_t>(bfloat16(Val));
     bool Res = (RawVal == Bits);
     Passed &= Res;
 

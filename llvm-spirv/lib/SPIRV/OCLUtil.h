@@ -519,7 +519,19 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
 void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
                                     std::string &Name);
 
-std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F);
+class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
+public:
+  OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
+  OCLBuiltinFuncMangleInfo() = default;
+  bool isOpenCL() const override { return true; }
+  void init(StringRef UniqName) override;
+  // Auxiliary information, it is expected that it is relevant at the moment
+  // the init method is called.
+  Function *F; // SPIRV decorated function
+};
+
+std::unique_ptr<OCLBuiltinFuncMangleInfo> makeMangler(Function &F);
+
 } // namespace OCLUtil
 
 using namespace OCLUtil;
