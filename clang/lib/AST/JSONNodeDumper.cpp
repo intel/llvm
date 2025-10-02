@@ -396,7 +396,7 @@ llvm::json::Array JSONNodeDumper::createCastPath(const CastExpr *C) {
   for (auto I = C->path_begin(), E = C->path_end(); I != E; ++I) {
     const CXXBaseSpecifier *Base = *I;
     const auto *RD = cast<CXXRecordDecl>(
-        Base->getType()->castAs<RecordType>()->getOriginalDecl());
+        Base->getType()->castAsCanonical<RecordType>()->getOriginalDecl());
 
     llvm::json::Object Val{{"name", RD->getName()}};
     if (Base->isVirtual())
@@ -1674,6 +1674,13 @@ void JSONNodeDumper::VisitLabelStmt(const LabelStmt *LS) {
   JOS.attribute("declId", createPointerRepresentation(LS->getDecl()));
   attributeOnlyIfTrue("sideEntry", LS->isSideEntry());
 }
+
+void JSONNodeDumper::VisitLoopControlStmt(const LoopControlStmt *LS) {
+  if (LS->hasLabelTarget())
+    JOS.attribute("targetLabelDeclId",
+                  createPointerRepresentation(LS->getLabelDecl()));
+}
+
 void JSONNodeDumper::VisitGotoStmt(const GotoStmt *GS) {
   JOS.attribute("targetLabelDeclId",
                 createPointerRepresentation(GS->getLabel()));

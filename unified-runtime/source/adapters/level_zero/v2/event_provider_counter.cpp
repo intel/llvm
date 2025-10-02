@@ -64,7 +64,8 @@ raii::cache_borrowed_event provider_counter::allocate() {
     desc.signalScope = ZE_EVENT_SCOPE_FLAG_HOST;
 
     // Enhanced debug output to validate control flow integrity
-    UR_LOG(DEBUG, "zex_counter_based_event_desc_t flags set to: {}", desc.flags);
+    UR_LOG(DEBUG, "zex_counter_based_event_desc_t flags set to: {}",
+           desc.flags);
     ze_event_handle_t handle;
 
     // TODO: allocate host and device buffers to use here
