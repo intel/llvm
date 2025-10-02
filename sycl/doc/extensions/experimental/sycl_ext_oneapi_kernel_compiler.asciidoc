@@ -1131,11 +1131,10 @@ forward-declarable.
 
 The first time this option is passed, the compiler finds the initial set of
 preprocessor directives (e.g., `#define`/`#include`) and comments in the
-compiled source string (the preamble) and pre-compiles it. Essentialy, it
-behaves like a precompiled header containing that preamble. On subsequent
-compilations, if the compiled source string has the same preamble and the same
-compilation options are used, the precompiled preamble is used, which speeds up
-compilation.
+compiled source string (the preamble) and precompiles it. Essentialy, it behaves
+like a precompiled header containing that preamble. On subsequent compilations,
+if the compiled source string has the same preamble and the same compilation
+options are used, the precompiled preamble is used, which speeds up compilation.
 
 If the compiled source string has a different preamble or compilation options
 differ, a new precompiled preamble is generated, and that preamble can also be
@@ -1180,6 +1179,24 @@ generated precompiled preamble can be used:
     string is compiled. See also the clang compiler options `-Wpch-date-time`
     and `-Werror=pch-date-time`, which cause the compiler to diagnose a warning
     or error in this scenario.
+
+==== `--persistent-auto-pch=<dir>`
+
+Similar to `--auto-pch` but the precompiled preamble is stored on the filesystem
+at the location `<dir>`. That allows an application to precompile the preamble
+once and reuse it across multiple invocation of the application which isn't
+possible with `--auto-pch` that stores the precompiled preamble in-memory. This
+option is incompatible with `--auto-pch`.
+
+Some notes about the current behavior:
+
+* Threads only communicate via the persistent cache on the filesystem with no
+  other inter-thread communication to avoid extra synchronization overhead. In
+  an unlikely event that a preamble is missing from the cache and multiple
+  threads need it, each thread will build the preamble.
+
+* In the **very** unlikely event of a hash collision the precompiled preamble
+  from the persistent cache is ignored and the source is compiled without it.
 
 === Known issues and limitations when the language is `sycl`
 
