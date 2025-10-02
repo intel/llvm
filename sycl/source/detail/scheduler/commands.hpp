@@ -688,8 +688,7 @@ private:
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    xpti::stream_id_t StreamID,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+    xpti::stream_id_t StreamID, const kernel_impl *SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
     DeviceKernelInfo &DeviceKernelInfo, queue_impl *Queue,
     const NDRDescT &NDRDesc, detail::kernel_bundle_impl *KernelBundleImplPtr,
