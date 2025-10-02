@@ -246,6 +246,9 @@ def do_configure(args, passthrough_args):
             "none of them to let download from github.com"
         )
 
+    if args.use_debug_crt_dll:
+        cmake_cmd.extend(["-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL"])
+
     # Add additional CMake options if provided
     if args.cmake_opt:
         cmake_cmd += args.cmake_opt
@@ -433,6 +436,11 @@ def main():
         "--print-cmake-flags",
         action="store_true",
         help="Print the generated CMake flags to a single line on standard output and exit. Suppresses all other output and does not run the cmake command.",
+    )
+    parser.add_argument(
+        "--use-debug-crt-dll",
+        action="store_true",
+        help="Link libraries with MSVC debug dll in release mode.",
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 

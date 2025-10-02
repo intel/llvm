@@ -315,13 +315,6 @@ if (WIN32)
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
     list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}-preview)
   endif()
-  # Do we really support non-MSVC ABI on WIN?
-  if (MSVC)
-    list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}d)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}-previewd)
-    endif()
-  endif()
 else()
   set(SYCL_RT_LIBS sycl)
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
@@ -372,11 +365,7 @@ if(SYCL_ENABLE_XPTI_TRACING AND
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  if (MSVC)
-    set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
-  else()
-    set(XPTIFW_LIBS xpti xptifw)
-  endif()
+  set(XPTIFW_LIBS xpti xptifw)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -415,7 +404,7 @@ add_custom_target( sycl-toolchain ALL
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain ur_win_proxy_loader unified-runtimed-build)
+  add_dependencies(sycl-toolchain ur_win_proxy_loader)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 // RUN: %t.out
 //
 // Checks that sycl::half on host can correctly cast its minimum subnormal value
