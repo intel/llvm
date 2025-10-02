@@ -942,7 +942,24 @@ static void addBackendOptions(const ArgList &Args,
                               SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
   StringRef OptC =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (!IsCPU) {
+    // ocloc -options args need to be comma separated, e.g. `-options
+    // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
+    // ocloc as an arg for -options, and the rest are processed as standalone
+    // flags, possibly leading to errors.
+    std::pair<StringRef, StringRef> OptionsArgs = OptC.split("-options ");
+    // Only add if not empty, an empty arg can lead to ocloc errors.
+    if (!OptionsArgs.first.empty())
+      CmdArgs.push_back(OptionsArgs.first);
+    if (!OptionsArgs.second.empty()) {
+      CmdArgs.push_back("-options");
+      std::string Replace = OptionsArgs.second.str();
+      std::replace(Replace.begin(), Replace.end(), ' ', ',');
+      CmdArgs.push_back(Args.MakeArgString(Replace));
+    }
+  } else {
+    OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  }
   StringRef OptL =
       Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
   OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
