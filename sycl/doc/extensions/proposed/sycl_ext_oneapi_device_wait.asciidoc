@@ -106,8 +106,7 @@ enum class aspect {
 ext_oneapi_device_wait
 ----
 
-Indicates that the device supports the `device::ext_oneapi_wait_and_throw`
-member functions.
+Indicates that the device supports the member functions described below.
 
 '''
 
@@ -121,8 +120,9 @@ namespace sycl {
 
 class device {
   // ...
-  void ext_oneapi_wait_and_throw(async_handler h);
+  void ext_oneapi_wait();
   void ext_oneapi_wait_and_throw();
+  void ext_oneapi_throw_asynchronous();
 };
 
 } // namespace sycl
@@ -132,14 +132,11 @@ class device {
 
 [source,c++]
 ----
-void ext_oneapi_wait_and_throw(async_handler h);
+void ext_oneapi_wait();
 ----
 
 _Effects:_ Blocks the calling thread until all commands previously submitted to
 any queue on this device have completed.
-Any unconsumed asynchronous errors from these commands are reported to the
-`h` handler as defined in section 4.13.1.1 "Asynchronous error handler" of the
-core SYCL specification.
 
 _Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
 error code if the device does not have `aspect::ext_oneapi_device_wait`.
@@ -153,17 +150,29 @@ void ext_oneapi_wait_and_throw();
 
 _Effects:_ Blocks the calling thread until all commands previously submitted to
 any queue on this device have completed.
-Any unconsumed asynchronous errors from these commands are reported to the
-default async handler as defined in section 4.13.1.2 "Behavior without an async
-handler" of the core SYCL specification.
+
+At least all unconsumed asynchronous errors held by any queue (or its associated
+context) on this device are passed to the appropriate async_handler as described
+in section 4.13.1.3 "Priorities of async handlers" of the core SYCL
+specification.
 
 _Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
 error code if the device does not have `aspect::ext_oneapi_device_wait`.
 
-[_Note:_ The default async handler terminates the application when an
-asynchronous error occurs, so applications should use the other overload of
-`ext_oneapi_wait_and_throw` if they want to handle these errors.
-_{endnote}_]
+'''
+
+[source,c++]
+----
+void ext_oneapi_throw_asynchronous();
+----
+
+_Effects:_ Checks to see if any unconsumed asynchronous errors have been
+produced by any queue (or its associated context) on this device.
+If so, they are passed to the appropriate async_handler as described in section
+4.13.1.3 "Priorities of async handlers" of the core SYCL specification.
+
+_Throws:_ A synchronous `exception` with the `errc::feature_not_supported`
+error code if the device does not have `aspect::ext_oneapi_device_wait`.
 
 '''
 
