@@ -942,23 +942,28 @@ static void addBackendOptions(const ArgList &Args,
                               SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
   StringRef OptC =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  if (!IsCPU) {
+  if (IsCPU) {
+    OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  } else {
     // ocloc -options args need to be comma separated, e.g. `-options
     // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
     // ocloc as an arg for -options, and the rest are processed as standalone
     // flags, possibly leading to errors.
-    std::pair<StringRef, StringRef> OptionsArgs = OptC.split("-options ");
+    // split function here returns a pair with everything before the separator
+    // ("-options") in the first member of the pair, and everything after the
+    // separator in the second part of the pair. The separator is not included
+    // in any of them.
+    auto [BeforeOptions, AfterOptions] = OptC.split("-options ");
     // Only add if not empty, an empty arg can lead to ocloc errors.
-    if (!OptionsArgs.first.empty())
-      CmdArgs.push_back(OptionsArgs.first);
-    if (!OptionsArgs.second.empty()) {
+    if (!BeforeOptions.empty())
+      CmdArgs.push_back(BeforeOptions);
+    if (!AfterOptions.empty()) {
+      // Separator not included by the split function, so explicitly added here.
       CmdArgs.push_back("-options");
-      std::string Replace = OptionsArgs.second.str();
+      std::string Replace = AfterOptions.str();
       std::replace(Replace.begin(), Replace.end(), ' ', ',');
       CmdArgs.push_back(Args.MakeArgString(Replace));
     }
-  } else {
-    OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   }
   StringRef OptL =
       Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
