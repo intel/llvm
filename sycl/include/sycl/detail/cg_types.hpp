@@ -238,6 +238,8 @@ public:
 // the class keeps reference to a lambda allocated externally on stack
 class HostKernelRefBase : public HostKernelBase {
 public:
+  HostKernelRefBase &operator=(const HostKernelRefBase &) = delete;
+
   virtual std::unique_ptr<HostKernelBase> takeOrCopyOwnership() const = 0;
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // The kernels that are passed via HostKernelRefBase are instantiated along
