@@ -200,9 +200,12 @@ runs:
       sycl_ls_out="$(mktemp)"
       sycl-ls 2>/dev/null > "$sycl_ls_out"
       while IFS= read -r device; do
+        echo "DEBUG: $device"
         # Separate device selector id from e.g. '[level_zero:gpu][level_zero:0]'
         device_sel=${device%%] *}
+        echo "DEBUG: $device_sel"
         device_sel=${device_sel#*][}
+        echo "DEBUG: $device_sel"
         case "${device#* }" in
           *'Data Center GPU Max'*) device_sel_type="PVC" ;;
           *'B580 Graphics'*) device_sel_type="BMG" ;;
