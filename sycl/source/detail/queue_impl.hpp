@@ -361,8 +361,7 @@ public:
 
   template <int Dims>
   event submit_kernel_direct_with_event(
-      const nd_range<Dims> &Range,
-      std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
@@ -373,8 +372,7 @@ public:
 
   template <int Dims>
   void submit_kernel_direct_without_event(
-      const nd_range<Dims> &Range,
-      std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
@@ -905,8 +903,7 @@ protected:
   ///
   /// \return a SYCL event representing submitted command group or nullptr.
   detail::EventImplPtr submit_kernel_direct_impl(
-      const NDRDescT &NDRDesc,
-      std::shared_ptr<detail::HostKernelBase> &HostKernel,
+      const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
