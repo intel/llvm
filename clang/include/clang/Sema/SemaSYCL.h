@@ -219,7 +219,7 @@ private:
   // at any nesting level. Store the information in the variable below.
   llvm::DenseMap<ParmVarDecl *, llvm::SmallVector<std::pair<size_t, size_t>>>
       OffsetSizeInfo;
-  // Likewise for the kind of a special type i.e accessor etc...
+  // Likewise for the kind of a field i.e accessor, std_layout etc...
   llvm::DenseMap<ParmVarDecl *,
                  llvm::SmallVector<SYCLIntegrationHeader::kernel_param_kind_t>>
       KindInfo;
