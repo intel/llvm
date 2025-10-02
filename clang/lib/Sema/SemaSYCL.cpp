@@ -7414,7 +7414,8 @@ void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
   // and Kind information to the integration header for each field inside this
   // struct. Also, verify that we are actually adding a field and not the struct
   // itself by checking the Kind.
-  if (ParentStruct && Kind != kernel_param_kind_t::kind_struct_with_special_type) {
+  if (ParentStruct &&
+      Kind != kernel_param_kind_t::kind_struct_with_special_type) {
     OffsetSizeInfo[ParentStruct].emplace_back(std::make_pair(Offset, Info));
     KindInfo[ParentStruct].emplace_back(Kind);
   }
