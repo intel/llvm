@@ -358,39 +358,39 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK:      const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_2Piiii
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_3IiEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_3IfEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 12 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:        {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
 // CHECK-NEXT:   { kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 8 },
-// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 16 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 8, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_410NoPointers8Pointers3Agg
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 16, 4 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 20 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 32 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 72 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 48, 0 },
@@ -401,27 +401,27 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions4ff_9EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests2V15ff_11EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN26__sycl_kernel__GLOBAL__N_15ff_12EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_13EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_13EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 }, 
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_dynamic_work_group_memory, 8, 0 },
@@ -446,23 +446,23 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_14EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_15EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_16E3AggPS0_
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 32 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_17E7DerivedPS0_
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 40 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_18ENS_3AggEPS1_
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 8, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 8 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 0 },
 
 // CHECK: //--- _Z19__sycl_kernel_ff_19N14free_functions16KArgWithPtrArrayILi50EEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 800, 0 },
@@ -475,24 +475,24 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 
 // CHECK: //--- _Z19__sycl_kernel_ff_2524AccessorAndLocalAccessor
 // CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 36, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 36 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 48 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 12 },
 
 // CHECK:  //--- _Z19__sycl_kernel_ff_2624AccessorAndLocalAccessor19SecondLevelAccessor
 // CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 36, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 36 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 48 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 36 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 64 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 12 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12 },
 
 // CHECK:  //--- _Z19__sycl_kernel_ff_2714IntAndAccessor14AccessorAndInt
 // CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 20 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 16 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 32 },
-// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 44 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 4 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12 },
 
 // CHECK: //--- _Z19__sycl_kernel_ff_23i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
@@ -1595,17 +1595,12 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndLocalAccessor> {
 // CHECK-NEXT: inline static constexpr bool value = true;
-// CHECK-NEXT: };
-
-// CHECK: template <> struct struct_with_special_type_info<AccessorAndLocalAccessor> {
-// CHECK-NEXT: template<typename ArgT, typename HandlerT>
-// CHECK-NEXT: static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
-// CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 0));
-// CHECK-NEXT: ++ArgIndex;
-// CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::local_accessor<int, 1> *)((char *)(&arg) + 12));
-// CHECK-NEXT: ++ArgIndex;
-// CHECK-NEXT: NumArgs = 2;
-// CHECK-NEXT: }
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4064, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
 // CHECK-NEXT: };
 
 // CHECK: static constexpr auto __sycl_shim33() {
@@ -1626,17 +1621,12 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<SecondLevelAccessor> {
 // CHECK-NEXT: inline static constexpr bool value = true;
-// CHECK-NEXT: };
-
-// CHECK: template <> struct struct_with_special_type_info<SecondLevelAccessor> {
-// CHECK-NEXT: template<typename ArgT, typename HandlerT>
-// CHECK-NEXT: static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
-// CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 0));
-// CHECK-NEXT: ++ArgIndex;
-// CHECK-NEXT: cgh.set_arg(ArgIndex, *(int *)((char *)(&arg) + 12));
-// CHECK-NEXT: ++ArgIndex;
-// CHECK-NEXT: NumArgs = 2;
-// CHECK-NEXT: }
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_std_layout,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
 // CHECK-NEXT: };
 
 // CHECK: static constexpr auto __sycl_shim34() {
@@ -1657,33 +1647,17 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<IntAndAccessor> {
 // CHECK-NEXT: inline static constexpr bool value = true;
-// CHECK-NEXT: };
-
-// CHECK: template <> struct struct_with_special_type_info<IntAndAccessor> {
-// CHECK-NEXT: template<typename ArgT, typename HandlerT>
-// CHECK-NEXT:  static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
-// CHECK-NEXT:    cgh.set_arg(ArgIndex, *(int *)((char *)(&arg) + 0));
-// CHECK-NEXT:    ++ArgIndex;
-// CHECK-NEXT:    cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 4));
-// CHECK-NEXT:    ++ArgIndex;
-// CHECK-NEXT:    NumArgs = 2;
-// CHECK-NEXT:  }
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 4, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4, 4062, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_std_layout,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
 // CHECK-NEXT: };
 
 // CHECK: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndInt> {
 // CHECK-NEXT: inline static constexpr bool value = true;
-// CHECK-NEXT: };
-
-// CHECK: template <> struct struct_with_special_type_info<AccessorAndInt> {
-// CHECK-NEXT: template<typename ArgT, typename HandlerT>
-// CHECK-NEXT: static void set_arg(int ArgIndex, ArgT& arg, HandlerT& cgh, int &NumArgs) {
-// CHECK-NEXT: cgh.set_arg(ArgIndex, *(sycl::accessor<int, 1, sycl::access::mode::read_write, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > *)((char *)(&arg) + 0));
-// CHECK-NEXT: ++ArgIndex;
-// CHECK-NEXT: cgh.set_arg(ArgIndex, *(int *)((char *)(&arg) + 12));
-// CHECK-NEXT: ++ArgIndex;
-// CHECK-NEXT: NumArgs = 2;
-// CHECK-NEXT: }
 // CHECK-NEXT: };
 
 // CHECK: static constexpr auto __sycl_shim35() {
