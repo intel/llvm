@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 0 | FileCheck %s --check-prefix CHECK-0
-// RUN: %{run} %t.out 1 | FileCheck %s --check-prefix CHECK-1
-// RUN: %{run} %t.out 2 | FileCheck %s --check-prefix CHECK-2
-// RUN: %{run} %t.out 3 | FileCheck %s --check-prefix CHECK-3
+// RUN: %{run} %t.out 0 &> %t_0.txt ; FileCheck %s --input-file %t_0.txt --check-prefix CHECK-0
+// RUN: %{run} %t.out 1 &> %t_1.txt ; FileCheck %s --input-file %t_1.txt --check-prefix CHECK-1
+// RUN: %{run} %t.out 2 &> %t_2.txt ; FileCheck %s --input-file %t_2.txt --check-prefix CHECK-2
+// RUN: %{run} %t.out 3 &> %t_3.txt ; FileCheck %s --input-file %t_3.txt --check-prefix CHECK-3
 
 #include <string>
 #include <sycl/detail/core.hpp>
