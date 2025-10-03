@@ -128,6 +128,11 @@ context_impl::~context_impl() {
       if (DGEntry != nullptr)
         DGEntry->removeAssociatedResources(this);
     }
+    // Free all profile counter USM allocations associated with this context.
+    for (DeviceGlobalMapEntry *DGEntry :
+         detail::ProgramManager::getInstance()
+             .getProfileCounterDeviceGlobalEntries(this))
+      DGEntry->cleanupProfileCounter(this);
     MCachedLibPrograms.clear();
     // TODO catch an exception and put it to list of asynchronous exceptions
     getAdapter().call_nocheck<UrApiKind::urContextRelease>(MContext);
