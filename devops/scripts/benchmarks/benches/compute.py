@@ -132,7 +132,7 @@ class ComputeBench(Suite):
                     cpu_count_group = f"{group_name}, CPU count"
                     metadata[cpu_count_group] = copy.deepcopy(submit_kernel_metadata)
                     metadata[cpu_count_group].description = (
-                        f"Measures CPU instructions count overhead of submitting {order} kernels with longer execution times through different APIs."
+                        f"Measures CPU instruction count overhead of submitting {order} kernels with longer execution times through different APIs."
                     )
 
         # Add metadata for all SubmitGraph group variants
