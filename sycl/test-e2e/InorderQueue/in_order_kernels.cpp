@@ -1,6 +1,8 @@
 //
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
+// RUN: %{build} -D__DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT -o %t2.out
+// RUN: %{run} %t2.out
 
 // SYCL ordered queue kernel shortcut test
 //
