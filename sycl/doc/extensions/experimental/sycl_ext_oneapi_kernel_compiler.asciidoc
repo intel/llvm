@@ -1173,8 +1173,13 @@ generated precompiled preamble can be used:
 
   - The content of each header file in the preamble must not change from one
     compilation to another.
-  - The header files in the preamble must not use the `+__DATE__+` or
-    `+__TIME__+` macros.
+  - It is not recommended to use the `+__DATE__+` or `+__TIME__+` macros in the
+    preamble header files. Depending on the circumstances, these macros may be
+    replaced with the date / time that corresponds to the time at which the
+    precompiled preamble was generated, rather than the time at which the source
+    string is compiled. See also the clang compiler options `-Wpch-date-time`
+    and `-Werror=pch-date-time`, which cause the compiler to diagnose a warning
+    or error in this scenario.
 
 === Known issues and limitations when the language is `sycl`
 
