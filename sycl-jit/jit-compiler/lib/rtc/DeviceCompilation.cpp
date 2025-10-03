@@ -107,7 +107,7 @@ class SYCLToolchain {
       if (!Compiler.hasDiagnostics())
         return false;
 
-      Compiler.createSourceManager(*Files);
+      Compiler.createSourceManager();
 
       const bool Success = Compiler.ExecuteAction(FEAction);
 
