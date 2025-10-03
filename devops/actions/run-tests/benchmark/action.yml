@@ -199,15 +199,25 @@ runs:
 
       sycl_ls_out="$(mktemp)"
       sycl-ls 2>/dev/null > "$sycl_ls_out"
-      cat "$sycl_ls_out"
-      sycl-ls --verbose
       while IFS= read -r device; do
-        echo "DEBUG: $device"
         # Separate device selector id from e.g. '[level_zero:gpu][level_zero:0]'
-        device_sel=${device%%] *}
-        echo "DEBUG: $device_sel"
-        device_sel=${device_sel#*][}
-        echo "DEBUG: $device_sel"
+        if [ -n "$(echo "$device" | grep -E '^\[[a-z_]+:[a-z]+\] ')" ]; then
+          # Only 1 device exists: [backend:dev] device
+          device_sel=${device%%] *}
+          device_sel=${device_sel#[}
+        elif [ -n "$(echo "$device" | grep -E '^\[[a-z_]+:[a-z]+\]\[[a-z_]+:[0-9]+\] ')" ]; then
+          # Multiple devices exist: [backend:dev][backend:id] device
+          device_sel=${device%%] *}
+          device_sel=${device_sel#*][}
+        else
+          echo "Unknown sycl-ls format: Expecting '[backend:dev] device' or '[backend:dev][backend:id] device'."
+          sycl-ls
+          echo "**Error:** Unknown sycl-ls format: Expecting '[backend:dev] device' or '[backend:dev][backend:id] device':" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          sycl-ls >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
         case "${device#* }" in
           *'Data Center GPU Max'*) device_sel_type="PVC" ;;
           *'B580 Graphics'*) device_sel_type="BMG" ;;
