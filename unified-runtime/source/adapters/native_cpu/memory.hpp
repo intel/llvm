@@ -69,3 +69,6 @@ struct ur_buffer final : ur_mem_handle_t_ {
     size_t Origin; // only valid if Parent != nullptr
   } SubBuffer;
 };
+
+// IPC is currently not supported in the native CPU adaptor.
+struct ur_exp_ipc_mem_handle_t_ {};

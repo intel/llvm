@@ -118,6 +118,7 @@
 		urGetEnqueueExpProcAddrTable;
 		urGetEnqueueProcAddrTable;
 		urGetEventProcAddrTable;
+		urGetIPCExpProcAddrTable;
 		urGetKernelProcAddrTable;
 		urGetMemProcAddrTable;
 		urGetMemoryExportExpProcAddrTable;
@@ -131,6 +132,11 @@
 		urGetUSMProcAddrTable;
 		urGetUsmP2PExpProcAddrTable;
 		urGetVirtualMemProcAddrTable;
+		urIPCCloseMemHandleExp;
+		urIPCGetMemHandleDataExp;
+		urIPCGetMemHandleExp;
+		urIPCOpenMemHandleExp;
+		urIPCPutMemHandleExp;
 		urKernelCreate;
 		urKernelCreateWithNativeHandle;
 		urKernelGetGroupInfo;
@@ -362,6 +368,11 @@
 		urPrintImageDesc;
 		urPrintImageFormat;
 		urPrintImageInfo;
+		urPrintIpcCloseMemHandleExpParams;
+		urPrintIpcGetMemHandleDataExpParams;
+		urPrintIpcGetMemHandleExpParams;
+		urPrintIpcOpenMemHandleExpParams;
+		urPrintIpcPutMemHandleExpParams;
 		urPrintKernelArgLocalProperties;
 		urPrintKernelArgMemObjProperties;
 		urPrintKernelArgPointerProperties;
