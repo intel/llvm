@@ -421,15 +421,17 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 }
 
 detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
-    const NDRDescT &NDRDesc,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
 
+  std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
+      HostKernel.takeOrCopyOwnership();
+
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
-  KData.setKernelFunc(HostKernel->getPtr());
+  KData.setKernelFunc(HostKernelPtr->getPtr());
   KData.setNDRDesc(NDRDesc);
 
   auto SubmitKernelFunc =
@@ -441,7 +443,7 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
     KData.extractArgsAndReqsFromLambda();
 
     CommandGroup.reset(new detail::CGExecKernel(
-        KData.getNDRDesc(), HostKernel,
+        KData.getNDRDesc(), std::move(HostKernelPtr),
         nullptr, // Kernel
         nullptr, // KernelBundle
         std::move(CGData), std::move(KData).getArgs(),

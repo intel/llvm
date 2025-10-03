@@ -65,14 +65,14 @@ auto get_native(const SyclObjectT &Obj)
 template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -157,10 +157,10 @@ private:
 } // namespace v1
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
-          typename PropertiesT, typename KernelType, int Dims>
+          typename PropertiesT, typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
     const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
-    const KernelType &KernelFunc,
+    KernelTypeUniversalRef &&KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
   (void)Props;
@@ -169,6 +169,9 @@ auto submit_kernel_direct(
                      ext::oneapi::experimental::empty_properties_t>,
       "Setting properties not supported yet for no-CGH kernel submit.");
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
 
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -180,14 +183,22 @@ auto submit_kernel_direct(
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
-      detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
+  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
+                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
+
+  HostKernelRef<KernelType, KernelTypeUniversalRef, TransformedArgType, Dims>
+      HostKernel(std::forward<KernelTypeUniversalRef>(KernelFunc));
+
+  // Instantiating the kernel on the host improves debugging.
+  // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+  // TODO: call library to prevent dropping call due to optimization
+  (void)
+      detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>();
+#endif
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
       &detail::getDeviceKernelInfo<NameT>();
-
-  detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
-                        TransformedArgType, PropertiesT>::wrap(KernelFunc);
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
