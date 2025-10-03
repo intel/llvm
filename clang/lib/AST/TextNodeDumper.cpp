@@ -3098,6 +3098,9 @@ void TextNodeDumper::VisitHLSLRootSignatureDecl(
   case llvm::dxbc::RootSignatureVersion::V1_1:
     OS << "1.1";
     break;
+  case llvm::dxbc::RootSignatureVersion::V1_2:
+    OS << "1.2";
+    break;
   }
   OS << ", ";
   llvm::hlsl::rootsig::dumpRootElements(OS, D->getRootElements());
