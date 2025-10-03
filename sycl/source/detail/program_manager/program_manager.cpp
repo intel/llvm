@@ -164,7 +164,7 @@ static bool isDeviceBinaryTypeSupported(context_impl &ContextImpl,
 [[maybe_unused]] auto VecToString = [](auto &Vec) -> std::string {
   std::ostringstream Out;
   Out << "{";
-  for (auto Elem : Vec)
+  for (const auto &Elem : Vec)
     Out << Elem << " ";
   Out << "}";
   return Out.str();
