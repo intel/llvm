@@ -174,7 +174,7 @@ jobs:
             use_igc_dev: true
             env: '{"LIT_FILTER":"Matrix/"}'
           - name: Intel / Battlemage Graphics
-            runner: '["Linux", "bmg"]'
+            runner: '["Linux", "bmg_test"]'
             target_devices: level_zero_v1:gpu;level_zero_v2:gpu
           - name: Preview Mode
             runner: '["Linux", "gen12"]'

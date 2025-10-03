@@ -134,6 +134,23 @@ jobs:
       # https://github.com/intel/llvm/issues/18458
       env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
 
+  e2e-win2:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      name: bmg
+      runner: '["Windows","bmg_test"]'
+      target_devices: "level_zero:gpu"
+      toolchain_artifact_filename: ${{ needs.build-win.outputs.toolchain_artifact_filename }}
+      cxx: icx
+      # https://github.com/intel/llvm/issues/18458
+      env: "{'LIT_FILTER_OUT':'std_array.cpp|compile_on_win_with_mdd.cpp'}"
+
   macos_default:
     name: macOS
     if: github.repository == 'intel/llvm'
