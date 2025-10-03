@@ -134,9 +134,10 @@ runs:
 
       cd -
   - name: Checkout results repo
-    shell: bash
-    run: |
-      git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
+    uses: actions/checkout@v5
+    with:
+      ref: ianayl/benchmark-ci-results-test
+      path: llvm-ci-perf-results
   - name: Run compute-benchmarks
     env:
       # Need to append "_<device>_<backend>" to save name in order to follow
@@ -237,9 +238,9 @@ runs:
     shell: bash
     run: |
       cd "./llvm-ci-perf-results"
-      git config user.name "SYCL Benchmarking Bot"
-      git config user.email "sys_sycl_benchmarks@intel.com"
-      results_branch="unify-ci"
+      git config user.name "github-actions[bot]"
+      git config user.email "github-actions[bot]@users.noreply.github.com"
+      # results_branch="ianayl/benchmark-ci-results-test"
 
       if git diff --quiet && git diff --cached --quiet; then
         echo "No new results added, skipping push."
@@ -252,7 +253,7 @@ runs:
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
 
-        if git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" "$results_branch"; then
+        if git push; then
           echo "Push succeeded"
           break
         fi
