@@ -27,17 +27,6 @@
 #include <string>
 #include <vector>
 
-#ifdef NDEBUG
-#define DUMP_ENTRY_POINTS(...)
-#else
-constexpr int DebugESIMDPostSplit = 0;
-
-#define DUMP_ENTRY_POINTS(...)                                                 \
-  if (DebugESIMDPostSplit > 0) {                                               \
-    llvm::module_split::dumpEntryPoints(__VA_ARGS__);                          \
-  }
-#endif // NDEBUG
-
 using namespace llvm;
 using namespace llvm::module_split;
 
@@ -134,11 +123,9 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
 
   SplitOccurred |= Result.size() > 1;
 
-  for (ModuleDesc &MD : Result) {
-    DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 4);
+  for (ModuleDesc &MD : Result)
     if (Options.LowerESIMD && MD.isESIMD())
       Modified |= lowerESIMDConstructs(MD, Options);
-  }
 
   if (Options.SplitESIMD || Result.size() == 1)
     return std::move(Result);
@@ -164,7 +151,6 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
   Linked.rebuildEntryPoints(Names);
   Result.clear();
   Result.emplace_back(std::move(Linked));
-  DUMP_ENTRY_POINTS(Result.back().entries(), Result.back().Name.c_str(), 4);
   Modified = true;
 
   return std::move(Result);
