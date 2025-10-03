@@ -233,13 +233,13 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Benchmark suite precommit testing
-      runner: '["test-runner"]'
+      runner: '["test-runner2"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: 'level_zero:gpu'
       tests_selector: benchmarks
       benchmark_upload_results: true
-      benchmark_save_name: 'test_runner_46'
+      benchmark_save_name: 'test_runner_47'
       benchmark_preset: 'Minimal'
       benchmark_dry_run: true
       repo_ref: ${{ github.sha }}
