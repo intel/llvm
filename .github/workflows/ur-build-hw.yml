@@ -83,7 +83,7 @@ jobs:
             static_adapter: "${{inputs.static_loader}}"
           }
         ]
-        build_type: [Release]
+        build_type: [Debug]
         compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
