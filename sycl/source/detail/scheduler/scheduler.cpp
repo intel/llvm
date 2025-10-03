@@ -260,7 +260,8 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
       auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
       assert(WorkerQueue &&
              "WorkerQueue for CopyBack command must be not null");
-      WorkerQueue->reportAsyncException(std::current_exception());
+      WorkerQueue->getDeviceImpl().reportAsyncException(
+          WorkerQueue, std::current_exception());
     }
   }
   EventImplPtr NewEvent = NewCmd->getEvent();

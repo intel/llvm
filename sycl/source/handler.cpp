@@ -956,7 +956,7 @@ event handler::finalize() {
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
     auto EventImpl = detail::event_impl::create_completed_host_event();
-    EventImpl->setSubmittedQueue(Queue->weak_from_this());
+    EventImpl->setSubmittedQueue(Queue);
     ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
 
     // GraphImpl is read and written in this scope so we lock this graph
