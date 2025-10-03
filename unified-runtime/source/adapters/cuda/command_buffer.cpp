@@ -109,8 +109,15 @@ kernel_command_data::kernel_command_data(
     ur_kernel_handle_t *KernelAlternatives)
     : Kernel(Kernel), Params(Params), WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
-  std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+
+  // GlobalWorkOffsetPtr may be nullptr
+  if (GlobalWorkOffsetPtr) {
+    std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
+  } else {
+    std::memset(GlobalWorkOffset, 0, sizeof(size_t) * 3);
+  }
+
   // Local work size may be nullptr
   if (LocalWorkSizePtr) {
     std::memcpy(LocalWorkSize, LocalWorkSizePtr, CopySize);
