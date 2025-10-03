@@ -66,38 +66,6 @@ using namespace jit_compiler;
 
 namespace {
 
-class HashPreprocessedAction : public PreprocessorFrontendAction {
-protected:
-  void ExecuteAction() override {
-    CompilerInstance &CI = getCompilerInstance();
-
-    std::string PreprocessedSource;
-    raw_string_ostream PreprocessStream(PreprocessedSource);
-
-    PreprocessorOutputOptions Opts;
-    Opts.ShowCPP = 1;
-    Opts.MinimizeWhitespace = 1;
-    // Make cache key insensitive to virtual source file and header locations.
-    Opts.ShowLineMarkers = 0;
-
-    DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
-
-    Hash = BLAKE3::hash(arrayRefFromStringRef(PreprocessedSource));
-    Executed = true;
-  }
-
-public:
-  BLAKE3Result<> takeHash() {
-    assert(Executed);
-    Executed = false;
-    return std::move(Hash);
-  }
-
-private:
-  BLAKE3Result<> Hash;
-  bool Executed = false;
-};
-
 class SYCLToolchain {
   SYCLToolchain() {
     using namespace jit_compiler::resource;
@@ -149,16 +117,55 @@ class SYCLToolchain {
     }
   };
 
+  std::vector<std::string> createCommandLine(const InputArgList &UserArgList,
+                                             BinaryFormat Format,
+                                             std::string_view SourceFilePath) {
+    DerivedArgList DAL{UserArgList};
+    const auto &OptTable = getDriverOptTable();
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+    // User args may contain options not intended for the frontend, but we can't
+    // claim them here to tell the driver they're used later. Hence, suppress
+    // the unused argument warning.
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+      auto [CPU, Features] =
+          Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+      (void)Features;
+      StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                                 : "amdgcn-amd-amdhsa";
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+    }
+
+    ArgStringList ASL;
+    for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
+    for_each(UserArgList,
+             [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
+
+    std::vector<std::string> CommandLine;
+    CommandLine.reserve(ASL.size() + 2);
+    CommandLine.emplace_back(ClangXXExe);
+    transform(ASL, std::back_inserter(CommandLine),
+              [](const char *AS) { return std::string{AS}; });
+    CommandLine.emplace_back(SourceFilePath);
+    return CommandLine;
+  }
+
 public:
   static SYCLToolchain &instance() {
     static SYCLToolchain Instance;
     return Instance;
   }
 
-  bool run(const std::vector<std::string> &CommandLine,
-           FrontendAction &FEAction,
+  bool run(const InputArgList &UserArgList, BinaryFormat Format,
+           const char *SourceFilePath, FrontendAction &FEAction,
            IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
            DiagnosticConsumer *DiagConsumer = nullptr) {
+    std::vector<std::string> CommandLine =
+        createCommandLine(UserArgList, Format, SourceFilePath);
+
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
     FS->pushOverlay(ToolchainFS);
@@ -258,42 +265,6 @@ public:
 
 } // anonymous namespace
 
-static std::vector<std::string>
-createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
-                  std::string_view SourceFilePath) {
-  DerivedArgList DAL{UserArgList};
-  const auto &OptTable = getDriverOptTable();
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  // User args may contain options not intended for the frontend, but we can't
-  // claim them here to tell the driver they're used later. Hence, suppress the
-  // unused argument warning.
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
-
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    auto [CPU, Features] =
-        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-    (void)Features;
-    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
-                                               : "amdgcn-amd-amdhsa";
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
-  }
-
-  ArgStringList ASL;
-  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
-  for_each(UserArgList,
-           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
-
-  std::vector<std::string> CommandLine;
-  CommandLine.reserve(ASL.size() + 2);
-  CommandLine.emplace_back(SYCLToolchain::instance().getClangXXExe());
-  transform(ASL, std::back_inserter(CommandLine),
-            [](const char *AS) { return std::string{AS}; });
-  CommandLine.emplace_back(SourceFilePath);
-  return CommandLine;
-}
-
 static llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
 getInMemoryFS(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles) {
   auto InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
@@ -315,31 +286,56 @@ Expected<std::string> jit_compiler::calculateHash(
     const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
-  std::vector<std::string> CommandLine =
-      createCommandLine(UserArgList, Format, SourceFile.Path);
+  class HashPreprocessedAction : public PreprocessorFrontendAction {
+  protected:
+    void ExecuteAction() override {
+      CompilerInstance &CI = getCompilerInstance();
 
-  HashPreprocessedAction HashAction;
+      std::string PreprocessedSource;
+      raw_string_ostream PreprocessStream(PreprocessedSource);
 
-  if (SYCLToolchain::instance().run(CommandLine, HashAction,
-                                    getInMemoryFS(SourceFile, IncludeFiles))) {
-    BLAKE3Result<> SourceHash = HashAction.takeHash();
-    // Last argument is the source file in the format `rtc_N.cpp` which is
-    // unique for each query, so drop it:
-    CommandLine.pop_back();
+      PreprocessorOutputOptions Opts;
+      Opts.ShowCPP = 1;
+      Opts.MinimizeWhitespace = 1;
+      // Make cache key insensitive to virtual source file and header locations.
+      Opts.ShowLineMarkers = 0;
 
-    // TODO: Include hash of the current libsycl-jit.so/.dll somehow...
-    BLAKE3Result<> CommandLineHash =
-        BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
+      DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
 
-    std::string EncodedHash =
-        encodeBase64(SourceHash) + encodeBase64(CommandLineHash);
-    // Make the encoding filesystem-friendly.
-    std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
-    return std::move(EncodedHash);
+      Hasher.update(PreprocessedSource);
+    }
 
-  } else {
+  public:
+    HashPreprocessedAction(BLAKE3 &Hasher) : Hasher(Hasher) {}
+
+  private:
+    BLAKE3 &Hasher;
+  };
+
+  BLAKE3 Hasher;
+  HashPreprocessedAction HashAction{Hasher};
+
+  if (!SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path,
+                                     HashAction,
+                                     getInMemoryFS(SourceFile, IncludeFiles)))
     return createStringError("Calculating source hash failed");
+
+  Hasher.update(CLANG_VERSION_STRING);
+  Hasher.update(
+      ArrayRef<uint8_t>{reinterpret_cast<const uint8_t *>(&Format),
+                        reinterpret_cast<const uint8_t *>(&Format + 1)});
+
+  for (Arg *Opt : UserArgList) {
+    Hasher.update(Opt->getSpelling());
+    for (const char *Val : Opt->getValues())
+      Hasher.update(Val);
   }
+
+  std::string EncodedHash = encodeBase64(Hasher.result());
+
+  // Make the encoding filesystem-friendly.
+  std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+  return std::move(EncodedHash);
 }
 
 Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
@@ -352,9 +348,9 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
-  if (SYCLToolchain::instance().run(
-          createCommandLine(UserArgList, Format, SourceFile.Path), ELOA,
-          getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
+  if (SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path, ELOA,
+                                    getInMemoryFS(SourceFile, IncludeFiles),
+                                    Wrapper.consumer())) {
     return ELOA.takeModule();
   } else {
     return createStringError(BuildLog);
@@ -819,11 +815,12 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   // Check for options that are unsupported because they would interfere with
   // the in-memory pipeline.
   Arg *UnsupportedArg =
-      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
-                    OPT_Link_Group,       // Linker flags
-                    OPT_o,                // Output file
-                    OPT_fsycl_targets_EQ, // AoT compilation
-                    OPT_fsycl_link_EQ,    // SYCL linker
+      AL.getLastArg(OPT_Action_Group,       // Actions like -c or -S
+                    OPT_Link_Group,         // Linker flags
+                    OPT_o,                  // Output file
+                    OPT_fsycl_targets_EQ,   // AoT compilation
+                    OPT_offload_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,      // SYCL linker
                     OPT_fno_sycl_device_code_split_esimd, // invoke_simd
                     OPT_fsanitize_EQ                      // Sanitizer
       );

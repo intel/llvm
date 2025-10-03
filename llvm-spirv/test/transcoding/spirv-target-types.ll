@@ -66,15 +66,15 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: 3 FunctionParameter [[IMG2D_RW]] {{[0-9]+}}
 
 ; CHECK-LLVM:        define spir_kernel void @foo(
-; CHECK-LLVM-SAME:     ptr addrspace(1) %a,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %b,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %c1,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %d1,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %e1,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %f1,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %g1,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %c2,
-; CHECK-LLVM-SAME:     ptr addrspace(1) %d3)
+; CHECK-LLVM-SAME:     target("spirv.Pipe", 0) %a,
+; CHECK-LLVM-SAME:     target("spirv.Pipe", 1) %b,
+; CHECK-LLVM-SAME:     target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0) %c1,
+; CHECK-LLVM-SAME:     target("spirv.Image", i32, 1, 0, 0, 0, 0, 0, 0) %d1,
+; CHECK-LLVM-SAME:     target("spirv.Image", i32, 2, 0, 0, 0, 0, 0, 0) %e1,
+; CHECK-LLVM-SAME:     target("spirv.Image", half, 1, 0, 1, 0, 0, 0, 0) %f1,
+; CHECK-LLVM-SAME:     target("spirv.Image", float, 5, 0, 0, 0, 0, 0, 0) %g1,
+; CHECK-LLVM-SAME:     target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 1) %c2,
+; CHECK-LLVM-SAME:     target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 2) %d3)
 ; CHECK-LLVM-SAME:     !kernel_arg_addr_space [[AS:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_type [[TYPE:![0-9]+]]
@@ -103,10 +103,10 @@ entry:
 ; CHECK-SPIRV: 3 FunctionParameter [[RESID]] {{[0-9]+}}
 
 ; CHECK-LLVM: define spir_func void @bar(
-; CHECK-LLVM:  ptr %a,
-; CHECK-LLVM:  ptr %b,
-; CHECK-LLVM:  ptr %c,
-; CHECK-LLVM:  ptr %d)
+; CHECK-LLVM:  target("spirv.DeviceEvent") %a,
+; CHECK-LLVM:  target("spirv.Event") %b,
+; CHECK-LLVM:  target("spirv.Queue") %c,
+; CHECK-LLVM:  target("spirv.ReserveId") %d)
 
 define spir_func void @bar(
   target("spirv.DeviceEvent") %a,
@@ -123,9 +123,9 @@ define spir_func void @bar(
 ; CHECK-SPIRV: 7 ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[SAMPIMG_VAR]]
 
 ; CHECK-LLVM: define spir_func void @test_sampler(
-; CHECK-LLVM:  ptr addrspace(1) %srcimg.coerce,
-; CHECK-LLVM:  ptr addrspace(2) %s.coerce)
-; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(ptr addrspace(1) %srcimg.coerce, ptr addrspace(2) %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
+; CHECK-LLVM:  target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce,
+; CHECK-LLVM:  target("spirv.Sampler") %s.coerce)
+; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce, target("spirv.Sampler") %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
 
 ; CHECK-LLVM-SPIRV: call spir_func target("spirv.SampledImage", float, 1, 1, 0, 0, 0, 0, 0) @_Z20__spirv_SampledImagePU3AS134__spirv_Image__float_1_1_0_0_0_0_0PU3AS215__spirv_Sampler(target("spirv.Image", float, 1, 1, 0, 0, 0, 0, 0) %srcimg.coerce, target("spirv.Sampler") %s.coerce)
 ; CHECK-LLVM-SPIRV: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS141__spirv_SampledImage__float_1_1_0_0_0_0_0Dv4_iif(target("spirv.SampledImage", float, 1, 1, 0, 0, 0, 0, 0) %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)

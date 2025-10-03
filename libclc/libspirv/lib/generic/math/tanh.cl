@@ -9,7 +9,7 @@
 #include <clc/math/clc_tanh.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_tanh
-#define __IMPL_FUNCTION(x) __clc_tanh
+#define __CLC_FUNCTION __spirv_ocl_tanh
+#define __CLC_IMPL_FUNCTION(x) __clc_tanh
 #define __CLC_BODY <clc/shared/unary_def.inc>
 #include <clc/math/gentype.inc>

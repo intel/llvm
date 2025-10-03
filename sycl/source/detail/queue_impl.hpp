@@ -359,6 +359,26 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+  template <int Dims>
+  event submit_kernel_direct_with_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                                  true, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  template <int Dims>
+  void submit_kernel_direct_without_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                              false, CodeLoc, IsTopCodeLoc);
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
@@ -869,6 +889,27 @@ protected:
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
+
+  /// Performs kernel submission to the queue.
+  ///
+  /// \param NDRDesc is an NDRange descriptor
+  /// \param HostKernel stores the kernel lambda instance
+  /// \param DeviceKernelInfo is a structure aggregating kernel related data
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  detail::EventImplPtr submit_kernel_direct_impl(
+      const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  template <typename SubmitCommandFuncType>
+  detail::EventImplPtr submit_direct(bool CallerNeedsEvent,
+                                     SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
