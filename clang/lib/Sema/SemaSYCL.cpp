@@ -7301,21 +7301,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       type.print(O, Policy);
       O << "> {\n";
       O << " inline static constexpr bool value = true;\n";
-      O << " static constexpr int offsets[] = {\n";
+      O << " static constexpr int offsets[] = { ";
       for (const auto OffsetSize : OffsetSizeInfo[Param]) {
         O << OffsetSize.first << ", ";
       }
-      O << "-1};\n\n ";
+      O << "-1};\n ";
 
-      O << " static constexpr int sizes[] = {\n";
+      O << " static constexpr int sizes[] = { ";
       for (const auto OffsetSize : OffsetSizeInfo[Param]) {
         O << OffsetSize.second << ", ";
       }
-      O << "-1}; \n\n ";
+      O << "-1}; \n ";
 
       O << " static constexpr sycl::detail::kernel_param_kind_t kinds[] = {\n ";
       for (const auto Kind : KindInfo[Param]) {
-        O << "sycl::detail::kernel_param_kind_t::" << paramKind2Str(Kind);
+        O << " sycl::detail::kernel_param_kind_t::" << paramKind2Str(Kind);
         O << ",\n ";
       }
       O << "sycl::detail::kernel_param_kind_t::kind_invalid }; \n};\n\n ";

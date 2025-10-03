@@ -212,7 +212,7 @@ private:
 
   // For free function kernels, keeps track of the parameter that is currently
   // being analyzed if it is a struct that contains special types.
-  ParmVarDecl * ParentStruct = nullptr;
+  ParmVarDecl *ParentStruct = nullptr;
 
   // For every struct that contains a special type which is given by
   // the ParentStruct field above, record the offset and size of its fields
