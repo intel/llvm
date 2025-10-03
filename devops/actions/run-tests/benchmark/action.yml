@@ -199,6 +199,8 @@ runs:
 
       sycl_ls_out="$(mktemp)"
       sycl-ls 2>/dev/null > "$sycl_ls_out"
+      cat "$sycl_ls_out"
+      sycl-ls --verbose
       while IFS= read -r device; do
         echo "DEBUG: $device"
         # Separate device selector id from e.g. '[level_zero:gpu][level_zero:0]'
