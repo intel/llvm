@@ -65,7 +65,7 @@ void iota(float start, float *ptr) {
     // CHECK-LABEL: Device compilation failed
     // CHECK-NEXT:  Detailed information:
     // CHECK-NEXT:  	In file included from rtc_1.cpp:1:
-    // CHECK-NEXT:  ./a.hpp:1:1: error: a type specifier is required for all declarations
+    // CHECK-NEXT:    a.hpp:1:1: error: a type specifier is required for all declarations
     // CHECK-NEXT:      1 | emit_error = 1;
     // CHECK-NEXT:        | ^
     auto kb_exe = syclexp::build(kb_src, props);
