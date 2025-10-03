@@ -12867,10 +12867,9 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
 
     llvm::SmallVector<OpenACCPrivateRecipe> RecipeList;
     for (unsigned I = 0; I < VarList.size(); ++I) {
-      static_assert(sizeof(OpenACCPrivateRecipe) == 2 * sizeof(int *));
+      static_assert(sizeof(OpenACCPrivateRecipe) == 1 * sizeof(int *));
       VarDecl *Alloca = readDeclAs<VarDecl>();
-      Expr *InitExpr = readSubExpr();
-      RecipeList.push_back({Alloca, InitExpr});
+      RecipeList.push_back({Alloca});
     }
 
     return OpenACCPrivateClause::Create(getContext(), BeginLoc, LParenLoc,
@@ -12893,11 +12892,10 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
     llvm::SmallVector<Expr *> VarList = readOpenACCVarList();
     llvm::SmallVector<OpenACCFirstPrivateRecipe> RecipeList;
     for (unsigned I = 0; I < VarList.size(); ++I) {
-      static_assert(sizeof(OpenACCFirstPrivateRecipe) == 3 * sizeof(int *));
+      static_assert(sizeof(OpenACCFirstPrivateRecipe) == 2 * sizeof(int *));
       VarDecl *Recipe = readDeclAs<VarDecl>();
-      Expr *InitExpr = readSubExpr();
       VarDecl *RecipeTemp = readDeclAs<VarDecl>();
-      RecipeList.push_back({Recipe, InitExpr, RecipeTemp});
+      RecipeList.push_back({Recipe, RecipeTemp});
     }
 
     return OpenACCFirstPrivateClause::Create(getContext(), BeginLoc, LParenLoc,
@@ -13018,10 +13016,9 @@ OpenACCClause *ASTRecordReader::readOpenACCClause() {
     llvm::SmallVector<OpenACCReductionRecipe> RecipeList;
 
     for (unsigned I = 0; I < VarList.size(); ++I) {
-      static_assert(sizeof(OpenACCReductionRecipe) == 2 * sizeof(int *));
+      static_assert(sizeof(OpenACCReductionRecipe) == sizeof(int *));
       VarDecl *Recipe = readDeclAs<VarDecl>();
-      Expr *InitExpr = readSubExpr();
-      RecipeList.push_back({Recipe, InitExpr});
+      RecipeList.push_back({Recipe});
     }
 
     return OpenACCReductionClause::Create(getContext(), BeginLoc, LParenLoc, Op,
