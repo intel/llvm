@@ -34,7 +34,6 @@ struct event_profiling_data_t {
   uint64_t *eventEndTimestampAddr();
 
   bool recordingStarted() const;
-  bool recordingEnded() const;
 
   // clear the profiling data, allowing the event to be reused
   // for a new command
@@ -49,6 +48,8 @@ private:
 
   uint64_t zeTimerResolution = 0;
   uint64_t timestampMaxValue = 0;
+
+  bool timestampRecorded = false;
 };
 
 struct ur_event_handle_t_ : ur_object {
