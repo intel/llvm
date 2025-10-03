@@ -24,6 +24,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Compiler.h"
@@ -1265,10 +1266,13 @@ class DiagnosticBuilder : public StreamingDiagnostic {
 
   DiagnosticBuilder() = default;
 
+protected:
   DiagnosticBuilder(DiagnosticsEngine *DiagObj, SourceLocation DiagLoc,
                     unsigned DiagID);
 
-protected:
+  DiagnosticsEngine *getDiagnosticsEngine() const { return DiagObj; }
+  unsigned getDiagID() const { return DiagID; }
+
   /// Clear out the current diagnostic.
   void Clear() const {
     DiagObj = nullptr;

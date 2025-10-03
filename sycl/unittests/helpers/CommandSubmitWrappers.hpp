@@ -10,6 +10,7 @@
 
 #include <sycl/event.hpp>
 #include <sycl/handler.hpp>
+#include <sycl/queue.hpp>
 
 namespace sycl {
 

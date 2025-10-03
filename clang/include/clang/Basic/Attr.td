@@ -995,7 +995,7 @@ def PatchableFunctionEntry
     : InheritableAttr,
       TargetSpecificAttr<TargetArch<
           ["aarch64", "aarch64_be", "loongarch32", "loongarch64", "riscv32",
-           "riscv64", "x86", "x86_64", "ppc", "ppc64"]>> {
+           "riscv64", "x86", "x86_64", "ppc", "ppc64", "ppc64le"]>> {
   let Spellings = [GCC<"patchable_function_entry">];
   let Subjects = SubjectList<[Function, ObjCMethod]>;
   let Args = [UnsignedArgument<"Count">, DefaultIntArgument<"Offset", 0>,
@@ -1020,7 +1020,7 @@ def AnalyzerNoReturn : InheritableAttr {
 }
 
 def InferredNoReturn : InheritableAttr {
-  let Spellings = []; 
+  let Spellings = [];
   let SemaHandler = 0;
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [InternalOnly];
@@ -1226,6 +1226,7 @@ static llvm::Triple::EnvironmentType getEnvironmentType(llvm::StringRef Environm
              .Case("callable", llvm::Triple::Callable)
              .Case("mesh", llvm::Triple::Mesh)
              .Case("amplification", llvm::Triple::Amplification)
+             .Case("rootsignature", llvm::Triple::RootSignature)
              .Case("library", llvm::Triple::Library)
              .Default(llvm::Triple::UnknownEnvironment);
 }
@@ -1495,9 +1496,13 @@ def ConstInit : InheritableAttr {
 
 def Constructor : InheritableAttr {
   let Spellings = [GCC<"constructor">];
-  let Args = [DefaultIntArgument<"Priority", 65535>];
+  let Args = [ExprArgument<"Priority", 1>];
   let Subjects = SubjectList<[Function]>;
+  let TemplateDependent = 1;
   let Documentation = [CtorDtorDocs];
+  let AdditionalMembers = [{
+    static constexpr unsigned DefaultPriority = 65535; 
+  }];
 }
 
 def CPUSpecific : InheritableAttr {
@@ -1699,6 +1704,13 @@ def DeviceKernel : DeclOrTypeAttr {
       return isOpenCLSpelling(*A);
     }
 }];
+}
+
+def SYCLExternal : InheritableAttr {
+  let Spellings = [CXX11<"clang", "sycl_external">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let LangOpts = [SYCLIsHost, SYCLIsDevice];
+  let Documentation = [SYCLExternalDocs];
 }
 
 def SYCLKernelEntryPoint : InheritableAttr {
@@ -2474,9 +2486,13 @@ def Deprecated : InheritableAttr {
 
 def Destructor : InheritableAttr {
   let Spellings = [GCC<"destructor">];
-  let Args = [DefaultIntArgument<"Priority", 65535>];
+  let Args = [ExprArgument<"Priority", 1>];
   let Subjects = SubjectList<[Function]>;
+  let TemplateDependent = 1;
   let Documentation = [CtorDtorDocs];
+  let AdditionalMembers = [{
+    static constexpr unsigned int DefaultPriority = 65535; 
+  }];
 }
 
 def EmptyBases : InheritableAttr, TargetSpecificAttr<TargetMicrosoftRecordLayout> {
