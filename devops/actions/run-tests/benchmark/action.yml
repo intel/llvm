@@ -133,11 +133,6 @@ runs:
       cmake --install build
 
       cd -
-  - name: Install linux-tools package
-    shell: bash
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y linux-tools-generic linux-tools-$(uname -r)
   - name: Checkout results repo
     shell: bash
     run: |
