@@ -11313,6 +11313,29 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // populated with device binaries for all target triples in the current
     // compilation flow.
 
+    SmallString<128> DeviceLibDir(D.Dir);
+    llvm::sys::path::append(DeviceLibDir, "..", "lib");
+    // Check the library location candidates for the the libsycl-crt library
+    // and use that location.  Base the location on relative to driver if this
+    // is not resolved.
+    SmallVector<SmallString<128>, 4> LibLocCandidates;
+    SYCLInstallationDetector SYCLInstallation(D);
+    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+    SmallString<128> LibName("libsycl-crt");
+    bool IsNewOffload = D.getUseNewOffloadingDriver();
+    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
+                              ? (IsNewOffload ? ".new.obj" : ".obj")
+                              : (IsNewOffload ? ".new.o" : ".o");
+    llvm::sys::path::replace_extension(LibName, LibSuffix);
+    for (const auto &LibLoc : LibLocCandidates) {
+      SmallString<128> FullLibName(LibLoc);
+      llvm::sys::path::append(FullLibName, LibName);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        DeviceLibDir = LibLoc;
+        break;
+      }
+    }
+
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
     llvm::Triple TargetTriple;
@@ -11321,7 +11344,30 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
       // Note: For AMD targets, we do not pass any SYCL device libraries.
-      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
+      if (TC->getTriple().isNVPTX()) {
+        auto NVPTXLibNames =
+            SYCL::getDeviceLibraries(C, llvm::Triple("nvptx64-nvidia-cuda"),
+                                     /*UseAOTLink=*/false);
+        SmallVector<SmallString<0>, 8> NVPTXLibPaths;
+        for (const auto &LibName : NVPTXLibNames) {
+          SmallString<0> FullLibName(DeviceLibDir);
+          llvm::sys::path::append(FullLibName, LibName);
+          NVPTXLibPaths.push_back(FullLibName);
+        }
+        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
+                TC->getTriple(), Args, *TC->getAuxTriple())) {
+          NVPTXLibPaths.push_back(StringRef(LibSpirvFile));
+        }
+
+        if (NVPTXLibPaths.size() != 0)
+          CmdArgs.push_back(
+              Args.MakeArgString(Twine("-sycl-nvptx-device-libraries=") +
+                                 llvm::join(NVPTXLibPaths, ",")));
+
+        continue;
+      }
+
+      if (TC->getTriple().isSPIROrSPIRV()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();
@@ -11347,28 +11393,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
-    SmallString<128> DeviceLibDir(D.Dir);
-    llvm::sys::path::append(DeviceLibDir, "..", "lib");
-    // Check the library location candidates for the the libsycl-crt library
-    // and use that location.  Base the location on relative to driver if this
-    // is not resolved.
-    SmallVector<SmallString<128>, 4> LibLocCandidates;
-    SYCLInstallationDetector SYCLInstallation(D);
-    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-    SmallString<128> LibName("libsycl-crt");
-    bool IsNewOffload = D.getUseNewOffloadingDriver();
-    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment()
-                              ? (IsNewOffload ? ".new.obj" : ".obj")
-                              : (IsNewOffload ? ".new.o" : ".o");
-    llvm::sys::path::replace_extension(LibName, LibSuffix);
-    for (const auto &LibLoc : LibLocCandidates) {
-      SmallString<128> FullLibName(LibLoc);
-      llvm::sys::path::append(FullLibName, LibName);
-      if (llvm::sys::fs::exists(FullLibName)) {
-        DeviceLibDir = LibLoc;
-        break;
-      }
-    }
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
