@@ -463,6 +463,10 @@ class ComputeBenchmark(Benchmark):
         ret = []
         for label, median, stddev, unit in parsed_results:
             extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+            # Note: SYCL CI currently parses for on this "CPU count" value.
+            # Please update /devops/scripts/benchmarks/compare.py if this value
+            # is changed. See compare.py usage (w.r.t. --regression-filter) in
+            # /devops/actions/run-tests/benchmarks/action.yml.
             ret.append(
                 Result(
                     label=self.name() + extra_label,
