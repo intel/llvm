@@ -25,26 +25,25 @@
 #endif
 
 #define __CLC_SCALAR
-#define FUNCTION __CLC_FUNCTION
 #define __CLC_MIN_VECSIZE 1
 
-#define __IMPL_FUNCTION __CLC_BUILTIN_F
+#define __CLC_IMPL_FUNCTION __CLC_BUILTIN_F
 #define __CLC_GENTYPE float
 #include <clc/shared/binary_def_scalarize.inc>
 #undef __CLC_GENTYPE
-#undef __IMPL_FUNCTION
+#undef __CLC_IMPL_FUNCTION
 
-#ifndef __FLOAT_ONLY
+#ifndef __CLC_FLOAT_ONLY
 
 #ifdef cl_khr_fp64
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#define __IMPL_FUNCTION __CLC_BUILTIN_D
+#define __CLC_IMPL_FUNCTION __CLC_BUILTIN_D
 #define __CLC_GENTYPE double
 #include <clc/shared/binary_def_scalarize.inc>
 #undef __CLC_GENTYPE
-#undef __IMPL_FUNCTION
+#undef __CLC_IMPL_FUNCTION
 
 #endif
 
@@ -52,11 +51,11 @@
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-#define __IMPL_FUNCTION __CLC_BUILTIN_H
+#define __CLC_IMPL_FUNCTION __CLC_BUILTIN_H
 #define __CLC_GENTYPE half
 #include <clc/shared/binary_def_scalarize.inc>
 #undef __CLC_GENTYPE
-#undef __IMPL_FUNCTION
+#undef __CLC_IMPL_FUNCTION
 
 #endif
 

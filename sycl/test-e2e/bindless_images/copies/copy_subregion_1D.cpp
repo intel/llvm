@@ -1,5 +1,4 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: cuda
 // XFAIL: hip
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19957
 
@@ -507,10 +506,11 @@ bool check_test(const std::vector<float> &out,
     }
 
     if (mismatch) {
-#ifdef VERBOSE_PRINT
-      std::cout << "Result mismatch! Expected: " << expected[i]
-                << ", Actual: " << out[i] << std::endl;
-#else
+      std::cout << "Result mismatch at index " << i
+                << "! Expected: " << expected[i] << ", Actual: " << out[i]
+                << std::endl;
+#ifndef VERBOSE_PRINT
+      // In CI, only display the first mismatched index
       break;
 #endif
     }
@@ -544,42 +544,65 @@ bool run_copy_test(sycl::device &dev, sycl::queue &q, sycl::range<1> dims) {
   // Perform copy checks
   copy_image_mem_handle_to_image_mem_handle(dataInDesc, outDesc, dataIn1,
                                             dataIn2, dev, q, out);
-
-  validated = validated && check_test(out, expected);
+  if (!check_test(out, expected)) {
+    std::cout << "copy_image_mem_handle_to_image_mem_handle test failed"
+              << std::endl;
+    validated = false;
+  }
 
   std::fill(out.begin(), out.end(), 0);
 
   copy_image_mem_handle_to_usm(dataInDesc, outDesc, dataIn1, dataIn2, dev, q,
                                out);
-
-  validated = validated && check_test(out, expected);
+  if (!check_test(out, expected)) {
+    std::cout << "copy_image_mem_handle_to_usm test failed" << std::endl;
+    validated = false;
+  }
 
   std::fill(out.begin(), out.end(), 0);
 
   copy_usm_to_image_mem_handle(dataInDesc, outDesc, dataIn1, dataIn2, dev, q,
                                out);
-
-  validated = validated && check_test(out, expected);
+  if (!check_test(out, expected)) {
+    std::cout << "copy_usm_to_image_mem_handle test failed" << std::endl;
+    validated = false;
+  }
 
   std::fill(out.begin(), out.end(), 0);
 
   copy_usm_to_usm(dataInDesc, outDesc, dataIn1, dataIn2, dev, q, out);
-
-  validated = validated && check_test(out, expected);
+  if (!check_test(out, expected)) {
+    std::cout << "copy_usm_to_usm test failed" << std::endl;
+    validated = false;
+  }
 
   // Perform out of bounds copy checks
-  validated =
-      validated && image_mem_handle_to_image_mem_handle_out_of_bounds_copy(
-                       dataInDesc, outDesc, dataIn1, dev, q);
+  if (!image_mem_handle_to_image_mem_handle_out_of_bounds_copy(
+          dataInDesc, outDesc, dataIn1, dev, q)) {
+    std::cout
+        << "image_mem_handle_to_image_mem_handle_out_of_bounds_copy test failed"
+        << std::endl;
+    validated = false;
+  }
 
-  validated = validated && image_mem_handle_to_usm_out_of_bounds_copy(
-                               dataInDesc, outDesc, dataIn1, dev, q);
+  if (!image_mem_handle_to_usm_out_of_bounds_copy(dataInDesc, outDesc, dataIn1,
+                                                  dev, q)) {
+    std::cout << "image_mem_handle_to_usm_out_of_bounds_copy test failed"
+              << std::endl;
+    validated = false;
+  }
 
-  validated = validated && usm_to_image_mem_handle_out_of_bounds_copy(
-                               dataInDesc, outDesc, dataIn1, dev, q);
+  if (!usm_to_image_mem_handle_out_of_bounds_copy(dataInDesc, outDesc, dataIn1,
+                                                  dev, q)) {
+    std::cout << "usm_to_image_mem_handle_out_of_bounds_copy test failed"
+              << std::endl;
+    validated = false;
+  }
 
-  validated = validated && usm_to_usm_out_of_bounds_copy(dataInDesc, outDesc,
-                                                         dataIn1, dev, q);
+  if (!usm_to_usm_out_of_bounds_copy(dataInDesc, outDesc, dataIn1, dev, q)) {
+    std::cout << "usm_to_usm_out_of_bounds_copy test failed" << std::endl;
+    validated = false;
+  }
 
   return validated;
 }

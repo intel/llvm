@@ -7,7 +7,7 @@ if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
 endif()
 
 if(NATIVECPU_USE_OCK)
-  add_subdirectory(compiler_passes EXCLUDE_FROM_ALL)
+  add_subdirectory(compiler_passes)
   set(OCK_LIBS NativeCPUPipeline NativeCPUVecz)
 endif()
 
@@ -21,15 +21,17 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
   
   LINK_COMPONENTS
+  AggressiveInstCombine
   Analysis
   Core
-  Support
+  IPO
   Passes
+  ScalarOpts
+  Support
   SYCLLowerIR
   Target
   TargetParser
   TransformUtils
-  ipo
   ${OCK_LIBS}
 )
 

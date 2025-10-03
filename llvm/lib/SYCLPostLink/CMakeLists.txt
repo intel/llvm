@@ -24,6 +24,7 @@ add_llvm_component_library(LLVMSYCLPostLink
   Demangle
   InstCombine
   IRPrinter
+  Linker
   Passes
   ScalarOpts
   Support

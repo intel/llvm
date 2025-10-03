@@ -13,7 +13,7 @@ define internal ptx_kernel void @test1(i32 %v, ptr byval(i32) %DEADARG1, ptr %p)
 
 define internal ptx_kernel void @test2(ptr byval(i32) %DEADARG1, ptr byval(i32) %p) {
 ; CHECK-LABEL: define internal ptx_kernel void @test2(
-; CHECK-SAME: ptr byval(i32) [[P:%.*]]) {
+; CHECK-SAME: ptr byval(i32) "nvvm.grid_constant" [[P:%.*]]) {
 ; CHECK-NEXT:    store i32 0, ptr [[P]], align 4
 ; CHECK-NEXT:    ret void
 ;
@@ -23,7 +23,7 @@ define internal ptx_kernel void @test2(ptr byval(i32) %DEADARG1, ptr byval(i32) 
 
 define internal ptx_kernel void @test3(ptr byval(i32) %DEADARG1, i32 %v, ptr byval(i32) %p) {
 ; CHECK-LABEL: define internal ptx_kernel void @test3(
-; CHECK-SAME: i32 [[V:%.*]], ptr byval(i32) [[P:%.*]]) {
+; CHECK-SAME: i32 [[V:%.*]], ptr byval(i32) "nvvm.grid_constant" [[P:%.*]]) {
 ; CHECK-NEXT:    store i32 [[V]], ptr [[P]], align 4
 ; CHECK-NEXT:    ret void
 ;
@@ -33,7 +33,7 @@ define internal ptx_kernel void @test3(ptr byval(i32) %DEADARG1, i32 %v, ptr byv
 
 define internal ptx_kernel void @test4(ptr byval(i32) %p, i32 %v, ptr byval(i32) %DEADARG) {
 ; CHECK-LABEL: define internal ptx_kernel void @test4(
-; CHECK-SAME: ptr byval(i32) [[P:%.*]], i32 [[V:%.*]]) {
+; CHECK-SAME: ptr byval(i32) "nvvm.grid_constant" [[P:%.*]], i32 [[V:%.*]]) {
 ; CHECK-NEXT:    store i32 [[V]], ptr [[P]], align 4
 ; CHECK-NEXT:    ret void
 ;
@@ -43,7 +43,7 @@ define internal ptx_kernel void @test4(ptr byval(i32) %p, i32 %v, ptr byval(i32)
 
 define internal ptx_kernel void @test5(ptr byval(i32) %p, i32 %x, ptr byval(i32) %DEADARG1, ptr byval(i32) %DEADARG2, i32 %y, ptr byval(i32) %q) {
 ; CHECK-LABEL: define internal ptx_kernel void @test5(
-; CHECK-SAME: ptr byval(i32) [[P:%.*]], i32 [[X:%.*]], i32 [[Y:%.*]], ptr byval(i32) [[Q:%.*]]) {
+; CHECK-SAME: ptr byval(i32) "nvvm.grid_constant" [[P:%.*]], i32 [[X:%.*]], i32 [[Y:%.*]], ptr byval(i32) "nvvm.grid_constant" [[Q:%.*]]) {
 ; CHECK-NEXT:    [[T:%.*]] = add i32 [[X]], [[Y]]
 ; CHECK-NEXT:    store i32 [[T]], ptr [[P]], align 4
 ; CHECK-NEXT:    store i32 [[T]], ptr [[Q]], align 4
@@ -88,16 +88,5 @@ define internal ptx_kernel void @test5(ptr byval(i32) %p, i32 %x, ptr byval(i32)
 !16 = !{i32 3, i32 1, i32 4, i32 6}
 !17 = !{i32 3, i32 1, i32 6, i32 4}
 ;.
-; CHECK: [[META1:![0-9]+]] = !{ptr @test1, !"grid_constant", [[META2:![0-9]+]]}
-; CHECK: [[META2]] = !{}
-; CHECK: [[META4:![0-9]+]] = !{ptr @test2, !"grid_constant", [[META5:![0-9]+]]}
-; CHECK: [[META5]] = !{i32 1}
-; CHECK: [[META6:![0-9]+]] = distinct !{ptr @test2, !"grid_constant", [[META5]]}
-; CHECK: [[META8:![0-9]+]] = !{ptr @test3, !"grid_constant", [[META9:![0-9]+]]}
-; CHECK: [[META9]] = !{i32 2}
-; CHECK: [[META10:![0-9]+]] = distinct !{ptr @test3, !"grid_constant", [[META9]]}
-; CHECK: [[META12:![0-9]+]] = !{ptr @test4, !"grid_constant", [[META5]]}
-; CHECK: [[META13:![0-9]+]] = distinct !{ptr @test4, !"grid_constant", [[META5]]}
-; CHECK: [[META15:![0-9]+]] = !{ptr @test5, !"grid_constant", [[META16:![0-9]+]], !"grid_constant", [[META16]], !"grid_constant", [[META16]]}
-; CHECK: [[META16]] = !{i32 1, i32 4}
+; CHECK: !nvvm.annotations = !{}
 ;.

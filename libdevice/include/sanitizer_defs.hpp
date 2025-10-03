@@ -61,9 +61,6 @@ extern SYCL_EXTERNAL __attribute__((convergent)) void
 __spirv_ControlBarrier(int32_t Execution, int32_t Memory,
                        int32_t Semantics) noexcept;
 
-template <typename T>
-extern SYCL_EXTERNAL T __spirv_SpecConstant(int ID, T default_value) noexcept;
-
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
 
 #endif // __SPIR__ || __SPIRV__

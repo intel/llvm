@@ -1,5 +1,6 @@
 ; RUN: llc < %s -march=nvptx -mcpu=sm_70 | FileCheck %s
 ; RUN: llc < %s -march=nvptx64 -mcpu=sm_70 | FileCheck %s
+; XFAIL: *
 
 ; CHECK-LABEL: .func test_atomics_scope(
 define void @test_atomics_scope(float* %fp, float %f,

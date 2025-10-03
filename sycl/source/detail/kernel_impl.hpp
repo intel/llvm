@@ -15,6 +15,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/queue.hpp>
@@ -238,6 +239,13 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
+  DeviceKernelInfo &getDeviceKernelInfo() {
+    return MIsInterop
+               ? MInteropDeviceKernelInfo
+               : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+                     KernelNameStrT(getName()));
+  }
+
 private:
   Managed<ur_kernel_handle_t> MKernel;
   const std::shared_ptr<context_impl> MContext;
@@ -250,6 +258,10 @@ private:
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
+
+  // It is used for the interop kernels only.
+  // For regular kernel we get DeviceKernelInfo from the ProgramManager.
+  DeviceKernelInfo MInteropDeviceKernelInfo;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;

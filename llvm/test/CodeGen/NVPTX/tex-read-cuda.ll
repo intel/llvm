@@ -36,7 +36,7 @@ define void @bar(ptr %red, i32 %idx) {
 ; CHECK-LABEL: bar(
 ; CHECK:       {
 ; CHECK-NEXT:    .reg .b32 %r<6>;
-; CHECK-NEXT:    .reg .b64 %rd<3>;
+; CHECK-NEXT:    .reg .b64 %rd<2>;
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  // %bb.0:
 ; CHECK-NEXT:    ld.param.b64 %rd1, [bar_param_0];
@@ -56,7 +56,7 @@ declare float @texfunc(i64)
 define void @baz(ptr %red, i32 %idx) {
 ; CHECK-LABEL: baz(
 ; CHECK:       {
-; CHECK-NEXT:    .reg .b32 %r<9>;
+; CHECK-NEXT:    .reg .b32 %r<8>;
 ; CHECK-NEXT:    .reg .b64 %rd<3>;
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  // %bb.0:
@@ -66,13 +66,13 @@ define void @baz(ptr %red, i32 %idx) {
 ; CHECK-NEXT:    tex.1d.v4.f32.s32 {%r2, %r3, %r4, %r5}, [tex0, {%r1}];
 ; CHECK-NEXT:    { // callseq 0, 0
 ; CHECK-NEXT:    .param .b64 param0;
-; CHECK-NEXT:    st.param.b64 [param0], %rd2;
 ; CHECK-NEXT:    .param .b32 retval0;
+; CHECK-NEXT:    st.param.b64 [param0], %rd2;
 ; CHECK-NEXT:    call.uni (retval0), texfunc, (param0);
 ; CHECK-NEXT:    ld.param.b32 %r6, [retval0];
 ; CHECK-NEXT:    } // callseq 0
-; CHECK-NEXT:    add.rn.f32 %r8, %r2, %r6;
-; CHECK-NEXT:    st.b32 [%rd1], %r8;
+; CHECK-NEXT:    add.rn.f32 %r7, %r2, %r6;
+; CHECK-NEXT:    st.b32 [%rd1], %r7;
 ; CHECK-NEXT:    ret;
   %texHandle = tail call i64 @llvm.nvvm.texsurf.handle.internal.p1(ptr addrspace(1) @tex0)
   %val = tail call { float, float, float, float } @llvm.nvvm.tex.unified.1d.v4f32.s32(i64 %texHandle, i32 %idx)

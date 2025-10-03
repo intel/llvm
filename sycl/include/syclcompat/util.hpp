@@ -968,7 +968,7 @@ enum class group_type { work_group, sub_group, logical_group, root_group };
 template <int dimensions = 3> class group_base {
 public:
   group_base(sycl::nd_item<dimensions> item)
-      : nd_item(item), logical_group(item) {}
+      : nd_item(item), _logical_group(item) {}
   ~group_base() {}
   /// Returns the number of work-items in the group.
   size_t get_local_linear_range() {
@@ -978,7 +978,7 @@ public:
     case group_type::sub_group:
       return nd_item.get_sub_group().get_local_linear_range();
     case group_type::logical_group:
-      return logical_group.get_local_linear_range();
+      return _logical_group.get_local_linear_range();
     default:
       return -1; // Unkonwn group type
     }
@@ -991,7 +991,7 @@ public:
     case group_type::sub_group:
       return nd_item.get_sub_group().get_local_linear_id();
     case group_type::logical_group:
-      return logical_group.get_local_linear_id();
+      return _logical_group.get_local_linear_id();
     default:
       return -1; // Unkonwn group type
     }
@@ -1013,7 +1013,7 @@ public:
   }
 
 protected:
-  logical_group<dimensions> logical_group;
+  logical_group<dimensions> _logical_group;
   sycl::nd_item<dimensions> nd_item;
   group_type type;
 };

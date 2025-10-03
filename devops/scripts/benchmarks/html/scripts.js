@@ -1781,6 +1781,12 @@ function fetchAndProcessData(url, isArchived = false) {
                     flamegraphs: Object.keys(window.flamegraphData.runs).length
                 });
             }
+
+            // The following variables have same values regardless of whether
+            // we load archived or current data
+            benchmarkMetadata = data.metadata || benchmarkMetadata || {};
+            benchmarkTags = data.tags || benchmarkTags || {};
+
             initializeCharts();
         })
         .catch(err => {

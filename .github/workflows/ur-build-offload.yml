@@ -19,7 +19,7 @@ jobs:
 
     steps:
     - name: Checkout LLVM
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.1
 
     - name: Install liboffload
       run: sudo apt-get update -qq && sudo apt-get install --no-install-recommends -yqq liboffload-21 liboffload-21-dev

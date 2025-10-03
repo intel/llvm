@@ -22,12 +22,37 @@ endif()
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
+    logger/ur_logger.cpp
+    logger/ur_logger.hpp
     latency_tracker.hpp
     offload_bundle_parser.cpp
     offload_bundle_parser.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
+
+# link validation backtrace dependencies
+if(UNIX)
+    find_package(Libbacktrace)
+endif()
+if (VAL_USE_LIBBACKTRACE_BACKTRACE AND LIBBACKTRACE_FOUND)
+    message(STATUS "Using libbacktrace backtrace")
+
+    target_sources(ur_common PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_libbacktrace.cpp)
+    target_link_libraries(ur_common PRIVATE Libbacktrace)
+else()
+    message(STATUS "Using default backtrace")
+
+    if(WIN32)
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_win.cpp)
+        target_link_libraries(ur_common PRIVATE dbghelp)
+    else()
+        target_sources(ur_common PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/backtrace_lin.cpp)
+    endif()
+endif()
 
 add_library(${PROJECT_NAME}::common ALIAS ur_common)
 
@@ -56,11 +81,11 @@ if(umf_FOUND)
 else()
   set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
 
-  # commit 1de269c00e46b7cbdbafa2247812c8c4bb4ed4a5
+  # commit e7d285269e04d3c0e70917c24945c80a4ea3313a
   # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
-  # Date:   Mon Jul 21 15:42:59 2025 +0200
-  # 1.0.0 release
-  set(UMF_TAG v1.0.0)
+  # Date:   Tue Sep 16 15:04:27 2025 +0200
+  # 1.0.3 release
+  set(UMF_TAG v1.0.3)
 
   if(NOT FETCHCONTENT_SOURCE_DIR_UNIFIED-MEMORY-FRAMEWORK)
     message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

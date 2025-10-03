@@ -13,9 +13,8 @@
 #include <libspirv/spirv_types.h>
 
 #define __CLC_NVVM_ATOMIC_INCDEC_IMPL(TYPE, OP_MANGLED, VAL, ADDR_SPACE)       \
-  __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
-      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
-                                 int semantics) {                              \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_Atomic##OP_MANGLED(                      \
+      ADDR_SPACE TYPE *pointer, int scope, int semantics) {                    \
     return __spirv_AtomicIAdd(pointer, scope, semantics, VAL);                 \
   }
 

@@ -14,6 +14,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
@@ -51,9 +52,6 @@ template <int dimensions> class range;
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
 
-template <typename DataT, int Dimensions, access::mode AccessMode>
-class host_accessor;
-
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
@@ -62,6 +60,16 @@ template <typename SYCLObjT> class weak_object;
 } // namespace ext::oneapi
 
 namespace detail {
+// XPTI helpers for creating array from a range.
+inline std::array<size_t, 3> rangeToArray(const range<3> &r) {
+  return {r[0], r[1], r[2]};
+}
+inline std::array<size_t, 3> rangeToArray(const range<2> &r) {
+  return {r[0], r[1], 0};
+}
+inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
+  return {r[0], 0, 0};
+}
 
 class buffer_impl;
 
