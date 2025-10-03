@@ -516,11 +516,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
   KernelData KData;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
-      HostKernel.takeOrCopyOwnership();
-
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
-  KData.setKernelFunc(HostKernelPtr->getPtr());
+  KData.setKernelFunc(HostKernel.getPtr());
   KData.setNDRDesc(NDRDesc);
 
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
@@ -533,6 +530,9 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
     std::unique_ptr<detail::CG> CommandGroup;
     std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
     std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
+        HostKernel.takeOrCopyOwnership();
 
     KData.extractArgsAndReqsFromLambda();
 
