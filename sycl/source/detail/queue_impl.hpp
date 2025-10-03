@@ -388,13 +388,13 @@ public:
 
   /// Submits a kernel using the scheduler bypass fast path
   ///
-  /// \param KData an object storing data related to the kernel.
-  /// \param DepEvents list of event dependencies.
-  /// \param EventNeeded true, if the resulting event is needed.
-  /// \param Kernel used, if kernel defined as a kernel object.
-  /// \param KernelBundleImpPtr used, if kernel bundle defined.
+  /// \param KData is an object storing data related to the kernel.
+  /// \param DepEvents is a list of event dependencies.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  /// \param Kernel to be used, if kernel defined as a kernel object.
+  /// \param KernelBundleImpPtr to be used, if kernel bundle defined.
   /// \param CodeLoc is the code location of the submit call.
-  /// \param IsTopCodeLoc used to determine if the object is in a local
+  /// \param IsTopCodeLoc is used to determine if the object is in a local
   ///        scope or in the top level scope.
   ///
   /// \return a SYCL event representing submitted command or nullptr.
