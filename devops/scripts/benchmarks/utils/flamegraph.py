@@ -7,7 +7,12 @@ import shutil
 from pathlib import Path
 
 from options import options
-from utils.utils import run, prune_old_files, remove_by_prefix
+from utils.utils import (
+    run,
+    prune_old_files,
+    remove_by_prefix,
+    sanitize_filename,
+)
 from utils.logger import log
 from git_project import GitProject
 from datetime import datetime, timezone
@@ -38,7 +43,7 @@ class FlameGraph:
 
         if options.results_directory_override:
             self.flamegraphs_dir = (
-                Path(options.results_directory_override) / "flamegraphs"
+                Path(options.results_directory_override) / "results" / "flamegraphs"
             )
         else:
             self.flamegraphs_dir = Path(options.workdir) / "results" / "flamegraphs"
@@ -65,7 +70,9 @@ class FlameGraph:
                 "perf command not found. Please install linux-tools or perf package."
             )
 
-        dir_name = f"{suite_name}__{bench_name}"
+        sanitized_suite_name = sanitize_filename(suite_name)
+        sanitized_bench_name = sanitize_filename(bench_name)
+        dir_name = f"{sanitized_suite_name}__{sanitized_bench_name}"
         bench_dir = self.flamegraphs_dir / dir_name
         bench_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,13 +111,18 @@ class FlameGraph:
             perf_data_path.stem.replace(".perf", "") + ".svg"
         )
         folded_file = perf_data_path.with_suffix(".folded")
-
         try:
             self._convert_perf_to_folded(perf_data_path, folded_file)
             self._generate_svg(folded_file, svg_file, bench_name)
 
-            log.debug(f"Generated flamegraph: {svg_file}")
+            log.info(f"FlameGraph SVG created: {svg_file.resolve()}")
             self._create_immediate_symlink(svg_file)
+
+            # Clean up the original perf data file after successful SVG generation
+            if perf_data_path.exists():
+                perf_data_path.unlink()
+                log.debug(f"Removed original perf data file: {perf_data_path}")
+
             prune_old_files(str(perf_data_path.parent))
             return str(svg_file)
         except Exception as e:

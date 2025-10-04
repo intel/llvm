@@ -26,6 +26,8 @@ apt update && apt install -yqq \
       curl \
       libhwloc-dev \
       libzstd-dev \
+      linux-tools-generic \
+      linux-tools-common \
       time 
 
 # To obtain latest release of spriv-tool.
