@@ -25,8 +25,9 @@ from templates import helper as th
 #pragma once
 
 #include <ur_api.h>
+#include "queue_extensions.hpp"
 
-struct ur_queue_t_ {
+struct ur_queue_t_ : ur_queue_extensions {
     virtual ~ur_queue_t_();
 
     %for obj in th.get_queue_related_functions(specs, n, tags):
