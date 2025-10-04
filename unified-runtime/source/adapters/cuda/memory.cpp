@@ -15,6 +15,7 @@
 #include "enqueue.hpp"
 #include "memory.hpp"
 #include "umf_helpers.hpp"
+#include "usm.hpp"
 
 /// Creates a UR Memory object using a CUDA memory allocation.
 /// Can trigger a manual copy depending on the mode.
@@ -588,4 +589,76 @@ CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
     throw Err;
   }
   return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    ur_context_handle_t, void *pMem, ur_exp_ipc_mem_handle_t *phIPCMem) {
+  auto resHandle = std::make_unique<ur_exp_ipc_mem_handle_t_>();
+
+  umf_memory_pool_handle_t umfPool;
+  auto umfRet = umfPoolByPtr(pMem, &umfPool);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfPool)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  umfRet = umfGetIPCHandle(pMem, &resHandle->UMFHandle, &resHandle->HandleSize);
+  if (umfRet != UMF_RESULT_SUCCESS || !resHandle->UMFHandle ||
+      resHandle->HandleSize == 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  *phIPCMem = resHandle.release();
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCPutMemHandleExp(ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem,
+                     ur_bool_t putBackendResource) {
+  if (putBackendResource) {
+    auto umfRet = umfPutIPCHandle(hIPCMem->UMFHandle);
+    if (umfRet != UMF_RESULT_SUCCESS)
+      return UR_RESULT_ERROR_UNKNOWN;
+  }
+  std::free(hIPCMem);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    ur_context_handle_t, ur_device_handle_t hDevice, void *pIPCMemHandleData,
+    size_t ipcMemHandleDataSize, void **ppMem) {
+  umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
+
+  size_t umfHandleSize = 0;
+  auto umfRet = umfPoolGetIPCHandleSize(umfPool, &umfHandleSize);
+  if (umfRet != UMF_RESULT_SUCCESS || umfHandleSize == 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  umf_ipc_handler_handle_t umfIPCHandler;
+  umfRet = umfPoolGetIPCHandler(umfPool, &umfIPCHandler);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfIPCHandler)
+    return UR_RESULT_ERROR_UNKNOWN;
+
+  umfRet = umfOpenIPCHandle(
+      umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
+      ppMem);
+  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
+                                      : UR_RESULT_ERROR_UNKNOWN;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
+                                                           void *pMem) {
+  auto umfRet = umfCloseIPCHandle(pMem);
+  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
+                                      : UR_RESULT_ERROR_UNKNOWN;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
+    ur_context_handle_t, ur_exp_ipc_mem_handle_t hIPCMem,
+    void **ppIPCHandleData, size_t *pIPCMemHandleDataSizeRet) {
+  if (ppIPCHandleData)
+    *ppIPCHandleData = hIPCMem->UMFHandle;
+  if (pIPCMemHandleDataSizeRet)
+    *pIPCMemHandleDataSizeRet = hIPCMem->HandleSize;
+  return UR_RESULT_SUCCESS;
 }
