@@ -299,6 +299,12 @@ struct SecondLevelAccessor {
     AccessorAndInt accAndInt;
 };
 
+template <typename T>
+struct TemplatedAccessorStruct {
+    sycl::accessor<T, 1, sycl::access::mode::read_write> acc;
+    sycl::local_accessor<T, 1> lacc;
+};
+
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_25(AccessorAndLocalAccessor arg1) {
 }
@@ -309,6 +315,10 @@ void ff_26(AccessorAndLocalAccessor arg1, SecondLevelAccessor arg2) {
 
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_27(IntAndAccessor arg1, AccessorAndInt) {
+}
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_28(TemplatedAccessorStruct<int> arg1) {
 }
 
 // CHECK:      const char* const kernel_names[] = {
@@ -349,6 +359,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2524AccessorAndLocalAccessor",
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2624AccessorAndLocalAccessor19SecondLevelAccessor",
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2714IntAndAccessor14AccessorAndInt",
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2823TemplatedAccessorStructIiE",
 
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_23i"
 
@@ -493,6 +504,11 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 16, 0 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 12 },
+
+// CHECK:  //--- _Z19__sycl_kernel_ff_2823TemplatedAccessorStructIiE
+// CHECK-NEXT:  { kernel_param_kind_t::kind_struct_with_special_type, 36, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 12 },
 
 // CHECK: //--- _Z19__sycl_kernel_ff_23i
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
@@ -1655,11 +1671,6 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
 // CHECK-NEXT: };
 
-// CHECK: template <>
-// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndInt> {
-// CHECK-NEXT: inline static constexpr bool value = true;
-// CHECK-NEXT: };
-
 // CHECK: static constexpr auto __sycl_shim35() {
 // CHECK-NEXT: return (void (*)(struct IntAndAccessor, struct AccessorAndInt))ff_27;
 // CHECK-NEXT: }
@@ -1672,18 +1683,46 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_2823TemplatedAccessorStructIiE as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: template <typename T> struct TemplatedAccessorStruct;
+// CHECK: void ff_28(TemplatedAccessorStruct<int> arg1);
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<TemplatedAccessorStruct<int>> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4064, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT  sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+// CHECK: static constexpr auto __sycl_shim36() {
+// CHECK-NEXT: return (void (*)(struct TemplatedAccessorStruct<int>))ff_28;
+// CHECK-NEXT: }
+
+// CHECK: struct ext::oneapi::experimental::is_kernel<__sycl_shim36()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim36()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+
 // CHECK: Definition of _Z19__sycl_kernel_ff_23i as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: void ff_23(int arg);
-// CHECK-NEXT: static constexpr auto __sycl_shim36() {
+// CHECK-NEXT: static constexpr auto __sycl_shim37() {
 // CHECK-NEXT: return (void (*)(int))ff_23;
 // CHECK-NEXT: }
 
 // CHECK: namespace sycl {
 // CHECK-NEXT: inline namespace _V1 {
 // CHECK-NEXT: namespace detail {
-// CHECK-NEXT: //Free Function Kernel info specialization for shim36
-// CHECK-NEXT: template <> struct FreeFunctionInfoData<__sycl_shim36()> {
+// CHECK-NEXT: //Free Function Kernel info specialization for shim37
+// CHECK-NEXT: template <> struct FreeFunctionInfoData<__sycl_shim37()> {
 // CHECK-NEXT: 	__SYCL_DLL_LOCAL
 // CHECK-NEXT: 	static constexpr unsigned getNumParams() { return 1; }
 // CHECK-NEXT: 	__SYCL_DLL_LOCAL
@@ -1695,11 +1734,11 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 
 // CHECK: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim36()> {
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim37()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim36()> {
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim37()> {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 
@@ -1713,7 +1752,7 @@ void ff_27(IntAndAccessor arg1, AccessorAndInt) {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: struct GlobalMapUpdater {
 // CHECK-NEXT:  GlobalMapUpdater() {
-// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 36);
+// CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 37);
 // CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;

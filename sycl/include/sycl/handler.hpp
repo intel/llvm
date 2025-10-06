@@ -1638,10 +1638,11 @@ public:
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value          // Interop
         || is_same_type<stream, T>::value          // Stream
-        || ext::oneapi::experimental::detail::is_struct_with_special_type<
-               remove_cv_ref_t<T>>::value; // Structs that contain special types
+        ||
+        sycl::is_device_copyable_v<remove_cv_ref_t<T>>; // Structs that contain
+                                                        // special types
   };
- 
+
   /// Sets argument for OpenCL interoperability kernels.
   ///
   /// Registers Arg passed as argument # ArgIndex.
