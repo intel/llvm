@@ -580,13 +580,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCGetMemHandleExp(ur_context_handle_t, void *, void *, size_t*) {
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
+                                                         void *, void *,
+                                                         size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCPutMemHandleExp(ur_context_handle_t, void *) {
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(ur_context_handle_t,
+                                                         void *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
