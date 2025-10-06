@@ -79,7 +79,8 @@ ur_result_t getZesDeviceHandle(ur_adapter_handle_t_ *adapter,
   return UR_RESULT_ERROR_INVALID_ARGUMENT;
 }
 
-ur_result_t checkDeviceIntelGPUIpVersionOrNewer(uint32_t ipVersion) {
+ur_result_t checkDeviceAnyIntelGPUPropertyMatch(
+    std::function<bool(ze_device_properties_t &)> predicate) {
   uint32_t ZeDriverCount = 0;
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
   if (ZeDriverCount == 0) {
@@ -106,12 +107,9 @@ ur_result_t checkDeviceIntelGPUIpVersionOrNewer(uint32_t ipVersion) {
     for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
       if (device_properties.type == ZE_DEVICE_TYPE_GPU &&
-          device_properties.vendorId == 0x8086) {
-        ze_device_ip_version_ext_t *ipVersionExt =
-            (ze_device_ip_version_ext_t *)device_properties.pNext;
-        if (ipVersionExt->ipVersion >= ipVersion) {
-          return UR_RESULT_SUCCESS;
-        }
+          device_properties.vendorId == 0x8086 &&
+          predicate(device_properties)) {
+        return UR_RESULT_SUCCESS;
       }
     }
   }
@@ -261,11 +259,25 @@ ur_result_t adapterStateInit() {
   return UR_RESULT_SUCCESS;
 }
 
-static bool isBMGorNewer() {
-  auto urResult = checkDeviceIntelGPUIpVersionOrNewer(0x05004000);
+static bool isBMGorNewer(bool excludeIntegrated = false) {
+  auto checkBMGorNewer =
+      [&excludeIntegrated](ze_device_properties_t &device_properties) {
+        ze_device_ip_version_ext_t *ipVersionExt =
+            (ze_device_ip_version_ext_t *)device_properties.pNext;
+
+        bool isIntegrated =
+            device_properties.flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+        if (excludeIntegrated && isIntegrated) {
+          return false;
+        }
+
+        return ipVersionExt->ipVersion >= 0x05004000;
+      };
+
+  auto urResult = checkDeviceAnyIntelGPUPropertyMatch(checkBMGorNewer);
   if (urResult != UR_RESULT_SUCCESS &&
       urResult != UR_RESULT_ERROR_UNSUPPORTED_VERSION) {
-    UR_LOG(ERR, "Intel GPU IP Version check failed: {}\n", urResult);
+    UR_LOG(ERR, "Intel GPU device property check failed: {}\n", urResult);
     throw urResult;
   }
 
@@ -297,8 +309,8 @@ static std::pair<bool, std::string> shouldUseV1Adapter() {
     return {true, reason};
   }
 
-  // default: only enable for devices older than BMG
-  return {!isBMGorNewer(), reason};
+  // default: enable for devices older than BMG and integrated devices
+  return {!isBMGorNewer(/* excludeIntegrated */ true), reason};
 }
 
 [[maybe_unused]] static std::pair<bool, std::string> shouldUseV2Adapter() {
@@ -532,8 +544,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   bool ZesInitNeeded = UrSysmanZesinitEnable && !UrSysManEnvInitEnabled;
   // Unless the user has forced the SysMan init, we will check the device
   // version to see if the zesInit is needed.
-  if (UserForcedSysManInit == 0 &&
-      checkDeviceIntelGPUIpVersionOrNewer(0x05004000) == UR_RESULT_SUCCESS) {
+  if (UserForcedSysManInit == 0 && isBMGorNewer()) {
     if (UrSysManEnvInitEnabled) {
       setEnvVar("ZES_ENABLE_SYSMAN", "0");
     }
