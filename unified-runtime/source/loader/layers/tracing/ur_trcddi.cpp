@@ -9581,21 +9581,25 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     ur_context_handle_t hContext,
     /// [in] pointer to device USM memory
     void *pMem,
-    /// [out][alloc] pointer to the resulting IPC memory handle
-    ur_exp_ipc_mem_handle_t *phIPCMem) {
+    /// [out][optional] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
   auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
 
   if (nullptr == pfnGetMemHandleExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_ipc_get_mem_handle_exp_params_t params = {&hContext, &pMem, &phIPCMem};
+  ur_ipc_get_mem_handle_exp_params_t params = {
+      &hContext, &pMem, &pIPCMemHandleData, &pIPCMemHandleDataSizeRet};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, "urIPCGetMemHandleExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleExp\n");
 
-  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, phIPCMem);
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+                                          pIPCMemHandleDataSizeRet);
 
   getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP,
                            "urIPCGetMemHandleExp", &params, &result, instance);
@@ -9616,27 +9620,21 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
-    /// [in] true if the backend resource should be released, false if the
-    /// backend resource will be released when freeing the corresponding
-    /// device USM memory
-    ur_bool_t putBackendResource) {
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
   auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
 
   if (nullptr == pfnPutMemHandleExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &hIPCMem,
-                                               &putBackendResource};
+  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, "urIPCPutMemHandleExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urIPCPutMemHandleExp\n");
 
-  ur_result_t result =
-      pfnPutMemHandleExp(hContext, hIPCMem, putBackendResource);
+  ur_result_t result = pfnPutMemHandleExp(hContext, pIPCMemHandleData);
 
   getContext()->notify_end(UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP,
                            "urIPCPutMemHandleExp", &params, &result, instance);
@@ -9661,7 +9659,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     /// was allocated on
     ur_device_handle_t hDevice,
     /// [in] the IPC memory handle data
-    void *ipcMemHandleData,
+    void *pIPCMemHandleData,
     /// [in] size of the IPC memory handle data
     size_t ipcMemHandleDataSize,
     /// [out] pointer to a pointer to device USM memory
@@ -9673,14 +9671,14 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_ipc_open_mem_handle_exp_params_t params = {
-      &hContext, &hDevice, &ipcMemHandleData, &ipcMemHandleDataSize, &ppMem};
+      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, "urIPCOpenMemHandleExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urIPCOpenMemHandleExp\n");
 
-  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, ipcMemHandleData,
+  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
                                            ipcMemHandleDataSize, ppMem);
 
   getContext()->notify_end(UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP,
@@ -9728,50 +9726,6 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, &params);
     UR_LOG_L(logger, INFO, "   <--- urIPCCloseMemHandleExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCGetMemHandleDataExp
-__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
-    /// [out][optional] a pointer to the IPC memory handle data
-    void **ppIPCHandleData,
-    /// [out][optional] size of the resulting IPC memory handle data
-    size_t *pIPCMemHandleDataSizeRet) {
-  auto pfnGetMemHandleDataExp =
-      getContext()->urDdiTable.IPCExp.pfnGetMemHandleDataExp;
-
-  if (nullptr == pfnGetMemHandleDataExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_ipc_get_mem_handle_data_exp_params_t params = {
-      &hContext, &hIPCMem, &ppIPCHandleData, &pIPCMemHandleDataSizeRet};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP,
-                                 "urIPCGetMemHandleDataExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleDataExp\n");
-
-  ur_result_t result = pfnGetMemHandleDataExp(
-      hContext, hIPCMem, ppIPCHandleData, pIPCMemHandleDataSizeRet);
-
-  getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP,
-                           "urIPCGetMemHandleDataExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_IPC_GET_MEM_HANDLE_DATA_EXP, &params);
-    UR_LOG_L(logger, INFO, "   <--- urIPCGetMemHandleDataExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -11023,10 +10977,6 @@ __urdlllocal ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
   dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur_tracing_layer::urIPCCloseMemHandleExp;
-
-  dditable.pfnGetMemHandleDataExp = pDdiTable->pfnGetMemHandleDataExp;
-  pDdiTable->pfnGetMemHandleDataExp =
-      ur_tracing_layer::urIPCGetMemHandleDataExp;
 
   return result;
 }

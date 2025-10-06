@@ -433,6 +433,3 @@ struct ur_mem_handle_t_ : ur::hip::handle_base {
     }
   }
 };
-
-// IPC is currently not supported in the HIP adaptor.
-struct ur_exp_ipc_mem_handle_t_ {};

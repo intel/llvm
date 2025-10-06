@@ -24,10 +24,6 @@ etors:
       value: "0x2023"
       desc: "[$x_bool_t] returns true if the device supports inter-process communicable memory handles"
 --- #--------------------------------------------------------------------------
-type: handle
-desc: "Handle of inter-process communicable memory"
-name: "$x_exp_ipc_mem_handle_t"
---- #--------------------------------------------------------------------------
 type: function
 desc: "Gets an inter-process memory handle for a pointer to device USM memory"
 class: $xIPC
@@ -40,15 +36,19 @@ params:
     - type: void *
       name: pMem
       desc: "[in] pointer to device USM memory"
-    - type: $x_exp_ipc_mem_handle_t*
-      name: phIPCMem
-      desc: "[out][alloc] pointer to the resulting IPC memory handle"
+    - type: void*
+      name: pIPCMemHandleData
+      desc: "[out][optional] a pointer to the IPC memory handle data"
+    - type: size_t*
+      name: pIPCMemHandleDataSizeRet
+      desc: "[out][optional] size of the resulting IPC memory handle data"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "`NULL == hContext`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`NULL == phIPCMem`"
+      - "`NULL == pIPCMemHandleData`"
+      - "`NULL == pIPCMemHandleDataSizeRet`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -61,22 +61,20 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: $x_exp_ipc_mem_handle_t
-      name: hIPCMem
-      desc: "[in] the IPC memory handle"
-    - type: $x_bool_t
-      name: putBackendResource
-      desc: "[in] true if the backend resource should be released, false if the backend resource will be released when freeing the corresponding device USM memory"
+    - type: void*
+      name: pIPCMemHandleData
+      desc: "[in] a pointer to the IPC memory handle data"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "`NULL == hContext`"
-      - "`NULL == hIPCMem`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCMemHandleData`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Opens an inter-process memory handle from raw data to get the corresponding pointer to device USM memory"
+desc: "Opens an inter-process memory handle to get the corresponding pointer to device USM memory"
 class: $xIPC
 name: OpenMemHandleExp
 ordinal: "0"
@@ -88,7 +86,7 @@ params:
       name: hDevice
       desc: "[in] handle of the device object the corresponding USM device memory was allocated on"
     - type: void *
-      name: ipcMemHandleData
+      name: pIPCMemHandleData
       desc: "[in] the IPC memory handle data"
     - type: size_t
       name: ipcMemHandleDataSize
@@ -102,7 +100,7 @@ returns:
       - "`NULL == hContext`"
       - "`NULL == hDevice`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`NULL == ipcMemHandleData`"
+      - "`NULL == pIPCMemHandleData`"
       - "`NULL == ppMem`"
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "ipcMemHandleDataSize is not the same as the size of IPC memory handle data"
@@ -127,31 +125,5 @@ returns:
       - "`NULL == hContext`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
       - "`NULL == pMem`"
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES
---- #--------------------------------------------------------------------------
-type: function
-desc: "Gets the data of an inter-process memory handle"
-class: $xIPC
-name: GetMemHandleDataExp
-ordinal: "0"
-params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
-    - type: $x_exp_ipc_mem_handle_t
-      name: hIPCMem
-      desc: "[in] the IPC memory handle"
-    - type: void**
-      name: ppIPCHandleData
-      desc: "[out][optional] a pointer to the IPC memory handle data"
-    - type: size_t*
-      name: pIPCMemHandleDataSizeRet
-      desc: "[out][optional] size of the resulting IPC memory handle data"
-returns:
-    - $X_RESULT_ERROR_INVALID_CONTEXT
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
-      - "`NULL == hContext`"
-      - "`NULL == hIPCMem`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES

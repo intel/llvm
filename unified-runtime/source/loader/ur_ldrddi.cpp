@@ -5459,8 +5459,10 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     ur_context_handle_t hContext,
     /// [in] pointer to device USM memory
     void *pMem,
-    /// [out][alloc] pointer to the resulting IPC memory handle
-    ur_exp_ipc_mem_handle_t *phIPCMem) {
+    /// [out][optional] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
 
@@ -5469,7 +5471,8 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnGetMemHandleExp(hContext, pMem, phIPCMem);
+  return pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+                            pIPCMemHandleDataSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5477,12 +5480,8 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
-    /// [in] true if the backend resource should be released, false if the
-    /// backend resource will be released when freeing the corresponding
-    /// device USM memory
-    ur_bool_t putBackendResource) {
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
 
   auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
 
@@ -5491,7 +5490,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnPutMemHandleExp(hContext, hIPCMem, putBackendResource);
+  return pfnPutMemHandleExp(hContext, pIPCMemHandleData);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5503,7 +5502,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     /// was allocated on
     ur_device_handle_t hDevice,
     /// [in] the IPC memory handle data
-    void *ipcMemHandleData,
+    void *pIPCMemHandleData,
     /// [in] size of the IPC memory handle data
     size_t ipcMemHandleDataSize,
     /// [out] pointer to a pointer to device USM memory
@@ -5516,7 +5515,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnOpenMemHandleExp(hContext, hDevice, ipcMemHandleData,
+  return pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
                              ipcMemHandleDataSize, ppMem);
 }
 
@@ -5536,29 +5535,6 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
 
   // forward to device-platform
   return pfnCloseMemHandleExp(hContext, pMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCGetMemHandleDataExp
-__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
-    /// [out][optional] a pointer to the IPC memory handle data
-    void **ppIPCHandleData,
-    /// [out][optional] size of the resulting IPC memory handle data
-    size_t *pIPCMemHandleDataSizeRet) {
-
-  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
-
-  auto *pfnGetMemHandleDataExp = dditable->IPCExp.pfnGetMemHandleDataExp;
-  if (nullptr == pfnGetMemHandleDataExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // forward to device-platform
-  return pfnGetMemHandleDataExp(hContext, hIPCMem, ppIPCHandleData,
-                                pIPCMemHandleDataSizeRet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6477,7 +6453,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
       pDdiTable->pfnPutMemHandleExp = ur_loader::urIPCPutMemHandleExp;
       pDdiTable->pfnOpenMemHandleExp = ur_loader::urIPCOpenMemHandleExp;
       pDdiTable->pfnCloseMemHandleExp = ur_loader::urIPCCloseMemHandleExp;
-      pDdiTable->pfnGetMemHandleDataExp = ur_loader::urIPCGetMemHandleDataExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.IPCExp;

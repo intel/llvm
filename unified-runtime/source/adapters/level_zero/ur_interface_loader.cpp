@@ -268,7 +268,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
   pDdiTable->pfnPutMemHandleExp = ur::level_zero::urIPCPutMemHandleExp;
   pDdiTable->pfnOpenMemHandleExp = ur::level_zero::urIPCOpenMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur::level_zero::urIPCCloseMemHandleExp;
-  pDdiTable->pfnGetMemHandleDataExp = ur::level_zero::urIPCGetMemHandleDataExp;
 
   return result;
 }
