@@ -549,10 +549,10 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   return NodeImpl;
 }
 
-std::weak_ptr<sycl::detail::queue_impl> graph_impl::getQueue() const {
-  std::weak_ptr<sycl::detail::queue_impl> Return{};
+std::shared_ptr<sycl::detail::queue_impl> graph_impl::getQueue() const {
+  std::shared_ptr<sycl::detail::queue_impl> Return{};
   if (!MRecordingQueues.empty())
-    Return = *(MRecordingQueues.begin());
+    Return = MRecordingQueues.begin()->lock();
   return Return;
 }
 
@@ -897,7 +897,7 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
   duplicateNodes();
 
-  if (auto PlaceholderQueuePtr = GraphImpl->getQueue().lock()) {
+  if (auto PlaceholderQueuePtr = GraphImpl->getQueue()) {
     MQueueImpl = PlaceholderQueuePtr;
   } else {
     MQueueImpl = sycl::detail::queue_impl::create(

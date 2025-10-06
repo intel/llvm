@@ -172,7 +172,7 @@ public:
   node_impl &add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                  nodes_range Deps);
 
-  std::weak_ptr<sycl::detail::queue_impl> getQueue() const;
+  std::shared_ptr<sycl::detail::queue_impl> getQueue() const;
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
