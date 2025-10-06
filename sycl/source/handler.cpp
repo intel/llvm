@@ -869,54 +869,8 @@ event handler::finalize() {
   // If the queue has an associated graph then we need to take the CG and pass
   // it to the graph to create a node, rather than submit it to the scheduler.
   if (auto GraphImpl = Queue->getCommandGraph(); GraphImpl) {
-    auto EventImpl = detail::event_impl::create_completed_host_event();
-    EventImpl->setSubmittedQueue(Queue->weak_from_this());
-    ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
-
-    // GraphImpl is read and written in this scope so we lock this graph
-    // with full priviledges.
-    ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
-        GraphImpl->MMutex);
-
-    ext::oneapi::experimental::node_type NodeType =
-        impl->MUserFacingNodeType != ext::oneapi::experimental::node_type::empty
-            ? impl->MUserFacingNodeType
-            : ext::oneapi::experimental::detail::getNodeTypeFromCG(getType());
-
-    // Create a new node in the graph representing this command-group
-    if (Queue->isInOrder()) {
-      // In-order queues create implicit linear dependencies between nodes.
-      // Find the last node added to the graph from this queue, so our new
-      // node can set it as a predecessor.
-      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
-      if (ext::oneapi::experimental::detail::node_impl *DependentNode =
-              GraphImpl->getLastInorderNode(Queue)) {
-        Deps.push_back(DependentNode);
-      }
-      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
-
-      // If we are recording an in-order queue remember the new node, so it
-      // can be used as a dependency for any more nodes recorded from this
-      // queue.
-      GraphImpl->setLastInorderNode(*Queue, *NodeImpl);
-    } else {
-      ext::oneapi::experimental::detail::node_impl
-          *LastBarrierRecordedFromQueue =
-              GraphImpl->getBarrierDep(Queue->weak_from_this());
-      std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
-
-      if (LastBarrierRecordedFromQueue) {
-        Deps.push_back(LastBarrierRecordedFromQueue);
-      }
-      NodeImpl = &GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
-
-      if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
-        GraphImpl->setBarrierDep(Queue->weak_from_this(), *NodeImpl);
-      }
-    }
-
-    // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, *NodeImpl);
+    auto EventImpl = Queue->submit_command_to_graph(
+        *GraphImpl, std::move(CommandGroup), type, impl->MUserFacingNodeType);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return EventImpl;

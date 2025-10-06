@@ -508,6 +508,61 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
   return ResultEvent;
 }
 
+EventImplPtr queue_impl::submit_command_to_graph(
+    ext::oneapi::experimental::detail::graph_impl &GraphImpl,
+    std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
+    sycl::ext::oneapi::experimental::node_type UserFacingNodeType) {
+  auto EventImpl = detail::event_impl::create_completed_host_event();
+  EventImpl->setSubmittedQueue(weak_from_this());
+  ext::oneapi::experimental::detail::node_impl *NodeImpl = nullptr;
+
+  // GraphImpl is read and written in this scope so we lock this graph
+  // with full priviledges.
+  ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
+      GraphImpl.MMutex);
+
+  ext::oneapi::experimental::node_type NodeType =
+      UserFacingNodeType != ext::oneapi::experimental::node_type::empty
+          ? UserFacingNodeType
+          : ext::oneapi::experimental::detail::getNodeTypeFromCG(CGType);
+
+  // Create a new node in the graph representing this command-group
+  if (isInOrder()) {
+    // In-order queues create implicit linear dependencies between nodes.
+    // Find the last node added to the graph from this queue, so our new
+    // node can set it as a predecessor.
+    std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+    if (ext::oneapi::experimental::detail::node_impl *DependentNode =
+            GraphImpl.getLastInorderNode(this)) {
+      Deps.push_back(DependentNode);
+    }
+    NodeImpl = &GraphImpl.add(NodeType, std::move(CommandGroup), Deps);
+
+    // If we are recording an in-order queue remember the new node, so it
+    // can be used as a dependency for any more nodes recorded from this
+    // queue.
+    GraphImpl.setLastInorderNode(*this, *NodeImpl);
+  } else {
+    ext::oneapi::experimental::detail::node_impl *LastBarrierRecordedFromQueue =
+        GraphImpl.getBarrierDep(weak_from_this());
+    std::vector<ext::oneapi::experimental::detail::node_impl *> Deps;
+
+    if (LastBarrierRecordedFromQueue) {
+      Deps.push_back(LastBarrierRecordedFromQueue);
+    }
+    NodeImpl = &GraphImpl.add(NodeType, std::move(CommandGroup), Deps);
+
+    if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
+      GraphImpl.setBarrierDep(weak_from_this(), *NodeImpl);
+    }
+  }
+
+  // Associate an event with this new node and return the event.
+  GraphImpl.addEventForNode(EventImpl, *NodeImpl);
+
+  return EventImpl;
+}
+
 EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
@@ -546,6 +601,11 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
         KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
         CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
+
+    if (auto GraphImpl = getCommandGraph(); GraphImpl) {
+      return submit_command_to_graph(*GraphImpl, std::move(CommandGroup),
+                                     detail::CGType::Kernel);
+    }
 
     return detail::Scheduler::getInstance().addCG(std::move(CommandGroup),
                                                   *this, true);
