@@ -21,7 +21,6 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/HeaderInclude.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Basic/LangStandard.h"
 #include "clang/Basic/MakeSupport.h"
 #include "clang/Basic/ObjCRuntime.h"
 #include "clang/Basic/Version.h"
@@ -42,9 +41,8 @@
 #include "llvm/Frontend/Debug/Options.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/Support/Casting.h"
+#include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/Error.h"
@@ -60,6 +58,10 @@
 #include "llvm/TargetParser/RISCVISAInfo.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
+
+#include "clang/Basic/LangStandard.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -521,19 +523,47 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   }
 
   if (ProfileUseArg) {
+    SmallString<128> UsePathBuf;
+    StringRef UsePath;
     if (ProfileUseArg->getOption().matches(options::OPT_fprofile_instr_use_EQ))
-      CmdArgs.push_back(Args.MakeArgString(
-          Twine("-fprofile-instrument-use-path=") + ProfileUseArg->getValue()));
+      UsePath = ProfileUseArg->getValue();
     else if ((ProfileUseArg->getOption().matches(
                   options::OPT_fprofile_use_EQ) ||
               ProfileUseArg->getOption().matches(
                   options::OPT_fprofile_instr_use))) {
-      SmallString<128> Path(
-          ProfileUseArg->getNumValues() == 0 ? "" : ProfileUseArg->getValue());
-      if (Path.empty() || llvm::sys::fs::is_directory(Path))
-        llvm::sys::path::append(Path, "default.profdata");
+      UsePathBuf =
+          ProfileUseArg->getNumValues() == 0 ? "" : ProfileUseArg->getValue();
+      if (UsePathBuf.empty() || llvm::sys::fs::is_directory(UsePathBuf))
+        llvm::sys::path::append(UsePathBuf, "default.profdata");
+      UsePath = UsePathBuf;
+    }
+    auto ReaderOrErr =
+        llvm::IndexedInstrProfReader::create(UsePath, D.getVFS());
+    if (auto E = ReaderOrErr.takeError()) {
+      auto DiagID = D.getDiags().getCustomDiagID(
+          DiagnosticsEngine::Error, "Error in reading profile %0: %1");
+      llvm::handleAllErrors(std::move(E), [&](const llvm::ErrorInfoBase &EI) {
+        D.Diag(DiagID) << UsePath.str() << EI.message();
+      });
+    } else {
+      std::unique_ptr<llvm::IndexedInstrProfReader> PGOReader =
+          std::move(ReaderOrErr.get());
+      StringRef UseKind;
+      // Currently memprof profiles are only added at the IR level. Mark the
+      // profile type as IR in that case as well and the subsequent matching
+      // needs to detect which is available (might be one or both).
+      if (PGOReader->isIRLevelProfile() || PGOReader->hasMemoryProfile()) {
+        if (PGOReader->hasCSIRLevelProfile())
+          UseKind = "csllvm";
+        else
+          UseKind = "llvm";
+      } else
+        UseKind = "clang";
+
       CmdArgs.push_back(
-          Args.MakeArgString(Twine("-fprofile-instrument-use-path=") + Path));
+          Args.MakeArgString("-fprofile-instrument-use=" + UseKind));
+      CmdArgs.push_back(
+          Args.MakeArgString("-fprofile-instrument-use-path=" + UsePath));
     }
   }
 
