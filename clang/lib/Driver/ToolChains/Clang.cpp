@@ -11298,51 +11298,32 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
+    SmallString<256> BCLibList;
     llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      // Note: For AMD targets, we do not pass any SYCL device libraries.
-      if (TC->getTriple().isNVPTX()) {
-        auto NVPTXLibNames =
-            SYCL::getDeviceLibraries(C, llvm::Triple("nvptx64-nvidia-cuda"),
-                                     /*UseAOTLink=*/false);
-        SmallVector<SmallString<0>, 8> NVPTXLibPaths;
-        for (const auto &LibName : NVPTXLibNames) {
-          SmallString<0> FullLibName(DeviceLibDir);
-          llvm::sys::path::append(FullLibName, LibName);
-          NVPTXLibPaths.push_back(FullLibName);
+      TargetTriple = TC->getTriple();
+      SmallVector<std::string, 8> SYCLDeviceLibs;
+      bool IsSPIR = TargetTriple.isSPIROrSPIRV();
+      bool IsSpirvAOT = TargetTriple.isSPIRAOT();
+      bool UseJitLink =
+          IsSPIR &&
+          Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                       options::OPT_fno_sycl_device_lib_jit_link, false);
+      bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
+      SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+      for (const auto &AddLib : SYCLDeviceLibs) {
+        if (llvm::sys::path::extension(AddLib) == ".bc") {
+          if (BCLibList.size() > 0)
+            BCLibList += ",";
+          BCLibList += Twine(TC->getTriple().str() + "=" + AddLib).str();
+          continue;
         }
-        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
-                TC->getTriple(), Args, *TC->getAuxTriple())) {
-          NVPTXLibPaths.push_back(StringRef(LibSpirvFile));
-        }
-
-        if (NVPTXLibPaths.size() != 0)
-          CmdArgs.push_back(
-              Args.MakeArgString(Twine("-sycl-nvptx-device-libraries=") +
-                                 llvm::join(NVPTXLibPaths, ",")));
-
-        continue;
-      }
-
-      if (TC->getTriple().isSPIROrSPIRV()) {
-        TargetTriple = TC->getTriple();
-        SmallVector<std::string, 8> SYCLDeviceLibs;
-        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
-        bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-        bool UseJitLink =
-            IsSPIR &&
-            Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                         options::OPT_fno_sycl_device_lib_jit_link, false);
-        bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
-        for (const auto &AddLib : SYCLDeviceLibs) {
-          if (LibList.size() > 0)
-            LibList += ",";
-          LibList += AddLib;
-        }
+        if (LibList.size() > 0)
+          LibList += ",";
+        LibList += AddLib;
       }
     }
     // -sycl-device-libraries=<libs> provides a comma separate list of
@@ -11350,6 +11331,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (LibList.size())
       CmdArgs.push_back(
           Args.MakeArgString(Twine("-sycl-device-libraries=") + LibList));
+
+    if (BCLibList.size())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("--sycl-bc-device-libraries=") + BCLibList));
 
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.
