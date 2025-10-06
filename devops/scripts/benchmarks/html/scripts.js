@@ -345,7 +345,7 @@ function createChart(data, containerId, type) {
             if (elements.length > 0) {
                 const point = elements[0].element.$context.raw;
                 if (point.gitHash && point.gitRepo) {
-                    window.open(`https://github.com/${point.gitRepo}/commit/${point.gitHash}`, '_blank');
+                    window.open(`${point.gitRepo}/commit/${point.gitHash}`, '_blank');
                 }
             }
         };
