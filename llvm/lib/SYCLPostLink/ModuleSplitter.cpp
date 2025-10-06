@@ -561,7 +561,7 @@ Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   return Error::success();
 }
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 
 const char *toString(SyclEsimdSplitStatus S) {
   switch (S) {
@@ -608,7 +608,7 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
   llvm::errs() << "}\n";
 }
 
-#endif // NDEBUG
+#endif
 
 void ModuleDesc::assignMergedProperties(const ModuleDesc &MD1,
                                         const ModuleDesc &MD2) {
@@ -847,7 +847,9 @@ void ModuleDesc::verifyESIMDProperty() const {
   //  }
   //}
 }
+#endif // NDEBUG
 
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
@@ -856,7 +858,7 @@ void ModuleDesc::dump() const {
   dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }
-#endif // NDEBUG
+#endif
 
 void ModuleDesc::saveSplitInformationAsMetadata() {
   // Add metadata to the module so we can identify what kind of SYCL/ESIMD split

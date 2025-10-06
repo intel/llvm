@@ -238,8 +238,11 @@ public:
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
-  void dump() const;
 #endif // NDEBUG
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  void dump() const;
+#endif
 };
 
 // Module split support interface.
