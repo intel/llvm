@@ -1641,9 +1641,7 @@ public:
         || ext::oneapi::experimental::detail::is_struct_with_special_type<
                remove_cv_ref_t<T>>::value; // Structs that contain special types
   };
-
-  constexpr static int AccessTargetMask = 0x7ff;
-
+ 
   /// Sets argument for OpenCL interoperability kernels.
   ///
   /// Registers Arg passed as argument # ArgIndex.
@@ -1674,6 +1672,7 @@ public:
         // accessor object itself.
         if (type::kinds[NumArgs] ==
             detail::kernel_param_kind_t::kind_accessor) {
+          constexpr int AccessTargetMask = 0x7ff;
           const access::target target = static_cast<access::target>(
               type::sizes[NumArgs] & AccessTargetMask);
           if (target == target::local) {
@@ -3571,6 +3570,7 @@ private:
   // during device compilations (by reducing amount of templates we have to
   // instantiate), those are only available during host compilation pass.
 #ifndef __SYCL_DEVICE_ONLY__
+  constexpr static int AccessTargetMask = 0x7ff;
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
