@@ -49,7 +49,7 @@ int spawner(int argc, char *argv[]) {
     // Write handle data to file.
     {
       syclexp::ipc_memory::handle_data_t HandleData =
-          syclexp::ipc_memory.get(DataPtr, Q.get_context());
+          syclexp::ipc_memory::get(DataPtr, Q.get_context());
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
       FS.write(reinterpret_cast<const char *>(&HandleDataSize), sizeof(size_t));
@@ -87,7 +87,8 @@ int consumer() {
   FS.read(HandleData.get(), HandleSize);
 
   // Open IPC handle.
-  syclexp::ipc_memory_handle_data_t Handle{HandleData.get(), HandleSize};
+  syclexp::ipc_memory::handle_data_t Handle{HandleData.get(),
+                                            HandleData.get() + HandleSize};
   int *DataPtr = reinterpret_cast<int *>(
       syclexp::ipc_memory::open(Handle, Q.get_context(), Q.get_device()));
 
