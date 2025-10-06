@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
 
@@ -241,7 +242,7 @@ public:
 #endif // NDEBUG
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-  void dump() const;
+  LLVM_DUMP_METHOD void dump() const;
 #endif
 };
 
