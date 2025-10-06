@@ -2992,6 +2992,8 @@ LLVMValueRef LLVMIsATerminatorInst(LLVMValueRef Inst) {
 
 LLVMDbgRecordRef LLVMGetFirstDbgRecord(LLVMValueRef Inst) {
   Instruction *Instr = unwrap<Instruction>(Inst);
+  if (!Instr->DebugMarker)
+    return nullptr;
   auto I = Instr->DebugMarker->StoredDbgRecords.begin();
   if (I == Instr->DebugMarker->StoredDbgRecords.end())
     return nullptr;
@@ -3000,6 +3002,8 @@ LLVMDbgRecordRef LLVMGetFirstDbgRecord(LLVMValueRef Inst) {
 
 LLVMDbgRecordRef LLVMGetLastDbgRecord(LLVMValueRef Inst) {
   Instruction *Instr = unwrap<Instruction>(Inst);
+  if (!Instr->DebugMarker)
+    return nullptr;
   auto I = Instr->DebugMarker->StoredDbgRecords.rbegin();
   if (I == Instr->DebugMarker->StoredDbgRecords.rend())
     return nullptr;
