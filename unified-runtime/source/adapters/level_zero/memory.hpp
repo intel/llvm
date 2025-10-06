@@ -244,11 +244,6 @@ struct ur_image final : ur_mem_handle_t_ {
   ze_image_handle_t ZeImage;
 };
 
-struct ur_exp_ipc_mem_handle_t_ {
-  umf_ipc_handle_t UMFHandle = nullptr;
-  size_t HandleSize = 0;
-};
-
 template <typename T>
 ur_result_t
 createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,

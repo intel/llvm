@@ -682,9 +682,6 @@ etors:
 - name: IPC_CLOSE_MEM_HANDLE_EXP
   desc: Enumerator for $xIPCCloseMemHandleExp
   value: '292'
-- name: IPC_GET_MEM_HANDLE_DATA_EXP
-  desc: Enumerator for $xIPCGetMemHandleDataExp
-  value: '293'
 ---
 type: enum
 desc: Defines structure types

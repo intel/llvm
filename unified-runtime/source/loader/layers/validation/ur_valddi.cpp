@@ -10344,8 +10344,10 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     ur_context_handle_t hContext,
     /// [in] pointer to device USM memory
     void *pMem,
-    /// [out][alloc] pointer to the resulting IPC memory handle
-    ur_exp_ipc_mem_handle_t *phIPCMem) {
+    /// [out][optional] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
   auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
 
   if (nullptr == pfnGetMemHandleExp) {
@@ -10353,7 +10355,10 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == phIPCMem)
+    if (NULL == pIPCMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pIPCMemHandleDataSizeRet)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hContext)
@@ -10365,7 +10370,8 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, phIPCMem);
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+                                          pIPCMemHandleDataSizeRet);
 
   return result;
 }
@@ -10375,12 +10381,8 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
 __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
-    /// [in] true if the backend resource should be released, false if the
-    /// backend resource will be released when freeing the corresponding
-    /// device USM memory
-    ur_bool_t putBackendResource) {
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
   auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
 
   if (nullptr == pfnPutMemHandleExp) {
@@ -10388,10 +10390,10 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    if (NULL == pIPCMemHandleData)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (NULL == hIPCMem)
+    if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -10400,8 +10402,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result =
-      pfnPutMemHandleExp(hContext, hIPCMem, putBackendResource);
+  ur_result_t result = pfnPutMemHandleExp(hContext, pIPCMemHandleData);
 
   return result;
 }
@@ -10415,7 +10416,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     /// was allocated on
     ur_device_handle_t hDevice,
     /// [in] the IPC memory handle data
-    void *ipcMemHandleData,
+    void *pIPCMemHandleData,
     /// [in] size of the IPC memory handle data
     size_t ipcMemHandleDataSize,
     /// [out] pointer to a pointer to device USM memory
@@ -10428,7 +10429,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == ipcMemHandleData)
+    if (NULL == pIPCMemHandleData)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppMem)
@@ -10451,7 +10452,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
     URLOG_CTX_INVALID_REFERENCE(hDevice);
   }
 
-  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, ipcMemHandleData,
+  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
                                            ipcMemHandleDataSize, ppMem);
 
   return result;
@@ -10485,43 +10486,6 @@ __urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
   }
 
   ur_result_t result = pfnCloseMemHandleExp(hContext, pMem);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urIPCGetMemHandleDataExp
-__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleDataExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] the IPC memory handle
-    ur_exp_ipc_mem_handle_t hIPCMem,
-    /// [out][optional] a pointer to the IPC memory handle data
-    void **ppIPCHandleData,
-    /// [out][optional] size of the resulting IPC memory handle data
-    size_t *pIPCMemHandleDataSizeRet) {
-  auto pfnGetMemHandleDataExp =
-      getContext()->urDdiTable.IPCExp.pfnGetMemHandleDataExp;
-
-  if (nullptr == pfnGetMemHandleDataExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hIPCMem)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hContext)) {
-    URLOG_CTX_INVALID_REFERENCE(hContext);
-  }
-
-  ur_result_t result = pfnGetMemHandleDataExp(
-      hContext, hIPCMem, ppIPCHandleData, pIPCMemHandleDataSizeRet);
 
   return result;
 }
@@ -11811,10 +11775,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
 
   dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
   pDdiTable->pfnCloseMemHandleExp = ur_validation_layer::urIPCCloseMemHandleExp;
-
-  dditable.pfnGetMemHandleDataExp = pDdiTable->pfnGetMemHandleDataExp;
-  pDdiTable->pfnGetMemHandleDataExp =
-      ur_validation_layer::urIPCGetMemHandleDataExp;
 
   return result;
 }

@@ -293,8 +293,3 @@ private:
                ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
 };
-
-struct ur_exp_ipc_mem_handle_t_ {
-  umf_ipc_handle_t UMFHandle = nullptr;
-  size_t HandleSize = 0;
-};

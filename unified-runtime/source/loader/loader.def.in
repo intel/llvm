@@ -133,7 +133,6 @@ EXPORTS
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
 	urIPCCloseMemHandleExp
-	urIPCGetMemHandleDataExp
 	urIPCGetMemHandleExp
 	urIPCOpenMemHandleExp
 	urIPCPutMemHandleExp
@@ -368,7 +367,6 @@ EXPORTS
 	urPrintImageFormat
 	urPrintImageInfo
 	urPrintIpcCloseMemHandleExpParams
-	urPrintIpcGetMemHandleDataExpParams
 	urPrintIpcGetMemHandleExpParams
 	urPrintIpcOpenMemHandleExpParams
 	urPrintIpcPutMemHandleExpParams

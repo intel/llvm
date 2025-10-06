@@ -1789,13 +1789,14 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCGetMemHandleExp
-typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(
-    ur_context_handle_t, void *, ur_exp_ipc_mem_handle_t *);
+typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleExp_t)(ur_context_handle_t,
+                                                            void *, void *,
+                                                            size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCPutMemHandleExp
-typedef ur_result_t(UR_APICALL *ur_pfnIPCPutMemHandleExp_t)(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t, ur_bool_t);
+typedef ur_result_t(UR_APICALL *ur_pfnIPCPutMemHandleExp_t)(ur_context_handle_t,
+                                                            void *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urIPCOpenMemHandleExp
@@ -1808,18 +1809,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnIPCCloseMemHandleExp_t)(
     ur_context_handle_t, void *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urIPCGetMemHandleDataExp
-typedef ur_result_t(UR_APICALL *ur_pfnIPCGetMemHandleDataExp_t)(
-    ur_context_handle_t, ur_exp_ipc_mem_handle_t, void **, size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of IPCExp functions pointers
 typedef struct ur_ipc_exp_dditable_t {
   ur_pfnIPCGetMemHandleExp_t pfnGetMemHandleExp;
   ur_pfnIPCPutMemHandleExp_t pfnPutMemHandleExp;
   ur_pfnIPCOpenMemHandleExp_t pfnOpenMemHandleExp;
   ur_pfnIPCCloseMemHandleExp_t pfnCloseMemHandleExp;
-  ur_pfnIPCGetMemHandleDataExp_t pfnGetMemHandleDataExp;
 } ur_ipc_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

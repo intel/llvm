@@ -1953,33 +1953,38 @@ ur_result_t urEnqueueWriteHostPipe(
 }
 
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
-                                 ur_exp_ipc_mem_handle_t *phIPCMem) {
-  auto resHandle = std::make_unique<ur_exp_ipc_mem_handle_t_>();
-
+                                 void *pIPCMemHandleData,
+                                 size_t *pIPCMemHandleDataSizeRet) {
   umf_memory_pool_handle_t umfPool;
   auto umfRet = umfPoolByPtr(pMem, &umfPool);
   if (umfRet != UMF_RESULT_SUCCESS || !umfPool)
     return UR_RESULT_ERROR_UNKNOWN;
 
-  umfRet = umfGetIPCHandle(pMem, &resHandle->UMFHandle, &resHandle->HandleSize);
-  if (umfRet != UMF_RESULT_SUCCESS || !resHandle->UMFHandle ||
-      resHandle->HandleSize == 0)
-    return UR_RESULT_ERROR_UNKNOWN;
+  // Fast path for returning the size of the handle only.
+  if (!pIPCMemHandleData) {
+    auto umfRet = umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet);
+    if (umfRet != UMF_RESULT_SUCCESS || *pIPCMemHandleDataSizeRet == 0)
+      return UR_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_SUCCESS;
+  }
 
-  *phIPCMem = resHandle.release();
+  size_t fallbackUMFHandleSize = 0;
+  size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
+                              ? pIPCMemHandleDataSizeRet
+                              : &fallbackUMFHandleSize;
+  umf_ipc_handle_t umfHandle;
+  umfRet = umfGetIPCHandle(pMem, &umfHandle, umfHandleSize);
+  if (umfRet != UMF_RESULT_SUCCESS || !umfHandle || *umfHandleSize == 0)
+    return UR_RESULT_ERROR_UNKNOWN;
+  std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urIPCPutMemHandleExp(ur_context_handle_t,
-                                 ur_exp_ipc_mem_handle_t hIPCMem,
-                                 ur_bool_t putBackendResource) {
-  if (putBackendResource) {
-    auto umfRet = umfPutIPCHandle(hIPCMem->UMFHandle);
-    if (umfRet != UMF_RESULT_SUCCESS)
-      return UR_RESULT_ERROR_UNKNOWN;
-  }
-  std::free(hIPCMem);
-  return UR_RESULT_SUCCESS;
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
+  auto umfRet =
+      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData));
+  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
+                                      : UR_RESULT_ERROR_UNKNOWN;
 }
 
 ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
@@ -2016,17 +2021,6 @@ ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
   auto umfRet = umfCloseIPCHandle(pMem);
   return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
                                       : UR_RESULT_ERROR_UNKNOWN;
-}
-
-ur_result_t urIPCGetMemHandleDataExp(ur_context_handle_t,
-                                     ur_exp_ipc_mem_handle_t hIPCMem,
-                                     void **ppIPCHandleData,
-                                     size_t *pIPCMemHandleDataSizeRet) {
-  if (ppIPCHandleData)
-    *ppIPCHandleData = hIPCMem->UMFHandle;
-  if (pIPCMemHandleDataSizeRet)
-    *pIPCMemHandleDataSizeRet = hIPCMem->HandleSize;
-  return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur::level_zero

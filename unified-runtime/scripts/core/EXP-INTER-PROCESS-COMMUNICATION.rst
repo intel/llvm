@@ -35,10 +35,6 @@ Enums
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP
 
-Types
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${x}_exp_ipc_mem_handle_t
-
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * Inter-Process Communication
@@ -46,7 +42,6 @@ Functions
    * ${x}IPCPutMemHandleExp
    * ${x}IPCOpenMemHandleExp
    * ${x}IPCCloseMemHandleExp
-   * ${x}IPCGetMemHandleDataExp
 
 Changelog
 --------------------------------------------------------------------------------
