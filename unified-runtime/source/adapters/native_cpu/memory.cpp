@@ -139,8 +139,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urIPCGetMemHandleExp(ur_context_handle_t, void *, void *, size_t*) {
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
+                                                         void *, void *,
+                                                         size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
