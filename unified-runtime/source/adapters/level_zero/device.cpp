@@ -1461,13 +1461,14 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
     // Currently GPUs only support sub-group clock.
     return ReturnValue(false);
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
+    return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
            logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
-
   return UR_RESULT_SUCCESS;
 }
 
