@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t.out %}
+// RUN: %clangxx %fsycl %s -o %t.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx %fsycl -fpreview-breaking-changes %s -o %t.out %}
 
 // XFAIL: libcxx
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616

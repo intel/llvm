@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // Verify that a sample compilation succeeds with -save-temps
-// RUN: %clangxx -fsycl -save-temps %s -o %t.out
+// RUN: %clangxx %fsycl -save-temps %s -o %t.out
 
 // XFAIL: libcxx
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616

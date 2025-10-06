@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o /dev/null
+// RUN: %clangxx %fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o /dev/null
 // XFAIL: libcxx
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 

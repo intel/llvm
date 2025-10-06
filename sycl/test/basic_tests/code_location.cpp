@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -DNDEBUG %s -o %t.out
+// RUN: %clangxx %fsycl -DNDEBUG %s -o %t.out
 // RUN: %t.out
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 // RUN: %t.out
 
 #include <cassert>

@@ -11,22 +11,12 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview is_no_c
 
   # Select which sycl libraries and object to link based
   # on whether this is a preview build.
-  if (MSVC AND build_type_lower MATCHES "debug")
-    if (${is_preview})
-      set(sycl_obj_target "sycl-previewd_object")
-      set(sycl_so_target "sycl-previewd")
-    else()
-      set(sycl_obj_target "sycld_object")
-      set(sycl_so_target "sycld")
-    endif()
+  if (${is_preview})
+    set(sycl_obj_target "sycl-preview_object")
+    set(sycl_so_target "sycl-preview")
   else()
-    if (${is_preview})
-      set(sycl_obj_target "sycl-preview_object")
-      set(sycl_so_target "sycl-preview")
-    else()
-      set(sycl_obj_target "sycl_object")
-      set(sycl_so_target "sycl")
-    endif()
+    set(sycl_obj_target "sycl_object")
+    set(sycl_so_target "sycl")
   endif()
 
   # This is done to ensure that preview tests are kept in a separate
