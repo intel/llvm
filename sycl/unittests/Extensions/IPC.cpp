@@ -1,0 +1,158 @@
+//==------------------------------ IPC.cpp ---------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <gtest/gtest.h>
+
+#include <helpers/UrMock.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
+
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+namespace {
+
+int DummyInt = 42;
+void *DummyPtr = &DummyInt;
+
+constexpr size_t DummyHandleDataSize = 10;
+char DummyHandleData[DummyHandleDataSize] = {9, 8, 7, 6, 5, 4, 3, 2, 1};
+
+thread_local int urIPCGetMemHandleExp_counter = 0;
+thread_local int urIPCPutMemHandleExp_counter = 0;
+thread_local int urIPCOpenMemHandleExp_counter = 0;
+thread_local int urIPCCloseMemHandleExp_counter = 0;
+
+ur_result_t replace_urIPCGetMemHandleExp(void *pParams) {
+  ++urIPCGetMemHandleExp_counter;
+  auto params = *static_cast<ur_ipc_get_mem_handle_exp_params_t *>(pParams);
+  EXPECT_EQ(*params.ppMem, DummyPtr);
+  if (*params.ppIPCMemHandleDataSizeRet)
+    **params.ppIPCMemHandleDataSizeRet = DummyHandleDataSize;
+  if (*params.ppIPCMemHandleData)
+    std::memcpy(*params.ppIPCMemHandleData, DummyHandleData,
+                DummyHandleDataSize);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t replace_urIPCPutMemHandleExp(void *pParams) {
+  ++urIPCPutMemHandleExp_counter;
+  auto params = *static_cast<ur_ipc_put_mem_handle_exp_params_t *>(pParams);
+  EXPECT_EQ(
+      memcmp(*params.ppIPCMemHandleData, DummyHandleData, DummyHandleDataSize),
+      0);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t replace_urIPCOpenMemHandleExp(void *pParams) {
+  ++urIPCOpenMemHandleExp_counter;
+  auto params = *static_cast<ur_ipc_open_mem_handle_exp_params_t *>(pParams);
+  EXPECT_EQ(
+      memcmp(*params.ppIPCMemHandleData, DummyHandleData, DummyHandleDataSize),
+      0);
+  EXPECT_EQ(*params.pipcMemHandleDataSize, DummyHandleDataSize);
+  **params.pppMem = DummyPtr;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t replace_urIPCCloseMemHandleExp(void *pParams) {
+  ++urIPCCloseMemHandleExp_counter;
+  auto params = *static_cast<ur_ipc_close_mem_handle_exp_params_t *>(pParams);
+  EXPECT_EQ(*params.ppMem, DummyPtr);
+  return UR_RESULT_SUCCESS;
+}
+
+class IPCTests : public ::testing::Test {
+public:
+  IPCTests() : Mock{}, Ctxt(sycl::platform()) {}
+
+protected:
+  void SetUp() override {
+    urIPCGetMemHandleExp_counter = 0;
+    urIPCPutMemHandleExp_counter = 0;
+    urIPCOpenMemHandleExp_counter = 0;
+    urIPCCloseMemHandleExp_counter = 0;
+
+    mock::getCallbacks().set_replace_callback("urIPCGetMemHandleExp",
+                                              replace_urIPCGetMemHandleExp);
+    mock::getCallbacks().set_replace_callback("urIPCPutMemHandleExp",
+                                              replace_urIPCPutMemHandleExp);
+    mock::getCallbacks().set_replace_callback("urIPCOpenMemHandleExp",
+                                              replace_urIPCOpenMemHandleExp);
+    mock::getCallbacks().set_replace_callback("urIPCCloseMemHandleExp",
+                                              replace_urIPCCloseMemHandleExp);
+  }
+
+  sycl::unittest::UrMock<> Mock;
+  sycl::context Ctxt;
+};
+
+TEST_F(IPCTests, IPCGetPutImplicit) {
+  syclexp::ipc_memory::handle_data_t IPCMemHandleData =
+      syclexp::ipc_memory::get(DummyPtr, Ctxt);
+  EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
+  EXPECT_EQ(
+      memcmp(IPCMemHandleData.data(), DummyHandleData, IPCMemHandleData.size()),
+      0);
+
+  // Creating the IPC memory from a pointer should only call "get". It should be
+  // called twice: Once to get the size of the data and again to get the data.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 2);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+}
+
+TEST_F(IPCTests, IPCGetPutExplicit) {
+  syclexp::ipc_memory::handle_data_t IPCMemHandleData =
+      syclexp::ipc_memory::get(DummyPtr, Ctxt);
+  EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
+  EXPECT_EQ(
+      memcmp(IPCMemHandleData.data(), DummyHandleData, IPCMemHandleData.size()),
+      0);
+
+  // Creating the IPC memory from a pointer should only call "get". It should be
+  // called twice: Once to get the size of the data and again to get the data.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 2);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+
+  syclexp::ipc_memory::put(IPCMemHandleData, Ctxt);
+
+  // Calling "put" explicitly should call the UR function.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 2);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+}
+
+TEST_F(IPCTests, IPCOpenClose) {
+  syclexp::ipc_memory::handle_data_t HandleData{
+      DummyHandleData, DummyHandleData + DummyHandleDataSize};
+  void *Ptr =
+      syclexp::ipc_memory::open(HandleData, Ctxt, Ctxt.get_devices()[0]);
+  EXPECT_EQ(Ptr, DummyPtr);
+
+  // Opening an IPC handle should call open.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
+
+  syclexp::ipc_memory::close(Ptr, Ctxt);
+
+  // When we close an IPC memory pointer, it should call close.
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
+  EXPECT_EQ(urIPCOpenMemHandleExp_counter, 1);
+  EXPECT_EQ(urIPCCloseMemHandleExp_counter, 1);
+}
+
+} // namespace
