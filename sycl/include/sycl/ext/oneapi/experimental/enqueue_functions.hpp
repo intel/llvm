@@ -100,16 +100,14 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
-  Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+  Q.submit_without_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+  return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 } // namespace detail
 
@@ -261,10 +259,19 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Range, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  // TODO The handler-less path does not support reductions yet.
+  if constexpr (sizeof...(ReductionsT) == 0) {
+    detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
+                                             Range, KernelObj);
+  } else
+#endif
+  {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch<KernelName>(CGH, Range, KernelObj,
+                            std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -285,10 +292,23 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Config, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  // TODO The handler-less path does not support reductions yet.
+  if constexpr (sizeof...(ReductionsT) == 0) {
+    ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
+                                                          Properties>
+        ConfigAccess(Config);
+    detail::submit_kernel_direct<KernelName>(
+        std::move(Q), ConfigAccess.getProperties(), ConfigAccess.getRange(),
+        KernelObj);
+  } else
+#endif
+  {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch<KernelName>(CGH, Config, KernelObj,
+                            std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <int Dimensions, typename... ArgsT>

@@ -9,7 +9,7 @@
 
 #include <detail/hashers.hpp>
 #include <detail/kernel_arg_mask.hpp>
-#include <emhash/hash_table8.hpp>
+#include <hash_table8.hpp>
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/spinlock.hpp>
@@ -102,7 +102,8 @@ public:
 
   void init(KernelNameStrRefT KernelName);
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  void initIfNeeded(KernelNameStrRefT KernelName);
+  // Initialize default-created entry that has no data recorded:
+  void initIfEmpty(const CompileTimeKernelInfoTy &Info);
 #endif
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 

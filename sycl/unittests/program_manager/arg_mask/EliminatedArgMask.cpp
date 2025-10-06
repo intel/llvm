@@ -145,14 +145,15 @@ public:
     switch (getType()) {
     case sycl::detail::CGType::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
-          std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(impl->MKernelBundle),
-          std::move(impl->CGData), std::move(impl->MArgs),
-          CGH->MKernelName.data(), *impl->MDeviceKernelInfoPtr,
+          std::move(impl->MKernelData).getNDRDesc(),
+          std::move(CGH->MHostKernel), std::move(CGH->MKernel),
+          std::move(impl->MKernelBundle), std::move(impl->CGData),
+          std::move(impl->MKernelData).getArgs(),
+          *impl->MKernelData.getDeviceKernelInfoPtr(),
           std::move(CGH->MStreamStorage), std::move(impl->MAuxiliaryResources),
-          impl->MCGType, {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-          CGH->MCodeLoc));
+          impl->MCGType, {}, impl->MKernelData.isCooperative(),
+          impl->MKernelData.usesClusterLaunch(),
+          impl->MKernelData.getKernelWorkGroupMemorySize(), CGH->MCodeLoc));
       break;
     }
     default:
@@ -184,7 +185,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
       << "Expect command group to contain kernel bundle";
 
   auto SyclKernelImpl =
-      KernelBundleImplPtr->tryGetKernel(ExecKernel->MKernelName);
+      KernelBundleImplPtr->tryGetKernel(ExecKernel->MDeviceKernelInfo.Name);
   EXPECT_TRUE(SyclKernelImpl != nullptr);
   sycl::detail::device_image_impl &DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
@@ -194,7 +195,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
               !ExecKernel->MSyclKernel->isCreatedFromSource());
 
   return sycl::detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-      Program, ExecKernel->MKernelName);
+      Program, ExecKernel->MDeviceKernelInfo.Name);
 }
 
 // After both kernels are compiled ProgramManager.NativePrograms contains info

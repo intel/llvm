@@ -8,16 +8,14 @@
 
 // REQUIRES: aspect-usm_device_allocations
 
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: CUDA and HIP targets produce only native device
+// binaries and can therefore not produce object-state SYCLBIN files.
+
 // -- Test for using device globals in SYCLBIN.
 
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
-
-// UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: HIP backend does not implement linking.
-
-// XFAIL: cuda
-// XFAIL-TRACKER: CMPLRLLVM-68859
 
 // RUN: %clangxx --offload-new-driver -fsyclbin=object %{sycl_target_opts} %S/Inputs/dg_kernel.cpp -o %t.syclbin
 // RUN: %{build} -o %t.out

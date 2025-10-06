@@ -1,6 +1,9 @@
 // REQUIRES: opencl-aot, cpu
 // UNSUPPORTED: windows
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // CPU AOT targets host isa, so we compile on the run system instead.

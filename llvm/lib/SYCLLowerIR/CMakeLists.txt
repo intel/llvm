@@ -62,7 +62,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   GlobalOffset.cpp
   TargetHelpers.cpp
 
-  SanitizerKernelMetadata.cpp
+  SanitizerPostOptimizer.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

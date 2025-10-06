@@ -10,6 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #define SYCLCOMPAT_USM_LEVEL_NONE
 #include <sycl/detail/core.hpp>
 #include <cstdio>

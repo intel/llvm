@@ -163,7 +163,7 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadowWithOrigin(
                (void *)(uptr)Value);
       memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
     }
-    {
+    if (Origin) {
       const uptr OriginBegin = MemToOrigin(Ptr);
       const uptr OriginEnd =
           MemToOrigin(Ptr + Size - 1) + MSAN_ORIGIN_GRANULARITY;
@@ -328,14 +328,16 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadowWithOrigin(
     uptr OriginEnd = MemToOrigin(Ptr + Size - 1) + sizeof(Origin) - 1;
     UR_CALL(EnqueueVirtualMemMap(OriginBegin, OriginEnd, Events, OutEvent));
 
-    UR_LOG_L(getContext()->logger, DEBUG,
-             "EnqueuePoisonOrigin(addr={}, size={}, value={})",
-             (void *)OriginBegin, OriginEnd - OriginBegin + 1,
-             (void *)(uptr)Origin);
+    if (Origin) {
+      UR_LOG_L(getContext()->logger, DEBUG,
+               "EnqueuePoisonOrigin(addr={}, size={}, value={})",
+               (void *)OriginBegin, OriginEnd - OriginBegin + 1,
+               (void *)(uptr)Origin);
 
-    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
-        Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
-        OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+      UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMFill(
+          Queue, (void *)OriginBegin, sizeof(Origin), &Origin,
+          OriginEnd - OriginBegin + 1, NumEvents, EventWaitList, OutEvent));
+    }
   }
 
   return UR_RESULT_SUCCESS;

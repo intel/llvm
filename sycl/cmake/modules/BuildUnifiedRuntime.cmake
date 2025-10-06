@@ -16,6 +16,9 @@ set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 option(SYCL_UR_FORMAT_CPP_STYLE "Format code style of UR C++ sources" OFF)
 set(UR_FORMAT_CPP_STYLE "${SYCL_UR_FORMAT_CPP_STYLE}" CACHE BOOL "" FORCE)
 
+option(SYCL_UR_ENABLE_ASSERTIONS "Enable assertions for all UR build types" OFF)
+set(UR_ENABLE_ASSERTIONS "${SYCL_UR_ENABLE_ASSERTIONS}" CACHE BOOL "" FORCE)
+
 # Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF CACHE BOOL "")
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
@@ -175,6 +178,10 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_sycl_ur_adapter(offload)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   # On Windows, also build/install debug libraries with the d suffix that are
   # compiled with /MDd so users can link against these in debug builds.
@@ -216,7 +223,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
       -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
-      -DSYCL_EMHASH_DIR:STRING=${SYCL_EMHASH_DIR}
       # Enable d suffix in UMF
       -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
   )

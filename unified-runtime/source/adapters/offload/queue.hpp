@@ -22,8 +22,8 @@ struct ur_queue_handle_t_ : RefCounted {
   ur_queue_handle_t_(ol_device_handle_t Device, ur_context_handle_t UrContext,
                      ur_queue_flags_t Flags)
       : OffloadQueues((Flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE)
-                          ? 1
-                          : OOO_QUEUE_POOL_SIZE),
+                          ? OOO_QUEUE_POOL_SIZE
+                          : 1),
         QueueOffset(0), Barrier(nullptr), OffloadDevice(Device),
         UrContext(UrContext), Flags(Flags) {}
 
@@ -45,6 +45,26 @@ struct ur_queue_handle_t_ : RefCounted {
   ur_queue_flags_t Flags;
 
   bool isInOrder() const { return OffloadQueues.size() == 1; }
+
+  // This queue is empty if and only if all queues are empty
+  ol_result_t isEmpty(bool &Empty) const {
+    Empty = true;
+
+    for (auto *Q : OffloadQueues) {
+      if (!Q) {
+        continue;
+      }
+      if (auto Err =
+              olGetQueueInfo(Q, OL_QUEUE_INFO_EMPTY, sizeof(Empty), &Empty)) {
+        return Err;
+      }
+      if (!Empty) {
+        return OL_SUCCESS;
+      }
+    }
+
+    return OL_SUCCESS;
+  }
 
   ol_result_t nextQueueNoLock(ol_queue_handle_t &Handle) {
     auto &Slot = OffloadQueues[(QueueOffset++) % OffloadQueues.size()];

@@ -13,6 +13,7 @@
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <sstream>
 
 using namespace clang::driver;
@@ -55,7 +56,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
 
   // If -fsycl-libspirv-path= is specified, try to use that path directly.
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_libspirv_path_EQ)) {
-    if (llvm::sys::fs::exists(A->getValue()))
+    if (D.getVFS().exists(A->getValue()))
       return A->getValue();
 
     return nullptr;
@@ -68,8 +69,7 @@ const char *SYCLInstallationDetector::findLibspirvPath(
     SmallString<128> LibraryPath(Path);
     llvm::sys::path::append(LibraryPath, a, b, c, Basename);
 
-    if (Args.hasArgNoClaim(options::OPT__HASH_HASH_HASH) ||
-        llvm::sys::fs::exists(LibraryPath))
+    if (D.getVFS().exists(LibraryPath))
       return Args.MakeArgString(LibraryPath);
 
     return nullptr;
@@ -249,7 +249,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
       "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m",
+      "intel_gpu_ptl_h",   "intel_gpu_ptl_u"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -291,7 +292,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
              Device.starts_with("dg2") || Device.starts_with("bmg") ||
-             Device.starts_with("lnl");
+             Device.starts_with("lnl") || Device.starts_with("ptl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
@@ -312,7 +313,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       // add -fsycl-targets=intel_gpu_pvc..., native bfloat16 devicelib can
       // only be linked when all GPU types specified support.
       // We need to filter CPU target here and only focus on GPU device.
-      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
               !StringRef(TargetsV).starts_with("spir64_gen") &&
@@ -333,7 +334,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       // bfloat16 native conversion.
       UseNative = true;
 
-      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_offload_targets_EQ)) {
         for (auto TargetsV : SYCLTarget->getValues()) {
           if (!checkSpirvJIT(StringRef(TargetsV)) &&
               !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
@@ -460,7 +461,8 @@ addSYCLDeviceSanitizerLibs(const Compilation &C, bool IsSpirvAOT,
     if (!IsSpirvAOT)
       return JIT;
 
-    llvm::opt::Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+    llvm::opt::Arg *SYCLTarget =
+        Args.getLastArg(options::OPT_offload_targets_EQ);
     if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
       return JIT;
 
@@ -1786,7 +1788,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
     if (OptNoTriple) {
       // With multiple -fsycl-targets, a triple is required so we know where
       // the options should go.
-      const Arg *TargetArg = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+      const Arg *TargetArg = Args.getLastArg(options::OPT_offload_targets_EQ);
       if (TargetArg && TargetArg->getValues().size() != 1) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
@@ -1814,7 +1816,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   // Default device AOT: -g -cl-opt-disable
   // Default device JIT: -g (-O0 is handled by the runtime)
   // GEN:  -options "-g -O0"
-  // CPU:  "--bo=-g -cl-opt-disable"
+  // CPU: "--bo=-g" "-bo=-cl-opt-disable"
   llvm::opt::ArgStringList BeArgs;
   // Per-device argument vector storing the device name and the backend argument
   // string
@@ -1968,17 +1970,23 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       CmdArgs.push_back(Args.MakeArgString(A));
     return;
   }
-  SmallString<128> BeOpt;
-  if (IsGen)
+  if (IsGen) {
+    SmallString<128> BeOpt;
     CmdArgs.push_back("-options");
-  else
-    BeOpt = "--bo=";
-  for (unsigned I = 0; I < BeArgs.size(); ++I) {
-    if (I)
-      BeOpt += ' ';
-    BeOpt += BeArgs[I];
+    for (unsigned I = 0; I < BeArgs.size(); ++I) {
+      if (I)
+        BeOpt += ' ';
+      BeOpt += BeArgs[I];
+    }
+    CmdArgs.push_back(Args.MakeArgString(BeOpt));
+  } else {
+    for (unsigned I = 0; I < BeArgs.size(); ++I) {
+      SmallString<128> BeOpt;
+      BeOpt += "--bo=";
+      BeOpt += BeArgs[I];
+      CmdArgs.push_back(Args.MakeArgString(BeOpt));
+    }
   }
-  CmdArgs.push_back(Args.MakeArgString(BeOpt));
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
@@ -2025,7 +2033,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Triple, Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ, Device);
-  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_fsycl_targets_EQ);
+  TranslateGPUTargetOpt(Args, CmdArgs, options::OPT_offload_targets_EQ);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(const llvm::Triple &Triple,

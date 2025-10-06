@@ -8,9 +8,10 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>     // for mode, placeholder, target
-#include <sycl/detail/defines.hpp>    // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
-#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/access/access.hpp>  // for mode, placeholder, target
+#include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sycl/detail/fwd/accessor.hpp>
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/property_list.hpp>     // for property_list
 
@@ -38,12 +39,6 @@ enum class coordinate_normalization_mode : unsigned int {
   normalized = 1,
   unnormalized = 0
 };
-
-namespace detail {
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-}
 
 namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__
