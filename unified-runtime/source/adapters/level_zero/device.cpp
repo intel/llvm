@@ -1469,6 +1469,7 @@ ur_result_t urDeviceGetInfo(
            logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
   return UR_RESULT_SUCCESS;
 }
 
