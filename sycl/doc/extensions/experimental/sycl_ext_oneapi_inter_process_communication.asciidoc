@@ -66,9 +66,9 @@ when the kernel is submitted to the queue.
 
 This extension adds the ability for SYCL programs to share device USM memory
 allocations between processes. This is done by the allocating process creating
-a new `ipc_memory` object and transferring the "handle data" to the other
-processes. The other processes can use the handle data to recreate the
-`ipc_memory` object and get a pointer to the corresponding device USM memory.
+a new IPC memory handle through the new free frunctions and transferring the
+returned handle data to the other processes. The other processes can use the
+handle data to retrieve the corresponding device USM memory.
 
 
 == Specification
@@ -83,10 +83,6 @@ the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
 supports.
 
-_And follow the text with a table like this *unless the extension is
-"experimental"*.  Note that your table may have more than one row if it
-has multiple versions._
-
 [%header,cols="1,5"]
 |===
 |Value
@@ -100,29 +96,22 @@ has multiple versions._
 === Inter-process communicable memory
 
 
-This extension adds the new `ipc_memory` class. This new class adheres to the
-common reference semantics described in
-https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics[Section 4.5.2.]
-in the SYCL 2020 specification.
+This extension adds new free functions under the `ipc_memory` experimental
+namespace.
 
 ```
-namespace sycl::ext::oneapi::experimental {
-using ipc_memory_handle_data_t = span<char, sycl::dynamic_extent>;
+namespace sycl::ext::oneapi::experimental::ipc_memory {
 
-class ipc_memory {
-public:
-  ipc_memory(void *ptr, sycl::context &ctx);
+using handle_data_t = std::vector<char>;
 
-  void put();
+handle_data_t get(void *ptr, const sycl::context &ctx);
 
-  static void *open(ipc_memory_handle_data_t ipc_memory_handle_data,
-                    const sycl::context &ctx, const sycl::device &dev);
-  static void close(void *ptr, const sycl::context &ctx);
+void put(handle_data_t &handle_data, const sycl::context &ctx);
 
-  ipc_memory_handle_data_t get_handle_data() const;
+static void *open(handle_data_t handle_data, const sycl::context &ctx,
+                  const sycl::device &dev);
 
-  void *get_ptr() const;
-};
+static void close(void *ptr, const sycl::context &ctx);
 
 }
 ```
@@ -134,53 +123,45 @@ a|
 a!
 [source]
 ----
-ipc_memory(void *ptr, const sycl::context &ctx)
+get(void *ptr, const sycl::context &ctx)
 ----
 !====
 
-_Effects:_ Constructs an IPC memory object in `ctx` from a pointer `ptr` to
-device USM memory.
-If `ptr` is not pointing to device USM memory, the behaviors of this constructor
-and any resulting objects are undefined.
+_Returns:_ A `handle_data_t` object containing the data of the IPC memory handle
+in `ctx` from a pointer `ptr` to device USM memory.
+Calling this function with a `ptr` that does not point to device USM memory, the
+behaviors is undefined.
 
 !====
 a!
 [source]
 ----
-void put()
+void put(handle_data_t &handle_data, const sycl::context &ctx)
 ----
 !====
 
 _Effects:_ Instructs the underlying IPC memory resources to be returned to
-the backend. This is not required to be called before the `ipc_memory` object
-dies. Freeing the device USM memory used when constructing this instance of
-`ipc_memory` will return the underlying IPC memory resources.
+the backend. Freeing the device USM memory used when the handle data was created
+through a call to `get()` will have the same effect as calling this function,
+so a direct call to this function is not strictly required.
 Calling this function after `sycl::free()` has been called on the device USM
-memory used when constructing this instance of `ipc_memory` will result in
-undefined behavior.
-
-_Throws:_ A `sycl::exception` with `errc::invalid` if `ipc_memory::put()` has
-previously been called on this instance of `ipc_memory`.
+memory used when the handle data was created through a call to `get()` will
+result in undefined behavior.
 
 !====
 a!
 [source]
 ----
-static void *open(ipc_memory_handle_data_t ipc_memory_handle_data,
-                  const sycl::context &ctx, const sycl::device &dev)
+static void *open(handle_data_t &handle_data, const sycl::context &ctx,
+                  const sycl::device &dev)
 ----
 !====
 
 _Effects:_ Returns a pointer to the same device USM memory as the device USM
-memory associated with the `ipc_memory` object that the handle data originated
-from.
-The `ipc_memory` object that the handle data originated from is allowed to be
-from another process on the host system.
-If the `ipc_memory` object that the handle data originated from has been
-destroyed, the behaviors of this constructor and any resulting objects are
-undefined.
-If the device USM memory the original `ipc_memory` object was created with was
-not originally allocated on `dev`, the behaviors of this function is undefined.
+memory associated with `handle_data`.
+The handle data is allowed to be from another process on the host system.
+If the handle data has been destroyed, calling this function results in
+undefined behavior.
 
 !====
 a!
@@ -191,35 +172,7 @@ static void close(void *ptr, const sycl::context &ctx)
 !====
 
 _Effects:_ Closes a device USM pointer previously returned by a call to
-`ipc_memory::open()`.
-
-!====
-a!
-[source]
-----
-ipc_memory_handle_data_t get_handle_data() const
-----
-!====
-
-_Returns:_ The handle data of the `ipc_memory` object.
-Utilizing the handle data returned by this API after the `ipc_memory` object has
-been destroyed results in undefined behavior.
-
-_Throws:_ A `sycl::exception` with `errc::invalid` if `ipc_memory::put()` has
-previously been called on this instance of `ipc_memory`.
-
-!====
-a!
-[source]
-----
-void *get_ptr() const
-----
-!====
-
-_Returns:_ A pointer to device USM memory corresponding to the pointer used to
-construct the original `ipc_memory` object.
-Accessing the pointer returned by this API after the `ipc_memory` object has
-been destroyed results in undefined behavior.
+`open()`.
 
 |====
 

@@ -21,45 +21,19 @@ inline namespace _V1 {
 class context;
 class device;
 
-namespace detail {
-class ipc_memory_impl;
-}
+namespace ext::oneapi::experimental::ipc_memory {
 
-namespace ext::oneapi::experimental {
-using ipc_memory_handle_data_t = span<char, sycl::dynamic_extent>;
+using handle_data_t = std::vector<char>;
 
-class __SYCL_EXPORT ipc_memory
-    : public sycl::detail::OwnerLessBase<ipc_memory> {
-public:
-  ipc_memory(void *Ptr, const sycl::context &Ctx);
+__SYCL_EXPORT handle_data_t get(void *Ptr, const sycl::context &Ctx);
 
-  void put();
+__SYCL_EXPORT void put(handle_data_t &HandleData, const sycl::context &Ctx);
 
-  static void *open(ipc_memory_handle_data_t IPCMemoryHandleData,
-                    const sycl::context &Ctx, const sycl::device &Dev);
-  static void close(void *Ptr, const sycl::context &Ctx);
+__SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
+                         const sycl::device &Dev);
 
-  ipc_memory_handle_data_t get_handle_data() const;
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx);
 
-  void *get_ptr() const;
-
-private:
-  ipc_memory(std::shared_ptr<sycl::detail::ipc_memory_impl> IPCMemImpl)
-      : impl{IPCMemImpl} {}
-
-  std::shared_ptr<sycl::detail::ipc_memory_impl> impl;
-
-  template <class Obj>
-  friend const decltype(Obj::impl) &
-  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
-  template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(
-      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
-};
-} // namespace ext::oneapi::experimental
+} // namespace ext::oneapi::experimental::ipc_memory
 } // namespace _V1
 } // namespace sycl

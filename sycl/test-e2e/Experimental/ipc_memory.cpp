@@ -46,12 +46,10 @@ int spawner(int argc, char *argv[]) {
    }).wait();
 
   {
-    syclexp::ipc_memory IPCMem{DataPtr, Q.get_context()};
-    assert(IPCMem.get_ptr() == DataPtr);
-
     // Write handle data to file.
     {
-      syclexp::ipc_memory_handle_data_t HandleData = IPCMem.get_handle_data();
+      syclexp::ipc_memory::handle_data_t HandleData =
+          syclexp::ipc_memory.get(DataPtr, Q.get_context());
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
       FS.write(reinterpret_cast<const char *>(&HandleDataSize), sizeof(size_t));

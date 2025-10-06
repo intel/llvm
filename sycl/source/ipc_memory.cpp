@@ -8,21 +8,36 @@
 
 #include <detail/adapter_impl.hpp>
 #include <detail/context_impl.hpp>
-#include <detail/ipc_memory_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi::experimental {
+namespace ext::oneapi::experimental::ipc_memory {
 
-ipc_memory::ipc_memory(void *Ptr, const sycl::context &Ctx)
-    : impl(detail::ipc_memory_impl::create(Ptr, Ctx)) {}
+__SYCL_EXPORT handle_data_t get(void *Ptr, const sycl::context &Ctx) {
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
-void ipc_memory::put() { impl->put(); }
+  size_t HandleSize = 0;
+  Adapter.call<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
+      CtxImpl->getHandleRef(), Ptr, nullptr, &HandleSize);
 
-void *ipc_memory::open(ipc_memory_handle_data_t IPCMemoryHandleData,
-                       const sycl::context &Ctx, const sycl::device &Dev) {
+  handle_data_t Res(HandleSize);
+  Adapter.call<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
+      CtxImpl->getHandleRef(), Ptr, Res.data(), nullptr);
+  return Res;
+}
+
+__SYCL_EXPORT void put(handle_data_t &HandleData, const sycl::context &Ctx) {
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
+  sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
+  Adapter.call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
+      CtxImpl->getHandleRef(), HandleData.data());
+}
+
+__SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
+                         const sycl::device &Dev) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
@@ -30,28 +45,22 @@ void *ipc_memory::open(ipc_memory_handle_data_t IPCMemoryHandleData,
   ur_result_t UrRes =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenMemHandleExp>(
           CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
-          IPCMemoryHandleData.data(), IPCMemoryHandleData.size(), &Ptr);
+          HandleData.data(), HandleData.size(), &Ptr);
   if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "IPCMemoryHandleData data size does not correspond "
+                          "HandleData data size does not correspond "
                           "to the target platform's IPC memory handle size.");
   Adapter.checkUrResult(UrRes);
   return Ptr;
 }
 
-void ipc_memory::close(void *Ptr, const sycl::context &Ctx) {
+__SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
   Adapter.call<sycl::detail::UrApiKind::urIPCCloseMemHandleExp>(
       CtxImpl->getHandleRef(), Ptr);
 }
 
-ipc_memory_handle_data_t ipc_memory::get_handle_data() const {
-  return impl->get_handle_data();
-}
-
-void *ipc_memory::get_ptr() const { return impl->get_ptr(); }
-
-} // namespace ext::oneapi::experimental
+} // namespace ext::oneapi::experimental::ipc_memory
 } // namespace _V1
 } // namespace sycl
