@@ -659,10 +659,11 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   }
 
   bool SchedulerBypass =
-      CGData.MEvents.size() > 0
-          ? detail::Scheduler::areEventsSafeForSchedulerBypass(CGData.MEvents,
-                                                               getContextImpl())
-          : true;
+      (CGData.MEvents.size() > 0
+           ? detail::Scheduler::areEventsSafeForSchedulerBypass(
+                 CGData.MEvents, getContextImpl())
+           : true) &&
+      !hasCommandGraph();
 
   EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
 
