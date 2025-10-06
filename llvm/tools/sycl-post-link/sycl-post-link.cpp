@@ -580,10 +580,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
     SmallVector<module_split::ModuleDesc, 2> &MMs = *ModulesOrErr;
     assert(MMs.size() && "at least one module is expected after ESIMD split");
     SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
-    Modified |= handleSpecializationConstants(
-        MMs, SCMode, GenerateDeviceImageWithDefaultSpecConsts,
-        GenerateDeviceImageWithDefaultSpecConsts ? &MMsWithDefaultSpecConsts
-                                                 : nullptr);
+    Modified |=
+        handleSpecializationConstants(MMs, SCMode, MMsWithDefaultSpecConsts,
+                                      GenerateDeviceImageWithDefaultSpecConsts);
 
     if (IROutputOnly) {
       if (SplitOccurred) {

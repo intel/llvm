@@ -76,22 +76,14 @@ cloneModuleWithSpecConstsReplacedByDefaultValues(
 bool llvm::sycl::handleSpecializationConstants(
     SmallVectorImpl<module_split::ModuleDesc> &MDs,
     std::optional<SpecConstantsPass::HandlingMode> Mode,
-    bool GenerateModuleDescWithDefaultSpecConsts,
-    SmallVectorImpl<module_split::ModuleDesc> *NewModuleDescs) {
-  [[maybe_unused]] bool AreArgumentsCompatible =
-      (GenerateModuleDescWithDefaultSpecConsts && NewModuleDescs) ||
-      (!GenerateModuleDescWithDefaultSpecConsts && !NewModuleDescs);
-  assert(AreArgumentsCompatible &&
-         "NewModuleDescs pointer is nullptr iff "
-         "GenerateModuleDescWithDefaultSpecConsts is false.");
-
+    SmallVectorImpl<module_split::ModuleDesc> &NewModuleDescs,
+    bool GenerateModuleDescWithDefaultSpecConsts) {
   bool Modified = false;
   for (module_split::ModuleDesc &MD : MDs) {
     if (GenerateModuleDescWithDefaultSpecConsts)
       if (std::optional<module_split::ModuleDesc> NewMD =
-              cloneModuleWithSpecConstsReplacedByDefaultValues(MD);
-          NewMD)
-        NewModuleDescs->push_back(std::move(*NewMD));
+              cloneModuleWithSpecConstsReplacedByDefaultValues(MD))
+        NewModuleDescs.push_back(std::move(*NewMD));
 
     if (Mode)
       Modified |= lowerSpecConstants(MD, *Mode);

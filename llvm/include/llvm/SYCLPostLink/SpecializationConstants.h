@@ -27,15 +27,14 @@ namespace sycl {
 /// If \p GenerateModuleDescWithDefaultSpecConsts is true, then a generation
 /// of new modules with specialization constants replaced by default values
 /// happens and the result is written in \p NewModuleDescs.
-/// Otherwise, \p NewModuleDescs is expected to be nullptr.
 ///
 /// \returns Boolean value indicating whether the lowering has changed the input
 /// modules.
 bool handleSpecializationConstants(
     llvm::SmallVectorImpl<module_split::ModuleDesc> &MDs,
     std::optional<SpecConstantsPass::HandlingMode> Mode,
-    bool GenerateModuleDescWithDefaultSpecConsts = false,
-    llvm::SmallVectorImpl<module_split::ModuleDesc> *NewModuleDescs = nullptr);
+    llvm::SmallVectorImpl<module_split::ModuleDesc> &NewModuleDescs,
+    bool GenerateModuleDescWithDefaultSpecConsts);
 
 } // namespace sycl
 } // namespace llvm
