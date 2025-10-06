@@ -1609,6 +1609,8 @@ void ff_28(TemplatedAccessorStruct<int> arg1) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: void ff_25(AccessorAndLocalAccessor arg1);
 // CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<AccessorAndLocalAccessor>: std::true_type {};
+// CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndLocalAccessor> {
 // CHECK-NEXT: inline static constexpr bool value = true;
 // CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
@@ -1634,6 +1636,8 @@ void ff_28(TemplatedAccessorStruct<int> arg1) {
 // CHECK: Definition of _Z19__sycl_kernel_ff_2624AccessorAndLocalAccessor19SecondLevelAccessor as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: void ff_26(AccessorAndLocalAccessor arg1, SecondLevelAccessor arg2);
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<SecondLevelAccessor>: std::true_type {};
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<SecondLevelAccessor> {
 // CHECK-NEXT: inline static constexpr bool value = true;
@@ -1661,6 +1665,8 @@ void ff_28(TemplatedAccessorStruct<int> arg1) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: void ff_27(IntAndAccessor arg1, AccessorAndInt );
 // CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<IntAndAccessor>: std::true_type {};
+// CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<IntAndAccessor> {
 // CHECK-NEXT: inline static constexpr bool value = true;
 // CHECK-NEXT: static constexpr int offsets[] = { 0, 4, -1};
@@ -1670,6 +1676,21 @@ void ff_28(TemplatedAccessorStruct<int> arg1) {
 // CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
 // CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
 // CHECK-NEXT: };
+
+// CHECK: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<AccessorAndInt>: std::true_type {};
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<AccessorAndInt> {
+// CHECK-NEXT: inline static constexpr bool value = true;
+// CHECK-NEXT: static constexpr int offsets[] = { 0, 12, -1};
+// CHECK-NEXT: static constexpr int sizes[] = { 4062, 4, -1}; 
+// CHECK-NEXT: static constexpr sycl::detail::kernel_param_kind_t kinds[] = {
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_accessor,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_std_layout,
+// CHECK-NEXT: sycl::detail::kernel_param_kind_t::kind_invalid }; 
+// CHECK-NEXT: };
+
+
 
 // CHECK: static constexpr auto __sycl_shim35() {
 // CHECK-NEXT: return (void (*)(struct IntAndAccessor, struct AccessorAndInt))ff_27;
@@ -1688,6 +1709,8 @@ void ff_28(TemplatedAccessorStruct<int> arg1) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename T> struct TemplatedAccessorStruct;
 // CHECK: void ff_28(TemplatedAccessorStruct<int> arg1);
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct sycl::is_device_copyable<TemplatedAccessorStruct<int>>: std::true_type {};
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct sycl::ext::oneapi::experimental::detail::is_struct_with_special_type<TemplatedAccessorStruct<int>> {
 // CHECK-NEXT: inline static constexpr bool value = true;

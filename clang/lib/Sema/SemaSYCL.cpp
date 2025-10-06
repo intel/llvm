@@ -7297,7 +7297,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       // allow it being passed in device kernels.
       O << "template <>\n";
       O << "struct "
-           "sycl::detail::is_device_copyable<";
+           "sycl::is_device_copyable<";
       Policy.SuppressTagKeyword = true;
       type.print(O, Policy);
       O << ">: std::true_type {};\n";
