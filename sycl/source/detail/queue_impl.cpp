@@ -530,9 +530,6 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
-  // Graphs are not supported yet for the no-handler path
-  assert(!hasCommandGraph());
-
   // Set the No Last Event Mode to false, since the no-handler path
   // does not support it yet.
   MNoLastEventMode.store(false, std::memory_order_relaxed);
