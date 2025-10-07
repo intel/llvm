@@ -50,7 +50,9 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
   # Remember to update the pkg_check_modules minimum version above when updating the
   # clone tag
-  set(UR_LEVEL_ZERO_LOADER_TAG v1.24.3)
+  # set(UR_LEVEL_ZERO_LOADER_TAG v1.24.3)
+  # commit of updated leak checker (PR#376)
+  set(UR_LEVEL_ZERO_LOADER_TAG 5187acd1c0f34097658f6ed890f1e5a65bdc35b9)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
