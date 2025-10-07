@@ -54,6 +54,7 @@ BaseGroupMetadata = namedtuple(
     defaults=(None, None, None, [], None, None),
 )
 
+
 class ComputeMetadataGenerator:
     """
     Generates metadata for Compute Benchmark groups.
