@@ -1803,9 +1803,10 @@ function loadData() {
     loadingIndicator.classList.remove('hidden'); // Show loading indicator
 
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
-        console.log('Using remote data URL:', remoteDataUrl);
+        url = remoteDataUrl.endsWith('/') ? remoteDataUrl + 'data.json' : remoteDataUrl + '/data.json';
+        console.log('Using remote data URL:', url);
         // Fetch data from remote URL
-        fetchAndProcessData(remoteDataUrl);
+        fetchAndProcessData(url);
     } else {
         console.log('Using local canonical data');
         if (!Array.isArray(window.benchmarkRuns)) {
