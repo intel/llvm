@@ -10,12 +10,49 @@ This module provides centralized metadata generation for Compute Benchmark group
 ensuring consistency between benchmark group membership and group metadata definitions.
 """
 
+from collections import namedtuple
 from typing import Dict, List
 
 from utils.result import BenchmarkMetadata
 
 from .base import Benchmark
 
+
+def string_consts(cls):
+    """Decorator to convert string-annotated class attributes to string constants."""
+    for key, value in cls.__annotations__.items():
+        if value is str:
+            setattr(cls, key, key)
+    return cls
+
+
+@string_consts
+class Tags:
+    """String constants for benchmark tags to prevent typos."""
+
+    submit: str
+    micro: str
+    SYCL: str
+    UR: str
+    L0: str
+    graph: str
+    memory: str
+    proxy: str
+    finalize: str
+
+
+BaseGroupMetadata = namedtuple(
+    "BaseGroupMetadata",
+    [
+        "description",
+        "notes",
+        "unstable",
+        "tags",
+        "range_min",
+        "range_max",
+    ],
+    defaults=(None, None, None, [], None, None),
+)
 
 class ComputeMetadataGenerator:
     """
@@ -28,23 +65,35 @@ class ComputeMetadataGenerator:
     def __init__(self):
         # Base metadata for core groups
         self._base_group_metadata = {
-            "SubmitKernel": {
-                "description": "Measures CPU time overhead of submitting kernels through different APIs.",
-                "notes": (
+            "SubmitKernel": BaseGroupMetadata(
+                description="Measures CPU time overhead of submitting kernels through different APIs.",
+                notes=(
                     "Each layer builds on top of the previous layer, adding functionality and overhead.\n"
                     "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
                     "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
                     "Work is ongoing to reduce the overhead of the SYCL API\n"
                 ),
-                "tags": ["submit", "micro", "SYCL", "UR", "L0"],
-                "range_min": 0.0,
-            },
-            "SinKernelGraph": {
-                "unstable": "This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
-                "tags": ["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
-            },
-            "SubmitGraph": {"tags": ["submit", "micro", "SYCL", "UR", "L0", "graph"]},
-            "FinalizeGraph": {"tags": ["finalize", "micro", "SYCL", "graph"]},
+                tags=[Tags.submit, Tags.micro, Tags.SYCL, Tags.UR, Tags.L0],
+                range_min=0.0,
+            ),
+            "SinKernelGraph": BaseGroupMetadata(
+                unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
+                tags=[
+                    Tags.submit,
+                    Tags.memory,
+                    Tags.proxy,
+                    Tags.SYCL,
+                    Tags.UR,
+                    Tags.L0,
+                    Tags.graph,
+                ],
+            ),
+            "SubmitGraph": BaseGroupMetadata(
+                tags=[Tags.submit, Tags.micro, Tags.SYCL, Tags.UR, Tags.L0, Tags.graph]
+            ),
+            "FinalizeGraph": BaseGroupMetadata(
+                tags=[Tags.finalize, Tags.micro, Tags.SYCL, Tags.graph]
+            ),
         }
 
     def generate_metadata_from_benchmarks(
@@ -62,26 +111,28 @@ class ComputeMetadataGenerator:
         metadata = {}
         # Discover all group names from actual benchmarks
         for benchmark in benchmarks:
-            if hasattr(benchmark, "explicit_group") and callable(
-                benchmark.explicit_group
-            ):
-                group_name = benchmark.explicit_group()
-                if group_name:
-                    self._generate_metadata(metadata, group_name)
+            group_name = benchmark.explicit_group()
+            if group_name and group_name not in metadata:
+                metadata[group_name] = self._generate_metadata(group_name)
 
         return metadata
 
-    def _generate_metadata(
-        self, metadata: Dict[str, BenchmarkMetadata], group_name: str
-    ):
-        base_metadata = self._base_group_metadata.get(group_name.split()[0], {})
-        metadata[group_name] = BenchmarkMetadata(
+    def _generate_metadata(self, group_name: str) -> BenchmarkMetadata:
+        """
+        Generate metadata for a specific benchmark group.
+        Args:
+            group_name: Name of the benchmark group
+        """
+        base_metadata = self._base_group_metadata.get(
+            group_name.split()[0], BaseGroupMetadata()
+        )
+        return BenchmarkMetadata(
             type="group",
-            description=base_metadata.get("description"),
-            notes=base_metadata.get("notes"),
-            unstable=base_metadata.get("unstable"),
-            tags=base_metadata.get("tags", []),
-            range_min=base_metadata.get("range_min"),
-            range_max=base_metadata.get("range_max"),
+            description=base_metadata.description,
+            notes=base_metadata.notes,
+            unstable=base_metadata.unstable,
+            tags=base_metadata.tags,
+            range_min=base_metadata.range_min,
+            range_max=base_metadata.range_max,
             explicit_group=group_name,
         )
