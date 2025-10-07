@@ -297,6 +297,9 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
+  // TODO This overload of the nd_launch function takes the kernel function
+  // properties, which are not yet supported for the handler-less path,
+  // so it only supports handler based submission for now
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch<KernelName>(CGH, Config, KernelObj,
                           std::forward<ReductionsT>(Reductions)...);

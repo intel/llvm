@@ -268,11 +268,12 @@ public:
   }
   Managed &operator=(const Managed &) = delete;
   Managed &operator=(Managed &&Other) {
+    URResource Temp = Other.R;
+    Other.R = nullptr;
     if (R)
       Adapter->call<Release>(R);
+    R = Temp;
 
-    R = Other.R;
-    Other.R = nullptr;
     Adapter = Other.Adapter;
     return *this;
   }
