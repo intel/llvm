@@ -6908,6 +6908,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
   O << "#include <sycl/access/access.hpp>\n";
+  O << "#include <sycl/detail/is_device_copyable.hpp>\n";
   O << "\n";
 
   LangOptions LO;
