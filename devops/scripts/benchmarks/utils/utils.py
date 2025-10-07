@@ -19,6 +19,19 @@ from options import options
 from utils.logger import log
 
 
+def sanitize_filename(name: str) -> str:
+    """
+    Sanitize a string to be safe for use as a filename or directory name.
+    Replace invalid characters with underscores.
+    Invalid characters: " : < > | * ? \r \n
+    """
+    # Replace invalid characters with underscores
+    # Added space to list to avoid directories with spaces which cause issues in shell commands
+    invalid_chars = r'[":;<>|*?\r\n ]'
+    sanitized = re.sub(invalid_chars, "_", name)
+    return sanitized
+
+
 def run(
     command,
     env_vars={},
@@ -156,7 +169,8 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
         if unzip:
             [stripped_gz, _] = os.path.splitext(data_file)
             with gzip.open(data_file, "rb") as f_in, open(stripped_gz, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
+                # copyfileobj expects binary file-like objects; type checker may complain about union types
+                shutil.copyfileobj(f_in, f_out)  # type: ignore[arg-type]
     else:
         log.debug(f"{data_file} exists, skipping...")
     return data_file
