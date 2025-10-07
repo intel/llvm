@@ -18,6 +18,7 @@
 #include <functional>   // for function
 #include <list>         // for list
 #include <memory>       // for shared_ptr
+#include <optional>     // for optional
 #include <set>          // for set
 #include <shared_mutex> // for shared_mutex
 #include <vector>       // for vector
@@ -735,9 +736,14 @@ private:
   /// through the scheduler.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t
-  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
+  /// @param IsInOrderPartition True if the partition associated with the node
+  /// is a linear (in-order) graph.
+  /// @return Optional UR sync point created for this node in the
+  /// command-buffer. std::nullopt is returned only if the associated partition
+  /// of the node is linear.
+  std::optional<ur_exp_command_buffer_sync_point_t>
+  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node,
+              bool IsInOrderPartition);
 
   /// Enqueue a node directly to the command-buffer without going through the
   /// scheduler.
@@ -745,10 +751,16 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t enqueueNodeDirect(
-      const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
-      ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
+  /// @param IsInOrderPartition True if the partition associated with the node
+  /// is a linear (in-order) graph.
+  /// @return Optional UR sync point created for this node in the
+  /// command-buffer. std::nullopt is returned only if the associated partition
+  /// of the node is linear.
+  std::optional<ur_exp_command_buffer_sync_point_t>
+  enqueueNodeDirect(const sycl::context &Ctx,
+                    sycl::detail::device_impl &DeviceImpl,
+                    ur_exp_command_buffer_handle_t CommandBuffer,
+                    node_impl &Node, bool IsInOrderPartition);
 
   /// Enqueues a host-task partition (i.e. a partition that contains only a
   /// single node and that node is a host-task).
