@@ -723,9 +723,6 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
                                    ur_exp_command_buffer_handle_t CommandBuffer,
                                    node_impl &Node, bool IsInOrderPartition) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  // Linear (in-order) graphs do not need to wait on predecessors as the UR
-  // CommandBuffer with the isInOrder flag set to true will ensure proper
-  // ordering.
   if (!IsInOrderPartition) {
     for (node_impl &N : Node.predecessors()) {
       findRealDeps(Deps, N, MPartitionNodes[&Node]);
