@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_pvc || arch-intel_gpu_bmg_g21
-// UNSUPPORTED: cuda, hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

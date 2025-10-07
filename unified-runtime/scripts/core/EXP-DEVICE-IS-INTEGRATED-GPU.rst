@@ -24,7 +24,7 @@ Motivation
 --------------------------------------------------------------------------------
 This experimental extension enables the sycl_ext_oneapi_device_is_integrated_gpu
 feature:
-http://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_is_integrated_gpu.asciidoc
+http://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_is_integrated_gpu.asciidoc.
 It introduces descriptor to query if device is integrated GPU.
 
 API

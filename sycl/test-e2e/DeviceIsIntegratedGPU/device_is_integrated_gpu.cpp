@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen12
-// UNSUPPORTED: cuda, hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
