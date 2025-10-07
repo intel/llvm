@@ -15,26 +15,29 @@ Community input is particularly valuable regarding potential integration challen
 
 ## Motivation and alternatives considered
 
-### Metadata unique for SYCL programming model
+### Requirements: SYCL-Specific metadata and modules hierarchy
 
-- [ ] This section needs re-writing...
+The SYCL programming model requires device images to be accompanied by specific metadata necessary for SYCL runtime operation:
 
-LLVM offloading infrastructure supports the following binary formats: Object, Bitcode, Cubin, Fatbinary, PTX and SPIRV which could be placed into OffloadBinary format. None of it satisfies the needs of SYCL programming model.
+1. Device target triple (e.g. ``spirv64_unknown_unknown``).
+2. Compiler and linker options for JIT compilation scenarios
+3. List of entry points exposed by each image
+4. Arrays of [property sets](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/PropertySets.md).
 
-- [ ] Steffen, I need to discuss with you, why other existing formats did not satisfy our needs. I think we need to provide short summary why each format doesn't work for us somewhere in this section.
+When a binary contains multiple images, some may share common metadata. Therefore, we require a hierarchical structure that enables metadata sharing while allowing specification of image-specific metadata.
 
-Specifically, SYCL needs to keep the following metadata necessary for SYCL runtime, which is not supported by any of existing formats:
+#### Existing Format Limitations:
 
-1. Device target triple (e.g. spirv64_unknown_unknown).
-2. Compiler and linker options to pass to JIT compiler in case of JITing.
-3. List of entry points exposed by an image
-4. Arrays of property sets.
+LLVM's offloading infrastructure supports several binary formats that can be embedded within the OffloadBinary format. However, these formats have various limitations that make them unsuitable for SYCL:
 
-While #1 and #2 can be saved to StringData of OffloadBinary, #3 requires additional handling, since StringData serialization infrastructure assumes that value is a single null-terminated string, so to restore multiple null-terminated strings from StringData format, they need to be concatenated with split symbol and then split during deserialization.
-
-[Property sets](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/PropertySets.md) (#4) would be even more complicated.
+- **Single-module design**: Formats like Object, Bitcode, CUBIN, PTX, and SPIRV are designed for single binary or single-module IR representation, lacking hierarchical structuring capabilities for multiple images/modules
+- **Missing SYCL metadata support**: None provide native support for SYCL-specific metadata requirements
+- **Vendor constraints**: Fatbinary is NVIDIA proprietary and incompatible with SYCL's vendor-neutral approach
+- **Limited container capabilities**: OffloadBinary is not designed for multiple device images or hierarchical organization, with StringData insufficient for complex metadata structures (like #3 and #4 above).
 
 ### Abstraction: simplify support in offloading tools
+
+- [ ] This section needs re-writing...
 
 Another motivation to add SYCLBIN format is to encapsulate SYCL-specific logic to SYCL-specific parts of toolchain (clang-sycl-linker, SYCL runtime) and hide SYCL specifics from offloading tools intended to support multiple programming models. Without this format, we would need to use the following workflow to pass metadata (#1 - #4) from compiler to runtime:
 
