@@ -38,7 +38,9 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
 
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
-  if (isPowerOf2(patternSize)) {
+  // WORKAROUND: Level Zero driver rejects zeCommandListAppendMemoryFill when
+  // patternSize == size, returning ZE_RESULT_ERROR_INVALID_SIZE (0x78000008).
+  if (isPowerOf2(patternSize) && patternSize != size) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
                (zeCommandList.get(), pDst, pPattern, patternSize, size,
                 zeSignalEvent, waitListView.num, waitListView.handles));
