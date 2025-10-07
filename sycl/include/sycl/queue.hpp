@@ -3275,7 +3275,7 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
 
     // TODO The handler-less path does not support reductions and kernel
@@ -3287,9 +3287,7 @@ public:
       return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
           Rest...);
-    } else
-#endif
-    {
+    } else {
       return submit(
           [&](handler &CGH) {
             CGH.template parallel_for<KernelName>(Range, Rest...);

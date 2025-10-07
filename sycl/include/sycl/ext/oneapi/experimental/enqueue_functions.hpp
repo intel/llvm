@@ -259,7 +259,6 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   // TODO The handler-less path does not support reductions and kernel function
   // properties yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
@@ -268,9 +267,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                           const KernelType &>::value)) {
     detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
                                              Range, KernelObj);
-  } else
-#endif
-  {
+  } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);

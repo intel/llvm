@@ -227,7 +227,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
 
-#if __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 TEST_F(FreeFunctionCommandsEventsTests,
        LaunchGroupedShortcutMoveKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
@@ -276,7 +275,6 @@ TEST_F(FreeFunctionCommandsEventsTests,
   ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 1);
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{2});
 }
-#endif
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
