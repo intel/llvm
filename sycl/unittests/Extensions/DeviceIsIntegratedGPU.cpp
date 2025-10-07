@@ -33,6 +33,7 @@ static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
 } // namespace
 
 TEST(DeviceIsIntegratedGPU, DeviceIsNotIntegratedGPUOnGPUDevice) {
+  sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback(
       "urDeviceGetInfo", &redefinedDeviceGetInfoAfter</*IsIntegratedGPU=*/false,
                                                       UR_DEVICE_TYPE_GPU>);
@@ -41,6 +42,7 @@ TEST(DeviceIsIntegratedGPU, DeviceIsNotIntegratedGPUOnGPUDevice) {
 }
 
 TEST(DeviceIsIntegratedGPU, DeviceIsIntegratedGPUOnGPUDevice) {
+  sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback(
       "urDeviceGetInfo", &redefinedDeviceGetInfoAfter</*IsIntegratedGPU=*/true,
                                                       UR_DEVICE_TYPE_GPU>);
@@ -49,6 +51,7 @@ TEST(DeviceIsIntegratedGPU, DeviceIsIntegratedGPUOnGPUDevice) {
 }
 
 TEST(DeviceIsIntegratedGPU, DeviceIsNotIntegratedGPUOnCPUDevice) {
+  sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback(
       "urDeviceGetInfo", &redefinedDeviceGetInfoAfter</*IsIntegratedGPU=*/false,
                                                       UR_DEVICE_TYPE_CPU>);
@@ -57,6 +60,7 @@ TEST(DeviceIsIntegratedGPU, DeviceIsNotIntegratedGPUOnCPUDevice) {
 }
 
 TEST(DeviceIsIntegratedGPU, DeviceIsIntegratedGPUOnCPUDevice) {
+  sycl::unittest::UrMock<> Mock;
   // Not much sense here but if for some reason UR_DEVICE_INFO_IS_INTEGRATED_GPU
   // is true on CPU device, we check that
   // sycl::aspect::ext_oneapi_is_integrated_gpu must be false as stated in the
