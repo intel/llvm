@@ -330,9 +330,9 @@ class ComputeBenchmark(Benchmark):
         """Returns the path to the benchmark binary"""
         return self.bench.project.build_dir / "bin" / self.bench_name
 
-    def cpu_count_str(self, separator: str = " ") -> str:
+    def cpu_count_str(self, separator: str = "") -> str:
         return (
-            f"{separator}CPU count"
+            f"{separator} CPU count"
             if self.profiler_type == PROFILERS.CPU_COUNTER
             else ""
         )
@@ -552,7 +552,7 @@ class SubmitKernel(ComputeBenchmark):
         if self.KernelExecTime != 1:
             info.append(f"KernelExecTime={self.KernelExecTime}")
         additional_info = f" {' '.join(info)}" if info else ""
-        return f"{self.runtime.value.upper()} SubmitKernel {order}{additional_info}, NumKernels {self.NumKernels}{self.cpu_count_str(', ')}"
+        return f"{self.runtime.value.upper()} SubmitKernel {order}{additional_info}, NumKernels {self.NumKernels}{self.cpu_count_str(separator=',')}"
 
     def explicit_group(self):
         order = "in order" if self.ioq else "out of order"
@@ -561,7 +561,7 @@ class SubmitKernel(ComputeBenchmark):
 
         kernel_exec_time_str = f" long kernel" if self.KernelExecTime != 1 else ""
 
-        return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}{self.cpu_count_str(', ')}"
+        return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -637,7 +637,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
 
     def display_name(self) -> str:
         order = "in order" if self.ioq else "out of order"
-        return f"SYCL ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(', ')}"
+        return f"SYCL ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -690,7 +690,7 @@ class QueueInOrderMemcpy(ComputeBenchmark):
         return f"memory_benchmark_sycl QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"SYCL QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(', ')}"
+        return f"SYCL QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         operation = "copy-only" if self.isCopyOnly else "copy and command submission"
@@ -737,7 +737,7 @@ class QueueMemcpy(ComputeBenchmark):
         return f"memory_benchmark_sycl QueueMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"SYCL QueueMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(', ')}"
+        return f"SYCL QueueMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
@@ -1032,7 +1032,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return super().enabled()
 
     def explicit_group(self):
-        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(', ')}"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
@@ -1044,7 +1044,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(', ')}"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return [
@@ -1116,9 +1116,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return super().enabled()
 
     def explicit_group(self):
-        return (
-            f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}{self.cpu_count_str(', ')}"
-        )
+        return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return ""
@@ -1127,7 +1125,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} EmptyKernel, wgc {self.wgc}, wgs {self.wgs}{self.cpu_count_str(', ')}"
+        return f"{self.runtime.value.upper()} EmptyKernel, wgc {self.wgc}, wgs {self.wgs}{self.cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
