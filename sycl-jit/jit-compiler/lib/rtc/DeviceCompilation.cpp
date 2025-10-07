@@ -169,13 +169,13 @@ public:
         llvm::vfs::getRealFileSystem());
     FS->pushOverlay(ToolchainFS);
     if (FSOverlay)
-      FS->pushOverlay(FSOverlay);
+      FS->pushOverlay(std::move(FSOverlay));
 
     auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
         clang::FileSystemOptions{"." /* WorkingDir */}, FS);
 
     Action A{FEAction};
-    ToolInvocation TI{CommandLine, &A, Files.get(),
+    ToolInvocation TI{std::move(CommandLine), &A, Files.get(),
                       std::make_shared<PCHContainerOperations>()};
     TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
 

@@ -549,6 +549,13 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   return NodeImpl;
 }
 
+std::shared_ptr<sycl::detail::queue_impl> graph_impl::getQueue() const {
+  std::shared_ptr<sycl::detail::queue_impl> Return{};
+  if (!MRecordingQueues.empty())
+    Return = MRecordingQueues.begin()->lock();
+  return Return;
+}
+
 void graph_impl::addQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.insert(RecordingQueue.weak_from_this());
 }
@@ -717,12 +724,16 @@ void exec_graph_impl::findRealDeps(
   }
 }
 
-ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
-    const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
-    ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node) {
+std::optional<ur_exp_command_buffer_sync_point_t>
+exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
+                                   sycl::detail::device_impl &DeviceImpl,
+                                   ur_exp_command_buffer_handle_t CommandBuffer,
+                                   node_impl &Node, bool IsInOrderPartition) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (node_impl &N : Node.predecessors()) {
-    findRealDeps(Deps, N, MPartitionNodes[&Node]);
+  if (!IsInOrderPartition) {
+    for (node_impl &N : Node.predecessors()) {
+      findRealDeps(Deps, N, MPartitionNodes[&Node]);
+    }
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
@@ -751,7 +762,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node.MCommandGroup.get())),
-      Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
+      Deps, IsInOrderPartition ? nullptr : &NewSyncPoint,
+      MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
   if (MIsUpdatable) {
     MCommandMap[&Node] = NewCommand;
@@ -768,16 +780,21 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNodeDirect(
         StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
 #endif
 
-  return NewSyncPoint;
+  // Linear (in-order) graphs do not return a sync point as the dependencies of
+  // successor nodes are handled by the UR CommandBuffer via the isInOrder flag
+  return IsInOrderPartition
+             ? std::nullopt
+             : std::optional<ur_exp_command_buffer_sync_point_t>{NewSyncPoint};
 }
 
-ur_exp_command_buffer_sync_point_t
+std::optional<ur_exp_command_buffer_sync_point_t>
 exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
-                             node_impl &Node) {
-
+                             node_impl &Node, bool IsInOrderPartition) {
   std::vector<ur_exp_command_buffer_sync_point_t> Deps;
-  for (node_impl &N : Node.predecessors()) {
-    findRealDeps(Deps, N, MPartitionNodes[&Node]);
+  if (!IsInOrderPartition) {
+    for (node_impl &N : Node.predecessors()) {
+      findRealDeps(Deps, N, MPartitionNodes[&Node]);
+    }
   }
 
   sycl::detail::EventImplPtr Event =
@@ -789,7 +806,11 @@ exec_graph_impl::enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer,
     MCommandMap[&Node] = Event->getCommandBufferCommand();
   }
 
-  return Event->getSyncPoint();
+  // Linear (in-order) graphs do not return a sync point as the dependencies of
+  // successor nodes are handled by the UR CommandBuffer via the isInOrder flag
+  return IsInOrderPartition ? std::nullopt
+                            : std::optional<ur_exp_command_buffer_sync_point_t>{
+                                  Event->getSyncPoint()};
 }
 
 void exec_graph_impl::buildRequirements() {
@@ -818,10 +839,12 @@ void exec_graph_impl::buildRequirements() {
 
 void exec_graph_impl::createCommandBuffers(
     sycl::device Device, std::shared_ptr<partition> &Partition) {
+  const bool IsInOrderCommandBuffer =
+      Partition->MIsInOrderGraph && !MEnableProfiling;
   ur_exp_command_buffer_handle_t OutCommandBuffer;
-  ur_exp_command_buffer_desc_t Desc{
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
-      Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
+  ur_exp_command_buffer_desc_t Desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                    nullptr, MIsUpdatable,
+                                    IsInOrderCommandBuffer, MEnableProfiling};
   context_impl &ContextImpl = *sycl::detail::getSyclObjImpl(MContext);
   sycl::detail::adapter_impl &Adapter = ContextImpl.getAdapter();
   sycl::detail::device_impl &DeviceImpl = *sycl::detail::getSyclObjImpl(Device);
@@ -850,10 +873,20 @@ void exec_graph_impl::createCommandBuffers(
                     Node.MCommandGroup.get())
                     ->MStreams.size() ==
             0) {
-      MSyncPoints[&Node] =
-          enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node);
+      if (auto OptSyncPoint =
+              enqueueNodeDirect(MContext, DeviceImpl, OutCommandBuffer, Node,
+                                IsInOrderCommandBuffer)) {
+        assert(!IsInOrderCommandBuffer &&
+               "In-order partitions should not create a sync point");
+        MSyncPoints[&Node] = *OptSyncPoint;
+      }
     } else {
-      MSyncPoints[&Node] = enqueueNode(OutCommandBuffer, Node);
+      if (auto OptSyncPoint =
+              enqueueNode(OutCommandBuffer, Node, IsInOrderCommandBuffer)) {
+        assert(!IsInOrderCommandBuffer &&
+               "In-order partitions should not create a sync point");
+        MSyncPoints[&Node] = *OptSyncPoint;
+      }
     }
   }
 
@@ -870,10 +903,6 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
-      MQueueImpl(sycl::detail::queue_impl::create(
-          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
-          sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MSchedulerDependencies(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
@@ -893,6 +922,15 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   }
   // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
   duplicateNodes();
+
+  if (auto PlaceholderQueuePtr = GraphImpl->getQueue()) {
+    MQueueImpl = PlaceholderQueuePtr;
+  } else {
+    MQueueImpl = sycl::detail::queue_impl::create(
+        *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+        *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+        sycl::property_list{});
+  }
 }
 
 exec_graph_impl::~exec_graph_impl() {

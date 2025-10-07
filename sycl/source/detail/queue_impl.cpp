@@ -420,6 +420,94 @@ queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   return EventImpl;
 }
 
+EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
+    KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+    bool EventNeeded, detail::kernel_impl *KernelImplPtr,
+    detail::kernel_bundle_impl *KernelBundleImpPtr,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+  std::vector<ur_event_handle_t> RawEvents;
+
+  // TODO checking the size of the events vector and avoiding the call is
+  // more efficient here at this point
+  if (DepEvents.size() > 0) {
+    RawEvents = detail::Command::getUrEvents(DepEvents, this, false);
+  }
+
+  bool DiscardEvent = !EventNeeded && supportsDiscardingPiEvents();
+  if (DiscardEvent) {
+    // Kernel only uses assert if it's non interop one
+    bool KernelUsesAssert =
+        !(KernelImplPtr && KernelImplPtr->isInterop()) && KData.usesAssert();
+    DiscardEvent = !KernelUsesAssert;
+  }
+
+  std::shared_ptr<detail::event_impl> ResultEvent =
+      DiscardEvent ? nullptr : detail::event_impl::create_device_event(*this);
+
+  auto EnqueueKernel = [&]() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    xpti_td *CmdTraceEvent = nullptr;
+    uint64_t InstanceID = 0;
+    auto StreamID = detail::getActiveXPTIStreamID();
+    // Only enable instrumentation if there are subscribes to the SYCL
+    // stream
+    const bool xptiEnabled = xptiCheckTraceEnabled(StreamID);
+    if (xptiEnabled) {
+      std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
+          StreamID, KernelImplPtr, CodeLoc, IsTopCodeLoc,
+          *KData.getDeviceKernelInfoPtr(), this, KData.getNDRDesc(),
+          KernelBundleImpPtr, KData.getArgs());
+      detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                         xpti::trace_task_begin, nullptr);
+    }
+#endif
+    const detail::RTDeviceBinaryImage *BinImage = nullptr;
+    if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+      BinImage = detail::retrieveKernelBinary(*this, KData.getKernelName());
+      assert(BinImage && "Failed to obtain a binary image.");
+    }
+    enqueueImpKernel(*this, KData.getNDRDesc(), KData.getArgs(),
+                     KernelBundleImpPtr, KernelImplPtr,
+                     *KData.getDeviceKernelInfoPtr(), RawEvents,
+                     ResultEvent.get(), nullptr, KData.getKernelCacheConfig(),
+                     KData.isCooperative(), KData.usesClusterLaunch(),
+                     KData.getKernelWorkGroupMemorySize(), BinImage,
+                     KData.getKernelFuncPtr());
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiEnabled) {
+      // Emit signal only when event is created
+      if (!DiscardEvent) {
+        detail::emitInstrumentationGeneral(
+            StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+            static_cast<const void *>(ResultEvent->getHandle()));
+      }
+      detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                         xpti::trace_task_end, nullptr);
+    }
+#endif
+  };
+
+  if (DiscardEvent) {
+    EnqueueKernel();
+  } else {
+    ResultEvent->setWorkerQueue(weak_from_this());
+    ResultEvent->setStateIncomplete();
+    ResultEvent->setSubmissionTime();
+
+    EnqueueKernel();
+    ResultEvent->setEnqueued();
+    // connect returned event with dependent events
+    if (!isInOrder()) {
+      // DepEvents is not used anymore, so can move.
+      ResultEvent->getPreparedDepsEvents() = std::move(DepEvents);
+      // ResultEvent is local for current thread, no need to lock.
+      ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
+    }
+  }
+
+  return ResultEvent;
+}
+
 EventImplPtr queue_impl::submit_command_to_graph(
     ext::oneapi::experimental::detail::graph_impl &GraphImpl,
     std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
@@ -475,25 +563,30 @@ EventImplPtr queue_impl::submit_command_to_graph(
   return EventImpl;
 }
 
-detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
+EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
-      HostKernel.takeOrCopyOwnership();
-
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
-  KData.setKernelFunc(HostKernelPtr->getPtr());
+  KData.setKernelFunc(HostKernel.getPtr());
   KData.setNDRDesc(NDRDesc);
 
-  auto SubmitKernelFunc =
-      [&](detail::CG::StorageInitHelper &CGData) -> EventImplPtr {
+  auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
+                              bool SchedulerBypass) -> EventImplPtr {
+    if (SchedulerBypass) {
+      return submit_kernel_scheduler_bypass(KData, CGData.MEvents,
+                                            CallerNeedsEvent, nullptr, nullptr,
+                                            CodeLoc, IsTopCodeLoc);
+    }
     std::unique_ptr<detail::CG> CommandGroup;
     std::vector<std::shared_ptr<detail::stream_impl>> StreamStorage;
     std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+
+    std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
+        HostKernel.takeOrCopyOwnership();
 
     KData.extractArgsAndReqsFromLambda();
 
@@ -504,10 +597,8 @@ detail::EventImplPtr queue_impl::submit_kernel_direct_impl(
         std::move(CGData), std::move(KData).getArgs(),
         *KData.getDeviceKernelInfoPtr(), std::move(StreamStorage),
         std::move(AuxiliaryResources), detail::CGType::Kernel,
-        UR_KERNEL_CACHE_CONFIG_DEFAULT,
-        false, // KernelIsCooperative
-        false, // KernelUsesClusterLaunch
-        0,     // KernelWorkGroupMemorySize
+        KData.getKernelCacheConfig(), KData.isCooperative(),
+        KData.usesClusterLaunch(), KData.getKernelWorkGroupMemorySize(),
         CodeLoc));
     CommandGroup->MIsTopCodeLoc = IsTopCodeLoc;
 
@@ -529,9 +620,6 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
                           SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
-
-  // Graphs are not supported yet for the no-handler path
-  assert(!hasCommandGraph());
 
   // Set the No Last Event Mode to false, since the no-handler path
   // does not support it yet.
@@ -567,11 +655,21 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
     }
   }
 
-  EventImplPtr EventImpl = SubmitCommandFunc(CGData);
+  bool SchedulerBypass =
+      (CGData.MEvents.size() > 0
+           ? detail::Scheduler::areEventsSafeForSchedulerBypass(
+                 CGData.MEvents, getContextImpl())
+           : true) &&
+      !hasCommandGraph();
 
-  // Sync with the last event for in order queue
-  if (isInOrder() && !EventImpl->isDiscarded()) {
-    LastEvent = EventImpl;
+  EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
+
+  // Sync with the last event for in order queue. For scheduler-bypass flow,
+  // the ordering is done at the layers below the SYCL runtime,
+  // but for the scheduler-based flow, it needs to be done here, as the
+  // scheduler handles host task submissions.
+  if (isInOrder()) {
+    LastEvent = SchedulerBypass ? nullptr : EventImpl;
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue
