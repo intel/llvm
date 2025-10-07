@@ -662,6 +662,14 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
            : true) &&
       !hasCommandGraph();
 
+  if (isInOrder()) {
+    if (SchedulerBypass) {
+      MNoLastEventMode.store(true, std::memory_order_relaxed);
+    } else {
+      MNoLastEventMode.store(false, std::memory_order_relaxed);
+    }
+  }
+
   EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
 
   // Sync with the last event for in order queue. For scheduler-bypass flow,

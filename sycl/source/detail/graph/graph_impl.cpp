@@ -549,6 +549,13 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
   return NodeImpl;
 }
 
+std::shared_ptr<sycl::detail::queue_impl> graph_impl::getQueue() const {
+  std::shared_ptr<sycl::detail::queue_impl> Return{};
+  if (!MRecordingQueues.empty())
+    Return = MRecordingQueues.begin()->lock();
+  return Return;
+}
+
 void graph_impl::addQueue(sycl::detail::queue_impl &RecordingQueue) {
   MRecordingQueues.insert(RecordingQueue.weak_from_this());
 }
@@ -870,10 +877,6 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MSyncPoints(),
-      MQueueImpl(sycl::detail::queue_impl::create(
-          *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
-          *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
-          sycl::property_list{})),
       MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
       MSchedulerDependencies(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
@@ -893,6 +896,15 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
   }
   // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
   duplicateNodes();
+
+  if (auto PlaceholderQueuePtr = GraphImpl->getQueue()) {
+    MQueueImpl = PlaceholderQueuePtr;
+  } else {
+    MQueueImpl = sycl::detail::queue_impl::create(
+        *sycl::detail::getSyclObjImpl(GraphImpl->getDevice()),
+        *sycl::detail::getSyclObjImpl(Context), sycl::async_handler{},
+        sycl::property_list{});
+  }
 }
 
 exec_graph_impl::~exec_graph_impl() {
