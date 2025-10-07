@@ -11299,6 +11299,15 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // Create a comma separated list to pass along to the linker wrapper.
     SmallString<256> LibList;
     SmallString<256> BCLibList;
+
+    // Lambda to append items to BCLibList with comma separation
+    auto appendToBCLibList = [&BCLibList](const llvm::Triple &Triple,
+                                          const Twine &Path) {
+      if (BCLibList.size() > 0)
+        BCLibList += ",";
+      BCLibList += (Twine(Triple.str()) + "=" + Path).str();
+    };
+
     llvm::Triple TargetTriple;
     auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
     for (auto &I :
@@ -11316,14 +11325,22 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
       for (const auto &AddLib : SYCLDeviceLibs) {
         if (llvm::sys::path::extension(AddLib) == ".bc") {
-          if (BCLibList.size() > 0)
-            BCLibList += ",";
-          BCLibList += Twine(TC->getTriple().str() + "=" + AddLib).str();
+          SmallString<256> LibPath(DeviceLibDir);
+          llvm::sys::path::append(LibPath, AddLib);
+          appendToBCLibList(TC->getTriple(), LibPath);
           continue;
         }
+
         if (LibList.size() > 0)
           LibList += ",";
         LibList += AddLib;
+      }
+
+      if (TC->getTriple().isNVPTX()) {
+        if (const char *LibSpirvFile = SYCLInstallation.findLibspirvPath(
+                TC->getTriple(), Args, *TC->getAuxTriple())) {
+          appendToBCLibList(TC->getTriple(), LibSpirvFile);
+        }
       }
     }
     // -sycl-device-libraries=<libs> provides a comma separate list of
@@ -11334,7 +11351,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (BCLibList.size())
       CmdArgs.push_back(
-          Args.MakeArgString(Twine("--sycl-bc-device-libraries=") + BCLibList));
+          Args.MakeArgString(Twine("-sycl-bc-device-libraries=") + BCLibList));
 
     // -sycl-device-library-location=<dir> provides the location in which the
     // SYCL device libraries can be found.

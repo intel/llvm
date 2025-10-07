@@ -1418,21 +1418,21 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   }
 
   for (StringRef Library : Args.getAllArgValues(OPT_sycl_bc_device_lib_EQ)) {
-    auto [LibraryTriple, LibraryName] = Library.split('=');
+    auto [LibraryTriple, LibraryPath] = Library.split('=');
     if (llvm::Triple(LibraryTriple) != Triple)
       continue;
-    StringRef DeviceLibraryDir("");
-    if (Arg *DeviceLibDirArg =
-            Args.getLastArg(OPT_sycl_device_library_location_EQ))
-      DeviceLibraryDir = DeviceLibDirArg->getValue();
-    SmallString<128> DeviceLibPath(DeviceLibraryDir);
-    llvm::sys::path::append(DeviceLibPath, LibraryName);
-    if (!llvm::sys::fs::exists(DeviceLibPath)) {
+    // StringRef DeviceLibraryDir("");
+    // if (Arg *DeviceLibDirArg =
+    //         Args.getLastArg(OPT_sycl_device_library_location_EQ))
+    //   DeviceLibraryDir = DeviceLibDirArg->getValue();
+    // SmallString<128> DeviceLibPath(DeviceLibraryDir);
+    // llvm::sys::path::append(DeviceLibPath, LibraryName);
+    if (!llvm::sys::fs::exists(LibraryPath)) {
       return createStringError(inconvertibleErrorCode(),
-                               "The specified device library " + DeviceLibPath +
+                               "The specified device library " + LibraryPath +
                                    " does not exist.");
     }
-    ExtractedDeviceLibFiles.emplace_back(DeviceLibPath.str());
+    ExtractedDeviceLibFiles.emplace_back(LibraryPath.str());
   }
 
   // Make sure that SYCL device library files are available.
