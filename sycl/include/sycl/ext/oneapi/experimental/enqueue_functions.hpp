@@ -157,8 +157,8 @@ void single_task(queue Q, const KernelType &KernelObj,
       std::move(Q),
       [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); }, CodeLoc);
   */
-  detail::submit_kernel_direct_single_task<KernelName>(std::move(Q), empty_properties_t{},
-                                             KernelObj);
+  detail::submit_kernel_direct_single_task<KernelName>(
+      std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
 }
 
 template <typename... ArgsT>
