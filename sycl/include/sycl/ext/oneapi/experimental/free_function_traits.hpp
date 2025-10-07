@@ -64,5 +64,8 @@ template <typename T> struct is_struct_with_special_type {
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
+
+template <typename T> struct is_device_copyable;
+
 } // namespace _V1
 } // namespace sycl
