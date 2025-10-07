@@ -8,7 +8,5 @@
 #pragma once
 
 namespace sycl {
-inline namespace _V1 {
 template <typename T> struct is_device_copyable;
-} // namespace _V1
 } // namespace sycl
