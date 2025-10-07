@@ -35,30 +35,34 @@ LLVM's offloading infrastructure supports several binary formats that can be emb
 - **Vendor constraints**: Fatbinary is NVIDIA proprietary and incompatible with SYCL's vendor-neutral approach
 - **Limited container capabilities**: OffloadBinary is not designed for multiple device images or hierarchical organization, with StringData insufficient for complex metadata structures (like #3 and #4 above).
 
-### Abstraction: simplify support in offloading tools
+### Abstraction: Simplifying Support in Offloading Tools
 
-- [ ] This section needs re-writing...
+Another motivation for adding the SYCLBIN format is to encapsulate SYCL-specific logic within SYCL-specific toolchain components (clang-sycl-linker, SYCL runtime) and isolate SYCL implementation details from general offloading tools designed to support multiple programming models.
 
-Another motivation to add SYCLBIN format is to encapsulate SYCL-specific logic to SYCL-specific parts of toolchain (clang-sycl-linker, SYCL runtime) and hide SYCL specifics from offloading tools intended to support multiple programming models. Without this format, we would need to use the following workflow to pass metadata (#1 - #4) from compiler to runtime:
+#### Current Workflow Without SYCLBIN:
 
-1. clang-sycl-linker would use OffloadingImage’s StringData to save metadata #1-#4.
-Problem: OffloadingImage’s StringData is not intended for composite objects like arrays or property sets.
-2. clang-linker-wrapper would open OffloadingImages prepared by clang-sycl-linker and generate device image binary descriptor for each image in some format that SYCL runtime could read.
-Problem: clang-linker-wrapper needs to maintain SYCL-specific formats necessary for SYCL runtime, which means unnecessary duplication.
-3. Then SYCL runtime would use this format to decode metadata.
+Without this format, metadata transfer from compiler to runtime requires the following complex workflow:
 
-If SYCLBIN is accepted, then the scheme could be simplified, resolving problems highlighted above:
+1. **clang-sycl-linker** uses OffloadingImage's StringData (with workarounds) to store metadata items #1-#4
+2. **clang-linker-wrapper** opens OffloadingImage files from clang-sycl-linker and generates device image binary descriptors in a format readable by SYCL runtime
+- Problem: This requires clang-linker-wrapper to maintain SYCL-specific format knowledge, creating unnecessary code duplication
+3. **SYCL runtime** decodes metadata using this intermediate format
 
-1. clang-sycl-linker would prepare SYCLBIN with all metadata encoded put it inside OffloadingImage as image.
-2. clang-linker-wrapper would generate only host register and unregister calls, but would know nothing about what’s inside SYCLBIN.
-3. SYCL runtime would work with SYCLBIN directly.
+#### Simplified Workflow With SYCLBIN:
+
+The SYCLBIN format enables a cleaner separation of concerns:
+
+1. **clang-sycl-linker** prepares a complete SYCLBIN containing all metadata and multiple images, embedding it as a single image within OffloadingImage
+2. **clang-linker-wrapper** generates only host register/unregister calls without needing knowledge of SYCLBIN internals
+3. **SYCL runtime** works directly with SYCLBIN format
+
+This approach eliminates the need for clang-linker-wrapper to understand SYCL-specific formats, reducing maintenance burden and improving toolchain modularity.
 
 ### Enable modular dynamic loading of device binaries at runtime
 
-Some applications may want to dynamically load device binaries at runtime, e.g. for modularity and to avoid having to recompile the entire application. To facilitate that SYCLBIN format defines the interface between
-the compiler-produced binaries and the runtime's handling of it.
+Some applications require dynamic loading of device binaries at runtime to achieve modularity and avoid recompiling the entire application when device code changes. The SYCLBIN format provides a standardized interface between compiler-produced binaries and runtime handling, enabling efficient dynamic loading scenarios.
 
-## Detailed Design
+## Design
 
 ### SYCLBIN binary format
 
@@ -90,165 +94,36 @@ containing information about the [abstract modules](#abstract-module),
 | Metadata byte table                                                   |
 | Binary byte table                                                     |
 
-The headers and each byte table are all aligned to 8 bytes. The fields in the
-headers use C/C++ type notation, including the fixed-size integer types defined
-in the `<cstdint>` header, and will have the same size and alignment. For
-consistency, all these types use little endian layout.
+#### Key Components
 
-#### Component Details
-
-- [ ] Do we want to provide that level of details in the RFC, or it is better to clean it up to
-keep only key info and for details provide reference to design document?
-
-##### File header
-
-| Type       | Description                                                                   |
-| ---------- | ----------------------------------------------------------------------------- |
-| `uint32_t` | Magic number. (0x53594249)                                                    |
-| `uint32_t` | SYCLBIN version number.                                                       |
-| `uint32_t` | Number of abstract modules.                                                   |
-| `uint32_t` | Number of IR modules.                                                         |
-| `uint32_t` | Number of native device code images.                                          |
-| `uint64_t` | Byte size of the metadata byte table.                                         |
-| `uint64_t` | Byte size of the binary byte table.                                           |
-| `uint64_t` | Byte offset of the global metadata from the start of the metadata byte table. |
-| `uint64_t` | Byte size of the global metadata.                                             |
-
-##### Global metadata
-
-The global metadata entry contains a single property set with the identifying
-name "SYCLBIN/global metadata", as described in the
-[PropertySets.md](PropertySets.md#syclbinglobal-metadata) design document.
-
-##### Abstract module
-
-An abstract module is a collection of device binaries that share properties,
+**Abstract Modules:** collection of device binaries that share properties,
 including, but not limited to: kernel names, imported symbols, exported symbols,
-aspect requirements, and specialization constants.
-
-The device binaries contained inside an abstract module must either be an IR
+aspect requirements, and specialization constants. The device binaries contained inside an abstract module must either be an IR
 module or a native device code image. IR modules contain device binaries in some
 known intermediate representation, such as SPIR-V, while the native device code
 images can be an architecture-specific binary format. There is no requirement
 that all device binaries in an abstract module are usable on the same device or
 are specific to a single vendor.
 
-##### Abstract module header
-
-A abstract module header contains the following fields in the stated order:
-
-| Type       | Description                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------ |
-| `uint64_t` | Byte offset of the metadata from the start of the metadata byte table.                     |
-| `uint64_t` | Byte size of the metadata in the metadata byte table.                                      |
-| `uint32_t` | Number of IR modules.                                                                      |
-| `uint32_t` | Index of the first IR module header in the IR module header array.                         |
-| `uint32_t` | Number of native device code images.                                                       |
-| `uint32_t` | Index of the first native device code images header native device code image header array. |
-
-##### Abstract module metadata
-
-An abstract module metadata entry contains any number of property sets, as
-described in [PropertySets.md](PropertySets.md), excluding:
-
-- ["SYCLBIN/global metadata"](PropertySets.md#syclbinglobal-metadata)
-- ["SYCLBIN/ir module metadata"](PropertySets.md#syclbinir-module-metadata)
-- ["SYCLBIN/native device code image module metadata"](PropertySets.md#syclbinnative-device-code-image-metadata)
-
-##### IR module
-
-An IR module contains the binary data for the corresponding module compiled to a
+**IR modules:** binary data for the corresponding module compiled to a
 given IR representation, identified by the IR type field.
 
-##### IR module header
-
-A IR module header contains the following fields in the stated order:
-
-| Type       | Description                                                              |
-| ---------- | ------------------------------------------------------------------------ |
-| `uint64_t` | Byte offset of the metadata from the start of the metadata byte table.   |
-| `uint64_t` | Byte size of the metadata in the metadata byte table.                    |
-| `uint64_t` | Byte offset of the raw IR bytes from the start of the binary byte table. |
-| `uint64_t` | Byte size of the raw IR bytes in the binary byte table.                  |
-
-##### IR module metadata
-
-An IR module metadata entry contains a single property set with the identifying
-name "SYCLBIN/ir module metadata", as described in the
-[PropertySets.md](PropertySets.md#syclbinir-module-metadata) design document.
-
-##### Native device code image
-
-An native device code image contains the binary data for the corresponding
+**Native device code images:** binary data for the corresponding
 module AOT compiled for a specific device, identified by the architecture
-string.  The runtime library will attempt to map these to the architecture
-enumerators in the
-[sycl_ext_oneapi_device_architecture](../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
-extension.
+string.
 
-##### Native device code image header
-
-A native device code image header contains the following fields in the stated
-order:
-
-| Type       | Description                                                                         |
-| ---------- | ----------------------------------------------------------------------------------- |
-| `uint64_t` | Byte offset of the metadata from the start of the metadata byte table.              |
-| `uint64_t` | Byte size of the metadata in the metadata byte table.                               |
-| `uint64_t` | Byte offset of the device code image bytes from the start of the binary byte table. |
-| `uint64_t` | Byte size of the device code image bytes in the binary byte table.                  |
-
-##### Native device code image metadata
-
-A native device code image metadata entry contains a single property set with
-the identifying name "SYCLBIN/native device code image module metadata", as
-described in the
-[PropertySets.md](PropertySets.md#syclbinnative-device-code-image-metadata)
-design document.
-
-##### Byte tables
-
-A byte table contains dynamic data, such as metadata and binary blobs. The
+**Byte tables:** A byte table contains dynamic data, such as metadata and binary blobs. The
 contents of it is generally referenced by an offset specified in the headers.
+
+Detailed design can be found [here](https://intel.github.io/llvm/design/SYCLBINDesign.html)
 
 ## Toolchain integration
 
-The content of the SYCLBIN may be contained as an image in the [offload binary](https://github.com/llvm/llvm-project/blame/main/llvm/include/llvm/Object/OffloadBinary.h) produced by the [clang-sycl-linker](https://github.com/llvm/llvm-project/tree/main/clang/tools/clang-sycl-linker).
+The SYCLBIN content is embedded as an image within the [offload binary](https://github.com/llvm/llvm-project/blame/main/llvm/include/llvm/Object/OffloadBinary.h) produced by the [clang-sycl-linker](https://github.com/llvm/llvm-project/tree/main/clang/tools/clang-sycl-linker).
 
 ### Clang driver changes
 
-- [ ] This needs to be rewritten...
-
-The clang driver needs to accept the following new flags:
-
-<table>
-<tr>
-<th>Option</th>
-<th>Description</th>
-</tr>
-<tr>
-<td>`-fsyclbin`</td>
-<td>
-If this option is set, the output of the invocation is a SYCLBIN file with the
-.syclbin file extension. This skips the host-compilation invocation of the
-typical `-fsycl` pipeline, instead passing the output of the
-clang-offload-packager invocation to clang-linker-wrapper together with the new
-`--syclbin` flag.
-
-Setting this option will override `-fsycl`. Passing`-fsycl-device-only` with
-`-fsyclbin` will cause `-fsyclbin` to be considered unused.
-
-The behavior is dependent on using the clang-linker-wrapper.
-</td>
-</tr>
-<tr>
-<td>`--offload-rdc`</td>
-<td>This is an alias of `-fgpu-rdc`.</td>
-</tr>
-</table>
-
-Additionally, `-fsycl-link` should work with .syclbin files. Semantics of how
-SYCLBIN files are linked together is yet to be specified.
+- ``--sycl-link`` would trigger use of a SYCLBIN format in toolchain
 
 ### clang-sycl-linker changes
 
