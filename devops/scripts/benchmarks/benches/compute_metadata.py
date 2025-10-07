@@ -120,8 +120,12 @@ class ComputeMetadataGenerator:
     def _generate_metadata(self, group_name: str) -> BenchmarkMetadata:
         """
         Generate metadata for a specific benchmark group.
+
         Args:
             group_name: Name of the benchmark group
+
+        Returns:
+            BenchmarkMetadata: Metadata object describing the specified benchmark group.
         """
         base_metadata = self._base_group_metadata.get(
             group_name.split()[0], BaseGroupMetadata()
