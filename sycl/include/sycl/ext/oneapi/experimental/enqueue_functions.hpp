@@ -152,9 +152,13 @@ template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
+  /*
   submit(
       std::move(Q),
       [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); }, CodeLoc);
+  */
+  detail::submit_kernel_direct_single_task<KernelName>(std::move(Q), empty_properties_t{},
+                                             KernelObj);
 }
 
 template <typename... ArgsT>
@@ -262,7 +266,7 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
   // TODO The handler-less path does not support reductions yet.
   if constexpr (sizeof...(ReductionsT) == 0) {
-    detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
+    detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), empty_properties_t{},
                                              Range, KernelObj);
   } else
 #endif
@@ -298,7 +302,7 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
         ConfigAccess(Config);
-    detail::submit_kernel_direct<KernelName>(
+    detail::submit_kernel_direct_parallel_for<KernelName>(
         std::move(Q), ConfigAccess.getProperties(), ConfigAccess.getRange(),
         KernelObj);
   } else

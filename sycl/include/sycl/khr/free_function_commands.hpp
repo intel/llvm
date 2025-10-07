@@ -158,7 +158,7 @@ void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(
+  detail::submit_kernel_direct_parallel_for(
       q, ext::oneapi::experimental::empty_properties_t{}, nd_range<1>(r, size),
       std::forward<KernelType>(k));
 #else
@@ -173,7 +173,7 @@ void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(
+  detail::submit_kernel_direct_parallel_for(
       q, ext::oneapi::experimental::empty_properties_t{}, nd_range<2>(r, size),
       std::forward<KernelType>(k));
 #else
@@ -188,7 +188,7 @@ void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  detail::submit_kernel_direct(
+  detail::submit_kernel_direct_parallel_for(
       q, ext::oneapi::experimental::empty_properties_t{}, nd_range<3>(r, size),
       std::forward<KernelType>(k));
 #else
@@ -305,7 +305,10 @@ template <typename KernelType>
 void launch_task(const sycl::queue &q, const KernelType &k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  //submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  detail::submit_kernel_direct_single_task(q,
+    ext::oneapi::experimental::empty_properties_t{},
+    k, codeLoc);
 }
 
 template <typename... Args>
