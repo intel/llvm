@@ -127,8 +127,9 @@ class ComputeMetadataGenerator:
         Returns:
             BenchmarkMetadata: Metadata object describing the specified benchmark group.
         """
+        base_group_name = self._extract_base_group_name(group_name)
         base_metadata = self._base_group_metadata.get(
-            group_name.split()[0], BaseGroupMetadata()
+            base_group_name, BaseGroupMetadata()
         )
         return BenchmarkMetadata(
             type="group",
@@ -140,3 +141,11 @@ class ComputeMetadataGenerator:
             range_max=base_metadata.range_max,
             explicit_group=group_name,
         )
+
+    def _extract_base_group_name(self, group_name: str) -> str:
+        """
+        Extracts the base group name from a group name string.
+        Assumes group names are in the format 'BaseGroupName [Variant]'.
+        If the format changes, this method should be updated accordingly.
+        """
+        return group_name.split()[0]
