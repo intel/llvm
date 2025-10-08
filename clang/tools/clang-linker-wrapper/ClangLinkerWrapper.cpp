@@ -1323,7 +1323,7 @@ linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
   CmdArgs.push_back(*Linker);
   // Linker arguments
   CmdArgs.push_back("--suppress-warnings");
-  // Intput files
+  // Input files
   for (auto &File : InputFiles) {
     auto IRFile = sycl::convertSPIRVToIR(File, Args);
     if (!IRFile)
@@ -1369,7 +1369,7 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   // Linker arguments
   CmdArgs.push_back("-only-needed");
   CmdArgs.push_back("--suppress-warnings");
-  // Intput files
+  // Input files
   for (auto &File : InputFiles)
     CmdArgs.push_back(File);
   // Output file
