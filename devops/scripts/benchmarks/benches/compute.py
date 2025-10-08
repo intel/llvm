@@ -294,14 +294,6 @@ class ComputeBench(Suite):
         return benches
 
 
-def parse_unit_type(compute_unit):
-    if "[count]" in compute_unit:
-        return "instr"
-    elif "[us]" in compute_unit:
-        return "μs"
-    return compute_unit.replace("[", "").replace("]", "")
-
-
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,
