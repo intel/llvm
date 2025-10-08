@@ -314,10 +314,15 @@ template <typename KernelType>
 void launch_task(const sycl::queue &q, const KernelType &k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
-  //submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
-  detail::submit_kernel_direct_single_task(q,
-    ext::oneapi::experimental::empty_properties_t{},
-    k, codeLoc);
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value)) {
+    detail::submit_kernel_direct_single_task(
+        q, ext::oneapi::experimental::empty_properties_t{}, k, codeLoc);
+  } else {
+    submit(
+        q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
+  }
 }
 
 template <typename... Args>

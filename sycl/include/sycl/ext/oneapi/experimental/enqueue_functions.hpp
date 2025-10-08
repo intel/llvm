@@ -152,13 +152,17 @@ template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(queue Q, const KernelType &KernelObj,
                  const sycl::detail::code_location &CodeLoc =
                      sycl::detail::code_location::current()) {
-  /*
-  submit(
-      std::move(Q),
-      [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); }, CodeLoc);
-  */
-  detail::submit_kernel_direct_single_task<KernelName>(
-      std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value)) {
+    detail::submit_kernel_direct_single_task<KernelName>(
+        std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
+  } else {
+    submit(
+        std::move(Q),
+        [&](handler &CGH) { single_task<KernelName>(CGH, KernelObj); },
+        CodeLoc);
+  }
 }
 
 template <typename... ArgsT>

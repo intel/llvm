@@ -2767,21 +2767,23 @@ public:
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
-/*
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.template single_task<KernelName, KernelType, PropertiesT>(
-              Properties, KernelFunc);
-        },
-        TlsCodeLocCapture.query());
-*/
 
+    if constexpr (!(ext::oneapi::experimental::detail::
+                        HasKernelPropertiesGetMethod<
+                            const KernelType &>::value)) {
       (void)Properties;
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{},
           KernelFunc, CodeLoc);
-
+    } else {
+      detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+      return submit(
+          [&](handler &CGH) {
+            CGH.template single_task<KernelName, KernelType, PropertiesT>(
+                Properties, KernelFunc);
+          },
+          TlsCodeLocCapture.query());
+    }
   }
 
   /// single_task version with a kernel represented as a lambda.
