@@ -30,6 +30,7 @@
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_OUT:]]
 ;
+; INTEL_CUSTOMIZATION begin
 ; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT:]] [[#ARG_OUT]]
@@ -66,6 +67,7 @@
 ; CHECK-SPIRV: CopyMemorySized [[#ARG_OUT]] [[#MEM]] [[#C72]] 0
 ; CHECK-SPIRV: Bitcast [[#]] [[#MEM_CAST_2:]] [[#MEM]]
 ; CHECK-SPIRV: LifetimeStop [[#MEM_CAST_2]]
+; INTEL_CUSTOMIZATION end
 
 ; xCHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ;

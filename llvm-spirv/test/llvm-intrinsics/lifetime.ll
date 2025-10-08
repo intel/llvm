@@ -41,6 +41,7 @@
 ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[#]] [[#ASCast]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#Cast2:]] [[#Var]]
 ; CHECK-SPIRV: LifetimeStop [[#Cast2]] 1
+; INTEL_CUSTOMIZATION end
 
 ; CHECK-LLVM-LABEL: lifetime_simple
 ; CHECK-LLVM: %[[#Alloca:]] = alloca i32
@@ -58,7 +59,6 @@
 ; CHECK-LLVM: call void @llvm.lifetime.start.p0(ptr %[[#Alloca]])
 ; CHECK-LLVM: call spir_func void @boo(ptr addrspace(4) %[[#Cast1]])
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0(ptr %[[#Alloca]])
-; INTEL_CUSTOMIZATION end
 
 ; ModuleID = 'main'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
