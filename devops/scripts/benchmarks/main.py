@@ -695,7 +695,7 @@ if __name__ == "__main__":
         choices=["timer", "cpuCounter"],
         help="Set the profiler type for benchmarks. 'timer' measures execution time, "
         "'cpuCounter' measures CPU instruction count for supported benchmarks.",
-        default="timer",
+        default="cpuCounter",
     )
 
     args = parser.parse_args()
