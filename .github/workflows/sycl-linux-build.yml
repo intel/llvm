@@ -177,6 +177,7 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
+          sycl/cts_exclude_filter
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup

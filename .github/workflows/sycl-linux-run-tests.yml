@@ -229,6 +229,7 @@ jobs:
       with:
         sparse-checkout: |
           devops
+          sycl/cts_exclude_filter
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Reset Intel GPU
