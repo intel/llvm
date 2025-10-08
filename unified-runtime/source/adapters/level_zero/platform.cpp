@@ -526,6 +526,16 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZeMemGetPitchFor2dImageExt.Supported =
       ZeMemGetPitchFor2dImageExt.zeMemGetPitchFor2dImage != nullptr;
 
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (ZeDriver, "zeCommandListAppendLaunchKernelWithArguments",
+                   reinterpret_cast<void **>(
+                       &ZeCommandListAppendLaunchKernelWithArgumentsExt
+                            .zeCommandListAppendLaunchKernelWithArguments)));
+
+  ZeCommandListAppendLaunchKernelWithArgumentsExt.Supported =
+      ZeCommandListAppendLaunchKernelWithArgumentsExt
+          .zeCommandListAppendLaunchKernelWithArguments != nullptr;
+
   return UR_RESULT_SUCCESS;
 }
 
