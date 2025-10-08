@@ -941,8 +941,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
                                             ThinOrFullLTOPhase Phase) {
     if (Level != OptimizationLevel::O0) {
       if (!isLTOPreLink(Phase)) {
-        AMDGPUAttributorOptions Opts;
-        MPM.addPass(AMDGPUAttributorPass(*this, Opts, Phase));
+        if (EnableAMDGPUAttributor && getTargetTriple().isAMDGCN()) {
+          AMDGPUAttributorOptions Opts;
+          MPM.addPass(AMDGPUAttributorPass(*this, Opts, Phase));
+        }
       }
     }
   });
@@ -976,7 +978,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
             PM.addPass(InternalizePass(mustPreserveGV));
             PM.addPass(GlobalDCEPass());
           }
-          if (EnableAMDGPUAttributor) {
+          if (EnableAMDGPUAttributor && getTargetTriple().isAMDGCN()) {
             AMDGPUAttributorOptions Opt;
             if (HasClosedWorldAssumption)
               Opt.IsClosedWorld = true;
@@ -1308,7 +1310,8 @@ void AMDGPUPassConfig::addIRPasses() {
   if (LowerCtorDtor)
     addPass(createAMDGPUCtorDtorLoweringLegacyPass());
 
-  if (isPassEnabled(EnableImageIntrinsicOptimizer))
+  if (TM.getTargetTriple().isAMDGCN() &&
+      isPassEnabled(EnableImageIntrinsicOptimizer))
     addPass(createAMDGPUImageIntrinsicOptimizerPass(&TM));
 
   // This can be disabled by passing ::Disable here or on the command line
