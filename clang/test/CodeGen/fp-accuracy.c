@@ -1,36 +1,43 @@
+// INTEL_CUSTOMIZATION
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown -ffp-builtin-accuracy=high \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high:[acosf,cos,pow] low:[tan] medium:[sincos,log10]" \
 // RUN:  -Wno-return-type -Wno-implicit-function-declaration \
-// RUN: -emit-llvm -o - %s | FileCheck --check-prefix=CHECK-F1 %s
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefix=CHECK-F1 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium high:[tan] cuda:[cos]" \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F2 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high low:[tan] medium:[sincos,log10]" \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F3 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=high:sin medium" -Wno-return-type \
-// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
-// RUN: | FileCheck --check-prefixes=CHECK-F4 %s
+// RUN: -Wno-implicit-function-declaration -Wno-incompatible-pointer-types \
+// RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F4 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium:[sin,cos] high:[sin,tan]" \
 // RUN: -Wno-return-type -Wno-implicit-function-declaration \
-// RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F5 %s
+// RUN: -Wno-incompatible-pointer-types  -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefixes=CHECK-F5 %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=medium high:[sin,atan] low:[atan2]" \
 // RUN: -Wno-return-type -Wno-implicit-function-declaration \
-// RUN: -emit-llvm -o - %s | FileCheck --check-prefixes=CHECK-F6 %s
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefixes=CHECK-F6 %s
 
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -ffp-builtin-accuracy=sycl \
 // RUN: -D SPIR -Wno-implicit-function-declaration -emit-llvm -o - %s \
@@ -38,13 +45,15 @@
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
 // RUN: "-ffp-builtin-accuracy=default:[acosf,cos,pow]" \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
 
 // RUN: %clang_cc1 -triple x86_64-unknown-unknown \
-// RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: -Wno-return-type -Wno-implicit-function-declaration \
+// RUN: -Wno-incompatible-pointer-types -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefixes=CHECK-DEFAULT %s
-
+// end INTEL_CUSTOMIZATION
 #ifdef SPIR
 // This is a declaration when compiling with -fsycl to avoid
 // the compilation error "function with no prototype cannot use
