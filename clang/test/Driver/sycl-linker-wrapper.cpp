@@ -236,4 +236,7 @@
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}sycl-post-link" {{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-spirv" {{.*}} -o {{.*}}
+// CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: input
+// CHK-SYCLBIN-CMDS-NOT: "{{.*}}clang"
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}cp" {{.*}}.syclbin a.out
+// CHK-SYCLBIN-CMDS-NOT: "{{.*}}ld"

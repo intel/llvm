@@ -150,4 +150,7 @@
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}sycl-post-link.exe" {{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-spirv.exe" {{.*}} -o {{.*}}
+// CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: input
+// CHK-SYCLBIN-CMDS-NOT: "{{.*}}clang"
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}copy" {{.*}}.syclbin a.exe
+// CHK-SYCLBIN-CMDS-NOT: "{{.*}}ld"
