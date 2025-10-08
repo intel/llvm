@@ -448,7 +448,7 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     xpti_td *CmdTraceEvent = nullptr;
     uint64_t InstanceID = 0;
-    uint8_t StreamID;
+    uint8_t StreamID = 0;
     // Only enable instrumentation if there are subscribes to the SYCL
     // stream
     const bool xptiEnabled = xptiTraceEnabled();
