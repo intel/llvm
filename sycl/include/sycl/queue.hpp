@@ -199,6 +199,22 @@ auto submit_kernel_direct_parallel_for(
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
       &detail::getDeviceKernelInfo<NameT>();
+  constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+
+  assert(Info.Name != std::string_view{} && "Kernel must have a name!");
+
+  static_assert(
+      Info.Name == std::string_view{} || sizeof(KernelType) == Info.KernelSize,
+      "Unexpected kernel lambda size. This can be caused by an "
+      "external host compiler producing a lambda with an "
+      "unexpected layout. This is a limitation of the compiler."
+      "In many cases the difference is related to capturing constexpr "
+      "variables. In such cases removing constexpr specifier aligns the "
+      "captures between the host compiler and the device compiler."
+      "\n"
+      "In case of MSVC, passing "
+      "-fsycl-host-compiler-options='/std:c++latest' "
+      "might also help.");
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
@@ -246,6 +262,22 @@ auto submit_kernel_direct_single_task(
 
   detail::DeviceKernelInfo *DeviceKernelInfoPtr =
       &detail::getDeviceKernelInfo<NameT>();
+  constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
+
+  assert(Info.Name != std::string_view{} && "Kernel must have a name!");
+
+  static_assert(
+      Info.Name == std::string_view{} || sizeof(KernelType) == Info.KernelSize,
+      "Unexpected kernel lambda size. This can be caused by an "
+      "external host compiler producing a lambda with an "
+      "unexpected layout. This is a limitation of the compiler."
+      "In many cases the difference is related to capturing constexpr "
+      "variables. In such cases removing constexpr specifier aligns the "
+      "captures between the host compiler and the device compiler."
+      "\n"
+      "In case of MSVC, passing "
+      "-fsycl-host-compiler-options='/std:c++latest' "
+      "might also help.");
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
@@ -2768,7 +2800,10 @@ public:
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
 
-    if constexpr (!(ext::oneapi::experimental::detail::
+    if constexpr (std::is_same_v<
+                      PropertiesT,
+                      ext::oneapi::experimental::empty_properties_t> &&
+                  !(ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
                             const KernelType &>::value)) {
       (void)Properties;
