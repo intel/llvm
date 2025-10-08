@@ -12,6 +12,7 @@
 #include "Resource.h"
 #include "translation/Translation.h"
 
+#include "clang/Lex/PreprocessorOptions.h"
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -25,6 +26,7 @@
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
+#include <clang/Frontend/PrecompiledPreamble.h>
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
@@ -77,6 +79,12 @@ class SYCLToolchain {
       ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
     }
   }
+
+  struct PrecompiledPreambles {
+    using key = std::pair<std::string /*Opts*/, std::string /*Preamble*/>;
+    std::mutex Mutex;
+    std::map<key, std::shared_ptr<PrecompiledPreamble>> PreamblesMap;
+  };
 
   // Similar to FrontendActionFactory, but we don't take ownership of
   // `FrontendAction`, nor do we create copies of it as we only perform a single
@@ -139,9 +147,15 @@ class SYCLToolchain {
     }
 
     ArgStringList ASL;
-    for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
-    for_each(UserArgList,
-             [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
+    for (Arg *A : DAL)
+      A->render(DAL, ASL);
+    for (Arg *A : UserArgList) {
+      Option Group = A->getOption().getGroup();
+      if (Group.isValid() && Group.getID() == OPT_sycl_rtc_only_Group)
+        continue;
+
+      A->render(UserArgList, ASL);
+    }
 
     std::vector<std::string> CommandLine;
     CommandLine.reserve(ASL.size() + 2);
@@ -152,6 +166,83 @@ class SYCLToolchain {
     return CommandLine;
   }
 
+  class ActionWithPCHPreamble : public Action {
+    std::string CmdLineOpts;
+
+  public:
+    ActionWithPCHPreamble(FrontendAction &FEAction, std::string &&CmdLineOpts)
+        : Action(FEAction), CmdLineOpts(std::move(CmdLineOpts)) {}
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      auto MainFilePath = Invocation->getFrontendOpts().Inputs[0].getFile();
+      auto MainFileBuffer = Files->getBufferForFile(MainFilePath);
+      assert(MainFileBuffer && "Can't get memory buffer for in-memory source?");
+
+      PreambleBounds Bounds = ComputePreambleBounds(
+          Invocation->getLangOpts(), **MainFileBuffer, 100 /* MaxLines */);
+
+      PrecompiledPreambles::key key{
+          std::move(CmdLineOpts),
+          (*MainFileBuffer)->getBuffer().substr(0, Bounds.Size).str()};
+
+      std::shared_ptr<PrecompiledPreamble> Preamble;
+      {
+        PrecompiledPreambles &Preambles = SYCLToolchain::instance().Preambles;
+        std::lock_guard<std::mutex> Lock{Preambles.Mutex};
+        auto [It, Inserted] = Preambles.PreamblesMap.try_emplace(key);
+
+        if (Inserted) {
+          PreambleCallbacks Callbacks;
+          auto DiagIds = llvm::makeIntrusiveRefCnt<DiagnosticIDs>();
+          auto DiagOpts = Invocation->getDiagnosticOpts();
+          auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+              DiagIds, DiagOpts, DiagConsumer, false);
+
+          static std::string StoragePath =
+              (SYCLToolchain::instance().getPrefix() + "/preambles").str();
+          llvm::ErrorOr<PrecompiledPreamble> NewPreamble =
+              PrecompiledPreamble::Build(
+                  *Invocation, MainFileBuffer->get(), Bounds, Diags,
+                  Files->getVirtualFileSystemPtr(), PCHContainerOps,
+                  /*StorePreamblesInMemory*/ true, StoragePath, Callbacks,
+                  /*AllowASTWithErrors=*/false);
+
+          if (!NewPreamble)
+            return false;
+
+          It->second = std::make_shared<PrecompiledPreamble>(
+              std::move(NewPreamble.get()));
+        }
+
+        Preamble = It->second;
+      } // End lock
+
+      assert(Preamble);
+      assert(Preamble->CanReuse(*Invocation, **MainFileBuffer, Bounds,
+                                Files->getVirtualFileSystem()));
+
+      assert(Invocation->getPreprocessorOpts().RetainRemappedFileBuffers ==
+             false);
+      // `PreprocessorOptions::RetainRemappedFileBuffers` defaults to false, so
+      // MemoryBuffer will be cleaned up by the CompilerInstance, thus
+      // `std::unique_ptr::release`.
+      auto Buf = llvm::MemoryBuffer::getMemBufferCopy(
+                     (*MainFileBuffer)->getBuffer(), MainFilePath)
+                     .release();
+
+      auto VFS = Files->getVirtualFileSystemPtr();
+      Preamble->AddImplicitPreamble(*Invocation, VFS, Buf);
+      auto NewFiles = makeIntrusiveRefCnt<FileManager>(
+          Files->getFileSystemOpts(), std::move(VFS));
+
+      return Action::runInvocation(std::move(Invocation), NewFiles.get(),
+                                   std::move(PCHContainerOps), DiagConsumer);
+    }
+  };
+
 public:
   static SYCLToolchain &instance() {
     static SYCLToolchain Instance;
@@ -161,7 +252,8 @@ public:
   bool run(const InputArgList &UserArgList, BinaryFormat Format,
            const char *SourceFilePath, FrontendAction &FEAction,
            IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
-           DiagnosticConsumer *DiagConsumer = nullptr) {
+           DiagnosticConsumer *DiagConsumer = nullptr,
+           bool UseAutoPCH = false) {
     std::vector<std::string> CommandLine =
         createCommandLine(UserArgList, Format, SourceFilePath);
 
@@ -174,9 +266,21 @@ public:
     auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
         clang::FileSystemOptions{"." /* WorkingDir */}, FS);
 
-    Action A{FEAction};
-    ToolInvocation TI{std::move(CommandLine), &A, Files.get(),
-                      std::make_shared<PCHContainerOperations>()};
+    Action Normal{FEAction};
+
+    // User compilation options must be part of the key in the preambles map. We
+    // can either use "raw" user options or the "processed" from
+    // `createCommandLine` as long as we're consistent in what we're using.
+    // Current internal APIs pass `InputArgList` around instead of a single
+    // `std::string`, so it's easier to use `CommandLine`. Just make sure to
+    // drop `rtc_N.cpp` that is always different:
+    ActionWithPCHPreamble WithPreamble{FEAction,
+                                       join(drop_end(CommandLine, 1), " ")};
+    ToolInvocation TI{std::move(CommandLine),
+                      UseAutoPCH ? static_cast<Action *>(&WithPreamble)
+                                 : &Normal,
+                      Files.get(), std::make_shared<PCHContainerOperations>()};
+
     TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
 
     return TI.run();
@@ -216,6 +320,8 @@ private:
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
       llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+
+  PrecompiledPreambles Preambles;
 };
 
 class ClangDiagnosticWrapper {
@@ -347,9 +453,11 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
+  bool AutoPCH = UserArgList.hasArg(OPT_auto_pch);
+
   if (SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path, ELOA,
                                     getInMemoryFS(SourceFile, IncludeFiles),
-                                    Wrapper.consumer())) {
+                                    Wrapper.consumer(), AutoPCH)) {
     return ELOA.takeModule();
   } else {
     return createStringError(BuildLog);
