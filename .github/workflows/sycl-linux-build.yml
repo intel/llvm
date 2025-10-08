@@ -345,7 +345,7 @@ jobs:
       if: ${{ inputs.cts_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/cts
       with:
-        ref: ${{ inputs.ref || github.sha }}
+        ref: main
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.cts_binaries_artifact }}
