@@ -146,8 +146,8 @@
 // Verify list of commands when syclbin is used
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" --host-triple=x86_64-pc-windows-msvc --linker-path=/usr/bin/ld -o a.exe %t.o --dry-run -syclbin=executable 2>&1 | FileCheck --check-prefix CHK-SYCLBIN-CMDS %s
 // CHK-SYCLBIN-CMDS:      "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
-// CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
-// CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
+// CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link.exe" --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
+// CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-link.exe" -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}sycl-post-link.exe" {{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-SYCLBIN-CMDS-NEXT: "{{.*}}llvm-spirv.exe" {{.*}} -o {{.*}}
 // CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: input
