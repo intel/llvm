@@ -742,7 +742,7 @@ exec_graph_impl::enqueueNodeDirect(const sycl::context &Ctx,
   const bool xptiEnabled = xptiTraceEnabled();
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = 0;
-  uint8_t StreamID;
+  uint8_t StreamID = 0;
   if (xptiEnabled) {
     StreamID = detail::getActiveXPTIStreamID();
     sycl::detail::CGExecKernel *CGExec =
