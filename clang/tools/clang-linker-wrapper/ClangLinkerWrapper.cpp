@@ -1318,22 +1318,22 @@ linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
   if (!OutFileOrErr)
     return OutFileOrErr.takeError();
 
-  // Build the command line
+  // Build the command line.
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*Linker);
-  // Linker arguments
+  // Fill linker command line arguments.
   CmdArgs.push_back("--suppress-warnings");
-  // Input files
+  // Add input files.
   for (auto &File : InputFiles) {
     auto IRFile = sycl::convertSPIRVToIR(File, Args);
     if (!IRFile)
       return IRFile.takeError();
     CmdArgs.push_back(*IRFile);
   }
-  // Output file
+  // Specify output file.
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
-  // Execute the linker command
+  // Execute the linker command.
   if (Error Err = executeCommands(*Linker, CmdArgs))
     return std::move(Err);
   return *OutFileOrErr;
@@ -1363,19 +1363,19 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   if (!OutFileOrErr)
     return OutFileOrErr.takeError();
 
-  // Build the command line
+  // Build the command line.
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*Linker);
-  // Linker arguments
+  // Fill linker command line arguments.
   CmdArgs.push_back("-only-needed");
   CmdArgs.push_back("--suppress-warnings");
-  // Input files
+  // Add input files.
   for (auto &File : InputFiles)
     CmdArgs.push_back(File);
-  // Output file
+  // Specify output file.
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
-  // Execute the linker command
+  // Execute the linker command.
   if (Error Err = executeCommands(*Linker, CmdArgs))
     return std::move(Err);
   return *OutFileOrErr;
