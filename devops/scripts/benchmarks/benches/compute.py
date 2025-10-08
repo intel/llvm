@@ -419,16 +419,16 @@ class ComputeBenchmark(Benchmark):
         )
         parsed_results = self.parse_output(result)
         ret = []
-        for label, median, stddev, unit in parsed_results:
-            extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+        for median, stddev in parsed_results:
+            unit = "instr" if self.profiler_type == PROFILERS.CPU_COUNTER else "μs"
             ret.append(
                 Result(
-                    label=self.name() + extra_label,
+                    label=self.name(),
                     value=median,
                     stddev=stddev,
                     command=command,
                     env=env_vars,
-                    unit=parse_unit_type(unit),
+                    unit=unit,
                     git_url=self.bench.git_url(),
                     git_hash=self.bench.git_hash(),
                 )
@@ -445,7 +445,6 @@ class ComputeBenchmark(Benchmark):
             if data_row is None:
                 break
             try:
-                label = data_row[0]
                 mean = float(data_row[1])
                 median = float(data_row[2])
                 # compute benchmarks report stddev as %
@@ -453,8 +452,7 @@ class ComputeBenchmark(Benchmark):
                 if not math.isfinite(stddev):
                     stddev = 0.0  # Default to 0.0 if stddev is invalid
 
-                unit = data_row[7]
-                results.append((label, median, stddev, unit))
+                results.append((median, stddev))
             except (ValueError, IndexError) as e:
                 raise ValueError(f"Error parsing output: {e}")
         if len(results) == 0:
@@ -589,22 +587,6 @@ class SubmitKernel(ComputeBenchmark):
             f"--UseEvents={self.UseEvents}",
             f"--profilerType={self.profiler_type.value}",
         ]
-
-    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
-        metadata_dict = super().get_metadata()
-
-        # Create CPU count variant with modified display name and explicit_group
-        cpu_count_name = self.name() + " CPU count"
-        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
-        cpu_count_display_name = self.display_name() + ", CPU count"
-        cpu_count_explicit_group = (
-            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
-        )
-        cpu_count_metadata.display_name = cpu_count_display_name
-        cpu_count_metadata.explicit_group = cpu_count_explicit_group
-        metadata_dict[cpu_count_name] = cpu_count_metadata
-
-        return metadata_dict
 
 
 class ExecImmediateCopyQueue(ComputeBenchmark):
@@ -1069,22 +1051,6 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--UseHostTasks={self.useHostTasks}",
             f"--profilerType={self.profiler_type.value}",
         ]
-
-    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
-        metadata_dict = super().get_metadata()
-
-        # Create CPU count variant with modified display name and explicit_group
-        cpu_count_name = self.name() + " CPU count"
-        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
-        cpu_count_display_name = self.display_name() + ", CPU count"
-        cpu_count_explicit_group = (
-            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
-        )
-        cpu_count_metadata.display_name = cpu_count_display_name
-        cpu_count_metadata.explicit_group = cpu_count_explicit_group
-        metadata_dict[cpu_count_name] = cpu_count_metadata
-
-        return metadata_dict
 
 
 class UllsEmptyKernel(ComputeBenchmark):
