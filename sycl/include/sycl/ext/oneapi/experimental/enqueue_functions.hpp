@@ -154,7 +154,9 @@ void single_task(queue Q, const KernelType &KernelObj,
                      sycl::detail::code_location::current()) {
   if constexpr (!(ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
-                          const KernelType &>::value)) {
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
+                                                           void>::value)) {
     detail::submit_kernel_direct_single_task<KernelName>(
         std::move(Q), empty_properties_t{}, KernelObj, CodeLoc);
   } else {
@@ -272,7 +274,9 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
   if constexpr (sizeof...(ReductionsT) == 0 &&
                 !(ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
-                          const KernelType &>::value)) {
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
     detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), empty_properties_t{},
                                              Range, KernelObj);
   } else {

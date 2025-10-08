@@ -2800,12 +2800,12 @@ public:
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
 
-    if constexpr (std::is_same_v<
-                      PropertiesT,
-                      ext::oneapi::experimental::empty_properties_t> &&
-                  !(ext::oneapi::experimental::detail::
-                        HasKernelPropertiesGetMethod<
-                            const KernelType &>::value)) {
+    if constexpr (
+        std::is_same_v<PropertiesT,
+                       ext::oneapi::experimental::empty_properties_t> &&
+        !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+            const KernelType &>::value) &&
+        !(detail::KernelLambdaHasKernelHandlerArgT<KernelType, void>::value)) {
       (void)Properties;
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{},
@@ -3373,7 +3373,9 @@ public:
     if constexpr (sizeof...(RestT) == 1 &&
                   !(ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
-                            const KernelType &>::value)) {
+                            const KernelType &>::value) &&
+                  !(detail::KernelLambdaHasKernelHandlerArgT<
+                      KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
           Rest...);
