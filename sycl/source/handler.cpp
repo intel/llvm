@@ -638,97 +638,11 @@ event handler::finalize() {
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
       // creation.
-      std::vector<ur_event_handle_t> RawEvents;
-      // TODO checking the size of the events vector and avoiding the call is
-      // more efficient here at this point
-      if (impl->CGData.MEvents.size() > 0) {
-        RawEvents = detail::Command::getUrEvents(
-            impl->CGData.MEvents, impl->get_queue_or_null(), false);
-      }
 
-      bool DiscardEvent =
-          !impl->MEventNeeded && impl->get_queue().supportsDiscardingPiEvents();
-      if (DiscardEvent) {
-        // Kernel only uses assert if it's non interop one
-        bool KernelUsesAssert = !(MKernel && MKernel->isInterop()) &&
-                                impl->MKernelData.usesAssert();
-        DiscardEvent = !KernelUsesAssert;
-      }
-
-      std::shared_ptr<detail::event_impl> ResultEvent =
-          DiscardEvent
-              ? nullptr
-              : detail::event_impl::create_device_event(impl->get_queue());
-
-      auto EnqueueKernel = [&]() {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        xpti_td *CmdTraceEvent = nullptr;
-        uint64_t InstanceID = 0;
-        auto StreamID = detail::getActiveXPTIStreamID();
-        // Only enable instrumentation if there are subscribes to the SYCL
-        // stream
-        const bool xptiEnabled = xptiCheckTraceEnabled(StreamID);
-        if (xptiEnabled) {
-          std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
-              StreamID, MKernel.get(), MCodeLoc, impl->MIsTopCodeLoc,
-              *impl->MKernelData.getDeviceKernelInfoPtr(),
-              impl->get_queue_or_null(), impl->MKernelData.getNDRDesc(),
-              KernelBundleImpPtr, impl->MKernelData.getArgs());
-          detail::emitInstrumentationGeneral(StreamID, InstanceID,
-                                             CmdTraceEvent,
-                                             xpti::trace_task_begin, nullptr);
-        }
-#endif
-        const detail::RTDeviceBinaryImage *BinImage = nullptr;
-        if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
-          BinImage = detail::retrieveKernelBinary(impl->get_queue(),
-                                                  impl->getKernelName());
-          assert(BinImage && "Failed to obtain a binary image.");
-        }
-        enqueueImpKernel(impl->get_queue(), impl->MKernelData.getNDRDesc(),
-                         impl->MKernelData.getArgs(), KernelBundleImpPtr,
-                         MKernel.get(),
-                         *impl->MKernelData.getDeviceKernelInfoPtr(), RawEvents,
-                         ResultEvent.get(), nullptr,
-                         impl->MKernelData.getKernelCacheConfig(),
-                         impl->MKernelData.isCooperative(),
-                         impl->MKernelData.usesClusterLaunch(),
-                         impl->MKernelData.getKernelWorkGroupMemorySize(),
-                         BinImage, impl->MKernelData.getKernelFuncPtr());
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        if (xptiEnabled) {
-          // Emit signal only when event is created
-          if (!DiscardEvent) {
-            detail::emitInstrumentationGeneral(
-                StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-                static_cast<const void *>(ResultEvent->getHandle()));
-          }
-          detail::emitInstrumentationGeneral(StreamID, InstanceID,
-                                             CmdTraceEvent,
-                                             xpti::trace_task_end, nullptr);
-        }
-#endif
-      };
-
-      if (DiscardEvent) {
-        EnqueueKernel();
-      } else {
-        detail::queue_impl &Queue = impl->get_queue();
-        ResultEvent->setWorkerQueue(Queue.weak_from_this());
-        ResultEvent->setStateIncomplete();
-        ResultEvent->setSubmissionTime();
-
-        EnqueueKernel();
-        ResultEvent->setEnqueued();
-        // connect returned event with dependent events
-        if (!Queue.isInOrder()) {
-          // MEvents is not used anymore, so can move.
-          ResultEvent->getPreparedDepsEvents() =
-              std::move(impl->CGData.MEvents);
-          // ResultEvent is local for current thread, no need to lock.
-          ResultEvent->cleanDepEventsThroughOneLevelUnlocked();
-        }
-      }
+      detail::EventImplPtr ResultEvent =
+          impl->get_queue().submit_kernel_scheduler_bypass(
+              impl->MKernelData, impl->CGData.MEvents, impl->MEventNeeded,
+              MKernel.get(), KernelBundleImpPtr, MCodeLoc, impl->MIsTopCodeLoc);
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
       return ResultEvent;
 #else
