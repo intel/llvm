@@ -262,7 +262,7 @@ public:
         llvm::vfs::getRealFileSystem());
     FS->pushOverlay(ToolchainFS);
     if (FSOverlay)
-      FS->pushOverlay(FSOverlay);
+      FS->pushOverlay(std::move(FSOverlay));
 
     auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
         clang::FileSystemOptions{"." /* WorkingDir */}, FS);
@@ -277,7 +277,7 @@ public:
     // drop `rtc_N.cpp` that is always different:
     ActionWithPCHPreamble WithPreamble{FEAction,
                                        join(drop_end(CommandLine, 1), " ")};
-    ToolInvocation TI{CommandLine,
+    ToolInvocation TI{std::move(CommandLine),
                       UseAutoPCH ? static_cast<Action *>(&WithPreamble)
                                  : &Normal,
                       Files.get(), std::make_shared<PCHContainerOperations>()};

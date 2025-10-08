@@ -2438,6 +2438,8 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports sampling values from
   /// the device clock.
   UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
+  /// [::ur_bool_t] returns true if the device is integrated GPU.
+  UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -11232,7 +11234,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///         + `NULL == hCommandBuffer`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
@@ -11266,7 +11267,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
