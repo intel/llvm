@@ -176,6 +176,7 @@ jobs:
     needs: [ build_sycl, sanitize_inputs ]
     permissions:
       contents: write
+      packages: read
     strategy:
       matrix:
         include:
