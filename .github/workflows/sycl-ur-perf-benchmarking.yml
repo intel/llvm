@@ -175,7 +175,7 @@ jobs:
     name: Run Benchmarks on Build
     needs: [ build_sycl, sanitize_inputs ]
     permissions:
-      content: write
+      contents: write
       packages: read
     strategy:
       matrix:
