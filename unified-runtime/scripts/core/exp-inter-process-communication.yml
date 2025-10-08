@@ -1,0 +1,129 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+# Exceptions.
+# See LICENSE.TXT
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for Inter Process Communication"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support inter-process communicable memory handles."
+name: $x_device_info_t
+etors:
+    - name: IPC_MEMORY_SUPPORT_EXP
+      value: "0x2023"
+      desc: "[$x_bool_t] returns true if the device supports inter-process communicable memory handles"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Gets an inter-process memory handle for a pointer to device USM memory"
+class: $xIPC
+name: GetMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: void *
+      name: pMem
+      desc: "[in] pointer to device USM memory"
+    - type: void*
+      name: pIPCMemHandleData
+      desc: "[out][optional] a pointer to the IPC memory handle data"
+    - type: size_t*
+      name: pIPCMemHandleDataSizeRet
+      desc: "[out][optional] size of the resulting IPC memory handle data"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCMemHandleData`"
+      - "`NULL == pIPCMemHandleDataSizeRet`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Releases an inter-process memory handle"
+class: $xIPC
+name: PutMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: void*
+      name: pIPCMemHandleData
+      desc: "[in] a pointer to the IPC memory handle data"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCMemHandleData`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Opens an inter-process memory handle to get the corresponding pointer to device USM memory"
+class: $xIPC
+name: OpenMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object the corresponding USM device memory was allocated on"
+    - type: void *
+      name: pIPCMemHandleData
+      desc: "[in] the IPC memory handle data"
+    - type: size_t
+      name: ipcMemHandleDataSize
+      desc: "[in] size of the IPC memory handle data"
+    - type: void **
+      name: ppMem
+      desc: "[out] pointer to a pointer to device USM memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+      - "`NULL == hDevice`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pIPCMemHandleData`"
+      - "`NULL == ppMem`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+      - "ipcMemHandleDataSize is not the same as the size of IPC memory handle data"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Closes an inter-process memory handle"
+class: $xIPC
+name: CloseMemHandleExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: void *
+      name: pMem
+      desc: "[in] pointer to device USM memory opened through urIPCOpenMemHandleExp"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+      - "`NULL == hContext`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+      - "`NULL == pMem`"
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES

@@ -118,6 +118,7 @@ EXPORTS
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
+	urGetIPCExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetMemoryExportExpProcAddrTable
@@ -131,6 +132,10 @@ EXPORTS
 	urGetUSMProcAddrTable
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
+	urIPCCloseMemHandleExp
+	urIPCGetMemHandleExp
+	urIPCOpenMemHandleExp
+	urIPCPutMemHandleExp
 	urKernelCreate
 	urKernelCreateWithNativeHandle
 	urKernelGetGroupInfo
@@ -362,6 +367,10 @@ EXPORTS
 	urPrintImageDesc
 	urPrintImageFormat
 	urPrintImageInfo
+	urPrintIpcCloseMemHandleExpParams
+	urPrintIpcGetMemHandleExpParams
+	urPrintIpcOpenMemHandleExpParams
+	urPrintIpcPutMemHandleExpParams
 	urPrintKernelArgLocalProperties
 	urPrintKernelArgMemObjProperties
 	urPrintKernelArgPointerProperties
