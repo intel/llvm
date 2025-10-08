@@ -212,7 +212,7 @@ on:
           - "run-only"
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 jobs:
@@ -361,4 +361,4 @@ jobs:
         build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
-        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
