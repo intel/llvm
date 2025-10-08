@@ -3286,7 +3286,7 @@ public:
                             const KernelType &>::value)) {
       return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
-          Rest...);
+          Rest..., TlsCodeLocCapture.query());
     } else
 #endif
     {
