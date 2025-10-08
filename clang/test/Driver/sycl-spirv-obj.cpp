@@ -13,7 +13,7 @@
 // SPIRV_DEVICE_OBJ-SAME: "--spirv-preserve-auxdata"
 // SPIRV_DEVICE_OBJ-SAME: "-spirv-ext=-all,{{.*}},+SPV_INTEL_fp_max_error"
 // SPIRV_DEVICE_OBJ-SAME: "[[DEVICE_BC]]"
-// SPIRV_DEVICE_OBJ: clang-offload-packager{{.*}} "--image=file=[[DEVICE_SPV]]{{.*}}"
+// SPIRV_DEVICE_OBJ: llvm-offload-binary{{.*}} "--image=file=[[DEVICE_SPV]]{{.*}}"
 // SPIRV_DEVICE_OBJ: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"
 // SPIRV_DEVICE_OBJ-SAME: "-fsycl-is-host"
 // SPIRV_DEVICE_OBJ-SAME: "-o" "[[HOST_OBJ:.+\.o]]"
@@ -29,7 +29,7 @@
 // SPIRV_DEVICE_OBJ_PHASES: 6: backend, {5}, ir, (device-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 7: llvm-spirv, {6}, spirv, (device-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 8: offload, "device-sycl (spir64-unknown-unknown)" {7}, spirv
-// SPIRV_DEVICE_OBJ_PHASES: 9: clang-offload-packager, {8}, image, (device-sycl)
+// SPIRV_DEVICE_OBJ_PHASES: 9: llvm-offload-binary, {8}, image, (device-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 10: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {9}, ir
 // SPIRV_DEVICE_OBJ_PHASES: 11: backend, {10}, assembler, (host-sycl)
 // SPIRV_DEVICE_OBJ_PHASES: 12: assembler, {11}, object, (host-sycl)

@@ -52,7 +52,7 @@
 // FOOTER-PHASES: [[#DEVICE_IR:]]: compiler, {4}, ir, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD:]]: backend, {[[#DEVICE_IR]]}, ir, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+1]]: offload, "device-sycl (spir64-unknown-unknown)" {[[#OFFLOAD]]}, ir
-// COMMON-PHASES: [[#OFFLOAD+2]]: clang-offload-packager, {[[#OFFLOAD+1]]}, image, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+2]]: llvm-offload-binary, {[[#OFFLOAD+1]]}, image, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+3]]: offload, "host-sycl (x86_64-unknown-linux-gnu)" {[[#HOST_IR]]}, "device-sycl (x86_64-unknown-linux-gnu)" {[[#OFFLOAD+2]]}, ir
 // COMMON-PHASES: [[#OFFLOAD+4]]: backend, {[[#OFFLOAD+3]]}, assembler, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+5]]: assembler, {[[#OFFLOAD+4]]}, object, (host-sycl)
@@ -87,7 +87,7 @@
 // DEP_GEN_PHASES: 5: compiler, {4}, ir, (device-sycl)
 // DEP_GEN_PHASES: 6: backend, {5}, ir, (device-sycl)
 // DEP_GEN_PHASES: 7: offload, "device-sycl (spir64-unknown-unknown)" {6}, ir
-// DEP_GEN_PHASES: 8: clang-offload-packager, {7}, image, (device-sycl)
+// DEP_GEN_PHASES: 8: llvm-offload-binary, {7}, image, (device-sycl)
 // DEP_GEN_PHASES: 9: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {8}, ir
 // DEP_GEN_PHASES: 10: backend, {9}, assembler, (host-sycl)
 // DEP_GEN_PHASES: 11: assembler, {10}, object, (host-sycl)

@@ -42,7 +42,7 @@
 // RUN: %clangxx -### -fsycl --offload-new-driver -S -emit-llvm %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_S_LLVM %s
 // CHECK_S_LLVM: clang{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
-// CHECK_S_LLVM: clang-offload-packager{{.*}}
+// CHECK_S_LLVM: llvm-offload-binary{{.*}}
 // CHECK_S_LLVM: clang{{.*}} "-fsycl-is-host"{{.*}} "-emit-llvm"
 
 // RUN:  touch %t_empty.o
@@ -96,12 +96,12 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_FSYCL_FP64_CONV_EMU %s
 // CHECK_FSYCL_FP64_CONV_EMU-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
-// CHECK_FSYCL_FP64_CONV_EMU-DAG: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
+// CHECK_FSYCL_FP64_CONV_EMU-DAG: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
 // RUN: %clang_cl -fsycl --offload-new-driver -fsycl-targets=spir64_gen-unknown-unknown %s -fsycl-fp64-conv-emu -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK_FSYCL_FP64_CONV_EMU_WIN
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-NOT: clang{{.*}} "-cc1" "-triple x86_64-unknown-linux-gnu" {{.*}} "-fsycl-fp64-conv-emu"
 // CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang{{.*}} "-cc1" "-triple" "spir64_gen{{.*}}" "-fsycl-fp64-conv-emu"
-// CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: clang-offload-packager{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
+// CHECK_FSYCL_FP64_CONV_EMU_WIN-DAG: llvm-offload-binary{{.*}} "--image=file={{.*}}.bc,triple=spir64_gen-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-options -ze-fp64-gen-conv-emu{{.*}}"
 
 /// Compilation checks to make sure an early empty -fsycl-targets does not
 /// crash.

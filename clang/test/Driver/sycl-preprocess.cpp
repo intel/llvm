@@ -26,7 +26,7 @@
 // PREPROC_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
 // PREPROC_PHASES: 4: compiler, {3}, none, (device-sycl)
 // PREPROC_PHASES: 5: offload, "device-sycl (spir64-unknown-unknown)" {3}, c++-cpp-output
-// PREPROC_PHASES: 6: clang-offload-packager, {5, 1}, c++-cpp-output
+// PREPROC_PHASES: 6: llvm-offload-binary, {5, 1}, c++-cpp-output
 // PREPROC_PHASES: 7: offload, "host-sycl ([[TARGET]])" {1}, "device-sycl (spir64-unknown-unknown)" {3}, "device-sycl (spir64-unknown-unknown)" {4}, " ([[TARGET]])" {6}, c++-cpp-output
 
 /// When generating preprocessed files, verify the tools called and the expected
@@ -41,5 +41,5 @@
 // PREPROC_TOOLS-SAME: "-o" "[[DEVICE_PP_FILE:.+\.ii]]
 // PREPROC_TOOLS: clang{{.*}} "-fsycl-is-host"
 // PREPROC_TOOLS-SAME: "-o" "[[HOST_PP_FILE:.+\.ii]]
-// PREPROC_TOOLS: clang-offload-packager{{.*}} "-o" "sycl-preprocess.ii"
+// PREPROC_TOOLS: llvm-offload-binary{{.*}} "-o" "sycl-preprocess.ii"
 // PREPROC_TOOLS-SAME: "--image=file=[[DEVICE_PP_FILE]],triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}" "--image=file=[[HOST_PP_FILE]],triple={{.*}},arch=generic,kind=host"
