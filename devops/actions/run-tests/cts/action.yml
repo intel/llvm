@@ -20,6 +20,12 @@ inputs:
 runs:
   using: "composite"
   steps:
+  - name: Checkout CTS exclude filters
+    if: inputs.testing_mode != 'run-only'
+    uses: actions/checkout@v5
+    with:
+      sparse-checkout: |
+        sycl/cts_exclude_filter
   - name: Checkout SYCL CTS tests
     if: inputs.testing_mode != 'run-only'
     uses: ./devops/actions/cached_checkout
