@@ -844,7 +844,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  uint8_t StreamID;
+  uint8_t StreamID = 0;
   const bool xptiEnabled = xptiTraceEnabled();
   if (xptiEnabled) {
     StreamID = detail::getActiveXPTIStreamID();
