@@ -3278,12 +3278,15 @@ public:
 #ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
 
-    // TODO The handler-less path does not support reductions and kernel
-    // function properties yet.
+    // TODO The handler-less path does not support reductions, kernel
+    // function properties and kernel functions with the kernel_handler
+    // type argument yet.
     if constexpr (sizeof...(RestT) == 1 &&
                   !(ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
-                            const KernelType &>::value)) {
+                            const KernelType &>::value) &&
+                  !(detail::KernelLambdaHasKernelHandlerArgT<
+                      KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
           Rest...);
