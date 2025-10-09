@@ -10,7 +10,7 @@ on:
       ref:
         type: string
         description: tag/sha
-        required: false
+        required: true
         default:
 
   push:
