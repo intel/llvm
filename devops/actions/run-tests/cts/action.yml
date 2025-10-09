@@ -111,7 +111,7 @@ runs:
           || github.event_name == 'workflow_dispatch')
     shell: bash
     run: |
-      mkdir -p build-cts llvm
+      mkdir -p build-cts/bin
       tar -I 'zstd' -xf /sycl-prebuilt/sycl_cts_bin.tar.zst -C build-cts/bin
 
   - name: SYCL CTS List devices
