@@ -240,7 +240,6 @@ runs:
       cd "./llvm-ci-perf-results"
       git config user.name "github-actions[bot]"
       git config user.email "github-actions[bot]@users.noreply.github.com"
-      # results_branch="ianayl/benchmark-ci-results-test"
 
       if git diff --quiet && git diff --cached --quiet; then
         echo "No new results added, skipping push."
@@ -253,18 +252,18 @@ runs:
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
 
-        if git push; then
-          echo "Push succeeded"
-          break
-        fi
+        # if git push; then
+        #   echo "Push succeeded"
+        #   break
+        # fi
 
         echo "Push failed, retrying..."
         if [ -n "$results_file" ]; then
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
-          git reset --hard "origin/$results_branch"
-          git pull origin "$results_branch"
+          git reset --hard "origin/ianayl/benchmark-ci-results-test"
+          git pull
 
           mv "$cached_result" "$results_file"
         fi
