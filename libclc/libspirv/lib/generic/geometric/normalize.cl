@@ -9,8 +9,8 @@
 #include <clc/geometric/clc_normalize.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_normalize
-#define __IMPL_FUNCTION(x) __clc_normalize
+#define __CLC_FUNCTION __spirv_ocl_normalize
+#define __CLC_IMPL_FUNCTION(x) __clc_normalize
 #define __CLC_GEOMETRIC_RET_GENTYPE
 #define __CLC_BODY <clc/geometric/unary_def.inc>
 

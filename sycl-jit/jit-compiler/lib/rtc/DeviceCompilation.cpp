@@ -12,6 +12,7 @@
 #include "Resource.h"
 #include "translation/Translation.h"
 
+#include "clang/Lex/PreprocessorOptions.h"
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -25,6 +26,7 @@
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
+#include <clang/Frontend/PrecompiledPreamble.h>
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
@@ -66,38 +68,6 @@ using namespace jit_compiler;
 
 namespace {
 
-class HashPreprocessedAction : public PreprocessorFrontendAction {
-protected:
-  void ExecuteAction() override {
-    CompilerInstance &CI = getCompilerInstance();
-
-    std::string PreprocessedSource;
-    raw_string_ostream PreprocessStream(PreprocessedSource);
-
-    PreprocessorOutputOptions Opts;
-    Opts.ShowCPP = 1;
-    Opts.MinimizeWhitespace = 1;
-    // Make cache key insensitive to virtual source file and header locations.
-    Opts.ShowLineMarkers = 0;
-
-    DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
-
-    Hash = BLAKE3::hash(arrayRefFromStringRef(PreprocessedSource));
-    Executed = true;
-  }
-
-public:
-  BLAKE3Result<> takeHash() {
-    assert(Executed);
-    Executed = false;
-    return std::move(Hash);
-  }
-
-private:
-  BLAKE3Result<> Hash;
-  bool Executed = false;
-};
-
 class SYCLToolchain {
   SYCLToolchain() {
     using namespace jit_compiler::resource;
@@ -109,6 +79,12 @@ class SYCLToolchain {
       ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
     }
   }
+
+  struct PrecompiledPreambles {
+    using key = std::pair<std::string /*Opts*/, std::string /*Preamble*/>;
+    std::mutex Mutex;
+    std::map<key, std::shared_ptr<PrecompiledPreamble>> PreamblesMap;
+  };
 
   // Similar to FrontendActionFactory, but we don't take ownership of
   // `FrontendAction`, nor do we create copies of it as we only perform a single
@@ -149,28 +125,163 @@ class SYCLToolchain {
     }
   };
 
+  std::vector<std::string> createCommandLine(const InputArgList &UserArgList,
+                                             BinaryFormat Format,
+                                             std::string_view SourceFilePath) {
+    DerivedArgList DAL{UserArgList};
+    const auto &OptTable = getDriverOptTable();
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+    // User args may contain options not intended for the frontend, but we can't
+    // claim them here to tell the driver they're used later. Hence, suppress
+    // the unused argument warning.
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+      auto [CPU, Features] =
+          Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+      (void)Features;
+      StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                                 : "amdgcn-amd-amdhsa";
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
+    }
+
+    ArgStringList ASL;
+    for (Arg *A : DAL)
+      A->render(DAL, ASL);
+    for (Arg *A : UserArgList) {
+      Option Group = A->getOption().getGroup();
+      if (Group.isValid() && Group.getID() == OPT_sycl_rtc_only_Group)
+        continue;
+
+      A->render(UserArgList, ASL);
+    }
+
+    std::vector<std::string> CommandLine;
+    CommandLine.reserve(ASL.size() + 2);
+    CommandLine.emplace_back(ClangXXExe);
+    transform(ASL, std::back_inserter(CommandLine),
+              [](const char *AS) { return std::string{AS}; });
+    CommandLine.emplace_back(SourceFilePath);
+    return CommandLine;
+  }
+
+  class ActionWithPCHPreamble : public Action {
+    std::string CmdLineOpts;
+
+  public:
+    ActionWithPCHPreamble(FrontendAction &FEAction, std::string &&CmdLineOpts)
+        : Action(FEAction), CmdLineOpts(std::move(CmdLineOpts)) {}
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      auto MainFilePath = Invocation->getFrontendOpts().Inputs[0].getFile();
+      auto MainFileBuffer = Files->getBufferForFile(MainFilePath);
+      assert(MainFileBuffer && "Can't get memory buffer for in-memory source?");
+
+      PreambleBounds Bounds = ComputePreambleBounds(
+          Invocation->getLangOpts(), **MainFileBuffer, 100 /* MaxLines */);
+
+      PrecompiledPreambles::key key{
+          std::move(CmdLineOpts),
+          (*MainFileBuffer)->getBuffer().substr(0, Bounds.Size).str()};
+
+      std::shared_ptr<PrecompiledPreamble> Preamble;
+      {
+        PrecompiledPreambles &Preambles = SYCLToolchain::instance().Preambles;
+        std::lock_guard<std::mutex> Lock{Preambles.Mutex};
+        auto [It, Inserted] = Preambles.PreamblesMap.try_emplace(key);
+
+        if (Inserted) {
+          PreambleCallbacks Callbacks;
+          auto DiagIds = llvm::makeIntrusiveRefCnt<DiagnosticIDs>();
+          auto DiagOpts = Invocation->getDiagnosticOpts();
+          auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+              DiagIds, DiagOpts, DiagConsumer, false);
+
+          static std::string StoragePath =
+              (SYCLToolchain::instance().getPrefix() + "/preambles").str();
+          llvm::ErrorOr<PrecompiledPreamble> NewPreamble =
+              PrecompiledPreamble::Build(
+                  *Invocation, MainFileBuffer->get(), Bounds, Diags,
+                  Files->getVirtualFileSystemPtr(), PCHContainerOps,
+                  /*StorePreamblesInMemory*/ true, StoragePath, Callbacks,
+                  /*AllowASTWithErrors=*/false);
+
+          if (!NewPreamble)
+            return false;
+
+          It->second = std::make_shared<PrecompiledPreamble>(
+              std::move(NewPreamble.get()));
+        }
+
+        Preamble = It->second;
+      } // End lock
+
+      assert(Preamble);
+      assert(Preamble->CanReuse(*Invocation, **MainFileBuffer, Bounds,
+                                Files->getVirtualFileSystem()));
+
+      assert(Invocation->getPreprocessorOpts().RetainRemappedFileBuffers ==
+             false);
+      // `PreprocessorOptions::RetainRemappedFileBuffers` defaults to false, so
+      // MemoryBuffer will be cleaned up by the CompilerInstance, thus
+      // `std::unique_ptr::release`.
+      auto Buf = llvm::MemoryBuffer::getMemBufferCopy(
+                     (*MainFileBuffer)->getBuffer(), MainFilePath)
+                     .release();
+
+      auto VFS = Files->getVirtualFileSystemPtr();
+      Preamble->AddImplicitPreamble(*Invocation, VFS, Buf);
+      auto NewFiles = makeIntrusiveRefCnt<FileManager>(
+          Files->getFileSystemOpts(), std::move(VFS));
+
+      return Action::runInvocation(std::move(Invocation), NewFiles.get(),
+                                   std::move(PCHContainerOps), DiagConsumer);
+    }
+  };
+
 public:
   static SYCLToolchain &instance() {
     static SYCLToolchain Instance;
     return Instance;
   }
 
-  bool run(const std::vector<std::string> &CommandLine,
-           FrontendAction &FEAction,
+  bool run(const InputArgList &UserArgList, BinaryFormat Format,
+           const char *SourceFilePath, FrontendAction &FEAction,
            IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
-           DiagnosticConsumer *DiagConsumer = nullptr) {
+           DiagnosticConsumer *DiagConsumer = nullptr,
+           bool UseAutoPCH = false) {
+    std::vector<std::string> CommandLine =
+        createCommandLine(UserArgList, Format, SourceFilePath);
+
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
     FS->pushOverlay(ToolchainFS);
     if (FSOverlay)
-      FS->pushOverlay(FSOverlay);
+      FS->pushOverlay(std::move(FSOverlay));
 
     auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
         clang::FileSystemOptions{"." /* WorkingDir */}, FS);
 
-    Action A{FEAction};
-    ToolInvocation TI{CommandLine, &A, Files.get(),
-                      std::make_shared<PCHContainerOperations>()};
+    Action Normal{FEAction};
+
+    // User compilation options must be part of the key in the preambles map. We
+    // can either use "raw" user options or the "processed" from
+    // `createCommandLine` as long as we're consistent in what we're using.
+    // Current internal APIs pass `InputArgList` around instead of a single
+    // `std::string`, so it's easier to use `CommandLine`. Just make sure to
+    // drop `rtc_N.cpp` that is always different:
+    ActionWithPCHPreamble WithPreamble{FEAction,
+                                       join(drop_end(CommandLine, 1), " ")};
+    ToolInvocation TI{std::move(CommandLine),
+                      UseAutoPCH ? static_cast<Action *>(&WithPreamble)
+                                 : &Normal,
+                      Files.get(), std::make_shared<PCHContainerOperations>()};
+
     TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
 
     return TI.run();
@@ -210,6 +321,8 @@ private:
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
   llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
       llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+
+  PrecompiledPreambles Preambles;
 };
 
 class ClangDiagnosticWrapper {
@@ -258,42 +371,6 @@ public:
 
 } // anonymous namespace
 
-static std::vector<std::string>
-createCommandLine(const InputArgList &UserArgList, BinaryFormat Format,
-                  std::string_view SourceFilePath) {
-  DerivedArgList DAL{UserArgList};
-  const auto &OptTable = getDriverOptTable();
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  // User args may contain options not intended for the frontend, but we can't
-  // claim them here to tell the driver they're used later. Hence, suppress the
-  // unused argument warning.
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
-
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    auto [CPU, Features] =
-        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-    (void)Features;
-    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
-                                               : "amdgcn-amd-amdhsa";
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
-  }
-
-  ArgStringList ASL;
-  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
-  for_each(UserArgList,
-           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
-
-  std::vector<std::string> CommandLine;
-  CommandLine.reserve(ASL.size() + 2);
-  CommandLine.emplace_back(SYCLToolchain::instance().getClangXXExe());
-  transform(ASL, std::back_inserter(CommandLine),
-            [](const char *AS) { return std::string{AS}; });
-  CommandLine.emplace_back(SourceFilePath);
-  return CommandLine;
-}
-
 static llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
 getInMemoryFS(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles) {
   auto InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
@@ -315,31 +392,56 @@ Expected<std::string> jit_compiler::calculateHash(
     const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
-  std::vector<std::string> CommandLine =
-      createCommandLine(UserArgList, Format, SourceFile.Path);
+  class HashPreprocessedAction : public PreprocessorFrontendAction {
+  protected:
+    void ExecuteAction() override {
+      CompilerInstance &CI = getCompilerInstance();
 
-  HashPreprocessedAction HashAction;
+      std::string PreprocessedSource;
+      raw_string_ostream PreprocessStream(PreprocessedSource);
 
-  if (SYCLToolchain::instance().run(CommandLine, HashAction,
-                                    getInMemoryFS(SourceFile, IncludeFiles))) {
-    BLAKE3Result<> SourceHash = HashAction.takeHash();
-    // Last argument is the source file in the format `rtc_N.cpp` which is
-    // unique for each query, so drop it:
-    CommandLine.pop_back();
+      PreprocessorOutputOptions Opts;
+      Opts.ShowCPP = 1;
+      Opts.MinimizeWhitespace = 1;
+      // Make cache key insensitive to virtual source file and header locations.
+      Opts.ShowLineMarkers = 0;
 
-    // TODO: Include hash of the current libsycl-jit.so/.dll somehow...
-    BLAKE3Result<> CommandLineHash =
-        BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
+      DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
 
-    std::string EncodedHash =
-        encodeBase64(SourceHash) + encodeBase64(CommandLineHash);
-    // Make the encoding filesystem-friendly.
-    std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
-    return std::move(EncodedHash);
+      Hasher.update(PreprocessedSource);
+    }
 
-  } else {
+  public:
+    HashPreprocessedAction(BLAKE3 &Hasher) : Hasher(Hasher) {}
+
+  private:
+    BLAKE3 &Hasher;
+  };
+
+  BLAKE3 Hasher;
+  HashPreprocessedAction HashAction{Hasher};
+
+  if (!SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path,
+                                     HashAction,
+                                     getInMemoryFS(SourceFile, IncludeFiles)))
     return createStringError("Calculating source hash failed");
+
+  Hasher.update(CLANG_VERSION_STRING);
+  Hasher.update(
+      ArrayRef<uint8_t>{reinterpret_cast<const uint8_t *>(&Format),
+                        reinterpret_cast<const uint8_t *>(&Format + 1)});
+
+  for (Arg *Opt : UserArgList) {
+    Hasher.update(Opt->getSpelling());
+    for (const char *Val : Opt->getValues())
+      Hasher.update(Val);
   }
+
+  std::string EncodedHash = encodeBase64(Hasher.result());
+
+  // Make the encoding filesystem-friendly.
+  std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+  return std::move(EncodedHash);
 }
 
 Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
@@ -352,9 +454,11 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
-  if (SYCLToolchain::instance().run(
-          createCommandLine(UserArgList, Format, SourceFile.Path), ELOA,
-          getInMemoryFS(SourceFile, IncludeFiles), Wrapper.consumer())) {
+  bool AutoPCH = UserArgList.hasArg(OPT_auto_pch);
+
+  if (SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path, ELOA,
+                                    getInMemoryFS(SourceFile, IncludeFiles),
+                                    Wrapper.consumer(), AutoPCH)) {
     return ELOA.takeModule();
   } else {
     return createStringError(BuildLog);
@@ -819,11 +923,12 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   // Check for options that are unsupported because they would interfere with
   // the in-memory pipeline.
   Arg *UnsupportedArg =
-      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
-                    OPT_Link_Group,       // Linker flags
-                    OPT_o,                // Output file
-                    OPT_fsycl_targets_EQ, // AoT compilation
-                    OPT_fsycl_link_EQ,    // SYCL linker
+      AL.getLastArg(OPT_Action_Group,       // Actions like -c or -S
+                    OPT_Link_Group,         // Linker flags
+                    OPT_o,                  // Output file
+                    OPT_fsycl_targets_EQ,   // AoT compilation
+                    OPT_offload_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,      // SYCL linker
                     OPT_fno_sycl_device_code_split_esimd, // invoke_simd
                     OPT_fsanitize_EQ                      // Sanitizer
       );

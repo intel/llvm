@@ -1510,6 +1510,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
     return ReturnValue(Supported);
   }
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU: {
+    cl_bool CLValue;
+
+    // TODO: use stable API instead of deprecated CL_DEVICE_HOST_UNIFIED_MEMORY.
+    // Currently CL_DEVICE_HOST_UNIFIED_MEMORY is deprecated by OpenCL 2.0, but
+    // still was not removed even from Intel implementations of OpenCL 3.0.
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_HOST_UNIFIED_MEMORY,
+                                         sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:

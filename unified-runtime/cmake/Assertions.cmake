@@ -8,6 +8,7 @@ if(UR_ENABLE_ASSERTIONS)
   # MSVC doesn't like _DEBUG on release builds
   if( NOT MSVC )
     add_compile_definitions(_DEBUG)
+    add_compile_definitions(UR_DASSERT_ENABLED)
   endif()
   # On non-Debug builds cmake automatically defines NDEBUG, so we
   # explicitly undefine it:

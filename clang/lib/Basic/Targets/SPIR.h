@@ -109,7 +109,7 @@ protected:
     LongWidth = LongAlign = 64;
     AddrSpaceMap = &SPIRDefIsPrivMap;
     UseAddrSpaceMapMangling = true;
-    HasLegalHalfType = true;
+    HasFastHalfType = true;
     HasFloat16 = true;
     // Define available target features
     // These must be defined in sorted order!
@@ -227,8 +227,11 @@ public:
     setAddressSpaceMap(
         /*DefaultIsGeneric=*/Opts.SYCLIsDevice ||
         // The address mapping from HIP/CUDA language for device code is only
-        // defined for SPIR-V.
-        (getTriple().isSPIRV() && Opts.CUDAIsDevice));
+        // defined for SPIR-V, and all Intel SPIR-V code should have the default
+        // AS as generic.
+        (getTriple().isSPIRV() &&
+         (Opts.CUDAIsDevice ||
+          getTriple().getVendor() == llvm::Triple::Intel)));
   }
 
   void setSupportedOpenCLOpts() override {
@@ -268,6 +271,9 @@ public:
     PointerWidth = PointerAlign = 32;
     SizeType = TargetInfo::UnsignedInt;
     PtrDiffType = IntPtrType = TargetInfo::SignedInt;
+    // SPIR32 has support for atomic ops if atomic extension is enabled.
+    // Take the maximum because it's possible the Host supports wider types.
+    MaxAtomicInlineWidth = std::max<unsigned char>(MaxAtomicInlineWidth, 32);
     resetDataLayout(
         "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-"
         "v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1");
@@ -286,7 +292,9 @@ public:
     PointerWidth = PointerAlign = 64;
     SizeType = TargetInfo::UnsignedLong;
     PtrDiffType = IntPtrType = TargetInfo::SignedLong;
-
+    // SPIR64 has support for atomic ops if atomic extension is enabled.
+    // Take the maximum because it's possible the Host supports wider types.
+    MaxAtomicInlineWidth = std::max<unsigned char>(MaxAtomicInlineWidth, 64);
     resetDataLayout(
         "e-i64:64-v16:16-v24:32-v32:32-v48:64-"
         "v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1");
@@ -701,7 +709,7 @@ public:
     BFloat16Width = BFloat16Align = 16;
     BFloat16Format = &llvm::APFloat::BFloat();
 
-    HasLegalHalfType = true;
+    HasFastHalfType = true;
     HasFloat16 = true;
     HalfArgsAndReturns = true;
 
@@ -711,6 +719,10 @@ public:
   bool hasBFloat16Type() const override { return true; }
 
   ArrayRef<const char *> getGCCRegNames() const override;
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
 
   bool initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                       StringRef,

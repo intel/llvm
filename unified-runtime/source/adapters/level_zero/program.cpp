@@ -565,6 +565,39 @@ ur_result_t urProgramRetain(
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
+  if (!Program)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+  // Detect double-release by attempting to safely access program members
+  // and catching any access violations that indicate freed memory
+  try {
+    // First, try to access the RefCount to see if it's valid
+    uint32_t currentRefCount = Program->RefCount.getCount();
+
+    if (currentRefCount == 0) {
+      // This is a double-release - RefCount should never be 0 when
+      // urProgramRelease is called
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    if (Program->resourcesReleased) {
+      // Resources already released, this is a double-release attempt
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    if (!Program->Context) {
+      // Check if the program has a valid context
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+  } catch (...) {
+    // If we can't safely access the program members, it's likely
+    // corrupted/freed This catches the case where urProgramRelease is called on
+    // the same module twice
+    return UR_RESULT_ERROR_INVALID_PROGRAM;
+  }
+
+  // Perform the actual release
   if (!Program->RefCount.release())
     return UR_RESULT_SUCCESS;
 

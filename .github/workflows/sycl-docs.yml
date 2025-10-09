@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'intel/llvm'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         path: repo
     - name: Install deps
@@ -69,7 +69,7 @@ jobs:
         EOF
     # Upload the generated docs as an artifact and deploy to GitHub Pages.
     - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v4
       with:
         path: ./install_docs
     - name: Deploy to GitHub Pages

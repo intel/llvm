@@ -32,6 +32,9 @@
 // RUN: %{build} -Wno-error=user-defined-warnings -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <syclcompat/device.hpp>
 
 #include "device_fixt.hpp"

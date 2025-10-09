@@ -114,8 +114,9 @@
 // RUN:          --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
 // CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
-// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
+
 
 /// Check phases with multiple intel_gpu settings
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
