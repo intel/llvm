@@ -184,7 +184,9 @@ auto submit_kernel_direct(
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
 
+#ifndef __SYCL_DEVICE_ONLY__
   detail::checkValueRange<Dims>(Range);
+#endif
 
   detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                         TransformedArgType, PropertiesT>::wrap(KernelFunc);
