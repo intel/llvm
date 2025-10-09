@@ -660,13 +660,8 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
 
   // Synchronize with the "no last event mode", used by the handler-based
   // kernel submit path
-  if (isInOrder()) {
-    if (SchedulerBypass) {
-      MNoLastEventMode.store(true, std::memory_order_relaxed);
-    } else {
-      MNoLastEventMode.store(false, std::memory_order_relaxed);
-    }
-  }
+  MNoLastEventMode.store(isInOrder() && SchedulerBypass,
+                         std::memory_order_relaxed);
 
   EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
 
