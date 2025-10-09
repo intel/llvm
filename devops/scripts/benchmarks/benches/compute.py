@@ -427,7 +427,7 @@ class ComputeBenchmark(Benchmark):
             )
         return ret
 
-    def parse_output(self, output):
+    def parse_output(self, output: str) -> list[tuple[float, float]]:
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
         next(reader, None)
@@ -496,16 +496,11 @@ class SubmitKernel(ComputeBenchmark):
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
     def enabled(self) -> bool:
+        # This is a workaround for the BMG server where we have old results for self.KernelExecTime=20
+        # The benchmark instance gets created just to make metadata for these old results
         if not super().enabled():
             return False
 
-        if (
-            self.runtime in (RUNTIMES.SYCL, RUNTIMES.UR)
-        ) and options.profiler_type != self.profiler_type.value:
-            return False
-
-        # This is a workaround for the BMG server where we have old results for self.KernelExecTime=20
-        # The benchmark instance gets created just to make metadata for these old results
         device_arch = getattr(options, "device_architecture", "")
         if "bmg" in device_arch and self.KernelExecTime == 20:
             # Disable this benchmark for BMG server, just create metadata
@@ -600,11 +595,6 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             profiler_type=profiler_type,
         )
 
-    def enabled(self) -> bool:
-        if options.profiler_type != self.profiler_type.value:
-            return False
-        return super().enabled()
-
     def name(self):
         order = "in order" if self.ioq else "out of order"
         return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
@@ -655,11 +645,6 @@ class QueueInOrderMemcpy(ComputeBenchmark):
             profiler_type=profiler_type,
         )
 
-    def enabled(self) -> bool:
-        if options.profiler_type != self.profiler_type.value:
-            return False
-        return super().enabled()
-
     def name(self):
         return f"memory_benchmark_sycl QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
 
@@ -701,11 +686,6 @@ class QueueMemcpy(ComputeBenchmark):
         super().__init__(
             bench, "memory_benchmark_sycl", "QueueMemcpy", profiler_type=profiler_type
         )
-
-    def enabled(self) -> bool:
-        if options.profiler_type != self.profiler_type.value:
-            return False
-        return super().enabled()
 
     def name(self):
         return f"memory_benchmark_sycl QueueMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
@@ -997,14 +977,6 @@ class GraphApiSubmitGraph(ComputeBenchmark):
     def supported_runtimes(self) -> list[RUNTIMES]:
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
-    def enabled(self) -> bool:
-        if (
-            self.runtime == RUNTIMES.SYCL
-            and options.profiler_type != self.profiler_type.value
-        ):
-            return False
-        return super().enabled()
-
     def explicit_group(self):
         return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
@@ -1064,14 +1036,6 @@ class UllsEmptyKernel(ComputeBenchmark):
 
     def supported_runtimes(self) -> list[RUNTIMES]:
         return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
-
-    def enabled(self) -> bool:
-        if (
-            self.runtime == RUNTIMES.SYCL
-            and options.profiler_type != self.profiler_type.value
-        ):
-            return False
-        return super().enabled()
 
     def explicit_group(self):
         return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}{self.cpu_count_str(separator=',')}"

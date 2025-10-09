@@ -140,13 +140,6 @@ on:
         type: string
         default: 'false'
         required: False
-      benchmark_profiler_type:
-        description: |
-          Type of profiler to use for benchmarks. Options are "timer" and
-          "cpuCounter". Default is "cpuCounter".
-        type: string
-        default: 'cpuCounter'
-        required: False
 
   workflow_dispatch:
     inputs:
@@ -366,7 +359,6 @@ jobs:
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
         build_ref: ${{ inputs.repo_ref }}
-        profiler_type: ${{ inputs.benchmark_profiler_type }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

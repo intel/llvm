@@ -61,15 +61,6 @@ on:
           - Normal
           - Test
         default: 'Minimal'  # Only compute-benchmarks
-      benchmark_profiler_type:
-        description: |
-          Type of profiler to use for benchmarks. Options are "timer" and
-          "cpuCounter". Default is "cpuCounter".
-        type: choice
-        options:
-          - timer
-          - cpuCounter
-        default: 'cpuCounter'
       pr_no:
         type: string
         description: |
@@ -201,7 +192,6 @@ jobs:
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_save_name: ${{ needs.sanitize_inputs.outputs.benchmark_save_name }}
       benchmark_preset: ${{ inputs.preset }}
-      benchmark_profiler_type: ${{ inputs.benchmark_profiler_type }}
       repo_ref: ${{ needs.sanitize_inputs.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl.outputs.toolchain_artifact_filename }}
