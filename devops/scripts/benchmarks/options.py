@@ -74,6 +74,7 @@ class Options:
     exit_on_failure: bool = False
     flamegraph: bool = False
     unitrace: bool = False
+    profiler_type: str = "timer"
 
     # Options intended for CI:
 

@@ -32,6 +32,10 @@ inputs:
   dry_run:
     type: string
     required: False
+  profiler_type:
+    type: string
+    required: False
+    default: "cpuCounter"  # Other option is "timer"
 
 runs:
   using: "composite"
@@ -41,6 +45,7 @@ runs:
     env:
       TARGET_DEVICE: ${{ inputs.target_devices }}
       PRESET: ${{ inputs.preset }}
+      PROFILER_TYPE: ${{ inputs.profiler_type }}
     run: |
       case "$RUNNER_TAG" in
         '["PVC_PERF"]' ) ;;
@@ -75,6 +80,17 @@ runs:
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
+
+      # Validate profiler type input
+      case "$PROFILER_TYPE" in
+        "timer") PROFILER_TYPE="timer" ;;
+        "cpuCounter") PROFILER_TYPE="cpuCounter" ;;
+      *) 
+        echo "Invalid profiler type specified: $PROFILER_TYPE"
+        exit 1
+        ;;
+      esac
+      echo "PROFILER_TYPE=$PROFILER_TYPE" >> $GITHUB_ENV
   - name: Compute CPU core range to run benchmarks on
     shell: bash
     run: |
@@ -204,7 +220,8 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        --flamegraph inclusive
+        --flamegraph inclusive \
+        --profiler-type "$PROFILER_TYPE"
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
