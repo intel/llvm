@@ -470,7 +470,7 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
 // GPU targets (no native CPU). Keep in sync!
 static void getDeviceLibraries(const ArgList &Args,
                                SmallVectorImpl<std::string> &LibraryList,
-                               DiagnosticsEngine &Diags, BinaryFormat Format) {
+                               BinaryFormat Format) {
   // For CUDA/HIP we only need devicelib, early exit here.
   if (Format == BinaryFormat::PTX) {
     LibraryList.push_back(
@@ -534,7 +534,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                           /* ShouldOwnClient=*/false);
 
   SmallVector<std::string> LibNames;
-  getDeviceLibraries(UserArgList, LibNames, Diags, Format);
+  getDeviceLibraries(UserArgList, LibNames, Format);
   const bool IsCudaHIP =
       Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN;
   if (IsCudaHIP) {
