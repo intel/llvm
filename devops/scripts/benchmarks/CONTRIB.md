@@ -42,11 +42,9 @@ The suite is structured around three main components: Suites, Benchmarks, and Re
     * **Fields (set by Benchmark):**
         * `label`: Unique identifier for this *specific result type* within the benchmark instance (e.g., "Submit In Order Time"). Ideally contains `benchmark.name()`.
         * `value`: The measured numerical result (float).
-        * `unit`: The unit of the value (string, e.g., "μs", "GB/s", "token/s").
         * `command`: The command list used to run the benchmark (`list[str]`).
         * `env`: Environment variables used (`dict[str, str]`).
-        * `stdout`: Full standard output of the benchmark run (string).
-        * `passed`: Boolean indicating if verification passed (default: `True`).
+        * `unit`: The unit of the value (string, e.g., "μs", "GB/s", "token/s").
         * `stddev`: Standard deviation, if calculated by the benchmark itself (float, default: 0.0).
         * `git_url`, `git_hash`: Git info for the benchmark's source code (string).
     * **Fields (set by Framework):**
@@ -193,12 +191,17 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
 
 ## Utilities
 
+* **`git_project.GitProject`:** Manages git repository cloning, building, and installation for benchmark suites:
+    * Automatically clones repositories to a specified directory and checks out specific commits/refs.
+    * Provides standardized directory structure with `src_dir`, `build_dir`, and `install_dir` properties.
+    * Handles incremental updates - only re-clones if the target commit has changed.
+    * Supports force rebuilds and custom directory naming via constructor options.
+    * Provides `configure()`, `build()`, and `install()` methods for CMake-based projects.
+    * Use this for benchmark suites that need to build from external git repositories (e.g., `ComputeBench`, `VelocityBench`).
 * **`utils.utils`:** Provides common helper functions:
     * `run()`: Executes shell commands with environment setup (SYCL paths, LD_LIBRARY_PATH).
-    * `git_clone()`: Clones/updates Git repositories.
     * `download()`: Downloads files via HTTP, checks checksums, optionally extracts tar/gz archives.
     * `prepare_workdir()`: Sets up the main working directory.
-    * `create_build_path()`: Creates a clean build directory.
 * **`utils.oneapi`:** Provides the `OneAPI` singleton class (`get_oneapi()`). Downloads and installs specified oneAPI components (oneDNN, oneMKL) into the working directory if needed, providing access to their paths (libs, includes, CMake configs). Use this if your benchmark depends on these components instead of requiring a system-wide install.
 * **`options.py`:** Defines and holds global configuration options, populated by `argparse` in `main.py`. Use options instead of defining your own global variables.
 * **`presets.py`:** Defines named sets of suites (`enabled_suites()`) used by the `--preset` argument.

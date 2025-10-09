@@ -27,7 +27,7 @@ define spir_kernel void @_Z3fooii(i32 %0, i32 %1) {
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 [[TMP0]], i32 noundef 2, i32 noundef 400)
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wi_resume_wrapper()
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wg_barrier_wrapper()
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 [[TMP1]], i32 noundef 2, i32 noundef 400)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 [[TMP1]], i32 noundef 2, i32 noundef 912)
 ; CHECK-NEXT:    call spir_func void @__itt_offload_wi_resume_wrapper()
 ; CHECK-NEXT:    ret void
 ;

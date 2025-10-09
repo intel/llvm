@@ -1036,7 +1036,7 @@ public:
   template <typename KernelName, typename FuncTy,
             bool HasIdentity = has_identity>
   std::enable_if_t<!HasIdentity> withInitializedMem(handler &CGH, FuncTy Func) {
-    std::ignore = CGH;
+    (void)CGH;
     assert(!initializeToIdentity() &&
            "Initialize to identity not allowed for identity-less reductions.");
     Func(accessor{MRedOut, CGH});
@@ -1079,7 +1079,7 @@ public:
   bool initializeToIdentity() const { return InitializeToIdentity; }
 
   auto getUserRedVarAccess(handler &CGH) {
-    std::ignore = CGH;
+    (void)CGH;
     if constexpr (is_usm)
       return MRedOut;
     else
@@ -1816,7 +1816,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     size_t NWorkGroups = NDRange.get_group_range().size();
 
     bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
-    std::ignore = IsUpdateOfUserVar;
+    (void)IsUpdateOfUserVar;
 
     // The type of the Out "accessor" differs between scenarios when there is
     // just one WorkGroup and when there are multiple. Use this lambda to write
@@ -2802,7 +2802,7 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
 template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
                BinaryOperation Combiner, const property_list &PropList = {}) {
-  std::ignore = CGH;
+  (void)CGH;
   detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
@@ -2831,7 +2831,7 @@ auto reduction(T *Var, BinaryOperation Combiner,
 template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
-  std::ignore = CGH;
+  (void)CGH;
   detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();

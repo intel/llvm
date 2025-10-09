@@ -40,7 +40,7 @@
 
 #include <syclcompat/traits.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 /// Atomically add the value operand to the value at the addr and assign the
 /// result to the value at addr.

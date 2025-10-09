@@ -182,8 +182,10 @@ struct ur_command_list_manager {
       const ur_image_format_t *pSrcImageFormat,
       const ur_image_format_t *pDstImageFormat,
       ur_exp_image_copy_region_t *pCopyRegion,
-      ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t phEvent);
+      ur_exp_image_copy_flags_t imageCopyFlags,
+      ur_exp_image_copy_input_types_t imageCopyInputTypes,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t phEvent);
   ur_result_t bindlessImagesWaitExternalSemaphoreExp(
       ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
       uint64_t waitValue, uint32_t numEventsInWaitList,
@@ -230,16 +232,6 @@ struct ur_command_list_manager {
                                void *pMem, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t phEvent);
-
-  ur_result_t appendKernelLaunchWithArgsExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numArgs,
-      const ur_exp_kernel_arg_properties_t *pArgs,
-      uint32_t numPropsInLaunchPropList,
-      const ur_kernel_launch_property_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t phEvent);
 
 private:
   ur_result_t appendGenericCommandListsExp(

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: aspect-usm_device_allocations
+// REQUIRES: sycl-jit, aspect-usm_device_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-NOCWD
@@ -14,6 +14,9 @@
 // COM: Run test again in a directory that contains a different version of
 //      `header1.hpp`
 // RUN: cd %S/include/C ; %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out %S | FileCheck %s --check-prefixes=CHECK,CHECK-CWD
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

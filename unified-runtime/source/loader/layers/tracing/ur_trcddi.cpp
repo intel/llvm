@@ -7121,6 +7121,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
+    /// [in] flag describing types of source and destination pointers (USM vs
+    /// image handle)
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -7148,6 +7151,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                                                        &pDstImageFormat,
                                                        &pCopyRegion,
                                                        &imageCopyFlags,
+                                                       &imageCopyInputTypes,
                                                        &numEventsInWaitList,
                                                        &phEventWaitList,
                                                        &phEvent};
@@ -7160,8 +7164,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
   ur_result_t result = pfnImageCopyExp(
       hQueue, pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-      phEventWaitList, phEvent);
+      pDstImageFormat, pCopyRegion, imageCopyFlags, imageCopyInputTypes,
+      numEventsInWaitList, phEventWaitList, phEvent);
 
   getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
                            "urBindlessImagesImageCopyExp", &params, &result,
@@ -8167,7 +8171,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -9039,7 +9043,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
@@ -10094,98 +10098,6 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urEnqueueKernelLaunchWithArgsExp
-__urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] Number of entries in pArgs
-    uint32_t numArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent) {
-  auto pfnKernelLaunchWithArgsExp =
-      getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp;
-
-  if (nullptr == pfnKernelLaunchWithArgsExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_enqueue_kernel_launch_with_args_exp_params_t params = {
-      &hQueue,
-      &hKernel,
-      &workDim,
-      &pGlobalWorkOffset,
-      &pGlobalWorkSize,
-      &pLocalWorkSize,
-      &numArgs,
-      &pArgs,
-      &numPropsInLaunchPropList,
-      &launchPropList,
-      &numEventsInWaitList,
-      &phEventWaitList,
-      &phEvent};
-  uint64_t instance = getContext()->notify_begin(
-      UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
-      "urEnqueueKernelLaunchWithArgsExp", &params);
-
-  auto &logger = getContext()->logger;
-  UR_LOG_L(logger, INFO, "   ---> urEnqueueKernelLaunchWithArgsExp\n");
-
-  ur_result_t result = pfnKernelLaunchWithArgsExp(
-      hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList, launchPropList,
-      numEventsInWaitList, phEventWaitList, phEvent);
-
-  getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP,
-                           "urEnqueueKernelLaunchWithArgsExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP, &params);
-    UR_LOG_L(logger, INFO,
-             "   <--- urEnqueueKernelLaunchWithArgsExp({}) -> {};\n",
-             args_str.str(), result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
 __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
     /// [in] handle of the queue object
@@ -10794,10 +10706,6 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
-
-  dditable.pfnKernelLaunchWithArgsExp = pDdiTable->pfnKernelLaunchWithArgsExp;
-  pDdiTable->pfnKernelLaunchWithArgsExp =
-      ur_tracing_layer::urEnqueueKernelLaunchWithArgsExp;
 
   dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
   pDdiTable->pfnUSMDeviceAllocExp =

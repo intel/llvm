@@ -188,6 +188,18 @@ struct ur_device_handle_t_ : ur_object {
   // Checks if this GPU is an Intel Flex GPU or Intel Arc Alchemist
   bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
 
+  bool isIntelMTL() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x03118000 &&
+            ZeDeviceIpVersionExt->ipVersion <= 0x0311c004);
+  }
+
+  bool isIntelARL() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x03128000 &&
+            ZeDeviceIpVersionExt->ipVersion <= 0x03128004);
+  }
+
   bool isIntelDG2OrNewer() {
     return (ZeDeviceProperties->vendorId == 0x8086 &&
             ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
@@ -232,7 +244,7 @@ struct ur_device_handle_t_ : ur_object {
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
-  ZeCache<ZeStruct<ze_intel_device_block_array_exp_properties_t>>
+  ZeCache<ZexStruct<ze_intel_device_block_array_exp_properties_t>>
       ZeDeviceBlockArrayProperties;
 #endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeCache<ZeStruct<ze_device_vector_width_properties_ext_t>>
@@ -248,16 +260,20 @@ struct ur_device_handle_t_ : ur_object {
   ur::RefCount RefCount;
 };
 
-inline std::vector<ur_device_handle_t>
-CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
+// Collects a flat vector of unique devices for USM memory pool creation.
+// Traverses the input devices and their sub-devices, ensuring each Level Zero
+// device handle appears only once in the result.
+inline std::vector<ur_device_handle_t> CollectDevicesForUsmPoolCreation(
+    const std::vector<ur_device_handle_t> &Devices) {
   std::vector<ur_device_handle_t> DevicesAndSubDevices;
-  std::unordered_set<ur_device_handle_t> Seen;
+  std::unordered_set<ze_device_handle_t> Seen;
+
   std::function<void(const std::vector<ur_device_handle_t> &)>
       CollectDevicesAndSubDevicesRec =
           [&](const std::vector<ur_device_handle_t> &Devices) {
             for (auto &Device : Devices) {
-              // Only add device if has not been seen before.
-              if (Seen.insert(Device).second) {
+              // Only add device if ZeDevice has not been seen before.
+              if (Seen.insert(Device->ZeDevice).second) {
                 DevicesAndSubDevices.push_back(Device);
                 CollectDevicesAndSubDevicesRec(Device->SubDevices);
               }

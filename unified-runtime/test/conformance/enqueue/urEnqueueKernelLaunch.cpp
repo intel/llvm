@@ -88,8 +88,9 @@ TEST_P(urEnqueueKernelLaunchNoArgs3DTest, Success) {
 
 TEST_P(urEnqueueKernelLaunchTest, Success) {
   ur_mem_handle_t buffer = nullptr;
-  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
-  AddPodArg(val);
+  UUR_RETURN_ON_FATAL_FAILURE(
+      AddBuffer1DArg(sizeof(val) * global_size, &buffer));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 0,
                                        nullptr, 0, nullptr, nullptr));
@@ -134,8 +135,9 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
   }
 
   ur_mem_handle_t buffer = nullptr;
-  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
-  AddPodArg(val);
+  UUR_RETURN_ON_FATAL_FAILURE(
+      AddBuffer1DArg(sizeof(val) * global_size, &buffer));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 1,
@@ -147,8 +149,9 @@ TEST_P(urEnqueueKernelLaunchTest, SuccessWithLaunchProperties) {
 
 TEST_P(urEnqueueKernelLaunchTest, SuccessNoOffset) {
   ur_mem_handle_t buffer = nullptr;
-  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
-  AddPodArg(val);
+  UUR_RETURN_ON_FATAL_FAILURE(
+      AddBuffer1DArg(sizeof(val) * global_size, &buffer));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, nullptr,
                                        &global_size, nullptr, 0, nullptr, 0,
                                        nullptr, nullptr));
@@ -218,8 +221,9 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
   // an error
   size_t local_size = 31;
   ur_mem_handle_t buffer = nullptr;
-  AddBuffer1DArg(sizeof(val) * global_size, &buffer);
-  AddPodArg(val);
+  UUR_RETURN_ON_FATAL_FAILURE(
+      AddBuffer1DArg(sizeof(val) * global_size, &buffer));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
   auto result = urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                       &global_offset, &global_size, &local_size,
                                       0, nullptr, 0, nullptr, nullptr);
@@ -258,7 +262,7 @@ TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   ur_mem_handle_t buffer = nullptr;
-  AddBuffer1DArg(sizeof(size_t), &buffer);
+  UUR_RETURN_ON_FATAL_FAILURE(AddBuffer1DArg(sizeof(size_t), &buffer));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(
       queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
       nullptr, 0, nullptr, 0, nullptr, nullptr));
@@ -275,13 +279,13 @@ struct Pair {
 TEST_P(urEnqueueKernelLaunchKernelStandardTest, Success) {
   uint32_t expected_result = 2410;
   ur_mem_handle_t output = nullptr;
-  AddBuffer1DArg(sizeof(uint32_t), &output);
-  AddPodArg(true);
-  AddPodArg<uint8_t>(2);
-  AddPodArg<uint32_t>(3);
-  AddPodArg<uint64_t>(5);
-  AddPodArg<Pair>({7, 5});
-  AddPodArg<float>(11.0);
+  UUR_RETURN_ON_FATAL_FAILURE(AddBuffer1DArg(sizeof(uint32_t), &output));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(true));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<uint8_t>(2));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<uint32_t>(3));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<uint64_t>(5));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<Pair>({7, 5}));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg<float>(11.0));
 
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions, &offset,
                                        &global_size, nullptr, 0, nullptr, 0,
@@ -371,8 +375,8 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
 
 TEST_P(urEnqueueKernelLaunchTestWithParam, Success) {
   ur_mem_handle_t buffer = nullptr;
-  AddBuffer1DArg(buffer_size, &buffer);
-  AddPodArg(val);
+  UUR_RETURN_ON_FATAL_FAILURE(AddBuffer1DArg(buffer_size, &buffer));
+  UUR_RETURN_ON_FATAL_FAILURE(AddPodArg(val));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                        global_offset, global_range, nullptr, 0,
                                        nullptr, 0, nullptr, nullptr));
@@ -624,8 +628,9 @@ TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
       uur::KernelLaunchHelper{platform, context, kernel, queues[0]};
 
   ur_mem_handle_t buffer = nullptr;
-  helper.AddBuffer1DArg(sizeof(val) * global_size, &buffer, nullptr);
-  helper.AddPodArg(val);
+  UUR_RETURN_ON_FATAL_FAILURE(
+      helper.AddBuffer1DArg(sizeof(val) * global_size, &buffer, nullptr));
+  UUR_RETURN_ON_FATAL_FAILURE(helper.AddPodArg(val));
   ASSERT_SUCCESS(urEnqueueKernelLaunch(queues[0], kernel, n_dimensions,
                                        &global_offset, &global_size, nullptr, 0,
                                        nullptr, 0, nullptr, nullptr));

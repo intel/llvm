@@ -21,7 +21,6 @@
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/assert_happened.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
@@ -65,8 +64,9 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
+#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -276,7 +276,8 @@ public:
     ur_native_handle_t nativeHandle = 0;
     getAdapter().call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                          &nativeHandle);
-    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
+    __SYCL_OCL_CALL(clRetainCommandQueue,
+                    ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -331,25 +332,14 @@ public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// On a kernel error, this command group function object is then scheduled
-  /// for execution on a secondary queue.
-  ///
   /// \param CGF is a function object containing command group.
-  /// \param SecondQueue is a shared_ptr to the secondary queue.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
-               const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc, bool IsTopCodeLoc,
-               const SubmitPostProcessF *PostProcess = nullptr) {
-    event ResEvent;
-    v1::SubmissionInfo SI{};
-    SI.SecondaryQueue() = SecondQueue;
-    if (PostProcess)
-      SI.PostProcessorFunc() = *PostProcess;
-    return submit_with_event(CGF, SI, Loc, IsTopCodeLoc);
+               const detail::code_location &Loc, bool IsTopCodeLoc) {
+    return submit_with_event(CGF, {}, Loc, IsTopCodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -364,19 +354,55 @@ public:
                           const v1::SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
 
-    detail::EventImplPtr ResEvent =
-        submit_impl(CGF, SubmitInfo.SecondaryQueue().get(),
-                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+    detail::EventImplPtr ResEvent = submit_impl(CGF, /*CallerNeedsEvent=*/true,
+                                                Loc, IsTopCodeLoc, SubmitInfo);
     return createSyclObjFromImpl<event>(ResEvent);
+  }
+
+  template <int Dims>
+  event submit_kernel_direct_with_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                                  true, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  template <int Dims>
+  void submit_kernel_direct_without_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                              false, CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    submit_impl(CGF, SubmitInfo.SecondaryQueue().get(),
-                /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
+    submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
+
+  /// Submits a kernel using the scheduler bypass fast path
+  ///
+  /// \param KData is an object storing data related to the kernel.
+  /// \param DepEvents is a list of event dependencies.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  /// \param Kernel to be used, if kernel defined as a kernel object.
+  /// \param KernelBundleImpPtr to be used, if kernel bundle defined.
+  /// \param CodeLoc is the code location of the submit call.
+  /// \param IsTopCodeLoc is used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command or nullptr.
+  EventImplPtr submit_kernel_scheduler_bypass(
+      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded, detail::kernel_impl *KernelImplPtr,
+      detail::kernel_bundle_impl *KernelBundleImpPtr,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -616,6 +642,12 @@ public:
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
 
+  EventImplPtr submit_command_to_graph(
+      ext::oneapi::experimental::detail::graph_impl &GraphImpl,
+      std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
+      sycl::ext::oneapi::experimental::node_type UserFacingNodeType =
+          ext::oneapi::experimental::node_type::empty);
+
   unsigned long long getQueueID() { return MQueueID; }
 
   void *getTraceEvent() { return MTraceEvent; }
@@ -667,6 +699,7 @@ public:
     getAdapter().call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
                                                       nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
+    ResEvent->setEnqueued();
     return ResEvent;
   }
 
@@ -866,46 +899,6 @@ protected:
     return EventRetImpl;
   }
 
-  template <typename HandlerType = handler>
-  void handlerPostProcess(HandlerType &Handler,
-                          const optional<SubmitPostProcessF> &PostProcessorFunc,
-                          event &Event) {
-    bool IsKernel = Handler.getType() == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert =
-          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.data(),
-              Handler.impl->MKernelNameBasedCachePtr);
-
-    auto &PostProcess = *PostProcessorFunc;
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-  }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Performs command group submission to the queue.
-  ///
-  /// \param CGF is a function object containing command group.
-  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
-  ///        same as this.
-  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
-  ///        same as this.
-  /// \param CallerNeedsEvent is a boolean indicating whether the event is
-  ///        required by the user after the call.
-  /// \param Loc is the code location of the submit call (default argument)
-  /// \param SubmitInfo is additional optional information for the submission.
-  /// \return a SYCL event representing submitted command group.
-  detail::EventImplPtr
-  submit_impl(const detail::type_erased_cgfo_ty &CGF,
-              const std::shared_ptr<queue_impl> &PrimaryQueue,
-              const std::shared_ptr<queue_impl> &SecondaryQueue,
-              bool CallerNeedsEvent, const detail::code_location &Loc,
-              bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
-#endif
-
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -916,11 +909,31 @@ protected:
   /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
   detail::EventImplPtr submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                                   queue_impl *SecondaryQueue,
                                    bool CallerNeedsEvent,
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
+
+  /// Performs kernel submission to the queue.
+  ///
+  /// \param NDRDesc is an NDRange descriptor
+  /// \param HostKernel stores the kernel lambda instance
+  /// \param DeviceKernelInfo is a structure aggregating kernel related data
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_kernel_direct_impl(
+      const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  template <typename SubmitCommandFuncType>
+  EventImplPtr submit_direct(bool CallerNeedsEvent,
+                             SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.
@@ -1065,8 +1078,6 @@ protected:
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
-  /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 

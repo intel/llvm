@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
+import os
 
 
 class Compare(Enum):
@@ -42,6 +43,7 @@ class DetectVersionsOptions:
 
 @dataclass
 class Options:
+    TIMESTAMP_FORMAT: str = "%Y%m%d_%H%M%S"
     workdir: str = None
     sycl: str = None
     ur: str = None
@@ -52,6 +54,7 @@ class Options:
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
+    save_name: str = None
     compare: Compare = Compare.LATEST
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
@@ -67,8 +70,10 @@ class Options:
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: str = "Full"
-    build_jobs: int = multiprocessing.cpu_count()
+    build_jobs: int = len(os.sched_getaffinity(0))  # Cores available for the process.
     exit_on_failure: bool = False
+    flamegraph: bool = False
+    unitrace: bool = False
 
     # Options intended for CI:
 
@@ -88,9 +93,13 @@ class Options:
     # CI scripts vs SYCl build source.
     github_repo_override: str = None
     git_commit_override: str = None
+    # Filename used to store Github summary files:
+    github_summary_filename: str = "github_summary.md"
     # Archiving settings
     # Archived runs are stored separately from the main dataset but are still accessible
-    # via the HTML UI when "Include archived runs" is enabled
+    # via the HTML UI when "Include archived runs" is enabled.
+    # Archived runs older than 3 times the specified days are not included in the dashboard,
+    # ie. when archiving data older than 7 days, runs older than 21 days are not included.
     archive_baseline_days: int = 30  # Archive Baseline_* runs after 30 days
     archive_pr_days: int = 7  # Archive other (PR/dev) runs after 7 days
 

@@ -18,6 +18,7 @@ from benches.llamacpp import *
 from benches.umf import *
 from benches.test import TestSuite
 from benches.benchdnn import OneDnnBench
+from benches.base import TracingType
 from options import Compare, options
 from output_markdown import generate_markdown
 from output_html import generate_html
@@ -29,7 +30,6 @@ from utils.detect_versions import DetectVersion
 from utils.logger import log
 from presets import enabled_suites, presets
 
-
 # Update this if you are changing the layout of the results files
 INTERNAL_WORKDIR_VERSION = "2.0"
 
@@ -40,11 +40,15 @@ def run_iterations(
     iters: int,
     results: dict[str, list[Result]],
     failures: dict[str, str],
+    run_trace: TracingType = TracingType.NONE,
+    force_trace: bool = False,
 ):
     for iter in range(iters):
         log.info(f"running {benchmark.name()}, iteration {iter}... ")
         try:
-            bench_results = benchmark.run(env_vars)
+            bench_results = benchmark.run(
+                env_vars, run_trace=run_trace, force_trace=force_trace
+            )
             if bench_results is None:
                 if options.exit_on_failure:
                     raise RuntimeError(f"Benchmark produced no results!")
@@ -165,11 +169,23 @@ def collect_metadata(suites):
     return metadata
 
 
-def main(directory, additional_env_vars, save_name, compare_names, filter):
+def main(directory, additional_env_vars, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     if options.dry_run:
         log.info("Dry run mode enabled. No benchmarks will be executed.")
+
+    options.unitrace = args.unitrace is not None
+
+    if options.unitrace and options.save_name is None:
+        raise ValueError(
+            "Unitrace requires a save name to be specified via --save option."
+        )
+
+    if options.flamegraph and options.save_name is None:
+        raise ValueError(
+            "FlameGraph requires a save name to be specified via --save option."
+        )
 
     if options.build_compute_runtime:
         log.info(f"Setting up Compute Runtime {options.compute_runtime_tag}")
@@ -179,13 +195,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         options.extra_env_vars.update(cr.env_vars())
 
     suites = [
-        ComputeBench(directory),
-        VelocityBench(directory),
-        SyclBench(directory),
-        LlamaCppBench(directory),
-        UMFSuite(directory),
-        GromacsBench(directory),
-        OneDnnBench(directory),
+        ComputeBench(),
+        VelocityBench(),
+        SyclBench(),
+        LlamaCppBench(),
+        UMFSuite(),
+        GromacsBench(),
+        OneDnnBench(),
         TestSuite(),
     ]
 
@@ -253,19 +269,62 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             merged_env_vars = {**additional_env_vars}
             intermediate_results: dict[str, list[Result]] = {}
             processed: list[Result] = []
-            for _ in range(options.iterations_stddev):
+
+            # Determine if we should run regular benchmarks
+            # Run regular benchmarks if:
+            # - No tracing options specified, OR
+            # - Any tracing option is set to "inclusive"
+            should_run_regular = (
+                not options.unitrace
+                and not options.flamegraph  # No tracing options
+                or args.unitrace == "inclusive"  # Unitrace inclusive
+                or args.flamegraph == "inclusive"  # Flamegraph inclusive
+            )
+
+            if should_run_regular:
+                for _ in range(options.iterations_stddev):
+                    run_iterations(
+                        benchmark,
+                        merged_env_vars,
+                        options.iterations,
+                        intermediate_results,
+                        failures,
+                        run_trace=TracingType.NONE,
+                    )
+                    valid, processed = process_results(
+                        intermediate_results, benchmark.stddev_threshold()
+                    )
+                    if valid:
+                        break
+
+            # single unitrace run independent of benchmark iterations (if unitrace enabled)
+            if options.unitrace and (
+                benchmark.traceable(TracingType.UNITRACE) or args.unitrace == "force"
+            ):
                 run_iterations(
                     benchmark,
                     merged_env_vars,
-                    options.iterations,
+                    1,
                     intermediate_results,
                     failures,
+                    run_trace=TracingType.UNITRACE,
+                    force_trace=(args.unitrace == "force"),
                 )
-                valid, processed = process_results(
-                    intermediate_results, benchmark.stddev_threshold()
+            # single flamegraph run independent of benchmark iterations (if flamegraph enabled)
+            if options.flamegraph and (
+                benchmark.traceable(TracingType.FLAMEGRAPH)
+                or args.flamegraph == "force"
+            ):
+                run_iterations(
+                    benchmark,
+                    merged_env_vars,
+                    1,
+                    intermediate_results,
+                    failures,
+                    run_trace=TracingType.FLAMEGRAPH,
+                    force_trace=(args.flamegraph == "force"),
                 )
-                if valid:
-                    break
+
             results += processed
         except Exception as e:
             if options.exit_on_failure:
@@ -293,7 +352,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # limit how many files we load.
     # should this be configurable?
     log.info(f"Loading benchmark history from {results_dir}...")
-    history.load(1000)
+    history.load()
     log.info(f"Loaded {len(history.runs)} benchmark runs.")
 
     if compare_names:
@@ -323,14 +382,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
-    saved_name = save_name if save_name is not None else this_name
+    saved_name = options.save_name if options.save_name is not None else this_name
 
     # It's important we don't save the current results into history before
     # we calculate historical averages or get latest results for compare.
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
         log.info(f"Saving benchmark results...")
-        history.save(saved_name, results, save_name is not None)
+        history.save(saved_name, results)
         if saved_name not in compare_names:
             compare_names.append(saved_name)
         log.info(f"Benchmark results saved.")
@@ -342,6 +401,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 os.path.join(os.path.dirname(__file__), "html")
             )
         log.info(f"Generating HTML with benchmark results in {html_path}...")
+
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
 
@@ -530,6 +590,22 @@ if __name__ == "__main__":
         help="HIP device architecture",
         default=None,
     )
+    parser.add_argument(
+        "--unitrace",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help='Unitrace logs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
+        choices=["exclusive", "inclusive", "force"],
+    )
+    parser.add_argument(
+        "--flamegraph",
+        nargs="?",
+        const="exclusive",
+        default=None,
+        help='FlameGraphs generation. "exclusive" omits regular benchmarks doing only trace generation - this is default and can be omitted. "inclusive" generation is done along regular benchmarks. "force" is same as exclusive but ignores traceable() method.',
+        choices=["exclusive", "inclusive", "force"],
+    )
 
     # Options intended for CI:
     parser.add_argument(
@@ -626,10 +702,12 @@ if __name__ == "__main__":
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
+    options.save_name = args.save
     options.compare = Compare(args.compare_type)
     options.compare_max = args.compare_max
     options.output_markdown = args.output_markdown
-    options.output_html = args.output_html
+    if args.output_html is not None:
+        options.output_html = args.output_html
     options.dry_run = args.dry_run
     options.umf = args.umf
     options.iterations_stddev = args.iterations_stddev
@@ -641,6 +719,7 @@ if __name__ == "__main__":
     options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
+    options.flamegraph = args.flamegraph is not None
 
     # Initialize logger with command line arguments
     log.initialize(args.verbose, args.log_level)
@@ -703,7 +782,6 @@ if __name__ == "__main__":
     main(
         args.benchmark_directory,
         additional_env_vars,
-        args.save,
         args.compare,
         benchmark_filter,
     )

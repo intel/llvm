@@ -114,8 +114,9 @@
 // RUN:          --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
 // CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
-// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
+
 
 /// Check phases with multiple intel_gpu settings
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
@@ -189,8 +190,30 @@
 // RUN:   | FileCheck -check-prefix COMMA_FILE %s
 // COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl,compile-opts=-device_options pvc -ze-intel-enable-auto-large-GRF-mode"
 
+/// Verify the arch value for the packager is populated with different
+/// scenarios for spir64_gen
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clangxx -fsycl -### -fsycl-targets=intel_gpu_bdw \
+// RUN: --offload-new-driver %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clang_cl -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clang_cl -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend "-device bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// RUN: %clang_cl -fsycl -### -fsycl-targets=intel_gpu_bdw \
+// RUN: --offload-new-driver %s 2>&1 \
+// RUN:   | FileCheck -check-prefix ARCH_CHECK %s
+// ARCH_CHECK: clang-offload-packager{{.*}} "--image=file={{.*}}triple=spir64_gen-unknown-unknown,arch=bdw,kind=sycl{{.*}}"
+
 /// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
-// RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-libspirv \
 // RUN:          --cuda-gpu-arch=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s \
 // RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
@@ -214,7 +237,7 @@
 
 // Check if fsycl-targets correctly processes multiple NVidia
 // and AMD GPU targets.
-// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -nocudalib --offload-new-driver  %s 2>&1 \
+// RUN:   %clang -### -fsycl -fsycl-targets=nvidia_gpu_sm_60,nvidia_gpu_sm_70 -fno-sycl-libspirv -nocudalib --offload-new-driver  %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-MACRO-SM-60,CHK-MACRO-SM-70 %s
 // CHK-MACRO-SM-60: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_60__"{{.*}}
 // CHK-MACRO-SM-70: clang{{.*}} "-fsycl-is-device"{{.*}} "-D__SYCL_TARGET_NVIDIA_GPU_SM_70__"{{.*}}

@@ -1,0 +1,399 @@
+= sycl_ext_oneapi_spirv_queries
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension adds new queries that allow an application to identify the
+link:https://www.khronos.org/spirv/[SPIR-V] features that are supported by a
+SYCL device.
+These queries may be useful for applications that use the
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+extension to ensure that a SYCL device supports the features required by a
+SPIR-V binary module.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_SPIRV_QUERIES`
+to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Device aspects
+
+This extension adds the following new device aspects.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl {
+
+enum class aspect : /* unspecified */ {
+  ...
+  ext_oneapi_spirv,
+  ext_oneapi_spirv_queries
+}
+
+} // namespace sycl
+----
+!====
+
+.*aspect::ext_oneapi_spirv*
+Indicates that the device supports compiling and launching kernels written in
+SPIR-V.
+
+.*aspect::ext_oneapi_spirv_queries*
+Indicates that the device supports queries for supported SPIR-V extended
+instruction sets, extensions, and capabilities.
+This aspect will always be supported if the device does not have the
+`aspect::ext_oneapi_spirv` aspect.
+In this case, the queries will indicate that the device does not support any
+SPIR-V extended instruction sets, extensions, or capabilities, because the
+device does not support SPIR-V at all.
+|====
+
+=== Queries
+
+==== New SPIR-V version type
+
+This extension adds the following type and constant definitions to
+identify a SPIR-V version.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct spirv_version {
+  unsigned major : 16;
+  unsigned minor : 16;
+};
+
+inline constexpr spirv_version spirv_1_0 = {1,0};
+inline constexpr spirv_version spirv_1_1 = {1,1};
+inline constexpr spirv_version spirv_1_2 = {1,2};
+inline constexpr spirv_version spirv_1_3 = {1,3};
+inline constexpr spirv_version spirv_1_4 = {1,4};
+inline constexpr spirv_version spirv_1_5 = {1,5};
+inline constexpr spirv_version spirv_1_6 = {1,6};
+
+} // namespace ext::oneapi::experimental
+----
+!====
+
+The meaning of the `major` and `minor` values are defined by the SPIR-V
+specification.
+
+The constant values (e.g. `spirv_1_0`) are shorthands that identify various
+SPIR-V versions.
+|====
+
+==== New device information descriptors
+
+This extension adds the following new information descriptors to
+`device::get_info`.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental::info::device {
+struct spirv_versions {
+  using return_type = std::vector<sycl::ext::oneapi::experimental::spirv_version>;
+};
+} // namespace sycl::ext::oneapi::experimental::info::device
+----
+!====
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The SPIR-V versions that are supported by the device.
+If the device supports `aspect::ext_oneapi_spirv`, this query must return a
+non-empty vector.
+Otherwise, when the device does not support `aspect::ext_oneapi_spirv`, this
+query must return an empty vector.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental::info::device {
+struct spirv_extended_instruction_sets {
+  using return_type = std::vector<std::string>;
+};
+} // namespace sycl::ext::oneapi::experimental::info::device
+----
+!====
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The SPIR-V extended instruction sets that are supported by the device.
+SPIR-V extended instruction sets may be described on the SPIR-V registry.
+When the device does not support `aspect::ext_oneapi_spirv`, this query must
+return an empty vector.
+
+_Throws_: A synchronous `exception` with the `errc::feature_not_supported` error
+code if the device does not support `aspect::ext_oneapi_spirv_queries`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental::info::device {
+struct spirv_extensions {
+  using return_type = std::vector<std::string>;
+};
+} // namespace sycl::ext::oneapi::experimental::info::device
+----
+!====
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The SPIR-V extensions that are supported by the device.
+SPIR-V extensions may be described on the SPIR-V registry.
+When the device does not support `aspect::ext_oneapi_spirv`, this query must
+return an empty vector.
+
+_Throws_: A synchronous `exception` with the `errc::feature_not_supported` error
+code if the device does not support `aspect::ext_oneapi_spirv_queries`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental::info::device {
+struct spirv_capabilities {
+  using return_type = std::vector<uint32_t>;
+};
+} // namespace sycl::ext::oneapi::experimental::info::device
+----
+!====
+
+_Remarks:_ Template parameter to `device::get_info`.
+
+_Returns:_ The SPIR-V capabilities that are supported by the device.
+SPIR-V capabilities are described in the SPIR-V specification.
+Some capabilities may additionally require a specific SPIR-V version or SPIR-V
+extension.
+When the device does not support `aspect::ext_oneapi_spirv`, this query must
+return an empty vector.
+
+_Throws_: A synchronous `exception` with the `errc::feature_not_supported` error
+code if the device does not support `aspect::ext_oneapi_spirv_queries`.
+
+|====
+
+==== New member functions for the device class
+
+This extension also adds the following member functions to the `device` class,
+which allow the application to query the SPIR-V versions, extended instruction
+sets, extensions, and capabilities that the device supports.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_version(
+    const sycl::ext::oneapi::experimental::spirv_version &version) const;
+};
+----
+!====
+
+_Returns:_ Equivalent to querying the supported SPIR-V versions using
+`get_info<info::device::spirv_versions>()` and then calling `std::find` to check
+if `version` is one of the supported versions.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_extended_instruction_set(
+    const std::string &name) const;
+};
+----
+!====
+
+_Returns:_ Equivalent to querying the supported SPIR-V extended instruction sets
+using `get_info<info::device::spirv_extended_instruction_sets>()` and then
+calling `std::find` to check if `name` is one of the supported extended
+instruction sets.
+
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_extension(const std::string &name) const;
+};
+----
+!====
+
+_Returns:_ Equivalent to querying the supported SPIR-V extensions using
+`get_info<info::device::spirv_extensions>()` and then calling `std::find` to
+check if `name` is one of the supported extensions.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+  bool ext_oneapi_supports_spirv_capability(uint32_t capability) const;
+};
+----
+!====
+
+_Returns:_ Equivalent to querying the supported SPIR-V capabilities using
+`get_info<info::device::spirv_capabilities>()` and then calling `std::find` to
+check if `capability` is one of the supported capabilities.
+
+|====
+
+
+== Examples
+
+=== Simple example
+
+The following example shows a simple SYCL program that demonstrates how to query
+whether a SYCL device supports SPIR-V and SPIR-V queries, and if it does,
+whether the SYCL devices supports SPIR-V extended instruction sets, SPIR-V
+extensions, and SPIR-V capabilities.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+#include <spirv/unified1/spirv.hpp>
+
+namespace syclex = sycl::ext::oneapi::experimental;
+
+int main() {
+  sycl::queue q;
+  sycl::device d = q.get_device();
+
+  if (d.has(sycl::aspect::ext_oneapi_spirv))
+    std::cout << "Device supports SPIR-V.\n";
+
+  for (const auto &ver : d.get_info<syclex::info::device::spirv_versions>())
+    std::cout << "Device supports SPIR-V version: " << ver.major << "." << ver.minor << "\n";
+
+  if (d.ext_oneapi_supports_spirv_version(syclex::spirv_1_0))
+    std::cout << "Device supports SPIR-V 1.0.\n";
+
+  if (d.has(sycl::aspect::ext_oneapi_spirv_queries)) {
+    std::cout << "Device supports SPIR-V queries.\n";
+
+    for (const auto &name : d.get_info<syclex::info::device::spirv_extended_instruction_sets>())
+      std::cout << "Device supports SPIR-V extended instruction set: " << name << "\n";
+
+    for (const auto &name : d.get_info<syclex::info::device::spirv_extensions>())
+      std::cout << "Device supports SPIR-V extension: " << name << "\n";
+
+    for (const auto &cap : d.get_info<syclex::info::device::spirv_capabilities>())
+      std::cout << "Device supports SPIR-V capability with value: " << cap << "\n";
+
+    if (d.ext_oneapi_supports_spirv_extended_instruction_set("OpenCL.std"))
+      std::cout << "Device supports the OpenCL.std SPIR-V extended instruction set.\n";
+
+    if (d.ext_oneapi_supports_spirv_extension("SPV_KHR_linkonce_odr"))
+      std::cout << "Device supports the SPV_KHR_linkonce_odr SPIR-V extension.\n";
+
+    if (d.ext_oneapi_supports_spirv_capability(spv::CapabilityAddresses))
+      std::cout << "Device supports the Addresses SPIR-V capability.\n";
+  }
+}
+----
+

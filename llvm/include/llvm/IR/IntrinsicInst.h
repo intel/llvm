@@ -55,7 +55,7 @@ public:
 
   /// Return the intrinsic ID of this intrinsic.
   Intrinsic::ID getIntrinsicID() const {
-    return getCalledFunction()->getIntrinsicID();
+    return cast<Function>(getCalledOperand())->getIntrinsicID();
   }
 
   bool isAssociative() const {
@@ -132,9 +132,8 @@ public:
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const CallInst *I) {
-    if (const Function *CF = I->getCalledFunction())
-      return CF->isIntrinsic();
-    return false;
+    auto *F = dyn_cast_or_null<Function>(I->getCalledOperand());
+    return F && F->isIntrinsic();
   }
   static bool classof(const Value *V) {
     return isa<CallInst>(V) && classof(cast<CallInst>(V));
@@ -1013,6 +1012,13 @@ public:
   const Use &getLengthUse() const { return getArgOperandUse(ARG_LENGTH); }
   Use &getLengthUse() { return getArgOperandUse(ARG_LENGTH); }
 
+  std::optional<APInt> getLengthInBytes() const {
+    ConstantInt *C = dyn_cast<ConstantInt>(getLength());
+    if (!C)
+      return std::nullopt;
+    return C->getValue();
+  }
+
   /// This is just like getRawDest, but it strips off any cast
   /// instructions (including addrspacecast) that feed it, giving the
   /// original input.  The returned value is guaranteed to be a pointer.
@@ -1022,14 +1028,6 @@ public:
     return cast<PointerType>(getRawDest()->getType())->getAddressSpace();
   }
 
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getDestAlign() instead.
-  LLVM_DEPRECATED("Use getDestAlign() instead", "getDestAlign")
-  unsigned getDestAlignment() const {
-    if (auto MA = getParamAlign(ARG_DEST))
-      return MA->value();
-    return 0;
-  }
   MaybeAlign getDestAlign() const { return getParamAlign(ARG_DEST); }
 
   /// Set the specified arguments of the instruction.
@@ -1056,6 +1054,10 @@ public:
            "setLength called with value of wrong type!");
     setArgOperand(ARG_LENGTH, L);
   }
+
+  void setLength(uint64_t L) {
+    setLength(ConstantInt::get(getLength()->getType(), L));
+  }
 };
 
 /// Common base class for all memory transfer intrinsics. Simply provides
@@ -1081,15 +1083,6 @@ public:
 
   unsigned getSourceAddressSpace() const {
     return cast<PointerType>(getRawSource()->getType())->getAddressSpace();
-  }
-
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getSourceAlign() instead.
-  LLVM_DEPRECATED("Use getSourceAlign() instead", "getSourceAlign")
-  unsigned getSourceAlignment() const {
-    if (auto MA = BaseCL::getParamAlign(ARG_SOURCE))
-      return MA->value();
-    return 0;
   }
 
   MaybeAlign getSourceAlign() const {

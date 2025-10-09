@@ -13,7 +13,7 @@ import re
 
 
 def remove_level_zero_suffix(devices):
-    return [device.replace("_v2", "") for device in devices]
+    return [device.replace("_v2", "").replace("_v1", "") for device in devices]
 
 
 def parse_min_intel_driver_req(line_number, line, output):
@@ -41,6 +41,12 @@ def parse_min_intel_driver_req(line_number, line, output):
             raise ValueError('Multiple entries for "win" version')
         # Return "win" version as (101, 4502) to ease later comparison.
         output["win"] = tuple(map(int, win.group(1).split(".")))
+
+    cpu = re.search(r"cpu:\s*([^\s]+)", line)
+    if cpu:
+        if "cpu" in output:
+            raise ValueError('Multiple entries for "cpu" version')
+        output["cpu"] = cpu.group(1)
 
     return output
 
@@ -165,7 +171,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             driver_ok = True
             if test.intel_driver_req:
-                for fmt in ["lin", "win"]:
+                for fmt in ["lin", "win", "cpu"]:
                     if (
                         fmt in test.intel_driver_req
                         and fmt in test.config.intel_driver_ver[full_name]
@@ -331,10 +337,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 if extra_env:
                     expanded += " {}".format(" ".join(extra_env))
 
-                dev_features = test.config.sycl_dev_features[full_dev_name]
-                if "level_zero_v2_adapter" in dev_features:
+                if "level_zero_v2" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
-                else:
+                elif "level_zero_v1" in full_dev_name:
                     expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=0"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(

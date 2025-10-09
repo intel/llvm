@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
 
@@ -33,11 +34,11 @@ class Function;
 
 namespace cl {
 class OptionCategory;
-}
+} // namespace cl
 
 namespace module_split {
 
-constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
+constexpr char SyclEsimdSplitMdName[] = "sycl-esimd-split-status";
 constexpr std::array<const char *, 2> SYCLDeviceLibs = {
     "libsycl-fallback-bfloat16.bc", "libsycl-native-bfloat16.bc"};
 
@@ -144,7 +145,7 @@ public:
       : M(std::move(M)), IsTopLevel(true), Name(Name) {
     // DeviceLib module doesn't include any entry point,it can be constructed
     // using ctor without any entry point related parameter.
-    for (auto Fn : SYCLDeviceLibs) {
+    for (const auto *Fn : SYCLDeviceLibs) {
       if (StringRef(Fn) == Name) {
         IsSYCLDeviceLib = true;
         break;
@@ -238,8 +239,11 @@ public:
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
-  void dump() const;
 #endif // NDEBUG
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const;
+#endif
 };
 
 // Module split support interface.
@@ -303,11 +307,13 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints,
                       bool AllowDeviceImageDependencies);
 
-#ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
-void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *Msg = "", int Tab = 0);
-#endif // NDEBUG
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
+                                      const char *Msg = "", int Tab = 0);
+LLVM_DUMP_METHOD void dumpEntryPoints(const Module &M,
+                                      bool OnlyKernelsAreEntryPoints = false,
+                                      const char *Msg = "", int Tab = 0);
+#endif
 
 struct SplitModule {
   std::string ModuleFilePath;

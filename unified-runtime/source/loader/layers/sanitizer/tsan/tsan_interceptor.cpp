@@ -101,7 +101,7 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   return UR_RESULT_SUCCESS;
 }
 
-void ContextInfo::insertAllocInfo(TsanAllocInfo AI) {
+void DeviceInfo::insertAllocInfo(TsanAllocInfo AI) {
   std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMutex);
   AllocInfos.insert(std::move(AI));
 }
@@ -153,7 +153,15 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
-  CI->insertAllocInfo(std::move(AI));
+  if (Device) {
+    auto DI = getDeviceInfo(Device);
+    DI->insertAllocInfo(std::move(AI));
+  } else {
+    for (const auto &Device : CI->DeviceList) {
+      auto DI = getDeviceInfo(Device);
+      DI->insertAllocInfo(AI);
+    }
+  }
 
   *ResultPtr = Allocated;
   return UR_RESULT_SUCCESS;
@@ -163,11 +171,14 @@ ur_result_t TsanInterceptor::releaseMemory(ur_context_handle_t Context,
                                            void *Ptr) {
   auto CI = getContextInfo(Context);
   auto Addr = reinterpret_cast<uptr>(Ptr);
-  {
-    std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMutex);
-    auto It = std::find_if(CI->AllocInfos.begin(), CI->AllocInfos.end(),
+
+  for (const auto &Device : CI->DeviceList) {
+    auto DI = getDeviceInfo(Device);
+    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
                            [&](auto &P) { return P.AllocBegin == Addr; });
-    CI->AllocInfos.erase(It);
+    if (It != DI->AllocInfos.end())
+      DI->AllocInfos.erase(It);
   }
 
   UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context, Ptr));
@@ -343,7 +354,7 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
 
-  UR_CALL(updateShadowMemory(CI, DI, Kernel, InternalQueue));
+  UR_CALL(updateShadowMemory(DI, Kernel, InternalQueue));
 
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
@@ -470,12 +481,12 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t TsanInterceptor::updateShadowMemory(
-    std::shared_ptr<ContextInfo> &CI, std::shared_ptr<DeviceInfo> &DI,
-    ur_kernel_handle_t Kernel, ur_queue_handle_t Queue) {
+ur_result_t TsanInterceptor::updateShadowMemory(std::shared_ptr<DeviceInfo> &DI,
+                                                ur_kernel_handle_t Kernel,
+                                                ur_queue_handle_t Queue) {
   auto &PI = getProgramInfo(GetProgram(Kernel));
-  std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMutex);
-  for (auto &AllocInfo : CI->AllocInfos) {
+  std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+  for (auto &AllocInfo : DI->AllocInfos) {
     UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
                                     AllocInfo.AllocSize));
   }

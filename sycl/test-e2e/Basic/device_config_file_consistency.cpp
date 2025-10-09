@@ -8,6 +8,10 @@
 // REQUIRES: device-config-file
 // RUN: %{build} -o %t.out %device_config_file_include_flag
 // RUN: %{run} %t.out
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <map>
 
 #include <llvm/SYCLLowerIR/DeviceConfigFile.hpp>

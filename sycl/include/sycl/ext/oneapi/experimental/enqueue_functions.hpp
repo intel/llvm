@@ -12,6 +12,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
@@ -99,16 +100,14 @@ template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
 template <typename CommandGroupFunc, typename PropertiesT>
 void submit_impl(const queue &Q, PropertiesT Props, CommandGroupFunc &&CGF,
                  const sycl::detail::code_location &CodeLoc) {
-  Q.submit_without_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
+  Q.submit_without_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(const queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
-  return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
-      Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
+  return Q.submit_with_event(Props, detail::type_erased_cgfo_ty{CGF}, CodeLoc);
 }
 } // namespace detail
 
@@ -260,10 +259,26 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-  submit(std::move(Q), [&](handler &CGH) {
-    nd_launch<KernelName>(CGH, Range, KernelObj,
-                          std::forward<ReductionsT>(Reductions)...);
-  });
+#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
+  // TODO The handler-less path does not support reductions, kernel
+  // function properties and kernel functions with the kernel_handler
+  // type argument yet.
+  if constexpr (sizeof...(ReductionsT) == 0 &&
+                !(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
+    detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
+                                             Range, KernelObj);
+  } else
+#endif
+  {
+    submit(std::move(Q), [&](handler &CGH) {
+      nd_launch<KernelName>(CGH, Range, KernelObj,
+                            std::forward<ReductionsT>(Reductions)...);
+    });
+  }
 }
 
 template <typename KernelName = sycl::detail::auto_name, int Dimensions,
@@ -284,6 +299,9 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename Properties, typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
                const KernelType &KernelObj, ReductionsT &&...Reductions) {
+  // TODO This overload of the nd_launch function takes the kernel function
+  // properties, which are not yet supported for the handler-less path,
+  // so it only supports handler based submission for now
   submit(std::move(Q), [&](handler &CGH) {
     nd_launch<KernelName>(CGH, Config, KernelObj,
                           std::forward<ReductionsT>(Reductions)...);
@@ -369,15 +387,17 @@ void fill(sycl::queue Q, T *Ptr, const T &Pattern, size_t Count,
       CodeLoc);
 }
 
-inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes) {
-  CGH.prefetch(Ptr, NumBytes);
+inline void prefetch(handler &CGH, void *Ptr, size_t NumBytes,
+                     prefetch_type Type = prefetch_type::device) {
+  CGH.prefetch(Ptr, NumBytes, Type);
 }
 
 inline void prefetch(queue Q, void *Ptr, size_t NumBytes,
+                     prefetch_type Type = prefetch_type::device,
                      const sycl::detail::code_location &CodeLoc =
                          sycl::detail::code_location::current()) {
   submit(
-      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes); },
+      std::move(Q), [&](handler &CGH) { prefetch(CGH, Ptr, NumBytes, Type); },
       CodeLoc);
 }
 

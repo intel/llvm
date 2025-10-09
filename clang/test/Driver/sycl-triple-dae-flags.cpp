@@ -5,7 +5,7 @@
 // CHECK-NOT: -fenable-sycl-dae
 // CHECK-NOT: -emit-param-info
 //
-// RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-dead-args-optimization -nocudalib %s 2> %t.cuda.out
+// RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-dead-args-optimization -fno-sycl-libspirv -nocudalib %s 2> %t.cuda.out
 // RUN: FileCheck %s --check-prefixes=CHECK-FENABLE,CHECK-EMIT --input-file %t.cuda.out
 //
 // RUN: %clangxx -### -fsycl -fsycl-targets=spir64-unknown-unknown -fsycl-dead-args-optimization %s 2> %t.out

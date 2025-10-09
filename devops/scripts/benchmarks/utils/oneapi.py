@@ -112,7 +112,6 @@ class OneAPI:
 
 oneapi_instance = None
 
-
 def get_oneapi() -> OneAPI:  # oneAPI singleton
     if not hasattr(get_oneapi, "instance"):
         get_oneapi.instance = OneAPI()

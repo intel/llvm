@@ -9,18 +9,24 @@
 #include "DeviceCompilation.h"
 #include "ESIMD.h"
 #include "JITBinaryInfo.h"
+#include "Resource.h"
 #include "translation/Translation.h"
 
+#include "clang/Lex/PreprocessorOptions.h"
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
+#include <clang/Driver/CudaInstallationDetector.h>
 #include <clang/Driver/Driver.h>
+#include <clang/Driver/LazyDetector.h>
 #include <clang/Driver/Options.h>
+#include <clang/Driver/RocmInstallationDetector.h>
 #include <clang/Driver/ToolChain.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
+#include <clang/Frontend/PrecompiledPreamble.h>
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
@@ -42,6 +48,7 @@
 #include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
+#include <llvm/TargetParser/TargetParser.h>
 
 #include <algorithm>
 #include <array>
@@ -59,216 +66,263 @@ using namespace llvm::util;
 using namespace llvm::vfs;
 using namespace jit_compiler;
 
-#ifdef _GNU_SOURCE
-#include <dlfcn.h>
-static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
-#endif
-
-#ifdef _WIN32
-#include <filesystem> // For std::filesystem::path ( C++17 only )
-#include <shlwapi.h>  // For PathRemoveFileSpec
-#include <windows.h>  // For GetModuleFileName, HMODULE, DWORD, MAX_PATH
-
-// cribbed from sycl/source/detail/os_util.cpp
-using OSModuleHandle = intptr_t;
-static constexpr OSModuleHandle ExeModuleHandle = -1;
-static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
-  HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
-  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-    // Expect the caller to check for zero and take
-    // necessary action
-    return 0;
-  }
-  if (PhModule == GetModuleHandleA(nullptr))
-    return ExeModuleHandle;
-  return reinterpret_cast<OSModuleHandle>(PhModule);
-}
-
-// cribbed from sycl/source/detail/os_util.cpp
-/// Returns an absolute path where the object was found.
-std::wstring getCurrentDSODir() {
-  wchar_t Path[MAX_PATH];
-  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
-  DWORD Ret = GetModuleFileName(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
-      MAX_PATH);
-  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
-  assert(Ret > 0 && "GetModuleFileName failed");
-  (void)Ret;
-
-  BOOL RetCode = PathRemoveFileSpec(Path);
-  assert(RetCode && "PathRemoveFileSpec failed");
-  (void)RetCode;
-
-  return Path;
-}
-#endif // _WIN32
-
-static constexpr auto InvalidDPCPPRoot = "<invalid>";
-
-static const std::string &getDPCPPRoot() {
-  thread_local std::string DPCPPRoot;
-
-  if (!DPCPPRoot.empty()) {
-    return DPCPPRoot;
-  }
-  DPCPPRoot = InvalidDPCPPRoot;
-
-#ifdef _GNU_SOURCE
-  static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
-  Dl_info Info;
-  if (dladdr(&X, &Info)) {
-    std::string LoadedLibraryPath = Info.dli_fname;
-    auto Pos = LoadedLibraryPath.rfind(JITLibraryPathSuffix);
-    if (Pos != std::string::npos) {
-      DPCPPRoot = LoadedLibraryPath.substr(0, Pos);
-    }
-  }
-#endif // _GNU_SOURCE
-
-#ifdef _WIN32
-  DPCPPRoot = std::filesystem::path(getCurrentDSODir()).parent_path().string();
-#endif // _WIN32
-
-  // TODO: Implemenent other means of determining the DPCPP root, e.g.
-  //       evaluating the `CMPLR_ROOT` env.
-
-  return DPCPPRoot;
-}
-
 namespace {
 
-class HashPreprocessedAction : public PreprocessorFrontendAction {
-protected:
-  void ExecuteAction() override {
-    CompilerInstance &CI = getCompilerInstance();
+class SYCLToolchain {
+  SYCLToolchain() {
+    using namespace jit_compiler::resource;
 
-    std::string PreprocessedSource;
-    raw_string_ostream PreprocessStream(PreprocessedSource);
-
-    PreprocessorOutputOptions Opts;
-    Opts.ShowCPP = 1;
-    Opts.MinimizeWhitespace = 1;
-    // Make cache key insensitive to virtual source file and header locations.
-    Opts.ShowLineMarkers = 0;
-
-    DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
-
-    Hash = BLAKE3::hash(arrayRefFromStringRef(PreprocessedSource));
-    Executed = true;
+    for (size_t i = 0; i < NumToolchainFiles; ++i) {
+      resource_file RF = ToolchainFiles[i];
+      std::string_view Path{RF.Path.S, RF.Path.Size};
+      std::string_view Content{RF.Content.S, RF.Content.Size};
+      ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
+    }
   }
 
-public:
-  BLAKE3Result<> takeHash() {
-    assert(Executed);
-    Executed = false;
-    return std::move(Hash);
-  }
+  struct PrecompiledPreambles {
+    using key = std::pair<std::string /*Opts*/, std::string /*Preamble*/>;
+    std::mutex Mutex;
+    std::map<key, std::shared_ptr<PrecompiledPreamble>> PreamblesMap;
+  };
 
-private:
-  BLAKE3Result<> Hash;
-  bool Executed = false;
-};
+  // Similar to FrontendActionFactory, but we don't take ownership of
+  // `FrontendAction`, nor do we create copies of it as we only perform a single
+  // `ToolInvocation`.
+  class Action : public ToolAction {
+    FrontendAction &FEAction;
 
-class RTCToolActionBase : public ToolAction {
-public:
-  // Code adapted from `FrontendActionFactory::runInvocation`.
-  bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
-                     FileManager *Files,
-                     std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-                     DiagnosticConsumer *DiagConsumer) override {
-    assert(!hasExecuted() && "Action should only be invoked on a single file");
+  public:
+    Action(FrontendAction &FEAction) : FEAction(FEAction) {}
+    ~Action() override = default;
 
-    // Create a compiler instance to handle the actual work.
-    CompilerInstance Compiler(std::move(Invocation),
-                              std::move(PCHContainerOps));
-    Compiler.setFileManager(Files);
-    // Suppress summary with number of warnings and errors being printed to
-    // stdout.
-    Compiler.setVerboseOutputStream(std::make_unique<llvm::raw_null_ostream>());
+    // Code adapted from `FrontendActionFactory::runInvocation`:
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      // Create a compiler instance to handle the actual work.
+      CompilerInstance Compiler(std::move(Invocation),
+                                std::move(PCHContainerOps));
+      Compiler.setFileManager(Files);
+      // Suppress summary with number of warnings and errors being printed to
+      // stdout.
+      Compiler.setVerboseOutputStream(
+          std::make_unique<llvm::raw_null_ostream>());
 
-    // Create the compiler's actual diagnostics engine.
-    Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
-                               /*ShouldOwnClient=*/false);
-    if (!Compiler.hasDiagnostics()) {
-      return false;
+      // Create the compiler's actual diagnostics engine.
+      Compiler.createDiagnostics(Files->getVirtualFileSystem(), DiagConsumer,
+                                 /*ShouldOwnClient=*/false);
+      if (!Compiler.hasDiagnostics())
+        return false;
+
+      Compiler.createSourceManager(*Files);
+
+      const bool Success = Compiler.ExecuteAction(FEAction);
+
+      Files->clearStatCache();
+      return Success;
+    }
+  };
+
+  std::vector<std::string> createCommandLine(const InputArgList &UserArgList,
+                                             BinaryFormat Format,
+                                             std::string_view SourceFilePath) {
+    DerivedArgList DAL{UserArgList};
+    const auto &OptTable = getDriverOptTable();
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+    // User args may contain options not intended for the frontend, but we can't
+    // claim them here to tell the driver they're used later. Hence, suppress
+    // the unused argument warning.
+    DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+
+    if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
+      auto [CPU, Features] =
+          Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
+      (void)Features;
+      StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
+                                                 : "amdgcn-amd-amdhsa";
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
     }
 
-    Compiler.createSourceManager(*Files);
+    ArgStringList ASL;
+    for (Arg *A : DAL)
+      A->render(DAL, ASL);
+    for (Arg *A : UserArgList) {
+      Option Group = A->getOption().getGroup();
+      if (Group.isValid() && Group.getID() == OPT_sycl_rtc_only_Group)
+        continue;
 
-    return executeAction(Compiler, Files);
-  }
-
-  virtual ~RTCToolActionBase() = default;
-
-protected:
-  virtual bool hasExecuted() = 0;
-  virtual bool executeAction(CompilerInstance &, FileManager *) = 0;
-};
-
-class GetSourceHashAction : public RTCToolActionBase {
-protected:
-  bool executeAction(CompilerInstance &CI, FileManager *Files) override {
-    HashPreprocessedAction HPA;
-    const bool Success = CI.ExecuteAction(HPA);
-    Files->clearStatCache();
-    if (!Success) {
-      return false;
+      A->render(UserArgList, ASL);
     }
 
-    Hash = HPA.takeHash();
-    Executed = true;
-    return true;
+    std::vector<std::string> CommandLine;
+    CommandLine.reserve(ASL.size() + 2);
+    CommandLine.emplace_back(ClangXXExe);
+    transform(ASL, std::back_inserter(CommandLine),
+              [](const char *AS) { return std::string{AS}; });
+    CommandLine.emplace_back(SourceFilePath);
+    return CommandLine;
   }
 
-  bool hasExecuted() override { return Executed; }
+  class ActionWithPCHPreamble : public Action {
+    std::string CmdLineOpts;
+
+  public:
+    ActionWithPCHPreamble(FrontendAction &FEAction, std::string &&CmdLineOpts)
+        : Action(FEAction), CmdLineOpts(std::move(CmdLineOpts)) {}
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      auto MainFilePath = Invocation->getFrontendOpts().Inputs[0].getFile();
+      auto MainFileBuffer = Files->getBufferForFile(MainFilePath);
+      assert(MainFileBuffer && "Can't get memory buffer for in-memory source?");
+
+      PreambleBounds Bounds = ComputePreambleBounds(
+          Invocation->getLangOpts(), **MainFileBuffer, 100 /* MaxLines */);
+
+      PrecompiledPreambles::key key{
+          std::move(CmdLineOpts),
+          (*MainFileBuffer)->getBuffer().substr(0, Bounds.Size).str()};
+
+      std::shared_ptr<PrecompiledPreamble> Preamble;
+      {
+        PrecompiledPreambles &Preambles = SYCLToolchain::instance().Preambles;
+        std::lock_guard<std::mutex> Lock{Preambles.Mutex};
+        auto [It, Inserted] = Preambles.PreamblesMap.try_emplace(key);
+
+        if (Inserted) {
+          PreambleCallbacks Callbacks;
+          auto DiagIds = llvm::makeIntrusiveRefCnt<DiagnosticIDs>();
+          auto DiagOpts = Invocation->getDiagnosticOpts();
+          auto Diags = llvm::makeIntrusiveRefCnt<DiagnosticsEngine>(
+              DiagIds, DiagOpts, DiagConsumer, false);
+
+          static std::string StoragePath =
+              (SYCLToolchain::instance().getPrefix() + "/preambles").str();
+          llvm::ErrorOr<PrecompiledPreamble> NewPreamble =
+              PrecompiledPreamble::Build(
+                  *Invocation, MainFileBuffer->get(), Bounds, Diags,
+                  Files->getVirtualFileSystemPtr(), PCHContainerOps,
+                  /*StorePreamblesInMemory*/ true, StoragePath, Callbacks,
+                  /*AllowASTWithErrors=*/false);
+
+          if (!NewPreamble)
+            return false;
+
+          It->second = std::make_shared<PrecompiledPreamble>(
+              std::move(NewPreamble.get()));
+        }
+
+        Preamble = It->second;
+      } // End lock
+
+      assert(Preamble);
+      assert(Preamble->CanReuse(*Invocation, **MainFileBuffer, Bounds,
+                                Files->getVirtualFileSystem()));
+
+      assert(Invocation->getPreprocessorOpts().RetainRemappedFileBuffers ==
+             false);
+      // `PreprocessorOptions::RetainRemappedFileBuffers` defaults to false, so
+      // MemoryBuffer will be cleaned up by the CompilerInstance, thus
+      // `std::unique_ptr::release`.
+      auto Buf = llvm::MemoryBuffer::getMemBufferCopy(
+                     (*MainFileBuffer)->getBuffer(), MainFilePath)
+                     .release();
+
+      auto VFS = Files->getVirtualFileSystemPtr();
+      Preamble->AddImplicitPreamble(*Invocation, VFS, Buf);
+      auto NewFiles = makeIntrusiveRefCnt<FileManager>(
+          Files->getFileSystemOpts(), std::move(VFS));
+
+      return Action::runInvocation(std::move(Invocation), NewFiles.get(),
+                                   std::move(PCHContainerOps), DiagConsumer);
+    }
+  };
 
 public:
-  BLAKE3Result<> takeHash() {
-    assert(Executed);
-    Executed = false;
-    return std::move(Hash);
+  static SYCLToolchain &instance() {
+    static SYCLToolchain Instance;
+    return Instance;
   }
 
-private:
-  BLAKE3Result<> Hash;
-  bool Executed = false;
-};
+  bool run(const InputArgList &UserArgList, BinaryFormat Format,
+           const char *SourceFilePath, FrontendAction &FEAction,
+           IntrusiveRefCntPtr<FileSystem> FSOverlay = nullptr,
+           DiagnosticConsumer *DiagConsumer = nullptr,
+           bool UseAutoPCH = false) {
+    std::vector<std::string> CommandLine =
+        createCommandLine(UserArgList, Format, SourceFilePath);
 
-struct GetLLVMModuleAction : public RTCToolActionBase {
-protected:
-  bool executeAction(CompilerInstance &CI, FileManager *Files) override {
-    // Ignore `Compiler.getFrontendOpts().ProgramAction` (would be `EmitBC`) and
-    // create/execute an `EmitLLVMOnlyAction` (= codegen to LLVM module without
-    // emitting anything) instead.
-    EmitLLVMOnlyAction ELOA{&Context};
-    const bool Success = CI.ExecuteAction(ELOA);
-    Files->clearStatCache();
-    if (!Success) {
-      return false;
+    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+        llvm::vfs::getRealFileSystem());
+    FS->pushOverlay(ToolchainFS);
+    if (FSOverlay)
+      FS->pushOverlay(std::move(FSOverlay));
+
+    auto Files = llvm::makeIntrusiveRefCnt<clang::FileManager>(
+        clang::FileSystemOptions{"." /* WorkingDir */}, FS);
+
+    Action Normal{FEAction};
+
+    // User compilation options must be part of the key in the preambles map. We
+    // can either use "raw" user options or the "processed" from
+    // `createCommandLine` as long as we're consistent in what we're using.
+    // Current internal APIs pass `InputArgList` around instead of a single
+    // `std::string`, so it's easier to use `CommandLine`. Just make sure to
+    // drop `rtc_N.cpp` that is always different:
+    ActionWithPCHPreamble WithPreamble{FEAction,
+                                       join(drop_end(CommandLine, 1), " ")};
+    ToolInvocation TI{std::move(CommandLine),
+                      UseAutoPCH ? static_cast<Action *>(&WithPreamble)
+                                 : &Normal,
+                      Files.get(), std::make_shared<PCHContainerOperations>()};
+
+    TI.setDiagnosticConsumer(DiagConsumer ? DiagConsumer : &IgnoreDiag);
+
+    return TI.run();
+  }
+
+  Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
+                                          LLVMContext &Context) {
+    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+        llvm::vfs::getRealFileSystem());
+    FS->pushOverlay(ToolchainFS);
+
+    auto MemBuf = FS->getBufferForFile(LibPath, /*FileSize*/ -1,
+                                       /*RequiresNullTerminator*/ false);
+    if (!MemBuf) {
+      return createStringError("Error opening file %s: %s", LibPath.data(),
+                               MemBuf.getError().message().c_str());
     }
 
-    // Take the module to extend its lifetime.
-    Module = ELOA.takeModule();
-
-    return true;
+    SMDiagnostic Diag;
+    ModuleUPtr Lib = parseIR(*MemBuf->get(), Diag, Context);
+    if (!Lib) {
+      std::string DiagMsg;
+      raw_string_ostream SOS(DiagMsg);
+      Diag.print(/*ProgName=*/nullptr, SOS);
+      return createStringError(DiagMsg);
+    }
+    return std::move(Lib);
   }
 
-  bool hasExecuted() override { return static_cast<bool>(Module); }
-
-public:
-  GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
-  ModuleUPtr takeModule() {
-    assert(Module);
-    return std::move(Module);
-  }
+  std::string_view getPrefix() const { return Prefix; }
+  std::string_view getClangXXExe() const { return ClangXXExe; }
 
 private:
-  LLVMContext &Context;
-  ModuleUPtr Module;
+  clang::IgnoringDiagConsumer IgnoreDiag;
+  std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
+                          jit_compiler::resource::ToolchainPrefix.Size};
+  std::string ClangXXExe = (Prefix + "/bin/clang++").str();
+  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
+      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+
+  PrecompiledPreambles Preambles;
 };
 
 class ClangDiagnosticWrapper {
@@ -317,65 +371,20 @@ public:
 
 } // anonymous namespace
 
-static void adjustArgs(const InputArgList &UserArgList,
-                       const std::string &DPCPPRoot, BinaryFormat Format,
-                       SmallVectorImpl<std::string> &CommandLine) {
-  DerivedArgList DAL{UserArgList};
-  const auto &OptTable = getDriverOptTable();
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
-  DAL.AddJoinedArg(
-      nullptr, OptTable.getOption(OPT_resource_dir_EQ),
-      (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
-  // User args may contain options not intended for the frontend, but we can't
-  // claim them here to tell the driver they're used later. Hence, suppress the
-  // unused argument warning.
-  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
+static llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem>
+getInMemoryFS(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles) {
+  auto InMemoryFS = llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
 
-  if (Format == BinaryFormat::PTX || Format == BinaryFormat::AMDGCN) {
-    auto [CPU, Features] =
-        Translator::getTargetCPUAndFeatureAttrs(nullptr, "", Format);
-    (void)Features;
-    StringRef OT = Format == BinaryFormat::PTX ? "nvptx64-nvidia-cuda"
-                                               : "amdgcn-amd-amdhsa";
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_fsycl_targets_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_Xsycl_backend_EQ), OT);
-    DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
-  }
+  InMemoryFS->setCurrentWorkingDirectory(
+      *llvm::vfs::getRealFileSystem()->getCurrentWorkingDirectory());
 
-  ArgStringList ASL;
-  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
-  for_each(UserArgList,
-           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
-  transform(ASL, std::back_inserter(CommandLine),
-            [](const char *AS) { return std::string{AS}; });
-}
+  InMemoryFS->addFile(SourceFile.Path, 0,
+                      llvm::MemoryBuffer::getMemBuffer(SourceFile.Contents));
+  for (InMemoryFile F : IncludeFiles)
+    InMemoryFS->addFile(F.Path, 0,
+                        llvm::MemoryBuffer::getMemBuffer(F.Contents));
 
-static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
-                      InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-                      DiagnosticConsumer *Consumer) {
-  Tool.setDiagnosticConsumer(Consumer);
-  // Suppress message "Error while processing" being printed to stdout.
-  Tool.setPrintErrorMessage(false);
-
-  // Set up in-memory filesystem.
-  Tool.mapVirtualFile(SourceFile.Path, SourceFile.Contents);
-  for (const auto &IF : IncludeFiles) {
-    Tool.mapVirtualFile(IF.Path, IF.Contents);
-  }
-
-  // Reset argument adjusters to drop the `-fsyntax-only` flag which is added by
-  // default by this API.
-  Tool.clearArgumentsAdjusters();
-  // Then, modify argv[0] so that the driver picks up the correct SYCL
-  // environment. We've already set the resource directory above.
-  Tool.appendArgumentsAdjuster(
-      [&DPCPPRoot](const CommandLineArguments &Args,
-                   StringRef Filename) -> CommandLineArguments {
-        (void)Filename;
-        CommandLineArguments NewArgs = Args;
-        NewArgs[0] = (Twine(DPCPPRoot) + "/bin/clang++").str();
-        return NewArgs;
-      });
+  return InMemoryFS;
 }
 
 Expected<std::string> jit_compiler::calculateHash(
@@ -383,36 +392,56 @@ Expected<std::string> jit_compiler::calculateHash(
     const InputArgList &UserArgList, BinaryFormat Format) {
   TimeTraceScope TTS{"calculateHash"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
+  class HashPreprocessedAction : public PreprocessorFrontendAction {
+  protected:
+    void ExecuteAction() override {
+      CompilerInstance &CI = getCompilerInstance();
+
+      std::string PreprocessedSource;
+      raw_string_ostream PreprocessStream(PreprocessedSource);
+
+      PreprocessorOutputOptions Opts;
+      Opts.ShowCPP = 1;
+      Opts.MinimizeWhitespace = 1;
+      // Make cache key insensitive to virtual source file and header locations.
+      Opts.ShowLineMarkers = 0;
+
+      DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
+
+      Hasher.update(PreprocessedSource);
+    }
+
+  public:
+    HashPreprocessedAction(BLAKE3 &Hasher) : Hasher(Hasher) {}
+
+  private:
+    BLAKE3 &Hasher;
+  };
+
+  BLAKE3 Hasher;
+  HashPreprocessedAction HashAction{Hasher};
+
+  if (!SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path,
+                                     HashAction,
+                                     getInMemoryFS(SourceFile, IncludeFiles)))
+    return createStringError("Calculating source hash failed");
+
+  Hasher.update(CLANG_VERSION_STRING);
+  Hasher.update(
+      ArrayRef<uint8_t>{reinterpret_cast<const uint8_t *>(&Format),
+                        reinterpret_cast<const uint8_t *>(&Format + 1)});
+
+  for (Arg *Opt : UserArgList) {
+    Hasher.update(Opt->getSpelling());
+    for (const char *Val : Opt->getValues())
+      Hasher.update(Val);
   }
 
-  SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
+  std::string EncodedHash = encodeBase64(Hasher.result());
 
-  FixedCompilationDatabase DB{".", CommandLine};
-  ClangTool Tool{DB, {SourceFile.Path}};
-
-  clang::IgnoringDiagConsumer DiagConsumer;
-  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, &DiagConsumer);
-
-  GetSourceHashAction Action;
-  if (!Tool.run(&Action)) {
-    BLAKE3Result<> SourceHash = Action.takeHash();
-    // The adjusted command line contains the DPCPP root and clang major
-    // version.
-    BLAKE3Result<> CommandLineHash =
-        BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
-
-    std::string EncodedHash =
-        encodeBase64(SourceHash) + encodeBase64(CommandLineHash);
-    // Make the encoding filesystem-friendly.
-    std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
-    return std::move(EncodedHash);
-  }
-
-  return createStringError("Calculating source hash failed");
+  // Make the encoding filesystem-friendly.
+  std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+  return std::move(EncodedHash);
 }
 
 Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
@@ -421,28 +450,19 @@ Expected<ModuleUPtr> jit_compiler::compileDeviceCode(
     LLVMContext &Context, BinaryFormat Format) {
   TimeTraceScope TTS{"compileDeviceCode"};
 
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
-
-  SmallVector<std::string> CommandLine;
-  adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
-
-  FixedCompilationDatabase DB{".", CommandLine};
-  ClangTool Tool{DB, {SourceFile.Path}};
-
+  EmitLLVMOnlyAction ELOA{&Context};
   DiagnosticOptions DiagOpts;
   ClangDiagnosticWrapper Wrapper(BuildLog, &DiagOpts);
 
-  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, Wrapper.consumer());
+  bool AutoPCH = UserArgList.hasArg(OPT_auto_pch);
 
-  GetLLVMModuleAction Action{Context};
-  if (!Tool.run(&Action)) {
-    return Action.takeModule();
+  if (SYCLToolchain::instance().run(UserArgList, Format, SourceFile.Path, ELOA,
+                                    getInMemoryFS(SourceFile, IncludeFiles),
+                                    Wrapper.consumer(), AutoPCH)) {
+    return ELOA.takeModule();
+  } else {
+    return createStringError(BuildLog);
   }
-
-  return createStringError(BuildLog);
 }
 
 // This function is a simplified copy of the device library selection process
@@ -550,29 +570,11 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
-static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
-                                               LLVMContext &Context) {
-  SMDiagnostic Diag;
-  ModuleUPtr Lib = parseIRFile(LibPath, Diag, Context);
-  if (!Lib) {
-    std::string DiagMsg;
-    raw_string_ostream SOS(DiagMsg);
-    Diag.print(/*ProgName=*/nullptr, SOS);
-    return createStringError(DiagMsg);
-  }
-  return std::move(Lib);
-}
-
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
                                         std::string &BuildLog,
                                         BinaryFormat Format) {
   TimeTraceScope TTS{"linkDeviceLibraries"};
-
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID{new DiagnosticIDs};
   DiagnosticOptions DiagOpts;
@@ -607,10 +609,13 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   LLVMContext &Context = Module.getContext();
   for (const std::string &LibName : LibNames) {
-    std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+    std::string LibPath =
+        (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
 
     ModuleUPtr LibModule;
-    if (auto Error = loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
+    if (auto Error = SYCLToolchain::instance()
+                         .loadBitcodeLibrary(LibPath, Context)
+                         .moveInto(LibModule)) {
       return Error;
     }
 
@@ -623,66 +628,58 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
 
   // For GPU targets we need to link against vendor provided libdevice.
   if (IsCudaHIP) {
-    std::string Argv0 = DPCPPRoot + "/bin/clang++";
     Triple T{Module.getTargetTriple()};
-    IntrusiveRefCntPtr<OverlayFileSystem> OFS{
-        new OverlayFileSystem{getRealFileSystem()}};
-    IntrusiveRefCntPtr<InMemoryFileSystem> VFS{new InMemoryFileSystem};
-    std::string CppFileName{"a.cpp"};
-    VFS->addFile(CppFileName, /*ModificationTime=*/0,
-                 MemoryBuffer::getMemBuffer("", ""));
-    OFS->pushOverlay(VFS);
-    Driver D{Argv0, T.getTriple(), Diags, "dpcpp compiler driver", OFS};
-
-    SmallVector<std::string> CommandLine;
-    CommandLine.push_back(Argv0);
-    adjustArgs(UserArgList, DPCPPRoot, Format, CommandLine);
-    CommandLine.push_back(CppFileName);
-    SmallVector<const char *> CommandLineCStr(CommandLine.size());
-    llvm::transform(CommandLine, CommandLineCStr.begin(),
-                    [](const auto &S) { return S.c_str(); });
-
-    Compilation *C = D.BuildCompilation(CommandLineCStr);
-    if (!C) {
-      return createStringError("Unable to construct driver for CUDA/HIP");
-    }
-
-    const ToolChain *OffloadTC =
-        C->getSingleOffloadToolChain<Action::OFK_SYCL>();
-    InputArgList EmptyArgList;
-    auto Archs =
-        D.getOffloadArchs(*C, EmptyArgList, Action::OFK_SYCL, OffloadTC);
-    assert(Archs.size() == 1 &&
-           "Offload toolchain should be configured to single architecture");
-    StringRef CPU = *Archs.begin();
-
-    // Pass only `-march=` or `-mcpu=` with the GPU arch determined by the
-    // driver to `getDeviceLibs`.
-    DerivedArgList CPUArgList{EmptyArgList};
-    if (Format == BinaryFormat::PTX) {
-      CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_march_EQ),
-                              CPU);
-    } else {
-      CPUArgList.AddJoinedArg(nullptr, D.getOpts().getOption(OPT_mcpu_EQ), CPU);
-    }
-
-    SmallVector<ToolChain::BitCodeLibraryInfo, 12> CommonDeviceLibs =
-        OffloadTC->getDeviceLibs(CPUArgList, Action::OffloadKind::OFK_SYCL);
-    if (CommonDeviceLibs.empty()) {
-      return createStringError("Unable to find common device libraries");
-    }
-
-    for (auto &Lib : CommonDeviceLibs) {
-      ModuleUPtr LibModule;
-      if (auto Error =
-              loadBitcodeLibrary(Lib.Path, Context).moveInto(LibModule)) {
+    Driver D{(SYCLToolchain::instance().getPrefix() + "/bin/clang++").str(),
+             T.getTriple(), Diags};
+    auto [CPU, Features] =
+        Translator::getTargetCPUAndFeatureAttrs(&Module, "", Format);
+    (void)Features;
+    // Helper lambda to link modules.
+    auto LinkInLib = [&](const StringRef LibDevice) -> Error {
+      ModuleUPtr LibDeviceModule;
+      if (auto Error = SYCLToolchain::instance()
+                           .loadBitcodeLibrary(LibDevice, Context)
+                           .moveInto(LibDeviceModule)) {
         return Error;
       }
-
-      if (Linker::linkModules(Module, std::move(LibModule),
+      if (Linker::linkModules(Module, std::move(LibDeviceModule),
                               Linker::LinkOnlyNeeded)) {
-        return createStringError("Unable to link device library %s: %s",
-                                 Lib.Path.c_str(), BuildLog.c_str());
+        return createStringError("Unable to link libdevice: %s",
+                                 BuildLog.c_str());
+      }
+      return Error::success();
+    };
+    SmallVector<std::string, 12> LibDeviceFiles;
+    if (Format == BinaryFormat::PTX) {
+      // For NVPTX we can get away with CudaInstallationDetector.
+      LazyDetector<CudaInstallationDetector> CudaInstallation{D, T,
+                                                              UserArgList};
+      auto LibDevice = CudaInstallation->getLibDeviceFile(CPU);
+      if (LibDevice.empty()) {
+        return createStringError("Unable to find Cuda libdevice");
+      }
+      LibDeviceFiles.push_back(LibDevice);
+    } else {
+      LazyDetector<RocmInstallationDetector> RocmInstallation{D, T,
+                                                              UserArgList};
+      RocmInstallation->detectDeviceLibrary();
+      StringRef CanonArch =
+          llvm::AMDGPU::getArchNameAMDGCN(llvm::AMDGPU::parseArchAMDGCN(CPU));
+      StringRef LibDeviceFile = RocmInstallation->getLibDeviceFile(CanonArch);
+      auto CommonBCLibs = RocmInstallation->getCommonBitcodeLibs(
+          UserArgList, LibDeviceFile, CPU, Action::OFK_SYCL,
+          /*NeedsASanRT=*/false);
+      if (CommonBCLibs.empty()) {
+        return createStringError("Unable to find ROCm bitcode libraries");
+      }
+      for (auto &Lib : CommonBCLibs) {
+        LibDeviceFiles.push_back(Lib.Path);
+      }
+    }
+    for (auto &LibDeviceFile : LibDeviceFiles) {
+      // llvm::Error converts to false on success.
+      if (auto Error = LinkInLib(LibDeviceFile)) {
+        return Error;
       }
     }
   }
@@ -875,16 +872,14 @@ jit_compiler::performPostLink(ModuleUPtr Module,
   }
 
   if (IsBF16DeviceLibUsed) {
-    const std::string &DPCPPRoot = getDPCPPRoot();
-    if (DPCPPRoot == InvalidDPCPPRoot) {
-      return createStringError("Could not locate DPCPP root directory");
-    }
-
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
-      std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+      std::string LibPath =
+          (SYCLToolchain::instance().getPrefix() + "/lib/" + LibName).str();
       ModuleUPtr LibModule;
-      if (auto Error = loadBitcodeLibrary(LibPath, Ctx).moveInto(LibModule)) {
+      if (auto Error = SYCLToolchain::instance()
+                           .loadBitcodeLibrary(LibPath, Ctx)
+                           .moveInto(LibModule)) {
         return Error;
       }
 
@@ -928,11 +923,12 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   // Check for options that are unsupported because they would interfere with
   // the in-memory pipeline.
   Arg *UnsupportedArg =
-      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
-                    OPT_Link_Group,       // Linker flags
-                    OPT_o,                // Output file
-                    OPT_fsycl_targets_EQ, // AoT compilation
-                    OPT_fsycl_link_EQ,    // SYCL linker
+      AL.getLastArg(OPT_Action_Group,       // Actions like -c or -S
+                    OPT_Link_Group,         // Linker flags
+                    OPT_o,                  // Output file
+                    OPT_fsycl_targets_EQ,   // AoT compilation
+                    OPT_offload_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,      // SYCL linker
                     OPT_fno_sycl_device_code_split_esimd, // invoke_simd
                     OPT_fsanitize_EQ                      // Sanitizer
       );

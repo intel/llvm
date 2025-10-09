@@ -51,11 +51,15 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
+   design/SYCLNativeCPUPipeline
+   design/SYCLNativeCPUPipelinePasses
+   design/SYCLNativeCPUVecz
    design/CommandGraph
    design/OffloadDesign
    design/PrivateAlloca
    design/SYCLBINDesign
    design/PropertySets
+   design/SYCL-RTC
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
    design/Fuzzing
@@ -66,6 +70,7 @@ Developer Documentation
 .. toctree::
    :maxdepth: 1
 
+   developer/Debugging
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP

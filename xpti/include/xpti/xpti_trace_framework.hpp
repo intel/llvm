@@ -1286,7 +1286,7 @@ public:
   ///
   tracepoint_scope_t &
   addMetadata(const std::function<void(xpti::trace_event_data_t *)> &Callback) {
-    if (xptiCheckTraceEnabled(MStreamId, MTraceType) && MTraceEvent) {
+    if (MTraceEvent) {
       Callback(MTraceEvent);
     }
     return *this;
@@ -1731,6 +1731,7 @@ private:
     m_default_event_type = (uint16_t)xpti::trace_event_type_t::algorithm;
     m_default_activity_type = xpti::trace_activity_type_t::active;
     m_default_name = "Message"; // Likely never used
+    m_instID = 0;
   }
   /// The payload data structure that is prepared from code_location(),
   /// caller_callee string or kernel name/codepointer based on the opt-in flag.

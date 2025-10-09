@@ -1127,6 +1127,60 @@ build_options{{
 Relax the requirement that parameter types for free-function kernels must be
 forward-declarable.
 
+===== `--auto-pch`
+
+The first time this option is passed, the compiler finds the initial set of
+preprocessor directives (e.g., `#define`/`#include`) and comments in the
+compiled source string (the preamble) and pre-compiles it. Essentialy, it
+behaves like a precompiled header containing that preamble. On subsequent
+compilations, if the compiled source string has the same preamble and the same
+compilation options are used, the precompiled preamble is used, which speeds up
+compilation.
+
+If the compiled source string has a different preamble or compilation options
+differ, a new precompiled preamble is generated, and that preamble can also be
+used to speed up subsequent compilations. These precompiled preambles are stored
+internally in memory, so they do not persist from one execution of the
+application to the next.
+
+The preamble ends with the first statement that is not a preprocessor directive
+or a comment. For example, in the code below, the preamble ends immediately
+before the namespace syclext = statement.
+
+[source,c++]
+----
+#define SYCL_SIMPLE_SWIZZLES
+#include <sycl/sycl.hpp>
+
+// Auto-detected preamble ends before next line:
+namespace syclext = sycl::ext::oneapi;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+extern "C"
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(sycl::vec<int, 2> *p) {
+    size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+    p[id] = p[id].xx();
+}
+----
+
+The compiler uses the following factors when deciding whether a previously
+generated precompiled preamble can be used:
+
+* The preamble must exactly match (including whitespace and comments).
+* The compilation options must match (including the same order and the same spelling).
+* There are also certain restrictions that the user must avoid:
+
+  - The content of each header file in the preamble must not change from one
+    compilation to another.
+  - It is not recommended to use the `+__DATE__+` or `+__TIME__+` macros in the
+    preamble header files. Depending on the circumstances, these macros may be
+    replaced with the date / time that corresponds to the time at which the
+    precompiled preamble was generated, rather than the time at which the source
+    string is compiled. See also the clang compiler options `-Wpch-date-time`
+    and `-Werror=pch-date-time`, which cause the compiler to diagnose a warning
+    or error in this scenario.
+
 === Known issues and limitations when the language is `sycl`
 
 ==== Changing the compiler action or output

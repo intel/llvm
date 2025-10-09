@@ -1098,15 +1098,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
     ur_api_version_t, ur_enqueue_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEnqueueKernelLaunchWithArgsExp
-typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchWithArgsExp_t)(
-    ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
-    const size_t *, const size_t *, uint32_t,
-    const ur_exp_kernel_arg_properties_t *, uint32_t,
-    const ur_kernel_launch_property_t *, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueUSMDeviceAllocExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMDeviceAllocExp_t)(
     ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
@@ -1156,7 +1147,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
-  ur_pfnEnqueueKernelLaunchWithArgsExp_t pfnKernelLaunchWithArgsExp;
   ur_pfnEnqueueUSMDeviceAllocExp_t pfnUSMDeviceAllocExp;
   ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
   ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
@@ -1422,8 +1412,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
     ur_queue_handle_t, const void *, void *, const ur_image_desc_t *,
     const ur_image_desc_t *, const ur_image_format_t *,
     const ur_image_format_t *, ur_exp_image_copy_region_t *,
-    ur_exp_image_copy_flags_t, uint32_t, const ur_event_handle_t *,
-    ur_event_handle_t *);
+    ur_exp_image_copy_flags_t, ur_exp_image_copy_input_types_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImageGetInfoExp

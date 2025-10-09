@@ -30,7 +30,7 @@
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
+#include "llvm/SYCLLowerIR/SanitizerPostOptimizer.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/Support/CommandLine.h"
@@ -561,55 +561,6 @@ Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   return Error::success();
 }
 
-#ifndef NDEBUG
-
-const char *toString(SyclEsimdSplitStatus S) {
-  switch (S) {
-  case SyclEsimdSplitStatus::ESIMD_ONLY:
-    return "ESIMD_ONLY";
-  case SyclEsimdSplitStatus::SYCL_ONLY:
-    return "SYCL_ONLY";
-  case SyclEsimdSplitStatus::SYCL_AND_ESIMD:
-    return "SYCL_AND_ESIMD";
-  }
-  return "<UNKNOWN_STATUS>";
-}
-
-void tab(int N) {
-  for (int I = 0; I < N; ++I) {
-    llvm::errs() << "  ";
-  }
-}
-
-void dumpEntryPoints(const EntryPointSet &C, const char *msg, int Tab) {
-  tab(Tab);
-  llvm::errs() << "ENTRY POINTS"
-               << " " << msg << " {\n";
-  for (const Function *F : C) {
-    tab(Tab);
-    llvm::errs() << "  " << F->getName() << "\n";
-  }
-  tab(Tab);
-  llvm::errs() << "}\n";
-}
-
-void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
-                     const char *msg, int Tab) {
-  tab(Tab);
-  llvm::errs() << "ENTRY POINTS (Module)"
-               << " " << msg << " {\n";
-  for (const auto &F : M) {
-    if (isEntryPoint(F, OnlyKernelsAreEntryPoints)) {
-      tab(Tab);
-      llvm::errs() << "  " << F.getName() << "\n";
-    }
-  }
-  tab(Tab);
-  llvm::errs() << "}\n";
-}
-
-#endif // NDEBUG
-
 void ModuleDesc::assignMergedProperties(const ModuleDesc &MD1,
                                         const ModuleDesc &MD2) {
   EntryPoints.Props = MD1.EntryPoints.Props.merge(MD2.EntryPoints.Props);
@@ -847,8 +798,57 @@ void ModuleDesc::verifyESIMDProperty() const {
   //  }
   //}
 }
+#endif // NDEBUG
 
-void ModuleDesc::dump() const {
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD const char *toString(SyclEsimdSplitStatus S) {
+  switch (S) {
+  case SyclEsimdSplitStatus::ESIMD_ONLY:
+    return "ESIMD_ONLY";
+  case SyclEsimdSplitStatus::SYCL_ONLY:
+    return "SYCL_ONLY";
+  case SyclEsimdSplitStatus::SYCL_AND_ESIMD:
+    return "SYCL_AND_ESIMD";
+  }
+  return "<UNKNOWN_STATUS>";
+}
+
+LLVM_DUMP_METHOD void tab(int N) {
+  for (int I = 0; I < N; ++I) {
+    llvm::errs() << "  ";
+  }
+}
+
+LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C, const char *msg,
+                                      int Tab) {
+  tab(Tab);
+  llvm::errs() << "ENTRY POINTS"
+               << " " << msg << " {\n";
+  for (const Function *F : C) {
+    tab(Tab);
+    llvm::errs() << "  " << F->getName() << "\n";
+  }
+  tab(Tab);
+  llvm::errs() << "}\n";
+}
+
+LLVM_DUMP_METHOD void dumpEntryPoints(const Module &M,
+                                      bool OnlyKernelsAreEntryPoints,
+                                      const char *msg, int Tab) {
+  tab(Tab);
+  llvm::errs() << "ENTRY POINTS (Module)"
+               << " " << msg << " {\n";
+  for (const auto &F : M) {
+    if (isEntryPoint(F, OnlyKernelsAreEntryPoints)) {
+      tab(Tab);
+      llvm::errs() << "  " << F.getName() << "\n";
+    }
+  }
+  tab(Tab);
+  llvm::errs() << "}\n";
+}
+
+LLVM_DUMP_METHOD void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
@@ -856,12 +856,12 @@ void ModuleDesc::dump() const {
   dumpEntryPoints(entries(), EntryPoints.GroupId.c_str(), 1);
   llvm::errs() << "}\n";
 }
-#endif // NDEBUG
+#endif
 
 void ModuleDesc::saveSplitInformationAsMetadata() {
   // Add metadata to the module so we can identify what kind of SYCL/ESIMD split
   // later.
-  auto *SplitMD = M->getOrInsertNamedMetadata(SYCL_ESIMD_SPLIT_MD_NAME);
+  auto *SplitMD = M->getOrInsertNamedMetadata(SyclEsimdSplitMdName);
   auto *SplitMDOp = MDNode::get(
       M->getContext(), ConstantAsMetadata::get(ConstantInt::get(
                            Type::getInt8Ty(M->getContext()),
@@ -1299,7 +1299,7 @@ bool runPreSplitProcessingPipeline(Module &M) {
   // Sanitizer specific passes.
   if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
       sycl::isModuleUsingTsan(M))
-    MPM.addPass(SanitizerKernelMetadataPass());
+    MPM.addPass(SanitizerPostOptimizerPass());
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.

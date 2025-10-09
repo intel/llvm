@@ -25,12 +25,7 @@
 namespace ur_sanitizer_layer {
 namespace asan {
 
-AsanInterceptor::AsanInterceptor() {
-  if (getContext()->Options.MaxQuarantineSizeMB) {
-    m_Quarantine = std::make_unique<Quarantine>(
-        getContext()->Options.MaxQuarantineSizeMB * 1024 * 1024);
-  }
-}
+AsanInterceptor::AsanInterceptor() {}
 
 AsanInterceptor::~AsanInterceptor() {
   // We must release these objects before releasing adapters, since
@@ -39,7 +34,6 @@ AsanInterceptor::~AsanInterceptor() {
     DeviceInfo->Shadow = nullptr;
   }
 
-  m_Quarantine = nullptr;
   m_MemBufferMap.clear();
   m_KernelMap.clear();
   m_ContextMap.clear();
@@ -224,7 +218,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   }
 
   // If quarantine is disabled, USM is freed immediately
-  if (!m_Quarantine) {
+  if (!ContextInfo->m_Quarantine) {
     UR_LOG_L(getContext()->logger, DEBUG, "Free: {}",
              (void *)AllocInfo->AllocBegin);
 
@@ -239,7 +233,8 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   }
 
   // If quarantine is enabled, cache it
-  auto ReleaseList = m_Quarantine->put(AllocInfo->Device, AllocInfoIt);
+  auto ReleaseList =
+      ContextInfo->m_Quarantine->put(AllocInfo->Device, AllocInfoIt);
   if (ReleaseList.size()) {
     std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
     for (auto &It : ReleaseList) {

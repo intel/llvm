@@ -10,21 +10,14 @@
 
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 
-#include <sycl/access/access.hpp> // for decorated, address_space
+#include <sycl/detail/fwd/multi_ptr.hpp>
 
-#include <array>       // for array
-#include <cstddef>     // for size_t
-#include <tuple>       // for tuple
-#include <type_traits> // for true_type, false_type
+#include <array>
+#include <cstddef>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-template <class T> struct is_fixed_size_group : std::false_type {};
-
-template <class T>
-inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
-} // namespace detail
 
 template <int Dimensions> class group;
 struct sub_group;
@@ -58,6 +51,10 @@ template <class T>
 inline constexpr bool is_user_constructed_group_v =
     is_user_constructed_group<T>::value;
 
+template <typename ParentGroup> class tangle;
+template <typename ParentGroup> class fragment;
+template <size_t ChunkSize, typename ParentGroup> class chunk;
+
 namespace detail {
 template <typename T> struct is_group_helper : std::false_type {};
 
@@ -86,16 +83,30 @@ struct is_generic_group
 template <typename T>
 inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
+template <typename Group> struct is_tangle : std::false_type {};
+template <typename ParentGroup>
+struct is_tangle<sycl::ext::oneapi::experimental::tangle<ParentGroup>>
+    : std::true_type {};
+template <typename Group> constexpr bool is_tangle_v = is_tangle<Group>::value;
+
+template <typename Group> struct is_fragment : std::false_type {};
+template <typename ParentGroup>
+struct is_fragment<sycl::ext::oneapi::experimental::fragment<ParentGroup>>
+    : std::true_type {};
+template <typename Group>
+constexpr bool is_fragment_v = is_fragment<Group>::value;
+
+template <typename Group> struct is_chunk : std::false_type {};
+template <size_t ChunkSize, typename ParentGroup>
+struct is_chunk<sycl::ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
+    : std::true_type {};
+template <typename Group> constexpr bool is_chunk_v = is_chunk<Group>::value;
+
 namespace half_impl {
 class half;
 }
 } // namespace detail
 using half = detail::half_impl::half;
-
-// Forward declaration
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
 
 template <class T>
 struct is_group : std::bool_constant<detail::is_group<T>::value ||
@@ -155,7 +166,7 @@ template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
+                                      OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
 #else

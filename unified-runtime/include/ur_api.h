@@ -305,6 +305,26 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,
   /// Enumerator for ::urEnqueueUSMMemcpy2D
   UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,
+  /// Enumerator for ::urVirtualMemGranularityGetInfo
+  UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,
+  /// Enumerator for ::urVirtualMemReserve
+  UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,
+  /// Enumerator for ::urVirtualMemFree
+  UR_FUNCTION_VIRTUAL_MEM_FREE = 155,
+  /// Enumerator for ::urVirtualMemMap
+  UR_FUNCTION_VIRTUAL_MEM_MAP = 156,
+  /// Enumerator for ::urVirtualMemUnmap
+  UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,
+  /// Enumerator for ::urVirtualMemSetAccess
+  UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,
+  /// Enumerator for ::urVirtualMemGetInfo
+  UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,
+  /// Enumerator for ::urPhysicalMemCreate
+  UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,
+  /// Enumerator for ::urPhysicalMemRetain
+  UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,
+  /// Enumerator for ::urPhysicalMemRelease
+  UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,
   /// Enumerator for ::urUSMImportExp
   UR_FUNCTION_USM_IMPORT_EXP = 163,
   /// Enumerator for ::urUSMReleaseExp
@@ -401,6 +421,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,
   /// Enumerator for ::urEnqueueEventsWaitWithBarrierExt
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
+  /// Enumerator for ::urPhysicalMemGetInfo
+  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
   /// Enumerator for ::urEnqueueUSMDeviceAllocExp
   UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP = 250,
   /// Enumerator for ::urEnqueueUSMSharedAllocExp
@@ -445,28 +467,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT = 272,
   /// Enumerator for ::urUSMContextMemcpyExp
   UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP = 273,
-  /// Enumerator for ::urVirtualMemGranularityGetInfo
-  UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 274,
-  /// Enumerator for ::urVirtualMemReserve
-  UR_FUNCTION_VIRTUAL_MEM_RESERVE = 275,
-  /// Enumerator for ::urVirtualMemFree
-  UR_FUNCTION_VIRTUAL_MEM_FREE = 276,
-  /// Enumerator for ::urVirtualMemMap
-  UR_FUNCTION_VIRTUAL_MEM_MAP = 277,
-  /// Enumerator for ::urVirtualMemUnmap
-  UR_FUNCTION_VIRTUAL_MEM_UNMAP = 278,
-  /// Enumerator for ::urVirtualMemSetAccess
-  UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 279,
-  /// Enumerator for ::urVirtualMemGetInfo
-  UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 280,
-  /// Enumerator for ::urPhysicalMemCreate
-  UR_FUNCTION_PHYSICAL_MEM_CREATE = 281,
-  /// Enumerator for ::urPhysicalMemRetain
-  UR_FUNCTION_PHYSICAL_MEM_RETAIN = 282,
-  /// Enumerator for ::urPhysicalMemRelease
-  UR_FUNCTION_PHYSICAL_MEM_RELEASE = 283,
-  /// Enumerator for ::urPhysicalMemGetInfo
-  UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 284,
   /// Enumerator for ::urMemoryExportAllocExportableMemoryExp
   UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP = 285,
   /// Enumerator for ::urMemoryExportFreeExportableMemoryExp
@@ -475,8 +475,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP = 287,
   /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
   UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 288,
-  /// Enumerator for ::urEnqueueKernelLaunchWithArgsExp
-  UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_WITH_ARGS_EXP = 289,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -590,8 +588,6 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
   /// ::ur_exp_enqueue_ext_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES = 0x4000,
-  /// ::ur_exp_kernel_arg_properties_t
-  UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES = 0x5000,
   /// @cond
   UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1912,6 +1908,8 @@ typedef enum ur_device_type_t {
   UR_DEVICE_TYPE_MCA = 6,
   /// Vision Processing Unit
   UR_DEVICE_TYPE_VPU = 7,
+  /// Generic custom device type
+  UR_DEVICE_TYPE_CUSTOM = 8,
   /// @cond
   UR_DEVICE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1944,7 +1942,7 @@ typedef enum ur_device_type_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phDevices != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -1991,7 +1989,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetSelected(
     /// [in] handle of the platform instance
@@ -2431,6 +2429,17 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the sub-group clock.
+  UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP = 0x2060,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the work-group clock.
+  UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP = 0x2061,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the device clock.
+  UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
+  /// [::ur_bool_t] returns true if the device is integrated GPU.
+  UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -3614,6 +3623,8 @@ typedef struct ur_image_desc_t {
 ///         + `pImageDesc && pImageDesc->numSamples != 0`
 ///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
 ///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -4048,6 +4059,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `propSize != 0 && pPropValue == NULL`
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -4177,6 +4190,8 @@ typedef struct ur_sampler_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
@@ -4203,6 +4218,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
     /// [in][retain] handle of the sampler object to get access
     ur_sampler_handle_t hSampler);
@@ -4225,6 +4242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
     /// [in][release] handle of the sampler object to release
     ur_sampler_handle_t hSampler);
@@ -4257,6 +4276,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetInfo(
     /// [in] handle of the sampler object
     ur_sampler_handle_t hSampler,
@@ -5726,6 +5747,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
 ///         + If `pFunctionName` could be located, but its address couldn't be
 ///         retrieved.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the backend does not support querying function pointers.
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
     ur_device_handle_t hDevice,
@@ -6585,6 +6608,8 @@ typedef struct ur_kernel_arg_sampler_properties_t {
 ///         + `NULL == hKernel`
 ///         + `NULL == hArgValue`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
@@ -8620,18 +8645,20 @@ typedef enum ur_map_flag_t {
 #define UR_MAP_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Map flags
+/// @brief USM migration flags, indicating the direction data is migrated in
 typedef uint32_t ur_usm_migration_flags_t;
 typedef enum ur_usm_migration_flag_t {
-  /// Default migration TODO: Add more enums!
-  UR_USM_MIGRATION_FLAG_DEFAULT = UR_BIT(0),
+  /// Migrate data from host to device
+  UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE = UR_BIT(0),
+  /// Migrate data from device to host
+  UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST = UR_BIT(1),
   /// @cond
   UR_USM_MIGRATION_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_usm_migration_flag_t;
 /// @brief Bit Mask for validating ur_usm_migration_flags_t
-#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffe
+#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to map a region of the buffer object into the host
@@ -9799,6 +9826,23 @@ typedef enum ur_exp_image_copy_flag_t {
 #define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff0
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Dictates the types of memory copy input and output.
+typedef enum ur_exp_image_copy_input_types_t {
+  /// Memory to image handle
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE = 0,
+  /// Image handle to memory
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM = 1,
+  /// Memory to Memory
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM = 2,
+  /// Image handle to image handle
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE = 3,
+  /// @cond
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_image_copy_input_types_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler cubemap seamless filtering mode.
 typedef enum ur_exp_sampler_cubemap_filter_mode_t {
   /// Disable seamless filtering
@@ -10285,6 +10329,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pCopyRegion`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
+///         + `::UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE <
+///         imageCopyInputTypes`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -10314,6 +10360,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
+    /// [in] flag describing types of source and destination pointers (USM vs
+    /// image handle)
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11185,7 +11234,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///         + `NULL == hCommandBuffer`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
@@ -11219,7 +11267,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -11897,7 +11945,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
@@ -12846,166 +12894,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     /// [out][optional] pointer to the actual size in bytes of the queried
     /// propName.
     size_t *pPropSizeRet);
-
-#if !defined(__GNUC__)
-#pragma endregion
-#endif
-// Intel 'oneAPI' Unified Runtime Experimental API for setting args at kernel
-// launch
-#if !defined(__GNUC__)
-#pragma region enqueue_kernel_launch_with_args_(experimental)
-#endif
-///////////////////////////////////////////////////////////////////////////////
-/// @brief What kind of kernel arg is this
-typedef enum ur_exp_kernel_arg_type_t {
-  /// Kernel arg is a value.
-  UR_EXP_KERNEL_ARG_TYPE_VALUE = 0,
-  /// Kernel arg is a pointer.
-  UR_EXP_KERNEL_ARG_TYPE_POINTER = 1,
-  /// Kernel arg is a memory object.
-  UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ = 2,
-  /// Kernel arg is a local allocation.
-  UR_EXP_KERNEL_ARG_TYPE_LOCAL = 3,
-  /// Kernel arg is a sampler.
-  UR_EXP_KERNEL_ARG_TYPE_SAMPLER = 4,
-  /// @cond
-  UR_EXP_KERNEL_ARG_TYPE_FORCE_UINT32 = 0x7fffffff
-  /// @endcond
-
-} ur_exp_kernel_arg_type_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Mem obj/properties tuple
-typedef struct ur_exp_kernel_arg_mem_obj_tuple_t {
-  /// [in] Handle of a memory object
-  ur_mem_handle_t hMem;
-  /// [in] Memory flags to associate with `hMem`. Allowed values are:
-  /// ::UR_MEM_FLAG_READ_WRITE, ::UR_MEM_FLAG_WRITE_ONLY,
-  /// ::UR_MEM_FLAG_READ_ONLY.
-  ur_mem_flags_t flags;
-
-} ur_exp_kernel_arg_mem_obj_tuple_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Typesafe container for a kernel argument value
-typedef union ur_exp_kernel_arg_value_t {
-  /// [in] argument value represented as matching arg type.
-  /// The data pointed to will be copied and therefore can be reused on return.
-  const void *value;
-  /// [in] Allocation obtained by USM allocation or virtual memory mapping
-  /// operation, or pointer to a literal value.
-  const void *pointer;
-  /// [in] Struct containing a memory object and associated flags.
-  ur_exp_kernel_arg_mem_obj_tuple_t memObjTuple;
-  /// [in] Handle of a sampler object.
-  ur_sampler_handle_t sampler;
-
-} ur_exp_kernel_arg_value_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Kernel arg properties
-typedef struct ur_exp_kernel_arg_properties_t {
-  /// [in] type of this structure, must be
-  /// ::UR_STRUCTURE_TYPE_EXP_KERNEL_ARG_PROPERTIES
-  ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
-  /// [in] type of the kernel arg
-  ur_exp_kernel_arg_type_t type;
-  /// [in] index of the kernel arg
-  uint32_t index;
-  /// [in] size of the kernel arg
-  size_t size;
-  /// [in][tagged_by(type)] Union containing the argument value.
-  ur_exp_kernel_arg_value_t value;
-
-} ur_exp_kernel_arg_properties_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to execute a kernel
-///
-/// @remarks
-///   _Analogues_
-///     - **clEnqueueNDRangeKernel**
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkSize`
-///         + `launchPropList == NULL && numPropsInLaunchPropList > 0`
-///         + `pArgs == NULL && numArgs > 0`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `NULL != pArgs && ::UR_EXP_KERNEL_ARG_TYPE_SAMPLER < pArgs->type`
-///     - ::UR_RESULT_ERROR_INVALID_QUEUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL
-///     - ::UR_RESULT_ERROR_INVALID_EVENT
-///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
-///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
-///         + If event objects in phEventWaitList are not valid events.
-///     - ::UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS
-///         + An event in `phEventWaitList` has ::UR_EVENT_STATUS_ERROR.
-///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pGlobalWorkSize[0] == 0 || pGlobalWorkSize[1] == 0 ||
-///         pGlobalWorkSize[2] == 0`
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-///         + `pLocalWorkSize && (pLocalWorkSize[0] == 0 || pLocalWorkSize[1] ==
-///         0 || pLocalWorkSize[2] == 0)`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
-///     have not been specified."
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-///     - ::UR_RESULT_ERROR_INVALID_OPERATION
-///         + If any property in `launchPropList` isn't supported by the device.
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
-    /// [in] handle of the queue object
-    ur_queue_handle_t hQueue,
-    /// [in] handle of the kernel object
-    ur_kernel_handle_t hKernel,
-    /// [in] number of dimensions, from 1 to 3, to specify the global and
-    /// work-group work-items
-    uint32_t workDim,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkOffset,
-    /// [in] pointer to an array of workDim unsigned values that specify the
-    /// number of global work-items in workDim that will execute the kernel
-    /// function
-    const size_t *pGlobalWorkSize,
-    /// [in][optional] pointer to an array of workDim unsigned values that
-    /// specify the number of local work-items forming a work-group that will
-    /// execute the kernel function.
-    /// If nullptr, the runtime implementation will choose the work-group size.
-    const size_t *pLocalWorkSize,
-    /// [in] Number of entries in pArgs
-    uint32_t numArgs,
-    /// [in][optional][range(0, numArgs)] pointer to a list of kernel arg
-    /// properties.
-    const ur_exp_kernel_arg_properties_t *pArgs,
-    /// [in] size of the launch prop list
-    uint32_t numPropsInLaunchPropList,
-    /// [in][optional][range(0, numPropsInLaunchPropList)] pointer to a list
-    /// of launch properties
-    const ur_kernel_launch_property_t *launchPropList,
-    /// [in] size of the event wait list
-    uint32_t numEventsInWaitList,
-    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-    /// events that must be complete before the kernel execution.
-    /// If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    /// event.
-    const ur_event_handle_t *phEventWaitList,
-    /// [out][optional][alloc] return an event object that identifies this
-    /// particular kernel execution instance. If phEventWaitList and phEvent
-    /// are not NULL, phEvent must not refer to an element of the
-    /// phEventWaitList array.
-    ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14610,26 +14498,6 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
 } ur_enqueue_write_host_pipe_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urEnqueueKernelLaunchWithArgsExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_enqueue_kernel_launch_with_args_exp_params_t {
-  ur_queue_handle_t *phQueue;
-  ur_kernel_handle_t *phKernel;
-  uint32_t *pworkDim;
-  const size_t **ppGlobalWorkOffset;
-  const size_t **ppGlobalWorkSize;
-  const size_t **ppLocalWorkSize;
-  uint32_t *pnumArgs;
-  const ur_exp_kernel_arg_properties_t **ppArgs;
-  uint32_t *pnumPropsInLaunchPropList;
-  const ur_kernel_launch_property_t **plaunchPropList;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_enqueue_kernel_launch_with_args_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueEventsWaitWithBarrierExt
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -15051,6 +14919,7 @@ typedef struct ur_bindless_images_image_copy_exp_params_t {
   const ur_image_format_t **ppDstImageFormat;
   ur_exp_image_copy_region_t **ppCopyRegion;
   ur_exp_image_copy_flags_t *pimageCopyFlags;
+  ur_exp_image_copy_input_types_t *pimageCopyInputTypes;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;

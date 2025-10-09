@@ -925,20 +925,15 @@ umf_result_t L0MemoryProvider::ext_ctl(umf_ctl_query_source_t /*Source*/,
                                        const char *Name, void *Arg, size_t Size,
                                        umf_ctl_query_type_t /*QueryType*/,
                                        va_list /*Args*/) {
-  if (std::string(Name) == "stats.allocated_memory") {
-    if (!Arg && Size < sizeof(size_t)) {
-      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
+  if (!Arg || Size < sizeof(size_t)) {
+    return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+  }
 
+  if (std::string(Name) == "stats.allocated_memory") {
     *(reinterpret_cast<size_t *>(Arg)) = AllocStats.getCurrent();
     UR_LOG(DEBUG, "L0MemoryProvider::ext_ctl with name: {}, value: {}", Name,
            AllocStats.getCurrent());
   } else if (std::string(Name) == "stats.peak_memory") {
-    if (!Arg && Size < sizeof(size_t)) {
-      return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    // Return the peak memory size.
     *(reinterpret_cast<size_t *>(Arg)) = AllocStats.getPeak();
     UR_LOG(DEBUG, "L0MemoryProvider::ext_ctl with name: {}, value: {}", Name,
            AllocStats.getPeak());
@@ -1061,7 +1056,8 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
   }
 
-  auto DevicesAndSubDevices = CollectDevicesAndSubDevices(Context->Devices);
+  auto DevicesAndSubDevices =
+      CollectDevicesForUsmPoolCreation(Context->Devices);
   auto Descriptors = usm::pool_descriptor::createFromDevices(
       this, Context, DevicesAndSubDevices);
   for (auto &Desc : Descriptors) {

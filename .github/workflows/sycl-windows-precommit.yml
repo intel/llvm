@@ -25,6 +25,7 @@ on:
     - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
+    - 'devops/compat_ci_exclude.sycl-rel-6_2'
     - 'unified-runtime/examples/**'
     - 'unified-runtime/scripts/**'
     - 'unified-runtime/test/**'
@@ -72,6 +73,6 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       target_devices: "level_zero:gpu"
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
       e2e_testing_mode: run-only
       e2e_binaries_artifact: sycl_windows_e2ebin

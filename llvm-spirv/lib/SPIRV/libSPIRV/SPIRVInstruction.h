@@ -2504,6 +2504,18 @@ public:
   // Complete constructor
   SPIRVLifetime(SPIRVId TheObject, SPIRVWord TheSize, SPIRVBasicBlock *TheBB)
       : SPIRVInstruction(3, OC, TheBB), Object(TheObject), Size(TheSize) {
+    auto ObjType = getValue(Object)->getType();
+    // Size must be 0 if Pointer is a pointer to a non-void type or the
+    // Addresses capability is not being used. If Size is non-zero, it is the
+    // number of bytes of memory whose lifetime is starting. Its type must be an
+    // integer type scalar. It is treated as unsigned; if its type has
+    // Signedness of 1, its sign bit cannot be set.
+    if (!(ObjType->getPointerElementType()->isTypeVoid() ||
+          // (void *) is i8* in LLVM IR
+          ObjType->getPointerElementType()->isTypeInt(8) ||
+          ObjType->getPointerElementType()->isTypeUntypedPointerKHR()) ||
+        !Module->hasCapability(CapabilityAddresses))
+      Size = 0;
     validate();
     assert(TheBB && "Invalid BB");
   }
@@ -2521,23 +2533,12 @@ public:
 
 protected:
   void validate() const override {
-    auto ObjType = getValue(Object)->getType();
+    [[maybe_unused]] auto ObjType = getValue(Object)->getType();
     // Type must be an OpTypePointer with Storage Class Function.
     assert(ObjType->isTypePointer() && "Objects type must be a pointer");
     assert(static_cast<SPIRVTypePointer *>(ObjType)->getStorageClass() ==
                StorageClassFunction &&
            "Invalid storage class");
-    // Size must be 0 if Pointer is a pointer to a non-void type or the
-    // Addresses capability is not being used. If Size is non-zero, it is the
-    // number of bytes of memory whose lifetime is starting. Its type must be an
-    // integer type scalar. It is treated as unsigned; if its type has
-    // Signedness of 1, its sign bit cannot be set.
-    if (!(ObjType->getPointerElementType()->isTypeVoid() ||
-          // (void *) is i8* in LLVM IR
-          ObjType->getPointerElementType()->isTypeInt(8) ||
-          ObjType->getPointerElementType()->isTypeUntypedPointerKHR()) ||
-        !Module->hasCapability(CapabilityAddresses))
-      assert(Size == 0 && "Size must be 0");
   }
   _SPIRV_DEF_ENCDEC2(Object, Size)
   SPIRVId Object;
@@ -3018,6 +3019,8 @@ class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
 public:
   std::optional<ExtensionID> getRequiredExtension() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return ExtensionID::SPV_INTEL_shader_atomic_bfloat16;
     if (getType()->isTypeFloat(16))
       return ExtensionID::SPV_EXT_shader_atomic_float16_add;
     return ExtensionID::SPV_EXT_shader_atomic_float_add;
@@ -3025,6 +3028,8 @@ public:
 
   SPIRVCapVec getRequiredCapability() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return {internal::CapabilityAtomicBFloat16AddINTEL};
     if (getType()->isTypeFloat(16))
       return {CapabilityAtomicFloat16AddEXT};
     if (getType()->isTypeFloat(32))
@@ -3032,26 +3037,30 @@ public:
     if (getType()->isTypeFloat(64))
       return {CapabilityAtomicFloat64AddEXT};
     llvm_unreachable(
-        "AtomicFAddEXT can only be generated for f16, f32, f64 types");
+        "AtomicFAddEXT can only be generated for bf16, f16, f32, f64 types");
   }
 };
 
 class SPIRVAtomicFMinMaxEXTBase : public SPIRVAtomicInstBase {
 public:
   std::optional<ExtensionID> getRequiredExtension() const override {
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return ExtensionID::SPV_INTEL_shader_atomic_bfloat16;
     return ExtensionID::SPV_EXT_shader_atomic_float_min_max;
   }
 
   SPIRVCapVec getRequiredCapability() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16, FPEncodingBFloat16KHR))
+      return {internal::CapabilityAtomicBFloat16MinMaxINTEL};
     if (getType()->isTypeFloat(16))
       return {CapabilityAtomicFloat16MinMaxEXT};
     if (getType()->isTypeFloat(32))
       return {CapabilityAtomicFloat32MinMaxEXT};
     if (getType()->isTypeFloat(64))
       return {CapabilityAtomicFloat64MinMaxEXT};
-    llvm_unreachable(
-        "AtomicF(Min|Max)EXT can only be generated for f16, f32, f64 types");
+    llvm_unreachable("AtomicF(Min|Max)EXT can only be generated for bf16, f16, "
+                     "f32, f64 types");
   }
 };
 
@@ -3104,6 +3113,7 @@ _SPIRV_OP(ImageSampleImplicitLod, true, 5, true)
 _SPIRV_OP(ImageSampleExplicitLod, true, 7, true, 2)
 _SPIRV_OP(ImageRead, true, 5, true, 2)
 _SPIRV_OP(ImageWrite, false, 4, true, 3)
+_SPIRV_OP(Image, true, 4)
 _SPIRV_OP(ImageQueryFormat, true, 4)
 _SPIRV_OP(ImageQueryOrder, true, 4)
 _SPIRV_OP(ImageQuerySizeLod, true, 5)

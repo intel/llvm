@@ -1480,6 +1480,18 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   if (auto *ConstUE = dyn_cast<ConstantExpr>(V)) {
     if (auto *GEP = dyn_cast<GEPOperator>(ConstUE)) {
       auto *TransPointerOperand = transValue(GEP->getPointerOperand(), nullptr);
+      // Determine the expected pointer type from the GEP source element type.
+      Type *GepSourceElemTy = GEP->getSourceElementType();
+      SPIRVType *ExpectedPtrTy =
+          transPointerType(GepSourceElemTy, GEP->getPointerAddressSpace());
+
+      // Ensure the base pointer's type matches the GEP's effective source
+      // element type.
+      if (TransPointerOperand->getType() != ExpectedPtrTy) {
+        TransPointerOperand = BM->addUnaryInst(OpBitcast, ExpectedPtrTy,
+                                               TransPointerOperand, nullptr);
+      }
+
       std::vector<SPIRVWord> Ops = {TransPointerOperand->getId()};
       for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
         Ops.push_back(transValue(GEP->getOperand(I + 1), nullptr)->getId());
@@ -1641,6 +1653,9 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       } else {
         BOC = OpCrossWorkgroupCastToPtrINTEL;
       }
+    } else if (isa<ConstantPointerNull>(Cast->getPointerOperand())) {
+      SPIRVType *TransTy = transScavengedType(U);
+      return BM->addNullConstant(bcast<SPIRVTypePointer>(TransTy));
     } else {
       getErrorLog().checkError(
           SrcAddrSpace == SPIRAS_Generic, SPIRVEC_InvalidModule, U,
@@ -2077,7 +2092,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                << "have (" << MaxNumElements << "). Should the array be "
                << "split?\n Original LLVM value:\n"
                << toString(GV);
-            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount, SS.str());
+            getErrorLog().checkError(false, SPIRVEC_InvalidWordCount,
+                                     "Can't encode instruction with word count "
+                                     "greater than 65535:\n" +
+                                         SS.str());
           }
         }
       }
@@ -3922,10 +3940,12 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
   case Intrinsic::smax:
   case Intrinsic::umax:
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
   case Intrinsic::minnum:
   case Intrinsic::smin:
@@ -3984,6 +4004,20 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
   case Intrinsic::modf:
+  case Intrinsic::fake_use:
+  // INTEL_CUSTOMIZATION begin
+  // fpbuiltin intrinsics are not part of upstream LLVM, yet we have to register
+  // them as known.
+  case Intrinsic::fpbuiltin_fadd:
+  case Intrinsic::fpbuiltin_fsub:
+  case Intrinsic::fpbuiltin_fmul:
+  case Intrinsic::fpbuiltin_fdiv:
+  case Intrinsic::fpbuiltin_frem:
+  case Intrinsic::fpbuiltin_sqrt:
+  case Intrinsic::fpbuiltin_ldexp:
+    // INTEL_CUSTOMIZATION end
+  case Intrinsic::stacksave:
+  case Intrinsic::stackrestore:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4052,12 +4086,12 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Log10;
   case Intrinsic::log2:
     return OpenCLLIB::Log2;
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
-    return OpenCLLIB::Fmax;
   case Intrinsic::maxnum:
     return OpenCLLIB::Fmax;
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
-    return OpenCLLIB::Fmin;
   case Intrinsic::minnum:
     return OpenCLLIB::Fmin;
   case Intrinsic::nearbyint:
@@ -4191,6 +4225,20 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // also must be registered at isKnownIntrinsic function in order to make
   // -spirv-allow-unknown-intrinsics work correctly.
   auto IID = II->getIntrinsicID();
+  switch (IID) {
+  case Intrinsic::fabs:
+  case Intrinsic::fma:
+  case Intrinsic::maxnum:
+  case Intrinsic::minnum:
+  case Intrinsic::fmuladd: {
+    Type *Ty = II->getType();
+    if (Ty->isBFloatTy())
+      BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    break;
+  }
+  default:
+    break;
+  }
   switch (IID) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within
@@ -4332,8 +4380,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::copysign:
   case Intrinsic::pow:
   case Intrinsic::powi:
+  case Intrinsic::maximumnum:
   case Intrinsic::maximum:
   case Intrinsic::maxnum:
+  case Intrinsic::minimumnum:
   case Intrinsic::minimum:
   case Intrinsic::minnum: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
@@ -4814,27 +4864,24 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     Op OC = (II->getIntrinsicID() == Intrinsic::lifetime_start)
                 ? OpLifetimeStart
                 : OpLifetimeStop;
-    int64_t Size = dyn_cast<ConstantInt>(II->getOperand(0))->getSExtValue();
-    if (Size == -1)
-      Size = 0;
-    Value *LLVMPtrOp = II->getOperand(1);
+    int64_t Size = 0;
+    Value *LLVMPtrOp = II->getOperand(0);
+    auto *Alloca = cast<AllocaInst>(LLVMPtrOp);
+    if (Alloca->getAllocatedType()->isSized())
+      Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
+
     unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
     auto *PtrOp = transValue(LLVMPtrOp, BB);
     if (PtrAS == SPIRAS_Private)
       return BM->addLifetimeInst(OC, PtrOp, Size, BB);
-    // If pointer address space is Generic - cast to private first
+    // If pointer address space is Generic - use original allocation.
     BM->getErrorLog().checkError(
         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
         "lifetime intrinsic pointer operand must be in private or generic AS");
-    auto *SrcTy = PtrOp->getType();
-    SPIRVType *DstTy = nullptr;
-    if (SrcTy->isTypeUntypedPointerKHR())
-      DstTy = BM->addPointerType(StorageClassFunction, nullptr);
-    else
-      DstTy = BM->addPointerType(StorageClassFunction,
-                                 SrcTy->getPointerElementType());
-    PtrOp = BM->addUnaryInst(OpGenericCastToPtr, DstTy, PtrOp, BB);
-    ValueMap[LLVMPtrOp] = PtrOp;
+    if (PtrOp->getOpCode() == OpPtrCastToGeneric) {
+      auto *UI = static_cast<SPIRVUnary *>(PtrOp);
+      PtrOp = UI->getOperand(0);
+    }
     return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
@@ -4972,6 +5019,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
   case Intrinsic::debugtrap:
+  // Just ignore llvm.fake.use intrinsic, as it has no translation in SPIRV.
+  case Intrinsic::fake_use:
   // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
   case Intrinsic::instrprof_increment_step:
@@ -5473,6 +5522,11 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
                               &Dec)) {
+    if (const auto *FirstArg = F->getArg(0)) {
+      const auto *Type = FirstArg->getType();
+      if (Type->isBFloatTy())
+        BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    }
     if (DemangledName.find("__spirv_ocl_printf") != StringRef::npos) {
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=
@@ -7156,7 +7210,7 @@ bool runSpirvBackend(Module *M, std::string &Result, std::string &ErrMsg,
       TargetTriple.setTriple(DefaultTriple);
     TargetTriple.setArch(TargetTriple.getArch(),
                          spirvVersionToSubArch(TranslatorOpts.getMaxVersion()));
-    M->setTargetTriple(TargetTriple);
+    M->setTargetTriple(std::move(TargetTriple));
   }
 
   // Translate the Module into SPIR-V

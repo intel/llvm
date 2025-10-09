@@ -10,6 +10,23 @@ from datetime import datetime
 
 @dataclass_json
 @dataclass
+class Platform:
+    timestamp: str = ""
+    os: str = ""
+    python: str = ""
+    cpu_count: int = 0
+    cpu_info: str = ""
+    gpu_count: int = 0
+    gpu_info: list[str] = field(default_factory=list)
+    gpu_driver_version: str = ""  # Add GPU driver version
+    gcc_version: str = ""
+    clang_version: str = ""
+    level_zero_version: str = ""  # Add Level Zero version
+    compute_runtime_version: str = ""  # Add Compute Runtime version
+
+
+@dataclass_json
+@dataclass
 class Result:
     label: str
     value: float
@@ -40,6 +57,7 @@ class BenchmarkRun:
         metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
     )
     compute_runtime: str = "Unknown"
+    platform: Platform | None = None
 
 
 @dataclass_json
@@ -57,8 +75,8 @@ class BenchmarkMetadata:
     notes: str = None
     unstable: str = None
     tags: list[str] = field(default_factory=list)
-    range_min: float = None
-    range_max: float = None
+    range_min: float | None = None
+    range_max: float | None = None
     display_name: str = None
     explicit_group: str = None
 
