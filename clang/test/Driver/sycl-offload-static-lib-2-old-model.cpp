@@ -89,9 +89,9 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
-// RUN: -fno-sycl-device-lib=all -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
+// RUN: --no-offloadlib -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code --no-offloadlib \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda -fsycl --no-offload-new-driver %t_lib.a -ccc-print-phases %s 2>&1 \
@@ -227,13 +227,13 @@
 /// ###########################################################################
 
 /// test behaviors of static lib with no source/object
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -L/dummy/dir %t_lib.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-SPIR -DTARGET=spir64 -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-SPIR -DTARGET=spir64 -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code --no-offloadlib -L/dummy/dir %t_lib.a -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-CUDA -DTARGET=nvptx64 -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code --no-offloadlib -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC -check-prefix=STATIC_LIB_NOSRC-CUDA -DTARGET=nvptx64 -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // STATIC_LIB_NOSRC-SPIR: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-input={{.*}}_lib.{{(a|lo)}}" "-output=[[DEVICELIB:.+\.txt]]" "-unbundle"
 // STATIC_LIB_NOSRC-SPIR: llvm-foreach{{.*}}spirv-to-ir-wrapper{{.*}} "[[DEVICELIB]]" "-o" "[[DEVICELIST:.+\.txt]]"

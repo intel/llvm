@@ -9,11 +9,11 @@
 // RUN: echo "void foo() {}" > %t.c
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -c -Fo%t-orig.obj %t.c
 // RUN: llvm-ar cr %t-orig.lib %t-orig.obj
-// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t-orig.lib %t-orig.obj -### 2>&1 \
+// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t-orig.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t-orig.lib %t-orig.obj -### 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t-orig.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-device-lib=all %t-orig.obj -### /link %t-orig.lib 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver --no-offloadlib %t-orig.obj -### /link %t-orig.lib 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-input={{.*}}-orig.obj" "-output={{.+}}.{{(o|obj)}}" "-output={{.+}}.{{(o|obj)}}" "-unbundle"
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
@@ -23,15 +23,15 @@
 
 // RUN: mkdir -p %t_dir
 // RUN: llvm-ar cr %t_dir/%basename_t-orig2.lib %t-orig.obj
-// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-device-lib=all %t_dir/%basename_t-orig2.lib %t-orig.obj -### 2>&1 \
+// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver --no-offloadlib %t_dir/%basename_t-orig2.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-device-lib=all %t_dir/%basename_t-orig2.lib %t-orig.obj -### 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver --no-offloadlib %t_dir/%basename_t-orig2.lib %t-orig.obj -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-device-lib=all %t-orig.obj -### /link %t_dir/%basename_t-orig2.lib 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver --no-offloadlib %t-orig.obj -### /link %t_dir/%basename_t-orig2.lib 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-device-lib=all %t-orig.obj -### /link -libpath:%t_dir %basename_t-orig2.lib 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver --no-offloadlib %t-orig.obj -### /link -libpath:%t_dir %basename_t-orig2.lib 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
-// RUN: env LIB=%t_dir %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-device-lib=all %t-orig.obj -### /link %basename_t-orig2.lib 2>&1 \
+// RUN: env LIB=%t_dir %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver --no-offloadlib %t-orig.obj -### /link %basename_t-orig2.lib 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB2
 // FOFFLOAD_STATIC_LIB2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64-unknown-unknown" "-input={{.*}}-orig.obj" "-output={{.+}}.{{(o|obj)}}" "-output={{.+}}.{{(o|obj)}}" "-unbundle"
 // FOFFLOAD_STATIC_LIB2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}" "-input={{.*}}-orig2.lib" "-output=[[OUTLIB:.+\.txt]]" "-unbundle"
@@ -80,9 +80,9 @@
 
 /// Test behaviors of using static libraries from source.
 // RUN: touch %t-orig.lib
-// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all %t-orig.lib -ccc-print-phases %s 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code --no-offloadlib %t-orig.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTLIB:.+\.lib]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.c]]", c++, (host-sycl)
