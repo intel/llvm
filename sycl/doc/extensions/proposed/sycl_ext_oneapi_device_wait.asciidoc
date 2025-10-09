@@ -182,3 +182,20 @@ error code if the device does not have `aspect::ext_oneapi_device_wait`.
 Note that these functions wait for "commands", which includes host tasks and
 memory copy operations.
 The implementation and the tests should cover these cases too.
+
+
+== Issues
+
+* The API described above is implementable on Level Zero.
+  If we are being pedantic, we cannot easily implement this API on CUDA because
+  `cudaDeviceSynchronize` waits only for tasks that were submitted to the device
+  using the current context.
+  (The current context can only be changed from the CUDA driver API.)
+  We cannot implement that semantic on Level Zero because Level Zero provides
+  only a function that waits for all tasks on the device (from all contexts).
+  If we wanted to support this extension on CUDA in the future, one option would
+  be to expose the difference to users.
+  In that case, we'd add an additional aspect and additional APIs that take a
+  context.
+  CUDA would support the APIs that take a context and Level Zero would support
+  the APIs that do not.
