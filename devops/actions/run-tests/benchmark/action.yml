@@ -75,6 +75,9 @@ runs:
       python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
+
+      # Set branch containing benchmark CI results:
+      echo "BENCHMARK_RESULTS_BRANCH=sycl-benchmark-ci-results" >> $GITHUB_ENV
   - name: Compute CPU core range to run benchmarks on
     shell: bash
     run: |
@@ -136,7 +139,7 @@ runs:
   - name: Checkout results repo
     uses: actions/checkout@v5
     with:
-      ref: benchmark-ci-results
+      ref: ${{ env.BENCHMARK_RESULTS_BRANCH }}
       path: llvm-ci-perf-results
   - name: Run compute-benchmarks
     env:
@@ -262,7 +265,7 @@ runs:
           cached_result="$(mktemp -d)/$(basename $results_file)"
           mv "$results_file" "$cached_result"
 
-          git reset --hard "origin/benchmark-ci-results"
+          git reset --hard "origin/$BENCHMARK_CI_RESULTS"
           git pull
 
           mv "$cached_result" "$results_file"
