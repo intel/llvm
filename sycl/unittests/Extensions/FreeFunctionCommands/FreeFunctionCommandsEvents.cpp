@@ -227,7 +227,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
 
-#if __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 TEST_F(FreeFunctionCommandsEventsTests,
        LaunchGroupedShortcutMoveKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
@@ -252,6 +251,11 @@ TEST_F(FreeFunctionCommandsEventsTests,
   // to force the scheduler-based submission. In this case, the HostKernel
   // should be constructed.
 
+  // Replace the callback with an event based one, since the scheduler
+  // needs to create an event internally
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunch", &redefined_urEnqueueKernelLaunchWithEvent);
+
   Queue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
@@ -274,9 +278,8 @@ TEST_F(FreeFunctionCommandsEventsTests,
   // HostKernel. Copy ctor is called by InstantiateKernelOnHost, can't delete
   // it.
   ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 1);
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{2});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithEvent, size_t{1});
 }
-#endif
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",

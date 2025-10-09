@@ -7861,7 +7861,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                    FuncName.contains("__devicelib_ConvertFToBF16INTELVec")) {
           size_t NumElements;
           bool IsBF16ToF = FuncName.contains("BF16ToF");
-          FuncName.take_back().getAsInteger(10, NumElements);
+          (void)FuncName.take_back().getAsInteger(10, NumElements);
           auto *Src = CB.getArgOperand(0);
           auto *Dest = CB.getArgOperand(1);
           IRB.CreateCall(
