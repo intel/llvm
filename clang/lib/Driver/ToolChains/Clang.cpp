@@ -11282,14 +11282,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
-        bool IsSPIR = TargetTriple.isSPIROrSPIRV();
         bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-        bool UseJitLink =
-            IsSPIR &&
-            Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                         options::OPT_fno_sycl_device_lib_jit_link, false);
-        bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
-        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, UseAOTLink);
+        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, IsSpirvAOT);
         for (const auto &AddLib : SYCLDeviceLibs) {
           if (LibList.size() > 0)
             LibList += ",";
