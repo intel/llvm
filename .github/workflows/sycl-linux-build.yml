@@ -79,6 +79,10 @@ on:
       cts_binaries_artifact:
         type: string
         required: false
+      cts_binaries_ref:
+        type: string
+        description: tag/ref of CTS tests to compile
+        default: main
 
     outputs:
       build_conclusion:
@@ -346,11 +350,7 @@ jobs:
       if: ${{ inputs.cts_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: ./devops/actions/run-tests/cts
       with:
-        # Author: Tom Deakin <thomasdeakin@gmail.com>
-        # Date:   Thu Jul 10 16:45:48 2025 +0100
-        # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
-        # Remove expected exceptions for secondary queue
-        ref: 19e4ed34377c8a8a354d701772427be8c5430b0d
+        ref: ${{ inputs.cts_binaries_ref }}
         testing_mode: build-only
         target_devices: all
         binaries_artifact: ${{ inputs.cts_binaries_artifact }}

@@ -12,6 +12,18 @@ on:
         description: tag/sha
         required: true
         default:
+      cts_ref:
+        type: choice
+        description: tag/sha to use for CTS -- hardcoded hash is last known good commit.
+        required: true
+        default: 'main'
+        options:
+          - main
+          # Author: Tom Deakin <thomasdeakin@gmail.com>
+          # Date:   Thu Jul 10 16:45:48 2025 +0100
+          # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
+          # Remove expected exceptions for secondary queue
+          - 19e4ed34377c8a8a354d701772427be8c5430b0d
 
   push:
     branches:
@@ -36,6 +48,11 @@ jobs:
       toolchain_artifact_filename: toolchain.tar.zst
       e2e_binaries_artifact: e2e_bin
       cts_binaries_artifact: cts_bin
+      # Author: Tom Deakin <thomasdeakin@gmail.com>
+      # Date:   Thu Jul 10 16:45:48 2025 +0100
+      # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
+      # Remove expected exceptions for secondary queue
+      cts_binaries_ref: ${{ github.event_name == 'push' && 19e4ed34377c8a8a354d701772427be8c5430b0d || inputs.cts_ref }}
 
   # Couldn't make it work from inside the container, so have to use an extra job
   # and pass an artifact.
