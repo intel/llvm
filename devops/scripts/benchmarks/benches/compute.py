@@ -61,8 +61,8 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        # Sep 26, 2025
-        return "db0d6708a37de69d844d6521ca06ef35b1cc55af"
+        # Oct 9, 2025
+        return "32805b4b6f8dafb4a97f21c4c85bb2f6963f8dbb"
 
     def setup(self) -> None:
         if options.sycl is None:
@@ -203,6 +203,9 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
+            emulate_graphs = (
+                0 if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW) else 1
+            )
             benches.append(
                 GraphApiSubmitGraph(
                     self,
@@ -211,6 +214,7 @@ class ComputeBench(Suite):
                     num_kernels,
                     measure_completion_time,
                     use_events,
+                    emulate_graphs,
                     useHostTasks=0,
                 )
             )
@@ -224,6 +228,7 @@ class ComputeBench(Suite):
                         num_kernels,
                         measure_completion_time,
                         use_events,
+                        emulate_graphs,
                         useHostTasks=0,
                         profiler_type=PROFILERS.CPU_COUNTER,
                     )
@@ -949,6 +954,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         numKernels,
         measureCompletionTime,
         useEvents,
+        emulate_graphs,
         useHostTasks,
         profiler_type=PROFILERS.TIMER,
     ):
@@ -957,12 +963,14 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self.measureCompletionTime = measureCompletionTime
         self.useEvents = useEvents
         self.useHostTasks = useHostTasks
+        self.emulateGraphs = emulate_graphs
         self.ioq_str = "in order" if self.inOrderQueue else "out of order"
         self.measure_str = (
             " with measure completion" if self.measureCompletionTime else ""
         )
         self.use_events_str = f" with events" if self.useEvents else ""
         self.host_tasks_str = f" use host tasks" if self.useHostTasks else ""
+        self.emulate_graphs_str = f" emulate graphs" if self.emulateGraphs else ""
         # iterations per bin_args: --iterations=10000
         self.iterations_regular = 10000
         self.iterations_trace = 10
@@ -978,7 +986,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
     def explicit_group(self):
-        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}{self.emulate_graphs_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
@@ -987,10 +995,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}{self.cpu_count_str()}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str}{self.emulate_graphs_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}{self.emulate_graphs_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return [
@@ -1014,6 +1022,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             "--UseExplicit=0",
             f"--UseHostTasks={self.useHostTasks}",
             f"--profilerType={self.profiler_type.value}",
+            f"--EmulateGraphs={self.emulateGraphs}",
         ]
 
 
