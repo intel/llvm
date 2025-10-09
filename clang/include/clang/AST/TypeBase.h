@@ -7092,10 +7092,6 @@ public:
 class SubstTemplateTypeParmPackType : public SubstPackType {
   friend class ASTContext;
 
-  /// A pointer to the set of template arguments that this
-  /// parameter pack is instantiated with.
-  const TemplateArgument *Arguments;
-
   llvm::PointerIntPair<Decl *, 1, bool> AssociatedDeclAndFinal;
 
   SubstTemplateTypeParmPackType(QualType Canon, Decl *AssociatedDecl,
