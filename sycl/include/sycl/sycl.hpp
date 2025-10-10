@@ -32,6 +32,9 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #undef __SYCL_TOSTRING
 #undef __SYCL_STRINGIFY
 
+// All SYCL macro are provided through this header
+#include <sycl/khr/includes/version.hpp>
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>
