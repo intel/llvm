@@ -909,7 +909,9 @@ def _generate_returns(obj, meta):
                 rets[idx][key].append(val)
 
         def append_nullchecks(param, accessor: str):
-            if type_traits.is_pointer(param["type"]):
+            if type_traits.is_pointer(param["type"]) or type_traits.is_array(
+                param["type"]
+            ):
                 _append(
                     rets,
                     "$X_RESULT_ERROR_INVALID_NULL_POINTER",
