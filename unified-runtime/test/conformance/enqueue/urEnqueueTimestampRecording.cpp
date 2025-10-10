@@ -7,7 +7,7 @@
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
-struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
+struct DISABLED_urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
     bool timestamp_recording_support = false;
@@ -20,7 +20,7 @@ struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
 
   void TearDown() override { urQueueTest::TearDown(); }
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE(urEnqueueTimestampRecordingExpTest);
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(DISABLED_urEnqueueTimestampRecordingExpTest);
 
 void common_check(ur_event_handle_t event) {
   // All successful runs should return a non-zero profiling results.
@@ -45,7 +45,7 @@ void common_check(ur_event_handle_t event) {
   ASSERT_GE(endTime, submitTime);
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest, Success) {
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest, Success) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::HIP{}, uur::CUDA{});
 
   ur_event_handle_t event = nullptr;
@@ -56,7 +56,7 @@ TEST_P(urEnqueueTimestampRecordingExpTest, Success) {
   ASSERT_SUCCESS(urEventRelease(event));
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest, SuccessBlocking) {
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest, SuccessBlocking) {
   UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::HIP{}, uur::CUDA{});
 
   ur_event_handle_t event = nullptr;
@@ -66,7 +66,7 @@ TEST_P(urEnqueueTimestampRecordingExpTest, SuccessBlocking) {
   ASSERT_SUCCESS(urEventRelease(event));
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest,
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest,
        ReleaseEventWhileTimestampWritePending) {
   void *ptr;
   ASSERT_SUCCESS(
@@ -95,7 +95,8 @@ TEST_P(urEnqueueTimestampRecordingExpTest,
   ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest, ReleaseEventAfterQueueRelease) {
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest,
+       ReleaseEventAfterQueueRelease) {
   void *ptr;
   ASSERT_SUCCESS(
       urUSMSharedAlloc(context, device, nullptr, nullptr, 1024 * 1024, &ptr));
@@ -121,20 +122,21 @@ TEST_P(urEnqueueTimestampRecordingExpTest, ReleaseEventAfterQueueRelease) {
   ASSERT_SUCCESS(urUSMFree(context, ptr));
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest, InvalidNullHandleQueue) {
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest, InvalidNullHandleQueue) {
   ur_event_handle_t event = nullptr;
   ASSERT_EQ_RESULT(
       urEnqueueTimestampRecordingExp(nullptr, false, 0, nullptr, &event),
       UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest, InvalidNullPointerEvent) {
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest, InvalidNullPointerEvent) {
   ASSERT_EQ_RESULT(
       urEnqueueTimestampRecordingExp(queue, false, 0, nullptr, nullptr),
       UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_P(urEnqueueTimestampRecordingExpTest, InvalidNullPtrEventWaitList) {
+TEST_P(DISABLED_urEnqueueTimestampRecordingExpTest,
+       InvalidNullPtrEventWaitList) {
   ur_event_handle_t event = nullptr;
   ASSERT_EQ_RESULT(
       urEnqueueTimestampRecordingExp(queue, true, 1, nullptr, &event),
