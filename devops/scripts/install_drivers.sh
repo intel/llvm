@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# UPDATED FOR LEVEL-ZERO COMMIT BUILD - $(date)
 set -e
 set -x
 set -o pipefail
@@ -10,7 +10,7 @@ if [ -f "$1" ]; then
     CR_TAG=$(jq -r '.linux.compute_runtime.github_tag' $CONFIG_FILE)
     IGC_TAG=$(jq -r '.linux.igc.github_tag' $CONFIG_FILE)
     CM_TAG=$(jq -r '.linux.cm.github_tag' $CONFIG_FILE)
-    L0_TAG=$(jq -r '.linux.level_zero.github_tag' $CONFIG_FILE)
+    L0_TAG=$(jq -r '.linux.level_zero.github_tag // .linux.level_zero.github_commit' $CONFIG_FILE)
     TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
     FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
     CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
@@ -48,12 +48,162 @@ function get_release() {
 function get_pre_release_igfx() {
     URL=$1
     HASH=$2
+    echo "*** USING UPDATED get_pre_release_igfx FUNCTION - COMMIT: $(date) ***"
     HEADER=""
     if [ "$GITHUB_TOKEN" != "" ]; then
        HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-    curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" $URL -o $HASH.zip
-    unzip $HASH.zip && rm $HASH.zip
+    
+    # Ensure we're in a writable directory
+    WORK_DIR="/tmp/igc-download"
+    mkdir -p "$WORK_DIR"
+    cd "$WORK_DIR"
+    
+    echo "=== NEW IGC DOWNLOAD FUNCTION - Downloading IGC dev package to $WORK_DIR ==="
+    if ! curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" "$URL" -o "$HASH.zip"; then
+        echo "ERROR: Failed to download IGC dev package"
+        return 1
+    fi
+    
+    if [ ! -f "$HASH.zip" ]; then
+        echo "ERROR: Downloaded file $HASH.zip not found"
+        return 1
+    fi
+    
+    echo "Extracting IGC dev package"
+    if ! unzip "$HASH.zip"; then
+        echo "ERROR: Failed to extract $HASH.zip"
+        return 1
+    fi
+    
+    rm "$HASH.zip"
+    
+    # Move deb files back to the calling directory if any exist
+    if ls *.deb 1> /dev/null 2>&1; then
+        mv *.deb /tmp/
+        cd /tmp/
+    fi
+    
+    # Clean up work directory
+    rm -rf "$WORK_DIR"
+}
+
+function get_commit_artifacts() {
+    REPO=$1
+    COMMIT=$2
+    HEADER=""
+    if [ "$GITHUB_TOKEN" != "" ]; then
+        HEADER="Authorization: Bearer $GITHUB_TOKEN"
+    fi
+    # Get artifacts from GitHub Actions for the specific commit
+    curl -s -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" \
+        "https://api.github.com/repos/${REPO}/actions/runs?head_sha=${COMMIT}&status=completed&per_page=1" \
+        | jq -r '.workflow_runs[0] | select(.conclusion == "success") | .id' \
+        | head -1 \
+        | xargs -I {} curl -s -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${REPO}/actions/runs/{}/artifacts" \
+        | jq -r '.artifacts[] | select(.name | test(".*deb.*")) | .archive_download_url'
+}
+
+function download_commit_artifacts() {
+    REPO=$1
+    COMMIT=$2
+    UBUNTU_VER=$3
+    HEADER=""
+    if [ "$GITHUB_TOKEN" != "" ]; then
+        HEADER="Authorization: Bearer $GITHUB_TOKEN"
+    fi
+    
+    echo "Downloading artifacts for commit $COMMIT from $REPO"
+    get_commit_artifacts $REPO $COMMIT | while read -r artifact_url; do
+        if [ -n "$artifact_url" ]; then
+            echo "Downloading artifact: $artifact_url"
+            curl -L -H "$HEADER" "$artifact_url" -o "artifact-$(basename $artifact_url).zip"
+            unzip -j "artifact-$(basename $artifact_url).zip" "*.deb" 2>/dev/null || true
+            rm "artifact-$(basename $artifact_url).zip"
+        fi
+    done
+}
+
+function build_level_zero_from_source() {
+    COMMIT=$1
+
+    echo "Building Level Zero from source at commit $COMMIT"
+
+    # Install build dependencies if not already present
+    echo "Ensuring build dependencies are available..."
+    apt-get update -qq
+    apt-get install -y build-essential cmake git libc6-dev linux-libc-dev
+    
+    # Check CMake version (Level Zero requires CMake 3.5+)
+    CMAKE_VERSION=$(cmake --version | head -n1 | sed 's/.*cmake version \([0-9]\+\.[0-9]\+\).*/\1/')
+    echo "CMake version: $CMAKE_VERSION"
+
+    # Create temporary build directory
+    BUILD_DIR="/tmp/level-zero-build"
+    INSTALL_DIR="/tmp/level-zero-install"
+    rm -rf $BUILD_DIR $INSTALL_DIR
+    mkdir -p $BUILD_DIR $INSTALL_DIR
+    cd $BUILD_DIR
+
+    # Clone and checkout specific commit
+    echo "Cloning Level Zero repository..."
+    if ! git clone https://github.com/oneapi-src/level-zero.git; then
+        echo "ERROR: Failed to clone Level Zero repository"
+        return 1
+    fi
+    
+    cd level-zero
+    if ! git checkout $COMMIT; then
+        echo "ERROR: Failed to checkout commit $COMMIT"
+        return 1
+    fi
+
+    # Create build directory
+    mkdir build
+    cd build
+
+    # Configure build
+    echo "Configuring Level Zero build..."
+    if ! cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DLEVEL_ZERO_BUILD_TESTS=OFF \
+        -DLEVEL_ZERO_BUILD_SAMPLES=OFF; then
+        echo "ERROR: CMake configuration failed"
+        return 1
+    fi
+    
+    # Build
+    echo "Building Level Zero..."
+    if ! make -j$(nproc); then
+        echo "ERROR: Build failed"
+        return 1
+    fi
+
+    # Staged install (doesn't affect system)
+    echo "Creating staged installation..."
+    if ! make install DESTDIR=$INSTALL_DIR; then
+        echo "ERROR: Staged installation failed"
+        return 1
+    fi
+
+    # Copy files to their final destinations
+    echo "Installing Level Zero to system..."
+    if [ -d "$INSTALL_DIR/usr/local" ]; then
+        cp -r $INSTALL_DIR/usr/local/* /usr/local/
+    else
+        echo "ERROR: Staged installation directory not found"
+        return 1
+    fi
+
+    # Update library cache
+    ldconfig
+
+    # Clean up build and install directories
+    rm -rf $BUILD_DIR $INSTALL_DIR
+
+    echo "Level Zero built and installed successfully from commit $COMMIT"
 }
 
 TBB_INSTALLED=false
@@ -96,6 +246,16 @@ CheckIGCdevTag() {
     fi
 }
 
+CheckIfCommitHash() {
+    local arg="$1"
+    # Check if it's a 40-character hex string (SHA-1 commit hash)
+    if [[ $arg =~ ^[a-f0-9]{40}$ ]]; then
+        echo "Yes"
+    else
+        echo "No"
+    fi
+}
+
 InstallIGFX () {
   echo "Installing Intel Graphics driver..."
   echo "Compute Runtime version $CR_TAG"
@@ -122,10 +282,29 @@ InstallIGFX () {
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
-  get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*$UBUNTU_VER.*deb$" \
-    | wget -qi -
-  dpkg -i --force-all *.deb && rm *.deb *.sum
+  
+  # Check if L0_TAG is a commit hash or a regular tag
+  IS_L0_COMMIT=$(CheckIfCommitHash $L0_TAG)
+  if [ "$IS_L0_COMMIT" == "Yes" ]; then
+    echo "Level Zero is using commit hash, building from source..."
+    if ! build_level_zero_from_source $L0_TAG; then
+      echo "ERROR: Failed to build Level Zero from source"
+      exit 1
+    fi
+    # Install other packages (Level Zero was already installed from source)
+    if ls *.deb 1> /dev/null 2>&1; then
+      dpkg -i --force-all *.deb && rm *.deb
+    fi
+    if ls *.sum 1> /dev/null 2>&1; then
+      rm *.sum
+    fi
+  else
+    get_release oneapi-src/level-zero $L0_TAG \
+      | grep ".*$UBUNTU_VER.*deb$" \
+      | wget -qi -
+    # Install all packages including Level Zero
+    dpkg -i --force-all *.deb && rm *.deb *.sum
+  fi
   mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
@@ -134,22 +313,56 @@ InstallIGFX () {
     # Backup and install it from release igc as a temporarily workaround
     # while we working to resolve the issue.
     echo "Backup libopencl-clang"
-    cp -d /usr/local/lib/libopencl-clang2.so.15*  .
+    
+    # Ensure we're in a writable directory for backup operations
+    BACKUP_DIR="/tmp/igc-backup"
+    mkdir -p "$BACKUP_DIR"
+    cd "$BACKUP_DIR"
+    echo "Working in backup directory: $BACKUP_DIR"
+    
+    if ls /usr/local/lib/libopencl-clang2.so.15* 1> /dev/null 2>&1; then
+      cp -d /usr/local/lib/libopencl-clang2.so.15*  .
+      LIBOPENCL_BACKED_UP=true
+      echo "Successfully backed up libopencl-clang files"
+    else
+      echo "Warning: libopencl-clang2.so.15* not found, skipping backup"
+      LIBOPENCL_BACKED_UP=false
+    fi
     echo "Download IGC dev git hash $IGC_DEV_VER"
-    get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
+    if ! get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER; then
+      echo "ERROR: Failed to download IGC dev package"
+      exit 1
+    fi
     echo "Install IGC dev git hash $IGC_DEV_VER"
     # New dev IGC packaged iga64 conflicting with iga64 from intel-igc-media
     # force overwrite to workaround it first.
-    dpkg -i --force-all *.deb
-    echo "Install libopencl-clang"
-    # Workaround only, will download deb and install with dpkg once fixed.
-    cp -d libopencl-clang2.so.15*  /usr/local/lib/
-    rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
-       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
-       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
+    if ls *.deb 1> /dev/null 2>&1; then
+      dpkg -i --force-all *.deb
+    else
+      echo "Warning: No IGC dev deb files found after download"
+    fi
+    if [ "$LIBOPENCL_BACKED_UP" == "true" ]; then
+      echo "Install libopencl-clang"
+      # Workaround only, will download deb and install with dpkg once fixed.
+      echo "Copying backed up libopencl-clang files from $BACKUP_DIR"
+      cp -d "$BACKUP_DIR"/libopencl-clang2.so.15*  /usr/local/lib/
+    fi
+    if [ -f /usr/local/lib/libigc.so.2 ]; then
+      rm -f /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
+         ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
+         ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
+    fi
     echo "Clean up"
-    rm *.deb libopencl-clang2.so.15*
+    if ls *.deb 1> /dev/null 2>&1; then
+      rm *.deb
+    fi
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
+    
+    # Clean up backup directory (this also removes the backed up libopencl-clang files)
+    if [ -d "$BACKUP_DIR" ]; then
+      echo "Cleaning up backup directory: $BACKUP_DIR"
+      rm -rf "$BACKUP_DIR"
+    fi
   fi
 }
 
@@ -169,6 +382,7 @@ InstallCPURT () {
   if [ -e $INSTALL_LOCATION/oclcpu/install.sh ]; then \
     bash -x $INSTALL_LOCATION/oclcpu/install.sh
   else
+    mkdir -p /etc/OpenCL/vendors
     echo  $INSTALL_LOCATION/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
   fi
 }

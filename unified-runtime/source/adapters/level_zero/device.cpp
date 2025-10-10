@@ -1697,6 +1697,8 @@ ur_result_t urDeviceCreateWithNativeHandle(
   ur_device_handle_t Dev = nullptr;
   for (const auto &p : GlobalAdapter->Platforms) {
     Dev = p->getDeviceFromNativeHandle(ZeDevice);
+    if (Dev)
+      break;
   }
 
   if (Dev == nullptr)
