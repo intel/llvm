@@ -448,11 +448,12 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     xpti_td *CmdTraceEvent = nullptr;
     uint64_t InstanceID = 0;
-    auto StreamID = detail::getActiveXPTIStreamID();
+    uint8_t StreamID = 0;
     // Only enable instrumentation if there are subscribes to the SYCL
     // stream
-    const bool xptiEnabled = xptiCheckTraceEnabled(StreamID);
+    const bool xptiEnabled = xptiTraceEnabled();
     if (xptiEnabled) {
+      StreamID = detail::getActiveXPTIStreamID();
       std::tie(CmdTraceEvent, InstanceID) = emitKernelInstrumentationData(
           StreamID, KernelImplPtr, CodeLoc, IsTopCodeLoc,
           *KData.getDeviceKernelInfoPtr(), this, KData.getNDRDesc(),
@@ -621,10 +622,6 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
-  // Set the No Last Event Mode to false, since the no-handler path
-  // does not support it yet.
-  MNoLastEventMode.store(false, std::memory_order_relaxed);
-
   // Used by queue_empty() and getLastEvent()
   MEmpty.store(false, std::memory_order_release);
 
@@ -661,6 +658,11 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
                  CGData.MEvents, getContextImpl())
            : true) &&
       !hasCommandGraph();
+
+  // Synchronize with the "no last event mode", used by the handler-based
+  // kernel submit path
+  MNoLastEventMode.store(isInOrder() && SchedulerBypass,
+                         std::memory_order_relaxed);
 
   EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
 
@@ -843,8 +845,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   void *TelemetryEvent = nullptr;
   uint64_t IId;
   std::string Name;
-  auto StreamID = detail::getActiveXPTIStreamID();
-  TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  uint8_t StreamID = 0;
+  const bool xptiEnabled = xptiTraceEnabled();
+  if (xptiEnabled) {
+    StreamID = detail::getActiveXPTIStreamID();
+    TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
+  }
 #endif
 
   if (!MGraph.expired()) {
@@ -926,7 +932,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // There is an early return in instrumentationEpilog() if no subscribers are
   // subscribing to queue.wait().
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  if (xptiEnabled) {
+    instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
+  }
 #endif
 }
 
