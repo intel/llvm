@@ -157,17 +157,17 @@ template <typename KernelType, typename = typename std::enable_if_t<
 void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  // TODO The handler-less path does not support kernel function properties yet.
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
   if constexpr (!(ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
-                          const KernelType &>::value)) {
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<1>>::value)) {
     detail::submit_kernel_direct(
         q, ext::oneapi::experimental::empty_properties_t{},
         nd_range<1>(r, size), std::forward<KernelType>(k));
-  } else
-#endif
-  {
+  } else {
     submit(
         q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
         codeLoc);
@@ -178,17 +178,17 @@ template <typename KernelType, typename = typename std::enable_if_t<
 void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  // TODO The handler-less path does not support kernel function properties yet.
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
   if constexpr (!(ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
-                          const KernelType &>::value)) {
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<2>>::value)) {
     detail::submit_kernel_direct(
         q, ext::oneapi::experimental::empty_properties_t{},
         nd_range<2>(r, size), std::forward<KernelType>(k));
-  } else
-#endif
-  {
+  } else {
     submit(
         q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
         codeLoc);
@@ -199,17 +199,17 @@ template <typename KernelType, typename = typename std::enable_if_t<
 void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  // TODO The handler-less path does not support kernel function properties yet.
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
   if constexpr (!(ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
-                          const KernelType &>::value)) {
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<3>>::value)) {
     detail::submit_kernel_direct(
         q, ext::oneapi::experimental::empty_properties_t{},
         nd_range<3>(r, size), std::forward<KernelType>(k));
-  } else
-#endif
-  {
+  } else {
     submit(
         q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
         codeLoc);

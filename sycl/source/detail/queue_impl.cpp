@@ -622,10 +622,6 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);
 
-  // Set the No Last Event Mode to false, since the no-handler path
-  // does not support it yet.
-  MNoLastEventMode.store(false, std::memory_order_relaxed);
-
   // Used by queue_empty() and getLastEvent()
   MEmpty.store(false, std::memory_order_release);
 
@@ -662,6 +658,11 @@ queue_impl::submit_direct(bool CallerNeedsEvent,
                  CGData.MEvents, getContextImpl())
            : true) &&
       !hasCommandGraph();
+
+  // Synchronize with the "no last event mode", used by the handler-based
+  // kernel submit path
+  MNoLastEventMode.store(isInOrder() && SchedulerBypass,
+                         std::memory_order_relaxed);
 
   EventImplPtr EventImpl = SubmitCommandFunc(CGData, SchedulerBypass);
 

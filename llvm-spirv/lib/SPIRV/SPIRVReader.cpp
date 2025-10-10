@@ -1877,6 +1877,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVLifetimeStart *LTStart = static_cast<SPIRVLifetimeStart *>(BV);
     IRBuilder<> Builder(BB);
     auto *Var = transValue(LTStart->getObject(), F, BB);
+    Var = Var->stripPointerCasts();
     CallInst *Start = Builder.CreateLifetimeStart(Var);
     return mapValue(BV, Start);
   }
@@ -1885,6 +1886,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVLifetimeStop *LTStop = static_cast<SPIRVLifetimeStop *>(BV);
     IRBuilder<> Builder(BB);
     auto *Var = transValue(LTStop->getObject(), F, BB);
+    Var = Var->stripPointerCasts();
     for (const auto &I : Var->users())
       if (auto *II = getLifetimeStartIntrinsic(dyn_cast<Instruction>(I)))
         return mapValue(BV, Builder.CreateLifetimeEnd(II->getOperand(0)));
