@@ -259,18 +259,18 @@ template <typename KernelName = sycl::detail::auto_name, int Dimensions,
           typename KernelType, typename... ReductionsT>
 void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
                ReductionsT &&...Reductions) {
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-  // TODO The handler-less path does not support reductions and kernel function
-  // properties yet.
+  // TODO The handler-less path does not support reductions, kernel
+  // function properties and kernel functions with the kernel_handler
+  // type argument yet.
   if constexpr (sizeof...(ReductionsT) == 0 &&
                 !(ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
-                          const KernelType &>::value)) {
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<Dimensions>>::value)) {
     detail::submit_kernel_direct<KernelName>(std::move(Q), empty_properties_t{},
                                              Range, KernelObj);
-  } else
-#endif
-  {
+  } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
                             std::forward<ReductionsT>(Reductions)...);

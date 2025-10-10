@@ -18,6 +18,7 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/optional.hpp>
@@ -182,6 +183,10 @@ auto submit_kernel_direct(
       "Kernel argument of a sycl::parallel_for with sycl::nd_range "
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  detail::checkValueRange<Dims>(Range);
+#endif
 
   detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                         TransformedArgType, PropertiesT>::wrap(KernelFunc);
@@ -3275,21 +3280,21 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
     using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
 
-    // TODO The handler-less path does not support reductions and kernel
-    // function properties yet.
+    // TODO The handler-less path does not support reductions, kernel
+    // function properties and kernel functions with the kernel_handler
+    // type argument yet.
     if constexpr (sizeof...(RestT) == 1 &&
                   !(ext::oneapi::experimental::detail::
                         HasKernelPropertiesGetMethod<
-                            const KernelType &>::value)) {
+                            const KernelType &>::value) &&
+                  !(detail::KernelLambdaHasKernelHandlerArgT<
+                      KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
-          Rest...);
-    } else
-#endif
-    {
+          Rest..., TlsCodeLocCapture.query());
+    } else {
       return submit(
           [&](handler &CGH) {
             CGH.template parallel_for<KernelName>(Range, Rest...);
