@@ -179,13 +179,13 @@ int main() {
 // launch of Gen kernel
 // CHECK: <--- urKernelCreate
 // CHECK: NameGen
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 // prepare for host task
 // CHECK: <--- urEnqueueMemBuffer{{Map|Read}}
 // launch of Copier kernel
 // CHECK: <--- urKernelCreate
 // CHECK: Copier
-// CHECK: <--- urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunchWithArgsExp
 
 // CHECK:Third buffer [  0] = 0
 // CHECK:Third buffer [  1] = 1

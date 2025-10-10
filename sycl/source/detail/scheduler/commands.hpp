@@ -633,7 +633,9 @@ void enqueueImpKernel(
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
     const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage = nullptr,
-    void *KernelFuncPtr = nullptr);
+    void *KernelFuncPtr = nullptr, int KernelNumArgs = 0,
+    detail::kernel_param_desc_t (*KernelParamDescGetter)(int) = nullptr,
+    bool KernelHasSpecialCaptures = true);
 
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.

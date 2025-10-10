@@ -76,6 +76,7 @@
 		urEnqueueEventsWaitWithBarrier;
 		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueKernelLaunch;
+		urEnqueueKernelLaunchWithArgsExp;
 		urEnqueueMemBufferCopy;
 		urEnqueueMemBufferCopyRect;
 		urEnqueueMemBufferFill;
@@ -288,6 +289,7 @@
 		urPrintEnqueueEventsWaitWithBarrierExtParams;
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueKernelLaunchParams;
+		urPrintEnqueueKernelLaunchWithArgsExpParams;
 		urPrintEnqueueMemBufferCopyParams;
 		urPrintEnqueueMemBufferCopyRectParams;
 		urPrintEnqueueMemBufferFillParams;
@@ -349,6 +351,9 @@
 		urPrintExpImageCopyInputTypes;
 		urPrintExpImageCopyRegion;
 		urPrintExpImageMemType;
+		urPrintExpKernelArgMemObjTuple;
+		urPrintExpKernelArgProperties;
+		urPrintExpKernelArgType;
 		urPrintExpPeerInfo;
 		urPrintExpSamplerAddrModes;
 		urPrintExpSamplerCubemapFilterMode;
