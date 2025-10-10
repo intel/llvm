@@ -30,9 +30,8 @@ using sycl::detail::getSyclObjImpl;
 // can access private members to analyze internal optimizations (partitions,
 // sync points).
 class GraphImplTest {
-  using exec_graph_impl =
-      sycl::ext::oneapi::experimental::detail::exec_graph_impl;
-  using partition = sycl::ext::oneapi::experimental::detail::partition;
+  using exec_graph_impl = experimental::detail::exec_graph_impl;
+  using partition = experimental::detail::partition;
 
 public:
   static int NumPartitionsInOrder(const exec_graph_impl &Impl) {
