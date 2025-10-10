@@ -76,6 +76,7 @@ EXPORTS
 	urEnqueueEventsWaitWithBarrier
 	urEnqueueEventsWaitWithBarrierExt
 	urEnqueueKernelLaunch
+	urEnqueueKernelLaunchWithArgsExp
 	urEnqueueMemBufferCopy
 	urEnqueueMemBufferCopyRect
 	urEnqueueMemBufferFill
@@ -293,6 +294,7 @@ EXPORTS
 	urPrintEnqueueEventsWaitWithBarrierExtParams
 	urPrintEnqueueEventsWaitWithBarrierParams
 	urPrintEnqueueKernelLaunchParams
+	urPrintEnqueueKernelLaunchWithArgsExpParams
 	urPrintEnqueueMemBufferCopyParams
 	urPrintEnqueueMemBufferCopyRectParams
 	urPrintEnqueueMemBufferFillParams
@@ -354,6 +356,9 @@ EXPORTS
 	urPrintExpImageCopyInputTypes
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
+	urPrintExpKernelArgMemObjTuple
+	urPrintExpKernelArgProperties
+	urPrintExpKernelArgType
 	urPrintExpPeerInfo
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
