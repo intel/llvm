@@ -267,10 +267,22 @@ ur_result_t AsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ur_queue_handle_t InternalQueue = ContextInfo->getInternalQueue(Device);
 
+  // To get right shadow boundary, shadow memory should be updated before
+  // prepareLaunch
+  {
+    // Force to allocate membuffer before prepareLaunch
+    auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
+      char *ArgPointer = nullptr;
+      UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
+      (void)ArgPointer;
+    }
+  }
+  UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
+
   UR_CALL(prepareLaunch(ContextInfo, DeviceInfo, InternalQueue, Kernel,
                         LaunchInfo));
-
-  UR_CALL(updateShadowMemory(ContextInfo, DeviceInfo, InternalQueue));
 
   UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
@@ -453,7 +465,7 @@ ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
   }
   ProgramInfo->AllocInfoForGlobals.clear();
 
-  ProgramInfo->InstrumentedKernels.clear();
+  ProgramInfo->KernelMetadataMap.clear();
 
   return UR_RESULT_SUCCESS;
 }
@@ -508,14 +520,18 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
+      bool CheckShadowBounds =
+          SKI.Flags & SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS;
 
       UR_LOG_L(getContext()->logger, INFO,
-               "SpirKernel(name='{}', isInstrumented={})", KernelName, true);
+               "SpirKernel(name='{}', isInstrumented={}, checkShadowBounds={})",
+               KernelName, true, CheckShadowBounds);
 
-      PI->InstrumentedKernels.insert(std::move(KernelName));
+      PI->KernelMetadataMap[KernelName] =
+          ProgramInfo::KernelMetadata{CheckShadowBounds};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
-             PI->InstrumentedKernels.size());
+             PI->KernelMetadataMap.size());
   }
 
   return UR_RESULT_SUCCESS;
@@ -666,11 +682,16 @@ KernelInfo &AsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   auto Program = GetProgram(Kernel);
   auto PI = getProgramInfo(Program);
   assert(PI != nullptr && "unregistered program!");
-  bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+
+  auto KI = std::make_unique<KernelInfo>(Kernel);
+  KI->IsInstrumented = PI->isKernelInstrumented(Kernel);
+  if (KI->IsInstrumented) {
+    auto &KM = PI->getKernelMetadata(Kernel);
+    KI->IsCheckShadowBounds = KM.CheckShadowBounds;
+  }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-  m_KernelMap.emplace(Kernel,
-                      std::make_unique<KernelInfo>(Kernel, IsInstrumented));
+  m_KernelMap.emplace(Kernel, std::move(KI));
   return *m_KernelMap[Kernel].get();
 }
 
@@ -815,6 +836,13 @@ ur_result_t AsanInterceptor::prepareLaunch(
   LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
   LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
+  if (KernelInfo.IsCheckShadowBounds) {
+    LaunchInfo.Data.Host.GlobalShadowLowerBound =
+        DeviceInfo->Shadow->ShadowLowerBound;
+    LaunchInfo.Data.Host.GlobalShadowUpperBound =
+        DeviceInfo->Shadow->ShadowUpperBound;
+  }
+
   // Write shadow memory offset for local memory
   if (getContext()->Options.DetectLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
@@ -872,18 +900,20 @@ ur_result_t AsanInterceptor::prepareLaunch(
   // sync asan runtime data to device side
   UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
-  UR_LOG_L(getContext()->logger, INFO,
-           "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
-           "PrivateShadow={}, LocalArgs={}, NumLocalArgs={}, "
-           "Device={}, Debug={})",
-           (void *)LaunchInfo.Data.getDevicePtr(),
-           (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
-           (void *)LaunchInfo.Data.Host.LocalShadowOffset,
-           (void *)LaunchInfo.Data.Host.PrivateBase,
-           (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
-           (void *)LaunchInfo.Data.Host.LocalArgs,
-           LaunchInfo.Data.Host.NumLocalArgs,
-           ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
+  UR_LOG_L(
+      getContext()->logger, INFO,
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateBase={}, "
+      "PrivateShadow={}, GlobalShadowLowerBound={}, GlobalShadowUpperBound={}, "
+      "LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
+      (void *)LaunchInfo.Data.getDevicePtr(),
+      (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
+      (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+      (void *)LaunchInfo.Data.Host.PrivateBase,
+      (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+      (void *)LaunchInfo.Data.Host.GlobalShadowLowerBound,
+      (void *)LaunchInfo.Data.Host.GlobalShadowUpperBound,
+      (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
+      ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   return UR_RESULT_SUCCESS;
 }
@@ -920,7 +950,14 @@ AsanInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
 
 bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
-  return InstrumentedKernels.find(Name) != InstrumentedKernels.end();
+  return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
+}
+
+const ProgramInfo::KernelMetadata &
+ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
+  const auto Name = GetKernelName(Kernel);
+  assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
+  return KernelMetadataMap.at(Name);
 }
 
 ContextInfo::~ContextInfo() {
