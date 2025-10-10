@@ -240,8 +240,8 @@ public:
   std::string_view getName() const;
 
   DeviceKernelInfo &getDeviceKernelInfo() {
-    return MIsInterop
-               ? MInteropDeviceKernelInfo
+    return MOwnsDeviceKernelInfo
+               ? MDeviceKernelInfo
                : ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
                      KernelNameStrT(getName()));
   }
@@ -259,9 +259,11 @@ private:
   std::mutex *MCacheMutex = nullptr;
   mutable std::string MName;
 
-  // It is used for the interop kernels only.
+  // Used for images that aren't obtained with standard SYCL offline
+  // compilation.
   // For regular kernel we get DeviceKernelInfo from the ProgramManager.
-  DeviceKernelInfo MInteropDeviceKernelInfo;
+  bool MOwnsDeviceKernelInfo = false;
+  DeviceKernelInfo MDeviceKernelInfo;
 
   bool isBuiltInKernel(device_impl &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
