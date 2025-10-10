@@ -1797,8 +1797,11 @@ void ProgramManager::cacheKernelUsesAssertInfo(const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &AssertUsedRange =
       Img.getAssertUsed();
   if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange)
-      m_KernelUsesAssert.insert(Prop->Name);
+    for (const auto &Prop : AssertUsedRange) {
+      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
+      assert(It != m_DeviceKernelInfoMap.end());
+      It->second.setUsesAssert();
+    }
 }
 
 void ProgramManager::cacheKernelImplicitLocalArg(
@@ -1807,36 +1810,27 @@ void ProgramManager::cacheKernelImplicitLocalArg(
       Img.getImplicitLocalArg();
   if (ImplicitLocalArgRange.isAvailable())
     for (auto Prop : ImplicitLocalArgRange) {
-      m_KernelImplicitLocalArgPos[Prop->Name] =
-          DeviceBinaryProperty(Prop).asUint32();
+      auto It = m_DeviceKernelInfoMap.find(Prop->Name);
+      assert(It != m_DeviceKernelInfoMap.end());
+      It->second.setImplicitLocalArgPos(DeviceBinaryProperty(Prop).asUint32());
     }
 }
 
-std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(KernelNameStrRefT KernelName) const {
-  auto it = m_KernelImplicitLocalArgPos.find(KernelName);
-  if (it != m_KernelImplicitLocalArgPos.end())
-    return it->second;
-  return {};
-}
-
-DeviceKernelInfo &ProgramManager::getOrCreateDeviceKernelInfo(
-    const CompileTimeKernelInfoTy &Info) {
+DeviceKernelInfo &
+ProgramManager::getDeviceKernelInfo(const CompileTimeKernelInfoTy &Info) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  auto [Iter, Inserted] =
-      m_DeviceKernelInfoMap.try_emplace(KernelNameStrT{Info.Name.data()}, Info);
-  if (!Inserted)
-    Iter->second.setCompileTimeInfoIfNeeded(Info);
-  return Iter->second;
+  auto It = m_DeviceKernelInfoMap.find(KernelNameStrT{Info.Name.data()});
+  assert(It != m_DeviceKernelInfoMap.end());
+  It->second.setCompileTimeInfoIfNeeded(Info);
+  return It->second;
 }
 
 DeviceKernelInfo &
-ProgramManager::getOrCreateDeviceKernelInfo(KernelNameStrRefT KernelName) {
+ProgramManager::getDeviceKernelInfo(KernelNameStrRefT KernelName) {
   std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
-  CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(KernelName)};
-  auto Result =
-      m_DeviceKernelInfoMap.try_emplace(KernelName, DefaultCompileTimeInfo);
-  return Result.first->second;
+  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  assert(It != m_DeviceKernelInfoMap.end());
+  return It->second;
 }
 
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
@@ -2039,6 +2033,10 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
     m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
     KernelIDs->push_back(It->second);
 
+    CompileTimeKernelInfoTy DefaultCompileTimeInfo{std::string_view(name)};
+    m_DeviceKernelInfoMap.try_emplace(KernelNameStrT(name),
+                                      DefaultCompileTimeInfo);
+
     // Keep track of image to kernel name reference count for cleanup.
     m_KernelNameRefCount[name]++;
   }
@@ -2232,8 +2230,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       if (--RefCount == 0) {
         // TODO aggregate all these maps into a single one since their entries
         // share lifetime.
-        m_KernelUsesAssert.erase(Name);
-        m_KernelImplicitLocalArgPos.erase(Name);
         m_DeviceKernelInfoMap.erase(Name);
         m_KernelNameRefCount.erase(RefCountIt);
         if (Name2IDIt != m_KernelName2KernelIDs.end())
