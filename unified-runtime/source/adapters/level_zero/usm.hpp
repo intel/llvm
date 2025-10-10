@@ -9,8 +9,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <set>
-
 #include "common.hpp"
 #include "common/ur_ref_count.hpp"
 #include "enqueued_pool.hpp"

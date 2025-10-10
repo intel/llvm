@@ -43,19 +43,20 @@ ur_result_t getProviderNativeError(const char *providerName,
 
 static std::optional<usm::DisjointPoolAllConfigs>
 initializeDisjointPoolConfig() {
-  const char *UrRetDisable = std::getenv("UR_L0_DISABLE_USM_ALLOCATOR");
-  const char *PiRetDisable =
-      std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR");
-  const char *Disable =
-      UrRetDisable ? UrRetDisable : (PiRetDisable ? PiRetDisable : nullptr);
-  if (Disable != nullptr && Disable != std::string("")) {
+  auto disabled = [](const char* n) {
+    if (auto v = std::getenv(n)) {
+      return *v != '\0';
+    }
+    return false;
+  };
+
+  if (disabled("UR_L0_DISABLE_USM_ALLOCATOR") ||
+      disabled("SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR")) {
     return std::nullopt;
   }
 
-  const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
-
   int PoolTrace = 0;
-  if (PoolUrTraceVal != nullptr) {
+  if (auto PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE")) {
     PoolTrace = std::atoi(PoolUrTraceVal);
   }
 
