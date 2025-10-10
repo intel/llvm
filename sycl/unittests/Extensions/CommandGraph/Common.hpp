@@ -24,8 +24,29 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
-
 using sycl::detail::getSyclObjImpl;
+
+// Implement the test friend class forward declared in graph_impl.hpp so tests
+// can access private members to analyze internal optimizations (partitions,
+// sync points).
+class GraphImplTest {
+  using exec_graph_impl =
+      sycl::ext::oneapi::experimental::detail::exec_graph_impl;
+  using partition = sycl::ext::oneapi::experimental::detail::partition;
+
+public:
+  static int NumPartitionsInOrder(const exec_graph_impl &Impl) {
+    int NumInOrder = 0;
+    for (const auto &P : Impl.MPartitions) {
+      if (P && P->MIsInOrderGraph)
+        ++NumInOrder;
+    }
+    return NumInOrder;
+  }
+  static int NumSyncPoints(const exec_graph_impl &Impl) {
+    return Impl.MSyncPoints.size();
+  }
+};
 
 // Common Test fixture
 class CommandGraphTest : public ::testing::Test {
