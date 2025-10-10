@@ -10279,6 +10279,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       File = C.getArgs().MakeArgString("@" + File);
 
     StringRef Arch;
+    std::string TransformedArch;
     if (OffloadAction->getOffloadingArch()) {
       if (TC->getTripleString() == "spir64_gen-unknown-unknown") {
         Arch = mapIntelGPUArchName(OffloadAction->getOffloadingArch());
@@ -10308,6 +10309,16 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
         "kind=" + Kind.str(),
     };
 
+    // When compiling like -fsycl-targets=spir64_gen -Xsycl-target-backend
+    // "-device pvc,bdw", the offloading arch will be "pvc,bdw", which
+    // contains a comma. We need to transform it to "arch=pvc,arch=bdw" when
+    // passing to clang-offload-packager.
+    SmallVector<StringRef> Archs;
+    Arch.split(Archs, ',');
+    if (Archs.size() > 1) {
+      Parts[2] = "arch=" + llvm::join(Archs, ",arch=");
+    }
+
     if (TC->getDriver().isUsingOffloadLTO())
       for (StringRef Feature : FeatureArgs)
         Parts.emplace_back("feature=" + Feature.str());
@@ -10331,7 +10342,9 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           AL += " ";
           AL += A;
         }
-        Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+        for (StringRef Split : llvm::split(AL, ',')) {
+          Parts.emplace_back(C.getArgs().MakeArgString(Twine(Opt) + Split));
+        }
       };
       const ArgList &Args =
           C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_SYCL);
@@ -10340,10 +10353,10 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
           static_cast<const toolchains::SYCLToolChain &>(*TC);
       SYCLTC.AddImpliedTargetArgs(TC->getTriple(), Args, BuildArgs, JA, *HostTC,
                                   Arch);
-      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
+      SYCLTC.TranslateBackendTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("compile-opts=");
       BuildArgs.clear();
-      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs, Arch);
+      SYCLTC.TranslateLinkerTargetArgs(TC->getTriple(), Args, BuildArgs);
       createArgString("link-opts=");
     }
 
