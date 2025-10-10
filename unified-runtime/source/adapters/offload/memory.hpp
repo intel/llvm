@@ -17,7 +17,6 @@
 struct BufferMem {
   enum class AllocMode {
     Default,
-    UseHostPtr,
     CopyIn,
     AllocHostPtr,
   };
@@ -93,6 +92,7 @@ struct ur_mem_handle_t_ : RefCounted {
   ur_context_handle_t Context;
 
   ur_mem_flags_t MemFlags;
+  bool IsNativeHandleOwned;
 
   // For now we only support BufferMem. Eventually we'll support images, so use
   // a variant to store the underlying object.
@@ -101,7 +101,7 @@ struct ur_mem_handle_t_ : RefCounted {
   ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_handle_t Parent,
                    ur_mem_flags_t MemFlags, BufferMem::AllocMode Mode,
                    void *Ptr, void *HostPtr, size_t Size)
-      : Context{Context}, MemFlags{MemFlags},
+      : Context{Context}, MemFlags{MemFlags}, IsNativeHandleOwned(true),
         Mem{BufferMem{Parent, Mode, Ptr, HostPtr, Size}} {
     urContextRetain(Context);
   };
