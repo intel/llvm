@@ -15,6 +15,8 @@
 #define __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 #include <sycl/khr/free_function_commands.hpp>
 
+using namespace FreeFunctionEventsHelpers;
+
 class TestFunctor {
 public:
   void operator()() const {}
@@ -77,7 +79,7 @@ public:
 
 protected:
   void SetUp() override {
-    counter_urEnqueueKernelLaunch = 0;
+    counter_urEnqueueKernelLaunchWithArgsExp = 0;
     counter_urEnqueueKernelLaunchWithEvent = 0;
     counter_urUSMEnqueueMemcpy = 0;
     counter_urUSMEnqueueFill = 0;
@@ -91,26 +93,29 @@ protected:
 };
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
     sycl::khr::launch_task(Handler, TestFunctor());
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   sycl::khr::launch_task(Queue, TestFunctor());
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
   auto KID = sycl::get_kernel_id<TestFunctor>();
@@ -124,12 +129,13 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchTaskKernelNoEvent) {
     sycl::khr::launch_task(Handler, Kernel);
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -143,33 +149,36 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutKernelNoEvent) {
 
   sycl::khr::launch_task(Queue, Kernel);
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForNoEvent) {
 
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
     sycl::khr::launch(Handler, sycl::range<1>{32}, TestFunctor());
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   sycl::khr::launch(Queue, sycl::range<1>{32}, TestFunctor());
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -184,12 +193,13 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchForKernelNoEvent) {
     sycl::khr::launch(Handler, sycl::range<1>{32}, Kernel);
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -203,35 +213,38 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchForShortcutKernelNoEvent) {
 
   sycl::khr::launch(Queue, sycl::range<1>{32}, Kernel);
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   sycl::khr::submit(Queue, [&](sycl::handler &Handler) {
     sycl::khr::launch_grouped(Handler, sycl::range<1>{32}, sycl::range<1>{32},
                               TestFunctor());
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   sycl::khr::launch_grouped(Queue, sycl::range<1>{32}, sycl::range<1>{32},
                             TestFunctor());
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests,
        LaunchGroupedShortcutMoveKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   TestMoveFunctor::MoveCtorCalls = 0;
   TestMoveFunctor MoveOnly;
@@ -246,7 +259,7 @@ TEST_F(FreeFunctionCommandsEventsTests,
                             std::move(MoveOnly));
 
   ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 0);
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 
   // Another kernel submission is queued behind a host task,
   // to force the scheduler-based submission. In this case, the HostKernel
@@ -255,7 +268,8 @@ TEST_F(FreeFunctionCommandsEventsTests,
   // Replace the callback with an event based one, since the scheduler
   // needs to create an event internally
   mock::getCallbacks().set_replace_callback(
-      "urEnqueueKernelLaunch", &redefined_urEnqueueKernelLaunchWithEvent);
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithEvent);
 
   Queue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
@@ -283,8 +297,9 @@ TEST_F(FreeFunctionCommandsEventsTests,
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutMoveKernel) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
 
   TestMoveFunctor::MoveCtorCalls = 0;
   TestMoveFunctor MoveOnly;
@@ -298,7 +313,7 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutMoveKernel) {
   sycl::khr::launch_task(Queue, std::move(MoveOnly));
 
   ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 0);
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 
   // Another kernel submission is queued behind a host task,
   // to force the scheduler-based submission. In this case, the HostKernel
@@ -307,7 +322,8 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutMoveKernel) {
   // Replace the callback with an event based one, since the scheduler
   // needs to create an event internally
   mock::getCallbacks().set_replace_callback(
-      "urEnqueueKernelLaunch", &redefined_urEnqueueKernelLaunchWithEvent);
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithEvent);
 
   Queue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
@@ -334,8 +350,9 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutMoveKernel) {
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -351,12 +368,13 @@ TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
                               Kernel);
   });
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutKernelNoEvent) {
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback("urKernelGetInfo",
                                           &after_urKernelGetInfo);
 
@@ -371,7 +389,7 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutKernelNoEvent) {
   sycl::khr::launch_grouped(Queue, sycl::range<1>{32}, sycl::range<1>{32},
                             Kernel);
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
 }
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitMemcpyNoEvent) {
@@ -534,8 +552,9 @@ TEST_F(FreeFunctionCommandsEventsTests, MemAdviseShortcutNoEvent) {
 TEST_F(FreeFunctionCommandsEventsTests, BarrierBeforeHostTask) {
   // Special test for case where host_task need an event after, so a barrier is
   // enqueued to create a usable event.
-  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
-                                            &redefined_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunchWithArgsExp",
+      &redefined_urEnqueueKernelLaunchWithArgsExp);
   mock::getCallbacks().set_after_callback(
       "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
 
@@ -549,7 +568,7 @@ TEST_F(FreeFunctionCommandsEventsTests, BarrierBeforeHostTask) {
       })
       .wait();
 
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithArgsExp, size_t{1});
   ASSERT_EQ(counter_urEnqueueEventsWaitWithBarrier, size_t{1});
   ASSERT_TRUE(HostTaskTimestamp > timestamp_urEnqueueEventsWaitWithBarrier);
 }
