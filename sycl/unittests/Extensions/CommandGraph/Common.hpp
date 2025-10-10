@@ -24,6 +24,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+
 using sycl::detail::getSyclObjImpl;
 
 // Implement the test friend class forward declared in graph_impl.hpp so tests
