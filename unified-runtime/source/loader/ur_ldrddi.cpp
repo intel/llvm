@@ -5416,6 +5416,26 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hContext);
+
+  auto *pfnDynamicLinkExp = dditable->ProgramExp.pfnDynamicLinkExp;
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnDynamicLinkExp(hContext, count, phPrograms);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -5541,6 +5561,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
 
@@ -5551,7 +5573,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  return pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5563,6 +5585,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
 
@@ -5573,7 +5597,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+  return pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5585,6 +5609,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -5603,7 +5629,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // forward to device-platform
-  return pfnLinkExp(hContext, numDevices, phDevices, count, phPrograms,
+  return pfnLinkExp(hContext, numDevices, phDevices, flags, count, phPrograms,
                     pOptions, phProgram);
 }
 
@@ -6742,6 +6768,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     if (ur_loader::getContext()->platforms.size() != 1 ||
         ur_loader::getContext()->forceIntercept) {
       // return pointers to loader's DDIs
+      pDdiTable->pfnDynamicLinkExp = ur_loader::urProgramDynamicLinkExp;
       pDdiTable->pfnBuildExp = ur_loader::urProgramBuildExp;
       pDdiTable->pfnCompileExp = ur_loader::urProgramCompileExp;
       pDdiTable->pfnLinkExp = ur_loader::urProgramLinkExp;
