@@ -467,13 +467,14 @@ EventImplPtr queue_impl::submit_kernel_scheduler_bypass(
       BinImage = detail::retrieveKernelBinary(*this, KData.getKernelName());
       assert(BinImage && "Failed to obtain a binary image.");
     }
-    enqueueImpKernel(*this, KData.getNDRDesc(), KData.getArgs(),
-                     KernelBundleImpPtr, KernelImplPtr,
-                     *KData.getDeviceKernelInfoPtr(), RawEvents,
-                     ResultEvent.get(), nullptr, KData.getKernelCacheConfig(),
-                     KData.isCooperative(), KData.usesClusterLaunch(),
-                     KData.getKernelWorkGroupMemorySize(), BinImage,
-                     KData.getKernelFuncPtr());
+    enqueueImpKernel(
+        *this, KData.getNDRDesc(), KData.getArgs(), KernelBundleImpPtr,
+        KernelImplPtr, *KData.getDeviceKernelInfoPtr(), RawEvents,
+        ResultEvent.get(), nullptr, KData.getKernelCacheConfig(),
+        KData.isCooperative(), KData.usesClusterLaunch(),
+        KData.getKernelWorkGroupMemorySize(), BinImage,
+        KData.getKernelFuncPtr(), KData.getKernelNumArgs(),
+        KData.getKernelParamDescGetter(), KData.hasSpecialCaptures());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiEnabled) {
       // Emit signal only when event is created
