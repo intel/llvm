@@ -2314,7 +2314,7 @@ __SYCL_EXPORT void HandlerAccess::preProcess(handler &CGH,
   F(AuxHandler);
   auto E = AuxHandler.finalize();
   if (EventNeeded)
-    CGH.depends_on(E);
+    CGH.depends_on(std::move(E));
 }
 __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
                                               type_erased_cgfo_ty F) {
@@ -2331,7 +2331,7 @@ __SYCL_EXPORT void HandlerAccess::postProcess(handler &CGH,
   PostProcessHandler.impl->MAuxiliaryResources = CGH.impl->MAuxiliaryResources;
   auto E = CGH.finalize();
   if (!InOrder)
-    PostProcessHandler.depends_on(E);
+    PostProcessHandler.depends_on(std::move(E));
   F(PostProcessHandler);
   swap(CGH, PostProcessHandler);
 }
