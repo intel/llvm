@@ -18,6 +18,7 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/optional.hpp>
@@ -65,14 +66,14 @@ auto get_native(const SyclObjectT &Obj)
 template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
-    std::shared_ptr<detail::HostKernelBase> &HostKernel,
+    detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
@@ -157,10 +158,10 @@ private:
 } // namespace v1
 
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
-          typename PropertiesT, typename KernelType, int Dims>
+          typename PropertiesT, typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
     const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
-    const KernelType &KernelFunc,
+    KernelTypeUniversalRef &&KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
   (void)Props;
@@ -169,6 +170,9 @@ auto submit_kernel_direct(
                      ext::oneapi::experimental::empty_properties_t>,
       "Setting properties not supported yet for no-CGH kernel submit.");
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+
+  using KernelType =
+      std::remove_const_t<std::remove_reference_t<KernelTypeUniversalRef>>;
 
   using NameT =
       typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -180,14 +184,26 @@ auto submit_kernel_direct(
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
 
-  std::shared_ptr<detail::HostKernelBase> HostKernel = std::make_shared<
-      detail::HostKernel<KernelType, TransformedArgType, Dims>>(KernelFunc);
-
-  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
-      &detail::getDeviceKernelInfo<NameT>();
+#ifndef __SYCL_DEVICE_ONLY__
+  detail::checkValueRange<Dims>(Range);
+#endif
 
   detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                         TransformedArgType, PropertiesT>::wrap(KernelFunc);
+
+  HostKernelRef<KernelType, KernelTypeUniversalRef, TransformedArgType, Dims>
+      HostKernel(std::forward<KernelTypeUniversalRef>(KernelFunc));
+
+  // Instantiating the kernel on the host improves debugging.
+  // Passing this pointer to another translation unit prevents optimization.
+#ifndef NDEBUG
+  // TODO: call library to prevent dropping call due to optimization
+  (void)
+      detail::GetInstantiateKernelOnHostPtr<KernelType, LambdaArgType, Dims>();
+#endif
+
+  detail::DeviceKernelInfo *DeviceKernelInfoPtr =
+      &detail::getDeviceKernelInfo<NameT>();
 
   if constexpr (EventNeeded) {
     return submit_kernel_direct_with_event_impl(
@@ -3264,15 +3280,21 @@ public:
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-#ifdef __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
-    // TODO The handler-less path does not support reductions yet.
-    if constexpr (sizeof...(RestT) == 1) {
+    using KernelType = std::tuple_element_t<0, std::tuple<RestT...>>;
+
+    // TODO The handler-less path does not support reductions, kernel
+    // function properties and kernel functions with the kernel_handler
+    // type argument yet.
+    if constexpr (sizeof...(RestT) == 1 &&
+                  !(ext::oneapi::experimental::detail::
+                        HasKernelPropertiesGetMethod<
+                            const KernelType &>::value) &&
+                  !(detail::KernelLambdaHasKernelHandlerArgT<
+                      KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, Range,
-          Rest...);
-    } else
-#endif
-    {
+          Rest..., TlsCodeLocCapture.query());
+    } else {
       return submit(
           [&](handler &CGH) {
             CGH.template parallel_for<KernelName>(Range, Rest...);

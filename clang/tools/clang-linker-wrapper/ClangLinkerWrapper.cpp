@@ -942,7 +942,29 @@ static void addBackendOptions(const ArgList &Args,
                               SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
   StringRef OptC =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  if (IsCPU) {
+    OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  } else {
+    // ocloc -options args need to be comma separated, e.g. `-options
+    // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
+    // ocloc as an arg for -options, and the rest are processed as standalone
+    // flags, possibly leading to errors.
+    // split function here returns a pair with everything before the separator
+    // ("-options") in the first member of the pair, and everything after the
+    // separator in the second part of the pair. The separator is not included
+    // in any of them.
+    auto [BeforeOptions, AfterOptions] = OptC.split("-options ");
+    // Only add if not empty, an empty arg can lead to ocloc errors.
+    if (!BeforeOptions.empty())
+      CmdArgs.push_back(BeforeOptions);
+    if (!AfterOptions.empty()) {
+      // Separator not included by the split function, so explicitly added here.
+      CmdArgs.push_back("-options");
+      std::string Replace = AfterOptions.str();
+      std::replace(Replace.begin(), Replace.end(), ' ', ',');
+      CmdArgs.push_back(Args.MakeArgString(Replace));
+    }
+  }
   StringRef OptL =
       Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
   OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
@@ -1194,7 +1216,7 @@ packageSYCLBIN(SYCLBIN::BundleState State,
                const ArrayRef<SYCLBIN::SYCLBINModuleDesc> Modules) {
   SYCLBIN::SYCLBINDesc SYCLBIND{State, Modules};
   size_t SYCLBINByteSize = 0;
-  if (Error E = SYCLBIND.getSYCLBINByteSite().moveInto(SYCLBINByteSize))
+  if (Error E = SYCLBIND.getSYCLBINByteSize().moveInto(SYCLBINByteSize))
     return std::move(E);
 
   SmallString<0> SYCLBINImage;
@@ -1278,14 +1300,17 @@ runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// llvm-link tool.
-Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
-                                         const ArgList &Args) {
+static Expected<StringRef>
+linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
+                     const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
 
-  Expected<std::string> LLVMLinkPath =
-      findProgram("llvm-link", {getMainExecutable("llvm-link")});
-  if (!LLVMLinkPath)
-    return LLVMLinkPath.takeError();
+  const char *LinkerExecutable = "llvm-link";
+
+  Expected<std::string> Linker =
+      findProgram(LinkerExecutable, {getMainExecutable(LinkerExecutable)});
+  if (!Linker)
+    return Linker.takeError();
 
   // Create a new file to write the linked device file to.
   auto OutFileOrErr =
@@ -1293,18 +1318,23 @@ Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
   if (!OutFileOrErr)
     return OutFileOrErr.takeError();
 
+  // Build the command line.
   SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*LLVMLinkPath);
+  CmdArgs.push_back(*Linker);
+  // Fill linker command line arguments.
+  CmdArgs.push_back("--suppress-warnings");
+  // Add input files.
   for (auto &File : InputFiles) {
     auto IRFile = sycl::convertSPIRVToIR(File, Args);
     if (!IRFile)
       return IRFile.takeError();
     CmdArgs.push_back(*IRFile);
   }
+  // Specify output file.
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
-  CmdArgs.push_back("--suppress-warnings");
-  if (Error Err = executeCommands(*LLVMLinkPath, CmdArgs))
+  // Execute the linker command.
+  if (Error Err = executeCommands(*Linker, CmdArgs))
     return std::move(Err);
   return *OutFileOrErr;
 }
@@ -1320,10 +1350,12 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
                    const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("LinkDeviceLibraryFiles");
 
-  Expected<std::string> LLVMLinkPath =
-      findProgram("llvm-link", {getMainExecutable("llvm-link")});
-  if (!LLVMLinkPath)
-    return LLVMLinkPath.takeError();
+  const char *LinkerExecutable = "llvm-link";
+
+  Expected<std::string> Linker =
+      findProgram(LinkerExecutable, {getMainExecutable(LinkerExecutable)});
+  if (!Linker)
+    return Linker.takeError();
 
   // Create a new file to write the linked device file to.
   auto OutFileOrErr =
@@ -1331,15 +1363,20 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   if (!OutFileOrErr)
     return OutFileOrErr.takeError();
 
+  // Build the command line.
   SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*LLVMLinkPath);
+  CmdArgs.push_back(*Linker);
+  // Fill linker command line arguments.
   CmdArgs.push_back("-only-needed");
+  CmdArgs.push_back("--suppress-warnings");
+  // Add input files.
   for (auto &File : InputFiles)
     CmdArgs.push_back(File);
+  // Specify output file.
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
-  CmdArgs.push_back("--suppress-warnings");
-  if (Error Err = executeCommands(*LLVMLinkPath, CmdArgs))
+  // Execute the linker command.
+  if (Error Err = executeCommands(*Linker, CmdArgs))
     return std::move(Err);
   return *OutFileOrErr;
 }

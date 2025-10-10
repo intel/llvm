@@ -52,7 +52,7 @@ jobs:
           # - c_compiler: gcc
           #   cpp_compiler: g++
     steps:
-    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
     
     # Libc's build is relatively small comparing with other components of LLVM.
     # A fresh fullbuild takes about 190MiB of uncompressed disk space, which can
@@ -61,7 +61,7 @@ jobs:
     # Do not use direct GHAC access even though it is supported by sccache. GHAC rejects
     # frequent small object writes.
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
+      uses: hendrikmuhs/ccache-action@bfa03e1de4d7f7c3e80ad9109feedd05c4f5a716 # v1.2.19
       with:
         max-size: 1G
         key: libc_fullbuild_${{ matrix.c_compiler }}
