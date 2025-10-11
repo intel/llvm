@@ -136,18 +136,17 @@
 // STATIC_LIB_SRC-CUDA: 13: clang-offload-unbundler, {12}, archive
 // STATIC_LIB_SRC-CUDA: 14: linker, {5, 11, 13}, ir, (device-sycl, sm_50)
 // STATIC_LIB_SRC-CUDA: 15: input, "{{.*}}libspirv-nvptx64{{.*}}", ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 16: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 17: linker, {14, 15, 16}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 18: sycl-post-link, {17}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 19: file-table-tform, {18}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 20: backend, {19}, assembler, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 21: assembler, {20}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 22: linker, {20, 21}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 23: foreach, {19, 22}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 24: file-table-tform, {18, 23}, tempfiletable, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 25: clang-offload-wrapper, {24}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 26: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {25}, object
-// STATIC_LIB_SRC-CUDA: 27: linker, {0, 9, 26}, image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 16: linker, {14, 15}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 17: sycl-post-link, {16}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 18: file-table-tform, {17}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 19: backend, {18}, assembler, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 20: assembler, {19}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 21: linker, {19, 20}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 22: foreach, {18, 21}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 23: file-table-tform, {17, 22}, tempfiletable, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 24: clang-offload-wrapper, {23}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 25: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {24}, object
+// STATIC_LIB_SRC-CUDA: 26: linker, {0, 9, 25}, image, (host-sycl)
 
 /// ###########################################################################
 
