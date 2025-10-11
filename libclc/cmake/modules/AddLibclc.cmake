@@ -502,10 +502,6 @@ function(add_libclc_builtin_set)
     FOLDER "libclc/Device IR/Prepare"
   )
 
-  # Add dependency to top-level pseudo target to ease making other
-  # targets dependent on libclc.
-  add_dependencies(${ARG_PARENT_TARGET} prepare-${obj_suffix})
-
   # Also add a 'prepare' target for the triple. Since a triple may have
   # multiple devices, ensure we only try to create the triple target once. The
   # triple's target will build all of the bytecode for its constituent devices.
