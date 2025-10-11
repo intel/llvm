@@ -6,6 +6,7 @@
 
 /// ###########################################################################
 
+/// test behavior of device library default link
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_DEFAULT
 // SYCL_DEVICE_LIB_LINK_DEFAULT: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o
