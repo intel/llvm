@@ -256,7 +256,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
                KernelName, true, CheckLocals, CheckPrivates, TrackOrigins);
 
       PI->KernelMetadataMap[KernelName] =
-          ProgramInfo::KernelMetada{CheckLocals, CheckPrivates, TrackOrigins};
+          ProgramInfo::KernelMetadata{CheckLocals, CheckPrivates, TrackOrigins};
     }
     UR_LOG_L(getContext()->logger, INFO, "Number of sanitized kernel: {}",
              PI->KernelMetadataMap.size());
@@ -639,7 +639,7 @@ bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
 }
 
-const ProgramInfo::KernelMetada &
+const ProgramInfo::KernelMetadata &
 ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
   assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
