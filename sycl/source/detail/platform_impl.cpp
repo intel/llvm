@@ -557,11 +557,6 @@ void platform_impl::getDevicesImplHelper(ur_device_type_t UrDeviceType,
                        PlatformImpl.getOrMakeDeviceImpl(UrDevice));
                  });
 
-  // The reference counter for handles, that we used to create sycl objects, is
-  // incremented, so we need to call release here.
-  for (ur_device_handle_t &UrDev : UrDevicesToCleanUp)
-    MAdapter->call<UrApiKind::urDeviceRelease>(UrDev);
-
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no new devices, there won't be any need to replace them
   // with subdevices.
