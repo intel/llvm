@@ -110,14 +110,14 @@ struct ProgramInfo {
   ur_program_handle_t Handle;
   std::atomic<int32_t> RefCount = 1;
 
-  struct KernelMetada {
+  struct KernelMetadata {
     bool CheckLocals;
     bool CheckPrivates;
     bool TrackOrigins;
   };
 
   // Program is built only once, so we don't need to lock it
-  std::unordered_map<std::string, KernelMetada> KernelMetadataMap;
+  std::unordered_map<std::string, KernelMetadata> KernelMetadataMap;
 
   explicit ProgramInfo(ur_program_handle_t Program) : Handle(Program) {
     [[maybe_unused]] auto Result =
@@ -132,7 +132,7 @@ struct ProgramInfo {
   }
 
   bool isKernelInstrumented(ur_kernel_handle_t Kernel) const;
-  const KernelMetada &getKernelMetadata(ur_kernel_handle_t Kernel) const;
+  const KernelMetadata &getKernelMetadata(ur_kernel_handle_t Kernel) const;
 };
 
 struct ContextInfo {

@@ -18,6 +18,7 @@
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/id_queries_fit_in_int.hpp> // for checkValueRange
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/optional.hpp>
@@ -182,6 +183,10 @@ auto submit_kernel_direct(
       "Kernel argument of a sycl::parallel_for with sycl::nd_range "
       "must be either sycl::nd_item or be convertible from sycl::nd_item");
   using TransformedArgType = sycl::nd_item<Dims>;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  detail::checkValueRange<Dims>(Range);
+#endif
 
   detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                         TransformedArgType, PropertiesT>::wrap(KernelFunc);

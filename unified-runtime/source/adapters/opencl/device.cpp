@@ -1767,6 +1767,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 
   // TODO: Cache OpenCL version for each device and platform
   auto RetErr = hDevice->getDeviceVersion(DevVer);
+
+  if (RetErr == CL_INVALID_OPERATION) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   CL_RETURN_ON_FAILURE(RetErr);
 
   RetErr = hDevice->Platform->getPlatformVersion(PlatVer);
