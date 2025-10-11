@@ -11281,9 +11281,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // Note: For AMD targets, we do not pass any SYCL device libraries.
       if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
         TargetTriple = TC->getTriple();
-        SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-        SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple, IsSpirvAOT);
+        SmallVector<std::string, 8> SYCLDeviceLibs =
+            SYCL::getDeviceLibraries(C, TargetTriple, IsSpirvAOT);
         for (const auto &AddLib : SYCLDeviceLibs) {
           if (LibList.size() > 0)
             LibList += ",";
