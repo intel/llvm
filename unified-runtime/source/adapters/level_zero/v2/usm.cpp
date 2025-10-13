@@ -58,14 +58,7 @@ initializeDisjointPoolConfig() {
     return usm::DisjointPoolAllConfigs(PoolTrace);
   }
 
-  // TODO: rework parseDisjointPoolConfig to return optional,
-  // once EnableBuffers is no longer used (by legacy L0)
-  auto configs = usm::parseDisjointPoolConfig(PoolUrConfigVal, PoolTrace);
-  if (configs.EnableBuffers) {
-    return configs;
-  }
-
-  return std::nullopt;
+  return usm::parseDisjointPoolConfigOptional(PoolUrConfigVal, PoolTrace);
 }
 
 inline umf_usm_memory_type_t urToUmfMemoryType(ur_usm_type_t type) {
