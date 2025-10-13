@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: aws
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: devops/actions/aws-ec2
           ref: ${{ inputs.ref || github.sha }}

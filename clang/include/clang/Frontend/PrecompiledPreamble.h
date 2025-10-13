@@ -84,11 +84,11 @@ public:
   static llvm::ErrorOr<PrecompiledPreamble>
   Build(const CompilerInvocation &Invocation,
         const llvm::MemoryBuffer *MainFileBuffer, PreambleBounds Bounds,
-        DiagnosticsEngine &Diagnostics,
+        IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics,
         IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
         std::shared_ptr<PCHContainerOperations> PCHContainerOps,
-        bool StoreInMemory, StringRef StoragePath,
-        PreambleCallbacks &Callbacks);
+        bool StoreInMemory, StringRef StoragePath, PreambleCallbacks &Callbacks,
+        bool AllowASTWithErrors = true);
 
   PrecompiledPreamble(PrecompiledPreamble &&);
   PrecompiledPreamble &operator=(PrecompiledPreamble &&);

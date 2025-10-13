@@ -359,12 +359,50 @@ public:
     return createSyclObjFromImpl<event>(ResEvent);
   }
 
+  template <int Dims>
+  event submit_kernel_direct_with_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    detail::EventImplPtr EventImpl =
+        submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                                  true, CodeLoc, IsTopCodeLoc);
+    return createSyclObjFromImpl<event>(EventImpl);
+  }
+
+  template <int Dims>
+  void submit_kernel_direct_without_event(
+      const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+    submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
+                              false, CodeLoc, IsTopCodeLoc);
+  }
+
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
                             const v1::SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
     submit_impl(CGF, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
   }
+
+  /// Submits a kernel using the scheduler bypass fast path
+  ///
+  /// \param KData is an object storing data related to the kernel.
+  /// \param DepEvents is a list of event dependencies.
+  /// \param EventNeeded should be true, if the resulting event is needed.
+  /// \param Kernel to be used, if kernel defined as a kernel object.
+  /// \param KernelBundleImpPtr to be used, if kernel bundle defined.
+  /// \param CodeLoc is the code location of the submit call.
+  /// \param IsTopCodeLoc is used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command or nullptr.
+  EventImplPtr submit_kernel_scheduler_bypass(
+      KernelData &KData, std::vector<detail::EventImplPtr> &DepEvents,
+      bool EventNeeded, detail::kernel_impl *KernelImplPtr,
+      detail::kernel_bundle_impl *KernelBundleImpPtr,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -603,6 +641,12 @@ public:
   }
 
   bool hasCommandGraph() const { return !MGraph.expired(); }
+
+  EventImplPtr submit_command_to_graph(
+      ext::oneapi::experimental::detail::graph_impl &GraphImpl,
+      std::unique_ptr<detail::CG> CommandGroup, sycl::detail::CGType CGType,
+      sycl::ext::oneapi::experimental::node_type UserFacingNodeType =
+          ext::oneapi::experimental::node_type::empty);
 
   unsigned long long getQueueID() { return MQueueID; }
 
@@ -869,6 +913,27 @@ protected:
                                    const detail::code_location &Loc,
                                    bool IsTopCodeLoc,
                                    const v1::SubmissionInfo &SubmitInfo);
+
+  /// Performs kernel submission to the queue.
+  ///
+  /// \param NDRDesc is an NDRange descriptor
+  /// \param HostKernel stores the kernel lambda instance
+  /// \param DeviceKernelInfo is a structure aggregating kernel related data
+  /// \param CallerNeedsEvent is a boolean indicating whether the event is
+  ///        required by the user after the call.
+  /// \param CodeLoc is the code location of the submit call
+  /// \param IsTopCodeLoc Used to determine if the object is in a local
+  ///        scope or in the top level scope.
+  ///
+  /// \return a SYCL event representing submitted command group or nullptr.
+  EventImplPtr submit_kernel_direct_impl(
+      const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
+      detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
+      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+
+  template <typename SubmitCommandFuncType>
+  EventImplPtr submit_direct(bool CallerNeedsEvent,
+                             SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param DepEvents is a vector of dependencies of the operation.

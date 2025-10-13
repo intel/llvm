@@ -156,3 +156,25 @@ ur_result_t calculateKernelWorkDimensions(
 
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t setArgValueOnZeKernel(ze_kernel_handle_t hZeKernel,
+                                  uint32_t argIndex, size_t argSize,
+                                  const void *pArgValue) {
+  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
+  // in which case a NULL value will be used as the value for the argument
+  // declared as a pointer to global or constant memory in the kernel"
+  //
+  // We don't know the type of the argument but it seems that the only time
+  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
+  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
+  if (argSize == sizeof(void *) && pArgValue &&
+      *(void **)(const_cast<void *>(pArgValue)) == nullptr) {
+    pArgValue = nullptr;
+  }
+
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      zeKernelSetArgumentValue, (hZeKernel, argIndex, argSize, pArgValue));
+  if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT)
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
+  return ze2urResult(ZeResult);
+}

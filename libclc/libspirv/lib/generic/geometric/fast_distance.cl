@@ -9,6 +9,6 @@
 #include <clc/geometric/clc_fast_distance.h>
 #include <libspirv/spirv.h>
 
-#define __FLOAT_ONLY
+#define __CLC_FLOAT_ONLY
 #define __CLC_BODY <fast_distance.inc>
 #include <clc/math/gentype.inc>

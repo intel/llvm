@@ -6,6 +6,7 @@
 #include "basic_event_collection.inc"
 //
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl
+// CHECK-DAG: xptiTraceInit: Stream Name = sycl.debug
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.buffer
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.image
 // CHECK-DAG: xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
