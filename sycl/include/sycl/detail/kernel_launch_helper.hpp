@@ -256,7 +256,8 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
-// This struct is inherited by sycl::handler.
+// This class encapsulates everything related to parsing kernel launch
+// properties.
 class KernelLaunchPropertyWrapper {
 public:
   // This struct is used to store kernel launch properties.
@@ -264,8 +265,9 @@ public:
   // In some code paths, kernel launch properties are set multiple times
   // for the same kernel, that is why using std::optional to avoid overriding
   // previously set properties.
+  // This struct is used to pass kernel launch properties across the ABI
+  // boundary.
   struct KernelLaunchPropertiesT {
-
     struct ScopeForwardProgressProperty {
       std::optional<sycl::ext::oneapi::experimental::forward_progress_guarantee>
           Guarantee;
@@ -282,28 +284,11 @@ public:
     std::array<size_t, 3> MClusterSize = {0, 0, 0};
 
     // Forward progress guarantee properties for work_item, sub_group and
-    // work_group scopes.
-    // Indexed by ExecutionScope enum.
+    // work_group scopes. We need to store them for validation later.
     std::array<ScopeForwardProgressProperty, 3> MForwardProgressProperties;
-
-    KernelLaunchPropertiesT() = default;
-
-    // TODO: Do you even need this?
-    KernelLaunchPropertiesT(
-        ur_kernel_cache_config_t _CacheConfig, bool _IsCooperative,
-        uint32_t _WorkGroupMemorySize, bool _UsesClusterLaunch,
-        size_t _ClusterDims, std::array<size_t, 3> _ClusterSize,
-        std::array<ScopeForwardProgressProperty, 3> _ForwardProgressProperties)
-        : MCacheConfig(_CacheConfig), MIsCooperative(_IsCooperative),
-          MWorkGroupMemorySize(_WorkGroupMemorySize),
-          MUsesClusterLaunch(_UsesClusterLaunch), MClusterDims(_ClusterDims),
-          MClusterSize(_ClusterSize),
-          MForwardProgressProperties(_ForwardProgressProperties) {}
-  }; // struct KernelLaunchPropertiesT
+  };
 
   /// Process runtime kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
   static KernelLaunchPropertiesT
   processKernelLaunchProperties(PropertiesT Props) {
@@ -423,9 +408,6 @@ public:
   }
 
   /// Process kernel properties.
-  ///
-  /// Stores information about kernel properties into the handler.
-  ///
   /// Note: it is important that this function *does not* depend on kernel
   /// name or kernel type, because then it will be instantiated for every
   /// kernel, even though body of those instantiated functions could be almost

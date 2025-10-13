@@ -8,12 +8,11 @@
 
 #pragma once
 
+#include <detail/device_impl.hpp>
 #include <detail/device_kernel_info.hpp>
 #include <detail/graph/dynamic_impl.hpp>
 #include <detail/kernel_arg_desc.hpp>
 #include <detail/ndrange_desc.hpp>
-
-#include <detail/device_impl.hpp>
 
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/kernel_launch_helper.hpp>
