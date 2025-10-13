@@ -2793,11 +2793,12 @@ public:
     // TODO The handler-less path does not support kernel
     // function properties and kernel functions with the kernel_handler
     // type argument yet.
-    if constexpr (!(ext::oneapi::experimental::detail::
-                        HasKernelPropertiesGetMethod<
-                            const KernelType &>::value) &&
-                  !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
-                                                             void>::value)) {
+    if constexpr (
+        std::is_same_v<PropertiesT,
+                       ext::oneapi::experimental::empty_properties_t> &&
+        !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+            const KernelType &>::value) &&
+        !(detail::KernelLambdaHasKernelHandlerArgT<KernelType, void>::value)) {
       return detail::submit_kernel_direct_single_task<KernelName, true>(
           *this, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
           TlsCodeLocCapture.query());
