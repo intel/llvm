@@ -13,7 +13,10 @@
 #include <detail/kernel_arg_desc.hpp>
 #include <detail/ndrange_desc.hpp>
 
+#include <detail/device_impl.hpp>
+
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_launch_helper.hpp>
 
 #include <vector>
 
@@ -107,6 +110,7 @@ public:
   void setDeviceKernelInfoPtr(DeviceKernelInfo *Ptr) {
     MDeviceKernelInfoPtr = Ptr;
   }
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   void setKernelInfo(void *KernelFuncPtr, int KernelNumArgs,
                      KernelParamDescGetterT KernelParamDescGetter,
@@ -134,6 +138,7 @@ public:
     return MDeviceKernelInfoPtr->usesAssert();
   }
 
+  // Kernel launch properties getter and setters.
   ur_kernel_cache_config_t getKernelCacheConfig() const {
     return MKernelCacheConfig;
   }
@@ -161,6 +166,67 @@ public:
 
   void setKernelWorkGroupMemorySize(uint32_t Size) {
     MKernelWorkGroupMemorySize = Size;
+  }
+
+  void validateAndSetKernelLaunchProperties(
+      const KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Kprop,
+      bool HasGraph, const device_impl &dev) {
+
+    // Validate properties before setting.
+    {
+      if (HasGraph) {
+        if (Kprop.MWorkGroupMemorySize) {
+          throw sycl::exception(
+              sycl::make_error_code(errc::invalid),
+              "Setting work group scratch memory size is not yet supported "
+              "for use with the SYCL Graph extension.");
+        }
+
+        if (Kprop.MUsesClusterLaunch && *Kprop.MUsesClusterLaunch) {
+          throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                "Cluster launch is not yet supported "
+                                "for use with the SYCL Graph extension.");
+        }
+      }
+
+      for (int i = 0; i < 3; i++) {
+        if (Kprop.MForwardProgressProperties[i].Guarantee.has_value()) {
+
+          if (!dev.supportsForwardProgress(
+                  *Kprop.MForwardProgressProperties[i].Guarantee,
+                  *Kprop.MForwardProgressProperties[i].ExecScope,
+                  *Kprop.MForwardProgressProperties[i].CoordinationScope)) {
+            // TODO: Make the error message more descriptive.
+            throw sycl::exception(
+                sycl::make_error_code(errc::feature_not_supported),
+                "The device associated with the queue does not support the "
+                "requested forward progress guarantee.");
+          }
+        }
+      }
+    }
+
+    // Set properties.
+    if (Kprop.MIsCooperative)
+      setCooperative(*Kprop.MIsCooperative);
+
+    if (Kprop.MCacheConfig)
+      setKernelCacheConfig(*Kprop.MCacheConfig);
+
+    if (Kprop.MWorkGroupMemorySize)
+      setKernelWorkGroupMemorySize(*Kprop.MWorkGroupMemorySize);
+
+    if (Kprop.MUsesClusterLaunch && *Kprop.MUsesClusterLaunch) {
+      if (Kprop.MClusterDims == 1)
+        setClusterDimensions(sycl::range<1>{Kprop.MClusterSize[0]});
+      else if (Kprop.MClusterDims == 2)
+        setClusterDimensions(
+            sycl::range<2>{Kprop.MClusterSize[0], Kprop.MClusterSize[1]});
+      else if (Kprop.MClusterDims == 3)
+        setClusterDimensions(sycl::range<3>{Kprop.MClusterSize[0],
+                                            Kprop.MClusterSize[1],
+                                            Kprop.MClusterSize[2]});
+    }
   }
 
   KernelNameStrRefT getKernelName() const {

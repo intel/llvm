@@ -14,6 +14,9 @@
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
@@ -253,21 +256,219 @@ struct KernelWrapper<
   }
 }; // KernelWrapper struct
 
-struct KernelLaunchPropertyWrapper {
-  template <typename KernelName, typename PropertyProcessor,
-            typename KernelType>
-  static void parseProperties([[maybe_unused]] PropertyProcessor h,
-                              [[maybe_unused]] const KernelType &KernelFunc) {
+// This struct is inherited by sycl::handler.
+class KernelLaunchPropertyWrapper {
+public:
+  // This struct is used to store kernel launch properties.
+  // std::optional is used to indicate that the property is not set.
+  // In some code paths, kernel launch properties are set multiple times
+  // for the same kernel, that is why using std::optional to avoid overriding
+  // previously set properties.
+  struct KernelLaunchPropertiesT {
+
+    struct ScopeForwardProgressProperty {
+      std::optional<sycl::ext::oneapi::experimental::forward_progress_guarantee>
+          Guarantee;
+      std::optional<sycl::ext::oneapi::experimental::execution_scope> ExecScope;
+      std::optional<sycl::ext::oneapi::experimental::execution_scope>
+          CoordinationScope;
+    };
+
+    std::optional<ur_kernel_cache_config_t> MCacheConfig = std::nullopt;
+    std::optional<bool> MIsCooperative = std::nullopt;
+    std::optional<uint32_t> MWorkGroupMemorySize = std::nullopt;
+    std::optional<bool> MUsesClusterLaunch = std::nullopt;
+    size_t MClusterDims = 0;
+    std::array<size_t, 3> MClusterSize = {0, 0, 0};
+
+    // Forward progress guarantee properties for work_item, sub_group and
+    // work_group scopes.
+    // Indexed by ExecutionScope enum.
+    std::array<ScopeForwardProgressProperty, 3> MForwardProgressProperties;
+
+    KernelLaunchPropertiesT() = default;
+
+    // TODO: Do you even need this?
+    KernelLaunchPropertiesT(
+        ur_kernel_cache_config_t _CacheConfig, bool _IsCooperative,
+        uint32_t _WorkGroupMemorySize, bool _UsesClusterLaunch,
+        size_t _ClusterDims, std::array<size_t, 3> _ClusterSize,
+        std::array<ScopeForwardProgressProperty, 3> _ForwardProgressProperties)
+        : MCacheConfig(_CacheConfig), MIsCooperative(_IsCooperative),
+          MWorkGroupMemorySize(_WorkGroupMemorySize),
+          MUsesClusterLaunch(_UsesClusterLaunch), MClusterDims(_ClusterDims),
+          MClusterSize(_ClusterSize),
+          MForwardProgressProperties(_ForwardProgressProperties) {}
+  }; // struct KernelLaunchPropertiesT
+
+  /// Process runtime kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  template <typename PropertiesT>
+  static KernelLaunchPropertiesT
+  processKernelLaunchProperties(PropertiesT Props) {
+    using namespace sycl::ext::oneapi::experimental;
+    using namespace sycl::ext::oneapi::experimental::detail;
+    KernelLaunchPropertiesT retval;
+
+    // Process Kernel cache configuration property.
+    {
+      if constexpr (PropertiesT::template has_property<
+                        sycl::ext::intel::experimental::cache_config_key>()) {
+        auto Config = Props.template get_property<
+            sycl::ext::intel::experimental::cache_config_key>();
+        if (Config == sycl::ext::intel::experimental::large_slm) {
+          retval.MCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+        } else if (Config == sycl::ext::intel::experimental::large_data) {
+          retval.MCacheConfig = UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+        }
+      } else {
+        std::ignore = Props;
+      }
+    }
+
+    // Process Kernel cooperative property.
+    {
+      if constexpr (PropertiesT::template has_property<use_root_sync_key>())
+        retval.MIsCooperative = true;
+    }
+
+    // Process device progress properties.
+    {
+      using forward_progress =
+          sycl::ext::oneapi::experimental::forward_progress_guarantee;
+      if constexpr (PropertiesT::template has_property<
+                        work_group_progress_key>()) {
+        auto prop = Props.template get_property<work_group_progress_key>();
+        retval.MForwardProgressProperties[0].Guarantee = prop.guarantee;
+        retval.MForwardProgressProperties[0].ExecScope =
+            execution_scope::work_group;
+        retval.MForwardProgressProperties[0].CoordinationScope =
+            prop.coordinationScope;
+
+        // If we are here, the device supports the guarantee required but there
+        // is a caveat in that if the guarantee required is a concurrent
+        // guarantee, then we most likely also need to enable cooperative launch
+        // of the kernel. That is, although the device supports the required
+        // guarantee, some setup work is needed to truly make the device provide
+        // that guarantee at runtime. Otherwise, we will get the default
+        // guarantee which is weaker than concurrent. Same reasoning applies for
+        // sub_group but not for work_item.
+        // TODO: Further design work is probably needed to reflect this behavior
+        // in Unified Runtime.
+        if constexpr (prop.guarantee == forward_progress::concurrent)
+          retval.MIsCooperative = true;
+      }
+      if constexpr (PropertiesT::template has_property<
+                        sub_group_progress_key>()) {
+        auto prop = Props.template get_property<sub_group_progress_key>();
+        retval.MForwardProgressProperties[1].Guarantee = prop.guarantee;
+        retval.MForwardProgressProperties[1].ExecScope =
+            execution_scope::sub_group;
+        retval.MForwardProgressProperties[1].CoordinationScope =
+            prop.coordinationScope;
+
+        // Same reasoning as above for work_group applies here.
+        if constexpr (prop.guarantee == forward_progress::concurrent)
+          retval.MIsCooperative = true;
+      }
+      if constexpr (PropertiesT::template has_property<
+                        work_item_progress_key>()) {
+        auto prop = Props.template get_property<work_item_progress_key>();
+        retval.MForwardProgressProperties[2].Guarantee = prop.guarantee;
+        retval.MForwardProgressProperties[2].ExecScope =
+            execution_scope::work_item;
+        retval.MForwardProgressProperties[2].CoordinationScope =
+            prop.coordinationScope;
+      }
+    }
+
+    // Process work group scratch memory property.
+    {
+      if constexpr (PropertiesT::template has_property<
+                        work_group_scratch_size>()) {
+        auto WorkGroupMemSize =
+            Props.template get_property<work_group_scratch_size>();
+        retval.MWorkGroupMemorySize = WorkGroupMemSize.size;
+      }
+    }
+
+    // Parse cluster properties.
+    {
+      constexpr std::size_t ClusterDim = getClusterDim<PropertiesT>();
+      if constexpr (ClusterDim > 0) {
+
+        auto ClusterSize =
+            Props.template get_property<cuda::cluster_size_key<ClusterDim>>()
+                .get_cluster_size();
+        retval.MUsesClusterLaunch = true;
+        retval.MClusterDims = ClusterDim;
+        if (ClusterDim == 1) {
+          retval.MClusterSize[0] = ClusterSize[0];
+        } else if (ClusterDim == 2) {
+          retval.MClusterSize[0] = ClusterSize[0];
+          retval.MClusterSize[1] = ClusterSize[1];
+        } else if (ClusterDim == 3) {
+          retval.MClusterSize[0] = ClusterSize[0];
+          retval.MClusterSize[1] = ClusterSize[1];
+          retval.MClusterSize[2] = ClusterSize[2];
+        } else {
+          assert(ClusterDim <= 3 &&
+                 "Only 1D, 2D, and 3D cluster launch is supported.");
+        }
+      }
+    }
+
+    return retval;
+  }
+
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  ///
+  /// Note: it is important that this function *does not* depend on kernel
+  /// name or kernel type, because then it will be instantiated for every
+  /// kernel, even though body of those instantiated functions could be almost
+  /// the same, thus unnecessary increasing compilation time.
+  template <
+      bool IsESIMDKernel,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+  static KernelLaunchPropertiesT processKernelProperties(PropertiesT Props) {
+    static_assert(
+        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+        "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             IsESIMDKernel),
+        "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
+
+    return processKernelLaunchProperties(Props);
+  }
+
+  // Returns KernelLaunchPropertiesT or std::nullopt based on whether the
+  // kernel functor has a get method that returns properties.
+  template <typename KernelName, bool isESIMD, typename KernelType>
+  static std::optional<KernelLaunchPropertiesT>
+  parseProperties([[maybe_unused]] const KernelType &KernelFunc) {
 #ifndef __SYCL_DEVICE_ONLY__
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
 
-      h->template processProperties<
-          detail::CompileTimeKernelInfo<KernelName>.IsESIMD>(
+      return processKernelProperties<isESIMD>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
 #endif
+    // If there are no properties provided by get method then return empty
+    // optional.
+    return std::nullopt;
   }
 }; // KernelLaunchPropertyWrapper struct
 
