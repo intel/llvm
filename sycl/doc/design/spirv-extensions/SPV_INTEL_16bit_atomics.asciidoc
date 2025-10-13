@@ -3,6 +3,8 @@
 :capability_token_int16_cmpxchg: XXXX
 :capability_name_int16_atomics: Int16AtomicsINTEL
 :capability_token_int16_atomics: YYYY
+:capability_name_bf16_loadstore: AtomicBFloat16LoadStoreINTEL
+:capability_token_bf16_loadstore: ZZZZ
 :capability_name_bf16_add: AtomicBFloat16AddINTEL
 :capability_token_bf16_add: 6255
 :capability_name_bf16_minmax: AtomicBFloat16MinMaxINTEL
@@ -81,12 +83,16 @@ Modify Section 3.2.30, "Capability", adding to the Capability table:
 |====
 2+^| Capability ^| Implicitly Declares
 | {capability_token_int16_cmpxchg} | *{capability_name_int16_cmpxchg}* +
-Uses the *OpAtomicCompareExchange* and *OpAtomicCompareExchangeWeak* instructions with 16-bit integer values.
+Uses the *OpAtomicLoad*, *OpAtomicStore*, *OpAtomicExchange*, *OpAtomicCompareExchange* or *OpAtomicCompareExchangeWeak* instructions with 16-bit integer values.
 | *Int16*
 
 | {capability_token_int16_atomics} | *{capability_name_int16_atomics}* +
 Uses atomic instructions on 16-bit integer types.
 | *{capability_name_int16_cmpxchg}*
+
+| {capability_token_bf16_loadstore} | *{capability_name_bf16_loadstore}* +
+Uses the *OpAtomicLoad*, *OpAtomicStore*, or *OpAtomicExchange* instructions with 16-bit `bfloat16` floating point values.
+| *BFloat16TypeKHR*
 
 | {capability_token_bf16_add} | *{capability_name_bf16_add}* +
 Uses the *OpAtomicFAddEXT* instruction with 16-bit `bfloat16` floating point values.
@@ -147,19 +153,17 @@ type, then the *{capability_name_int16_cmpxchg}* capability must be declared.
 type or the type of _Value_ is a 16-bit integer type, then the
 *{capability_name_int16_atomics}* capability must be declared.
 
-* For the instructions *OpAtomicLoad*, *OpAtomicExchange*, *OpAtomicFAddEXT*,
-*OpAtomicFMinEXT*, or *OpAtomicFMaxEXT*, the _Result Type_ may be a 16-bit
-floating-point type with the *BFloat16KHR* encoding, and the type of _Value_ may
-be a 16-bit floating-point type with the *BFloat16KHR* encoding.
+* For the instructions *OpAtomicLoad*, *OpAtomicStore*, *OpAtomicExchange*,
+*OpAtomicFAddEXT*, *OpAtomicFMinEXT*, or *OpAtomicFMaxEXT*, the _Result Type_
+may be a 16-bit floating-point type with the *BFloat16KHR* encoding, and the
+type of _Value_ may be a 16-bit floating-point type with the *BFloat16KHR*
+encoding.
 ** If the _Result Type_ for *OpAtomicLoad* or *OpAtomicExchange* is a 16-bit
-floating-point type with the *Bfloat16KHR* encoding, then either the
-*{capability_name_bf16_add}* or *{capability_name_bf16_minmax}* capabilities
-must be declared. +
-*TODO*: Check this!
+floating-point type with the *Bfloat16KHR* encoding, then the
+*{capability_name_bf16_loadstore}* capability must be declared.
 ** If the type of _Value_ for *OpAtomicStore* is a 16-bit floating-point type
-with the *BFloat16KHR* encoding, then either the *{capability_name_bf16_add}* or
-*{capability_name_bf16_minmax}* capabilities must be declared. +
-*TODO*: Check this!
+with the *BFloat16KHR* encoding, then the *{capability_name_bf16_loadstore}*
+capability must be declared.
 ** If the _Result Type_ for *OpAtomicFAddEXT* is a 16-bit floating-point type
 with the *BFloat16KHR* encoding, then the *{capability_name_bf16_add}* capability
 must be declared.
@@ -176,6 +180,14 @@ floating-point type with the *BFloat16KHR* encoding, then the
 *RESOLVED*: No, we will only support the case with a real `bfloat16` type,
 specifically a 16-bit floating-point type with the *BFloat16KHR* encoding. This
 means that this extension has a dependency on *SPV_KHR_bfloat16*.
+--
+
+. Do we need a separate capability for an `int16` atomic load and store?
++
+--
+*RESOLVED*: No, this is not necessary.  The *{capability_name_int16_cmpxchg}*
+capability will also enable support for 16-bit integer atomic loads, stores, and
+exchanges.
 --
 
 == Revision History
