@@ -2,7 +2,7 @@
 // Windows and Linux.
 
 // DEFINE: %{tdir} = %t/..
-// RUN: rm -rf %{tdir}; mkdir -p %{tdir}
+// RUN: mkdir -p %{tdir}
 // RUN: %clangxx --offload-new-driver -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \
 // RUN:    %S/Inputs/b.cpp                                                              \
