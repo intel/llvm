@@ -1,7 +1,7 @@
 // REQUIRES: level_zero && linux
 
 // build shared library
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %clangxx -fsycl -fPIC -shared -o %t.dir/simple_lib.so %S/Inputs/simple_lib.cpp
 
 // build app

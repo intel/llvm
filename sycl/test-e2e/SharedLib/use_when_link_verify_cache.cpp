@@ -1,6 +1,6 @@
 // REQUIRES: linux
 //
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t.so
 
 // RUN: %{build} -DFOO_FIRST -L%t.dir -o %t1.out -l%basename_t -Wl,-rpath=%t.dir

@@ -20,7 +20,7 @@
 // So we use %{run-aux} to perform ALL actions on the run machine 
 // like we do for the AoT tests.
 
-// RUN: mkdir -p %t.dir 
+// RUN: rm -rf %t.dir ; mkdir -p %t.dir 
 // RUN: %{run-aux} %clangxx -fsycl  %{fPIC_flag} -DSO_PATH='R"(%t.dir)"' -o %t.out %s
 
 // RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=1 -o %t.dir/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp

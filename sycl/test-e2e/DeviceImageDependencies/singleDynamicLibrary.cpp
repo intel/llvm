@@ -2,7 +2,7 @@
 // and Linux.
 
 // DEFINE: %{tdir} = %t/..
-// RUN: mkdir -p %{tdir}
+// RUN: rm -rf %{tdir}; mkdir -p %{tdir}
 // RUN: %clangxx -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \
 // RUN:    %S/Inputs/b.cpp                                                              \

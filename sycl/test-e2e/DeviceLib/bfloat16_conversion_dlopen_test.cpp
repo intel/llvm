@@ -14,7 +14,7 @@
 // library is dlclosed and the device images are removed.
 
 // REQUIRES: linux
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t.so
 
 // RUN: %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%t.dir -o %t1.out

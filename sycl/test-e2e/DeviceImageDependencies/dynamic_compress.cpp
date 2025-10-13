@@ -6,7 +6,7 @@
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %clangxx %{dynamic_lib_options} %S/Inputs/d.cpp \
 // RUN:   -o %t.dir/libdevicecompress_d.%{dynamic_lib_suffix}
 

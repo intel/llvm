@@ -2,7 +2,7 @@
 // translation units, one compressed and one not compressed.
 // REQUIRES: zstd, linux
 
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %t.dir/kernel1.so
 // RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %t.dir/kernel2.so
 

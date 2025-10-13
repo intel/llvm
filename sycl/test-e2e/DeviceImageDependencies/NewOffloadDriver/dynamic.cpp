@@ -4,7 +4,7 @@
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 
 // DEFINE: %{tdir} = %t/..
-// RUN: mkdir -p %{tdir}
+// RUN: rm -rf %{tdir}; mkdir -p %{tdir}
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/d.cpp                                    -o %{tdir}/libdevice_d.%{dynamic_lib_suffix}
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/c.cpp %if windows %{%{tdir}/libdevice_d.lib%} -o %{tdir}/libdevice_c.%{dynamic_lib_suffix}
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/b.cpp %if windows %{%{tdir}/libdevice_c.lib%} -o %{tdir}/libdevice_b.%{dynamic_lib_suffix}
