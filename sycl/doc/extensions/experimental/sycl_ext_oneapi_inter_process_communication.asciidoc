@@ -52,16 +52,6 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 specification.*
 
 
-== Backend support status
-
-The APIs in this extension may be used only on a device that has
-`aspect::ext_oneapi_ipc_memory`.  The application must check that the device has
-this aspect before submitting a kernel using any of the APIs in this
-extension.  If the application fails to do this, the implementation throws
-a synchronous exception with the `errc::kernel_not_supported` error code
-when the kernel is submitted to the queue.
-
-
 == Overview
 
 This extension adds the ability for SYCL programs to share device USM memory
@@ -77,11 +67,11 @@ handle data to retrieve the corresponding device USM memory.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_IPC` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features the implementation
-supports.
+macro `SYCL_EXT_ONEAPI_INTER_PROCESS_COMMUNICATION` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
 
 [%header,cols="1,5"]
 |===
@@ -92,6 +82,22 @@ supports.
 |The APIs of this experimental extension are not versioned, so the
  feature-test macro always has this value.
 |===
+
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_ipc_memory
+}
+}
+----
+
+If a SYCL device has this aspect, that device supports `ipc_memory::get()` free
+function specified in the following section.
+
 
 === Inter-process communicable memory
 
@@ -123,14 +129,18 @@ a|
 a!
 [source]
 ----
-get(void *ptr, const sycl::context &ctx)
+handle_data_t get(void *ptr, const sycl::context &ctx)
 ----
 !====
 
-_Returns:_ A `handle_data_t` object containing the data of the IPC memory handle
-in `ctx` from a pointer `ptr` to device USM memory.
-Calling this function with a `ptr` that does not point to device USM memory, the
-behaviors is undefined.
+_Preconditions:_ `ptr` is a pointer to USM device memory on some device _D_ in
+context `ctx` and device _D_ returns `true` for
+`device::has(aspect::ext_oneapi_ipc_memory)`.
+
+_Returns:_ An IPC "handle" to this USM memory allocation. The bytes of this
+handle can be transferred to another process on the same system, and the other
+process can use the handle to get a pointer to the same USM allocation through a
+call to the `open()` function.
 
 !====
 a!
@@ -140,13 +150,13 @@ void put(handle_data_t &handle_data, const sycl::context &ctx)
 ----
 !====
 
-_Effects:_ Instructs the underlying IPC memory resources to be returned to
-the backend. Freeing the device USM memory used when the handle data was created
-through a call to `get()` will have the same effect as calling this function,
-so a direct call to this function is not strictly required.
-Calling this function after `sycl::free()` has been called on the device USM
-memory used when the handle data was created through a call to `get()` will
-result in undefined behavior.
+_Preconditions:_ `handle_data` is the IPC "handle" to USM device memory that was
+returned from a call to get either in this process or in some other process on
+the same system. The USM device memory has not yet been freed in this process.
+
+_Effects:_ Deallocates resources associated with the handle. These resources are
+automatically deallocated when the USM device memory is freed, so it is not
+strictly necessary to call the `put` function.
 
 !====
 a!
@@ -157,11 +167,21 @@ static void *open(handle_data_t &handle_data, const sycl::context &ctx,
 ----
 !====
 
-_Effects:_ Returns a pointer to the same device USM memory as the device USM
-memory associated with `handle_data`.
-The handle data is allowed to be from another process on the host system.
-If the handle data has been destroyed, calling this function results in
-undefined behavior.
+_Preconditions:_ `handle_data` is the IPC "handle" to USM device memory that was
+returned from a call to the `get` function either in this process or in some
+other process on the same system. That USM device memory is accessible on device
+`dev`.
+
+_Returns:_ A pointer to the same USM device memory represented by `handle_data`.
+This pointer can be used in any API taking a USM device memory pointer, except
+it cannot be passed to `sycl::free`. Instead, use the `close` function to free
+this memory pointer.
+
+_Throws:_
+ * An exception with the `errc::feature_not_supported` error code if device
+   `dev` does not have `aspect::ext_oneapi_ipc_memory`.
+ * An exception with the `errc::invalid` error code if the handle data
+   `handle_data` has an unexpected number of bytes.
 
 !====
 a!

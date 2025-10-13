@@ -38,6 +38,11 @@ __SYCL_EXPORT void put(handle_data_t &HandleData, const sycl::context &Ctx) {
 
 __SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
                          const sycl::device &Dev) {
+  if (!Dev.has(aspect::ext_oneapi_ipc_memory))
+    throw sycl::exception(
+        sycl::make_error_code(errc::feature_not_supported),
+        "Device does not support aspect::ext_oneapi_ipc_memory.");
+
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
