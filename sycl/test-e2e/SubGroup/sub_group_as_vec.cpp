@@ -9,10 +9,6 @@
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "helper.hpp"
-#include <cassert>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 
 int main(int argc, char *argv[]) {
   sycl::queue queue;
