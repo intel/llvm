@@ -34,7 +34,7 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
   # Chaning CMAKE_CURRENT_BINARY_DIR should not affect this variable in its
   # parent scope.
   if (${is_preview})
-    set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
+      set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Preview")
   endif()
 
   if ("${link_variant}" MATCHES "SHARED")
@@ -150,7 +150,6 @@ function(add_sycl_unittest_internal test_dirname link_variant is_preview)
         -Wno-inconsistent-missing-override
     )
   endif()
-  
   target_compile_definitions(${test_dirname} PRIVATE SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
 endfunction()
 

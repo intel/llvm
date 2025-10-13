@@ -2449,6 +2449,8 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports sampling values from
   /// the device clock.
   UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
+  /// [::ur_bool_t] returns true if the device is integrated GPU.
+  UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -9835,6 +9837,23 @@ typedef enum ur_exp_image_copy_flag_t {
 #define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff0
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Dictates the types of memory copy input and output.
+typedef enum ur_exp_image_copy_input_types_t {
+  /// Memory to image handle
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE = 0,
+  /// Image handle to memory
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM = 1,
+  /// Memory to Memory
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM = 2,
+  /// Image handle to image handle
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE = 3,
+  /// @cond
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_image_copy_input_types_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler cubemap seamless filtering mode.
 typedef enum ur_exp_sampler_cubemap_filter_mode_t {
   /// Disable seamless filtering
@@ -10321,6 +10340,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pCopyRegion`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
+///         + `::UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE <
+///         imageCopyInputTypes`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -10350,6 +10371,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
+    /// [in] flag describing types of source and destination pointers (USM vs
+    /// image handle)
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11221,7 +11245,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///         + `NULL == hCommandBuffer`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
@@ -11255,7 +11278,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -15018,6 +15041,7 @@ typedef struct ur_bindless_images_image_copy_exp_params_t {
   const ur_image_format_t **ppDstImageFormat;
   ur_exp_image_copy_region_t **ppCopyRegion;
   ur_exp_image_copy_flags_t *pimageCopyFlags;
+  ur_exp_image_copy_input_types_t *pimageCopyInputTypes;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;

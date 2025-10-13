@@ -18,7 +18,7 @@ __attribute__((sycl_device)) void foo(int *);
 // X86: declare void @_Z3fooPU9SYprivatei(ptr noundef)
 // X86: declare void @_Z3fooPi(ptr noundef)
 
-__attribute__((sycl_device)) void test() {
+[[clang::sycl_external]] void test() {
   __attribute__((opencl_global)) int *glob;
   __attribute__((opencl_local)) int *loc;
   __attribute__((opencl_private)) int *priv;

@@ -3,19 +3,20 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from itertools import product
-import os
+import copy
 import csv
 import io
-import copy
 import math
 from enum import Enum
+from itertools import product
+from pathlib import Path
 
-from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite, TracingType
-from utils.result import BenchmarkMetadata, Result
-from .base import Benchmark, Suite
+from git_project import GitProject
 from options import options
+from utils.result import BenchmarkMetadata, Result
+
+from .base import Benchmark, Suite, TracingType
+from .compute_metadata import ComputeMetadataGenerator
 
 
 class RUNTIMES(Enum):
@@ -49,9 +50,9 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
 
 
 class ComputeBench(Suite):
-    def __init__(self, directory):
-        self.directory = directory
+    def __init__(self):
         self.submit_graph_num_kernels = [4, 10, 32]
+        self.project = None
 
     def name(self) -> str:
         return "Compute Benchmarks"
@@ -60,119 +61,59 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "4995560017559849a519e58978a0afdd55903e15"
+        # Sep 25, 2025
+        return "7ba2e629404e34c635a46f28550a0952717d120f"
 
     def setup(self) -> None:
         if options.sycl is None:
             return
 
-        repo_path = git_clone(
-            self.directory,
-            "compute-benchmarks-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
-        build_path = create_build_path(self.directory, "compute-benchmarks-build")
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "compute-benchmarks",
+                force_rebuild=True,
+            )
 
-        configure_command = [
-            "cmake",
-            f"-B {build_path}",
-            f"-S {repo_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+        extra_args = [
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
-
         if options.ur_adapter == "cuda":
-            configure_command += [
+            extra_args += [
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
             ]
-
         if options.ur is not None:
-            configure_command += [
+            extra_args += [
                 f"-DBUILD_UR=ON",
                 f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
             ]
 
-        run(configure_command, add_sycl=True)
-
-        run(
-            f"cmake --build {build_path} -j {options.build_jobs}",
-            add_sycl=True,
-        )
-
-        self.built = True
+        self.project.configure(extra_args, install_prefix=False, add_sycl=True)
+        self.project.build(add_sycl=True)
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
-        metadata = {
-            "SubmitKernel": BenchmarkMetadata(
-                type="group",
-                description="Measures CPU time overhead of submitting kernels through different APIs.",
-                notes="Each layer builds on top of the previous layer, adding functionality and overhead.\n"
-                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
-                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
-                "Work is ongoing to reduce the overhead of the SYCL API\n",
-                tags=["submit", "micro", "SYCL", "UR", "L0"],
-                range_min=0.0,
-            ),
-            "SinKernelGraph": BenchmarkMetadata(
-                type="group",
-                unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
-                tags=["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
-            ),
-            "SubmitGraph": BenchmarkMetadata(
-                type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
-            ),
-            "FinalizeGraph": BenchmarkMetadata(
-                type="group", tags=["finalize", "micro", "SYCL", "graph"]
-            ),
-        }
-
-        # Add metadata for all SubmitKernel group variants
-        base_metadata = metadata["SubmitKernel"]
-
-        for order in ["in order", "out of order"]:
-            for completion in ["", " with completion"]:
-                for events in ["", " using events"]:
-                    group_name = f"SubmitKernel {order}{completion}{events} long kernel"
-                    metadata[group_name] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
-                    )
-
-                    # CPU count variants
-                    cpu_count_group = f"{group_name}, CPU count"
-                    metadata[cpu_count_group] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
-                    )
-
-        # Add metadata for all SubmitGraph group variants
-        base_metadata = metadata["SubmitGraph"]
-        for order in ["in order", "out of order"]:
-            for completion in ["", " with completion"]:
-                for events in ["", " using events"]:
-                    for num_kernels in self.submit_graph_num_kernels:
-                        group_name = f"SubmitGraph {order}{completion}{events}, {num_kernels} kernels"
-                        metadata[group_name] = BenchmarkMetadata(
-                            type="group",
-                            tags=base_metadata.tags,
-                        )
-
-        return metadata
+        """
+        Returns:
+            Dictionary mapping group names to their metadata
+        """
+        # Generate metadata based on actual benchmark instances
+        generator = ComputeMetadataGenerator()
+        benchmarks = self.benchmarks()
+        return generator.generate_metadata_from_benchmarks(benchmarks)
 
     def benchmarks(self) -> list[Benchmark]:
+        """
+        Returns:
+            List of all possible benchmark instances
+        """
         benches = []
 
         # hand-picked value so that total execution time of the benchmark is
@@ -370,7 +311,7 @@ class ComputeBenchmark(Benchmark):
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench.directory, bench)
+        super().__init__(bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
@@ -383,6 +324,11 @@ class ComputeBenchmark(Benchmark):
 
         self._validate_attr("iterations_regular")
         self._validate_attr("iterations_trace")
+
+    @property
+    def benchmark_bin(self) -> Path:
+        """Returns the path to the benchmark binary"""
+        return self.bench.project.build_dir / "bin" / self.bench_name
 
     def get_iters(self, run_trace: TracingType):
         """Returns the number of iterations to run for the given tracing type."""
@@ -437,11 +383,6 @@ class ComputeBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
-    def setup(self):
-        self.benchmark_bin = os.path.join(
-            self.bench.directory, "compute-benchmarks-build", "bin", self.bench_name
-        )
-
     def explicit_group(self):
         return ""
 
@@ -455,7 +396,7 @@ class ComputeBenchmark(Benchmark):
         force_trace: bool = False,
     ) -> list[Result]:
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
             f"--test={self.test}",
             "--csv",
             "--noHeaders",
@@ -473,6 +414,10 @@ class ComputeBenchmark(Benchmark):
         ret = []
         for label, median, stddev, unit in parsed_results:
             extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+            # Note: SYCL CI currently parses for on this "CPU count" value.
+            # Please update /devops/scripts/benchmarks/compare.py if this value
+            # is changed. See compare.py usage (w.r.t. --regression-filter) in
+            # /devops/actions/run-tests/benchmarks/action.yml.
             ret.append(
                 Result(
                     label=self.name() + extra_label,
@@ -1097,6 +1042,22 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         if self.runtime == RUNTIMES.SYCL:
             bin_args.append(f"--profilerType={self.profiler_type.value}")
         return bin_args
+
+    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
+        metadata_dict = super().get_metadata()
+
+        # Create CPU count variant with modified display name and explicit_group
+        cpu_count_name = self.name() + " CPU count"
+        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
+        cpu_count_display_name = self.display_name() + ", CPU count"
+        cpu_count_explicit_group = (
+            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
+        )
+        cpu_count_metadata.display_name = cpu_count_display_name
+        cpu_count_metadata.explicit_group = cpu_count_explicit_group
+        metadata_dict[cpu_count_name] = cpu_count_metadata
+
+        return metadata_dict
 
 
 class UllsEmptyKernel(ComputeBenchmark):
