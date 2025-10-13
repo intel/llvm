@@ -20,7 +20,7 @@ TEST_P(urProgramRetainTest, Success) {
 
   ASSERT_LT(prevRefCount, refCount);
 
-  EXPECT_SUCCESS(urProgramRetain(program));
+  ASSERT_SUCCESS(urProgramRetain(program));
 }
 
 TEST_P(urProgramRetainTest, InvalidNullHandleProgram) {

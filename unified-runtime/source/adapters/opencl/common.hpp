@@ -7,6 +7,11 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
+// Include symbols for beta extensions
+#ifndef CL_ENABLE_BETA_EXTENSIONS
+#define CL_ENABLE_BETA_EXTENSIONS
+#endif
+
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #include <climits>
@@ -182,6 +187,7 @@ CONSTFIX char CreateBufferWithPropertiesName[] =
 CONSTFIX char SetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
 CONSTFIX char EnqueueMemFillName[] = "clEnqueueMemFillINTEL";
 CONSTFIX char EnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+CONSTFIX char EnqueueMigrateMemName[] = "clEnqueueMigrateMemINTEL";
 CONSTFIX char GetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char SetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";

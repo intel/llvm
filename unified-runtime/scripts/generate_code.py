@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
-import re
 import util
 
 
@@ -428,7 +427,7 @@ def _mako_interface_loader_api(
     template = f"ur_interface_loader.{ext}.mako"
     fin = os.path.join(templates_dir, template)
 
-    name = f"ur_interface_loader"
+    name = "ur_interface_loader"
 
     filename = f"{name}.{ext}"
     fout = os.path.join(dstpath, filename)

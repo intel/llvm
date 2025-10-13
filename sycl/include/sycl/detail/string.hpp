@@ -16,7 +16,7 @@ namespace detail {
 
 // This class and detail::string_view class are intended to support
 // different ABIs between libsycl and the user program.
-// This class is not inteded to replace std::string for general purpose usage.
+// This class is not intended to replace std::string for general purpose usage.
 class string {
   char *str = nullptr;
 
@@ -58,7 +58,7 @@ public:
 
   const char *c_str() const noexcept { return str ? str : ""; }
   const char *data() const noexcept { return c_str(); }
-  bool empty() { return str ? str[0] : false; }
+  bool empty() const noexcept { return str == nullptr || *str == '\0'; }
 
   friend bool operator==(const string &lhs, std::string_view rhs) noexcept {
     return rhs == lhs.c_str();

@@ -100,6 +100,7 @@ class Func:
         self._obj_type = obj["type"]
         self._name = obj["name"]
         self._type_name = self._make_type_name(namespace, tags, obj)
+        self.guard = obj["guard"] if "guard" in obj else None
 
     @property
     def c_name(self) -> str:

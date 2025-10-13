@@ -66,6 +66,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
+    ScopedContext Active(hDevice);
     unsigned int Flags = CU_STREAM_NON_BLOCKING;
     ur_queue_flags_t URFlags = 0;
     // '0' is the default priority, per CUDA Toolkit 12.2 and earlier
@@ -83,7 +84,6 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         IsOutOfOrder = true;
       }
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        ScopedContext Active(hDevice);
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
         ScopedContext Active(hDevice);
@@ -107,14 +107,14 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  assert(hQueue->getReferenceCount() > 0);
+  assert(hQueue->RefCount.getCount() > 0);
 
-  hQueue->incrementReferenceCount();
+  hQueue->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  if (hQueue->decrementReferenceCount() > 0) {
+  if (!hQueue->RefCount.release()) {
     return UR_RESULT_SUCCESS;
   }
 
@@ -229,7 +229,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   case UR_QUEUE_INFO_DEVICE:
     return ReturnValue(hQueue->Device);
   case UR_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(hQueue->getReferenceCount());
+    return ReturnValue(hQueue->RefCount.getCount());
   case UR_QUEUE_INFO_FLAGS:
     return ReturnValue(hQueue->URFlags);
   case UR_QUEUE_INFO_EMPTY: {

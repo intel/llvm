@@ -10,7 +10,7 @@ import re
 
 @functools.total_ordering
 class Version:
-    def __init__(self, version: str):
+    def __init__(self, version):
         assert isinstance(version, (str, Version))
         if isinstance(version, str):
             self.str = version

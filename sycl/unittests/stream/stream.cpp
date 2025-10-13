@@ -53,7 +53,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       FAIL() << "Unexpected exception was thrown.";
     }
 
-    CGH.single_task<TestKernel<>>([=]() {});
+    CGH.single_task<TestKernel>([=]() {});
   });
 
   ASSERT_EQ(GBufferCreateCounter, 0u) << "Buffers were unexpectedly created.";
@@ -77,7 +77,7 @@ TEST(Stream, Properties) {
           FAIL() << "Unexpected exception was thrown.";
         }
 
-        CGH.single_task<TestKernel<>>([=]() {});
+        CGH.single_task<TestKernel>([=]() {});
       })
       .wait();
 }

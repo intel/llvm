@@ -205,6 +205,12 @@ private:
   friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::AccessorImplHost *, ur_mem_handle_t>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // Clean this up (no shared pointers). Not doing it right now because I expect
+  // there will be several iterations of simplifications possible and it would
+  // be hard to track which of them made their way into a minor public release
+  // and which didn't. Let's just clean it up once during ABI breaking window.
+#endif
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,

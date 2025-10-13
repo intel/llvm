@@ -38,7 +38,7 @@ public:
 // through UR entry points.
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
-    : handle_base(),
+    : handle_base(), RefCount(0),
       logger(logger::get_logger("cuda",
                                 /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
   Platform = std::make_unique<ur_platform_handle_t_>();
@@ -66,7 +66,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     std::call_once(InitFlag,
                    [=]() { ur::cuda::adapter = new ur_adapter_handle_t_; });
 
-    ur::cuda::adapter->RefCount++;
+    ur::cuda::adapter->RefCount.retain();
     *phAdapters = ur::cuda::adapter;
   }
 
@@ -78,13 +78,13 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  ur::cuda::adapter->RefCount++;
+  ur::cuda::adapter->RefCount.retain();
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  if (--ur::cuda::adapter->RefCount == 0) {
+  if (ur::cuda::adapter->RefCount.release()) {
     delete ur::cuda::adapter;
   }
   return UR_RESULT_SUCCESS;
@@ -108,7 +108,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_BACKEND_CUDA);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(ur::cuda::adapter->RefCount.load());
+    return ReturnValue(ur::cuda::adapter->RefCount.getCount());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:

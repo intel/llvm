@@ -293,7 +293,7 @@ event dependencies that are passed to each Enqueue command.
     const size_t gWorkSize = {128, 128, 128};
     const size_t lWorkSize = {1, 8, 8}; 
     ${x}EnqueueKernelLaunch(hQueue, hKernel, nDim, gWorkOffset, gWorkSize, 
-                            lWorkSize, 0, nullptr, nullptr);
+                            lWorkSize, 0, nullptr, 0, nullptr, nullptr);
 
 Queue object lifetime
 ---------------------

@@ -79,9 +79,6 @@ endif()
 
 target_compile_definitions(sycl_ur_trace_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 target_link_libraries(sycl_ur_trace_collector PRIVATE xptifw)
-if (TARGET OpenCL-Headers)
-  target_link_libraries(sycl_ur_trace_collector PRIVATE OpenCL-Headers)
-endif()
 target_link_libraries(sycl_ur_trace_collector PRIVATE UnifiedRuntime-Headers)
 
 target_include_directories(sycl_ur_trace_collector PRIVATE
@@ -145,6 +142,8 @@ if(SYCL_BUILD_BACKEND_CUDA)
       "${CUDAToolkit_ROOT}/extras/CUPTI/include"
       "${CUDAToolkit_INCLUDE_DIRS}/../extras/CUPTI/include"
       "${CUDAToolkit_INCLUDE_DIRS}"
+      "${CUDAToolkit_CUPTI_INCLUDE_DIR}"
+      "${CUDAToolkit_INCLUDE_DIRS}/../../../extras/CUPTI/include"
       NO_DEFAULT_PATH)
 
   if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )

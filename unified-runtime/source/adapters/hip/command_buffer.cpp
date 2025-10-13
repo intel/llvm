@@ -26,7 +26,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     bool IsInOrder)
     : handle_base(), Context(hContext), Device(hDevice),
       IsUpdatable(IsUpdatable), IsInOrder(IsInOrder), HIPGraph{nullptr},
-      HIPGraphExec{nullptr}, RefCount{1}, NextSyncPoint{0} {
+      HIPGraphExec{nullptr}, NextSyncPoint{0} {
   urContextRetain(hContext);
 }
 
@@ -55,8 +55,15 @@ ur_exp_command_buffer_command_handle_t_::
     : handle_base(), CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node),
       Params(Params), WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
-  std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+
+  // GlobalWorkOffsetPtr may be nullptr
+  if (GlobalWorkOffsetPtr) {
+    std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
+  } else {
+    std::memset(GlobalWorkOffset, 0, sizeof(size_t) * 3);
+  }
+
   // Local work size may be nullptr
   if (LocalWorkSizePtr) {
     std::memcpy(LocalWorkSize, LocalWorkSizePtr, CopySize);
@@ -266,13 +273,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementReferenceCount();
+  hCommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementReferenceCount() == 0) {
+  if (hCommandBuffer->RefCount.release()) {
+    if (hCommandBuffer->CurrentExecution) {
+      UR_CHECK_ERROR(hCommandBuffer->CurrentExecution->wait());
+      UR_CHECK_ERROR(urEventRelease(hCommandBuffer->CurrentExecution));
+    }
     delete hCommandBuffer;
   }
   return UR_RESULT_SUCCESS;
@@ -795,22 +806,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
+    if (hCommandBuffer->CurrentExecution) {
+      UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, 1,
+                                       &hCommandBuffer->CurrentExecution));
+      UR_CHECK_ERROR(urEventRelease(hCommandBuffer->CurrentExecution));
+    }
+
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
 
-    if (phEvent) {
-      RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
-          ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP,
-                                         hQueue, HIPStream, StreamToken));
-      UR_CHECK_ERROR(RetImplEvent->start());
-    }
+    RetImplEvent = std::make_unique<ur_event_handle_t_>(
+        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, hQueue, HIPStream, StreamToken);
+    UR_CHECK_ERROR(RetImplEvent->start());
 
     // Launch graph
     UR_CHECK_ERROR(hipGraphLaunch(hCommandBuffer->HIPGraphExec, HIPStream));
+    UR_CHECK_ERROR(RetImplEvent->record());
+
+    hCommandBuffer->CurrentExecution = RetImplEvent.release();
 
     if (phEvent) {
-      UR_CHECK_ERROR(RetImplEvent->record());
-      *phEvent = RetImplEvent.release();
+      UR_CHECK_ERROR(urEventRetain(hCommandBuffer->CurrentExecution));
+      *phEvent = hCommandBuffer->CurrentExecution;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -974,14 +991,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     UR_CHECK_ERROR(validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
   }
 
-  // Store changes in config struct in command handle object
+  // Store changes in config struct in command handle object and propagate
+  // changes to HIP Graph.
   for (uint32_t i = 0; i < numKernelUpdates; i++) {
     UR_CHECK_ERROR(updateCommand(pUpdateKernelLaunch[i]));
     UR_CHECK_ERROR(updateKernelArguments(pUpdateKernelLaunch[i]));
-  }
 
-  // Propagate changes to HIP driver API
-  for (uint32_t i = 0; i < numKernelUpdates; i++) {
     const auto &UpdateCommandDesc = pUpdateKernelLaunch[i];
 
     // If no worksize is provided make sure we pass nullptr to setKernelParams
@@ -1045,7 +1060,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommandBuffer->getReferenceCount());
+    return ReturnValue(hCommandBuffer->RefCount.getCount());
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

@@ -4,17 +4,25 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
-import subprocess
 from pathlib import Path
-from .base import Suite, Benchmark
+import re
+
+from .base import Suite, Benchmark, TracingType
 from options import options
-from utils.utils import git_clone, download, run, create_build_path
+from utils.utils import download, run
 from utils.result import Result
 from utils.oneapi import get_oneapi
-import re
+from utils.logger import log
+from git_project import GitProject
 
 
 class GromacsBench(Suite):
+    def __init__(self):
+        self.project = None
+        model_path = str(Path(options.workdir) / self.grappa_file()).replace(
+            ".tar.gz", ""
+        )
+        self.grappa_dir = Path(model_path)
 
     def git_url(self):
         return "https://gitlab.com/gromacs/gromacs.git"
@@ -27,14 +35,6 @@ class GromacsBench(Suite):
 
     def grappa_file(self):
         return Path(os.path.basename(self.grappa_url()))
-
-    def __init__(self, directory):
-        self.directory = Path(directory).resolve()
-        model_path = str(self.directory / self.grappa_file()).replace(".tar.gz", "")
-        self.grappa_dir = Path(model_path)
-        build_path = create_build_path(self.directory, "gromacs-build")
-        self.gromacs_build_path = Path(build_path)
-        self.gromacs_src = self.directory / "gromacs-repo"
 
     def name(self):
         return "Gromacs Bench"
@@ -50,13 +50,15 @@ class GromacsBench(Suite):
             # GromacsBenchmark(self, "0192", "rf", "eager"),
         ]
 
-    def setup(self):
-        self.gromacs_src = git_clone(
-            self.directory,
-            "gromacs-repo",
-            self.git_url(),
-            self.git_tag(),
-        )
+    def setup(self) -> None:
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_tag(),
+                Path(options.workdir),
+                "gromacs",
+                force_rebuild=True,
+            )
 
         # TODO: Detect the GPU architecture and set the appropriate flags
 
@@ -64,35 +66,29 @@ class GromacsBench(Suite):
 
         self.oneapi = get_oneapi()
 
-        run(
-            [
-                "cmake",
-                f"-S {str(self.directory)}/gromacs-repo",
-                f"-B {self.gromacs_build_path}",
-                f"-DCMAKE_BUILD_TYPE=Release",
-                f"-DCMAKE_CXX_COMPILER=clang++",
-                f"-DCMAKE_C_COMPILER=clang",
-                f"-DGMX_GPU=SYCL",
-                f"-DGMX_SYCL_ENABLE_GRAPHS=ON",
-                f"-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON",
-                f"-DGMX_FFT_LIBRARY=MKL",
-                f"-DGMX_GPU_FFT_LIBRARY=MKL",
-                f"-DMKL_DIR={self.oneapi.mkl_cmake()}",
-                f"-DGMX_GPU_NB_CLUSTER_SIZE=8",
-                f"-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
-                f"-DGMX_OPENMP=OFF",
-            ],
-            add_sycl=True,
-        )
-        run(
-            f"cmake --build {self.gromacs_build_path} -j {options.build_jobs}",
-            add_sycl=True,
-            ld_library=self.oneapi.ld_libraries(),
-        )
+        extra_args = [
+            "-DCMAKE_CXX_COMPILER=clang++",
+            "-DCMAKE_C_COMPILER=clang",
+            "-DGMX_GPU=SYCL",
+            "-DGMX_SYCL_ENABLE_GRAPHS=ON",
+            "-DGMX_SYCL_ENABLE_EXPERIMENTAL_SUBMIT_API=ON",
+            "-DGMX_FFT_LIBRARY=MKL",
+            "-DGMX_GPU_FFT_LIBRARY=MKL",
+            f"-DMKLROOT={self.oneapi.mkl_dir()}",
+            "-DGMX_GPU_NB_CLUSTER_SIZE=8",
+            "-DGMX_GPU_NB_NUM_CLUSTER_PER_CELL_X=1",
+            "-DGMX_OPENMP=OFF",
+        ]
+
+        if options.unitrace:
+            extra_args.append("-DGMX_USE_ITT=ON")
+
+        self.project.configure(extra_args, install_prefix=False, add_sycl=True)
+        self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())
         download(
-            self.directory,
+            options.workdir,
             self.grappa_url(),
-            self.directory / self.grappa_file(),
+            options.workdir / self.grappa_file(),
             checksum="cc02be35ba85c8b044e47d097661dffa8bea57cdb3db8b5da5d01cdbc94fe6c8902652cfe05fb9da7f2af0698be283a2",
             untar=True,
         )
@@ -108,9 +104,7 @@ class GromacsBenchmark(Benchmark):
         self.type = type  # The type of benchmark ("pme" or "rf")
         self.option = option  # "graphs" or "eager"
 
-        self.gromacs_src = suite.gromacs_src
         self.grappa_dir = suite.grappa_dir
-        self.gmx_path = suite.gromacs_build_path / "bin" / "gmx"
 
         if self.type == "pme":
             self.extra_args = [
@@ -122,6 +116,10 @@ class GromacsBenchmark(Benchmark):
             ]
         else:
             self.extra_args = []
+
+    @property
+    def gmx_path(self) -> Path:
+        return self.suite.project.build_dir / "bin" / "gmx"
 
     def name(self):
         return f"gromacs-{self.model}-{self.type}-{self.option}"
@@ -154,14 +152,21 @@ class GromacsBenchmark(Benchmark):
             f"{str(model_dir)}/{self.type}.tpr",
         ]
 
+        env_vars = {"GMX_MAXBACKUP": "-1"}
         # Generate configuration files
         self.conf_result = run(
             cmd_list,
+            env_vars=env_vars,
             add_sycl=True,
             ld_library=self.suite.oneapi.ld_libraries(),
         )
 
-    def run(self, env_vars):
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         model_dir = self.grappa_dir / self.model
 
         env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
@@ -200,6 +205,8 @@ class GromacsBenchmark(Benchmark):
             add_sycl=True,
             use_stdout=False,
             ld_library=self.suite.oneapi.ld_libraries(),
+            run_trace=run_trace,
+            force_trace=force_trace,
         )
 
         if not self._validate_correctness(options.benchmark_cwd + "/md.log"):
@@ -209,8 +216,7 @@ class GromacsBenchmark(Benchmark):
 
         time = self._extract_execution_time(mdrun_output)
 
-        if options.verbose:
-            print(f"[{self.name()}] Time: {time:.3f} seconds")
+        log.debug(f"[{self.name()}] Time: {time:.3f} seconds")
 
         return [
             Result(
@@ -219,7 +225,6 @@ class GromacsBenchmark(Benchmark):
                 unit="s",
                 command=command,
                 env=env_vars,
-                stdout=mdrun_output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )
@@ -259,7 +264,7 @@ class GromacsBenchmark(Benchmark):
                             drift_value = float(match.group(1))
                             return abs(drift_value) <= threshold
                         except ValueError:
-                            print(
+                            log.warning(
                                 f"Parsed drift value: {drift_value} exceeds threshold"
                             )
                             return False

@@ -36,6 +36,7 @@ public:
 
   struct SYCLBINModuleDesc {
     std::string ArchString;
+    llvm::Triple TargetTriple;
     std::vector<module_split::SplitModule> SplitModules;
   };
 
@@ -51,7 +52,7 @@ public:
 
     size_t getMetadataTableByteSize() const;
     Expected<size_t> getBinaryTableByteSize() const;
-    Expected<size_t> getSYCLBINByteSite() const;
+    Expected<size_t> getSYCLBINByteSize() const;
 
   private:
     struct ImageDesc {

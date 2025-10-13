@@ -1,0 +1,54 @@
+name: UR - Build offload adapter
+
+permissions: read-all
+
+on: [ workflow_call, workflow_dispatch ]
+
+jobs:
+  offload_build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+        compiler: [{c: gcc, cxx: g++}]
+
+    runs-on: [ "Linux", "build" ]
+    container:
+      image: 'ghcr.io/intel/llvm/ubuntu2404_base'
+
+    steps:
+    - name: Checkout LLVM
+      uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v4.1.1
+
+    - name: Install liboffload
+      run: sudo apt-get update -qq && sudo apt-get install --no-install-recommends -yqq liboffload-21 liboffload-21-dev
+
+    - name: Configure Unified Runtime project
+      # ">" is used to avoid adding "\" at the end of each line; this command is quite long
+      run: >
+        cmake
+        -S unified-runtime
+        -B $GITHUB_WORKSPACE/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=OFF
+        -DUR_BUILD_ADAPTER_OFFLOAD=ON
+        -DUR_OFFLOAD_INSTALL_DIR="/usr/lib/llvm-21"
+        -DUR_OFFLOAD_INCLUDE_DIR="/usr/lib/llvm-21/include"
+        -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/install
+
+    - name: Build
+      # This is so that device binaries can find the sycl runtime library
+      run: cmake --build $GITHUB_WORKSPACE/build -j $(nproc)
+
+    - name: Install
+      # This is to check that install command does not fail
+      run: cmake --install $GITHUB_WORKSPACE/build
+
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: ./unified-runtime/.github/scripts/get_system_info.sh

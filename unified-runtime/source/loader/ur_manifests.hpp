@@ -40,6 +40,7 @@ const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
          UR_DEVICE_TYPE_FPGA,
          UR_DEVICE_TYPE_MCA,
          UR_DEVICE_TYPE_VPU,
+         UR_DEVICE_TYPE_CUSTOM,
      }},
     {"cuda",
      MAKE_LIBRARY_NAME("ur_adapter_cuda", "0"),
@@ -78,6 +79,13 @@ const std::vector<ur_adapter_manifest> ur_adapter_manifests = {
      UR_BACKEND_NATIVE_CPU,
      {
          UR_DEVICE_TYPE_CPU,
+     }},
+    {"offload",
+     MAKE_LIBRARY_NAME("ur_adapter_offload", "0"),
+     UR_BACKEND_OFFLOAD,
+     {
+         UR_DEVICE_TYPE_CPU,
+         UR_DEVICE_TYPE_GPU,
      }},
 };
 } // namespace ur_loader

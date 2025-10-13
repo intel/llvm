@@ -23,6 +23,7 @@ device_types:
     - $X_DEVICE_TYPE_FPGA
     - $X_DEVICE_TYPE_MCA
     - $X_DEVICE_TYPE_VPU
+    - $X_DEVICE_TYPE_CUSTOM
 --- #--------------------------------------------------------------------------
 type: manifest
 name: cuda
@@ -61,3 +62,10 @@ name: native_cpu
 backend: $X_BACKEND_NATIVE_CPU
 device_types:
     - $X_DEVICE_TYPE_CPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: offload
+backend: $X_BACKEND_OFFLOAD
+device_types:
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU

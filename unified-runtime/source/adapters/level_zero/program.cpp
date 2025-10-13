@@ -136,7 +136,7 @@ ur_result_t urProgramCreateWithBinary(
   // information to distinguish the cases.
   try {
     for (uint32_t i = 0; i < numDevices; i++) {
-      UR_ASSERT(ppBinaries[i] || !pLengths[0], UR_RESULT_ERROR_INVALID_VALUE);
+      UR_ASSERT(ppBinaries[i] || !pLengths[i], UR_RESULT_ERROR_INVALID_VALUE);
       UR_ASSERT(hContext->isValidDevice(phDevices[i]),
                 UR_RESULT_ERROR_INVALID_DEVICE);
     }
@@ -558,14 +558,47 @@ ur_result_t urProgramLinkExp(
 ur_result_t urProgramRetain(
     /// [in] handle for the Program to retain
     ur_program_handle_t Program) {
-  Program->RefCount.increment();
+  Program->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urProgramRelease(
     /// [in] handle for the Program to release
     ur_program_handle_t Program) {
-  if (!Program->RefCount.decrementAndTest())
+  if (!Program)
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+  // Detect double-release by attempting to safely access program members
+  // and catching any access violations that indicate freed memory
+  try {
+    // First, try to access the RefCount to see if it's valid
+    uint32_t currentRefCount = Program->RefCount.getCount();
+
+    if (currentRefCount == 0) {
+      // This is a double-release - RefCount should never be 0 when
+      // urProgramRelease is called
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    if (Program->resourcesReleased) {
+      // Resources already released, this is a double-release attempt
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+    if (!Program->Context) {
+      // Check if the program has a valid context
+      return UR_RESULT_ERROR_INVALID_PROGRAM;
+    }
+
+  } catch (...) {
+    // If we can't safely access the program members, it's likely
+    // corrupted/freed This catches the case where urProgramRelease is called on
+    // the same module twice
+    return UR_RESULT_ERROR_INVALID_PROGRAM;
+  }
+
+  // Perform the actual release
+  if (!Program->RefCount.release())
     return UR_RESULT_SUCCESS;
 
   delete Program;
@@ -708,7 +741,7 @@ ur_result_t urProgramGetInfo(
 
   switch (PropName) {
   case UR_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(uint32_t{Program->RefCount.load()});
+    return ReturnValue(uint32_t{Program->RefCount.getCount()});
   case UR_PROGRAM_INFO_CONTEXT:
     return ReturnValue(Program->Context);
   case UR_PROGRAM_INFO_NUM_DEVICES:
@@ -746,62 +779,40 @@ ur_result_t urProgramGetInfo(
     return ReturnValue(binarySizes.data(), binarySizes.size());
   }
   case UR_PROGRAM_INFO_BINARIES: {
-    // The caller sets "ParamValue" to an array of pointers, one for each
-    // device.
-    uint8_t **PBinary = nullptr;
-    if (ProgramInfo) {
-      PBinary = ur_cast<uint8_t **>(ProgramInfo);
-      if (!PBinary[0]) {
-        break;
-      }
-    }
     std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
-    uint8_t *NativeBinaryPtr = nullptr;
-    if (PBinary) {
-      NativeBinaryPtr = PBinary[0];
+    size_t NumDevices = Program->AssociatedDevices.size();
+    if (PropSizeRet) {
+      // Return the size of the array of pointers to binaries (for each device).
+      *PropSizeRet = NumDevices * sizeof(uint8_t *);
     }
 
-    size_t SzBinary = 0;
-    for (uint32_t deviceIndex = 0;
-         deviceIndex < Program->AssociatedDevices.size(); deviceIndex++) {
+    // If the caller did not provide an array of pointers to copy binaries into,
+    // return early.
+    if (!ProgramInfo)
+      break;
+
+    // If the caller provided an array of pointers, copy the binaries.
+    uint8_t **DestBinPtrs = ur_cast<uint8_t **>(ProgramInfo);
+    for (uint32_t deviceIndex = 0; deviceIndex < NumDevices; deviceIndex++) {
+      uint8_t *DestBinPtr = DestBinPtrs[deviceIndex];
+      if (!DestBinPtr)
+        continue;
+
       auto ZeDevice = Program->AssociatedDevices[deviceIndex]->ZeDevice;
       auto State = Program->getState(ZeDevice);
       if (State == ur_program_handle_t_::Native) {
         // If Program was created from Native code then return that code.
-        if (PBinary) {
-          std::memcpy(PBinary[deviceIndex], Program->getCode(ZeDevice),
-                      Program->getCodeSize(ZeDevice));
-        }
-        SzBinary += Program->getCodeSize(ZeDevice);
-        continue;
-      }
-      if (State == ur_program_handle_t_::IL ||
-          State == ur_program_handle_t_::Object) {
-        // We don't have a binary for this device, so don't update the output
-        // pointer to the binary, only set return size to 0.
-        if (PropSizeRet)
-          *PropSizeRet = 0;
+        std::memcpy(DestBinPtr, Program->getCode(ZeDevice),
+                    Program->getCodeSize(ZeDevice));
       } else if (State == ur_program_handle_t_::Exe) {
         auto ZeModule = Program->getZeModuleHandle(ZeDevice);
         if (!ZeModule) {
           return UR_RESULT_ERROR_INVALID_PROGRAM;
         }
-        size_t binarySize = 0;
-        if (PBinary) {
-          NativeBinaryPtr = PBinary[deviceIndex];
-        }
-        // If the caller is using a Program which is a built binary, then
-        // the program returned will either be a single module if this is a
-        // native binary or the native binary for each device will be returned.
-        ZE2UR_CALL(zeModuleGetNativeBinary,
-                   (ZeModule, &binarySize, NativeBinaryPtr));
-        SzBinary += binarySize;
-      } else {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
+        size_t DummySize;
+        ZE2UR_CALL(zeModuleGetNativeBinary, (ZeModule, &DummySize, DestBinPtr));
       }
     }
-    if (PropSizeRet)
-      *PropSizeRet = SzBinary;
     break;
   }
   case UR_PROGRAM_INFO_NUM_KERNELS: {
@@ -1115,7 +1126,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
   if (!deletion) {
-    if (!RefCount.decrementAndTest()) {
+    if (!RefCount.release()) {
       return;
     }
   }

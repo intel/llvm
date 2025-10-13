@@ -71,3 +71,15 @@ inline void postSubmit(ze_kernel_handle_t hZeKernel,
     zeKernelSetGlobalOffsetExp(hZeKernel, 0, 0, 0);
   }
 }
+
+/**
+ * Helper to set kernel argument for ze_kernel_handle_t.
+ * @param[in] hZeKernel The handle to the Level-Zero kernel.
+ * @param[in] argIndex The index of the argument to set.
+ * @param[in] argSize The size of the argument to set.
+ * @param[in] pArgValue The pointer to the argument value.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t setArgValueOnZeKernel(ze_kernel_handle_t hZeKernel,
+                                  uint32_t argIndex, size_t argSize,
+                                  const void *pArgValue);

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc_convert.h>
-#include <clc/clcmacro.h>
 #include <clc/integer/clc_add_sat.h>
 #include <clc/integer/clc_mad24.h>
 #include <clc/integer/clc_mul_hi.h>
@@ -36,7 +35,6 @@
   __CLC_DEFINE_SIMPLE_MAD_SAT(TYPE##16, UP_TYPE##16, LIT_PREFIX)
 
 __CLC_DEFINE_SIMPLE_MAD_SAT_ALL_TYS(char, int, CHAR)
-__CLC_DEFINE_SIMPLE_MAD_SAT_ALL_TYS(schar, int, SCHAR)
 __CLC_DEFINE_SIMPLE_MAD_SAT_ALL_TYS(uchar, uint, UCHAR)
 __CLC_DEFINE_SIMPLE_MAD_SAT_ALL_TYS(short, int, SHRT)
 __CLC_DEFINE_SIMPLE_MAD_SAT_ALL_TYS(ushort, uint, USHRT)

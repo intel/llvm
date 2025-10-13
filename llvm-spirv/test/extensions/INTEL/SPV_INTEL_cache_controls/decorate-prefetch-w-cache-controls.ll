@@ -42,11 +42,11 @@ $_ZTSZ4mainEUlvE_ = comdat any
 ; translation
 
 ; CHECK-LLVM: %[[CALL1:.*]] = call spir_func ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobal{{.*}} !spirv.Decorations ![[MD1:.*]]
-; CHECK-LLVM: call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) %[[CALL1]], i64 1)
+; CHECK-LLVM: call spir_func void @_Z20__spirv_ocl_prefetchPU3AS1Kcm(ptr addrspace(1) %[[CALL1]], i64 1)
 ; CHECK-LLVM: %[[CALL2:.*]] = call spir_func ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobal{{.*}} !spirv.Decorations ![[MD2:.*]]
-; CHECK-LLVM: call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) %[[CALL2]], i64 1)
+; CHECK-LLVM: call spir_func void @_Z20__spirv_ocl_prefetchPU3AS1Kcm(ptr addrspace(1) %[[CALL2]], i64 1)
 ; CHECK-LLVM: %[[CALL3:.*]] = call spir_func ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobal{{.*}} !spirv.Decorations ![[MD3:.*]]
-; CHECK-LLVM: call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) %[[CALL3]], i64 2)
+; CHECK-LLVM: call spir_func void @_Z20__spirv_ocl_prefetchPU3AS1Kcm(ptr addrspace(1) %[[CALL3]], i64 2)
 
 
 ; Function Attrs: convergent norecurse nounwind

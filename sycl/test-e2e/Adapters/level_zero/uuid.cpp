@@ -2,11 +2,10 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{run} %t.out 2>&1
 
 // Test that the UUID is read correctly from Level Zero.
 
-// CHECK: PASSED
 #include <iomanip>
 #include <iostream>
 #include <level_zero/ze_api.h>
@@ -25,6 +24,16 @@ int main() {
   auto zedev = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(dev);
   ze_device_properties_t device_properties{};
   device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+
+  // Initializing Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, otherwise the driver will not be
+  // initialized.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed with error code: " << result << std::endl;
+    return 1;
+  }
+
   zeDeviceGetProperties(zedev, &device_properties);
   std::stringstream uuid_l0;
   for (int i = 0; i < ZE_MAX_DEVICE_UUID_SIZE; ++i)
@@ -36,6 +45,6 @@ int main() {
     std::cout << "FAILED" << std::endl;
     return -1;
   }
-  std::cout << "PASSED" << std::endl;
+
   return 0;
 }

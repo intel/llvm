@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 //==---- host_image_accessor_read.cpp - SYCL host image accessor check ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

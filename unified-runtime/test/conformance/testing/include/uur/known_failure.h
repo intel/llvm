@@ -32,9 +32,9 @@ inline AdapterInfo getAdapterInfo(ur_adapter_handle_t adapter) {
 
 struct Matcher {
   Matcher(uint32_t adapterVersion, ur_backend_t backend,
-          std::vector<std::string> deviceNames)
+          std::vector<std::string> checkNames)
       : adapterVersion(adapterVersion), backend(backend),
-        names(std::move(deviceNames)) {}
+        names(std::move(checkNames)) {}
 
   bool matches(const detail::AdapterInfo &adapterInfo,
                const std::string &name) const {
@@ -88,6 +88,11 @@ struct HIP : Matcher {
 struct NativeCPU : Matcher {
   NativeCPU(std::initializer_list<std::string> il)
       : Matcher(1, UR_BACKEND_NATIVE_CPU, {il.begin(), il.end()}) {}
+};
+
+struct Offload : Matcher {
+  Offload(std::initializer_list<std::string> il)
+      : Matcher(1, UR_BACKEND_OFFLOAD, {il.begin(), il.end()}) {}
 };
 
 inline bool isKnownFailureOn(ur_adapter_handle_t adapter,

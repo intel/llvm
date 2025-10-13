@@ -129,11 +129,11 @@ DevicesEnvironment::DevicesEnvironment() : PlatformEnvironment() {
 
   for (auto &platform : platforms) {
     uint32_t platform_device_count = 0;
-    urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
-                &platform_device_count);
+    urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
+                        &platform_device_count);
     std::vector<ur_device_handle_t> platform_devices(platform_device_count);
-    urDeviceGet(platform, UR_DEVICE_TYPE_ALL, platform_device_count,
-                platform_devices.data(), nullptr);
+    urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, platform_device_count,
+                        platform_devices.data(), nullptr);
     ur_adapter_handle_t adapter = nullptr;
     urPlatformGetInfo(platform, UR_PLATFORM_INFO_ADAPTER,
                       sizeof(ur_adapter_handle_t), &adapter, nullptr);
@@ -192,37 +192,6 @@ KernelsEnvironment::parseKernelOptions(int argc, char **argv,
 }
 
 std::string
-KernelsEnvironment::getDefaultTargetName(ur_platform_handle_t platform) {
-  if (instance->GetDevices().size() == 0) {
-    error = "no devices available on the platform";
-    return {};
-  }
-
-  ur_backend_t backend;
-  if (urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, sizeof(backend),
-                        &backend, nullptr)) {
-    error = "failed to get backend from platform.";
-    return {};
-  }
-
-  switch (backend) {
-  case UR_BACKEND_OPENCL:
-  case UR_BACKEND_LEVEL_ZERO:
-    return "spir64";
-  case UR_BACKEND_CUDA:
-    return "nvptx64-nvidia-cuda";
-  case UR_BACKEND_HIP:
-    return "amdgcn-amd-amdhsa";
-  case UR_BACKEND_NATIVE_CPU:
-    error = "native_cpu doesn't support kernel tests yet";
-    return {};
-  default:
-    error = "unknown target.";
-    return {};
-  }
-}
-
-std::string
 KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
                                         const std::string &target_name) {
   std::stringstream path;
@@ -237,12 +206,17 @@ void KernelsEnvironment::LoadSource(
   // We don't have a way to build device code for native cpu yet.
   UUR_KNOWN_FAILURE_ON_PARAM(platform, uur::NativeCPU{});
 
-  std::string target_name = getDefaultTargetName(platform);
-  if (target_name.empty()) {
-    FAIL() << error;
+  if (instance->GetDevices().size() == 0) {
+    FAIL() << "no devices available on the platform";
   }
 
-  return LoadSource(kernel_name, target_name, binary_out);
+  std::string triple_name;
+  auto Err = GetPlatformTriple(platform, triple_name);
+  if (Err) {
+    FAIL() << "GetPlatformTriple failed with error " << Err << "\n";
+  }
+
+  return LoadSource(kernel_name, triple_name, binary_out);
 }
 
 void KernelsEnvironment::LoadSource(
@@ -296,7 +270,8 @@ void KernelsEnvironment::CreateProgram(
   ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(ur_backend_t), &backend, nullptr));
-  if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA) {
+  if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA ||
+      backend == UR_BACKEND_OFFLOAD) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
     auto size = binary.size();

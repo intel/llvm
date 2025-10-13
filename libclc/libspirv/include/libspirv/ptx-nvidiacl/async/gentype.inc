@@ -28,29 +28,6 @@
 #undef __CLC_GENTYPE
 #endif
 
-#ifndef __CLC_NO_SCHAR
-#define __CLC_GENTYPE schar
-#define __CLC_GENTYPE_MANGLED a
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
-#define __CLC_GENTYPE schar2
-#define __CLC_GENTYPE_MANGLED Dv2_a
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
-#ifdef __CLC_GEN_VEC3
-#define __CLC_GENTYPE schar3
-#define __CLC_GENTYPE_MANGLED Dv3_a
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-#endif
-
-#endif
-
 #define __CLC_GENTYPE uchar
 #define __CLC_GENTYPE_MANGLED h
 #include __CLC_BODY

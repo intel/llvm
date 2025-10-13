@@ -12,10 +12,6 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/exception.hpp>                 // for feature_not_supported
 
-#ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/__spirv/spirv_ops.hpp>
-#endif
-
 #include <type_traits> // for remove_reference_t
 
 #ifdef __SYCL_DEVICE_ONLY__

@@ -8,12 +8,12 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgPointerTest : uur::urKernelExecutionTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill_usm";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
   }
 
-  void TearDown() {
+  void TearDown() override {
     if (allocation) {
       ASSERT_SUCCESS(urUSMFree(context, allocation));
     }
@@ -126,7 +126,7 @@ struct urKernelSetArgPointerNegativeTest : urKernelSetArgPointerTest {
     }
   }
 
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urKernelSetArgPointerTest::SetUp());
     UUR_RETURN_ON_FATAL_FAILURE(SetUpAllocation());
     ASSERT_NE(allocation, nullptr);

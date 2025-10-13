@@ -47,6 +47,7 @@ option(UR_BUILD_ADAPTER_HIP "Build the HIP adapter" OFF)
 option(UR_BUILD_ADAPTER_NATIVE_CPU "Build the Native-CPU adapter" OFF)
 option(UR_BUILD_ADAPTER_ALL "Build all currently supported adapters" OFF)
 option(UR_BUILD_ADAPTER_L0_V2 "Build the (experimental) Level-Zero v2 adapter" OFF)
+option(UR_BUILD_ADAPTER_OFFLOAD "Build the experimental Offload adapter" OFF)
 option(UR_STATIC_ADAPTER_L0 "Build the Level-Zero adapter as static and embed in the loader" OFF)
 option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
@@ -65,8 +66,7 @@ set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
-option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
-option(UR_CONFORMANCE_TEST_LOADER "Also test the loader in the conformance tests" OFF)
+set(UR_CONFORMANCE_SELECTOR "" CACHE STRING "If nonempty, the device selector for conformance tests")
 option(UR_USE_DEBUG_POSTFIX "Enable debug postfix 'd' for libraries" OFF)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
@@ -225,7 +225,7 @@ if(UR_ENABLE_TRACING)
     endif()
 
     if (MSVC)
-        set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
+        set(TARGET_XPTI $<IF:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,xpti,xptid>)
     else()
         set(TARGET_XPTI xpti)
     endif()
@@ -274,7 +274,7 @@ endif()
 if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
     OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
     OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
-    OR UR_BUILD_ADAPTER_ALL))
+    OR UR_BUILD_ADAPTER_OFFLOAD OR UR_BUILD_ADAPTER_ALL))
     message(WARNING "No adapters have been enabled; conformance tests will not be ran")
     message(STATUS "Consider setting UR_BUILD_ADAPTER_*")
 endif()

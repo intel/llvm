@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
+
 // This short test simply confirms that target::device
 // is supported correctly.
 // TODO: delete this test and test the functionality

@@ -3,6 +3,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_sycl_unittest(ExtensionsTests OBJECT
   CurrentDevice.cpp
   DefaultContext.cpp
+  DeviceIsIntegratedGPU.cpp
   FPGADeviceSelectors.cpp
   DeviceArchitecture.cpp
   USMMemcpy2D.cpp
@@ -12,6 +13,8 @@ add_sycl_unittest(ExtensionsTests OBJECT
   CompositeDevice.cpp
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
+  EnqueueFunctionsPrefetch.cpp
+  ExtOneapiBarrierOpt.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
@@ -21,8 +24,11 @@ add_sycl_unittest(ExtensionsTests OBJECT
   LaunchQueries.cpp
   EventMode.cpp
   DeviceInfo.cpp
+  RootGroup.cpp
+  USMPrefetch.cpp
 )
 
+add_subdirectory(BindlessImages)
 add_subdirectory(CommandGraph)
 add_subdirectory(VirtualFunctions)
 add_subdirectory(VirtualMemory)

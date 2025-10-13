@@ -56,7 +56,7 @@
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/queue.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 namespace detail {
 static void parse_version_string(const std::string &ver, int &major,

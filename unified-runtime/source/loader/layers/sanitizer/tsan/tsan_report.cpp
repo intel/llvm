@@ -27,7 +27,8 @@ void ReportDataRace(const TsanErrorReport &Report, ur_kernel_handle_t Kernel) {
   KernelName = DemangleName(KernelName);
 
   UR_LOG_L(getContext()->logger, QUIET,
-           "====WARNING: DeviceSanitizer: data race");
+           "====WARNING: DeviceSanitizer: data race on {}",
+           Report.Type & kAccessLocal ? "Local Memory" : "Global Memory");
   UR_LOG_L(getContext()->logger, QUIET,
            "When {} of size {} at {} in kernel <{}> LID({}, {}, {}) GID({}, "
            "{}, {})",

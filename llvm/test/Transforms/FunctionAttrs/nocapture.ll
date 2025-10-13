@@ -1082,6 +1082,65 @@ define i64 @captures_not_ret_only(ptr %p) {
   ret i64 %int
 }
 
+@gi = global i64 0
+
+;; Unlike ptrtoint, ptrtoaddr only captures the address
+define i64 @captures_ptrtoaddr_stored(ptr %p) {
+; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(write, argmem: none, inaccessiblemem: none)
+; FNATTRS-LABEL: define noundef i64 @captures_ptrtoaddr_stored
+; FNATTRS-SAME: (ptr captures(address) [[P:%.*]]) #[[ATTR1]] {
+; FNATTRS-NEXT:    [[INT:%.*]] = ptrtoaddr ptr [[P]] to i64
+; FNATTRS-NEXT:    store i64 [[INT]], ptr @gi, align 8
+; FNATTRS-NEXT:    ret i64 0
+;
+; ATTRIBUTOR: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(write)
+; ATTRIBUTOR-LABEL: define i64 @captures_ptrtoaddr_stored
+; ATTRIBUTOR-SAME: (ptr nofree writeonly [[P:%.*]]) #[[ATTR1]] {
+; ATTRIBUTOR-NEXT:    [[INT:%.*]] = ptrtoaddr ptr [[P]] to i64
+; ATTRIBUTOR-NEXT:    store i64 [[INT]], ptr @gi, align 8
+; ATTRIBUTOR-NEXT:    ret i64 0
+;
+  %int = ptrtoaddr ptr %p to i64
+  store i64 %int, ptr @gi, align 8
+  ret i64 0
+}
+
+;; Note: ptrtoaddr is a location-independent capture, so we don't get captures(ret: address) here.
+define i64 @captures_ptrtoaddr_ret(ptr %p) {
+; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+; FNATTRS-LABEL: define i64 @captures_ptrtoaddr_ret
+; FNATTRS-SAME: (ptr captures(address) [[P:%.*]]) #[[ATTR0]] {
+; FNATTRS-NEXT:    [[INT:%.*]] = ptrtoaddr ptr [[P]] to i64
+; FNATTRS-NEXT:    ret i64 [[INT]]
+;
+; ATTRIBUTOR: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+; ATTRIBUTOR-LABEL: define i64 @captures_ptrtoaddr_ret
+; ATTRIBUTOR-SAME: (ptr nofree readnone [[P:%.*]]) #[[ATTR0]] {
+; ATTRIBUTOR-NEXT:    [[INT:%.*]] = ptrtoaddr ptr [[P]] to i64
+; ATTRIBUTOR-NEXT:    ret i64 [[INT]]
+;
+  %int = ptrtoaddr ptr %p to i64
+  ret i64 %int
+}
+
+;; Note: ptrtoaddr is a location-independent capture, so we don't get captures(none) here.
+define i64 @captures_ptrtoaddr_ignored(ptr %p) {
+; FNATTRS: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+; FNATTRS-LABEL: define noundef i64 @captures_ptrtoaddr_ignored
+; FNATTRS-SAME: (ptr captures(address) [[P:%.*]]) #[[ATTR0]] {
+; FNATTRS-NEXT:    [[INT:%.*]] = ptrtoaddr ptr [[P]] to i64
+; FNATTRS-NEXT:    ret i64 0
+;
+; ATTRIBUTOR: Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+; ATTRIBUTOR-LABEL: define i64 @captures_ptrtoaddr_ignored
+; ATTRIBUTOR-SAME: (ptr nofree readnone [[P:%.*]]) #[[ATTR0]] {
+; ATTRIBUTOR-NEXT:    [[INT:%.*]] = ptrtoaddr ptr [[P]] to i64
+; ATTRIBUTOR-NEXT:    ret i64 0
+;
+  %int = ptrtoaddr ptr %p to i64
+  ret i64 0
+}
+
 define void @captures_read_provenance(ptr %p) {
 ; FNATTRS-LABEL: define void @captures_read_provenance
 ; FNATTRS-SAME: (ptr captures(address, read_provenance) [[P:%.*]]) {
@@ -1234,7 +1293,7 @@ define void @dont_increase_existing_captures_scc2(ptr %p) {
 define void @addr_only_scc(ptr %p) {
 ; FNATTRS: Function Attrs: nofree nosync nounwind memory(write, argmem: read, inaccessiblemem: none)
 ; FNATTRS-LABEL: define void @addr_only_scc
-; FNATTRS-SAME: (ptr captures(address_is_null) [[P:%.*]]) #[[ATTR20:[0-9]+]] {
+; FNATTRS-SAME: (ptr readonly captures(address_is_null) [[P:%.*]]) #[[ATTR20:[0-9]+]] {
 ; FNATTRS-NEXT:    [[V:%.*]] = load i8, ptr [[P]], align 1
 ; FNATTRS-NEXT:    store i8 [[V]], ptr @g, align 1
 ; FNATTRS-NEXT:    call void @addr_only_scc2(ptr [[P]])
@@ -1257,7 +1316,7 @@ define void @addr_only_scc(ptr %p) {
 define void @addr_only_scc2(ptr %p) {
 ; FNATTRS: Function Attrs: nofree nosync nounwind memory(write, argmem: read, inaccessiblemem: none)
 ; FNATTRS-LABEL: define void @addr_only_scc2
-; FNATTRS-SAME: (ptr captures(address_is_null) [[P:%.*]]) #[[ATTR20]] {
+; FNATTRS-SAME: (ptr readonly captures(address_is_null) [[P:%.*]]) #[[ATTR20]] {
 ; FNATTRS-NEXT:    [[CMP:%.*]] = icmp ne ptr [[P]], null
 ; FNATTRS-NEXT:    br i1 [[CMP]], label [[IF:%.*]], label [[EXIT:%.*]]
 ; FNATTRS:       if:

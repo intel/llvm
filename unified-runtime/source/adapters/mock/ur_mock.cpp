@@ -98,7 +98,6 @@ ur_result_t mock_urDeviceGetInfo(void *pParams) {
 
 //////////////////////////////////////////////////////////////////////////
 context_t::context_t() {
-  urGetGlobalProcAddrTable(version, &urDdiTable.Global);
   urGetBindlessImagesExpProcAddrTable(version, &urDdiTable.BindlessImagesExp);
   urGetCommandBufferExpProcAddrTable(version, &urDdiTable.CommandBufferExp);
   urGetContextProcAddrTable(version, &urDdiTable.Context);
@@ -106,7 +105,6 @@ context_t::context_t() {
   urGetEnqueueExpProcAddrTable(version, &urDdiTable.EnqueueExp);
   urGetEventProcAddrTable(version, &urDdiTable.Event);
   urGetKernelProcAddrTable(version, &urDdiTable.Kernel);
-  urGetKernelExpProcAddrTable(version, &urDdiTable.KernelExp);
   urGetMemProcAddrTable(version, &urDdiTable.Mem);
   urGetPhysicalMemProcAddrTable(version, &urDdiTable.PhysicalMem);
   urGetPlatformProcAddrTable(version, &urDdiTable.Platform);

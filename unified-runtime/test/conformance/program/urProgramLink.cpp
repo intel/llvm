@@ -94,6 +94,10 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
     if (backend == UR_BACKEND_CUDA) {
       GTEST_SKIP();
     }
+    // Not meaningful for liboffload
+    if (backend == UR_BACKEND_OFFLOAD) {
+      GTEST_SKIP();
+    }
 
     std::shared_ptr<std::vector<char>> il_binary{};
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(

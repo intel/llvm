@@ -22,7 +22,7 @@ for.body:                               ; preds = %for.body.preheader
 
 exit:
 ; CHECK: [[REG1:%[0-9]+]] = ptrtoint ptr %agg.tmp to i64
-; CHECK-NEXT: call void @__tsan_cleanup_private(i64 [[REG1]], i32 8)
+; CHECK-NEXT: call void @__tsan_cleanup_private(i64 [[REG1]], i64 8)
 ; CHECK-NOT: ptrtoint ptr %device-byval-temp.ascast234298 to i64
   ret void
 }

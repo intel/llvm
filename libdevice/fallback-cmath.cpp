@@ -8,23 +8,13 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
-    defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
 // or remove any item in this file.
 // TODO: generate the DeviceLibFuncMap in sycl-post-link.cpp automatically
 // during the build based on libdevice to avoid manually sync.
-
-DEVICE_EXTERN_C_INLINE
-int __devicelib_abs(int x) { return x < 0 ? -x : x; }
-
-DEVICE_EXTERN_C_INLINE
-long int __devicelib_labs(long int x) { return x < 0 ? -x : x; }
-
-DEVICE_EXTERN_C_INLINE
-long long int __devicelib_llabs(long long int x) { return x < 0 ? -x : x; }
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_fabsf(float x) { return x < 0 ? -x : x; }
@@ -62,15 +52,6 @@ float __devicelib_rsqrtf(float x) { return __spirv_ocl_rsqrt(x); }
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_exp10f(float x) { return __spirv_ocl_exp10(x); }
-
-DEVICE_EXTERN_C_INLINE
-div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
-
-DEVICE_EXTERN_C_INLINE
-ldiv_t __devicelib_ldiv(long x, long y) { return {x / y, x % y}; }
-
-DEVICE_EXTERN_C_INLINE
-lldiv_t __devicelib_lldiv(long long x, long long y) { return {x / y, x % y}; }
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_scalbnf(float x, int n) { return __spirv_ocl_ldexp(x, n); }
@@ -215,4 +196,4 @@ float __devicelib_asinhf(float x) { return __spirv_ocl_asinh(x); }
 DEVICE_EXTERN_C_INLINE
 float __devicelib_atanhf(float x) { return __spirv_ocl_atanh(x); }
 
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
+#endif // __SPIR__ || __SPIRV__

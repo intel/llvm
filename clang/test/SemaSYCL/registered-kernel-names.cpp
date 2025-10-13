@@ -31,7 +31,7 @@ constexpr const char *str = "foo";
   { "foo", "foo" }
 )]];
 
-// expected-error@+2 {{'__registered_kernels__' attribute requires a string}}
+// expected-error@+2 {{'__sycl_detail__::__registered_kernels__' attribute requires a string}}
 [[__sycl_detail__::__registered_kernels__(
   { str, 1 }
 )]];

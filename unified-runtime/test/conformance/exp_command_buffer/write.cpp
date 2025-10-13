@@ -16,6 +16,10 @@ struct urCommandBufferWriteCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<
           testParametersWrite> {
   void SetUp() override {
+    // Buffer write not supported on OpenCL
+    // see https://github.com/KhronosGroup/OpenCL-Docs/issues/1281
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersWrite>::SetUp());

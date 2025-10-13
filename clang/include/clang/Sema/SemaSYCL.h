@@ -64,7 +64,8 @@ public:
     kind_stream,
     kind_work_group_memory,
     kind_dynamic_work_group_memory,
-    kind_last = kind_dynamic_work_group_memory
+    kind_dynamic_accessor,
+    kind_last = kind_dynamic_accessor
   };
 
 public:
@@ -264,6 +265,8 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
 
+  llvm::DenseSet<const FunctionDecl *> FreeFunctionDeclarations;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -352,11 +355,13 @@ public:
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
-  void copySYCLKernelAttrs(CXXMethodDecl *CallOperator);
+  void copyDeviceKernelAttrs(CXXMethodDecl *CallOperator);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
+  void processFreeFunctionDeclaration(const FunctionDecl *FD);
   void ProcessFreeFunction(FunctionDecl *FD);
+  void finalizeFreeFunctionKernels();
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);
@@ -663,6 +668,7 @@ public:
                                     Expr *E);
   void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 
+  void CheckSYCLExternalFunctionDecl(FunctionDecl *FD);
   void CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD);
   // Used to check whether the function represented by FD is a SYCL
   // free function kernel or not.

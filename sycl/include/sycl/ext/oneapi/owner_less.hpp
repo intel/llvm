@@ -18,7 +18,6 @@
 #include <sycl/ext/oneapi/weak_object.hpp>        // for weak_object
 #include <sycl/kernel.hpp>                        // for kernel
 #include <sycl/kernel_bundle_enums.hpp>           // for bundle_state
-#include <sycl/platform.hpp>                      // for platform
 #include <sycl/properties/image_properties.hpp>   // for sampled_i...
 #include <sycl/queue.hpp>                         // for queue
 #include <sycl/stream.hpp>                        // for stream
@@ -28,6 +27,7 @@ inline namespace _V1 {
 class kernel_id;
 template <bundle_state State> class kernel_bundle;
 template <bundle_state State> class device_image;
+class platform;
 
 namespace ext::oneapi {
 

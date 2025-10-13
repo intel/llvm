@@ -13,12 +13,21 @@
 #include "../program.hpp"
 
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 #include "memory.hpp"
 
 struct ur_single_device_kernel_t {
   ur_single_device_kernel_t(ur_device_handle_t hDevice,
                             ze_kernel_handle_t hKernel, bool ownZeHandle);
   ur_result_t release();
+
+  // Set argument value on this device's ze kernel only.
+  ur_result_t setArgValue(uint32_t argIndex, size_t argSize,
+                          const void *pArgValue);
+
+  // Convenience for pointer args: sets a pointer-sized argument on this
+  // device's ze kernel.
+  ur_result_t setArgPointer(uint32_t argIndex, const void *pArgValue);
 
   ur_device_handle_t hDevice;
   v2::raii::ze_kernel_handle_t hKernel;
@@ -81,14 +90,24 @@ public:
   ur_result_t
   addPendingMemoryAllocation(pending_memory_allocation_t allocation);
 
+  // Add a pending pointer argument for which device is not yet known.
+  ur_result_t addPendingPointerArgument(uint32_t argIndex,
+                                        const void *pArgValue);
+
   // Set all required values for the kernel before submission (including pending
   // memory allocations).
-  ur_result_t
-  prepareForSubmission(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                       const size_t *pGlobalWorkOffset, uint32_t workDim,
-                       uint32_t groupSizeX, uint32_t groupSizeY,
-                       uint32_t groupSizeZ,
-                       std::function<void(void *, void *, size_t)> migrate);
+  ur_result_t prepareForSubmission(ur_context_handle_t hContext,
+                                   ur_device_handle_t hDevice,
+                                   const size_t *pGlobalWorkOffset,
+                                   uint32_t workDim, uint32_t groupSizeX,
+                                   uint32_t groupSizeY, uint32_t groupSizeZ,
+                                   ze_command_list_handle_t cmdList,
+                                   wait_list_view &waitListView);
+
+  // Get context of the kernel.
+  ur_context_handle_t getContext() const { return hProgram->Context; }
+
+  ur::RefCount RefCount;
 
 private:
   // Keep the program of the kernel.
@@ -110,6 +129,14 @@ private:
   };
 
   std::vector<pending_memory_allocation_t> pending_allocations;
+
+  struct pending_pointer_arg_t {
+    uint32_t argIndex;
+    const void *ptrArgValue;
+  };
+
+  // Pointer arguments that need to be applied per-device at submission time.
+  std::vector<pending_pointer_arg_t> pending_pointer_args;
 
   void completeInitialization();
 

@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgLocalTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "mean";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }
@@ -150,9 +150,9 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalMultiTest);
 
 TEST_P(urKernelSetArgLocalMultiTest, Basic) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -162,9 +162,9 @@ TEST_P(urKernelSetArgLocalMultiTest, Basic) {
 }
 
 TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -173,9 +173,9 @@ TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
   Validate(output, X, Y, A, global_size, local_size);
 
   // Relaunch with new arguments
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   uint32_t *new_output = (uint32_t *)shared_ptrs[0];
   uint32_t *new_X = (uint32_t *)shared_ptrs[3];
@@ -185,9 +185,9 @@ TEST_P(urKernelSetArgLocalMultiTest, ReLaunch) {
 
 // Overwrite local args to a larger value, then reset back to original
 TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];
@@ -230,9 +230,9 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
                                        &hip_local_offset));
   }
 
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &new_local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size,
+      &new_local_size, 0, nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   Validate(output, X, Y, A, global_size, new_local_size);
@@ -326,9 +326,9 @@ struct urKernelSetArgLocalOutOfOrder : urKernelSetArgLocalMultiTest {
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urKernelSetArgLocalOutOfOrder);
 TEST_P(urKernelSetArgLocalOutOfOrder, Success) {
-  ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                       &global_offset, &global_size,
-                                       &local_size, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueKernelLaunch(
+      queue, kernel, n_dimensions, &global_offset, &global_size, &local_size, 0,
+      nullptr, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   uint32_t *output = (uint32_t *)shared_ptrs[0];

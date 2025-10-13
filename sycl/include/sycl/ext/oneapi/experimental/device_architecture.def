@@ -73,9 +73,11 @@ __SYCL_ARCHITECTURE_ALIAS(intel_gpu_arl_s, intel_gpu_mtl_u)      // Arrow Lake S
 __SYCL_ARCHITECTURE(intel_gpu_mtl_h, 0x0000000311c00400)         // Meteor Lake H
 __SYCL_ARCHITECTURE(intel_gpu_arl_h, 0x0000000312800400)         // Arrow Lake H
 __SYCL_ARCHITECTURE(intel_gpu_bmg_g21, 0x0000000500400400)       // Battlemage G21
+__SYCL_ARCHITECTURE(intel_gpu_bmg_g31, 0x0000000500800000)       // Battlemage G31
 __SYCL_ARCHITECTURE(intel_gpu_lnl_m, 0x0000000501000400)         // Lunar Lake
 __SYCL_ARCHITECTURE(intel_gpu_ptl_h, 0x0000000780000400)         // Panther Lake H
 __SYCL_ARCHITECTURE(intel_gpu_ptl_u, 0x0000000780400100)         // Panther Lake U
+__SYCL_ARCHITECTURE(intel_gpu_wcl, 0x0000000780c00000)           // Wildcat Lake
 //
 // NVIDIA architectures
 //
@@ -171,6 +173,8 @@ __SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_70_4, intel_gpu_mtl_u)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_71_4, intel_gpu_mtl_h)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_12_74_4, intel_gpu_arl_h)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_1_4, intel_gpu_bmg_g21)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_2_0, intel_gpu_bmg_g31)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_20_4_4, intel_gpu_lnl_m)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_0_4, intel_gpu_ptl_h)
 __SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_1_1, intel_gpu_ptl_u)
+__SYCL_ARCHITECTURE_ALIAS(intel_gpu_30_3_0, intel_gpu_wcl)

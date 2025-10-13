@@ -1,6 +1,5 @@
 LIBRARY @TARGET_LIBNAME@
 EXPORTS
-	urGetGlobalProcAddrTable
 	urGetAdapterProcAddrTable
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
@@ -9,8 +8,8 @@ EXPORTS
 	urGetEnqueueExpProcAddrTable
 	urGetEventProcAddrTable
 	urGetKernelProcAddrTable
-	urGetKernelExpProcAddrTable
 	urGetMemProcAddrTable
+	urGetMemoryExportExpProcAddrTable
 	urGetPhysicalMemProcAddrTable
 	urGetPlatformProcAddrTable
 	urGetProgramProcAddrTable

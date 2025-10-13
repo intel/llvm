@@ -73,6 +73,7 @@ void event_profiling_data_t::reset() {
   // possible.
   adjustedEventStartTimestamp = 0;
   adjustedEventEndTimestamp = 0;
+  timestampRecorded = false;
 }
 
 void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
@@ -85,18 +86,15 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
 
   assert(adjustedEventStartTimestamp == 0);
   adjustedEventStartTimestamp = deviceStartTimestamp;
+  timestampRecorded = true;
 }
 
 uint64_t event_profiling_data_t::getEventStartTimestmap() const {
   return adjustedEventStartTimestamp;
 }
 
-bool event_profiling_data_t::recordingEnded() const {
-  return adjustedEventEndTimestamp != 0;
-}
-
 bool event_profiling_data_t::recordingStarted() const {
-  return adjustedEventStartTimestamp != 0;
+  return timestampRecorded;
 }
 
 uint64_t *event_profiling_data_t::eventEndTimestampAddr() {
@@ -109,10 +107,8 @@ ur_event_handle_t_::ur_event_handle_t_(
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
       flags(flags), profilingData(getZeEvent()) {}
 
-void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
-                                              ur_command_t commandType) {
+void ur_event_handle_t_::setQueue(ur_queue_t_ *hQueue) {
   this->hQueue = hQueue;
-  this->commandType = commandType;
 
   if (hQueue) {
     UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
@@ -123,6 +119,10 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
   }
 
   profilingData.reset();
+}
+
+void ur_event_handle_t_::setCommandType(ur_command_t commandType) {
+  this->commandType = commandType;
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
@@ -158,12 +158,12 @@ ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
 }
 
 ur_result_t ur_event_handle_t_::retain() {
-  RefCount.increment();
+  RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_event_handle_t_::release() {
-  if (!RefCount.decrementAndTest())
+  if (!RefCount.release())
     return UR_RESULT_SUCCESS;
 
   if (event_pool) {
@@ -256,7 +256,7 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     }
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
-    return returnValue(hEvent->RefCount.load());
+    return returnValue(hEvent->RefCount.getCount());
   }
   case UR_EVENT_INFO_COMMAND_QUEUE: {
     auto urQueueHandle = reinterpret_cast<uintptr_t>(hEvent->getQueue()) -

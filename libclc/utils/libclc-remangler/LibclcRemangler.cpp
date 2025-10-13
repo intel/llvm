@@ -33,6 +33,15 @@
 //          char, signed char)`), is not defined. The remangler creates a clone
 //          of the renamed function,`_Z1fxaa`, to this permutation, `_Z1fxca`.
 //
+// Remangled Pointer Address Space Example:
+//          If libclc defined a function `f(int *)`, the mangled name is
+//          `_Z1fPU3AS4i` for a target when generic address space is 4. The
+//          remangler would rename this function to `_Z1fPi`, to be
+//          consistent with SYCL device code mangling for the target. If libclc
+//          defined a function `f(private int *)`, the mangled name is
+//          `_Z1fPi` when default address space is private. The remangler would
+//          rename it to `_Z1fPU3AS0i`.
+//
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/Mangle.h"
@@ -43,6 +52,7 @@
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IRReader/IRReader.h"
@@ -62,6 +72,8 @@ enum class SupportedLongWidth { L32, L64 };
 
 static ExitOnError ExitOnErr;
 
+static StringRef TmpSuffix = ".tmp";
+
 // Apply a custom category to all command-line options so that they are the
 // only ones displayed.
 static llvm::cl::OptionCategory
@@ -72,6 +84,8 @@ static cl::opt<std::string>
                     cl::cat(LibCLCRemanglerToolCategory));
 static cl::opt<std::string> OutputFilename("o", cl::init("-"),
                                            cl::desc("Output filename"));
+static cl::opt<std::string> TargetTriple("triple", cl::init(""),
+                                         cl::desc("Device target triple"));
 static cl::opt<SupportedLongWidth>
     LongWidth("long-width",
               cl::values(clEnumValN(SupportedLongWidth::L32, "l32",
@@ -256,7 +270,7 @@ clang::QualType getBaseType(StringRef Name, clang::ASTContext *AST,
     auto *DC = AST->getTranslationUnitDecl();
     auto *ED = EnumDecl::Create(*AST, DC, SourceLocation(), SourceLocation(),
                                 &II, nullptr, false, false, true);
-    Res = AST->getEnumType(ED);
+    Res = AST->getCanonicalTagType(ED);
   }
   return Res;
 }
@@ -271,6 +285,7 @@ public:
       : AST(AST), Root(Root), TypeReplacements(TypeReplacements) {
     MangleContext.reset(
         ItaniumMangleContext::create(*AST, AST->getDiagnostics()));
+    TargetDefaultAddrSpace = AST->getTargetAddressSpace(LangAS::Default);
   }
 
   bool hasFailed() { return Failed; }
@@ -324,7 +339,7 @@ private:
     auto ArgTys{InputArgTys};
     // Create this with a void ret no args prototype, will be fixed up after
     // we've seen all the params.
-    FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
+    FunctionProtoType::ExtProtoInfo Info(CC_DeviceKernel);
     Info.Variadic = IsVariadic;
     clang::QualType const VoidFuncType =
         AST->getFunctionType(AST->VoidTy, {}, Info);
@@ -605,9 +620,10 @@ private:
             StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
         RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
-        auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
-        auto RecordQT = AST->getRecordType(RD);
-        NNS = NestedNameSpecifier::Create(*AST, NNS, RecordQT.getTypePtr());
+        NestedNameSpecifier NNS =
+            NestedNameSpecifier(*AST, SpvNamespace, /*Prefix=*/std::nullopt);
+        auto RecordQT = AST->getCanonicalTagType(RD);
+        NNS = NestedNameSpecifier(RecordQT->getTypePtr());
         auto &EnumName =
             AST->Idents.get(Res.getBaseTypeIdentifier()->getName());
         // We need to recreate the enum, now that we have access to all the
@@ -615,8 +631,9 @@ private:
         auto *ED =
             EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
                              &EnumName, nullptr, false, false, true);
-        Res = AST->getEnumType(ED);
-        Res = AST->getElaboratedType(ElaboratedTypeKeyword::None, NNS, Res);
+        Res = AST->getCanonicalTagType(ED);
+        Res = AST->getTagType(ElaboratedTypeKeyword::None, NNS, ED,
+                              /*OwnsTag=*/false);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -628,6 +645,14 @@ private:
     for (auto I = PossibleKinds.rbegin(); I != PossibleKinds.rend(); ++I) {
       switch (I->K) {
       case Node::Kind::KPointerType: {
+        if (TargetDefaultAddrSpace != 0) {
+          if (Res.hasAddressSpace() &&
+              toTargetAddressSpace(Res.getAddressSpace()) ==
+                  TargetDefaultAddrSpace)
+            Res = AST->removeAddrSpaceQualType(Res);
+          else if (!Res.hasAddressSpace())
+            Res = AST->getAddrSpaceQualType(Res, LangAS::opencl_private);
+        }
         Res = AST->getPointerType(Res);
         break;
       }
@@ -709,6 +734,8 @@ private:
 
   std::map<std::string, clang::QualType> NestedNamesQTMap{};
   NamespaceDecl *SpvNamespace = nullptr;
+
+  unsigned TargetDefaultAddrSpace;
 };
 
 class TargetTypeReplacements {
@@ -727,6 +754,8 @@ class TargetTypeReplacements {
       else if (CloneTypeReplacements[From] != To)
         RemangledCloneTypeReplacements[From] = To;
     }
+    // Replace char with signed char
+    RemangledCloneTypeReplacements["char"] = "signed char";
   }
 
 public:
@@ -837,6 +866,13 @@ private:
       CloneeName = OriginalName;
     }
 
+    // If the clone name already exists in the module then we have to assume it
+    // does the right thing already. We're only going to end up creating a copy
+    // of that function without external users being able to reach it.
+    if (M->getFunction(CloneName)) {
+      return true;
+    }
+
     if (Function *Clonee = M->getFunction(CloneeName)) {
       ValueToValueMapTy Dummy;
       Function *NewF = CloneFunction(Clonee, Dummy);
@@ -849,6 +885,9 @@ private:
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
+    if (Func.hasLocalLinkage())
+      return true;
+
     if (!Func.getName().starts_with("_Z"))
       return true;
 
@@ -865,7 +904,7 @@ private:
     Remangler R{ASTCtx, FunctionTree,
                 Replacements.getParameterTypeReplacements()};
 
-    std::string const RemangledName = R.remangle();
+    std::string RemangledName = R.remangle();
 
     if (R.hasFailed())
       return false;
@@ -883,6 +922,27 @@ private:
         errs() << "Test run failure!\n";
         return false;
       }
+
+      // When TargetDefaultAddrSpace is not 0, there is a possibility that
+      // RemangledName may already exist. For instance, the function name
+      // _Z1fPU3AS4i would be remangled to _Z1fPi, which is a valid variant and
+      // might already be present. Since we cannot alter the name of an existing
+      // variant function that may not have been processed yet, we append a
+      // temporary suffix to RemangledName to prevent a name clash. This
+      // temporary suffix will be removed during the post-processing stage, once
+      // all functions have been handled.
+      if (ASTCtx->getTargetAddressSpace(LangAS::Default) != 0)
+        if (M->getFunction(RemangledName))
+          RemangledName += TmpSuffix;
+
+      // If the remangled name already exists in the module then we have to
+      // assume it does the right thing already. We're only going to end up
+      // creating a copy of that function without external users being able to
+      // reach it.
+      if (M->getFunction(RemangledName)) {
+        return true;
+      }
+
       Func.setName(RemangledName);
 
       // Make a clone of a suitable function using the old name if there is a
@@ -892,6 +952,32 @@ private:
         return false;
     }
     return true;
+  }
+
+  // When TargetDefaultAddrSpace is not 0, post-processing is necessary after
+  // all functions have been processed. During this stage, the temporary suffix
+  // is removed from the remangled name.
+  void postProcessRemoveTmpSuffix(llvm::Module *M) {
+    if (TestRun)
+      return;
+    for (auto &F : *M) {
+      StringRef Name = F.getName();
+      if (!Name.consume_back(TmpSuffix))
+        continue;
+      // If a name clash persists, the old function is renamed. For example,
+      // _Z1fPi is remangled to _Z1fPU3AS0i, and the remangler clones
+      // _Z1fPU3AS0i to _Z1fPi to preserve the original implementation.
+      // Subsequently, _Z1fPU3AS4i is remangled to _Z1fPi, and the remangled
+      // name is temporarily changed to _Z1fPi$TmpSuffix. When attempting to
+      // revert _Z1fPi$TmpSuffix back to _Z1fPi, a clash occurs because _Z1fPi
+      // still exists. Delete the old _Z1fPi which is no longer useful.
+      if (auto *Func = M->getFunction(Name)) {
+        Func->replaceAllUsesWith(ConstantPointerNull::get(Func->getType()));
+        Func->eraseFromParent();
+      }
+      // Complete the mangling process from _Z1fPU3AS4i to _Z1fPi.
+      F.setName(Name);
+    }
   }
 
   void handleModule(llvm::Module *M) {
@@ -919,6 +1005,7 @@ private:
     bool Success = true;
     for (auto *Func : FuncList)
       Success &= remangleFunction(*Func, M);
+    postProcessRemoveTmpSuffix(M);
     // Only fail after all to give as much context as possible.
     if (!Success) {
       errs() << "Failed to remangle all mangled functions in module.\n";
@@ -967,7 +1054,18 @@ int main(int argc, const char **argv) {
 
   // Use a default Compilation DB instead of the build one, as it might contain
   // toolchain specific options, not compatible with clang.
-  FixedCompilationDatabase Compilations(".", std::vector<std::string>());
+  // Configure the triple to ensure that clang correctly sets up TargetInfo
+  // which is essential for querying the target address space. This allows the
+  // remangler to have the same target address space mapping as the mangling
+  // performed in the SYCL device code compilation.
+  std::vector<std::string> CommandLine;
+  CommandLine.push_back("-cc1");
+  CommandLine.push_back("-triple");
+  CommandLine.push_back(TargetTriple);
+  // Workaround error: unknown argument -resource-dir=, which isn't a CC1Option.
+  CommandLine.push_back("-resource-dir");
+  CommandLine.push_back(".");
+  FixedCompilationDatabase Compilations(".", CommandLine);
   ClangTool Tool(Compilations, ExpectedParser->getSourcePathList());
 
   LibCLCRemanglerActionFactory LRAF{};

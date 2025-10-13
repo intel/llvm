@@ -48,7 +48,7 @@ TEST(GetLastEventEmptyQueue, CheckEventlessWorkQueue) {
 
   // The following single_task does not return an event, so it is expected that
   // the last event query creates a new marker event.
-  sycl::ext::oneapi::experimental::single_task<TestKernel<>>(Q, []() {});
+  sycl::ext::oneapi::experimental::single_task<TestKernel>(Q, []() {});
   std::optional<event> E = Q.ext_oneapi_get_last_event();
   ASSERT_TRUE(E.has_value());
   ur_event_handle_t UREvent = detail::getSyclObjImpl(*E)->getHandle();

@@ -82,7 +82,8 @@ if(MSVC)
   endif()
 endif()
 
-include(FetchUnifiedRuntime)
+include(FetchEmhash)
+include(BuildUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -144,20 +145,22 @@ set(SYCL_INCLUDE_DIR "include")
 set(SYCL_INCLUDE_BUILD_DIR ${LLVM_BINARY_DIR}/${SYCL_INCLUDE_DIR})
 
 add_llvm_external_project(opencl)
-list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_FOUND)
-if(OPENCL_FOUND EQUAL -1)
+list(FIND LLVM_ENABLE_PROJECTS opencl OPENCL_PROJ_FOUND)
+if(OPENCL_PROJ_FOUND EQUAL -1)
   message(FATAL_ERROR "opencl external project required but not found.")
 endif()
 
-# Copy OpenCL Headers into sycl headers build directory
-# Compiler does automatic lookup bin/../include based on clang binary location,
-# e.g. when run LIT tests
-file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
+if(NOT OpenCL_FOUND)
+  # Copy OpenCL Headers into sycl headers build directory
+  # Compiler does automatic lookup bin/../include based on clang binary location,
+  # e.g. when run LIT tests
+  file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
 
-# Include OpenCL Headers into final bundle.
-install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-        DESTINATION ${SYCL_INCLUDE_DIR}
-        COMPONENT OpenCL-Headers)
+  # Include OpenCL Headers into final bundle.
+  install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
+          DESTINATION ${SYCL_INCLUDE_DIR}
+          COMPONENT OpenCL-Headers)
+endif()
 
 # Option for enabling building the SYCL major release preview library.
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
@@ -187,7 +190,33 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
+
+if(NOT DEFINED SYCL_COMPILER_VERSION)
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    # Get the date of the latest commit
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} log -1 --format=%cd --date=format:%Y%m%d
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      RESULT_VARIABLE GIT_RESULT
+      OUTPUT_VARIABLE GIT_DATE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(GIT_RESULT EQUAL 0 AND GIT_DATE)
+      set(SYCL_COMPILER_VERSION "${GIT_DATE}")
+    endif()
+  endif()
+
+  if(NOT DEFINED SYCL_COMPILER_VERSION)
+    message(WARNING "No value for SYCL_COMPILER_VERSION passed and couldn't determine timestamp of last commit, falling back to current timestamp.")
+    string(TIMESTAMP SYCL_COMPILER_VERSION "%Y%m%d")
+  endif()
+endif()
+
+set(__SYCL_COMPILER_VERSION "${SYCL_COMPILER_VERSION}")
+message(STATUS "SYCL Compiler Version: ${__SYCL_COMPILER_VERSION}")
+
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
@@ -212,9 +241,6 @@ install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
-
-include(AddBoostMp11Headers)
-include(FetchBoostUnorderedHeaders)
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
@@ -250,7 +276,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
           ${OUT_UR_HEADERS}
           sycl-device-aspect-macros-header
-          boost_mp11-headers)
+          )
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
@@ -275,7 +301,6 @@ add_custom_command(
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
@@ -306,37 +331,18 @@ endif()
 
 # This function allows building multiple libraries with the same options.
 # Currently used by add_sycl_library and add_sycl_rt_library.
-# Currently handles linking with libcxx support and gcc workaround
+# Currently handles a gcc workaround
 function( add_common_options LIB_NAME)
-  if (SYCL_USE_LIBCXX)
-    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-      if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-        message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                            "SYCL_LIBCXX_LIBRARY_PATH should be set")
-      endif()
-      target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-      target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      if (ARGC EQUAL 2)
-        target_compile_options(${ARGV1} PRIVATE -nostdinc++)
-        target_include_directories(${ARGV1} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      endif()
-    else()
-      message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-    endif()
-  else()
     # Workaround for bug in GCC version 5 and higher.
     # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
         CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
       target_link_libraries(${ARGV0} PRIVATE gcc_s gcc)
     endif()
-  endif()
 endfunction(add_common_options)
 
 if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
-  if(SYCL_USE_LIBCXX)
+  if(LLVM_LIBCXX_USED)
     add_definitions(-D_LIBCPP_DEBUG=1)
     set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_LIBCPP_DEBUG=1")
   else()
@@ -403,6 +409,7 @@ add_custom_target( sycl-toolchain ALL
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
+          syclbin-dump
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
@@ -458,7 +465,6 @@ get_property(SYCL_TOOLCHAIN_DEPS GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONEN
 # Listed here are component names contributing the package
 set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      append-file
-     boost_mp11-headers
      clang
      clang-offload-wrapper
      clang-offload-bundler
@@ -476,6 +482,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      spirv-to-ir-wrapper
      sycl-post-link
      sycl-ls
+     syclbin-dump
      clang-resource-headers
      OpenCL-Headers
      opencl-aot
@@ -549,6 +556,15 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
+endif()
+
+if("offload" IN_LIST SYCL_ENABLE_BACKENDS)
+  if(NOT TARGET lld)
+    message(FATAL_ERROR
+      "Offload support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+  add_dependencies(sycl-toolchain ur_adapter_offload)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_offload)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

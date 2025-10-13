@@ -8,7 +8,7 @@
 #include <uur/known_failure.h>
 
 struct urKernelSetArgValueTest : uur::urKernelTest {
-  void SetUp() {
+  void SetUp() override {
     program_name = "fill";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
   }

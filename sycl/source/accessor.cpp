@@ -14,15 +14,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-device getDeviceFromHandler(handler &cgh) {
-  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
-         "One of MQueue or MGraph should be nonnull!");
-  if (cgh.MQueue)
-    return cgh.MQueue->get_device();
-
-  return getSyclObjImpl(cgh)->MGraph->getDevice();
-}
-
 // property::no_init is supported now for
 // accessor
 // host_accessor

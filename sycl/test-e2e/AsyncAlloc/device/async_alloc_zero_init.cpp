@@ -31,8 +31,8 @@ int main() {
   try {
 
     // Create pool with zero_init property
-    syclexp::property::memory_pool::zero_init ZeroInit;
-    syclexp::memory_pool MemPool(Ctx, Dev, sycl::usm::alloc::device, ZeroInit);
+    syclexp::properties PoolProps{syclexp::zero_init{}};
+    syclexp::memory_pool MemPool(Ctx, Dev, sycl::usm::alloc::device, PoolProps);
 
     // <--- First allocation, use, and free --->
 

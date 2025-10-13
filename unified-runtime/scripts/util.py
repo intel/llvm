@@ -10,89 +10,86 @@ import re
 import configparser
 import glob
 import json
+from typing import Any, Iterator, List, Union
 import yaml
 import subprocess
 from mako.template import Template
 from mako import exceptions
 
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader, Dumper
+    from yaml import Loader
 
 
-def exists(path):
+def exists(path: str) -> bool:
     """safely checks if path/file exists"""
-    if path and os.path.exists(path):
-        return True
-    else:
-        return False
+    return bool(path and os.path.exists(path))
 
 
-def makePath(path):
+def makePath(path: str) -> None:
     """create path if it doesn't exist"""
     try:
         if not exists(path):
             os.makedirs(path)
-    except:
+    except BaseException:
         print("warning: failed to make %s" % path)
 
 
-def copyTree(src, dst):
+def copyTree(src: str, dst: str) -> None:
     """copy tree"""
     try:
         shutil.copytree(src, dst)
-    except:
+    except BaseException:
         print("warning: failed to copy %s to %s" % (src, dst))
 
 
-def removePath(path):
+def removePath(path: str) -> None:
     """remove directory and all contents"""
     try:
         shutil.rmtree(path)
-    except:
+    except BaseException:
         print("warning: failed to remove %s" % path)
 
 
-def removeFile(lst):
+def removeFile(lst: list[str]) -> None:
     """removes all files in list"""
     for f in lst or []:
         try:
             os.remove(f)
-        except:
+        except BaseException:
             print("warning: failed to remove %s" % f)
 
 
-def findFiles(path, pattern):
+def findFiles(path: str, pattern: str) -> List[str]:
     """returns a list of files in path matching pattern"""
     try:
         return sorted(glob.glob(os.path.join(path, pattern)))
-    except:
+    except BaseException:
         print("warning: unable to find %s" % path)
         return []
 
 
-def removeFiles(path, pattern):
+def removeFiles(path: str, pattern: str) -> None:
     """removes all files in path matching pattern"""
     for f in findFiles(path, pattern):
         try:
             os.remove(f)
-        except:
+        except BaseException:
             print("warning: failed to remove %s" % f)
 
 
-def textRead(path):
+def textRead(path: str) -> List[str]:
     """reads from text file, returns list of lines"""
     try:
         with open(path, "r") as fin:
             return fin.readlines()
     except Exception as e:
-        print(e)
         print("error: unable to read %s" % path)
-        return None
+        raise e
 
 
-def configRead(path):
+def configRead(path: str) -> configparser.ConfigParser:
     """read from ini file, returns config obj"""
     try:
         parser = configparser.ConfigParser(
@@ -100,49 +97,51 @@ def configRead(path):
         )
         parser.read(path)
         return parser
-    except:
+    except BaseException as error:
         print("error: unable to read %s" % path)
-        return None
+        raise error
 
 
-def jsonRead(path):
+def jsonRead(path: str) -> Union[list, dict]:
     """read from json file, returns list/dict"""
     try:
         with open(path, "r") as fin:
             return json.loads(fin.read())
-    except:
+    except BaseException as error:
         print("error: unable to read %s" % path)
-        return None
+        raise error
 
 
-def jsonWrite(path, data):
+def jsonWrite(path: str, data: Union[list, dict]) -> None:
     """writes list/dict to json file"""
     try:
         with open(path, "w") as fout:
             fout.write(json.dumps(data, indent=2, sort_keys=True))
-    except:
+    except BaseException as error:
         print("error: unable to write %s" % path)
+        raise error
 
 
-def yamlRead(path):
+def yamlRead(path: str) -> Iterator[Any]:
     """read from yml file, returns list/dict"""
     try:
         with open(path, "r") as fin:
             return yaml.load_all(fin.read(), Loader=Loader)
-    except:
+    except BaseException as error:
         print("error: unable to read %s" % path)
-        return None
+        raise error
 
 
 makoFileList = []
 makoErrorList = []
 
 
-def makoWrite(inpath, outpath, **args):
+def makoWrite(inpath: str, outpath: str, **args) -> int:
     """generates file using template, args"""
     try:
         template = Template(filename=inpath)
         rendered = template.render(**args)
+        assert isinstance(rendered, str)
         rendered = re.sub(r"\r\n", r"\n", rendered)
 
         with open(outpath, "w") as fout:
@@ -150,16 +149,16 @@ def makoWrite(inpath, outpath, **args):
 
         makoFileList.append(outpath)
         return len(rendered.splitlines())
-    except:
+    except BaseException as error:
         print(exceptions.text_error_template().render())
-        raise
+        raise error
 
 
-def makoFileListWrite(outpath):
+def makoFileListWrite(outpath: str) -> None:
     jsonWrite(outpath, makoFileList)
 
 
-def formatGeneratedFiles(clang_format):
+def formatGeneratedFiles(clang_format: str) -> None:
     for file in makoFileList:
         if re.search(r"(\.h|\.hpp|\.c|\.cpp|\.def)$", file) is None:
             continue
@@ -174,21 +173,20 @@ def formatGeneratedFiles(clang_format):
             raise Exception("Failed to format {}".format(file))
 
 
-def makeErrorCount():
+def makeErrorCount() -> int:
     return len(makoErrorList)
 
 
-def writelines(fout, lines):
+def writelines(fout: str, lines: List[str]) -> None:
     """write to array of string lines to file"""
     try:
         with open(fout, "w") as f:
             f.writelines(lines)
             f.close()
-    except:
+    except BaseException:
         print("Could not write %s" % fout)
-        return None
 
 
-def to_snake_case(str):
-    f = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", str)
+def to_snake_case(s: str):
+    f = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", s)
     return re.sub("([a-z])([A-Z0-9])", r"\1_\2", f)

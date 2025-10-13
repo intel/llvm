@@ -223,7 +223,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(hProgram->Devices.data(), hProgram->NumDevices);
   }
   case UR_PROGRAM_INFO_REFERENCE_COUNT: {
-    return ReturnValue(hProgram->getReferenceCount());
+    return ReturnValue(hProgram->RefCount.getCount());
   }
   default: {
     size_t CheckPropSize = 0;
@@ -383,13 +383,13 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  hProgram->incrementReferenceCount();
+  hProgram->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  if (hProgram->decrementReferenceCount() == 0) {
+  if (hProgram->RefCount.release()) {
     delete hProgram;
   }
   return UR_RESULT_SUCCESS;

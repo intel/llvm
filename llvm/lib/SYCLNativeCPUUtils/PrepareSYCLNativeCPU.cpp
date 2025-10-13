@@ -114,10 +114,16 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
 
   fixCallingConv(F);
   fixCallingConv(SubhF);
-  // Add sycl-module-id attribute
+  // Add sycl-module-id and target attributes
   // Todo: we may want to copy other attributes to the subhandler,
   // but we can't simply use setAttributes(F->getAttributes) since
   // the function signatures are different
+  if (F->hasFnAttribute("target-features")) {
+    SubhF->addFnAttr(F->getFnAttribute("target-features"));
+  }
+  if (F->hasFnAttribute("target-cpu")) {
+    SubhF->addFnAttr(F->getFnAttribute("target-cpu"));
+  }
   if (F->hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
     Attribute MId = F->getFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID);
     SubhF->addFnAttr("sycl-module-id", MId.getValueAsString());
@@ -155,6 +161,8 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
   if (!OldF->isDeclaration())
     CloneFunctionInto(NewF, OldF, VMap,
                       CloneFunctionChangeType::LocalChangesOnly, ReturnInst);
+  if (StateArgTLS == nullptr)
+    NewF->addParamAttr(Args.size() - 1, llvm::Attribute::NoAlias);
   return NewF;
 }
 
@@ -357,6 +365,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
           if (OrigF->use_empty()) {
             RemovableFuncs.insert(OrigF);
           } else {
+            OrigF->setComdat(nullptr);
             OrigF->setName(Name + ".orig");
           }
         } else {

@@ -210,12 +210,13 @@ struct UrDeviceGetInfoParamsEmpty : UrDeviceGetInfoParams {
 };
 
 struct UrDeviceGetInfoParamsName : UrDeviceGetInfoParams {
-  const char *name = "FOOBAR";
   UrDeviceGetInfoParamsName() : UrDeviceGetInfoParams() {
+    static std::string name{"FOOBAR"};
+
     propName = UR_DEVICE_INFO_NAME;
-    pPropValue = (void *)name;
-    propSize = strlen(name) + 1;
-    propSizeRet = strlen(name) + 1;
+    pPropValue = (void *)name.data();
+    propSize = name.length() + 1;
+    propSizeRet = name.length() + 1;
   }
   const char *get_expected() {
     return ".hDevice = nullptr, .propName = UR_DEVICE_INFO_NAME, .propSize "

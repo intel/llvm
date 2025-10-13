@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ./command_list_cache-test
+// REQUIRES: v2
+
 #include "command_list_cache.hpp"
 #include "context.hpp"
 

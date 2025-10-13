@@ -9,7 +9,7 @@ inline namespace _V1 {
 namespace khr {
 
 template <typename CommandGroupFunc>
-void submit(queue q, CommandGroupFunc &&cgf,
+void submit(const queue &q, CommandGroupFunc &&cgf,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::submit(
@@ -17,7 +17,7 @@ void submit(queue q, CommandGroupFunc &&cgf,
 }
 
 template <typename CommandGroupFunc>
-event submit_tracked(queue q, CommandGroupFunc &&cgf,
+event submit_tracked(const queue &q, CommandGroupFunc &&cgf,
                      const sycl::detail::code_location &codeLoc =
                          sycl::detail::code_location::current()) {
   return sycl::ext::oneapi::experimental::submit_with_event(
@@ -38,19 +38,19 @@ void launch(handler &h, range<3> r, const KernelType &k) {
 }
 
 template <typename KernelType>
-void launch(queue q, range<1> r, const KernelType &k,
+void launch(const queue &q, range<1> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
 }
 template <typename KernelType>
-void launch(queue q, range<2> r, const KernelType &k,
+void launch(const queue &q, range<2> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
 }
 template <typename KernelType>
-void launch(queue q, range<3> r, const KernelType &k,
+void launch(const queue &q, range<3> r, const KernelType &k,
             const sycl::detail::code_location &codeLoc =
                 sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { launch<KernelType>(h, r, k); }, codeLoc);
@@ -75,17 +75,17 @@ void launch(handler &h, range<3> r, const kernel &k, ArgsT &&...args) {
 }
 
 template <typename... ArgsT>
-void launch(queue q, range<1> r, const kernel &k, ArgsT &&...args) {
+void launch(const queue &q, range<1> r, const kernel &k, ArgsT &&...args) {
   submit(q, [&](handler &h) { launch(h, r, k, std::forward<ArgsT>(args)...); });
 }
 
 template <typename... ArgsT>
-void launch(queue q, range<2> r, const kernel &k, ArgsT &&...args) {
+void launch(const queue &q, range<2> r, const kernel &k, ArgsT &&...args) {
   submit(q, [&](handler &h) { launch(h, r, k, std::forward<ArgsT>(args)...); });
 }
 
 template <typename... ArgsT>
-void launch(queue q, range<3> r, const kernel &k, ArgsT &&...args) {
+void launch(const queue &q, range<3> r, const kernel &k, ArgsT &&...args) {
   submit(q, [&](handler &h) { launch(h, r, k, std::forward<ArgsT>(args)...); });
 }
 
@@ -107,7 +107,7 @@ void launch_reduce(handler &h, range<3> r, const KernelType &k,
 }
 
 template <typename KernelType, typename... Reductions>
-void launch_reduce(queue q, range<1> r, const KernelType &k,
+void launch_reduce(const queue &q, range<1> r, const KernelType &k,
                    Reductions &&...reductions) {
   submit(q, [&](handler &h) {
     launch_reduce<KernelType>(h, r, k, std::forward<Reductions>(reductions)...);
@@ -115,7 +115,7 @@ void launch_reduce(queue q, range<1> r, const KernelType &k,
 }
 
 template <typename KernelType, typename... Reductions>
-void launch_reduce(queue q, range<2> r, const KernelType &k,
+void launch_reduce(const queue &q, range<2> r, const KernelType &k,
                    Reductions &&...reductions) {
   submit(q, [&](handler &h) {
     launch_reduce<KernelType>(h, r, k, std::forward<Reductions>(reductions)...);
@@ -123,7 +123,7 @@ void launch_reduce(queue q, range<2> r, const KernelType &k,
 }
 
 template <typename KernelType, typename... Reductions>
-void launch_reduce(queue q, range<3> r, const KernelType &k,
+void launch_reduce(const queue &q, range<3> r, const KernelType &k,
                    Reductions &&...reductions) {
   submit(q, [&](handler &h) {
     launch_reduce<KernelType>(h, r, k, std::forward<Reductions>(reductions)...);
@@ -149,28 +149,71 @@ void launch_grouped(handler &h, range<3> r, range<3> size,
 }
 
 template <typename KernelType>
-void launch_grouped(queue q, range<1> r, range<1> size, const KernelType &k,
+constexpr bool enable_kernel_function_overload =
+    !std::is_same_v<typename std::decay_t<KernelType>, sycl::kernel>;
+
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<1>>::value)) {
+    detail::submit_kernel_direct(
+        q, ext::oneapi::experimental::empty_properties_t{},
+        nd_range<1>(r, size), std::forward<KernelType>(k));
+  } else {
+    submit(
+        q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+        codeLoc);
+  }
 }
-template <typename KernelType>
-void launch_grouped(queue q, range<2> r, range<2> size, const KernelType &k,
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<2>>::value)) {
+    detail::submit_kernel_direct(
+        q, ext::oneapi::experimental::empty_properties_t{},
+        nd_range<2>(r, size), std::forward<KernelType>(k));
+  } else {
+    submit(
+        q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+        codeLoc);
+  }
 }
-template <typename KernelType>
-void launch_grouped(queue q, range<3> r, range<3> size, const KernelType &k,
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     const sycl::detail::code_location &codeLoc =
                         sycl::detail::code_location::current()) {
-  submit(
-      q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
-      codeLoc);
+  // TODO The handler-less path does not support kernel function properties
+  // and kernel functions with the kernel_handler type argument yet.
+  if constexpr (!(ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          const KernelType &>::value) &&
+                !(detail::KernelLambdaHasKernelHandlerArgT<
+                    KernelType, sycl::nd_item<3>>::value)) {
+    detail::submit_kernel_direct(
+        q, ext::oneapi::experimental::empty_properties_t{},
+        nd_range<3>(r, size), std::forward<KernelType>(k));
+  } else {
+    submit(
+        q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
+        codeLoc);
+  }
 }
 
 template <typename... Args>
@@ -195,7 +238,7 @@ void launch_grouped(sycl::handler &h, sycl::range<3> r, sycl::range<3> size,
 }
 
 template <typename... Args>
-void launch_grouped(sycl::queue q, sycl::range<1> r, sycl::range<1> size,
+void launch_grouped(const sycl::queue &q, sycl::range<1> r, sycl::range<1> size,
                     const sycl::kernel &k, Args &&...args) {
   submit(q, [&](handler &h) {
     launch_grouped(h, r, size, k, std::forward<Args>(args)...);
@@ -203,7 +246,7 @@ void launch_grouped(sycl::queue q, sycl::range<1> r, sycl::range<1> size,
 }
 
 template <typename... Args>
-void launch_grouped(sycl::queue q, sycl::range<2> r, sycl::range<2> size,
+void launch_grouped(const sycl::queue &q, sycl::range<2> r, sycl::range<2> size,
                     const sycl::kernel &k, Args &&...args) {
   submit(q, [&](handler &h) {
     launch_grouped(h, r, size, k, std::forward<Args>(args)...);
@@ -211,7 +254,7 @@ void launch_grouped(sycl::queue q, sycl::range<2> r, sycl::range<2> size,
 }
 
 template <typename... Args>
-void launch_grouped(sycl::queue q, sycl::range<3> r, sycl::range<3> size,
+void launch_grouped(const sycl::queue &q, sycl::range<3> r, sycl::range<3> size,
                     const sycl::kernel &k, Args &&...args) {
   submit(q, [&](handler &h) {
     launch_grouped(h, r, size, k, std::forward<Args>(args)...);
@@ -242,8 +285,9 @@ void launch_grouped_reduce(sycl::handler &h, sycl::range<3> r,
 }
 
 template <typename KernelType, typename... Reductions>
-void launch_grouped_reduce(sycl::queue q, sycl::range<1> r, sycl::range<1> size,
-                           const KernelType &k, Reductions &&...reductions) {
+void launch_grouped_reduce(const sycl::queue &q, sycl::range<1> r,
+                           sycl::range<1> size, const KernelType &k,
+                           Reductions &&...reductions) {
   submit(q, [&](handler &h) {
     launch_grouped_reduce<KernelType>(h, r, size, k,
                                       std::forward<Reductions>(reductions)...);
@@ -251,8 +295,9 @@ void launch_grouped_reduce(sycl::queue q, sycl::range<1> r, sycl::range<1> size,
 }
 
 template <typename KernelType, typename... Reductions>
-void launch_grouped_reduce(sycl::queue q, sycl::range<2> r, sycl::range<2> size,
-                           const KernelType &k, Reductions &&...reductions) {
+void launch_grouped_reduce(const sycl::queue &q, sycl::range<2> r,
+                           sycl::range<2> size, const KernelType &k,
+                           Reductions &&...reductions) {
   submit(q, [&](handler &h) {
     launch_grouped_reduce<KernelType>(h, r, size, k,
                                       std::forward<Reductions>(reductions)...);
@@ -260,8 +305,9 @@ void launch_grouped_reduce(sycl::queue q, sycl::range<2> r, sycl::range<2> size,
 }
 
 template <typename KernelType, typename... Reductions>
-void launch_grouped_reduce(sycl::queue q, sycl::range<3> r, sycl::range<3> size,
-                           const KernelType &k, Reductions &&...reductions) {
+void launch_grouped_reduce(const sycl::queue &q, sycl::range<3> r,
+                           sycl::range<3> size, const KernelType &k,
+                           Reductions &&...reductions) {
   submit(q, [&](handler &h) {
     launch_grouped_reduce<KernelType>(h, r, size, k,
                                       std::forward<Reductions>(reductions)...);
@@ -274,7 +320,7 @@ void launch_task(handler &h, const KernelType &k) {
 }
 
 template <typename KernelType>
-void launch_task(sycl::queue q, const KernelType &k,
+void launch_task(const sycl::queue &q, const KernelType &k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
@@ -287,7 +333,7 @@ void launch_task(sycl::handler &h, const sycl::kernel &k, Args &&...args) {
 }
 
 template <typename... Args>
-void launch_task(queue q, const kernel &k, Args &&...args) {
+void launch_task(const queue &q, const kernel &k, Args &&...args) {
   submit(q,
          [&](handler &h) { launch_task(h, k, std::forward<Args>(args)...); });
 }
@@ -295,7 +341,7 @@ void launch_task(queue q, const kernel &k, Args &&...args) {
 inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
   h.memcpy(dest, src, numBytes);
 }
-inline void memcpy(queue q, void *dest, const void *src, size_t numBytes,
+inline void memcpy(const queue &q, void *dest, const void *src, size_t numBytes,
                    const sycl::detail::code_location &codeLoc =
                        sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::memcpy(q, dest, src, numBytes, codeLoc);
@@ -307,7 +353,7 @@ void copy(handler &h, const T *src, T *dest, size_t count) {
 }
 
 template <typename T>
-void copy(queue q, const T *src, T *dest, size_t count,
+void copy(const queue &q, const T *src, T *dest, size_t count,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { copy(h, src, dest, count); }, codeLoc);
@@ -326,7 +372,7 @@ void copy(handler &h, std::shared_ptr<SrcT> src,
 }
 
 template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
-void copy(queue q, const SrcT *src,
+void copy(const queue &q, const SrcT *src,
           accessor<DestT, DestDims, DestMode, target::device> dest,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
@@ -340,7 +386,7 @@ void copy(queue q, const SrcT *src,
 }
 
 template <typename SrcT, typename DestT, int DestDims, access_mode DestMode>
-void copy(queue q, std::shared_ptr<SrcT> src,
+void copy(const queue &q, std::shared_ptr<SrcT> src,
           accessor<DestT, DestDims, DestMode, target::device> dest,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
@@ -366,7 +412,7 @@ void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
 }
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
-void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+void copy(const queue &q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
           DestT *dest,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
@@ -380,7 +426,7 @@ void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
 }
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT>
-void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+void copy(const queue &q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
           std::shared_ptr<DestT> dest,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
@@ -402,7 +448,7 @@ void copy(handler &h, accessor<SrcT, SrcDims, SrcMode, target::device> src,
 
 template <typename SrcT, int SrcDims, access_mode SrcMode, typename DestT,
           int DestDims, access_mode DestMode>
-void copy(queue q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
+void copy(const queue &q, accessor<SrcT, SrcDims, SrcMode, target::device> src,
           accessor<DestT, DestDims, DestMode, target::device> dest,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
@@ -419,7 +465,7 @@ inline void memset(handler &h, void *ptr, int value, size_t numBytes) {
   h.memset(ptr, value, numBytes);
 }
 
-inline void memset(queue q, void *ptr, int value, size_t numBytes,
+inline void memset(const queue &q, void *ptr, int value, size_t numBytes,
                    const sycl::detail::code_location &codeLoc =
                        sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::memset(q, ptr, value, numBytes, codeLoc);
@@ -437,14 +483,15 @@ void fill(handler &h, accessor<T, Dims, Mode, target::device> dest,
 }
 
 template <typename T>
-void fill(queue q, T *ptr, const T &pattern, size_t count,
+void fill(const queue &q, T *ptr, const T &pattern, size_t count,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { fill(h, ptr, pattern, count); }, codeLoc);
 }
 
 template <typename T, int Dims, access_mode Mode>
-void fill(queue q, accessor<T, Dims, Mode, target::device> dest, const T &src,
+void fill(const queue &q, accessor<T, Dims, Mode, target::device> dest,
+          const T &src,
           const sycl::detail::code_location &codeLoc =
               sycl::detail::code_location::current()) {
   submit(
@@ -462,7 +509,7 @@ void update_host(handler &h, accessor<T, Dims, Mode, target::device> acc) {
 }
 
 template <typename T, int Dims, access_mode Mode>
-void update_host(queue q, accessor<T, Dims, Mode, target::device> acc,
+void update_host(const queue &q, accessor<T, Dims, Mode, target::device> acc,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
   submit(
@@ -477,7 +524,7 @@ inline void prefetch(handler &h, void *ptr, size_t numBytes) {
   h.prefetch(ptr, numBytes);
 }
 
-inline void prefetch(queue q, void *ptr, size_t numBytes,
+inline void prefetch(const queue &q, void *ptr, size_t numBytes,
                      const sycl::detail::code_location &codeLoc =
                          sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { prefetch(h, ptr, numBytes); }, codeLoc);
@@ -487,7 +534,7 @@ inline void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
   h.mem_advise(ptr, numBytes, advice);
 }
 
-inline void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
+inline void mem_advise(const queue &q, void *ptr, size_t numBytes, int advice,
                        const sycl::detail::code_location &codeLoc =
                            sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::mem_advise(q, ptr, numBytes, advice,
@@ -496,7 +543,7 @@ inline void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
 
 inline void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
 
-inline void command_barrier(queue q,
+inline void command_barrier(const queue &q,
                             const sycl::detail::code_location &codeLoc =
                                 sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { command_barrier(h); }, codeLoc);
@@ -506,7 +553,7 @@ inline void event_barrier(handler &h, const std::vector<event> &events) {
   h.ext_oneapi_barrier(events);
 }
 
-inline void event_barrier(queue q, const std::vector<event> &events,
+inline void event_barrier(const queue &q, const std::vector<event> &events,
                           const sycl::detail::code_location &codeLoc =
                               sycl::detail::code_location::current()) {
   submit(q, [&](handler &h) { event_barrier(h, events); }, codeLoc);

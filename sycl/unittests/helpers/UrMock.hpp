@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include <detail/adapter.hpp>
+#include <detail/adapter_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/ur.hpp>
@@ -212,6 +212,7 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   case UR_DEVICE_INFO_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = true;
@@ -393,10 +394,9 @@ inline ur_result_t mock_urEventGetInfo(void *pParams) {
   }
 }
 
-inline ur_result_t
-mock_urKernelSuggestMaxCooperativeGroupCountExp(void *pParams) {
+inline ur_result_t mock_urKernelSuggestMaxCooperativeGroupCount(void *pParams) {
   auto params = reinterpret_cast<
-      ur_kernel_suggest_max_cooperative_group_count_exp_params_t *>(pParams);
+      ur_kernel_suggest_max_cooperative_group_count_params_t *>(pParams);
   **params->ppGroupCountRet = 1;
   return UR_RESULT_SUCCESS;
 }
@@ -571,8 +571,8 @@ public:
     ADD_DEFAULT_OVERRIDE(urProgramGetInfo, mock_urProgramGetInfo)
     ADD_DEFAULT_OVERRIDE(urKernelGetGroupInfo, mock_urKernelGetGroupInfo)
     ADD_DEFAULT_OVERRIDE(urEventGetInfo, mock_urEventGetInfo)
-    ADD_DEFAULT_OVERRIDE(urKernelSuggestMaxCooperativeGroupCountExp,
-                         mock_urKernelSuggestMaxCooperativeGroupCountExp)
+    ADD_DEFAULT_OVERRIDE(urKernelSuggestMaxCooperativeGroupCount,
+                         mock_urKernelSuggestMaxCooperativeGroupCount)
     ADD_DEFAULT_OVERRIDE(urDeviceSelectBinary, mock_urDeviceSelectBinary)
     ADD_DEFAULT_OVERRIDE(urPlatformGetBackendOption,
                          mock_urPlatformGetBackendOption)
@@ -597,6 +597,16 @@ public:
 
     sycl::detail::ur::initializeUr(UrLoaderConfig);
     urLoaderConfigRelease(UrLoaderConfig);
+
+    // We clear platform cache for each test run, so that tests can have a
+    // different backend. This forces platforms to be reconstructed (and thus
+    // queries about UR backend info to be called again) This also erases each
+    // platform's devices (normally done in the library shutdown) so that
+    // platforms/devices' lifetimes could work in unittests scenario. In SYCL,
+    // this is normally done at shutdown, but between Win/Lin and static/shared
+    // differences, there is no correct parallel in the ~UrMock destructor.
+    // Instead we do it here. Simple and clean.
+    detail::GlobalHandler::instance().getPlatformCache().clear();
   }
 
   UrMock(UrMock<Backend> &&Other) = delete;
@@ -607,14 +617,8 @@ public:
     // these between tests
     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
-    // clear platform cache in case subsequent tests want a different backend,
-    // this forces platforms to be reconstructed (and thus queries about UR
-    // backend info to be called again)
-    //
-    // This also erases each platform's devices (normally done in the library
-    // shutdown) so that platforms/devices' lifetimes could work in unittests
-    // scenario.
-    detail::GlobalHandler::instance().clearPlatforms();
+    // the platform cache is cleared at the BEGINING of the mock.
+
     mock::getCallbacks().resetCallbacks();
   }
 
@@ -634,6 +638,8 @@ private:
       return UR_BACKEND_HIP;
     case sycl::backend::ext_oneapi_native_cpu:
       return UR_BACKEND_NATIVE_CPU;
+    case sycl::backend::ext_oneapi_offload:
+      return UR_BACKEND_OFFLOAD;
     default:
       return UR_BACKEND_UNKNOWN;
     }

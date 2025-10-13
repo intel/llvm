@@ -17,7 +17,9 @@
 #include "../device.hpp"
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
+#include "command_list_manager.hpp"
 #include "common.hpp"
+#include "common/ur_ref_count.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
@@ -26,7 +28,7 @@ struct ur_mem_buffer_t : ur_object {
   enum class device_access_mode_t { read_write, read_only, write_only };
 
   ur_mem_buffer_t(ur_context_handle_t hContext, size_t size,
-                  device_access_mode_t accesMode);
+                  device_access_mode_t accessMode);
   virtual ~ur_mem_buffer_t() = default;
 
   virtual ur_shared_mutex &getMutex();
@@ -35,16 +37,15 @@ struct ur_mem_buffer_t : ur_object {
 
   // Returns pointer to the device memory. If device handle is NULL,
   // the buffer is allocated on the first device in the context.
-  virtual void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)> mecmpy) = 0;
-  virtual void *
-  mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-             std::function<void(void *src, void *dst, size_t)> memcpy) = 0;
-  virtual void
-  unmapHostPtr(void *pMappedPtr,
-               std::function<void(void *src, void *dst, size_t)> memcpy) = 0;
+  virtual void *getDevicePtr(ur_device_handle_t, device_access_mode_t,
+                             size_t offset, size_t size,
+                             ze_command_list_handle_t cmdList,
+                             wait_list_view &waitListView) = 0;
+  virtual void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
+                           ze_command_list_handle_t cmdList,
+                           wait_list_view &waitListView) = 0;
+  virtual void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                            wait_list_view &waitListView) = 0;
 
   device_access_mode_t getDeviceAccessMode() const { return accessMode; }
   ur_context_handle_t getContext() const { return hContext; }
@@ -72,14 +73,14 @@ protected:
 struct ur_usm_handle_t : ur_mem_buffer_t {
   ur_usm_handle_t(ur_context_handle_t hContext, size_t size, const void *ptr);
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   void *ptr;
@@ -89,26 +90,23 @@ private:
 // For integrated devices the buffer has been allocated in host memory
 // and can be accessed by the device without copying.
 struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
-  enum class host_ptr_action_t { import, copy };
+  ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
+                                size_t size, device_access_mode_t accessMode);
 
   ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
-                                size_t size, host_ptr_action_t useHostPtr,
-                                device_access_mode_t accesMode);
-
-  ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
-                                size_t size, device_access_mode_t accesMode,
+                                size_t size, device_access_mode_t accessMode,
                                 bool ownHostPtr);
 
   ~ur_integrated_buffer_handle_t();
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   usm_unique_ptr_t ptr;
@@ -133,23 +131,23 @@ struct ur_discrete_buffer_handle_t : ur_mem_buffer_t {
   // first device in the context. Otherwise, the buffer is allocated on
   // firt getDevicePtr call.
   ur_discrete_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
-                              size_t size, device_access_mode_t accesMode);
+                              size_t size, device_access_mode_t accessMode);
   ~ur_discrete_buffer_handle_t();
 
   // Create buffer on top of existing device memory.
   ur_discrete_buffer_handle_t(ur_context_handle_t hContext,
                               ur_device_handle_t hDevice, void *devicePtr,
-                              size_t size, device_access_mode_t accesMode,
+                              size_t size, device_access_mode_t accessMode,
                               void *writeBackMemory, bool ownDevicePtr);
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   void *getCurrentAllocation();
@@ -165,7 +163,7 @@ private:
   void *writeBackPtr = nullptr;
 
   // If not null, mapHostPtr should map memory to this ptr
-  void *mapToPtr = nullptr;
+  usm_unique_ptr_t mapToPtr;
 
   std::vector<host_allocation_desc_t> hostAllocations;
 
@@ -177,17 +175,17 @@ private:
 
 struct ur_shared_buffer_handle_t : ur_mem_buffer_t {
   ur_shared_buffer_handle_t(ur_context_handle_t hContext, void *devicePtr,
-                            size_t size, device_access_mode_t accesMode,
+                            size_t size, device_access_mode_t accessMode,
                             bool ownDevicePtr);
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
 private:
   usm_unique_ptr_t ptr;
@@ -195,17 +193,17 @@ private:
 
 struct ur_mem_sub_buffer_t : ur_mem_buffer_t {
   ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset, size_t size,
-                      device_access_mode_t accesMode);
+                      device_access_mode_t accessMode);
   ~ur_mem_sub_buffer_t();
 
-  void *
-  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
-               size_t size,
-               std::function<void(void *src, void *dst, size_t)>) override;
+  void *getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+                     size_t size, ze_command_list_handle_t cmdList,
+                     wait_list_view &waitListView) override;
   void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
-                   std::function<void(void *src, void *dst, size_t)>) override;
-  void unmapHostPtr(void *pMappedPtr,
-                    std::function<void(void *src, void *dst, size_t)>) override;
+                   ze_command_list_handle_t cmdList,
+                   wait_list_view &waitListView) override;
+  void unmapHostPtr(void *pMappedPtr, ze_command_list_handle_t cmdList,
+                    wait_list_view &waitListView) override;
 
   ur_shared_mutex &getMutex() override;
 
@@ -246,7 +244,7 @@ private:
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };
 
-struct ur_mem_handle_t_ {
+struct ur_mem_handle_t_ : ur::handle_base<ur::level_zero::ddi_getter> {
   template <typename T, typename... Args>
   static ur_mem_handle_t_ *create(Args &&...args) {
     return new ur_mem_handle_t_(std::in_place_type<T>,
@@ -279,20 +277,15 @@ struct ur_mem_handle_t_ {
         mem);
   }
 
-  ur_object *getObject() {
-    return std::visit(
-        [](auto &&arg) -> ur_object * {
-          return static_cast<ur_object *>(&arg);
-        },
-        mem);
-  }
-
   bool isImage() const { return std::holds_alternative<ur_mem_image_t>(mem); }
+
+  ur::RefCount RefCount;
 
 private:
   template <typename T, typename... Args>
   ur_mem_handle_t_(std::in_place_type_t<T>, Args &&...args)
-      : mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
+      : ur::handle_base<ur::level_zero::ddi_getter>(),
+        mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
 
   std::variant<ur_usm_handle_t, ur_integrated_buffer_handle_t,
                ur_discrete_buffer_handle_t, ur_shared_buffer_handle_t,

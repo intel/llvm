@@ -9,7 +9,7 @@
 #ifndef __CLC_CLC_CONVERT_H__
 #define __CLC_CLC_CONVERT_H__
 
-#include <clc/clcmacro.h>
+#include <clc/internal/clc.h>
 
 #define _CLC_CONVERT_DECL(FROM_TYPE, TO_TYPE, SUFFIX)                          \
   _CLC_OVERLOAD _CLC_DECL TO_TYPE __clc_convert_##TO_TYPE##SUFFIX(FROM_TYPE x);
@@ -24,7 +24,6 @@
 
 #define _CLC_VECTOR_CONVERT_FROM1(FROM_TYPE, SUFFIX)                           \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, char, SUFFIX)                            \
-  _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, schar, SUFFIX)                           \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, uchar, SUFFIX)                           \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, int, SUFFIX)                             \
   _CLC_VECTOR_CONVERT_DECL(FROM_TYPE, uint, SUFFIX)                            \
@@ -58,7 +57,6 @@
 
 #define _CLC_VECTOR_CONVERT_TO1(SUFFIX)                                        \
   _CLC_VECTOR_CONVERT_FROM(char, SUFFIX)                                       \
-  _CLC_VECTOR_CONVERT_FROM(schar, SUFFIX)                                      \
   _CLC_VECTOR_CONVERT_FROM(uchar, SUFFIX)                                      \
   _CLC_VECTOR_CONVERT_FROM(int, SUFFIX)                                        \
   _CLC_VECTOR_CONVERT_FROM(uint, SUFFIX)                                       \

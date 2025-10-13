@@ -38,14 +38,14 @@ context_t::context_t() { parseEnvEnabledLayers(); }
 context_t::~context_t() {}
 
 void context_t::parseEnvEnabledLayers() {
-  auto maybeEnableEnvVarMap = getenv_to_map("UR_ENABLE_LAYERS", false);
-  if (!maybeEnableEnvVarMap.has_value()) {
+  auto maybeEnableEnvVarVec = getenv_to_vec("UR_ENABLE_LAYERS");
+  if (!maybeEnableEnvVarVec.has_value()) {
     return;
   }
-  auto enableEnvVarMap = maybeEnableEnvVarMap.value();
+  auto enableEnvVarVec = maybeEnableEnvVarVec.value();
 
-  for (auto &key : enableEnvVarMap) {
-    enabledLayerNames.insert(key.first);
+  for (auto &layer : enableEnvVarVec) {
+    enabledLayerNames.insert(layer);
   }
 }
 
@@ -250,10 +250,11 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 uint32_t NumEntries,
                                 ur_device_handle_t *phDevices,
                                 uint32_t *pNumDevices) {
-  constexpr std::pair<const ur_backend_t, const char *> adapters[6] = {
-      {UR_BACKEND_UNKNOWN, "*"},     {UR_BACKEND_LEVEL_ZERO, "level_zero"},
-      {UR_BACKEND_OPENCL, "opencl"}, {UR_BACKEND_CUDA, "cuda"},
-      {UR_BACKEND_HIP, "hip"},       {UR_BACKEND_NATIVE_CPU, "native_cpu"}};
+  constexpr std::pair<const ur_backend_t, const char *> adapters[7] = {
+      {UR_BACKEND_UNKNOWN, "*"},      {UR_BACKEND_LEVEL_ZERO, "level_zero"},
+      {UR_BACKEND_OPENCL, "opencl"},  {UR_BACKEND_CUDA, "cuda"},
+      {UR_BACKEND_HIP, "hip"},        {UR_BACKEND_NATIVE_CPU, "native_cpu"},
+      {UR_BACKEND_OFFLOAD, "offload"}};
 
   if (!hPlatform) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -274,6 +275,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   case UR_DEVICE_TYPE_CPU:
   case UR_DEVICE_TYPE_FPGA:
   case UR_DEVICE_TYPE_MCA:
+  case UR_DEVICE_TYPE_CUSTOM:
     break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -646,10 +648,15 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                    [&](ur_device_handle_t urDeviceHandle) {
                      // obtain and record device type from platform (squash
                      // errors)
-                     ur_device_type_t hardwareType = ::UR_DEVICE_TYPE_DEFAULT;
-                     urDeviceGetInfo(urDeviceHandle, UR_DEVICE_INFO_TYPE,
-                                     sizeof(ur_device_type_t), &hardwareType,
-                                     0);
+                     ur_device_type_t hardwareType;
+                     ur_result_t res = urDeviceGetInfo(
+                         urDeviceHandle, UR_DEVICE_INFO_TYPE,
+                         sizeof(ur_device_type_t), &hardwareType, 0);
+                     // ignore failures and just assume the default hw type
+                     if (res != UR_RESULT_SUCCESS) {
+                       hardwareType = ::UR_DEVICE_TYPE_DEFAULT;
+                     }
+
                      return DeviceSpec{DevicePartLevel::ROOT, hardwareType,
                                        deviceCount++,         DeviceIdTypeALL,
                                        DeviceIdTypeALL,       urDeviceHandle};

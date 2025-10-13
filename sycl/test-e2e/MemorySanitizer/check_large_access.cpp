@@ -9,9 +9,6 @@
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
-// XFAIL: gpu && level_zero
-// XFAIL-TRACKER: GSD-11065
-
 #include "sycl/detail/core.hpp"
 #include <sycl/vector.hpp>
 

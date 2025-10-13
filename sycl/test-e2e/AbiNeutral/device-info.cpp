@@ -1,15 +1,13 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_ENABLE_DEFAULT_CONTEXTS=1 %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -D_GLIBCXX_USE_CXX11_ABI=0 -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ env SYCL_ENABLE_DEFAULT_CONTEXTS=1 %{run} %t2.out %}
 
-// This test case tests if compiling works with or without
-// _GLIBCXX_USE_CXX11_ABI=0.
+// Most interested in result of Nightly run that sets _GLIBCXX_USE_CXX11_ABI=0.
 
 #include <deque>
 #include <iostream>
 #include <mutex>
 #include <sycl/detail/core.hpp>
+#include <sycl/platform.hpp>
 #include <vector>
 
 template <typename T> using dpcpp_info_t = typename T::return_type;

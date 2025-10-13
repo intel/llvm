@@ -9,7 +9,7 @@
 #include <uur/known_failure.h>
 
 struct urUSMPoolCreateTest : uur::urContextTest {
-  void SetUp() {
+  void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
     ur_bool_t poolSupport = false;
     ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
@@ -25,7 +25,7 @@ TEST_P(urUSMPoolCreateTest, Success) {
   ur_usm_pool_handle_t pool = nullptr;
   ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
   ASSERT_NE(pool, nullptr);
-  EXPECT_SUCCESS(urUSMPoolRelease(pool));
+  ASSERT_SUCCESS(urUSMPoolRelease(pool));
 }
 
 TEST_P(urUSMPoolCreateTest, SuccessWithFlag) {
@@ -36,7 +36,7 @@ TEST_P(urUSMPoolCreateTest, SuccessWithFlag) {
   ur_usm_pool_handle_t pool = nullptr;
   ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
   ASSERT_NE(pool, nullptr);
-  EXPECT_SUCCESS(urUSMPoolRelease(pool));
+  ASSERT_SUCCESS(urUSMPoolRelease(pool));
 }
 
 TEST_P(urUSMPoolCreateTest, InvalidNullHandleContext) {

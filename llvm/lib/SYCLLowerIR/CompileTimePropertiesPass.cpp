@@ -947,10 +947,13 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   if (CacheProp) {
     LLVMContext &Ctx = M.getContext();
     unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
-    if (!FPGAProp) {
+    if (!FPGAProp && llvm::isa<llvm::Instruction>(IntrInst->getArgOperand(0))) {
       // If there are no annotations other than cache controls we can apply the
       // controls to the pointer and remove the intrinsic.
-      auto PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
+      Instruction *PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
+      if (MDNode *CurrentMD = PtrInstr->getMetadata(MDKindID))
+        for (Metadata *Op : CurrentMD->operands())
+          MDOpsCacheProp.push_back(Op);
       PtrInstr->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
       // Replace all uses of IntrInst with first operand
       IntrInst->replaceAllUsesWith(PtrInstr);
