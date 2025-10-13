@@ -6,7 +6,6 @@
 ifdef::backend-html5[]
 :CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL: pass:q[`CL_DEVICE_<wbr>BF16_<wbr>ATOMIC_<wbr>CAPABILITIES_<wbr>INTEL`]
 :CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL: pass:q[`CL_DEVICE_<wbr>INT16_<wbr>ATOMIC_<wbr>CAPABILITIES_<wbr>INTEL`]
-:cl_device_fp_atomic_capabilities_ext_TYPE: pass:q[`cl_device_<wbr>fp_<wbr>atomic_<wbr>capabilities_<wbr>ext`]
 :cl_device_atomic_operations_intel_TYPE: pass:q[`cl_device_<wbr>atomic_<wbr>operations_<wbr>intel`]
 :CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL: pass:q[`CL_DEVICE_<wbr>GLOBAL_<wbr>ATOMIC_<wbr>LOAD_<wbr>STORE_<wbr>INTEL`]
 :CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL: pass:q[`CL_DEVICE_<wbr>GLOBAL_<wbr>ATOMIC_<wbr>ADD_<wbr>INTEL`]
@@ -18,6 +17,7 @@ ifdef::backend-html5[]
 :CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL: pass:q[`CL_DEVICE_<wbr>LOCAL_<wbr>ATOMIC_<wbr>MIN_<wbr>MAX_<wbr>INTEL`]
 :CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL: pass:q[`CL_DEVICE_<wbr>LOCAL_<wbr>ATOMIC_<wbr>CMPXCHG_<wbr>INTEL`]
 :CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL: pass:q[`CL_DEVICE_<wbr>LOCAL_<wbr>ATOMIC_<wbr>AND_<wbr>OR_<wbr>XOR_<wbr>INTEL`]
+:cl_device_fp_atomic_capabilities_ext_TYPE: pass:q[`cl_device_<wbr>fp_<wbr>atomic_<wbr>capabilities_<wbr>ext`]
 :CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT: pass:q[`CL_DEVICE_<wbr>GLOBAL_<wbr>FP_<wbr>ATOMIC_<wbr>LOAD_<wbr>STORE_<wbr>EXT`]
 :CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT: pass:q[`CL_<wbr>DEVICE_<wbr>GLOBAL_<wbr>FP_<wbr>ATOMIC_<wbr>ADD_<wbr>EXT`]
 :CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT: pass:q[`CL_DEVICE_<wbr>GLOBAL_<wbr>FP_<wbr>ATOMIC_<wbr>MIN_<wbr>MAX_<wbr>EXT`]
@@ -28,7 +28,6 @@ endif::[]
 ifndef::backend-html5[]
 :CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL: pass:q[`CL_DEVICE_&#8203;BF16_&#8203;ATOMIC_&#8203;CAPABILITIES_&#8203;INTEL`]
 :CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL: pass:q[`CL_DEVICE_&#8203;INT16_&#8203;ATOMIC_&#8203;CAPABILITIES_&#8203;INTEL`]
-:cl_device_fp_atomic_capabilities_ext_TYPE: pass:q[`cl_device_&#8203;fp_&#8203;atomic_&#8203;capabilities_&#8203;ext`]
 :cl_device_atomic_operations_intel_TYPE: pass:q[`cl_device_&#8203;atomic_&#8203;operations_&#8203;intel`]
 :CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL: pass:q[`CL_DEVICE_&#8203;GLOBAL_&#8203;ATOMIC_&#8203;LOAD_&#8203;STORE_&#8203;INTEL`]
 :CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL: pass:q[`CL_DEVICE_&#8203;GLOBAL_&#8203;ATOMIC_&#8203;ADD_&#8203;INTEL`]
@@ -40,6 +39,7 @@ ifndef::backend-html5[]
 :CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL: pass:q[`CL_DEVICE_&#8203;LOCAL_&#8203;ATOMIC_&#8203;MIN_&#8203;MAX_&#8203;INTEL`]
 :CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL: pass:q[`CL_DEVICE_&#8203;LOCAL_&#8203;ATOMIC_&#8203;CMPXCHG_&#8203;INTEL`]
 :CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL: pass:q[`CL_DEVICE_&#8203;LOCAL_&#8203;ATOMIC_&#8203;AND_&#8203;OR_&#8203;XOR_&#8203;INTEL`]
+:cl_device_fp_atomic_capabilities_ext_TYPE: pass:q[`cl_device_&#8203;fp_&#8203;atomic_&#8203;capabilities_&#8203;ext`]
 :CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT: pass:q[`CL_DEVICE_&#8203;GLOBAL_&#8203;FP_&#8203;ATOMIC_&#8203;LOAD_&#8203;STORE_&#8203;EXT`]
 :CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT: pass:q[`CL_&#8203;DEVICE_&#8203;GLOBAL_&#8203;FP_&#8203;ATOMIC_&#8203;ADD_&#8203;EXT`]
 :CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT: pass:q[`CL_DEVICE_&#8203;GLOBAL_&#8203;FP_&#8203;ATOMIC_&#8203;MIN_&#8203;MAX_&#8203;EXT`]
@@ -48,11 +48,11 @@ ifndef::backend-html5[]
 :CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT: pass:q[`CL_DEVICE_&#8203;LOCAL_&#8203;FP_&#8203;ATOMIC_&#8203;MIN_&#8203;MAX_&#8203;EXT`]
 endif::[]
 
-= cl_intel_int16_atomics
+= cl_intel_16bit_atomics
 
 == Name Strings
 
-`cl_intel_int16_atomics`
+`cl_intel_16bit_atomics`
 
 == Contact
 
@@ -61,7 +61,8 @@ Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
 == Contributors
 
 // spell-checker: disable
-Ben Ashbaugh, Intel +// spell-checker: enable
+Ben Ashbaugh, Intel +
+// spell-checker: enable
 
 == Notice
 
@@ -77,26 +78,32 @@ Because the interfaces defined by this specification are not final and are subje
 
 == Version
 
-Built On: {docdate} +
+Built On: 2025-10-13 +
 Revision: 0.9.0
 
 == Dependencies
 
 This extension is written against the OpenCL API Specification, OpenCL C Specification, and OpenCL SPIR-V Environment Specification Versions 3.0.19.
 
-This extension reuses the `cl_device_fp_atomic_capabilities_ext` bitfield type and related bits from the `cl_ext_float_atomics` extension to describe the floating-point atomic capabilities for the 16-bit `bfloat16` type supported by this extension.
+This extension reuses the `cl_device_fp_atomic_capabilities_ext` bitfield type and related bits to describe the suppported floating-point atomic capabilities for the 16-bit `bfloat16` type supported by this extension, therefore this extension depends on the `cl_ext_float_atomics` extension.
 
-This extension depends on the SPIR-V `SPV_INTEL_16bit_atomics` extension.
+This extension depends on the SPIR-V `SPV_INTEL_16bit_atomics` extension to provide the SPIR-V capabilities used by this extension.
 
 == Overview
 
 This extension enables programmers to perform atomic operations on 16-bit numbers in memory.
-An OpenCL device supporting this extension may support atomic operations on 16-bit integer values (`int16`) or 16-bit `bfloat16` floating-point values (`bf16`).
-For these types, an OpenCL device may support basic atomic operations (load, store, and exchange), atomic compare-and-exchange, atomic addition and subtraction, atomic min and max, and bitwise atomic operations (and, or, and xor).
-The numbers may be in global or local memory.
+Specifically, this extension adds queries to determine the atomic operations supported by an OpenCL device on 16-bit integer values (`short` or `ushort`) and 16-bit `bfloat16` floating-point values (typically abbreviated as `bf16`).
 
-The initial version of this extension only supports the additional atomic operations through SPIR-V.
+For these types, an OpenCL device may support basic atomic operations (load, store, and exchange), compare-and-exchange (cmpxchg), addition and subtraction,  min and max, and bitwise operations (and, or, and xor).
+These operations may be supported in global memory, local memory, or both.
+
+The initial version of this extension only supports atomic operations on these types through SPIR-V.
 Subsequent versions of this extension may extend the OpenCL C programming language to support the additional atomic operations, also.
+
+[NOTE]
+====
+Support for atomic operations on 16-bit half-precision floating-point values (`half` or `fp16`) is already provided by the `cl_ext_float_atomics` extension.
+====
 
 == New API Functions
 
@@ -104,7 +111,7 @@ None.
 
 == New API Enums
 
-Accepted value for the _param_name_ parameter to *clGetDeviceInfo* to query the floating-point atomic capabilities of an OpenCL device:
+Accepted value for the _param_name_ parameter to *clGetDeviceInfo* to query the 16-bit atomic capabilities of an OpenCL device:
 
 [source]
 ----
@@ -136,6 +143,11 @@ typedef cl_bitfield         cl_device_atomic_operations_intel;
 /* bits 21 and beyond are currently unused */
 ----
 
+[NOTE]
+====
+These bits intentionally match the bits defined by the `cl_ext_float_atomics` extension, with additional bits for compare-and-exchange and bitwise and, or, and xor operations.
+====
+
 == New OpenCL C Feature Names
 
 None.
@@ -160,8 +172,8 @@ Add to Table 5 - OpenCL Device Queries in Section 4.2 - Querying Devices: ::
 | Device Info | Return Type | Description
 | {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL}
   | {cl_device_atomic_operations_intel_TYPE}
-      | Describes the 16-bit integer atomic operations supported by the device.
-        This is a bit-field that describes a combination of the following values:
+      | Returns the 16-bit integer atomic operations supported by the device.
+        This is a bit-field that may include any combination of the following values:
 
         {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL} - Can perform load, store, and exchange atomic operations in global memory. +
         {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL} - Can perform addition and subtraction atomic operations in global memory. +
@@ -178,8 +190,8 @@ Add to Table 5 - OpenCL Device Queries in Section 4.2 - Querying Devices: ::
         There is no mandated minimum capability.
 | {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL}
   | {cl_device_fp_atomic_capabilities_ext_TYPE}
-      | Describes the 16-bit `bfloat16` floating-point atomic operations supported by the device.
-        This is a bit-field that describes a combination of the following values:
+      | Returns the 16-bit `bfloat16` floating-point atomic operations supported by the device.
+        This is a bit-field that may include a combination of the following values:
 
         {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT} - Can perform floating-point load, store, and exchange atomic operations in global memory. +
         {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT} - Can perform floating-point addition and subtraction atomic operations in global memory. +
@@ -195,51 +207,66 @@ Add to Table 5 - OpenCL Device Queries in Section 4.2 - Querying Devices: ::
 
 == Modifications to the OpenCL SPIR-V Environment Specification
 
-(Add a new section 5.2.X - `cl_intel_int16_atomics`) ::
+(Add a new section 5.2.X - `cl_intel_16bit_atomics`) ::
 +
 --
-If the OpenCL environment supports the extension `cl_intel_int16_atomics` and the {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_CMPXCHG_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_LOAD_STORE_INTEL}, or {CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicInt16CompareExchangeINTEL*.
-For the instructions enabled by these capabilities:
+If the OpenCL environment supports the extension `cl_intel_16bit_atomics` and the {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_CMPXCHG_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_LOAD_STORE_INTEL}, or {CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicInt16CompareExchangeINTEL*.
+For the instructions enabled by this capability:
 
-  * When {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL} or {CL_DEVICE_GLOBAL_ATOMIC_CMPXCHG_INTEL}, then the _Pointer_ operand may be a pointer to the *CrossWorkGroup* _Storage Class_.
-  * When {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_ATOMIC_LOAD_STORE_INTEL} or {CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL}, then the _Pointer_ operand may be a pointer to the *Workgroup* _Storage Class_.
-  * When {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_LOAD_STORE_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_CMPXCHG_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL}, and the *GenericPointer* capability is supported and declared, then the _Pointer_ operand may be a pointer to the *Generic* _Storage Class_.
+  * When the _Pointer_ operand is a pointer to the *CrossWorkGroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL} or {CL_DEVICE_GLOBAL_ATOMIC_CMPXCHG_INTEL}.
+  * When the _Pointer_ operand is a pointer to the *Workgroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_ATOMIC_LOAD_STORE_INTEL} or {CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL}, then 
+  * When the _Pointer_ operand is a pointer to the *Generic* _Storage Class_, behavior is undefined unless {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_LOAD_STORE_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_LOAD_STORE_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_CMPXCHG_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_CMPXCHG_INTEL}. 
 
-If the OpenCL environment supports the extension `cl_intel_int16_atomics` and the {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_MIN_MAX_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_AND_OR_XOR_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL},  then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *Int16AtomicsINTEL*.
-For the instructions enabled by these capabilities:
+If the OpenCL environment supports the extension `cl_intel_16bit_atomics` and the {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_MIN_MAX_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_AND_OR_XOR_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL},  then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *Int16AtomicsINTEL*.
+For the instructions enabled by this capability:
 
-  * When {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_AND_OR_XOR_INTEL}, then the _Pointer_ operand may be a pointer to the *CrossWorkGroup* _Storage Class_.
-  * When {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL}, then the _Pointer_ operand may be a pointer to the *Workgroup* _Storage Class_.
-  * When {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_ADD_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_MIN_MAX_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_AND_OR_XOR_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL}, and the *GenericPointer* capability is supported and declared, then the _Pointer_ operand may be a pointer to the *Generic* _Storage Class_.
+  * When the _Pointer_ operand is a pointer to the *CrossWorkGroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_GLOBAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_AND_OR_XOR_INTEL}.
+  * When the _Pointer_ operand is a pointer to the *Workgroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_ATOMIC_ADD_INTEL}, {CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL}.
+  * When the _Pointer_ operand is a pointer to the *Generic* _Storage Class_, behavior is undefined unless {CL_DEVICE_INT16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_ATOMIC_ADD_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_ADD_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_MIN_MAX_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_MIN_MAX_INTEL}, or {CL_DEVICE_GLOBAL_ATOMIC_AND_OR_XOR_INTEL} and {CL_DEVICE_LOCAL_ATOMIC_AND_OR_XOR_INTEL}.
 
-If the OpenCL environment supports the extension `cl_intel_int16_atomics` and the {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT} or {CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicBFloat16LoadStoreINTEL*.
-For the instructions enabled by these capabilities:
+If the OpenCL environment supports the extension `cl_intel_16bit_atomics` and the {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT} or {CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicBFloat16LoadStoreINTEL*.
+For the instructions enabled by this capability:
 
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT}, then the _Pointer_ operand may be a pointer to the *CrossWorkGroup* _Storage Class_.
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT}, then the _Pointer_ operand may be a pointer to the *Workgroup* _Storage Class_.
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT} and {CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT}, and the *GenericPointer* capability is supported and declared, then the _Pointer_ operand may be a pointer to the *Generic* _Storage Class_.
+  * When the _Pointer_ operand is a pointer to the *CrossWorkGroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT}.
+  * When the _Pointer_ operand is a pointer to the *Workgroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT}.
+  * When the _Pointer_ operand is a pointer to the *Generic* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT} and {CL_DEVICE_LOCAL_FP_ATOMIC_LOAD_STORE_EXT}.
 
-If the OpenCL environment supports the extension `cl_intel_int16_atomics` and the {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT} or {CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicBFloat16AddINTEL*.
-For the instructions enabled by these capabilities:
+If the OpenCL environment supports the extension `cl_intel_16bit_atomics` and the {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT} or {CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicBFloat16AddINTEL*.
+For the instructions enabled by this capability:
 
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT}, then the _Pointer_ operand may be a pointer to the *CrossWorkGroup* _Storage Class_.
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT}, then the _Pointer_ operand may be a pointer to the *Workgroup* _Storage Class_.
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT} and {CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT}, and the *GenericPointer* capability is supported and declared, then the _Pointer_ operand may be a pointer to the *Generic* _Storage Class_.
+  * The instructions may be affected by compiler options affecting floating-point behavior, such as `-cl-no-signed-zeros`, `-cl-denorms-are-zero`, and `-cl-finite-math-only`.
+  * When the _Pointer_ operand is a pointer to the *CrossWorkGroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT}.
+  * When the _Pointer_ operand is a pointer to the *Workgroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT}.
+  * When the _Pointer_ operand is a pointer to the *Generic* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_ADD_EXT} and {CL_DEVICE_LOCAL_FP_ATOMIC_ADD_EXT}.
 
-If the OpenCL environment supports the extension `cl_intel_int16_atomics` and the {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT} or {CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicBFloat16MinMaxINTEL*.
-For the instructions enabled by these capabilities:
+If the OpenCL environment supports the extension `cl_intel_16bit_atomics` and the {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} bitfield includes {CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT} or {CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT}, then the environment must accept modules that declare use of the extension `SPV_INTEL_16bit_atomics` and that declare the SPIR-V capability *AtomicBFloat16MinMaxINTEL*.
+For the instructions enabled by this capability:
 
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT}, then the _Pointer_ operand may be a pointer to the *CrossWorkGroup* _Storage Class_.
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT}, then the _Pointer_ operand may be a pointer to the *Workgroup* _Storage Class_.
-  * When {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT} and {CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT}, and the *GenericPointer* capability is supported and declared, then the _Pointer_ operand may be a pointer to the *Generic* _Storage Class_.
+  * The instructions may be affected by compiler options affecting floating-point behavior, such as `-cl-no-signed-zeros`, `-cl-denorms-are-zero`, and `-cl-finite-math-only`.
+  * When the _Pointer_ operand is a pointer to the *CrossWorkGroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT}.
+  * When the _Pointer_ operand is a pointer to the *Workgroup* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT}.
+  * When the _Pointer_ operand is a pointer to the *Generic* _Storage Class_, behavior is undefined unless {CL_DEVICE_BF16_ATOMIC_CAPABILITIES_INTEL} includes {CL_DEVICE_GLOBAL_FP_ATOMIC_MIN_MAX_EXT} and {CL_DEVICE_LOCAL_FP_ATOMIC_MIN_MAX_EXT}.
 --
 
 == Issues
 
-. Do we need to support the legacy OpenCL C 1.x atomic syntax, or is it sufficient to only support the newer OpenCL C 2.0 atomic syntax?
+. What should this extension be called?
 +
 --
-`RESOLVED`: We will only support the newer OpenCL 2.0 atomic syntax in the initial version of this extension.
+`RESOLVED`: The name of the extension will be `cl_intel_16bit_atomics`, matching the name of the related SPIR-V extension.
+
+The extension name `cl_intel_int16_atomics` was considered, but `int16` is a vector type in OpenCL C, and this extension applies to 16-bit `bfloat16` floating-point values in addition to 16-bit integer values.
+
+There is no need to differentiate between global and local atomics in the extension name, similar to the `cl_khr_global_int32_base_atomics` or `cl_khr_local_int32_extended_atomics` extensions.
+
+Note that applications should already be setup to handle extension names that begin with a digit due to the `cl_khr_3d_image_writes` extension.
+--
+
+. Do we need to support 16-bit atomics through OpenCL C?
++
+--
+`RESOLVED`: Not in the initial version.
+Support for 16-bit atomics in OpenCL C may be added in a subsequent extension version.
 --
 
 . Do we need to document any special floating-point behavior for floating-point atomic add?
@@ -256,7 +283,6 @@ Additionally, floating-point atomic min and max may be affected by compiler opti
 Otherwise, there is no special behavior.
 --
 
-
 == Revision History
 
 [cols="5,15,15,65"]
@@ -264,7 +290,7 @@ Otherwise, there is no special behavior.
 [options="header"]
 |========================================
 |Version|Date|Author|Changes
-|1.0.0|2020-08-12|Ben Ashbaugh|*Final draft.*
+|0.9.0|2025-10-13|Ben Ashbaugh|*Initial draft.*
 |========================================
 
 //************************************************************************
