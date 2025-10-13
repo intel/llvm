@@ -108,7 +108,7 @@ namespace.
 ```
 namespace sycl::ext::oneapi::experimental::ipc_memory {
 
-using handle_data_t = std::vector<char>;
+using handle_data_t = std::vector<std::byte>;
 
 handle_data_t get(void *ptr, const sycl::context &ctx);
 
