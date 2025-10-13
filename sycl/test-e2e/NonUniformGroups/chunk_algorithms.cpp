@@ -11,10 +11,6 @@
 // UNSUPPORTED: target-amd
 // UNSUPPORTED-INTENDED: fixed_size_group aspect not available on amd
 
-// UNSUPPORTED: spirv-backend
-// UNSUPPORTED-TRACKER: CMPLRLLVM-64702
-// The test is disabled for spirv-backend while we investigate the root cause.
-
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
