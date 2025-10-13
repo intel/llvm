@@ -68,6 +68,20 @@ ur_result_t replace_urIPCCloseMemHandleExp(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t after_urDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_bool_t);
+    if (*params.ppPropValue)
+      *static_cast<ur_bool_t *>(*params.ppPropValue) = ur_bool_t{true};
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_SUCCESS;
+  }
+}
+
 class IPCTests : public ::testing::Test {
 public:
   IPCTests() : Mock{}, Ctxt(sycl::platform()) {}
@@ -87,6 +101,8 @@ protected:
                                               replace_urIPCOpenMemHandleExp);
     mock::getCallbacks().set_replace_callback("urIPCCloseMemHandleExp",
                                               replace_urIPCCloseMemHandleExp);
+    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            after_urDeviceGetInfo);
   }
 
   sycl::unittest::UrMock<> Mock;
