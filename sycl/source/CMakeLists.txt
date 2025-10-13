@@ -4,6 +4,7 @@
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
 include(CheckLinkerFlag)
+include(CheckIPOSupported)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -16,12 +17,23 @@ if (SYCL_ENABLE_XPTI_TRACING)
   include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
 endif()
 
+if(SYCL_ENABLE_IPO)
+check_ipo_supported(RESULT SYCL_USE_IPO)
+if (NOT SYCL_USE_IPO)
+  message(WARNING "Interprocedural optimization is not supported by the compiler, disabling")
+endif()
+endif()
+
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  if(SYCL_USE_IPO)
+    set_property(TARGET ${LIB_OBJ_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   # Common compilation step setup
 
@@ -78,6 +90,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  if(SYCL_USE_IPO)
+    set_property(TARGET ${LIB_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 
   find_package(Threads REQUIRED)
 
