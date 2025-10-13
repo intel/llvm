@@ -39,7 +39,7 @@ Another motivation for adding the SYCLBIN format is to encapsulate SYCL-specific
 
 Without this format, metadata transfer from compiler to runtime requires the following complicated workflow:
 
-1. **[clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst)** uses [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h)'s ``StringData`` (with workarounds) to store metadata items #1-#4.
+1. **[clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst)** uses [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h)'s ``StringData`` (with workarounds) to store metadata (#1 above).
 2. **[clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst)** opens [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) files produced by [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst) and generates [device image binary descriptors](https://github.com/llvm/llvm-project/blob/139a6bf0e448ebd7ef9bd1c26aa92018d90f8add/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L675) in a format readable by SYCL runtime.
     - Problem: This requires [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) to maintain SYCL-specific format knowledge, creating unnecessary code duplication.
 3. **SYCL runtime** decodes metadata using this intermediate format.
