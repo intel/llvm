@@ -14,6 +14,7 @@
 #include <sycl/detail/export.hpp>
 
 #include <cstddef>
+#include <memory>
 
 namespace sycl {
 inline namespace _V1 {
