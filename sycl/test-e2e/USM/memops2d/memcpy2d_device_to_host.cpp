@@ -13,9 +13,6 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10157
 
-// XFAIL: spirv-backend && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160892
-
 #include "memcpy2d_common.hpp"
 
 int main() { return test<Alloc::Device, Alloc::Host>(); }
