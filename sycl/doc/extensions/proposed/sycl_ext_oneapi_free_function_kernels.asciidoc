@@ -49,6 +49,8 @@ This extension also depends on the following other SYCL extensions:
   sycl_ext_oneapi_properties]
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions]
 
 
 == Status
@@ -241,6 +243,13 @@ A function decorated with one of these properties can still be called as a
 normal function in either host or device code.
 The property has no effect in such cases.
 
+[_Note:_ Many of the APIs specified below have a template parameter `Func`,
+which identifies a free function kernel.
+This kernel function may be defined in any translation unit in the application.
+It is not necessary for the function to be defined in the same translation unit
+as the instantiation of the template taking the `Func` parameter.
+_{endnote}_]
+
 === New traits for kernel functions
 
 This extension defines the following traits that can be used to tell whether a
@@ -323,15 +332,122 @@ Otherwise `value` is `false`.
 The helper trait `is_kernel_v` provides the value of `value`.
 |====
 
+=== New free functions to launch a kernel
+
+This extension adds the following helper which captures a kernel function
+address as a template parameter.
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func>
+struct kernel_function_s {};
+
+template<auto *Func>
+inline constexpr kernel_function_s<Func> kernel_function;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+It also adds the following free functions which launch a free function kernel.
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, typename Args...>
+void single_task(queue q, kernel_function_s<Func> k, Args&&... args);
+
+template <auto *Func, typename Args...>
+void single_task(handler &h, kernel_function_s<Func> k, Args&&... args);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_single_task_kernel_v<Func>` is `true`.
+Available only if `+std::is_invocable_v<decltype(Func), Args...>+` is `true`.
+
+_Effects_: Enqueues a kernel object to the `queue` or `handler` as a single task.
+Each value in the `args` pack is passed to the corresponding argument in
+`Func`, converting it to the argument's type if necessary.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, int Dimensions, typename... Args>
+void nd_launch(queue q, nd_range<Dimensions> r,
+               kernel_function_s<Func> k, Args&&... args);
+
+template <auto *Func, int Dimensions, typename... Args>
+void nd_launch(handler &h, nd_range<Dimensions> r,
+               kernel_function_s<Func> k, Args&&... args);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_nd_range_kernel_v<Func, Dimensions>` is
+`true`.
+Available only if `+std::is_invocable_v<decltype(Func), Args...>+` is `true`.
+
+_Effects_: Enqueues a kernel object to the `queue` or `handler` as an ND-range
+kernel, using the number of work-items specified by the ND-range `r`.
+Each value in the `args` pack is passed to the corresponding argument in
+`Func`, converting it to the argument's type if necessary.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, int Dimensions,
+          typename Properties, typename... Args>
+void nd_launch(queue q,
+               launch_config<nd_range<Dimensions>, Properties> c,
+               kernel_function_s<Func> k, Args&& args...);
+
+template <auto *Func, int Dimensions,
+          typename Properties, typename... Args>
+void nd_launch(handler &h,
+               launch_config<nd_range<Dimensions>, Properties> c,
+               kernel_function_s<Func> k, Args&& args...);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_nd_range_kernel_v<Func, Dimensions>` is
+`true`.
+Available only if `+std::is_invocable_v<decltype(Func), Args...>+` is `true`.
+
+_Effects_: Enqueues a kernel object to the `queue` or `handler` as an ND-range
+kernel, using the launch configuration specified by `c`.
+Each value in the `args` pack is passed to the corresponding argument in
+`Func`, converting it to the argument's type if necessary.
+
 === New kernel bundle member functions
 
 This extension adds the following new functions which add kernel bundle support
 for free function kernels.
-
-[_Note:_ Many of the functions in this section have a template parameter
-`Func`, which identifies a free function kernel.
-This kernel function may be defined in any translation unit in the application.
-_{endnote}_]
 
 |====
 a|
@@ -798,7 +914,8 @@ The allowed types are:
 The following example demonstrates how to define a free function kernel and then
 enqueue it on a device.
 
-```
+[source,c++]
+----
 #include <sycl/sycl.hpp>
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -818,23 +935,14 @@ int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
 
-  // Get a kernel bundle that contains the free function kernel "iota".
-  auto exe_bndl =
-    syclexp::get_kernel_bundle<iota, sycl::bundle_state::executable>(ctxt);
-
-  // Get a kernel object for the "iota" function from that bundle.
-  sycl::kernel k_iota = exe_bndl.ext_oneapi_get_kernel<iota>();
-
   float *ptr = sycl::malloc_shared<float>(NUM, q);
-  q.submit([&](sycl::handler &cgh) {
-    // Set the values of the kernel arguments.
-    cgh.set_args(3.14f, ptr);
 
-    sycl::nd_range ndr{{NUM}, {WGSIZE}};
-    cgh.parallel_for(ndr, k_iota);
-  }).wait();
+  sycl::nd_range ndr{{NUM}, {WGSIZE}};
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<iota>, 3.14f, ptr);
+
+  q.wait();
 }
-```
+----
 
 === Free function kernels which are templates or overloaded
 
@@ -843,7 +951,8 @@ It is also legal to define several overloads for a free function kernel.
 The following example demonstrates how to get a kernel identifier in such
 cases.
 
-```
+[source,c++]
+----
 #include <sycl/sycl.hpp>
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -864,17 +973,26 @@ void ping(int *x) {
 }
 
 int main() {
+  sycl::queue q;
+  sycl::context ctxt = q.get_context();
+
+  float *fptr = sycl::malloc_shared<float>(NUM, q);
+  int *iptr = sycl::malloc_shared<int>(NUM, q);
+  sycl::nd_range ndr{{NUM}, {WGSIZE}};
+
   // When the free function kernel is templated, pass the address of a
   // specific instantiation.
-  sycl::kernel_id iota_float = syclexp::get_kernel_id<iota<float>>();
-  sycl::kernel_id iota_int = syclexp::get_kernel_id<iota<int>>();
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<iota<float>>, 3.14f, fptr);
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<iota<int>>, 3, iptr);
 
   // When there are multiple overloads of a free function kernel, use a cast
   // to disambiguate.
-  sycl::kernel_id ping_float = syclexp::get_kernel_id<(void(*)(float))ping>();
-  sycl::kernel_id ping_int = syclexp::get_kernel_id<(void(*)(int))ping>();
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(float))ping>, fptr);
+  syclexp::nd_launch(q, ndr, syclexp::kernel_function<(void(*)(int))ping>, iptr);
+
+  q.wait();
 }
-```
+----
 
 
 [[level-zero-and-opencl-compatibility]]
@@ -1064,46 +1182,6 @@ argument, effectively turning the call into a no-op.
 
 
 == Issues
-
-* We're pretty sure that we want to define some syntax that allows a free
-  function kernel to be enqueued using the APIs defined in
-  link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
-  sycl_ext_oneapi_enqueue_functions], but we haven't settled on the exact API
-  yet.
-  One option is like this:
-+
-```
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void iota(float start, float *ptr) { /*...*/  }
-
-int main() {
-  sycl::queue q;
-  float *ptr = sycl::malloc_shared<float>(N, q);
-  sycl::nd_launch<iota>(q, sycl::nd_range{{N}, {WGS}}, 1.f, ptr);
-}
-```
-+
-Another option is like this:
-+
-```
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void iota(float start, float *ptr) { /*...*/  }
-
-int main() {
-  sycl::queue q;
-  float *ptr = sycl::malloc_shared<float>(N, q);
-  sycl::nd_launch(q, sycl::nd_range{{N}, {WGS}}, kfp<iota>, 1.f, ptr);
-}
-```
-+
-Where `kfp` would have some nicer name.
-+
-With either form above, it seems like we have enough type information for the
-header to check that the types of the actual kernel arguments are implicitly
-convertible to the types of the formal kernel parameters, and we can raise a
-compile-time error if they are not.
-In addition, the header can perform any necessary implicit conversions when
-setting the kernel argument values.
 
 * We are debating whether we should allow a free function kernel to be defined
   with an initial "iteration index" parameter such as:

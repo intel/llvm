@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
 
@@ -238,8 +239,11 @@ public:
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
-  void dump() const;
 #endif // NDEBUG
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const;
+#endif
 };
 
 // Module split support interface.
@@ -303,11 +307,13 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints,
                       bool AllowDeviceImageDependencies);
 
-#ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
-void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *Msg = "", int Tab = 0);
-#endif // NDEBUG
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void dumpEntryPoints(const EntryPointSet &C,
+                                      const char *Msg = "", int Tab = 0);
+LLVM_DUMP_METHOD void dumpEntryPoints(const Module &M,
+                                      bool OnlyKernelsAreEntryPoints = false,
+                                      const char *Msg = "", int Tab = 0);
+#endif
 
 struct SplitModule {
   std::string ModuleFilePath;
