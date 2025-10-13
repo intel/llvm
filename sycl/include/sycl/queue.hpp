@@ -198,7 +198,7 @@ auto submit_kernel_direct(
   // parallel_for (deprecated API).
   // ExtraProps are properties passed explicitly or via launch_config.
 
-  // Asumption: If user specify properties via launch_config or explicitly
+  // Assumption: If user specify properties via launch_config or explicitly
   // then we don't check for properties specified via get() method.
   detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT parsedProps;
   if constexpr (std::is_same_v<PropertiesT,
