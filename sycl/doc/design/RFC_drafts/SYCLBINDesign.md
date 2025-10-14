@@ -22,33 +22,33 @@ This RFC seeks community feedback on the proposed SYCLBIN binary format, includi
 
 #### Existing Formats Limitations
 
-LLVM's offloading infrastructure supports several binary formats that can be embedded within the [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) format. However, these formats have various limitations that make them unsuitable for SYCL:
+LLVM's offloading infrastructure supports several binary formats that can be embedded within the [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h) format. However, these formats have various limitations that make them unsuitable for SYCL:
 
 - **Single-Module Design**: Formats like Object, Bitcode, CUBIN, PTX, and SPIRV are designed for single binary or single-module IR representation, lacking hierarchical structuring capabilities for multiple images/modules.
 - **Missing SYCL Metadata Support**: None provide native support for SYCL-specific metadata requirements.
 - **Vendor Constraints**: Fatbinary is NVIDIA proprietary and incompatible with SYCL's vendor-neutral approach.
-- **Limited Container Capabilities**: [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) is not designed for multiple device images or hierarchical organization, with ``StringData`` insufficient for complex metadata structures (like #1.3 and #1.4 above).
+- **Limited Container Capabilities**: [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h) is not designed for multiple device images or hierarchical organization, with ``StringData`` insufficient for complex metadata structures (like #1.3 and #1.4 above).
 
 The [OffloadingDesign](https://clang.llvm.org/docs/OffloadingDesign.html) describes a [target binary descriptor](https://clang.llvm.org/docs/OffloadingDesign.html#table-target-binary-descriptor) that stores multiple binary images (one per device type) with all images sharing the same entries list. This structure doesn't satisfy requirement #3 above.
 
 ### Abstraction: Simplifying Support in Offloading Tools
 
-Another motivation for adding the SYCLBIN format is to encapsulate SYCL-specific logic within SYCL-specific toolchain components ([clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst), SYCL runtime) and isolate SYCL implementation details from general offloading tools designed to support multiple programming models.
+Another motivation for adding the SYCLBIN format is to encapsulate SYCL-specific logic within SYCL-specific toolchain components ([clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst), SYCL runtime) and isolate SYCL implementation details from general offloading tools designed to support multiple programming models.
 
-#### Current Workflow Without SYCLBIN
+#### Current Workflow without SYCLBIN
 
 Without this format, metadata transfer from compiler to runtime requires the following complicated workflow:
 
-1. **[clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst)** uses [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h)'s ``StringData`` (with workarounds) to store metadata (#1 above).
-2. **[clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst)** opens [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) files produced by [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst) and generates [device image binary descriptors](https://github.com/llvm/llvm-project/blob/139a6bf0e448ebd7ef9bd1c26aa92018d90f8add/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L675) in a format readable by SYCL runtime.
+1. **[clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst)** uses [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h)'s ``StringData`` (with workarounds) to store metadata (#1 above).
+2. **[clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst)** opens [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h) files produced by [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst) and generates [device image binary descriptors](https://github.com/llvm/llvm-project/blob/139a6bf0e448ebd7ef9bd1c26aa92018d90f8add/llvm/lib/Frontend/Offloading/OffloadWrapper.cpp#L675) in a format readable by SYCL runtime.
     - Problem: This requires [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) to maintain SYCL-specific format knowledge, creating unnecessary code duplication.
 3. **SYCL runtime** decodes metadata using this intermediate format.
 
-#### Simplified Workflow With SYCLBIN
+#### Simplified Workflow with SYCLBIN
 
 The SYCLBIN format enables a cleaner separation of concerns:
 
-1. **[clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst)** prepares a complete SYCLBIN containing all metadata and multiple images, embedding it as a single image within [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h).
+1. **[clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst)** prepares a complete SYCLBIN containing all metadata and multiple images, embedding it as a single image within [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h).
 2. **[clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst)** generates only host register/unregister calls and a trivial wrapper without needing knowledge of SYCLBIN internals.
 3. **SYCL runtime** works directly with SYCLBIN format.
 
@@ -100,19 +100,19 @@ containing information about the abstract modules, IR modules and native device 
 
 ## Toolchain Integration
 
-The SYCLBIN content can either be embedded as an image within the [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) produced by the [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst) or outputted directly as standalone SYCLBIN files.
+The SYCLBIN content can either be embedded as an image within the [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h) produced by the [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst) or outputted directly as standalone SYCLBIN files.
 
-This integration approach allows SYCLBIN to leverage the existing [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) infrastructure while maintaining its specialized format for SYCL-specific requirements.
+This integration approach allows SYCLBIN to leverage the existing [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h) infrastructure while maintaining its specialized format for SYCL-specific requirements.
 
-### [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst) changes
+### [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst) Changes
 
-The [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst) is responsible for module-splitting, metadata extraction (symbol tables, property sets, etc.) and linking of device binaries. To support SYCLBIN, it must be able to:
+The [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst) is responsible for module-splitting, metadata extraction (symbol tables, property sets, etc.) and linking of device binaries. To support SYCLBIN, it must be able to:
 
 - Pack device binaries and extracted metadata into the SYCLBIN format.
-- Embed the resulting SYCLBIN into an [Offload Binary](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/Object/OffloadBinary.h) container or output standalone SYCLBIN files.
+- Embed the resulting SYCLBIN into an [Offload Binary](https://github.com/llvm/llvm-project/blob/3e5fc80dfe7536f8fcbd50fc58f7cc66e0bf8f16/llvm/include/llvm/Object/OffloadBinary.h) container or output standalone SYCLBIN files.
 - Support linking multiple SYCLBIN binaries together.
 
-### [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) changes
+### [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) Changes
 
 The [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) shall support two operational modes:
 
@@ -137,5 +137,5 @@ ignore the property.
 ## Upstreaming Plan
 
 - Phase 1: Upstream SYCLBIN format specification, including parsing/writing.
-- Phase 2: Add clang driver, [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/main/clang/docs/ClangSYCLLinker.rst) and [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) support.
+- Phase 2: Add clang driver, [clang-sycl-linker](https://github.com/llvm/llvm-project/blob/3984d19826cbe724a006971266d15eabc4d59287/clang/docs/ClangSYCLLinker.rst) and [clang-linker-wrapper](https://github.com/llvm/llvm-project/blob/c083fa1597f1a34fcab4c2910158a288defc72f6/clang/docs/ClangLinkerWrapper.rst) support.
 - Phase 3: Integrate SYCLBIN support into SYCL runtime.
