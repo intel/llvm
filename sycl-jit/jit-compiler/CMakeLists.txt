@@ -1,4 +1,6 @@
 
+set(SYCL_JIT_RESOURCE_BLACKLIST "" CACHE FILEPATH "Path to a blacklist file for sycl-jit resources.")
+set(SYCL_JIT_RESOURCE_BLACKLIST ${CMAKE_CURRENT_SOURCE_DIR}/utils/blacklist.txt)
 
 set(SYCL_JIT_RESOURCE_CPP "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp")
 set(SYCL_JIT_RESOURCE_OBJ "${CMAKE_CURRENT_BINARY_DIR}/resource.cpp.o")
@@ -10,8 +12,8 @@ set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
 set(SYCL_JIT_RESOURCE_DEPS
-  sycl-headers    # include/sycl
-  clang           # lib/clang/N/include
+  sycl-headers                # include/sycl
+  opencl-resource-headers     # lib/clang/N/include
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
@@ -23,11 +25,32 @@ if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
 endif()
 
+set(GENERATE_PY ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
+
+set(GENERATE_PY_BASE_COMMAND ${Python3_EXECUTABLE} ${GENERATE_PY}
+    --toolchain-dir ${CMAKE_BINARY_DIR}
+    --output ${SYCL_JIT_RESOURCE_CPP}
+    --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+)
+set(GENERATE_PY_DEPENDS ${SYCL_JIT_RESOURCE_DEPS})
+
+
+list(APPEND GENERATE_PY_BASE_COMMAND --manifest-output ${CMAKE_CURRENT_BINARY_DIR}/capture_manifest.txt)
+
+
+if(EXISTS "${SYCL_JIT_RESOURCE_BLACKLIST}")
+    message(STATUS "sycl-jit: Using resource blacklist file: ${SYCL_JIT_RESOURCE_BLACKLIST}")
+    list(APPEND GENERATE_PY_BASE_COMMAND --blacklist ${SYCL_JIT_RESOURCE_BLACKLIST})
+    # Make the build depend on the blacklist file, so it reruns if the file changes
+    list(APPEND GENERATE_PY_DEPENDS ${SYCL_JIT_RESOURCE_BLACKLIST})
+endif()
+
 add_custom_command(
-  OUTPUT ${SYCL_JIT_RESOURCE_CPP}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
-  DEPENDS
-  ${SYCL_JIT_RESOURCE_DEPS}
+    OUTPUT ${SYCL_JIT_RESOURCE_CPP}
+    COMMAND ${GENERATE_PY_BASE_COMMAND}
+    DEPENDS ${GENERATE_PY_DEPENDS}
+    COMMENT "Generating resource.cpp..."
+    VERBATIM
 )
 
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"

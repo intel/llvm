@@ -1,0 +1,12 @@
+# paths in this file will NOT be bundled into sycl-jit
+# use it to keep unneeded headers out of resources.cpp
+# and to avoid IP issues.
+lib/libsycl-msan-cpu.bc
+lib/libsycl-asan-pvc.bc
+lib/libsycl-msan.bc
+lib/libsycl-asan-cpu.bc
+lib/libsycl-msan-pvc.bc
+lib/libsycl-asan-dg2.bc
+lib/libsycl-tsan.bc
+lib/libsycl-tsan-pvc.bc
+lib/libsycl-tsan-cpu.bc
