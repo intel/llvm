@@ -1,8 +1,8 @@
 name: Create container with pre-built tests
 
-# The purpose of this is to build E2E tests with the latest release toolchain
-# and then run them with the trunk SYCL RT (libsycl.so and friends) to verify
-# that ABI compatibility hasn't been broken.
+# The purpose of this is to build E2E and CTS tests with the latest release
+# toolchain and then run them with the trunk SYCL RT (libsycl.so and friends)
+# to verify that ABI compatibility hasn't been broken.
 
 on:
   workflow_dispatch:
