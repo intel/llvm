@@ -53,7 +53,8 @@ int spawner(int argc, char *argv[]) {
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
       FS.write(reinterpret_cast<const char *>(&HandleDataSize), sizeof(size_t));
-      FS.write(HandleData.data(), HandleDataSize);
+      FS.write(reinterpret_cast<const char *>(HandleData.data()),
+               HandleDataSize);
     }
 
     // Spawn other process with an arguement.
@@ -83,8 +84,8 @@ int consumer() {
   std::fstream FS(CommsFile, std::ios_base::in | std::ios_base::binary);
   size_t HandleSize = 0;
   FS.read(reinterpret_cast<char *>(&HandleSize), sizeof(size_t));
-  std::unique_ptr<char[]> HandleData{new char[HandleSize]};
-  FS.read(HandleData.get(), HandleSize);
+  std::unique_ptr<std::byte[]> HandleData{new std::byte[HandleSize]};
+  FS.read(reinterpret_cast<char *>(HandleData.get()), HandleSize);
 
   // Open IPC handle.
   syclexp::ipc_memory::handle_data_t Handle{HandleData.get(),
