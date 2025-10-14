@@ -974,7 +974,6 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
         self.use_events_str = f" with events" if self.useEvents else ""
         self.host_tasks_str = f" use host tasks" if self.useHostTasks else ""
-        self.emulate_graphs_str = f" emulate graphs" if self.emulateGraphs else ""
         # iterations per bin_args: --iterations=10000
         self.iterations_regular = 10000
         self.iterations_trace = 10
@@ -990,7 +989,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
     def explicit_group(self):
-        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}{self.emulate_graphs_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
@@ -999,10 +998,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str}{self.emulate_graphs_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}{self.cpu_count_str()}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}{self.emulate_graphs_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return [
