@@ -68,7 +68,7 @@ event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Props,
+    const detail::KernelLaunchPropertiesTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
@@ -76,7 +76,7 @@ void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Props,
+    const detail::KernelLaunchPropertiesTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 namespace detail {
@@ -200,22 +200,18 @@ auto submit_kernel_direct(
 
   // Assumption: If user specify properties via launch_config or explicitly
   // then we don't check for properties specified via get() method.
-  detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT parsedProps;
+  KernelLaunchPropertiesTy parsedProps;
   if constexpr (std::is_same_v<PropertiesT,
                                ext::oneapi::experimental::empty_properties_t>) {
     // Use properties passed via. get() method.
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<const KernelType &>::value) {
       auto prop = KernelFunc.get(ext::oneapi::experimental::properties_tag{});
-      parsedProps =
-          detail::KernelLaunchPropertyWrapper::processKernelProperties<false>(
-              prop);
+      parsedProps = detail::processKernelProperties<false>(prop);
     }
   } else {
     // Use ExtraProps
-    parsedProps =
-        detail::KernelLaunchPropertyWrapper::processKernelProperties<false>(
-            ExtraProps);
+    parsedProps = detail::processKernelProperties<false>(ExtraProps);
   }
 
   // Instantiating the kernel on the host improves debugging.

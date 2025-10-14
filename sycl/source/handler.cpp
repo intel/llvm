@@ -1914,7 +1914,7 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 }
 
 void handler::setKernelLaunchProperties(
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Kprop) {
+    const detail::KernelLaunchPropertiesTy &Kprop) {
   impl->MKernelData.validateAndSetKernelLaunchProperties(
       Kprop, getCommandGraph() != nullptr /*hasGraph?*/,
       impl->get_device() /*device_impl*/);

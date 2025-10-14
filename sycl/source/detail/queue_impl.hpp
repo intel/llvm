@@ -363,7 +363,7 @@ public:
   event submit_kernel_direct_with_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Props,
+      const detail::KernelLaunchPropertiesTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
         submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
@@ -375,7 +375,7 @@ public:
   void submit_kernel_direct_without_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Props,
+      const detail::KernelLaunchPropertiesTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
                               false, Props, CodeLoc, IsTopCodeLoc);
@@ -931,7 +931,7 @@ protected:
   EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-      const detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Props,
+      const detail::KernelLaunchPropertiesTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   template <typename SubmitCommandFuncType>

@@ -299,11 +299,11 @@ void nd_launch(queue Q, launch_config<nd_range<Dimensions>, Properties> Config,
 
     ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                           Properties>
-        ConfigAccess(Config);
+        LaunchConfigAccess(Config);
 
-    detail::submit_kernel_direct<KernelName>(std::move(Q),
-                                             ConfigAccess.getRange(), KernelObj,
-                                             Config.getProperties());
+    detail::submit_kernel_direct<KernelName>(
+        std::move(Q), LaunchConfigAccess.getRange(), KernelObj,
+        LaunchConfigAccess.getProperties());
   } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Config, KernelObj,

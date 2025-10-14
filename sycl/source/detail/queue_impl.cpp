@@ -567,7 +567,7 @@ EventImplPtr queue_impl::submit_command_to_graph(
 EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-    const detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Props,
+    const detail::KernelLaunchPropertiesTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
 
   KernelData KData;

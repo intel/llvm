@@ -902,9 +902,8 @@ private:
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
   void processLaunchProperties(PropertiesT Props) {
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT ParsedProp =
-        detail::KernelLaunchPropertyWrapper::processKernelLaunchProperties<
-            PropertiesT>(Props);
+    detail::KernelLaunchPropertiesTy ParsedProp =
+        detail::processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
   }
 
@@ -920,9 +919,8 @@ private:
       bool IsESIMDKernel,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT ParsedProp =
-        detail::KernelLaunchPropertyWrapper::processKernelProperties<
-            IsESIMDKernel>(Props);
+    detail::KernelLaunchPropertiesTy ParsedProp =
+        detail::processKernelProperties<IsESIMDKernel>(Props);
     setKernelLaunchProperties(ParsedProp);
   }
 #endif // INTEL_PREVIEW_BREAKING_CHANGES
@@ -1233,8 +1231,7 @@ private:
                             decltype(Wrapper), TransformedArgType,
                             PropertiesT>::wrap(Wrapper);
 
-      if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<
-              KName, Info.IsESIMD>(Wrapper)) {
+      if (auto prop = detail::parseProperties<KName, Info.IsESIMD>(Wrapper)) {
         setKernelLaunchProperties(*prop);
       }
 
@@ -1261,16 +1258,14 @@ private:
       // kernel is generated
       detail::KernelWrapper<detail::WrapAs::parallel_for, NameT, KernelType,
                             TransformedArgType, PropertiesT>::wrap(KernelFunc);
-      if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<
-              NameT, Info.IsESIMD>(KernelFunc)) {
+      if (auto prop =
+              detail::parseProperties<NameT, Info.IsESIMD>(KernelFunc)) {
         setKernelLaunchProperties(*prop);
       }
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
-      detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
-          ProcessedProps =
-              detail::KernelLaunchPropertyWrapper::processKernelProperties<
-                  Info.IsESIMD, PropertiesT>(Props);
+      detail::KernelLaunchPropertiesTy ProcessedProps =
+          detail::processKernelProperties<Info.IsESIMD, PropertiesT>(Props);
       setKernelLaunchProperties(ProcessedProps);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
@@ -1300,9 +1295,8 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT ParsedProp =
-        detail::KernelLaunchPropertyWrapper::processKernelLaunchProperties<
-            PropertiesT>(Props);
+    detail::KernelLaunchPropertiesTy ParsedProp =
+        detail::processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     extractArgsAndReqs();
 #endif
@@ -1326,9 +1320,8 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT ParsedProp =
-        detail::KernelLaunchPropertyWrapper::processKernelLaunchProperties<
-            PropertiesT>(Props);
+    detail::KernelLaunchPropertiesTy ParsedProp =
+        detail::processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     extractArgsAndReqs();
 #endif
@@ -1349,8 +1342,7 @@ private:
     constexpr auto Info = detail::CompileTimeKernelInfo<NameT>;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<
-            NameT, Info.IsESIMD>(KernelFunc)) {
+    if (auto prop = detail::parseProperties<NameT, Info.IsESIMD>(KernelFunc)) {
       setKernelLaunchProperties(*prop);
     }
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1369,10 +1361,8 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
-        ProcessedProps =
-            detail::KernelLaunchPropertyWrapper::processKernelProperties<
-                Info.IsESIMD, PropertiesT>(Props);
+    detail::KernelLaunchPropertiesTy ProcessedProps =
+        detail::processKernelProperties<Info.IsESIMD, PropertiesT>(Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
   }
@@ -1396,8 +1386,7 @@ private:
     (void)Kernel;
     detail::KernelWrapper<WrapAsVal, NameT, KernelType, ElementType,
                           PropertiesT>::wrap(KernelFunc);
-    if (auto prop = detail::KernelLaunchPropertyWrapper::parseProperties<NameT>(
-            KernelFunc)) {
+    if (auto prop = detail::parseProperties<NameT>(KernelFunc)) {
       setKernelLaunchProperties(*prop);
     }
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1426,10 +1415,8 @@ private:
           "the kernel name must match the name of the lambda");
     }
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
-        ProcessedProps =
-            detail::KernelLaunchPropertyWrapper::processKernelProperties<
-                Info.IsESIMD, PropertiesT>(Props);
+    detail::KernelLaunchPropertiesTy ProcessedProps =
+        detail::processKernelProperties<Info.IsESIMD, PropertiesT>(Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
   }
@@ -3478,8 +3465,7 @@ private:
 #endif
 
   void setKernelLaunchProperties(
-      detail::KernelLaunchPropertyWrapper::KernelLaunchPropertiesT
-          &KernelLaunchProperties);
+      const detail::KernelLaunchPropertiesTy &KernelLaunchProperties);
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time

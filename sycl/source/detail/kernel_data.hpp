@@ -168,49 +168,70 @@ public:
   }
 
   void validateAndSetKernelLaunchProperties(
-      const KernelLaunchPropertyWrapper::KernelLaunchPropertiesT &Kprop,
-      bool HasGraph, const device_impl &dev) {
+      const detail::KernelLaunchPropertiesTy &Kprop, bool HasGraph,
+      const device_impl &dev) {
+    using execScope = ext::oneapi::experimental::execution_scope;
 
     // Validate properties before setting.
-    {
-      if (HasGraph) {
-        if (Kprop.MWorkGroupMemorySize) {
-          throw sycl::exception(
-              sycl::make_error_code(errc::invalid),
-              "Setting work group scratch memory size is not yet supported "
-              "for use with the SYCL Graph extension.");
-        }
-
-        if (Kprop.MUsesClusterLaunch && *Kprop.MUsesClusterLaunch) {
-          throw sycl::exception(sycl::make_error_code(errc::invalid),
-                                "Cluster launch is not yet supported "
-                                "for use with the SYCL Graph extension.");
-        }
+    if (HasGraph) {
+      if (Kprop.MWorkGroupMemorySize) {
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "Setting work group scratch memory size is not yet supported "
+            "for use with the SYCL Graph extension.");
       }
 
-      for (int i = 0; i < 3; i++) {
-        if (Kprop.MForwardProgressProperties[i].Guarantee.has_value()) {
+      if (Kprop.MUsesClusterLaunch && *Kprop.MUsesClusterLaunch) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Cluster launch is not yet supported "
+                              "for use with the SYCL Graph extension.");
+      }
+    }
 
-          if (!dev.supportsForwardProgress(
-                  *Kprop.MForwardProgressProperties[i].Guarantee,
-                  *Kprop.MForwardProgressProperties[i].ExecScope,
-                  *Kprop.MForwardProgressProperties[i].CoordinationScope)) {
-            // TODO: Make the error message more descriptive.
-            throw sycl::exception(
-                sycl::make_error_code(errc::feature_not_supported),
-                "The device associated with the queue does not support the "
-                "requested forward progress guarantee.");
-          }
+    // Validate and set forward progress guarantees.
+    for (int i = 0; i < 3; i++) {
+      if (Kprop.MForwardProgressProperties[i].Guarantee.has_value()) {
+
+        if (!dev.supportsForwardProgress(
+                *Kprop.MForwardProgressProperties[i].Guarantee,
+                *Kprop.MForwardProgressProperties[i].ExecScope,
+                *Kprop.MForwardProgressProperties[i].CoordinationScope)) {
+          throw sycl::exception(
+              sycl::make_error_code(errc::feature_not_supported),
+              "The device associated with the queue does not support the "
+              "requested forward progress guarantee.");
+        }
+
+        auto execScope = *Kprop.MForwardProgressProperties[i].ExecScope;
+        // If we are here, the device supports the guarantee required but there
+        // is a caveat in that if the guarantee required is a concurrent
+        // guarantee, then we most likely also need to enable cooperative launch
+        // of the kernel. That is, although the device supports the required
+        // guarantee, some setup work is needed to truly make the device provide
+        // that guarantee at runtime. Otherwise, we will get the default
+        // guarantee which is weaker than concurrent. Same reasoning applies for
+        // sub_group but not for work_item.
+        // TODO: Further design work is probably needed to reflect this behavior
+        // in Unified Runtime.
+        if ((execScope == execScope::work_group ||
+             execScope == execScope::sub_group) &&
+            (*Kprop.MForwardProgressProperties[i].Guarantee ==
+             ext::oneapi::experimental::forward_progress_guarantee::
+                 concurrent)) {
+          setCooperative(true);
         }
       }
     }
 
-    // Set properties.
     if (Kprop.MIsCooperative)
       setCooperative(*Kprop.MIsCooperative);
 
-    if (Kprop.MCacheConfig)
-      setKernelCacheConfig(*Kprop.MCacheConfig);
+    if (Kprop.MCacheConfig) {
+      // KernelLaunchPropertiesTy::StableKernelCacheConfig is modeled after
+      // ur_kernel_cache_config_t, so this cast is safe.
+      setKernelCacheConfig(
+          static_cast<ur_kernel_cache_config_t>(*Kprop.MCacheConfig));
+    }
 
     if (Kprop.MWorkGroupMemorySize)
       setKernelWorkGroupMemorySize(*Kprop.MWorkGroupMemorySize);
