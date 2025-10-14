@@ -351,9 +351,9 @@ jobs:
       uses: ./devops/actions/run-tests/cts
       with:
         ref: ${{ inputs.cts_binaries_ref }}
-        testing_mode: build-only
+        cts_testing_mode: build-only
         target_devices: all
-        binaries_artifact: ${{ inputs.cts_binaries_artifact }}
+        sycl_cts_artifact: ${{ inputs.cts_binaries_artifact }}
         sycl_compiler: $GITHUB_WORKSPACE/toolchain/bin/clang++
 
     - name: Build E2E tests

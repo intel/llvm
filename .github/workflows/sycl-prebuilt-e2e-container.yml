@@ -163,5 +163,5 @@ jobs:
         uses: ./devops/actions/run-tests/cts
         timeout-minutes: 20
         with:
-          testing_mode: run-only
+          cts_testing_mode: run-only
           target_devices: level_zero:gpu

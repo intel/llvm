@@ -344,8 +344,8 @@ jobs:
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
-        testing_mode: ${{ inputs.cts_testing_mode }}
-        binaries_artifact: ${{ inputs.sycl_cts_artifact }}
+        cts_testing_mode: ${{ inputs.cts_testing_mode }}
+        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 
