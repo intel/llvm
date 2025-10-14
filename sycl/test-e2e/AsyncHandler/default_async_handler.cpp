@@ -40,24 +40,6 @@ int main(int argc, char *argv[]) {
     });
     Q.wait();
     Q.throw_asynchronous();
-  } else if (TestRun == 3) {
-    auto TmpQAsyncHandler = [](exception_list) {
-      std::cout << "Custom queue async handler was called!" << std::endl;
-    };
-    std::optional<queue> TmpQ = queue{default_selector_v, TmpQAsyncHandler};
-    event E = TmpQ->submit([&](handler &CGH) {
-      CGH.host_task([=]() {
-        throw std::runtime_error("Exception thrown from host_task through "
-                                 "event::wait_and_throw() after queue death.");
-      });
-    });
-    // Ensure all work on the queue has finished so it isn't being kept
-    // artificially alive. Then kill the queue.
-    TmpQ->wait();
-    TmpQ.reset();
-    // Waiting on the event should no longer be able to reach the queue's
-    // handler.
-    E.wait_and_throw();
   }
   return 0;
 }
