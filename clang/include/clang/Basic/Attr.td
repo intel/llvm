@@ -1640,7 +1640,6 @@ def CUDAShared : InheritableAttr {
 }
 def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 
-<<<<<<< HEAD
 def GlobalStorageNonLocalVar : SubsetSubject<Var,
                                              [{S->hasGlobalStorage() &&
                                                !S->isLocalVarDeclOrParm()}],
@@ -1667,13 +1666,13 @@ def SYCLGlobalVar : InheritableAttr {
   let LangOpts = [SYCLIsDevice];
   // Only used internally by the SYCL implementation
   let Documentation = [Undocumented];
-=======
+}
+
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
-  let LangOpts = [SYCLDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLKernelDocs];
->>>>>>> 1db148cc946eb95fefd5399766e379fc030eef78
 }
 
 def DeviceKernel : DeclOrTypeAttr {

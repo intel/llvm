@@ -7659,7 +7659,7 @@ static void processFunctionInstantiation(Sema &S,
                                   DefinitionRequired, AtEndOfTU);
   if (!FD->isDefined())
     return;
-  if (S.LangOpts.SYCLIsDevice && FD->hasAttr<DeviceKernelAttr>())
+  if (S.LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>())
     S.SYCL().ConstructOpenCLKernel(FD, MC);
   FD->setInstantiationIsPending(false);
 }

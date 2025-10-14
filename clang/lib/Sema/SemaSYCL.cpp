@@ -911,7 +911,7 @@ class SingleDeviceFunctionTracker {
     // a SYCLKernel or SYCLDevice attribute on it, add it to the set of
     // routines potentially reachable on device. This is to diagnose such
     // cases later in finalizeSYCLDelayedAnalysis().
-    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<DeviceKernelAttr>() &&
+    if (!CurrentDecl->isDefined() && !CurrentDecl->hasAttr<SYCLKernelAttr>() &&
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaSYCLRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                         CallStack.back());
@@ -971,7 +971,7 @@ class SingleDeviceFunctionTracker {
     if (isSYCLKernelBodyFunction(CurrentDecl)) {
       // This is a direct callee of the kernel.
       if (CallStack.size() == 1 &&
-          CallStack.back()->hasAttr<DeviceKernelAttr>()) {
+          CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
@@ -3009,7 +3009,7 @@ public:
     // to TransformStmt in replaceWithLocalClone can diagnose something that got
     // diagnosed on the actual kernel.
     KernelDecl->addAttr(
-        DeviceKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
+        SYCLKernelAttr::CreateImplicit(SemaSYCLRef.getASTContext()));
 
     SemaSYCLRef.addSyclDeviceDecl(KernelDecl);
   }
@@ -6093,7 +6093,7 @@ void SemaSYCL::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
     return;
 
   // If Callee has a SYCL attribute, no diagnostic needed.
-  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<DeviceKernelAttr>())
+  if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
     return;
 
   // If Callee has a CUDA device attribute, no diagnostic needed.
@@ -7716,24 +7716,6 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << KernelAttr;
   }
-<<<<<<< HEAD
-=======
-
-  // Function must have at least one argument.
-  if (getFunctionOrMethodNumParams(D) != 1) {
-    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
-    return;
-  }
-
-  // Function must return void.
-  QualType RetTy = getFunctionOrMethodResultType(D);
-  if (!RetTy->isVoidType()) {
-    Diag(FT->getLocation(), diag::warn_sycl_kernel_return_type);
-    return;
-  }
-
-  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
->>>>>>> 1db148cc946eb95fefd5399766e379fc030eef78
 }
 
 void SemaSYCL::handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL) {

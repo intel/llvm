@@ -4408,7 +4408,7 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
   if (FD)
     diagnoseArgDependentDiagnoseIfAttrs(FD, ThisArg, Args, Loc);
 
-  if (FD && FD->hasAttr<DeviceKernelAttr>() && getLangOpts().isSYCL())
+  if (FD && FD->hasAttr<SYCLKernelAttr>())
     SYCL().CheckSYCLKernelCall(FD, Args);
 
   // Diagnose variadic calls in SYCL.

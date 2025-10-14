@@ -20957,7 +20957,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   // FIXME: This should really be a bitwise-or of the language modes.
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<DeviceKernelAttr>())
+  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return getLangOpts().SYCLCUDACompat
                ? Sema::DeviceDiagnosticReason::SyclCudaCompat
                : Sema::DeviceDiagnosticReason::Sycl;
@@ -20978,20 +20978,12 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
                                                      bool Final) {
   assert(FD && "Expected non-null FunctionDecl");
 
-<<<<<<< HEAD
-=======
-  // SYCL functions can be template, so we check if they have appropriate
-  // attribute prior to checking if it is a template.
-  if (LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>())
-    return FunctionEmissionStatus::Emitted;
-
->>>>>>> 1db148cc946eb95fefd5399766e379fc030eef78
   // Templates are emitted when they're instantiated.
   if (FD->isDependentContext())
     return FunctionEmissionStatus::TemplateDiscarded;
 
   if (LangOpts.SYCLIsDevice &&
-      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<DeviceKernelAttr>()) &&
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) &&
       !FD->hasAttr<ArtificialAttr>())
     return FunctionEmissionStatus::Emitted;
 
@@ -21077,7 +21069,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   }
 
   if (getLangOpts().SYCLIsDevice) {
-    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<DeviceKernelAttr>())
+    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
       return FunctionEmissionStatus::Unknown;
 
     // Check whether this function is externally visible -- if so, it's
