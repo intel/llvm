@@ -1640,6 +1640,7 @@ def CUDAShared : InheritableAttr {
 }
 def : MutualExclusions<[CUDAConstant, CUDAShared, HIPManaged]>;
 
+<<<<<<< HEAD
 def GlobalStorageNonLocalVar : SubsetSubject<Var,
                                              [{S->hasGlobalStorage() &&
                                                !S->isLocalVarDeclOrParm()}],
@@ -1666,10 +1667,17 @@ def SYCLGlobalVar : InheritableAttr {
   let LangOpts = [SYCLIsDevice];
   // Only used internally by the SYCL implementation
   let Documentation = [Undocumented];
+=======
+def SYCLKernel : InheritableAttr {
+  let Spellings = [Clang<"sycl_kernel">];
+  let Subjects = SubjectList<[FunctionTmpl]>;
+  let LangOpts = [SYCLDevice];
+  let Documentation = [SYCLKernelDocs];
+>>>>>>> 1db148cc946eb95fefd5399766e379fc030eef78
 }
 
 def DeviceKernel : DeclOrTypeAttr {
-  let Spellings = [Clang<"device_kernel">, Clang<"sycl_kernel">,
+  let Spellings = [Clang<"device_kernel">,
                    Clang<"nvptx_kernel">, Clang<"amdgpu_kernel">,
                    CustomKeyword<"__kernel">, CustomKeyword<"kernel">];
   let Documentation = [DeviceKernelDocs];
@@ -1692,15 +1700,6 @@ def DeviceKernel : DeclOrTypeAttr {
     static inline bool isNVPTXSpelling(const AttributeCommonInfo* A) {
       if(!A) return false;
       return isNVPTXSpelling(*A);
-    }
-    static inline bool isSYCLSpelling(const AttributeCommonInfo& A) {
-      return A.getAttributeSpellingListIndex() == GNU_sycl_kernel ||
-             A.getAttributeSpellingListIndex() == CXX11_clang_sycl_kernel ||
-             A.getAttributeSpellingListIndex() == C23_clang_sycl_kernel;
-    }
-    static inline bool isSYCLSpelling(const AttributeCommonInfo* A) {
-      if(!A) return false;
-      return isSYCLSpelling(*A);
     }
     static inline bool isOpenCLSpelling(const AttributeCommonInfo& A) {
     // Tablegen trips underscores from spellings to build the spelling

@@ -7716,6 +7716,24 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << KernelAttr;
   }
+<<<<<<< HEAD
+=======
+
+  // Function must have at least one argument.
+  if (getFunctionOrMethodNumParams(D) != 1) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
+    return;
+  }
+
+  // Function must return void.
+  QualType RetTy = getFunctionOrMethodResultType(D);
+  if (!RetTy->isVoidType()) {
+    Diag(FT->getLocation(), diag::warn_sycl_kernel_return_type);
+    return;
+  }
+
+  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
+>>>>>>> 1db148cc946eb95fefd5399766e379fc030eef78
 }
 
 void SemaSYCL::handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL) {
