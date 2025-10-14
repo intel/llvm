@@ -5266,16 +5266,7 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 static void handleDeviceKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   const auto *FD = dyn_cast_or_null<FunctionDecl>(D);
   bool IsFunctionTemplate = FD && FD->getDescribedFunctionTemplate();
-  if (S.getLangOpts().isSYCL()) {
-    if (!IsFunctionTemplate) {
-      S.Diag(AL.getLoc(), diag::warn_attribute_wrong_decl_type_str)
-          << AL << AL.isRegularKeywordAttribute() << "function templates";
-    } else {
-      S.SYCL().handleKernelAttr(D, AL);
-    }
-  } else if (DeviceKernelAttr::isSYCLSpelling(AL)) {
-    S.Diag(AL.getLoc(), diag::warn_attribute_ignored) << AL;
-  } else if (S.getASTContext().getTargetInfo().getTriple().isNVPTX()) {
+  if (S.getASTContext().getTargetInfo().getTriple().isNVPTX()) {
     handleGlobalAttr(S, D, AL);
   } else {
     // OpenCL C++ will throw a more specific error.
@@ -7182,6 +7173,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLSimd:
     handleSimpleAttribute<SYCLSimdAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLKernel:
+    S.SYCL().handleKernelAttr(D, AL);
     break;
   case ParsedAttr::AT_SYCLExternal:
     handleSimpleAttribute<SYCLExternalAttr>(S, D, AL);

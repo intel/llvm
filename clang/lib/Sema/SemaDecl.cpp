@@ -20957,7 +20957,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   // FIXME: This should really be a bitwise-or of the language modes.
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
-  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<DeviceKernelAttr>())
+  if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return getLangOpts().SYCLCUDACompat
                ? Sema::DeviceDiagnosticReason::SyclCudaCompat
                : Sema::DeviceDiagnosticReason::Sycl;
@@ -20983,7 +20983,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
     return FunctionEmissionStatus::TemplateDiscarded;
 
   if (LangOpts.SYCLIsDevice &&
-      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<DeviceKernelAttr>()) &&
+      (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>()) &&
       !FD->hasAttr<ArtificialAttr>())
     return FunctionEmissionStatus::Emitted;
 
@@ -21069,7 +21069,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   }
 
   if (getLangOpts().SYCLIsDevice) {
-    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<DeviceKernelAttr>())
+    if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
       return FunctionEmissionStatus::Unknown;
 
     // Check whether this function is externally visible -- if so, it's

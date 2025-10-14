@@ -772,7 +772,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   bool IsKernelOrDevice =
-      FD->hasAttr<DeviceKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
+      FD->hasAttr<SYCLKernelAttr>() || FD->hasAttr<SYCLDeviceAttr>();
   const IntelReqdSubGroupSizeAttr *ReqSubGroup =
       FD->getAttr<IntelReqdSubGroupSizeAttr>();
 
