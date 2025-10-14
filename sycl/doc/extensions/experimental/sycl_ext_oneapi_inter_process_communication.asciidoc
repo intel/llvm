@@ -95,8 +95,8 @@ enum class aspect {
 }
 ----
 
-If a SYCL device has this aspect, that device supports `ipc_memory::get()` free
-function specified in the following section.
+If a SYCL device has this aspect, that device supports the `get` and `open`
+functions specified in the following section.
 
 
 === Inter-process communicable memory
@@ -140,7 +140,7 @@ context `ctx` and device _D_ returns `true` for
 _Returns:_ An IPC "handle" to this USM memory allocation. The bytes of this
 handle can be transferred to another process on the same system, and the other
 process can use the handle to get a pointer to the same USM allocation through a
-call to the `open()` function.
+call to the `open` function.
 
 !====
 a!
@@ -151,7 +151,7 @@ void put(handle_data_t &handle_data, const sycl::context &ctx)
 !====
 
 _Preconditions:_ `handle_data` is the IPC "handle" to USM device memory that was
-returned from a call to get either in this process or in some other process on
+returned from a call to `get` either in this process or in some other process on
 the same system. The USM device memory has not yet been freed in this process.
 
 _Effects:_ Deallocates resources associated with the handle. These resources are
@@ -178,6 +178,7 @@ it cannot be passed to `sycl::free`. Instead, use the `close` function to free
 this memory pointer.
 
 _Throws:_
+
  * An exception with the `errc::feature_not_supported` error code if device
    `dev` does not have `aspect::ext_oneapi_ipc_memory`.
  * An exception with the `errc::invalid` error code if the handle data
@@ -192,7 +193,7 @@ static void close(void *ptr, const sycl::context &ctx)
 !====
 
 _Effects:_ Closes a device USM pointer previously returned by a call to
-`open()`.
+the `open` function.
 
 |====
 
