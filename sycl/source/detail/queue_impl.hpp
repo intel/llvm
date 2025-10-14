@@ -422,7 +422,8 @@ public:
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then
-  /// asynchronous exceptions will be passed to the default async_handler.
+  /// asynchronous exceptions will be passed to the async_handler associated
+  /// with the context if present, or the default async_handler otherwise.
   void throw_asynchronous() {
     exception_list Exceptions =
         getDeviceImpl().flushAsyncExceptions(weak_from_this());
