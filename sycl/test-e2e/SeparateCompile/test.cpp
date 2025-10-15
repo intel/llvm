@@ -40,6 +40,9 @@
 // >> ---- do table transformations from bc to spv entries
 // RUN: file-table-tform -extract=Code -drop_titles -o test_spv_in.table test.table
 // RUN: cat test_spv_in.table
+// RUN: llvm-dis test_0.bc -o -
+// RUN: llvm-dis test_1.bc -o -
+// RUN: llvm-dis test_2.bc -o -
 // RUN: llvm-dis test_3.bc -o -
 // RUN: llvm-foreach --in-file-list=test_spv_in.table --in-replace=test_spv_in.table --out-ext=spv --out-file-list=test_spv_out.table --out-replace=test_spv_out.table -- llvm-spirv -o test_spv_out.table -spirv-allow-extra-diexpressions -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all test_spv_in.table
 // RUN: file-table-tform -replace=Code,Code -o test_spv.table test.table test_spv_out.table
