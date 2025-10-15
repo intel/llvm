@@ -248,6 +248,7 @@ jobs:
       # TODO replace utility installation with a single CMake target
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target utils/FileCheck/install
+        cmake --build $GITHUB_WORKSPACE/build --target tools/llvm-dis/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/count/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/lit/install
