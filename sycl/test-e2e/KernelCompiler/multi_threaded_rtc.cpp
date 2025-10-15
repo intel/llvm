@@ -1,4 +1,4 @@
-// RUN: %{build} '-DPCH_DIR="%t.dir"' -o %t.out
+// RUN: %{build} '-DPCH_DIR="%/t.dir"' -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
 
 // UNSUPPORTED: target-native_cpu

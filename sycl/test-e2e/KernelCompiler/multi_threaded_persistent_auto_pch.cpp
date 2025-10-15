@@ -1,4 +1,4 @@
-// RUN: %{build} '-DPCH_DIR="%t.dir"' -O3 -o %t.out
+// RUN: %{build} '-DPCH_DIR="%/t.dir"' -O3 -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
 
 // Test sudden removal of the persistent PCH cache from the file system.

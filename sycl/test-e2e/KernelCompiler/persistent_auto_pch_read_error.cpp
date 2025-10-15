@@ -2,7 +2,7 @@
 // limited to SPIR-V target.
 // REQUIRES: target-spir
 
-// RUN: %{build} '-DPCH_DIR="%t.dir"' -o %t.out
+// RUN: %{build} '-DPCH_DIR="%/t.dir"' -o %t.out
 // RUN: %{run-aux} rm -rf %t.dir
 
 // Generate:
