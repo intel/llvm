@@ -164,7 +164,7 @@ void memory_pool_impl::set_new_threshold(size_t newThreshold) {
   Adapter
       .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &newThreshold,
-          8 /*uint64_t*/);
+          8u /*uint64_t*/);
 }
 
 void memory_pool_impl::reset_reserved_size_high() {
@@ -174,7 +174,7 @@ void memory_pool_impl::reset_reserved_size_high() {
   Adapter
       .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP,
-          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
+          static_cast<void *>(&resetVal), 8u /*uint64_t*/);
 }
 
 void memory_pool_impl::reset_used_size_high() {
@@ -184,7 +184,7 @@ void memory_pool_impl::reset_used_size_high() {
   Adapter
       .call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
-          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
+          static_cast<void *>(&resetVal), 8u /*uint64_t*/);
 }
 
 } // namespace detail

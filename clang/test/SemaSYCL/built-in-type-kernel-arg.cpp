@@ -77,7 +77,7 @@ int main() {
   return 0;
 }
 // Check kernel parameters
-// CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void (const int)'
+// CHECK: FunctionDecl {{.*}}kernel_const{{.*}} 'void (const int) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}} used _arg_some_const 'const int'
 
 // Check that lambda field of const built-in type is initialized
@@ -87,7 +87,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'const int' lvalue ParmVar {{.*}} '_arg_some_const' 'const int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_int{{.*}} 'void (int)'
+// CHECK: {{.*}}kernel_int{{.*}} 'void (int) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}} used _arg_data 'int'
 
 // Check that lambda field of built-in type is initialized
@@ -97,7 +97,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_data' 'int'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_struct{{.*}} 'void (__generated_test_struct)'
+// CHECK: {{.*}}kernel_struct{{.*}} 'void (__generated_test_struct) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}} used _arg_s '__generated_test_struct'
 
 // Check that lambda field of struct type is initialized
@@ -111,7 +111,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__generated_test_struct' lvalue ParmVar {{.*}} '_arg_s'
 
 // Check kernel parameters
-// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *, __wrapper_class)'
+// CHECK: {{.*}}kernel_pointer{{.*}} 'void (__global int *, __global int *, __wrapper_class) __attribute__((device_kernel))'
 // CHECK: ParmVarDecl {{.*}} used _arg_new_data_addr '__global int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_data_addr '__global int *'
 // CHECK: ParmVarDecl {{.*}} used _arg_ptr_array '__wrapper_class'
@@ -126,26 +126,22 @@ int main() {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '_arg_data_addr' '__global int *'
 // CHECK: InitListExpr {{.*}} 'int *[2]'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
 // CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ptr_array'
 // CHECK-NEXT: IntegerLiteral {{.*}} 1
 
-// CHECK: FunctionDecl {{.*}}kernel_nns{{.*}} 'void (__generated_test_struct_simple)'
+// CHECK: FunctionDecl {{.*}}kernel_nns{{.*}} 'void (__generated_test_struct_simple) __attribute__((device_kernel))'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_tds '__generated_test_struct_simple'
 
 // CHECK: VarDecl {{.*}} used __SYCLKernel

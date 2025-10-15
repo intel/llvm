@@ -110,13 +110,7 @@ protected:
 } // namespace _V1
 } // namespace sycl
 
-namespace std {
-template <> struct hash<sycl::ext::oneapi::experimental::memory_pool> {
-  size_t operator()(
-      const sycl::ext::oneapi::experimental::memory_pool &mem_pool) const {
-    return hash<std::shared_ptr<
-        sycl::ext::oneapi::experimental::detail::memory_pool_impl>>()(
-        sycl::detail::getSyclObjImpl(mem_pool));
-  }
-};
-} // namespace std
+template <>
+struct std::hash<sycl::ext::oneapi::experimental::memory_pool>
+    : public sycl::detail::sycl_obj_hash<
+          sycl::ext::oneapi::experimental::memory_pool> {};

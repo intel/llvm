@@ -33,7 +33,7 @@
 #include <syclcompat/dims.hpp>
 #include <syclcompat/launch_policy.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 
 namespace detail {
 
@@ -120,8 +120,8 @@ launch(const dim3 &grid, const dim3 &threads, Args... args) {
 
 } // namespace syclcompat
 
-namespace syclcompat::experimental {
-
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
+namespace experimental {
 namespace detail {
 
 template <auto F, typename LaunchPolicy, typename... Args>
@@ -145,7 +145,6 @@ sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
     }
   });
 }
-
 }
 
 
@@ -161,4 +160,5 @@ sycl::event launch(LaunchPolicy launch_policy, Args... args) {
   return launch<F>(launch_policy, get_default_queue(), args...);
 }
 
-} // namespace syclcompat::experimental
+} // namespace experimental
+} // namespace syclcompat

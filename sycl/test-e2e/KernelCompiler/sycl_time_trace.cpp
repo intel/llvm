@@ -5,9 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: (opencl || level_zero)
+
+// REQUIRES: sycl-jit
+
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out | FileCheck %s
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

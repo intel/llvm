@@ -467,8 +467,14 @@ typedef enum ur_function_t {
   UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT = 272,
   /// Enumerator for ::urUSMContextMemcpyExp
   UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP = 273,
+  /// Enumerator for ::urMemoryExportAllocExportableMemoryExp
+  UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP = 285,
+  /// Enumerator for ::urMemoryExportFreeExportableMemoryExp
+  UR_FUNCTION_MEMORY_EXPORT_FREE_EXPORTABLE_MEMORY_EXP = 286,
+  /// Enumerator for ::urMemoryExportExportMemoryHandleExp
+  UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP = 287,
   /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
-  UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 274,
+  UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 288,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -534,8 +540,6 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,
   /// ::ur_kernel_arg_mem_obj_properties_t
   UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,
-  /// ::ur_physical_mem_properties_t
-  UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,
   /// ::ur_kernel_arg_pointer_properties_t
   UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,
   /// ::ur_kernel_arg_sampler_properties_t
@@ -550,6 +554,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
   /// ::ur_usm_pool_buffer_desc_t
   UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
+  /// ::ur_physical_mem_properties_t
+  UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 37,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -1902,6 +1908,8 @@ typedef enum ur_device_type_t {
   UR_DEVICE_TYPE_MCA = 6,
   /// Vision Processing Unit
   UR_DEVICE_TYPE_VPU = 7,
+  /// Generic custom device type
+  UR_DEVICE_TYPE_CUSTOM = 8,
   /// @cond
   UR_DEVICE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1934,7 +1942,7 @@ typedef enum ur_device_type_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phDevices != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -1981,7 +1989,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_TYPE_VPU < DeviceType`
+///         + `::UR_DEVICE_TYPE_CUSTOM < DeviceType`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetSelected(
     /// [in] handle of the platform instance
@@ -2314,6 +2322,10 @@ typedef enum ur_device_info_t {
   /// [::ur_kernel_launch_properties_flags_t] Bitfield of supported kernel
   /// launch properties.
   UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES = 128,
+  /// [uint8_t[]][optional-query] return device Windows LUID
+  UR_DEVICE_INFO_LUID = 129,
+  /// [uint32_t][optional-query] return device Windows node mask
+  UR_DEVICE_INFO_NODE_MASK = 130,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2417,6 +2429,17 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the sub-group clock.
+  UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP = 0x2060,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the work-group clock.
+  UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP = 0x2061,
+  /// [::ur_bool_t] returns true if the device supports sampling values from
+  /// the device clock.
+  UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP = 0x2062,
+  /// [::ur_bool_t] returns true if the device is integrated GPU.
+  UR_DEVICE_INFO_IS_INTEGRATED_GPU = 0x2070,
   /// [::ur_bool_t] Returns true if the device supports the USM P2P
   /// experimental feature.
   UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
@@ -2426,6 +2449,10 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports
   /// ::urUSMContextMemcpyExp
   UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP = 0x7000,
+  /// [::ur_bool_t] returns true if the device supports the allocation of
+  /// exportable linear layout device memory and exporting that memory to
+  /// an interoperable handle.
+  UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP = 0x8000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2451,7 +2478,8 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName`
+///         + `::UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP <
+///         propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -3595,6 +3623,8 @@ typedef struct ur_image_desc_t {
 ///         + `pImageDesc && pImageDesc->numSamples != 0`
 ///         + `pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`
 ///         + `pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
@@ -4029,6 +4059,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `propSize != 0 && pPropValue == NULL`
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -4158,6 +4190,8 @@ typedef struct ur_sampler_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
@@ -4184,6 +4218,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
     /// [in][retain] handle of the sampler object to get access
     ur_sampler_handle_t hSampler);
@@ -4206,6 +4242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
     /// [in][release] handle of the sampler object to release
     ur_sampler_handle_t hSampler);
@@ -4238,6 +4276,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_SAMPLER
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetInfo(
     /// [in] handle of the sampler object
     ur_sampler_handle_t hSampler,
@@ -4993,6 +5033,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     /// device is null then the granularity is suitable for all devices in
     /// context.
     ur_device_handle_t hDevice,
+    /// [in] allocation size in bytes for which the alignment is being
+    /// queried.
+    size_t allocationSize,
     /// [in] type of the info to query.
     ur_virtual_mem_granularity_info_t propName,
     /// [in] size in bytes of the memory pointed to by pPropValue.
@@ -5704,6 +5747,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramRelease(
 ///     - ::UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE
 ///         + If `pFunctionName` could be located, but its address couldn't be
 ///         retrieved.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the backend does not support querying function pointers.
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     /// [in] handle of the device to retrieve pointer for.
     ur_device_handle_t hDevice,
@@ -6563,6 +6608,8 @@ typedef struct ur_kernel_arg_sampler_properties_t {
 ///         + `NULL == hKernel`
 ///         + `NULL == hArgValue`
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + Device `::UR_DEVICE_INFO_IMAGE_SUPPORT` is false
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
     /// [in] handle of the kernel object
     ur_kernel_handle_t hKernel,
@@ -8598,18 +8645,20 @@ typedef enum ur_map_flag_t {
 #define UR_MAP_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Map flags
+/// @brief USM migration flags, indicating the direction data is migrated in
 typedef uint32_t ur_usm_migration_flags_t;
 typedef enum ur_usm_migration_flag_t {
-  /// Default migration TODO: Add more enums!
-  UR_USM_MIGRATION_FLAG_DEFAULT = UR_BIT(0),
+  /// Migrate data from host to device
+  UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE = UR_BIT(0),
+  /// Migrate data from device to host
+  UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST = UR_BIT(1),
   /// @cond
   UR_USM_MIGRATION_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_usm_migration_flag_t;
 /// @brief Bit Mask for validating ur_usm_migration_flags_t
-#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffe
+#define UR_USM_MIGRATION_FLAGS_MASK 0xfffffffc
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to map a region of the buffer object into the host
@@ -9777,6 +9826,23 @@ typedef enum ur_exp_image_copy_flag_t {
 #define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff0
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Dictates the types of memory copy input and output.
+typedef enum ur_exp_image_copy_input_types_t {
+  /// Memory to image handle
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_IMAGE = 0,
+  /// Image handle to memory
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_MEM = 1,
+  /// Memory to Memory
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_MEM_TO_MEM = 2,
+  /// Image handle to image handle
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE = 3,
+  /// @cond
+  UR_EXP_IMAGE_COPY_INPUT_TYPES_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_image_copy_input_types_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler cubemap seamless filtering mode.
 typedef enum ur_exp_sampler_cubemap_filter_mode_t {
   /// Disable seamless filtering
@@ -10263,6 +10329,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pCopyRegion`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
+///         + `::UR_EXP_IMAGE_COPY_INPUT_TYPES_IMAGE_TO_IMAGE <
+///         imageCopyInputTypes`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
@@ -10292,6 +10360,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     /// [in] flags describing copy direction e.g. H2D or D2H
     ur_exp_image_copy_flags_t imageCopyFlags,
+    /// [in] flag describing types of source and destination pointers (USM vs
+    /// image handle)
+    ur_exp_image_copy_input_types_t imageCopyInputTypes,
     /// [in] size of the event wait list
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11163,7 +11234,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///         + `NULL == hCommandBuffer`
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
@@ -11197,7 +11267,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -11875,7 +11945,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const void *pMemory,
     /// [in] size in bytes to be fetched.
     size_t size,
-    /// [in] USM prefetch flags
+    /// [in] USM migration flags
     ur_usm_migration_flags_t flags,
     /// [in] The number of sync points in the provided dependency list.
     uint32_t numSyncPointsInWaitList,
@@ -12322,6 +12392,127 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// not NULL, phEvent must not refer to an element of the phEventWaitList
     /// array.
     ur_event_handle_t *phEvent);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Memory Export Extension APIs
+#if !defined(__GNUC__)
+#pragma region memory_export_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Allocate an exportable memory region and return a pointer to that
+///        allocation.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `ppMem == nullptr`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT
+///         + `alignment != 0 && ((alignment & (alignment-1)) != 0)`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `alignment` exceeds largest supported data type by `hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_USM_SIZE
+///         + `size == 0`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_SIZE
+///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
+///     -
+///     ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE:DEVICE_INFO_MEMORY_EXPORT_LINEAR_MEMORY_EXPORT_SUPPORT_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportAllocExportableMemoryExp(
+    /// [in] Handle to context in which to allocate memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to allocate memory.
+    ur_device_handle_t hDevice,
+    /// [in] Requested alignment of the allocation.
+    size_t alignment,
+    /// [in] Requested size of the allocation.
+    size_t size,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [out][alloc] Pointer to allocated exportable memory.
+    void **ppMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Free an exportable memory allocation.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMem == nullptr`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportFreeExportableMemoryExp(
+    /// [in] Handle to context in which to free memory.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which to free memory.
+    ur_device_handle_t hDevice,
+    /// [in][release] Pointer to exportable memory to be deallocated.
+    void *pMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Obtain an exportable handle to a memory allocated with
+///        `AllocExportableMemoryExp`.The returned external memory type will be
+///        that which was specified upon
+///        allocation of the exportable memory (e.g. `opaque_fd` or
+///        `win32_nt_handle`).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `(hDevice == nullptr) || (hContext == nullptr)`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX11_RESOURCE <
+///         handleTypeToExport`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pMemHandleRet == nullptr || pMem == nullptr`
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
+    /// [in] Handle to context in which the exportable memory was allocated.
+    ur_context_handle_t hContext,
+    /// [in] Handle to device on which the exportable memory was allocated.
+    ur_device_handle_t hDevice,
+    /// [in] Type of the memory handle to be exported (e.g. file descriptor,
+    /// or win32 NT handle).
+    ur_exp_external_mem_type_t handleTypeToExport,
+    /// [in] Pointer to exportable memory handle.
+    void *pMem,
+    /// [out] Returned exportable handle to memory allocated in `pMem`
+    void *pMemHandleRet);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -14728,6 +14919,7 @@ typedef struct ur_bindless_images_image_copy_exp_params_t {
   const ur_image_format_t **ppDstImageFormat;
   ur_exp_image_copy_region_t **ppCopyRegion;
   ur_exp_image_copy_flags_t *pimageCopyFlags;
+  ur_exp_image_copy_input_types_t *pimageCopyInputTypes;
   uint32_t *pnumEventsInWaitList;
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
@@ -15278,6 +15470,41 @@ typedef struct ur_command_buffer_get_native_handle_exp_params_t {
 } ur_command_buffer_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urMemoryExportAllocExportableMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_memory_export_alloc_exportable_memory_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  size_t *palignment;
+  size_t *psize;
+  ur_exp_external_mem_type_t *phandleTypeToExport;
+  void ***pppMem;
+} ur_memory_export_alloc_exportable_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urMemoryExportFreeExportableMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_memory_export_free_exportable_memory_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  void **ppMem;
+} ur_memory_export_free_exportable_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urMemoryExportExportMemoryHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_memory_export_export_memory_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_exp_external_mem_type_t *phandleTypeToExport;
+  void **ppMem;
+  void **ppMemHandleRet;
+} ur_memory_export_export_memory_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -15324,6 +15551,7 @@ typedef struct ur_loader_init_params_t {
 typedef struct ur_virtual_mem_granularity_get_info_params_t {
   ur_context_handle_t *phContext;
   ur_device_handle_t *phDevice;
+  size_t *pallocationSize;
   ur_virtual_mem_granularity_info_t *ppropName;
   size_t *ppropSize;
   void **ppPropValue;

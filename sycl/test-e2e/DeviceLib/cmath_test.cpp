@@ -1,5 +1,3 @@
-// UNSUPPORTED: spirv-backend
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17813
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %{build} -fno-builtin %{mathflags} -o %t1.out
@@ -15,6 +13,7 @@
 #include "math_utils.hpp"
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <std/experimental/simd.hpp>
 #include <sycl/detail/core.hpp>
@@ -24,13 +23,13 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 70
+#define TEST_NUM 71
 
-float ref[TEST_NUM] = {100, 0.5, 1.0, 0,   0,   -2, 1,   2, 1, 1, 0, 1, 1, 0,
-                       0,   0,   0,   0,   1,   1,  0.5, 0, 0, 1, 0, 2, 0, 0,
-                       0,   0,   0,   1,   0,   1,  2,   0, 1, 2, 5, 0, 0, 0,
-                       0,   0.5, 0.5, NAN, NAN, 2,  0,   0, 0, 0, 0, 0, 0, 0,
-                       0,   0,   0,   0,   0,   0,  0,   0, 0, 0, 0, 0, 0, 0};
+float ref[TEST_NUM] = {1.0f, 100, 0.5, 1.0, 0, 0, -2,  1, 2, 1, 1, 0, 1, 1, 0,
+                       0,    0,   0,   0,   1, 1, 0.5, 0, 0, 1, 0, 2, 0, 0, 0,
+                       0,    0,   1,   0,   1, 2, 0,   1, 2, 5, 0, 0, 0, 0, 0.5,
+                       0.5,  NAN, NAN, 2,   0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0,
+                       0,    0,   0,   0,   0, 0, 0,   0, 0, 0, 0};
 
 float refIptr = 1;
 
@@ -60,6 +59,7 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         float subnormal;
         *((uint32_t *)&subnormal) = 0x7FFFFF;
 
+        res_access[i++] = std::rint(0.9f);
         res_access[i++] = sycl::exp10(2.0f);
         res_access[i++] = sycl::rsqrt(4.0f);
         res_access[i++] = std::trunc(1.2f);

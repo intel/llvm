@@ -33,10 +33,10 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
   group_barrier(g);
   return group_broadcast(g, result);
 #else
-  std::ignore = group_helper;
-  std::ignore = x;
-  std::ignore = num_elements;
-  std::ignore = binary_op;
+  (void)group_helper;
+  (void)x;
+  (void)num_elements;
+  (void)binary_op;
   throw exception(make_error_code(errc::runtime),
                   "Group algorithms are not supported on host.");
 #endif
@@ -73,7 +73,7 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 #ifdef __SYCL_DEVICE_ONLY__
   return binary_op(init, reduce_over_group(group_helper, x, binary_op));
 #else
-  std::ignore = group_helper;
+  (void)group_helper;
   throw exception(make_error_code(errc::runtime),
                   "Group algorithms are not supported on host.");
 #endif
@@ -107,10 +107,10 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
   return detail::reduce_over_group_impl(group_helper, partial, num_elements,
                                         binary_op);
 #else
-  std::ignore = group_helper;
-  std::ignore = first;
-  std::ignore = last;
-  std::ignore = binary_op;
+  (void)group_helper;
+  (void)first;
+  (void)last;
+  (void)binary_op;
   throw exception(make_error_code(errc::runtime),
                   "Group algorithms are not supported on host.");
 #endif
@@ -129,8 +129,8 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
 #ifdef __SYCL_DEVICE_ONLY__
   return binary_op(init, joint_reduce(group_helper, first, last, binary_op));
 #else
-  std::ignore = group_helper;
-  std::ignore = last;
+  (void)group_helper;
+  (void)last;
   throw exception(make_error_code(errc::runtime),
                   "Group algorithms are not supported on host.");
 #endif

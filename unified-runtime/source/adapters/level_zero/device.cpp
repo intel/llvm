@@ -1,6 +1,6 @@
 //===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
-// Copyright (C) 2023-2024 Intel Corporation
+// Copyright (C) 2023-2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -104,6 +104,13 @@ ur_result_t urDeviceGet(
   //     nullptr in this mode.
   //   - If COMBINED, L0 returns tiles as devices, and zeDeviceGetRootdevice
   //     returns the card containing a given tile.
+
+  // Track best discrete and integrated GPU candidates (device, max compute
+  // units)
+  std::pair<ur_device_handle_t, uint32_t> GPUDeviceDiscrete = {nullptr, 0};
+  std::pair<ur_device_handle_t, uint32_t> GPUDeviceIntegrated = {nullptr, 0};
+  bool DeviceDefaultGPU = false;
+
   bool isCombinedMode =
       std::any_of(Platform->URDevicesCache.begin(),
                   Platform->URDevicesCache.end(), [](const auto &D) {
@@ -133,8 +140,11 @@ ur_result_t urDeviceGet(
       Matched = true;
       break;
     case UR_DEVICE_TYPE_GPU:
+      Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
+      break;
     case UR_DEVICE_TYPE_DEFAULT:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU);
+      DeviceDefaultGPU = true;
       break;
     case UR_DEVICE_TYPE_CPU:
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_CPU);
@@ -155,8 +165,33 @@ ur_result_t urDeviceGet(
       bool isComposite =
           isCombinedMode && (D->ZeDeviceProperties->flags &
                              ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
-      if (!isComposite)
-        MatchedDevices.push_back(D.get());
+      if (!isComposite) {
+        // In case of DeviceType is DEFAULT, pick only the most powerful GPU
+        // device.
+        if (DeviceDefaultGPU) {
+          uint32_t maxComputeUnits = 0;
+          ur_result_t UrRet = ur::level_zero::urDeviceGetInfo(
+              D.get(), UR_DEVICE_INFO_MAX_COMPUTE_UNITS,
+              sizeof(maxComputeUnits), &maxComputeUnits, nullptr);
+          maxComputeUnits = (UrRet == UR_RESULT_SUCCESS) ? maxComputeUnits : 0;
+          auto &BestGpu =
+              D->isIntegrated() ? GPUDeviceIntegrated : GPUDeviceDiscrete;
+          if (!BestGpu.first || maxComputeUnits > BestGpu.second)
+            BestGpu = std::make_pair(D.get(), maxComputeUnits);
+        } else {
+          MatchedDevices.push_back(D.get());
+        }
+      }
+    }
+  }
+
+  // Handle GPU/DEFAULT device selection outside the loop
+  if (DeviceDefaultGPU) {
+    // Prefer discrete GPU over integrated GPU
+    if (GPUDeviceDiscrete.first) {
+      MatchedDevices = {GPUDeviceDiscrete.first};
+    } else if (GPUDeviceIntegrated.first) {
+      MatchedDevices = {GPUDeviceIntegrated.first};
     }
   }
 
@@ -1139,9 +1174,31 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(Device->Platform->ZeBindlessImagesExtensionSupported &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageProps.pNext = (void *)&imageAllocProps;
+
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+
+    return ReturnValue(imageAllocProps.maxImageLinearWidth);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    ze_device_image_properties_t imageProps = {};
+    imageProps.stype = ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
+    ze_device_pitched_alloc_exp_properties_t imageAllocProps = {};
+    imageAllocProps.stype =
+        ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES;
+    imageProps.pNext = (void *)&imageAllocProps;
+
+    ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &imageProps));
+
+    return ReturnValue(imageAllocProps.maxImageLinearHeight);
+  }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
-  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
@@ -1256,7 +1313,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
-    return ReturnValue(false);
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
@@ -1381,6 +1438,61 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(UR_KERNEL_LAUNCH_PROPERTIES_FLAG_COOPERATIVE);
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+    if (Device->Platform->ZeLUIDSupported) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_device_luid_ext_properties_t LuidDesc = {};
+      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
+      DeviceProp.pNext = (void *)&LuidDesc;
+
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+      const auto &LUID = LuidDesc.luid.id;
+      return ReturnValue(LUID, sizeof(LUID));
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Node mask is provided through the L0 LUID extension so support for this
+    // extension must be checked.
+    if (Device->Platform->ZeLUIDSupported) {
+      ze_device_properties_t DeviceProp = {};
+      DeviceProp.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+      ze_device_luid_ext_properties_t LuidDesc = {};
+      LuidDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_LUID_EXT_PROPERTIES;
+      DeviceProp.pNext = (void *)&LuidDesc;
+
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevice, &DeviceProp));
+
+      return ReturnValue(LuidDesc.nodeMask);
+    } else {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+  }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP: {
+    // IGC supports this since v.2.16.0
+    return ReturnValue(
+        Device->Platform->isDriverVersionNewerOrSimilar(1, 6, 34666));
+  }
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP:
+    // Currently GPUs only support sub-group clock.
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
+    return ReturnValue(static_cast<ur_bool_t>(Device->isIntegrated() != 0));
   default:
     UR_LOG(ERR, "Unsupported ParamName in urGetDeviceInfo");
     UR_LOG(ERR, "ParamNameParamName={}(0x{})", ParamName,
@@ -1583,12 +1695,8 @@ ur_result_t urDeviceCreateWithNativeHandle(
   // a valid Level Zero device.
 
   ur_device_handle_t Dev = nullptr;
-  if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
-    for (const auto &p : *platforms) {
-      Dev = p->getDeviceFromNativeHandle(ZeDevice);
-    }
-  } else {
-    return GlobalAdapter->PlatformCache->get_error();
+  for (const auto &p : GlobalAdapter->Platforms) {
+    Dev = p->getDeviceFromNativeHandle(ZeDevice);
   }
 
   if (Dev == nullptr)
@@ -1728,12 +1836,19 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    bool isIntelMTLDevice = this->isIntelMTL();
+    bool isIntelARLDevice = this->isIntelARL();
     // Disable immediate command lists for DG2 devices on Windows due to driver
     // limitations.
     bool isLinux = true;
 #ifdef _WIN32
     isLinux = false;
 #endif
+    // Disable immediate command lists for Intel MTL/ARL devices on Linux by
+    // default due to driver limitations.
+    if ((isIntelMTLDevice || isIntelARLDevice) && isLinux) {
+      return NotUsed;
+    }
     if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
         isNewerThanIntelDG2()) {
       return PerQueue;
@@ -1890,7 +2005,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
   ZeDeviceBlockArrayProperties.Compute =
       [ZeDevice](
-          ZeStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
+          ZexStruct<ze_intel_device_block_array_exp_properties_t> &Properties) {
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = &Properties;
@@ -1924,7 +2039,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
 
           std::vector<ZeStruct<ze_device_vector_width_properties_ext_t>>
               PropertiesVector;
-          PropertiesVector.reserve(Count);
+          PropertiesVector.resize(Count);
 
           ZeStruct<ze_device_vector_width_properties_ext_t>
               MaxVectorWidthProperties;

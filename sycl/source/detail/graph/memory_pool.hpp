@@ -12,7 +12,7 @@
 #include <detail/physical_mem_impl.hpp>                // For physical_mem_impl
 #include <sycl/context.hpp>                            // For context
 #include <sycl/device.hpp>                             // For device
-#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp> // For get_mem_granularity
+#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp> // For unmap
 
 namespace sycl {
 inline namespace _V1 {

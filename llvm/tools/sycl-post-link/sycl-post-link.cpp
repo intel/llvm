@@ -40,6 +40,7 @@
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SpecializationConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 
 #include <algorithm>
 #include <memory>
@@ -58,8 +58,6 @@
 
 using namespace llvm;
 using namespace llvm::sycl;
-
-using string_vector = std::vector<std::string>;
 
 namespace {
 
@@ -177,6 +175,10 @@ cl::opt<bool> OptLevelO3("O3",
                          cl::desc("Optimization level 3. Similar to clang -O3"),
                          cl::cat(PostLinkCat));
 
+cl::opt<bool> ForceDisableESIMDOpt("force-disable-esimd-opt", cl::Hidden,
+                                   cl::desc("Force no optimizations."),
+                                   cl::cat(PostLinkCat));
+
 cl::opt<module_split::IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional,
     cl::init(module_split::SPLIT_NONE),
@@ -259,7 +261,20 @@ struct IrPropSymFilenameTriple {
   std::string Sym;
 };
 
-void writeToFile(const std::string &Filename, const std::string &Content) {
+unsigned getOptLevel() {
+  if (OptLevelO3)
+    return 3;
+  if (OptLevelO2 || OptLevelOs || OptLevelOz)
+    return 2;
+  if (OptLevelO1)
+    return 1;
+  if (OptLevelO0)
+    return 0;
+
+  return 2; // default value
+}
+
+static void writeToFile(const StringRef Filename, const StringRef Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
@@ -267,25 +282,10 @@ void writeToFile(const std::string &Filename, const std::string &Content) {
   OS.close();
 }
 
-// Creates a filename based on current output filename, given extension,
-// sequential ID and suffix.
-std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
-  const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
-                             ? OutputDir
-                             : sys::path::parent_path(OutputFiles[0].Filename);
-  const StringRef Sep = sys::path::get_separator();
-  std::string Dir = Dir0.str();
-  if (!Dir0.empty() && !Dir0.ends_with(Sep))
-    Dir += Sep.str();
-  return (Dir + sys::path::stem(OutputFiles[0].Filename) + Suffix + "_" +
-          Twine(I) + Ext)
-      .str();
-}
-
-void saveModuleIR(Module &M, StringRef OutFilename) {
+void saveModuleIR(Module &M, const StringRef Filename) {
   std::error_code EC;
-  raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
-  checkError(EC, "error opening the file '" + OutFilename + "'");
+  raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
+  checkError(EC, "error opening the file '" + Filename + "'");
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -298,17 +298,9 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   MPM.run(M, MAM);
 }
 
-std::string saveModuleIR(Module &M, int I, StringRef Suff) {
-  DUMP_ENTRY_POINTS(M, EmitOnlyKernelsAsEntryPoints, "saving IR");
-  StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
-  std::string OutFilename = makeResultFileName(FileExt, I, Suff);
-  saveModuleIR(M, OutFilename);
-  return OutFilename;
-}
-
-std::string saveModuleProperties(module_split::ModuleDesc &MD,
-                                 const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff, StringRef Target = "") {
+void saveModuleProperties(const module_split::ModuleDesc &MD,
+                          const GlobalBinImageProps &GlobProps,
+                          const StringRef Filename, StringRef Target = "") {
 
   PropSetRegTy PropSet;
 
@@ -331,35 +323,21 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                    PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
 
-  std::string NewSuff = Suff.str();
-  if (!Target.empty()) {
+  if (!Target.empty())
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
                 Target);
-    NewSuff += "_";
-    NewSuff += Target;
-  }
 
   std::error_code EC;
-  std::string SCFile = makeResultFileName(".prop", I, NewSuff);
-  raw_fd_ostream SCOut(SCFile, EC);
-  checkError(EC, "error opening file '" + SCFile + "'");
+  raw_fd_ostream SCOut(Filename, EC);
+  checkError(EC, "error opening file '" + Filename + "'");
   PropSet.write(SCOut);
-
-  return SCFile;
 }
 
 // Saves specified collection of symbols to a file.
-std::string saveModuleSymbolTable(const module_split::ModuleDesc &MD, int I,
-                                  StringRef Suffix) {
-  auto SymT = computeModuleSymbolTable(MD.getModule(), MD.entries());
-  std::string OutFileName = makeResultFileName(".sym", I, Suffix);
-  writeToFile(OutFileName, SymT);
-  return OutFileName;
-}
-
-// Compute the filename suffix for the module
-StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
-  return MD.isESIMD() ? "_esimd" : "";
+void saveModuleSymbolTable(const module_split::ModuleDesc &MD,
+                           const StringRef Filename) {
+  std::string SymT = computeModuleSymbolTable(MD.getModule(), MD.entries());
+  writeToFile(Filename, SymT);
 }
 
 bool isTargetCompatibleWithModule(const std::string &Target,
@@ -368,35 +346,41 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 void addTableRow(util::SimpleTable &Table,
                  const IrPropSymFilenameTriple &RowData);
 
-// @param OutTables List of tables (one for each target) to output results
-// @param MD Module descriptor to save
-// @param IRFilename filename of already available IR component. If not empty,
-//   IR component saving is skipped, and this file name is recorded as such in
-//   the result.
-void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
+/// \param OutTables List of tables (one for each target) to output results
+/// \param MD Module descriptor to save
+/// \param OutputPrefix Prefix for all generated outputs.
+/// \param IRFilename Filename of IR component. If filename is not empty, it
+///   is recorded in the OutTable. Otherwise, a new file is created to save
+///   the IR component, and the new name is recorded in the OutTable.
+void saveModule(
+    const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+    module_split::ModuleDesc &MD, const int I, const Twine &OutputPrefix,
+    const StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
-  StringRef Suffix = getModuleSuffix(MD);
+  StringRef Suffix = MD.isESIMD() ? "_esimd" : "";
   MD.saveSplitInformationAsMetadata();
 
-  if (!MD.isSYCLDeviceLib()) {
-    if (!IRFilename.empty()) {
-      // don't save IR, just record the filename
-      BaseTriple.Ir = IRFilename.str();
-    } else {
-      MD.cleanup(AllowDeviceImageDependencies);
-      BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
-    }
+  if (!IRFilename.empty()) {
+    // Don't save IR, just record the filename.
+    BaseTriple.Ir = IRFilename.str();
   } else {
-    // For deviceLib Modules, don't need to do clean up, no entry-point
-    // is included, the module only includes a bunch of exported functions
-    // intended to be invoked by user's device modules.
-    BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    if (!MD.isSYCLDeviceLib()) {
+      // For deviceLib Modules, we don't need to do clean up and no entry-point
+      // is included. The module only includes a bunch of exported functions
+      // intended to be invoked by user's device modules.
+      MD.cleanup(AllowDeviceImageDependencies);
+    }
+
+    StringRef IRExtension = OutputAssembly ? ".ll" : ".bc";
+    BaseTriple.Ir =
+        (OutputPrefix + Suffix + "_" + Twine(I) + IRExtension).str();
+    saveModuleIR(MD.getModule(), BaseTriple.Ir);
   }
 
   if (DoSymGen) {
-    // save the names of the entry points - the symbol table
-    BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
+    // Save the names of the entry points - the symbol table.
+    BaseTriple.Sym = (OutputPrefix + Suffix + "_" + Twine(I) + ".sym").str();
+    saveModuleSymbolTable(MD, BaseTriple.Sym);
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
@@ -407,20 +391,31 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitKernelNames,     EmitExportedSymbols,
                                    EmitImportedSymbols, DeviceGlobals};
+      StringRef Target = OutputFile.Target;
+      std::string NewSuff = Suffix.str();
+      if (!Target.empty())
+        NewSuff = (Twine("_") + Target).str();
+
       CopyTriple.Prop =
-          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
+          (OutputPrefix + NewSuff + "_" + Twine(I) + ".prop").str();
+      saveModuleProperties(MD, Props, CopyTriple.Prop, Target);
     }
     addTableRow(*Table, CopyTriple);
   }
 }
 
 void saveDeviceLibModule(
-    std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
+    const std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+    const Twine &OutputPrefix, const int I,
     const std::string &DeviceLibFileName) {
+  assert(!DeviceLibFileName.empty() &&
+         "DeviceLibFileName is expected to be non-empty.");
   SMDiagnostic Err;
   LLVMContext Context;
   StringRef DeviceLibLoc = DeviceLibDir;
-  std::string DeviceLibPath = DeviceLibLoc.str() + "/" + DeviceLibFileName;
+  StringRef Sep = llvm::sys::path::get_separator();
+  std::string DeviceLibPath =
+      (DeviceLibLoc.str() + Sep + DeviceLibFileName).str();
   std::unique_ptr<Module> DeviceLibIR =
       parseIRFile(DeviceLibPath, Err, Context);
   Module *DeviceLibMPtr = DeviceLibIR.get();
@@ -431,74 +426,7 @@ void saveDeviceLibModule(
   }
   llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
                                              DeviceLibFileName);
-  saveModule(OutTables, DeviceLibMD, I, DeviceLibFileName);
-}
-
-module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
-                              module_split::ModuleDesc &&MD2) {
-  std::vector<std::string> Names;
-  MD1.saveEntryPointNames(Names);
-  MD2.saveEntryPointNames(Names);
-  bool LinkError =
-      llvm::Linker::linkModules(MD1.getModule(), MD2.releaseModulePtr());
-
-  if (LinkError) {
-    error(" error when linking SYCL and ESIMD modules");
-  }
-  module_split::ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
-  Res.assignMergedProperties(MD1, MD2);
-  Res.Name = "linked[" + MD1.Name + "," + MD2.Name + "]";
-  return Res;
-}
-
-bool processSpecConstants(module_split::ModuleDesc &MD) {
-  MD.Props.SpecConstsMet = false;
-
-  if (SpecConstLower.getNumOccurrences() == 0)
-    return false;
-
-  ModulePassManager RunSpecConst;
-  ModuleAnalysisManager MAM;
-  SpecConstantsPass SCP(SpecConstLower == SC_NATIVE_MODE
-                            ? SpecConstantsPass::HandlingMode::native
-                            : SpecConstantsPass::HandlingMode::emulation);
-  // Register required analysis
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  RunSpecConst.addPass(std::move(SCP));
-
-  // Perform the spec constant intrinsics transformation on resulting module
-  PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
-  MD.Props.SpecConstsMet = !Res.areAllPreserved();
-  return MD.Props.SpecConstsMet;
-}
-
-/// Function generates the copy of the given ModuleDesc where all uses of
-/// Specialization Constants are replaced by corresponding default values.
-/// If the Module in MD doesn't contain specialization constants then
-/// std::nullopt is returned.
-std::optional<module_split::ModuleDesc>
-processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
-  std::optional<module_split::ModuleDesc> NewModuleDesc;
-  if (!checkModuleContainsSpecConsts(MD.getModule()))
-    return NewModuleDesc;
-
-  NewModuleDesc = MD.clone();
-  NewModuleDesc->setSpecConstantDefault(true);
-
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  SpecConstantsPass SCP(SpecConstantsPass::HandlingMode::default_values);
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  MPM.addPass(std::move(SCP));
-  MPM.addPass(StripDeadPrototypesPass());
-
-  PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
-  NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
-  assert(NewModuleDesc->Props.SpecConstsMet &&
-         "This property should be true since the presence of SpecConsts "
-         "has been checked before the run of the pass");
-  NewModuleDesc->rebuildEntryPoints();
-  return NewModuleDesc;
+  saveModule(OutTables, DeviceLibMD, I, OutputPrefix, "");
 }
 
 constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
@@ -514,64 +442,6 @@ void addTableRow(util::SimpleTable &Table,
   }
   assert(static_cast<size_t>(Table.getNumColumns()) == Row.size());
   Table.addRow(Row);
-}
-
-SmallVector<module_split::ModuleDesc, 2>
-handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
-            bool &SplitOccurred) {
-  // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
-  // undergo different set of LLVMIR passes. After this they are linked back
-  // together to form single module with disjoint SYCL and ESIMD call graphs
-  // unless -split-esimd option is specified. The graphs become disjoint
-  // when linked back because functions shared between graphs are cloned and
-  // renamed.
-  SmallVector<module_split::ModuleDesc, 2> Result =
-      module_split::splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
-                                 AllowDeviceImageDependencies);
-
-  if (Result.size() > 1 && SplitOccurred &&
-      (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
-    // Controversial state reached - SYCL and ESIMD entry points resulting
-    // from SYCL/ESIMD split (which is done always) are linked back, since
-    // -split-esimd is not specified, but per-kernel split is requested.
-    warning("SYCL and ESIMD entry points detected and split mode is "
-            "per-kernel, so " +
-            SplitEsimd.ValueStr + " must also be specified");
-  }
-  SplitOccurred |= Result.size() > 1;
-
-  for (auto &MD : Result) {
-    DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
-    if (LowerEsimd && MD.isESIMD())
-      Modified |= sycl::lowerESIMDConstructs(MD, OptLevelO0, SplitEsimd);
-  }
-
-  if (!SplitEsimd && Result.size() > 1) {
-    // SYCL/ESIMD splitting is not requested, link back into single module.
-    assert(Result.size() == 2 &&
-           "Unexpected number of modules as results of ESIMD split");
-    int ESIMDInd = Result[0].isESIMD() ? 0 : 1;
-    int SYCLInd = 1 - ESIMDInd;
-    assert(Result[SYCLInd].isSYCL() &&
-           "no non-ESIMD module as a result ESIMD split?");
-
-    // ... but before that, make sure no link conflicts will occur.
-    Result[ESIMDInd].renameDuplicatesOf(Result[SYCLInd].getModule(), ".esimd");
-    module_split::ModuleDesc Linked =
-        link(std::move(Result[0]), std::move(Result[1]));
-    Linked.restoreLinkageOfDirectInvokeSimdTargets();
-    string_vector Names;
-    Linked.saveEntryPointNames(Names);
-    // cleanup may remove some entry points, need to save/rebuild
-    Linked.cleanup(AllowDeviceImageDependencies);
-    Linked.rebuildEntryPoints(Names);
-    Result.clear();
-    Result.emplace_back(std::move(Linked));
-    DUMP_ENTRY_POINTS(Result.back().entries(), Result.back().Name.c_str(), 3);
-    Modified = true;
-  }
-
-  return Result;
 }
 
 // Checks if the given target and module are compatible.
@@ -623,7 +493,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
-processInputModule(std::unique_ptr<Module> M) {
+processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE)};
@@ -682,6 +552,12 @@ processInputModule(std::unique_ptr<Module> M) {
       error(toString(std::move(E)));
   }
 
+  std::optional<SpecConstantsPass::HandlingMode> SCMode;
+  if (SpecConstLower.getNumOccurrences() > 0)
+    SCMode = SpecConstLower == SC_NATIVE_MODE
+                 ? SpecConstantsPass::HandlingMode::native
+                 : SpecConstantsPass::HandlingMode::emulation;
+
   // It is important that we *DO NOT* preserve all the splits in memory at the
   // same time, because it leads to a huge RAM consumption by the tool on bigger
   // inputs.
@@ -691,21 +567,22 @@ processInputModule(std::unique_ptr<Module> M) {
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
 
-    SmallVector<module_split::ModuleDesc, 2> MMs =
-        handleESIMD(std::move(MDesc), Modified, SplitOccurred);
+    ESIMDProcessingOptions Options = {SplitMode,
+                                      EmitOnlyKernelsAsEntryPoints,
+                                      AllowDeviceImageDependencies,
+                                      LowerEsimd,
+                                      SplitEsimd,
+                                      getOptLevel(),
+                                      ForceDisableESIMDOpt};
+    auto ModulesOrErr =
+        handleESIMD(std::move(MDesc), Options, Modified, SplitOccurred);
+    CHECK_AND_EXIT(ModulesOrErr.takeError());
+    SmallVector<module_split::ModuleDesc, 2> &MMs = *ModulesOrErr;
     assert(MMs.size() && "at least one module is expected after ESIMD split");
-
     SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
-    for (size_t I = 0; I != MMs.size(); ++I) {
-      if (GenerateDeviceImageWithDefaultSpecConsts) {
-        std::optional<module_split::ModuleDesc> NewMD =
-            processSpecConstantsWithDefaultValues(MMs[I]);
-        if (NewMD)
-          MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
-      }
-
-      Modified |= processSpecConstants(MMs[I]);
-    }
+    Modified |=
+        handleSpecializationConstants(MMs, SCMode, MMsWithDefaultSpecConsts,
+                                      GenerateDeviceImageWithDefaultSpecConsts);
 
     if (IROutputOnly) {
       if (SplitOccurred) {
@@ -728,7 +605,7 @@ processInputModule(std::unique_ptr<Module> M) {
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
       IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-      saveModule(Tables, IrMD, ID, OutIRFileName);
+      saveModule(Tables, IrMD, ID, OutputPrefix, OutIRFileName);
     }
 
     ++ID;
@@ -737,7 +614,7 @@ processInputModule(std::unique_ptr<Module> M) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
         IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-        saveModule(Tables, IrMD, ID, OutIRFileName);
+        saveModule(Tables, IrMD, ID, OutputPrefix, OutIRFileName);
       }
 
       ++ID;
@@ -745,10 +622,25 @@ processInputModule(std::unique_ptr<Module> M) {
   }
 
   if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
-    saveDeviceLibModule(Tables, ID, "libsycl-fallback-bfloat16.bc");
-    saveDeviceLibModule(Tables, ID + 1, "libsycl-native-bfloat16.bc");
+    saveDeviceLibModule(Tables, OutputPrefix, ID,
+                        "libsycl-fallback-bfloat16.bc");
+    saveDeviceLibModule(Tables, OutputPrefix, ID + 1,
+                        "libsycl-native-bfloat16.bc");
   }
   return Tables;
+}
+
+/// Gets output prefix used for all output files from this tool.
+std::string getOutputPrefix() {
+  StringRef Dir0 = OutputDir.getNumOccurrences() > 0
+                       ? OutputDir
+                       : sys::path::parent_path(OutputFiles[0].Filename);
+  StringRef Sep = sys::path::get_separator();
+  std::string Dir = Dir0.str();
+  if (!Dir0.empty() && !Dir0.ends_with(Sep))
+    Dir += Sep.str();
+
+  return (Dir + sys::path::stem(OutputFiles[0].Filename)).str();
 }
 
 } // namespace
@@ -890,13 +782,13 @@ int main(int argc, char **argv) {
   }
 
   if (OutputFiles.getNumOccurrences() == 0) {
-    StringRef S =
-        IROutputOnly ? (OutputAssembly ? ".out.ll" : "out.bc") : ".files";
+    StringRef S = IROutputOnly ? ".out" : ".files";
     OutputFiles.push_back({{}, (sys::path::stem(InputFilename) + S).str()});
   }
 
+  std::string OutputPrefix = getOutputPrefix();
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
-      processInputModule(std::move(M));
+      processInputModule(std::move(M), OutputPrefix);
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)

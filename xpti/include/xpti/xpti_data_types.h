@@ -318,9 +318,7 @@ struct uid_t {
     return p1 == rhs.p1 && p2 == rhs.p2;
   }
 };
-} // namespace xpti
 
-namespace xpti {
 template <typename T = uint32_t>
 constexpr T invalid_id = std::numeric_limits<T>::max();
 constexpr uint64_t invalid_uid = 0;
@@ -351,6 +349,8 @@ enum class payload_flag_t {
   // A 64-bit hash is already available for this payload
   HashAvailable = 2 << 16
 };
+
+using stream_id_t = uint8_t;
 
 //
 //  Helper macros for creating new tracepoint and
@@ -578,15 +578,13 @@ struct payload_t {
   /// @param codeptr (Optional) Pointer to the code location associated with
   /// this payload.
   ///
-  payload_t(const char *kname, const char *sf, int line, int col,
+  payload_t(const char *kname, const char *sf, uint32_t line, uint32_t col,
             const void *codeptr = nullptr) {
     code_ptr_va = codeptr; ///< Override the default initialization
     name = kname;          ///< Override the default initialization
     source_file = sf;      ///< Override the default initialization
-    line_no =
-        static_cast<uint32_t>(line); ///< Override the default initialization
-    column_no =
-        static_cast<uint32_t>(col); ///< Override the default initialization
+    line_no = line;        ///< Override the default initialization
+    column_no = col;       ///< Override the default initialization
     // If the incoming name is null, we ensure that the flags are set correctly
     if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;

@@ -13,7 +13,6 @@
  */
 
 #include "tsan_interceptor.hpp"
-#include "sanitizer_common/sanitizer_utils.hpp"
 #include "tsan_report.hpp"
 
 namespace ur_sanitizer_layer {
@@ -102,16 +101,16 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   return UR_RESULT_SUCCESS;
 }
 
-void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
-  if (Device) {
-    std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-    AllocInfosMap[Device].emplace_back(std::move(AI));
-  } else {
-    for (auto Device : DeviceList) {
-      std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-      AllocInfosMap[Device].emplace_back(AI);
-    }
-  }
+void DeviceInfo::insertAllocInfo(TsanAllocInfo AI) {
+  std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMutex);
+  AllocInfos.insert(std::move(AI));
+}
+
+ur_queue_handle_t ContextInfo::getInternalQueue(ur_device_handle_t Device) {
+  std::scoped_lock<ur_shared_mutex> Guard(InternalQueueMapMutex);
+  if (!InternalQueueMap[Device])
+    InternalQueueMap[Device].emplace(Handle, Device, true);
+  return *InternalQueueMap[Device];
 }
 
 TsanInterceptor::~TsanInterceptor() {
@@ -154,9 +153,35 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
-  CI->insertAllocInfo(Device, std::move(AI));
+  if (Device) {
+    auto DI = getDeviceInfo(Device);
+    DI->insertAllocInfo(std::move(AI));
+  } else {
+    for (const auto &Device : CI->DeviceList) {
+      auto DI = getDeviceInfo(Device);
+      DI->insertAllocInfo(AI);
+    }
+  }
 
   *ResultPtr = Allocated;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::releaseMemory(ur_context_handle_t Context,
+                                           void *Ptr) {
+  auto CI = getContextInfo(Context);
+  auto Addr = reinterpret_cast<uptr>(Ptr);
+
+  for (const auto &Device : CI->DeviceList) {
+    auto DI = getDeviceInfo(Device);
+    std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+    auto It = std::find_if(DI->AllocInfos.begin(), DI->AllocInfos.end(),
+                           [&](auto &P) { return P.AllocBegin == Addr; });
+    if (It != DI->AllocInfos.end())
+      DI->AllocInfos.erase(It);
+  }
+
+  UR_CALL(getContext()->urDdiTable.USM.pfnFree(Context, Ptr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -166,15 +191,23 @@ ur_result_t TsanInterceptor::registerProgram(ur_program_handle_t Program) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t TsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
+  UR_LOG_L(getContext()->logger, INFO, "unregisterDeviceGlobals");
+  auto &ProgramInfo = getProgramInfo(Program);
+  ProgramInfo.AllocInfoForGlobals.clear();
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t
 TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   std::vector<ur_device_handle_t> Devices = GetDevices(Program);
   assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
   auto Context = GetContext(Program);
   auto ContextInfo = getContextInfo(Context);
+  auto &ProgramInfo = getProgramInfo(Program);
 
   for (auto Device : Devices) {
-    ManagedQueue Queue(Context, Device);
+    ur_queue_handle_t Queue = ContextInfo->getInternalQueue(Device);
 
     size_t MetadataSize;
     void *MetadataPtr;
@@ -202,7 +235,7 @@ TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
     for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
       const auto &GVInfo = GVInfos[i];
       auto AI = TsanAllocInfo{GVInfo.Addr, GVInfo.Size};
-      ContextInfo->insertAllocInfo(Device, std::move(AI));
+      ProgramInfo.AllocInfoForGlobals.emplace_back(std::move(AI));
     }
   }
 
@@ -269,6 +302,22 @@ ur_result_t TsanInterceptor::insertDevice(ur_device_handle_t Device,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t TsanInterceptor::insertProgram(ur_program_handle_t Program) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
+  if (m_ProgramMap.find(Program) != m_ProgramMap.end()) {
+    return UR_RESULT_SUCCESS;
+  }
+  m_ProgramMap.emplace(Program, Program);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::eraseProgram(ur_program_handle_t Program) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
+  assert(m_ProgramMap.find(Program) != m_ProgramMap.end());
+  m_ProgramMap.erase(Program);
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t
 TsanInterceptor::insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer) {
   std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
@@ -301,15 +350,13 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
   auto CI = getContextInfo(GetContext(Queue));
   auto DI = getDeviceInfo(GetDevice(Queue));
 
-  ManagedQueue InternalQueue(CI->Handle, DI->Handle);
-  if (!InternalQueue) {
-    UR_LOG_L(getContext()->logger, ERR, "Failed to create internal queue");
-    return UR_RESULT_ERROR_INVALID_QUEUE;
-  }
+  ur_queue_handle_t InternalQueue = CI->getInternalQueue(DI->Handle);
 
   UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
 
-  UR_CALL(updateShadowMemory(CI, DI, InternalQueue));
+  UR_CALL(updateShadowMemory(DI, Kernel, InternalQueue));
+
+  UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(InternalQueue));
 
   return UR_RESULT_SUCCESS;
 }
@@ -434,16 +481,19 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t
-TsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
-                                    std::shared_ptr<DeviceInfo> &DI,
-                                    ur_queue_handle_t Queue) {
-  std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMapMutex);
-  for (auto &AllocInfo : CI->AllocInfosMap[DI->Handle]) {
+ur_result_t TsanInterceptor::updateShadowMemory(std::shared_ptr<DeviceInfo> &DI,
+                                                ur_kernel_handle_t Kernel,
+                                                ur_queue_handle_t Queue) {
+  auto &PI = getProgramInfo(GetProgram(Kernel));
+  std::scoped_lock<ur_shared_mutex> Guard(DI->AllocInfosMutex);
+  for (auto &AllocInfo : DI->AllocInfos) {
     UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
                                     AllocInfo.AllocSize));
   }
-  CI->AllocInfosMap[DI->Handle].clear();
+  for (auto &AllocInfo : PI.AllocInfoForGlobals) {
+    UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
+                                    AllocInfo.AllocSize));
+  }
   return UR_RESULT_SUCCESS;
 }
 

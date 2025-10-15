@@ -95,8 +95,7 @@ unsigned AMDGPUABIInfo::numRegsForType(QualType Ty) const {
     return EltNumRegs * VT->getNumElements();
   }
 
-  if (const RecordType *RT = Ty->getAs<RecordType>()) {
-    const RecordDecl *RD = RT->getDecl();
+  if (const auto *RD = Ty->getAsRecordDecl()) {
     assert(!RD->hasFlexibleArrayMember());
 
     for (const FieldDecl *Field : RD->fields()) {
@@ -152,11 +151,9 @@ ABIArgInfo AMDGPUABIInfo::classifyReturnType(QualType RetTy) const {
       if (const Type *SeltTy = isSingleElementStruct(RetTy, getContext()))
         return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
-      if (const RecordType *RT = RetTy->getAs<RecordType>()) {
-        const RecordDecl *RD = RT->getDecl();
-        if (RD->hasFlexibleArrayMember())
-          return DefaultABIInfo::classifyReturnType(RetTy);
-      }
+      if (const auto *RD = RetTy->getAsRecordDecl();
+          RD && RD->hasFlexibleArrayMember())
+        return DefaultABIInfo::classifyReturnType(RetTy);
 
       // Pack aggregates <= 4 bytes into single VGPR or pair.
       uint64_t Size = getContext().getTypeSize(RetTy);
@@ -245,11 +242,9 @@ ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty, bool Variadic,
     if (const Type *SeltTy = isSingleElementStruct(Ty, getContext()))
       return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
 
-    if (const RecordType *RT = Ty->getAs<RecordType>()) {
-      const RecordDecl *RD = RT->getDecl();
-      if (RD->hasFlexibleArrayMember())
-        return DefaultABIInfo::classifyArgumentType(Ty);
-    }
+    if (const auto *RD = Ty->getAsRecordDecl();
+        RD && RD->hasFlexibleArrayMember())
+      return DefaultABIInfo::classifyArgumentType(Ty);
 
     // Pack aggregates <= 8 bytes into single VGPR or pair.
     uint64_t Size = getContext().getTypeSize(Ty);
@@ -304,7 +299,9 @@ public:
 
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &M) const override;
-  unsigned getOpenCLKernelCallingConv() const override;
+  unsigned getDeviceKernelCallingConv() const override;
+  void
+  setOCLKernelStubCallingConvention(const FunctionType *&FT) const override;
 
   llvm::Constant *getNullPointer(const CodeGen::CodeGenModule &CGM,
       llvm::PointerType *T, QualType QT) const override;
@@ -337,7 +334,7 @@ static bool requiresAMDGPUProtectedVisibility(const Decl *D,
     return false;
 
   return !D->hasAttr<OMPDeclareTargetDeclAttr>() &&
-         (D->hasAttr<OpenCLKernelAttr>() ||
+         (D->hasAttr<DeviceKernelAttr>() ||
           (isa<FunctionDecl>(D) && D->hasAttr<CUDAGlobalAttr>()) ||
           (isa<VarDecl>(D) &&
            (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>() ||
@@ -350,7 +347,7 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
   const auto *ReqdWGS =
       M.getLangOpts().OpenCL ? FD->getAttr<ReqdWorkGroupSizeAttr>() : nullptr;
   const bool IsOpenCLKernel =
-      M.getLangOpts().OpenCL && FD->hasAttr<OpenCLKernelAttr>();
+      M.getLangOpts().OpenCL && FD->hasAttr<DeviceKernelAttr>();
   const bool IsHIPKernel = M.getLangOpts().HIP && FD->hasAttr<CUDAGlobalAttr>();
 
   const auto *FlatWGS = FD->getAttr<AMDGPUFlatWorkGroupSizeAttr>();
@@ -431,8 +428,16 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     F->addFnAttr("amdgpu-ieee", "false");
 }
 
-unsigned AMDGPUTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
+unsigned AMDGPUTargetCodeGenInfo::getDeviceKernelCallingConv() const {
   return llvm::CallingConv::AMDGPU_KERNEL;
+}
+
+void AMDGPUTargetCodeGenInfo::setOCLKernelStubCallingConvention(
+    const FunctionType *&FT) const {
+  bool IsSYCL = getABIInfo().getContext().getLangOpts().isSYCL();
+  FT = getABIInfo().getContext().adjustFunctionType(
+      FT,
+      FT->getExtInfo().withCallingConv(!IsSYCL ? CC_C : CC_DeviceKernel));
 }
 
 // Currently LLVM assumes null pointers always have value 0,
@@ -572,7 +577,7 @@ bool AMDGPUTargetCodeGenInfo::shouldEmitDWARFBitFieldSeparators() const {
 void AMDGPUTargetCodeGenInfo::setCUDAKernelCallingConvention(
     const FunctionType *&FT) const {
   FT = getABIInfo().getContext().adjustFunctionType(
-      FT, FT->getExtInfo().withCallingConv(CC_OpenCLKernel));
+      FT, FT->getExtInfo().withCallingConv(CC_DeviceKernel));
 }
 
 /// Return IR struct type for rtinfo struct in rocm-device-libs used for device

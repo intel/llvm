@@ -46,7 +46,7 @@
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 #include <syclcompat/traits.hpp>
 
-namespace syclcompat {
+namespace [[deprecated("syclcompat is deprecated")]] syclcompat {
 namespace detail {
 
 namespace complex_namespace = sycl::ext::oneapi::experimental;

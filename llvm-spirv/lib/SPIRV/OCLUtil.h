@@ -99,11 +99,11 @@ enum OCLScopeKind {
 // the corresponding constants from 'std::memory_order' enum.
 enum OCLMemOrderKind {
 #if __cplusplus >= 202002L
-  OCLMO_relaxed = std::memory_order_relaxed,
-  OCLMO_acquire = std::memory_order_acquire,
-  OCLMO_release = std::memory_order_release,
-  OCLMO_acq_rel = std::memory_order_acq_rel,
-  OCLMO_seq_cst = std::memory_order_seq_cst
+  OCLMO_relaxed = static_cast<int>(std::memory_order::relaxed),
+  OCLMO_acquire = static_cast<int>(std::memory_order::acquire),
+  OCLMO_release = static_cast<int>(std::memory_order::release),
+  OCLMO_acq_rel = static_cast<int>(std::memory_order::acq_rel),
+  OCLMO_seq_cst = static_cast<int>(std::memory_order::seq_cst)
 #else
   OCLMO_relaxed = std::memory_order::memory_order_relaxed,
   OCLMO_acquire = std::memory_order::memory_order_acquire,
@@ -519,7 +519,19 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
 void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
                                     std::string &Name);
 
-std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F);
+class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
+public:
+  OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
+  OCLBuiltinFuncMangleInfo() = default;
+  bool isOpenCL() const override { return true; }
+  void init(StringRef UniqName) override;
+  // Auxiliary information, it is expected that it is relevant at the moment
+  // the init method is called.
+  Function *F; // SPIRV decorated function
+};
+
+std::unique_ptr<OCLBuiltinFuncMangleInfo> makeMangler(Function &F);
+
 } // namespace OCLUtil
 
 using namespace OCLUtil;

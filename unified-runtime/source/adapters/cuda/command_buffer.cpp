@@ -62,7 +62,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     bool IsInOrder)
     : handle_base(), Context(Context), Device(Device), IsUpdatable(IsUpdatable),
       IsInOrder(IsInOrder), CudaGraph{nullptr}, CudaGraphExec{nullptr},
-      RefCount{1}, NextSyncPoint{0} {
+      NextSyncPoint{0} {
   urContextRetain(Context);
 }
 
@@ -109,8 +109,15 @@ kernel_command_data::kernel_command_data(
     ur_kernel_handle_t *KernelAlternatives)
     : Kernel(Kernel), Params(Params), WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
-  std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+
+  // GlobalWorkOffsetPtr may be nullptr
+  if (GlobalWorkOffsetPtr) {
+    std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
+  } else {
+    std::memset(GlobalWorkOffset, 0, sizeof(size_t) * 3);
+  }
+
   // Local work size may be nullptr
   if (LocalWorkSizePtr) {
     std::memcpy(LocalWorkSize, LocalWorkSizePtr, CopySize);
@@ -382,13 +389,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementReferenceCount();
+  hCommandBuffer->RefCount.retain();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementReferenceCount() == 0) {
+  if (hCommandBuffer->RefCount.release()) {
     // Ref count has reached zero, release of created commands
     for (auto &Command : hCommandBuffer->CommandHandles) {
       commandHandleDestroy(Command);
@@ -1347,14 +1354,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     UR_CHECK_ERROR(validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
   }
 
-  // Store changes in config struct in command handle object
+  // Store changes in config struct in command handle object and propagate
+  // changes to CUDA graph
   for (uint32_t i = 0; i < numKernelUpdates; i++) {
     UR_CHECK_ERROR(updateCommand(pUpdateKernelLaunch[i]));
     UR_CHECK_ERROR(updateKernelArguments(pUpdateKernelLaunch[i]));
-  }
 
-  // Propagate changes to CUDA driver API
-  for (uint32_t i = 0; i < numKernelUpdates; i++) {
     const auto &UpdateCommandDesc = pUpdateKernelLaunch[i];
 
     // If no work-size is provided make sure we pass nullptr to setKernelParams
@@ -1478,7 +1483,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
-    return ReturnValue(hCommandBuffer->getReferenceCount());
+    return ReturnValue(hCommandBuffer->RefCount.getCount());
   case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
     ur_exp_command_buffer_desc_t Descriptor{};
     Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;

@@ -35,6 +35,7 @@ class accessor;
 class handler;
 
 namespace detail {
+class devices_range;
 
 // utility functions and typedefs for image_impl
 using image_allocator = aligned_allocator<byte>;
@@ -297,8 +298,6 @@ public:
   void unsampledImageDestructorNotification(void *UserObj);
 
 private:
-  std::vector<device> getDevices(context_impl *Context);
-
   ur_mem_type_t getImageType() {
     if (MDimensions == 1)
       return (MIsArrayImage ? UR_MEM_TYPE_IMAGE1D_ARRAY : UR_MEM_TYPE_IMAGE1D);

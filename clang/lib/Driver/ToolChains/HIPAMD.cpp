@@ -8,10 +8,10 @@
 
 #include "HIPAMD.h"
 #include "AMDGPU.h"
-#include "CommonArgs.h"
 #include "HIPUtility.h"
 #include "SPIRV.h"
 #include "clang/Basic/Cuda.h"
+#include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/InputInfo.h"
@@ -102,6 +102,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   if (IsThinLTO) {
     LldArgs.push_back(Args.MakeArgString("-plugin-opt=-force-import-all"));
     LldArgs.push_back(Args.MakeArgString("-plugin-opt=-avail-extern-to-local"));
+    LldArgs.push_back(Args.MakeArgString(
+        "-plugin-opt=-avail-extern-gv-in-addrspace-to-local=3"));
   }
 
   for (const Arg *A : Args.filtered(options::OPT_mllvm)) {
@@ -279,7 +281,6 @@ void HIPAMDToolChain::addClangTargetOptions(
                                                : "-mlink-bitcode-file");
     CC1Args.push_back(DriverArgs.MakeArgString(BCFile.Path));
   }
-
 }
 
 llvm::opt::DerivedArgList *
@@ -379,9 +380,8 @@ VersionTuple HIPAMDToolChain::computeMSVCVersion(const Driver *D,
 }
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-HIPAMDToolChain::getDeviceLibs(
-    const llvm::opt::ArgList &DriverArgs,
-    const Action::OffloadKind DeviceOffloadingKind) const {
+HIPAMDToolChain::getDeviceLibs(const llvm::opt::ArgList &DriverArgs,
+                               Action::OffloadKind DeviceOffloadingKind) const {
   llvm::SmallVector<BitCodeLibraryInfo, 12> BCLibs;
   if (!DriverArgs.hasFlag(options::OPT_offloadlib, options::OPT_no_offloadlib,
                           true) ||
@@ -398,19 +398,22 @@ HIPAMDToolChain::getDeviceLibs(
   // Maintain compatability with --hip-device-lib.
   auto BCLibArgs = DriverArgs.getAllArgValues(options::OPT_hip_device_lib_EQ);
   if (!BCLibArgs.empty()) {
-    llvm::for_each(BCLibArgs, [&](StringRef BCName) {
+    for (StringRef BCName : BCLibArgs) {
       StringRef FullName;
+      bool Found = false;
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> Path(LibraryPath);
         llvm::sys::path::append(Path, BCName);
         FullName = Path;
         if (llvm::sys::fs::exists(FullName)) {
           BCLibs.emplace_back(FullName);
-          return;
+          Found = true;
+          break;
         }
       }
-      getDriver().Diag(diag::err_drv_no_such_file) << BCName;
-    });
+      if (!Found)
+        getDriver().Diag(diag::err_drv_no_such_file) << BCName;
+    }
   } else {
     if (!RocmInstallation->hasDeviceLibrary()) {
       getDriver().Diag(diag::err_drv_no_rocm_device_lib) << 0;
@@ -445,4 +448,16 @@ void HIPAMDToolChain::checkTargetID(
       PTID.OptionalTargetID != "amdgcnspirv")
     getDriver().Diag(clang::diag::err_drv_bad_target_id)
         << *PTID.OptionalTargetID;
+}
+
+SPIRVAMDToolChain::SPIRVAMDToolChain(const Driver &D,
+                                     const llvm::Triple &Triple,
+                                     const ArgList &Args)
+    : ROCMToolChain(D, Triple, Args) {
+  getProgramPaths().push_back(getDriver().Dir);
+}
+
+Tool *SPIRVAMDToolChain::buildLinker() const {
+  assert(getTriple().getArch() == llvm::Triple::spirv64);
+  return new tools::AMDGCN::Linker(*this);
 }

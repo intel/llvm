@@ -19,7 +19,6 @@
 #include <chrono>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
 #include <atomic>
 #include <detail/xpti_registry.hpp>
 #include <sstream>
@@ -28,10 +27,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-#endif
-
 // If we do not yet have a context, use the default one.
 void event_impl::initContextIfNeeded() {
   if (MContext || !MIsDefaultConstructed)
@@ -220,10 +215,11 @@ void event_impl::setSubmittedQueue(std::weak_ptr<queue_impl> SubmittedQueue) {
   MSubmittedQueue = std::move(SubmittedQueue);
 }
 
-void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+void *event_impl::instrumentationProlog(std::string &Name,
+                                        xpti::stream_id_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
@@ -258,14 +254,13 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
-#endif
   return TraceEvent;
 }
 
 void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
-                                       int32_t StreamID, uint64_t IId) const {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+                                       xpti::stream_id_t StreamID,
+                                       uint64_t IId) const {
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
   if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
         TelemetryEvent))
@@ -275,8 +270,8 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
       (xpti::trace_event_data_t *)TelemetryEvent;
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
-#endif
 }
+#endif // XPTI_ENABLE_INSTRUMENTATION
 
 void event_impl::wait(bool *Success) {
   if (MState == HES_Discarded)
@@ -293,7 +288,7 @@ void event_impl::wait(bool *Success) {
   void *TelemetryEvent = nullptr;
   uint64_t IId = 0;
   std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+  auto StreamID = detail::getActiveXPTIStreamID();
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
@@ -524,7 +519,7 @@ ur_native_handle_t event_impl::getNative() {
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
     Adapter.call<UrApiKind::urEventCreateWithNativeHandle>(
-        0, TempContext, &NativeProperties, &UREvent);
+        0u, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }

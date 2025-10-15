@@ -1,4 +1,7 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out
+
+// XFAIL: libcxx
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616
 #include <iostream>
 #include <sycl/sycl.hpp>
 

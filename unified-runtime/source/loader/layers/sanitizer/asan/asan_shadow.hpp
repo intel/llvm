@@ -56,17 +56,18 @@ struct ShadowMemory {
                                        uptr &Begin, uptr &End) = 0;
 
   virtual ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue,
-                                         uint64_t NumWI, uint32_t NumWG,
-                                         uptr *&Base, uptr &Begin,
-                                         uptr &End) = 0;
+                                         uint32_t NumSG, uptr *&Base,
+                                         uptr &Begin, uptr &End) = 0;
 
   ur_context_handle_t Context{};
 
   ur_device_handle_t Device{};
 
   uptr ShadowBegin = 0;
-
   uptr ShadowEnd = 0;
+
+  uptr ShadowLowerBound = 0xffff'ffff'ffff'ffff;
+  uptr ShadowUpperBound = 0;
 };
 
 struct ShadowMemoryCPU final : public ShadowMemory {
@@ -90,7 +91,7 @@ struct ShadowMemoryCPU final : public ShadowMemory {
     return UR_RESULT_SUCCESS;
   }
 
-  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint64_t, uint32_t, uptr *&,
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr *&,
                                  uptr &Begin, uptr &End) override {
     Begin = ShadowBegin;
     End = ShadowEnd;
@@ -110,8 +111,8 @@ struct ShadowMemoryGPU : public ShadowMemory {
   ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                uptr &Begin, uptr &End) override final;
 
-  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint64_t NumWI,
-                                 uint32_t NumWG, uptr *&Base, uptr &Begin,
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint32_t NumSG,
+                                 uptr *&Base, uptr &Begin,
                                  uptr &End) override final;
 
   ur_mutex VirtualMemMapsMutex;

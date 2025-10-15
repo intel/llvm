@@ -62,11 +62,14 @@ class VarDecl;
 class ParmVarDecl;
 class InitListExpr;
 class HLSLBufferDecl;
+class HLSLRootSignatureDecl;
+class HLSLVkBindingAttr;
 class HLSLResourceBindingAttr;
 class Type;
 class RecordType;
 class DeclContext;
 class HLSLPackOffsetAttr;
+class ArraySubscriptExpr;
 
 class FunctionDecl;
 
@@ -74,6 +77,7 @@ namespace CodeGen {
 
 class CodeGenModule;
 class CodeGenFunction;
+class LValue;
 
 class CGHLSLRuntime {
 public:
@@ -88,6 +92,7 @@ public:
   GENERATE_HLSL_INTRINSIC_FUNCTION(Frac, frac)
   GENERATE_HLSL_INTRINSIC_FUNCTION(FlattenedThreadIdInGroup,
                                    flattened_thread_id_in_group)
+  GENERATE_HLSL_INTRINSIC_FUNCTION(IsInf, isinf)
   GENERATE_HLSL_INTRINSIC_FUNCTION(Lerp, lerp)
   GENERATE_HLSL_INTRINSIC_FUNCTION(Normalize, normalize)
   GENERATE_HLSL_INTRINSIC_FUNCTION(Rsqrt, rsqrt)
@@ -107,6 +112,7 @@ public:
   GENERATE_HLSL_INTRINSIC_FUNCTION(WaveActiveAnyTrue, wave_any)
   GENERATE_HLSL_INTRINSIC_FUNCTION(WaveActiveCountBits, wave_active_countbits)
   GENERATE_HLSL_INTRINSIC_FUNCTION(WaveIsFirstLane, wave_is_first_lane)
+  GENERATE_HLSL_INTRINSIC_FUNCTION(WaveGetLaneCount, wave_get_lane_count)
   GENERATE_HLSL_INTRINSIC_FUNCTION(WaveReadLaneAt, wave_readlane)
   GENERATE_HLSL_INTRINSIC_FUNCTION(FirstBitUHigh, firstbituhigh)
   GENERATE_HLSL_INTRINSIC_FUNCTION(FirstBitSHigh, firstbitshigh)
@@ -117,6 +123,10 @@ public:
 
   GENERATE_HLSL_INTRINSIC_FUNCTION(CreateResourceGetPointer,
                                    resource_getpointer)
+  GENERATE_HLSL_INTRINSIC_FUNCTION(CreateHandleFromBinding,
+                                   resource_handlefrombinding)
+  GENERATE_HLSL_INTRINSIC_FUNCTION(CreateHandleFromImplicitBinding,
+                                   resource_handlefromimplicitbinding)
   GENERATE_HLSL_INTRINSIC_FUNCTION(BufferUpdateCounter, resource_updatecounter)
   GENERATE_HLSL_INTRINSIC_FUNCTION(GroupMemoryBarrierWithGroupSync,
                                    group_memory_barrier_with_group_sync)
@@ -124,15 +134,6 @@ public:
   //===----------------------------------------------------------------------===//
   // End of reserved area for HLSL intrinsic getters.
   //===----------------------------------------------------------------------===//
-
-  // Returns ID of the intrinsic that initializes resource handle from binding
-  // and a bool value indicating whether the last argument of the intrinsic is
-  // the resource name (not all targets need that).
-  std::pair<llvm::Intrinsic::ID, bool> getCreateHandleFromBindingIntrinsic();
-
-  // Same as above but for implicit binding.
-  std::pair<llvm::Intrinsic::ID, bool>
-  getCreateHandleFromImplicitBindingIntrinsic();
 
 protected:
   CodeGenModule &CGM;
@@ -151,6 +152,7 @@ public:
   void generateGlobalCtorDtorCalls();
 
   void addBuffer(const HLSLBufferDecl *D);
+  void addRootSignature(const HLSLRootSignatureDecl *D);
   void finishCodeGen();
 
   void setHLSLEntryAttributes(const FunctionDecl *FD, llvm::Function *Fn);
@@ -167,9 +169,16 @@ public:
                                llvm::TargetExtType *LayoutTy);
   void emitInitListOpaqueValues(CodeGenFunction &CGF, InitListExpr *E);
 
+  std::optional<LValue>
+  emitResourceArraySubscriptExpr(const ArraySubscriptExpr *E,
+                                 CodeGenFunction &CGF);
+
 private:
   void emitBufferGlobalsAndMetadata(const HLSLBufferDecl *BufDecl,
                                     llvm::GlobalVariable *BufGV);
+  void initializeBufferFromBinding(const HLSLBufferDecl *BufDecl,
+                                   llvm::GlobalVariable *GV,
+                                   HLSLVkBindingAttr *VkBinding);
   void initializeBufferFromBinding(const HLSLBufferDecl *BufDecl,
                                    llvm::GlobalVariable *GV,
                                    HLSLResourceBindingAttr *RBA);

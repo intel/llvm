@@ -15,7 +15,8 @@
 #include <sycl/detail/cg_types.hpp>    // for CGType
 #include <sycl/detail/kernel_desc.hpp> // for kernel_param_kind_t
 
-#include <sycl/ext/oneapi/experimental/graph/node.hpp> // for node
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetchType
+#include <sycl/ext/oneapi/experimental/graph/node.hpp>    // for node
 
 #include <cstring>
 #include <fstream>
@@ -35,13 +36,6 @@ namespace detail {
 class node_impl;
 class nodes_range;
 class exec_graph_impl;
-
-/// Takes a vector of weak_ptrs to node_impls and returns a vector of node
-/// objects created from those impls, in the same order.
-std::vector<node>
-createNodesFromImpls(const std::vector<std::weak_ptr<node_impl>> &Impls);
-
-std::vector<node> createNodesFromImpls(nodes_range Impls);
 
 inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
   using sycl::detail::CG;
@@ -93,11 +87,11 @@ public:
   /// Unique identifier for this node.
   id_type MID = getNextNodeID();
   /// List of successors to this node.
-  std::vector<std::weak_ptr<node_impl>> MSuccessors;
+  std::vector<node_impl *> MSuccessors;
   /// List of predecessors to this node.
   ///
   /// Using weak_ptr here to prevent circular references between nodes.
-  std::vector<std::weak_ptr<node_impl>> MPredecessors;
+  std::vector<node_impl *> MPredecessors;
   /// Type of the command-group for the node.
   sycl::detail::CGType MCGType = sycl::detail::CGType::None;
   /// User facing type of the node.
@@ -123,26 +117,22 @@ public:
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   void registerSuccessor(node_impl &Node) {
-    if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
-                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock().get() == &Node;
-                     }) != MSuccessors.end()) {
+    if (std::find(MSuccessors.begin(), MSuccessors.end(), &Node) !=
+        MSuccessors.end()) {
       return;
     }
-    MSuccessors.push_back(Node.weak_from_this());
+    MSuccessors.push_back(&Node);
     Node.registerPredecessor(*this);
   }
 
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
   void registerPredecessor(node_impl &Node) {
-    if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
-                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
-                       return Ptr.lock().get() == &Node;
-                     }) != MPredecessors.end()) {
+    if (std::find(MPredecessors.begin(), MPredecessors.end(), &Node) !=
+        MPredecessors.end()) {
       return;
     }
-    MPredecessors.push_back(Node.weak_from_this());
+    MPredecessors.push_back(&Node);
   }
 
   /// Construct an empty node.
@@ -351,7 +341,7 @@ public:
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+      return ExecKernelA->getKernelName() == ExecKernelB->getKernelName();
     }
     case sycl::detail::CGType::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
@@ -393,15 +383,13 @@ public:
     Visited.push_back(this);
 
     printDotCG(Stream, Verbose);
-    for (const auto &Dep : MPredecessors) {
-      auto NodeDep = Dep.lock();
-      Stream << "  \"" << NodeDep.get() << "\" -> \"" << this << "\""
-             << std::endl;
+    for (node_impl *Pred : MPredecessors) {
+      Stream << "  \"" << Pred << "\" -> \"" << this << "\"" << std::endl;
     }
 
-    for (std::weak_ptr<node_impl> Succ : MSuccessors) {
-      if (MPartitionNum == Succ.lock()->MPartitionNum)
-        Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
+    for (node_impl *Succ : MSuccessors) {
+      if (MPartitionNum == Succ->MPartitionNum)
+        Succ->printDotRecursive(Stream, Visited, Verbose);
     }
   }
 
@@ -555,7 +543,7 @@ private:
       Stream << "CGExecKernel \\n";
       sycl::detail::CGExecKernel *Kernel =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      Stream << "NAME = " << Kernel->getKernelName() << "\\n";
       if (Verbose) {
         Stream << "ARGS = \\n";
         for (size_t i = 0; i < Kernel->MArgs.size(); i++) {
@@ -668,7 +656,10 @@ private:
         sycl::detail::CGPrefetchUSM *Prefetch =
             static_cast<sycl::detail::CGPrefetchUSM *>(MCommandGroup.get());
         Stream << "Dst: " << Prefetch->getDst()
-               << " Length: " << Prefetch->getLength() << "\\n";
+               << " Length: " << Prefetch->getLength() << " PrefetchType: "
+               << sycl::ext::oneapi::experimental::prefetchTypeToString(
+                      Prefetch->getPrefetchType())
+               << "\\n";
       }
       break;
     case sycl::detail::CGType::AdviseUSM:
@@ -762,37 +753,13 @@ private:
   }
 };
 
-struct nodes_deref_impl {
-  template <typename T> static node_impl &dereference(T &Elem) {
-    using Ty = std::decay_t<decltype(Elem)>;
-    if constexpr (std::is_same_v<Ty, std::weak_ptr<node_impl>>) {
-      // This assumes that weak_ptr doesn't actually manage lifetime and
-      // the object is guaranteed to be alive (which seems to be the
-      // assumption across all graph code).
-      return *Elem.lock();
-    } else if constexpr (std::is_same_v<Ty, node>) {
-      return *getSyclObjImpl(Elem);
-    } else {
-      return *Elem;
-    }
-  }
-};
-
 template <typename... ContainerTy>
 using nodes_iterator_impl =
-    variadic_iterator<nodes_deref_impl,
-                      typename ContainerTy::const_iterator...>;
+    variadic_iterator<node, typename ContainerTy::const_iterator...>;
 
 using nodes_iterator = nodes_iterator_impl<
     std::vector<std::shared_ptr<node_impl>>, std::vector<node_impl *>,
-    // Next one is temporary. It looks like `weak_ptr`s aren't
-    // used for the actual lifetime management and the objects are
-    // always guaranteed to be alive. Once the code is cleaned
-    // from `weak_ptr`s this alternative should be removed too.
-    std::vector<std::weak_ptr<node_impl>>,
-    //
     std::set<std::shared_ptr<node_impl>>, std::set<node_impl *>,
-    //
     std::list<node_impl *>, std::vector<node>>;
 
 class nodes_range : public iterator_range<nodes_iterator> {

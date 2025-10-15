@@ -8,7 +8,7 @@ import csv
 import io
 import re
 
-from .base import Benchmark, Suite
+from .base import Benchmark, Suite, TracingType
 from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
@@ -20,15 +20,12 @@ def isUMFAvailable():
 
 
 class UMFSuite(Suite):
-    def __init__(self, directory):
-        self.directory = directory
-
     def name(self) -> str:
         return "UMF"
 
-    def setup(self):
+    def setup(self) -> None:
         if not isUMFAvailable():
-            return []
+            return
         self.built = True
 
     def benchmarks(self) -> list[Benchmark]:
@@ -44,7 +41,7 @@ class UMFSuite(Suite):
 
 class GBench(Benchmark):
     def __init__(self, bench):
-        super().__init__(bench.directory, bench)
+        super().__init__(bench)
 
         self.bench = bench
         self.bench_name = "umf-benchmark"
@@ -137,7 +134,12 @@ class GBench(Benchmark):
 
         return all_names
 
-    def run(self, env_vars) -> list[Result]:
+    def run(
+        self,
+        env_vars,
+        run_trace: TracingType = TracingType.NONE,
+        force_trace: bool = False,
+    ) -> list[Result]:
         command = [f"{self.benchmark_bin}"]
 
         all_names = self.get_names_of_benchmarks_to_be_run(command, env_vars)
@@ -151,7 +153,12 @@ class GBench(Benchmark):
             specific_benchmark = command + ["--benchmark_filter=^" + name + "$"]
 
             result = self.run_bench(
-                specific_benchmark, env_vars, add_sycl=False, ld_library=[self.umf_lib]
+                specific_benchmark,
+                env_vars,
+                add_sycl=False,
+                ld_library=[self.umf_lib],
+                run_trace=run_trace,
+                force_trace=force_trace,
             )
 
             parsed = self.parse_output(result)

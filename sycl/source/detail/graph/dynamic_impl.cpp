@@ -90,6 +90,10 @@ void dynamic_local_accessor_base::updateLocalAccessor(
       ->updateLocalAccessor(NewAllocationSize);
 }
 
+void dynamic_parameter_impl::registerNode(node_impl &NodeImpl, int ArgIndex) {
+  MNodes.emplace_back(NodeImpl.weak_from_this(), ArgIndex);
+}
+
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
                                          size_t Size) {
   // Number of bytes is taken from member of raw_kernel_arg object rather
@@ -339,7 +343,7 @@ void dynamic_command_group_impl::finalizeCGFList(
     MCommandGroups.push_back(std::shared_ptr<sycl::detail::CG>(RawCGPtr));
 
     // Track dynamic_parameter usage in command-group
-    auto &DynamicParams = Handler.impl->MDynamicParameters;
+    auto &DynamicParams = Handler.impl->MKernelData.getDynamicParameters();
 
     if (DynamicParams.size() > 0 &&
         Handler.getType() == sycl::detail::CGType::CodeplayHostTask) {

@@ -84,6 +84,10 @@ static cl::opt<bool> ClCompoundReadBeforeWrite(
     "tsan-compound-read-before-write", cl::init(false),
     cl::desc("Emit special compound instrumentation for reads-before-writes"),
     cl::Hidden);
+static cl::opt<bool>
+    ClOmitNonCaptured("tsan-omit-by-pointer-capturing", cl::init(true),
+                      cl::desc("Omit accesses due to pointer capturing"),
+                      cl::Hidden);
 
 static cl::opt<bool> ClSpirOffloadLocals("tsan-spir-locals",
                                          cl::desc("instrument local pointer"),
@@ -1002,7 +1006,8 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
 
     const AllocaInst *AI = findAllocaForValue(Addr);
     // Instead of Addr, we should check whether its base pointer is captured.
-    if (AI && !PointerMayBeCaptured(AI, /*ReturnCaptures=*/true)) {
+    if (AI && !PointerMayBeCaptured(AI, /*ReturnCaptures=*/true) &&
+        ClOmitNonCaptured) {
       // The variable is addressable but not captured, so it cannot be
       // referenced from a different thread and participate in a data race
       // (see llvm/Analysis/CaptureTracking.h for details).
@@ -1085,8 +1090,7 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
                cast<AllocaInst>(Inst).getAllocatedType()->isSized() &&
                !getTargetExtType(cast<AllocaInst>(Inst).getAllocatedType()))
         Allocas.push_back(&Inst);
-      else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
-               isa<InvokeInst>(Inst)) {
+      else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
           if (Spirv) {
@@ -1333,6 +1337,7 @@ bool ThreadSanitizer::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     Value *C = IRB.CreateCall(TsanAtomicLoad[Idx], Args);
     Value *Cast = IRB.CreateBitOrPointerCast(C, OrigTy);
     I->replaceAllUsesWith(Cast);
+    I->eraseFromParent();
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
     Value *Addr = SI->getPointerOperand();
     int Idx =

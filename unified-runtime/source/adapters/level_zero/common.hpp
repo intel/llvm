@@ -170,6 +170,7 @@ bool setEnvVar(const char *name, const char *value);
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
+template <class T> ze_structure_type_ext_t getZexStructureType();
 template <class T> zes_structure_type_t getZesStructureType();
 
 // The helpers to properly default initialize Level-Zero descriptor and
@@ -177,6 +178,13 @@ template <class T> zes_structure_type_t getZesStructureType();
 template <class T> struct ZeStruct : public T {
   ZeStruct() : T{} { // zero initializes base struct
     this->stype = getZeStructureType<T>();
+    this->pNext = nullptr;
+  }
+};
+
+template <class T> struct ZexStruct : public T {
+  ZexStruct() : T{} { // zero initializes base struct
+    this->stype = getZexStructureType<T>();
     this->pNext = nullptr;
   }
 };
@@ -210,8 +218,11 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString);
 #define ZE2UR_CALL_THROWS(ZeName, ZeArgs)                                      \
   {                                                                            \
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
+    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true)) {     \
+      UR_DFAILURE("failed ZE call " #ZeName " with " #ZeArgs ", with result:"  \
+                  << Result);                                                  \
       throw ze2urResult(Result);                                               \
+    }                                                                          \
   }
 
 // Perform traced call to L0 without checking for errors

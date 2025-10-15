@@ -36,6 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   case UR_DEVICE_TYPE_VPU:
     Type = CL_DEVICE_TYPE_ACCELERATOR;
     break;
+  case UR_DEVICE_TYPE_CUSTOM:
+    Type = CL_DEVICE_TYPE_CUSTOM;
+    break;
   case UR_DEVICE_TYPE_DEFAULT:
     Type = CL_DEVICE_TYPE_DEFAULT;
     break;
@@ -47,11 +50,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
     uint32_t DeviceNumIter = 0;
     for (uint32_t i = 0; i < AllDevicesNum; i++) {
       cl_device_type DevTy = hPlatform->Devices[i]->Type;
-      if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL) {
+      if (DevTy == Type || Type == CL_DEVICE_TYPE_ALL ||
+          Type == CL_DEVICE_TYPE_DEFAULT) {
         if (phDevices) {
           phDevices[DeviceNumIter] = hPlatform->Devices[i].get();
         }
         DeviceNumIter++;
+        // For default, the first device is the only returned device.
+        if (Type == CL_DEVICE_TYPE_DEFAULT)
+          break;
       }
     }
     if (pNumDevices) {
@@ -141,6 +148,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       URDeviceType = UR_DEVICE_TYPE_GPU;
     } else if (CLType & CL_DEVICE_TYPE_ACCELERATOR) {
       URDeviceType = UR_DEVICE_TYPE_FPGA;
+    } else if (CLType & CL_DEVICE_TYPE_CUSTOM) {
+      URDeviceType = UR_DEVICE_TYPE_CUSTOM;
     }
 
     return ReturnValue(URDeviceType);
@@ -1418,6 +1427,101 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
+  case UR_DEVICE_INFO_LUID: {
+    // LUID is only available on Windows.
+    // Intel extension for device LUID. This returns the LUID as
+    // std::array<std::byte, 8>. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Use the cl_khr_device_uuid extension, if available.
+    bool isKhrDeviceLuidSupported = false;
+    if (hDevice->checkDeviceExtensions({"cl_khr_device_uuid"},
+                                       isKhrDeviceLuidSupported) !=
+            UR_RESULT_SUCCESS ||
+        !isKhrDeviceLuidSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_bool isLuidValid;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(hDevice->CLDevice, CL_DEVICE_LUID_VALID_KHR,
+                        sizeof(cl_bool), &isLuidValid, nullptr));
+
+    if (!isLuidValid) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    static_assert(CL_LUID_SIZE_KHR == 8);
+    std::array<unsigned char, CL_LUID_SIZE_KHR> UUID{};
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice, CL_DEVICE_LUID_KHR,
+                                         UUID.size(), UUID.data(), nullptr));
+    return ReturnValue(UUID);
+  }
+  case UR_DEVICE_INFO_NODE_MASK: {
+    // Device node mask is only available on Windows.
+    // Intel extension for device node mask. This returns the node mask as
+    // uint32_t. For details about this extension,
+    // see sycl/doc/extensions/supported/sycl_ext_intel_device_info.md.
+
+    // Use the cl_khr_device_uuid extension, if available.
+    bool isKhrDeviceLuidSupported = false;
+    if (hDevice->checkDeviceExtensions({"cl_khr_device_uuid"},
+                                       isKhrDeviceLuidSupported) !=
+            UR_RESULT_SUCCESS ||
+        !isKhrDeviceLuidSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_int nodeMask = 0;
+
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_NODE_MASK_KHR,
+                                         sizeof(cl_int), &nodeMask, nullptr));
+
+    return ReturnValue(nodeMask);
+  }
+  case UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP: {
+    bool Supported = false;
+    size_t ExtSize = 0;
+
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        hDevice->CLDevice, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+    std::string ExtStr(ExtSize, '\0');
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_EXTENSIONS, ExtSize,
+                                         ExtStr.data(), nullptr));
+
+    if (ExtStr.find("cl_khr_kernel_clock") != std::string::npos) {
+      cl_device_kernel_clock_capabilities_khr caps = 0;
+
+      CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+          hDevice->CLDevice, CL_DEVICE_KERNEL_CLOCK_CAPABILITIES_KHR,
+          sizeof(cl_device_kernel_clock_capabilities_khr), &caps, nullptr));
+
+      if ((propName == UR_DEVICE_INFO_CLOCK_SUB_GROUP_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_SUB_GROUP_KHR)) ||
+          (propName == UR_DEVICE_INFO_CLOCK_WORK_GROUP_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_WORK_GROUP_KHR)) ||
+          (propName == UR_DEVICE_INFO_CLOCK_DEVICE_SUPPORT_EXP &&
+           (caps & CL_DEVICE_KERNEL_CLOCK_SCOPE_DEVICE_KHR)))
+        Supported = true;
+    }
+    return ReturnValue(Supported);
+  }
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU: {
+    cl_bool CLValue;
+
+    // TODO: use stable API instead of deprecated CL_DEVICE_HOST_UNIFIED_MEMORY.
+    // Currently CL_DEVICE_HOST_UNIFIED_MEMORY is deprecated by OpenCL 2.0, but
+    // still was not removed even from Intel implementations of OpenCL 3.0.
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_HOST_UNIFIED_MEMORY,
+                                         sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -1448,6 +1552,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP:
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+  case UR_DEVICE_INFO_MEMORY_EXPORT_EXPORTABLE_DEVICE_MEM_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
@@ -1662,6 +1767,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 
   // TODO: Cache OpenCL version for each device and platform
   auto RetErr = hDevice->getDeviceVersion(DevVer);
+
+  if (RetErr == CL_INVALID_OPERATION) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   CL_RETURN_ON_FAILURE(RetErr);
 
   RetErr = hDevice->Platform->getPlatformVersion(PlatVer);

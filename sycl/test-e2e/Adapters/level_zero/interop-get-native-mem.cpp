@@ -7,6 +7,10 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
+// L0v2 adapter does not support integrated buffers yet
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20280
+
 // Test get_native_mem for the Level Zero backend.
 
 // Level-Zero
@@ -34,11 +38,12 @@ int main() {
       return 0;
     }
 
-    // Initialize Level Zero driver is required if this test is linked
-    // statically with Level Zero loader, the driver will not be init otherwise.
+    // Initializing Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, otherwise the driver will not be
+    // initialized.
     ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
     if (result != ZE_RESULT_SUCCESS) {
-      std::cout << "zeInit failed\n";
+      std::cout << "zeInit failed with error code: " << result << std::endl;
       return 1;
     }
 

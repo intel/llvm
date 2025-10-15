@@ -40,6 +40,8 @@ public:
   SYCLBIN(const SYCLBIN &Other) = delete;
   SYCLBIN(SYCLBIN &&Other) = default;
 
+  ~SYCLBIN() = default;
+
   SYCLBIN &operator=(const SYCLBIN &Other) = delete;
   SYCLBIN &operator=(SYCLBIN &&Other) = default;
 
@@ -119,12 +121,14 @@ struct SYCLBINBinaries {
 
   SYCLBINBinaries(const char *SYCLBINContent, size_t SYCLBINSize);
 
-  std::vector<const RTDeviceBinaryImage *>
-  getBestCompatibleImages(const device &Dev);
-  std::vector<const RTDeviceBinaryImage *>
-  getBestCompatibleImages(const std::vector<device> &Dev);
+  ~SYCLBINBinaries() = default;
 
-  uint8_t getState() const noexcept {
+  std::vector<const RTDeviceBinaryImage *>
+  getBestCompatibleImages(device_impl &Dev, bundle_state State);
+  std::vector<const RTDeviceBinaryImage *>
+  getBestCompatibleImages(devices_range Dev, bundle_state State);
+
+  uint8_t getState() const {
     PropertySet &GlobalMetadata =
         (*ParsedSYCLBIN
               .GlobalMetadata)[PropertySetRegistry::SYCLBIN_GLOBAL_METADATA];
@@ -139,6 +143,10 @@ private:
   std::vector<_sycl_device_binary_property_set_struct> &
   convertAbstractModuleProperties(SYCLBIN::AbstractModule &AM);
 
+  size_t getNumAbstractModules() const {
+    return ParsedSYCLBIN.AbstractModules.size();
+  }
+
   std::unique_ptr<char[]> SYCLBINContentCopy = nullptr;
   size_t SYCLBINContentCopySize = 0;
 
@@ -152,8 +160,16 @@ private:
       BinaryPropertySets;
 
   std::vector<sycl_device_binary_struct> DeviceBinaries;
-  std::vector<RTDeviceBinaryImage> JITDeviceBinaryImages;
-  std::vector<RTDeviceBinaryImage> NativeDeviceBinaryImages;
+
+  struct AbstractModuleDesc {
+    size_t NumJITBinaries;
+    size_t NumNativeBinaries;
+    RTDeviceBinaryImage *JITBinaries;
+    RTDeviceBinaryImage *NativeBinaries;
+  };
+
+  std::unique_ptr<AbstractModuleDesc[]> AbstractModuleDescriptors;
+  std::unique_ptr<RTDeviceBinaryImage[]> BinaryImages;
 };
 
 } // namespace detail

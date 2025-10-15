@@ -30,6 +30,9 @@
 // UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>

@@ -74,7 +74,7 @@ context kernel_bundle_plain::get_context() const noexcept {
 }
 
 std::vector<device> kernel_bundle_plain::get_devices() const noexcept {
-  return impl->get_devices();
+  return impl->get_devices().to<std::vector<device>>();
 }
 
 std::vector<kernel_id> kernel_bundle_plain::get_kernel_ids() const {
@@ -285,11 +285,10 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   std::set<kernel_id, LessByNameComp> CombinedKernelIDs;
   for (const DevImgPlainWithDeps &DeviceImageWithDeps : DeviceImagesWithDeps) {
     for (const device_image_plain &DeviceImage : DeviceImageWithDeps) {
-      const std::shared_ptr<device_image_impl> &DeviceImageImpl =
-          getSyclObjImpl(DeviceImage);
+      device_image_impl &DeviceImageImpl = *getSyclObjImpl(DeviceImage);
 
-      CombinedKernelIDs.insert(DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                               DeviceImageImpl->get_kernel_ids_ptr()->end());
+      CombinedKernelIDs.insert(DeviceImageImpl.get_kernel_ids().begin(),
+                               DeviceImageImpl.get_kernel_ids().end());
     }
   }
 
@@ -366,26 +365,7 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  if (KernelIDs.empty())
-    return true;
-  // One kernel may be contained in several binary images depending on the
-  // number of targets. This kernel is compatible with the device if there is
-  // at least one image (containing this kernel) whose aspects are supported by
-  // the device and whose target matches the device.
-  detail::device_impl &DevImpl = *getSyclObjImpl(Dev);
-  for (const auto &KernelID : KernelIDs) {
-    std::set<const detail::RTDeviceBinaryImage *> BinImages =
-        detail::ProgramManager::getInstance().getRawDeviceImages({KernelID});
-
-    if (std::none_of(BinImages.begin(), BinImages.end(),
-                     [&](const detail::RTDeviceBinaryImage *Img) {
-                       return doesDevSupportDeviceRequirements(DevImpl, *Img) &&
-                              doesImageTargetMatchDevice(*Img, DevImpl);
-                     }))
-      return false;
-  }
-
-  return true;
+  return detail::is_compatible(KernelIDs, *getSyclObjImpl(Dev));
 }
 
 /////////////////////////
@@ -409,8 +389,10 @@ bool is_source_kernel_bundle_supported(
     const std::vector<device_impl *> &DeviceImplVec) {
   backend BE = DeviceImplVec[0]->getBackend();
   // Support is limited to the opencl and level_zero backends.
-  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
-                       (BE == sycl::backend::opencl);
+  bool BE_Acceptable = BE == sycl::backend::ext_oneapi_level_zero ||
+                       BE == sycl::backend::opencl ||
+                       BE == sycl::backend::ext_oneapi_hip ||
+                       BE == sycl::backend::ext_oneapi_cuda;
   if (!BE_Acceptable)
     return false;
 

@@ -219,8 +219,10 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage()
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   Bin->CompileOptions = "";
   Bin->LinkOptions = "";
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->ManifestStart = nullptr;
   Bin->ManifestEnd = nullptr;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   Bin->BinaryStart = nullptr;
   Bin->BinaryEnd = nullptr;
   Bin->EntriesBegin = nullptr;
@@ -280,16 +282,21 @@ naiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
 
 // Exclusive property merge logic. If IgnoreDuplicates is false it assumes there
 // are no cases where properties have different values and throws otherwise.
-template <typename RangeGetterT>
+template <typename RangeGetterT, typename DropPropertyT>
 static std::unordered_map<std::string_view, const sycl_device_binary_property>
 exclusiveMergeBinaryProperties(
     const std::vector<const RTDeviceBinaryImage *> &Imgs,
-    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
+    const RangeGetterT &RangeGetter, bool IgnoreDuplicates,
+    const DropPropertyT &DropProperty) {
   std::unordered_map<std::string_view, const sycl_device_binary_property>
       MergeMap;
   for (const RTDeviceBinaryImage *Img : Imgs) {
     const RTDeviceBinaryImage::PropertyRange &Range = RangeGetter(*Img);
     for (const sycl_device_binary_property Prop : Range) {
+      // Skip adding the property if we can drop it.
+      if (DropProperty(std::string_view{Prop->Name}))
+        continue;
+
       const auto [It, Inserted] =
           MergeMap.try_emplace(std::string_view{Prop->Name}, Prop);
       if (IgnoreDuplicates || Inserted)
@@ -306,6 +313,17 @@ exclusiveMergeBinaryProperties(
     }
   }
   return MergeMap;
+}
+
+template <typename RangeGetterT,
+          typename DropPropertyT = std::function<bool(std::string_view)>>
+static std::unordered_map<std::string_view, const sycl_device_binary_property>
+exclusiveMergeBinaryProperties(
+    const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
+  return exclusiveMergeBinaryProperties(
+      Imgs, RangeGetter, IgnoreDuplicates,
+      /*DropProperty=*/[](std::string_view) { return false; });
 }
 
 // Device requirements needs the ability to produce new properties. The
@@ -549,10 +567,11 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
       Imgs,
       [](const RTDeviceBinaryImage &Img) { return Img.getImportedSymbols(); },
       /*IgnoreDuplicates=*/true);
-  auto MergedMisc =
-      exclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
-        return Img.getMiscProperties();
-      });
+  auto MergedMisc = exclusiveMergeBinaryProperties(
+      Imgs,
+      [](const RTDeviceBinaryImage &Img) { return Img.getMiscProperties(); },
+      /*IgnoreDuplicates=*/true, /*DropProperty=*/
+      [](std::string_view PropertyName) { return PropertyName == "optLevel"; });
 
   std::array<const std::unordered_map<std::string_view,
                                       const sycl_device_binary_property> *,
@@ -693,22 +712,29 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
       static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
 }
 
+// std::call_once ensures that this function is thread_safe and prevents
+// race during image decompression.
 void CompressedRTDeviceBinaryImage::Decompress() {
+  auto DecompressFunc = [&]() {
+    size_t CompressedDataSize =
+        static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
 
-  size_t CompressedDataSize =
-      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
+    size_t DecompressedSize = 0;
+    m_DecompressedData = ZSTDCompressor::DecompressBlob(
+        reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
+        DecompressedSize);
 
-  size_t DecompressedSize = 0;
-  m_DecompressedData = ZSTDCompressor::DecompressBlob(
-      reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
-      DecompressedSize);
+    Bin->BinaryStart =
+        reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
+    Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
-  Bin->BinaryStart =
-      reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
-  Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
+    Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
+    Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 
-  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
-  Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
+    m_IsCompressed.store(false);
+  };
+
+  std::call_once(m_InitFlag, DecompressFunc);
 }
 
 CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {

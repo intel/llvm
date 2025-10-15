@@ -12,6 +12,13 @@
 //RUN: %clangxx -fsycl -fsycl-targets=native_cpu -g %t_plusone-debug.o %t_main-debug.o %t_init-debug.o -o %t-debug
 //RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t-debug
 
+// New offload driver
+//RUN: %clangxx -fsycl -fsycl-targets=native_cpu --offload-new-driver %s -c -o %t_main-new_offload.o
+//RUN: %clangxx -fsycl -fsycl-targets=native_cpu --offload-new-driver %S/Inputs/init.cpp -c -o %t_init-new_offload.o
+//RUN: %clangxx -fsycl -fsycl-targets=native_cpu --offload-new-driver %S/Inputs/plusone.cpp -c -o %t_plusone-new_offload.o
+//RUN: %clangxx -fsycl -fsycl-targets=native_cpu --offload-new-driver %t_plusone-new_offload.o %t_main-new_offload.o %t_init-new_offload.o -o %t-new_offload
+//RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t-new_offload
+
 #include "Inputs/common.h"
 #include <iostream>
 

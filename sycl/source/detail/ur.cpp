@@ -57,13 +57,6 @@ void contextSetExtendedDeleter(const sycl::context &context,
 }
 } // namespace pi
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-// Global (to the SYCL runtime) graph handle that all command groups are a
-// child of
-/// Event to be used by graph related activities
-xpti_td *GSYCLGraphEvent = nullptr;
-#endif // XPTI_ENABLE_INSTRUMENTATION
-
 template <sycl::backend BE>
 void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   // This was formerly a call to piextAdapterGetOpaqueData, a deprecated PI
@@ -92,8 +85,6 @@ bool trace(TraceLevel Level) {
 
 static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                                ur_loader_config_handle_t LoaderConfig);
-
-bool XPTIInitDone = false;
 
 // Initializes all available Adapters.
 std::vector<adapter_impl *> &
@@ -127,6 +118,20 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
                 << sycl::detail::codeToString(error) << std::endl;             \
     }                                                                          \
   }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // We want XPTI initialized as early as possible, so we do it here. This
+  // allows XPTI calls in the loader to be pre-initialized.
+  if (xptiTraceEnabled()) {
+    // Initialize the XPTI framework.
+    // Not sure this is the best place to initialize the framework; SYCL runtime
+    // team needs to advise on the right place, until then we piggy-back on the
+    // initialization of the UR layer.
+
+    // This is done only once, even if multiple adapters are initialized.
+    GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+  }
+#endif
 
   UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
   auto loaderConfigCreate =
@@ -208,7 +213,7 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0u, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
   CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
@@ -248,39 +253,6 @@ static void initializeAdapters(std::vector<adapter_impl *> &Adapters,
     }
   }
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-
-  if (!(xptiTraceEnabled() && !XPTIInitDone))
-    return;
-  // Not sure this is the best place to initialize the framework; SYCL runtime
-  // team needs to advise on the right place, until then we piggy-back on the
-  // initialization of the UR layer.
-
-  // Initialize the global events just once, in the case ur::initialize() is
-  // called multiple times
-  XPTIInitDone = true;
-  // Registers a new stream for 'sycl' and any application that wants to listen
-  // to this stream will register itself using this string or stream ID for
-  // this string.
-  uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  // Let all tool applications know that a stream by the name of 'sycl' has
-  // been initialized and will be generating the trace stream.
-  GlobalHandler::instance().getXPTIRegistry().initializeStream(
-      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
-  // Create a tracepoint to indicate the graph creation
-  xpti::payload_t GraphPayload("application_graph");
-  uint64_t GraphInstanceNo;
-  GSYCLGraphEvent =
-      xptiMakeEvent("application_graph", &GraphPayload, xpti::trace_graph_event,
-                    xpti_at::active, &GraphInstanceNo);
-  if (GSYCLGraphEvent) {
-    // The graph event is a global event and will be used as the parent for
-    // all nodes (command groups)
-    xptiNotifySubscribers(StreamID, xpti::trace_graph_create, nullptr,
-                          GSYCLGraphEvent, GraphInstanceNo, nullptr);
-  }
-#endif
 #undef CHECK_UR_SUCCESS
 }
 
@@ -467,6 +439,98 @@ ur_program_metadata_t mapDeviceBinaryPropertyToProgramMetadata(
 }
 
 } // namespace ur
+
+const char *stringifyErrorCode(int32_t error) {
+  switch (error) {
+#define _UR_ERRC(NAME)                                                         \
+  case NAME:                                                                   \
+    return #NAME;
+    // TODO: bring back old code specific messages?
+#define _UR_ERRC_WITH_MSG(NAME, MSG)                                           \
+  case NAME:                                                                   \
+    return MSG;
+    _UR_ERRC(UR_RESULT_SUCCESS)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_OPERATION)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_QUEUE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_VALUE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_CONTEXT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_PLATFORM)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_BINARY)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_PROGRAM)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_SAMPLER)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_BUFFER_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_MEM_OBJECT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_EVENT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
+    _UR_ERRC(UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE)
+    _UR_ERRC(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE)
+    _UR_ERRC(UR_RESULT_ERROR_DEVICE_NOT_FOUND)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_DEVICE)
+    _UR_ERRC(UR_RESULT_ERROR_DEVICE_LOST)
+    _UR_ERRC(UR_RESULT_ERROR_DEVICE_REQUIRES_RESET)
+    _UR_ERRC(UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE)
+    _UR_ERRC(UR_RESULT_ERROR_DEVICE_PARTITION_FAILED)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_WORK_DIMENSION)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_KERNEL)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_KERNEL_NAME)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_IMAGE_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR)
+    _UR_ERRC(UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE)
+    _UR_ERRC(UR_RESULT_ERROR_UNINITIALIZED)
+    _UR_ERRC(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY)
+    _UR_ERRC(UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
+    _UR_ERRC(UR_RESULT_ERROR_OUT_OF_RESOURCES)
+    _UR_ERRC(UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE)
+    _UR_ERRC(UR_RESULT_ERROR_PROGRAM_LINK_FAILURE)
+    _UR_ERRC(UR_RESULT_ERROR_UNSUPPORTED_VERSION)
+    _UR_ERRC(UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_ARGUMENT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_NULL_HANDLE)
+    _UR_ERRC(UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_NULL_POINTER)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_UNSUPPORTED_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_ENUMERATION)
+    _UR_ERRC(UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
+    _UR_ERRC(UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_NATIVE_BINARY)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_GLOBAL_NAME)
+    _UR_ERRC(UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION)
+    _UR_ERRC(UR_RESULT_ERROR_PROGRAM_UNLINKED)
+    _UR_ERRC(UR_RESULT_ERROR_OVERLAPPING_REGIONS)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_HOST_PTR)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_USM_SIZE)
+    _UR_ERRC(UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE)
+    _UR_ERRC(UR_RESULT_ERROR_ADAPTER_SPECIFIC)
+    _UR_ERRC(UR_RESULT_ERROR_LAYER_NOT_PRESENT)
+    _UR_ERRC(UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS)
+    _UR_ERRC(UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP)
+    _UR_ERRC(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP)
+    _UR_ERRC(UR_RESULT_ERROR_UNKNOWN)
+#undef _UR_ERRC
+#undef _UR_ERRC_WITH_MSG
+
+  default:
+    return "Unknown error code";
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

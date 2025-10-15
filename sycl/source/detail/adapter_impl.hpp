@@ -24,6 +24,10 @@
 #include <memory>
 #include <mutex>
 
+#define __SYCL_UR_ERROR_REPORT(backend)                                        \
+  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
+      " backend failed with error: "
+
 #define __SYCL_CHECK_UR_CODE_NO_EXC(expr, backend)                             \
   {                                                                            \
     auto code = expr;                                                          \
@@ -95,7 +99,7 @@ public:
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
     std::call_once(PlatformsPopulated, [&]() {
       uint32_t platformCount = 0;
-      call<UrApiKind::urPlatformGet>(MAdapter, 0, nullptr, &platformCount);
+      call<UrApiKind::urPlatformGet>(MAdapter, 0u, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
       if (platformCount) {
         call<UrApiKind::urPlatformGet>(MAdapter, platformCount,
@@ -239,6 +243,78 @@ private:
   UrFuncPtrMapT UrFuncPtrs;
 }; // class adapter_impl
 
+template <typename URResource> class Managed {
+  static constexpr auto Release = []() constexpr {
+    if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
+      return UrApiKind::urProgramRelease;
+    if constexpr (std::is_same_v<URResource, ur_kernel_handle_t>)
+      return UrApiKind::urKernelRelease;
+  }();
+  static constexpr auto Retain = []() constexpr {
+    if constexpr (std::is_same_v<URResource, ur_program_handle_t>)
+      return UrApiKind::urProgramRetain;
+    if constexpr (std::is_same_v<URResource, ur_kernel_handle_t>)
+      return UrApiKind::urKernelRetain;
+  }();
+
+public:
+  Managed() = default;
+  Managed(URResource R, adapter_impl &Adapter) : R(R), Adapter(&Adapter) {}
+  Managed(adapter_impl &Adapter) : Adapter(&Adapter) {}
+  Managed(const Managed &) = delete;
+  Managed(Managed &&Other) : Adapter(Other.Adapter) {
+    R = Other.R;
+    Other.R = nullptr;
+  }
+  Managed &operator=(const Managed &) = delete;
+  Managed &operator=(Managed &&Other) {
+    URResource Temp = Other.R;
+    Other.R = nullptr;
+    if (R)
+      Adapter->call<Release>(R);
+    R = Temp;
+
+    Adapter = Other.Adapter;
+    return *this;
+  }
+
+  operator URResource() const { return R; }
+
+  URResource release() {
+    URResource Res = R;
+    R = nullptr;
+    return Res;
+  }
+
+  URResource *operator&() {
+    assert(!R && "Already initialized!");
+    assert(Adapter && "Adapter must be set for this API!");
+    return &R;
+  }
+
+  ~Managed() {
+    if (!R)
+      return;
+
+    Adapter->call<Release>(R);
+  }
+
+  Managed retain() {
+    assert(R && "Cannot retain unintialized resource!");
+    Adapter->call<Retain>(R);
+    return Managed{R, *Adapter};
+  }
+
+  bool operator==(const Managed &Other) const {
+    assert((!Adapter || !Other.Adapter || Adapter == Other.Adapter) &&
+           "Objects must belong to the same adapter!");
+    return R == Other.R;
+  }
+
+private:
+  URResource R = nullptr;
+  adapter_impl *Adapter = nullptr;
+};
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

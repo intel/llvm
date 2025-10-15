@@ -39,9 +39,8 @@ TEST_F(CommandGraphTest, SubGraph) {
   // Subgraph nodes are duplicated when inserted to parent graph on
   // finalization. we thus check the node content only.
   const bool CompareContentOnly = true;
-  ASSERT_TRUE(
-      getSyclObjImpl(Node1MainGraph)->MSuccessors.front().lock()->MNodeType ==
-      experimental::node_type::subgraph);
+  ASSERT_TRUE(getSyclObjImpl(Node1MainGraph)->MSuccessors.front()->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MPredecessors.size(), 0lu);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MPredecessors.size(), 1lu);
@@ -101,9 +100,8 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
   const bool CompareContentOnly = true;
-  ASSERT_TRUE(
-      getSyclObjImpl(Node1MainGraph)->MSuccessors.front().lock()->MNodeType ==
-      experimental::node_type::subgraph);
+  ASSERT_TRUE(getSyclObjImpl(Node1MainGraph)->MSuccessors.front()->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MPredecessors.size(), 0lu);
@@ -166,9 +164,8 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
   const bool CompareContentOnly = true;
-  ASSERT_TRUE(
-      getSyclObjImpl(Node1MainGraph)->MSuccessors.front().lock()->MNodeType ==
-      experimental::node_type::subgraph);
+  ASSERT_TRUE(getSyclObjImpl(Node1MainGraph)->MSuccessors.front()->MNodeType ==
+              experimental::node_type::subgraph);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node2MainGraph)->MSuccessors.size(), 1lu);
   ASSERT_EQ(getSyclObjImpl(Node1MainGraph)->MPredecessors.size(), 0lu);

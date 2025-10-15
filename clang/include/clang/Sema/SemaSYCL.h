@@ -355,7 +355,7 @@ public:
 
   bool isDeclAllowedInSYCLDeviceCode(const Decl *D);
   void checkSYCLDeviceVarDecl(VarDecl *Var);
-  void copySYCLKernelAttrs(CXXMethodDecl *CallOperator);
+  void copyDeviceKernelAttrs(CXXMethodDecl *CallOperator);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
   void MarkDevices();
@@ -668,6 +668,7 @@ public:
                                     Expr *E);
   void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 
+  void CheckSYCLExternalFunctionDecl(FunctionDecl *FD);
   void CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD);
   // Used to check whether the function represented by FD is a SYCL
   // free function kernel or not.

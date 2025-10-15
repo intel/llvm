@@ -149,8 +149,8 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
 inline int GetCurrentSid() {
   const size_t lid = LocalLinearId();
   const size_t ThreadPerWorkGroup =
-      Min(4, __spirv_BuiltInWorkgroupSize.x * __spirv_BuiltInWorkgroupSize.y *
-                 __spirv_BuiltInWorkgroupSize.z);
+      Min(4, __spirv_BuiltInWorkgroupSize(0) * __spirv_BuiltInWorkgroupSize(1) *
+                 __spirv_BuiltInWorkgroupSize(2));
   if (lid >= ThreadPerWorkGroup)
     return -1;
 
@@ -235,12 +235,12 @@ inline void DoReportRace(__SYCL_GLOBAL__ RawShadow *s, AccessType type,
       SanitizerReport.Func[MaxFuncIdx] = '\0';
 
       SanitizerReport.Line = line;
-      SanitizerReport.GID0 = __spirv_GlobalInvocationId_x();
-      SanitizerReport.GID1 = __spirv_GlobalInvocationId_y();
-      SanitizerReport.GID2 = __spirv_GlobalInvocationId_z();
-      SanitizerReport.LID0 = __spirv_LocalInvocationId_x();
-      SanitizerReport.LID1 = __spirv_LocalInvocationId_y();
-      SanitizerReport.LID2 = __spirv_LocalInvocationId_z();
+      SanitizerReport.GID0 = __spirv_BuiltInGlobalInvocationId(0);
+      SanitizerReport.GID1 = __spirv_BuiltInGlobalInvocationId(1);
+      SanitizerReport.GID2 = __spirv_BuiltInGlobalInvocationId(2);
+      SanitizerReport.LID0 = __spirv_BuiltInLocalInvocationId(0);
+      SanitizerReport.LID1 = __spirv_BuiltInLocalInvocationId(1);
+      SanitizerReport.LID2 = __spirv_BuiltInLocalInvocationId(2);
 
       atomicStore(&TsanLaunchInfo->Lock, 0);
       break;
@@ -479,9 +479,13 @@ static __SYCL_CONSTANT__ const char __tsan_print_cleanup_local[] =
 
 DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_static_local(uptr addr,
                                                           size_t size) {
+  if (GetCurrentSid() == -1)
+    return;
+
   // Update shadow memory of local memory only on first work-item
-  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
-          __spirv_LocalInvocationId_z() ==
+  if (__spirv_BuiltInLocalInvocationId(0) +
+          __spirv_BuiltInLocalInvocationId(1) +
+          __spirv_BuiltInLocalInvocationId(2) ==
       0) {
     if (TsanLaunchInfo->LocalShadowOffset == 0)
       return;
@@ -505,7 +509,7 @@ static __SYCL_CONSTANT__ const char __tsan_print_report_arg_count_incorrect[] =
 
 DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_dynamic_local(uptr ptr,
                                                            uint32_t num_args) {
-  if (!TsanLaunchInfo->LocalShadowOffset)
+  if (!TsanLaunchInfo->LocalShadowOffset || GetCurrentSid() == -1)
     return;
 
   if (num_args != TsanLaunchInfo->NumLocalArgs) {

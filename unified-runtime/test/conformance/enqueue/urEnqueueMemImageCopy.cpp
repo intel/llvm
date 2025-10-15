@@ -290,7 +290,7 @@ TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
                                        origin, region3D, 0, nullptr, nullptr));
 
   // Wait for the queue to finish executing.
-  EXPECT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], 0, nullptr, nullptr));
 
   // The remaining queues do blocking reads from the image1D/2D/3D. Since the
   // queues target different devices this checks that any devices memory has

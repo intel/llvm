@@ -87,7 +87,8 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urDeviceGetTestWithDeviceTypeParam,
     ::testing::Values(UR_DEVICE_TYPE_DEFAULT, UR_DEVICE_TYPE_GPU,
                       UR_DEVICE_TYPE_CPU, UR_DEVICE_TYPE_FPGA,
-                      UR_DEVICE_TYPE_MCA, UR_DEVICE_TYPE_VPU),
+                      UR_DEVICE_TYPE_MCA, UR_DEVICE_TYPE_VPU,
+                      UR_DEVICE_TYPE_CUSTOM),
     uur::platformTestWithParamPrinter<ur_device_type_t>);
 
 TEST_P(urDeviceGetTestWithDeviceTypeParam, Success) {

@@ -18,6 +18,7 @@
 #include <functional>   // for function
 #include <list>         // for list
 #include <memory>       // for shared_ptr
+#include <optional>     // for optional
 #include <set>          // for set
 #include <shared_mutex> // for shared_mutex
 #include <vector>       // for vector
@@ -172,6 +173,8 @@ public:
   node_impl &add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
                  nodes_range Deps);
 
+  std::shared_ptr<sycl::detail::queue_impl> getQueue() const;
+
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
   /// @param RecordingQueue Queue to add to set.
@@ -293,6 +296,7 @@ public:
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 
   nodes_range roots() const { return MRoots; }
+  nodes_range nodes() const { return MNodeStorage; }
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -329,8 +333,7 @@ public:
   /// this edge.
   /// @param Src The source of the new edge.
   /// @param Dest The destination of the new edge.
-  void makeEdge(std::shared_ptr<node_impl> Src,
-                std::shared_ptr<node_impl> Dest);
+  void makeEdge(node_impl &Src, node_impl &Dest);
 
   /// Throws an invalid exception if this function is called
   /// while a queue is recording commands to the graph.
@@ -665,6 +668,8 @@ public:
     return MPartitions;
   }
 
+  nodes_range nodes() const { return MNodeStorage; }
+
   /// Query whether the graph contains any host-task nodes.
   /// @return True if the graph contains any host-task nodes. False otherwise.
   bool containsHostTask() const { return MContainsHostTask; }
@@ -689,8 +694,8 @@ public:
   }
 
   void update(std::shared_ptr<graph_impl> GraphImpl);
-  void update(std::shared_ptr<node_impl> Node);
-  void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
+  void update(node_impl &Node);
+  void update(nodes_range Nodes);
 
   /// Calls UR entry-point to update nodes in command-buffer.
   /// @param CommandBuffer The UR command-buffer to update commands in.
@@ -703,8 +708,7 @@ public:
   /// Update host-task nodes
   /// @param Nodes List of nodes to update, any node that is not a host-task
   /// will be ignored.
-  void updateHostTasksImpl(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+  void updateHostTasksImpl(nodes_range Nodes) const;
 
   /// Splits a list of nodes into separate lists of nodes for each
   /// command-buffer partition.
@@ -732,9 +736,14 @@ private:
   /// through the scheduler.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t
-  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
+  /// @param IsInOrderPartition True if the partition associated with the node
+  /// is a linear (in-order) graph.
+  /// @return Optional UR sync point created for this node in the
+  /// command-buffer. std::nullopt is returned only if the associated partition
+  /// of the node is linear.
+  std::optional<ur_exp_command_buffer_sync_point_t>
+  enqueueNode(ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node,
+              bool IsInOrderPartition);
 
   /// Enqueue a node directly to the command-buffer without going through the
   /// scheduler.
@@ -742,10 +751,16 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return UR sync point created for this node in the command-buffer.
-  ur_exp_command_buffer_sync_point_t enqueueNodeDirect(
-      const sycl::context &Ctx, sycl::detail::device_impl &DeviceImpl,
-      ur_exp_command_buffer_handle_t CommandBuffer, node_impl &Node);
+  /// @param IsInOrderPartition True if the partition associated with the node
+  /// is a linear (in-order) graph.
+  /// @return Optional UR sync point created for this node in the
+  /// command-buffer. std::nullopt is returned only if the associated partition
+  /// of the node is linear.
+  std::optional<ur_exp_command_buffer_sync_point_t>
+  enqueueNodeDirect(const sycl::context &Ctx,
+                    sycl::detail::device_impl &DeviceImpl,
+                    ur_exp_command_buffer_handle_t CommandBuffer,
+                    node_impl &Node, bool IsInOrderPartition);
 
   /// Enqueues a host-task partition (i.e. a partition that contains only a
   /// single node and that node is a host-task).
@@ -831,14 +846,14 @@ private:
     std::fstream Stream(FilePath, std::ios::out);
     Stream << "digraph dot {" << std::endl;
 
-    std::vector<std::shared_ptr<node_impl>> Roots;
-    for (auto &Node : MNodeStorage) {
-      if (Node->MPredecessors.size() == 0) {
-        Roots.push_back(Node);
+    std::vector<node_impl *> Roots;
+    for (node_impl &Node : nodes()) {
+      if (Node.MPredecessors.size() == 0) {
+        Roots.push_back(&Node);
       }
     }
 
-    for (std::shared_ptr<node_impl> Node : Roots)
+    for (node_impl *Node : Roots)
       Node->printDotRecursive(Stream, VisitedNodes, Verbose);
 
     Stream << "}" << std::endl;
@@ -851,7 +866,7 @@ private:
   /// @param[out] UpdateRequirements Accessor requirements found in /p Nodes.
   /// return True if update should be done through the scheduler.
   bool needsScheduledUpdate(
-      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      nodes_range Nodes,
       std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
 
   /// Sets the UR struct values required to update a graph node.

@@ -91,6 +91,24 @@ in software.
 
 == Specification
 
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_BFLOAT16` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
 
 === New `bfloat16` class
 
@@ -302,6 +320,23 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 ----
+
+=== Standard C++ library specializations
+
+The `bfloat16` class has specializations of the `std::numeric_limits` and
+`std::hash` standard C++ library classes. That is, an implementation must obey
+the following statements:
+
+ 1. A specialization of `std::hash` for `sycl::ext::oneapi::bfloat16` must exist
+    in the SYCL implementation that returns a unique value such that if two
+    instances of `sycl::ext::oneapi::bfloat16` are equal, in accordance with the
+    `==` operator, then their resulting hash values are also equal and
+    subsequently if two hash values are not equal, then their corresponding
+    instances are also not equal.
+ 2. A specialztion of `std::numeric_limits` for `sycl::ext::oneapi::bfloat16`
+    defining the arithmetic properties of the `sycl::ext::oneapi::bfloat16` in
+    accordance with the requirements specified by the standard C++ library
+    specification.
 
 == Revision History
 

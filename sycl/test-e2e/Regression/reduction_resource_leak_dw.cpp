@@ -1,8 +1,6 @@
-// REQUIRES: level_zero, level_zero_dev_kit
-// XFAIL: windows && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16418
+// REQUIRES: level_zero
 //
-// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
