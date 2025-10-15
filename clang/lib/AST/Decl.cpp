@@ -5569,8 +5569,9 @@ FunctionDecl *FunctionDecl::CreateDeserialized(ASTContext &C, GlobalDeclID ID) {
 
 bool FunctionDecl::isReferenceableKernel() const {
   return hasAttr<CUDAGlobalAttr>() ||
+  return hasAttr<CUDAGlobalAttr>() ||
          DeviceKernelAttr::isOpenCLSpelling(getAttr<DeviceKernelAttr>()) ||
-         hasAttr<DeviceKernelAttr>() || hasAttr<SYCLKernelAttr>();
+         hasAttr<SYCLKernelAttr>();
 }
 
 BlockDecl *BlockDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation L) {
