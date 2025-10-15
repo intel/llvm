@@ -673,6 +673,7 @@ etors:
 - name: PROGRAM_DYNAMIC_LINK_EXP
   desc: Enumerator for $xProgramDynamicLinkExp
   value: '289'
+max_id: '289'
 ---
 type: enum
 desc: Defines structure types

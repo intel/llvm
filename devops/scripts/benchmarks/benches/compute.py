@@ -3,19 +3,20 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from itertools import product
+import copy
 import csv
 import io
-import copy
 import math
 from enum import Enum
+from itertools import product
 from pathlib import Path
 
-from .base import Benchmark, Suite, TracingType
-from utils.result import BenchmarkMetadata, Result
-from .base import Benchmark, Suite
-from options import options
 from git_project import GitProject
+from options import options
+from utils.result import BenchmarkMetadata, Result
+
+from .base import Benchmark, Suite, TracingType
+from .compute_metadata import ComputeMetadataGenerator
 
 
 class RUNTIMES(Enum):
@@ -99,70 +100,20 @@ class ComputeBench(Suite):
         self.project.build(add_sycl=True)
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
-        metadata = {
-            "SubmitKernel": BenchmarkMetadata(
-                type="group",
-                description="Measures CPU time overhead of submitting kernels through different APIs.",
-                notes="Each layer builds on top of the previous layer, adding functionality and overhead.\n"
-                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
-                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
-                "Work is ongoing to reduce the overhead of the SYCL API\n",
-                tags=["submit", "micro", "SYCL", "UR", "L0"],
-                range_min=0.0,
-            ),
-            "SinKernelGraph": BenchmarkMetadata(
-                type="group",
-                unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
-                tags=["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
-            ),
-            "SubmitGraph": BenchmarkMetadata(
-                type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
-            ),
-            "FinalizeGraph": BenchmarkMetadata(
-                type="group", tags=["finalize", "micro", "SYCL", "graph"]
-            ),
-        }
-
-        # Add metadata for all SubmitKernel group variants
-        base_metadata = metadata["SubmitKernel"]
-
-        for order in ["in order", "out of order"]:
-            for completion in ["", " with completion"]:
-                for events in ["", " using events"]:
-                    group_name = f"SubmitKernel {order}{completion}{events} long kernel"
-                    metadata[group_name] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
-                    )
-
-                    # CPU count variants
-                    cpu_count_group = f"{group_name}, CPU count"
-                    metadata[cpu_count_group] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
-                    )
-
-        # Add metadata for all SubmitGraph group variants
-        base_metadata = metadata["SubmitGraph"]
-        for order in ["in order", "out of order"]:
-            for completion in ["", " with completion"]:
-                for events in ["", " using events"]:
-                    for num_kernels in self.submit_graph_num_kernels:
-                        group_name = f"SubmitGraph {order}{completion}{events}, {num_kernels} kernels"
-                        metadata[group_name] = BenchmarkMetadata(
-                            type="group",
-                            tags=base_metadata.tags,
-                        )
-
-        return metadata
+        """
+        Returns:
+            Dictionary mapping group names to their metadata
+        """
+        # Generate metadata based on actual benchmark instances
+        generator = ComputeMetadataGenerator()
+        benchmarks = self.benchmarks()
+        return generator.generate_metadata_from_benchmarks(benchmarks)
 
     def benchmarks(self) -> list[Benchmark]:
+        """
+        Returns:
+            List of all possible benchmark instances
+        """
         benches = []
 
         # hand-picked value so that total execution time of the benchmark is
@@ -463,6 +414,10 @@ class ComputeBenchmark(Benchmark):
         ret = []
         for label, median, stddev, unit in parsed_results:
             extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+            # Note: SYCL CI currently parses for on this "CPU count" value.
+            # Please update /devops/scripts/benchmarks/compare.py if this value
+            # is changed. See compare.py usage (w.r.t. --regression-filter) in
+            # /devops/actions/run-tests/benchmarks/action.yml.
             ret.append(
                 Result(
                     label=self.name() + extra_label,
@@ -1087,6 +1042,22 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         if self.runtime == RUNTIMES.SYCL:
             bin_args.append(f"--profilerType={self.profiler_type.value}")
         return bin_args
+
+    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
+        metadata_dict = super().get_metadata()
+
+        # Create CPU count variant with modified display name and explicit_group
+        cpu_count_name = self.name() + " CPU count"
+        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
+        cpu_count_display_name = self.display_name() + ", CPU count"
+        cpu_count_explicit_group = (
+            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
+        )
+        cpu_count_metadata.display_name = cpu_count_display_name
+        cpu_count_metadata.explicit_group = cpu_count_explicit_group
+        metadata_dict[cpu_count_name] = cpu_count_metadata
+
+        return metadata_dict
 
 
 class UllsEmptyKernel(ComputeBenchmark):
