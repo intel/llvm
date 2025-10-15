@@ -69,7 +69,12 @@ using namespace jit_compiler;
 namespace {
 
 class SYCLToolchain {
-  SYCLToolchain() {
+  // TODO: For some reason, moving this to a data member of the single instance
+  // of SYCLToolchain results in some data races leading to memory corruption
+  // (e.g., ::free() report errors).
+  static auto getToolchainFS() {
+    llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
     using namespace jit_compiler::resource;
 
     for (size_t i = 0; i < NumToolchainFiles; ++i) {
@@ -78,7 +83,10 @@ class SYCLToolchain {
       std::string_view Content{RF.Content.S, RF.Content.Size};
       ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
     }
+    return ToolchainFS;
   }
+
+  SYCLToolchain() = default;
 
   struct PrecompiledPreambles {
     using key = std::pair<std::string /*Opts*/, std::string /*Preamble*/>;
@@ -259,7 +267,7 @@ public:
 
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(ToolchainFS);
+    FS->pushOverlay(getToolchainFS());
     if (FSOverlay)
       FS->pushOverlay(std::move(FSOverlay));
 
@@ -290,7 +298,7 @@ public:
                                           LLVMContext &Context) {
     auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
         llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(ToolchainFS);
+    FS->pushOverlay(getToolchainFS());
 
     auto MemBuf = FS->getBufferForFile(LibPath, /*FileSize*/ -1,
                                        /*RequiresNullTerminator*/ false);
@@ -318,8 +326,6 @@ private:
   std::string_view Prefix{jit_compiler::resource::ToolchainPrefix.S,
                           jit_compiler::resource::ToolchainPrefix.Size};
   std::string ClangXXExe = (Prefix + "/bin/clang++").str();
-  llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
-      llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
 
   PrecompiledPreambles Preambles;
 };
