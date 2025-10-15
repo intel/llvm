@@ -9,6 +9,7 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <sycl/context.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 
 namespace sycl {
@@ -19,13 +20,32 @@ __SYCL_EXPORT handle_data_t get(void *Ptr, const sycl::context &Ctx) {
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
+  // If the API fails, check that the device actually supported it. We only do
+  // this if UR fails to avoid the device-lookup overhead.
+  auto CheckDeviceSupport = [Ptr, &Ctx]() {
+    sycl::device Dev = get_pointer_device(Ptr, Ctx);
+    if (!Dev.has(aspect::ext_oneapi_ipc_memory))
+      throw sycl::exception(
+          sycl::make_error_code(errc::feature_not_supported),
+          "Device does not support aspect::ext_oneapi_ipc_memory.");
+  };
+
   size_t HandleSize = 0;
-  Adapter.call<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
-      CtxImpl->getHandleRef(), Ptr, nullptr, &HandleSize);
+  auto UrRes =
+      Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
+          CtxImpl->getHandleRef(), Ptr, nullptr, &HandleSize);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    CheckDeviceSupport();
+    Adapter.checkUrResult(UrRes);
+  }
 
   handle_data_t Res(HandleSize);
-  Adapter.call<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
+  UrRes = Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCGetMemHandleExp>(
       CtxImpl->getHandleRef(), Ptr, Res.data(), nullptr);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    CheckDeviceSupport();
+    Adapter.checkUrResult(UrRes);
+  }
   return Res;
 }
 

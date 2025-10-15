@@ -134,13 +134,16 @@ handle_data_t get(void *ptr, const sycl::context &ctx)
 !====
 
 _Preconditions:_ `ptr` is a pointer to USM device memory on some device _D_ in
-context `ctx` and device _D_ returns `true` for
-`device::has(aspect::ext_oneapi_ipc_memory)`.
+context `ctx`. `ctx` is the same context as `ptr` was allocated against, using
+the USM device memory allocation routines.
 
 _Returns:_ An IPC "handle" to this USM memory allocation. The bytes of this
 handle can be transferred to another process on the same system, and the other
 process can use the handle to get a pointer to the same USM allocation through a
 call to the `open` function.
+
+_Throws:_ An exception with the `errc::feature_not_supported` error code if
+device _D_ does not have `aspect::ext_oneapi_ipc_memory`.
 
 !====
 a!
