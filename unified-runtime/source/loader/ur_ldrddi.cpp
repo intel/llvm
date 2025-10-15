@@ -5416,6 +5416,22 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+
+  auto *dditable = *reinterpret_cast<ur_dditable_t **>(hDevice);
+
+  auto *pfnWaitExp = dditable->DeviceExp.pfnWaitExp;
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // forward to device-platform
+  return pfnWaitExp(hDevice);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -7311,6 +7327,59 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()->platforms.front().dditable.Device;
+    }
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (ur_loader::getContext()->version < version)
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  // Load the device-platform DDI tables
+  for (auto &platform : ur_loader::getContext()->platforms) {
+    // statically linked adapter inside of the loader
+    if (platform.handle == nullptr)
+      continue;
+
+    if (platform.initStatus != UR_RESULT_SUCCESS)
+      continue;
+    auto getTable = reinterpret_cast<ur_pfnGetDeviceExpProcAddrTable_t>(
+        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
+                                             "urGetDeviceExpProcAddrTable"));
+    if (!getTable)
+      continue;
+    platform.initStatus = getTable(version, &platform.dditable.DeviceExp);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    if (ur_loader::getContext()->platforms.size() != 1 ||
+        ur_loader::getContext()->forceIntercept) {
+      // return pointers to loader's DDIs
+      pDdiTable->pfnWaitExp = ur_loader::urDeviceWaitExp;
+    } else {
+      // return pointers directly to platform's DDIs
+      *pDdiTable =
+          ur_loader::getContext()->platforms.front().dditable.DeviceExp;
     }
   }
 

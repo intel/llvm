@@ -503,6 +503,34 @@ device_impl::getImmediateProgressGuarantee(
   return forward_progress_guarantee::weakly_parallel;
 }
 
+void device_impl::wait() const {
+  // Firstly, all associated queues should be cleaned through of all
+  // not-yet-enqueued commands and host_task.
+  for (const std::weak_ptr<queue_impl> &WQueue : MQueues) {
+    std::shared_ptr<queue_impl> Queue = WQueue.lock();
+    assert(Queue && "Queue should never be dangling in the list of queues "
+                    "associated with the device!");
+    Queue->waitForRuntimeLevelCmdsAndClear();
+  }
+
+  // Then we synchronize the entire device.
+  getAdapter().call<detail::UrApiKind::urDeviceWaitExp>(getHandleRef());
+}
+
+void device_impl::throwAsynchronous() {
+  std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
+  for (auto &ExceptionsEntryIt : MAsyncExceptions) {
+    exception_list Exceptions = std::move(ExceptionsEntryIt.second);
+    std::shared_ptr<queue_impl> Queue = ExceptionsEntryIt.first.lock();
+    if (Queue && Queue->getAsynchHandler()) {
+      Queue->getAsynchHandler()(std::move(Exceptions));
+    } else {
+      // If the queue is dead, use the default handler.
+      defaultAsyncHandler(std::move(Exceptions));
+    }
+  }
+}
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #define EXPORT_GET_INFO(PARAM)                                                 \
   template <>                                                                  \
