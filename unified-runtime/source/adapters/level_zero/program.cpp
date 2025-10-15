@@ -583,10 +583,12 @@ ur_result_t urProgramDynamicLinkExp(
     ZeModules.reserve(count);
 
     for (ur_device_handle_t Device : hContext->getDevices()) {
-      for (uint32_t I = 0; I < count; ++I)
-        if (phPrograms[I]->hasZeModuleForDevice(Device->ZeDevice))
+      for (uint32_t I = 0; I < count; ++I) {
+        if (phPrograms[I]->hasZeModuleForDevice(Device->ZeDevice)) {
           ZeModules.push_back(
               phPrograms[I]->getZeModuleHandle(Device->ZeDevice));
+        }
+      }
 
       if (ZeModules.empty())
         continue;
