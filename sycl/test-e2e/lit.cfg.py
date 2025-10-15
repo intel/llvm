@@ -832,6 +832,7 @@ feature_tools = [
 
 tools = [
     ToolSubst("FileCheck", unresolved="ignore"),
+    ToolSubst("llvm-dis", unresolved="ignore"),
     # not is only substituted in certain circumstances; this is lit's default
     # behaviour.
     ToolSubst(
