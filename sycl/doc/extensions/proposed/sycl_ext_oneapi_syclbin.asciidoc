@@ -370,6 +370,11 @@ This property instructs the `link` operation to do "fast linking". Enabling this
 instructs the implementation to use device binary images that have been
 pre-compiled.
 
+Fast linking offers potentially faster link times, at the potential cost of
+slower kernel execution time. The latter effect would mainly be due to link-time
+optimizations the device compiler could have done during regular linking, that
+cannot be done when doing fast linking.
+
 For example, SYCLBIN files may contain ahead-of-time compiled binary images
 together with just-in-time compiled binary images, with the kernels and exported
 functions potentially overlapping. When fast-linking is enabled, the
