@@ -19,7 +19,6 @@ on:
         default: 'main'
         options:
           - main
-
           # Author: Tom Deakin <thomasdeakin@gmail.com>
           # Date:   Thu Jul 10 16:45:48 2025 +0100
           # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
@@ -107,14 +106,14 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
 
-  run-e2e:
+  run-prebuilt-tests:
     # Ensure those tests can actually pass with the toolchain they were built
     # with, otherwise testing compatibility with those binaries is pointless.
     # This job should be aligned with how the image will be used in trunk CI.
     #
     # I'll start with just a single configuration, but this might be extended
     # with a matrix in future (e.g., to run on cpu/CUDA/AMDGPU).
-    name: Run E2E tests with SYCL RT they were built with
+    name: Run E2E, CTS tests with SYCL RT they were built with
     runs-on: [Linux, pvc]
     needs: [docker, build]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
@@ -139,27 +138,6 @@ jobs:
         with:
           testing_mode: run-only
           target_devices: level_zero:gpu
-
-  run-cts:
-    name: Run CTS tests with SYCL RT they were built with
-    runs-on: [Linux, pvc]
-    needs: [docker, build]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    container:
-      image: ghcr.io/${{ github.repository }}/sycl_prebuilt_tests:${{ inputs.ref || github.ref_name }}
-      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          sparse-checkout: |
-            devops
-      - run: |
-          mkdir toolchain
-          tar -I 'zstd' -xf /sycl-prebuilt/toolchain.tar.zst -C toolchain
-          echo LD_LIBRARY_PATH=$PWD/toolchain/lib:$LD_LIBRARY_PATH >> $GITHUB_ENV
-          echo PATH=$PWD/toolchain/bin:$PATH >> $GITHUB_ENV
-      - run: |
-          sycl-ls
       - name: Run CTS tests
         uses: ./devops/actions/run-tests/cts
         timeout-minutes: 20
