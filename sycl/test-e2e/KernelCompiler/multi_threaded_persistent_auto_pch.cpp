@@ -73,15 +73,6 @@ void iota(float start, float *ptr) {
     std::this_thread::sleep_for(100ms);
   }
 
-  if (removed_iter == -1) {
-    std::cout << "Removal has not been tested, adjust N" << std::endl;
-    return 1;
-  }
-  if (removed_iter == 0) {
-    std::cout << "Sleep is too long" << std::endl;
-    return 2;
-  }
-
   for (auto &t : threads)
     if (t.joinable())
       t.join();
@@ -109,4 +100,16 @@ void iota(float start, float *ptr) {
     std::cout << i << ": " << static_cast<int>(durations[i].count()) << "ms"
               << std::endl;
   }
+
+  if (removed_iter == -1) {
+    std::cout << "Removal has not been tested, adjust N" << std::endl;
+    return 1;
+  }
+
+  if (removed_iter == 0) {
+    std::cout << "Sleep is too long" << std::endl;
+    return 2;
+  }
+
+  return 0;
 }
