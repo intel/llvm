@@ -19,8 +19,6 @@
 using namespace std::string_view_literals;
 namespace syclexp = sycl::ext::oneapi::experimental;
 int main() {
-  std::error_code ec; // For noexcept overload.
-  std::filesystem::remove_all(PCH_DIR, ec);
   sycl::queue q;
   constexpr int N = 16;
   std::chrono::duration<double, std::milli> durations[N];
@@ -61,6 +59,14 @@ void iota(float start, float *ptr) {
 
   std::thread threads[N];
 
+  std::error_code ec; // For noexcept overload.
+  std::filesystem::remove_all(PCH_DIR, ec);
+  Run(0);
+  std::filesystem::remove_all(PCH_DIR, ec);
+  auto sleep_duration = durations[0] / 5;
+  std::cout << "Selected sleep duration is " << sleep_duration.count() << "ms"
+            << std::endl;
+
   int removed_iter = -1;
   for (int i = 0; i < N; ++i) {
     if (compile_finished[N / 2].load() && removed_iter == -1) {
@@ -70,7 +76,7 @@ void iota(float start, float *ptr) {
 
     threads[i] = std::thread{Run, i};
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(sleep_duration);
   }
 
   for (auto &t : threads)
@@ -102,13 +108,9 @@ void iota(float start, float *ptr) {
   }
 
   if (removed_iter == -1) {
-    std::cout << "Removal has not been tested, adjust N" << std::endl;
+    std::cout << "Removal has not been tested, adjust sleep_duration and/or N."
+              << std::endl;
     return 1;
-  }
-
-  if (removed_iter == 0) {
-    std::cout << "Sleep is too long" << std::endl;
-    return 2;
   }
 
   return 0;
