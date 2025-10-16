@@ -14,7 +14,7 @@ on:
         default:
       cts_ref:
         type: choice
-        description: tag/sha to use for SYCL-CTS -- hardcoded hash is last known commit to pass with latest release toolchain.
+        description: tag/sha to use for SYCL-CTS -- hardcoded hash is CTS revision matching sycl-rel-N_M branch.
         required: true
         default: 'main'
         options:
