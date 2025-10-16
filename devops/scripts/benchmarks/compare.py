@@ -13,7 +13,7 @@ from dataclasses import dataclass, asdict
 from utils.aggregate import Aggregator, SimpleMedian, EWMA
 from utils.validate import Validate
 from utils.result import BenchmarkRun
-from utils.logger import log
+from utils.logger import log, initialize_logger
 from options import options
 
 
@@ -362,7 +362,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    log.initialize(args.verbose)
+    initialize_loger(args.verbose)
     log.info("-- Compare.py --")
 
     if args.operation == "to_hist":
