@@ -499,7 +499,6 @@ urDeviceGetGlobalTimestamps(ur_device_handle_t, uint64_t *, uint64_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceWaitExp(ur_device_handle_t) {
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
