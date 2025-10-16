@@ -595,36 +595,31 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void *pIPCMemHandleData,
                      size_t *pIPCMemHandleDataSizeRet) {
   umf_memory_pool_handle_t umfPool;
-  auto umfRet = umfPoolByPtr(pMem, &umfPool);
-  if (umfRet != UMF_RESULT_SUCCESS || !umfPool)
-    return UR_RESULT_ERROR_UNKNOWN;
+  auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
+  if (urRet)
+    return urRet;
 
   // Fast path for returning the size of the handle only.
-  if (!pIPCMemHandleData) {
-    auto umfRet = umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet);
-    if (umfRet != UMF_RESULT_SUCCESS || *pIPCMemHandleDataSizeRet == 0)
-      return UR_RESULT_ERROR_UNKNOWN;
-    return UR_RESULT_SUCCESS;
-  }
+  if (!pIPCMemHandleData)
+    return umf::umf2urResult(
+        umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
 
   size_t fallbackUMFHandleSize = 0;
   size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
                               ? pIPCMemHandleDataSizeRet
                               : &fallbackUMFHandleSize;
   umf_ipc_handle_t umfHandle;
-  umfRet = umfGetIPCHandle(pMem, &umfHandle, umfHandleSize);
-  if (umfRet != UMF_RESULT_SUCCESS || !umfHandle || *umfHandleSize == 0)
-    return UR_RESULT_ERROR_UNKNOWN;
+  urRet = umf::umf2urResult(umfGetIPCHandle(pMem, &umfHandle, umfHandleSize));
+  if (urRet)
+    return urRet;
   std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
-  auto umfRet =
-      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData));
-  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
-                                      : UR_RESULT_ERROR_UNKNOWN;
+  return umf::umf2urResult(
+      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData)));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
@@ -633,28 +628,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
   umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
 
   size_t umfHandleSize = 0;
-  auto umfRet = umfPoolGetIPCHandleSize(umfPool, &umfHandleSize);
-  if (umfRet != UMF_RESULT_SUCCESS || umfHandleSize == 0)
-    return UR_RESULT_ERROR_UNKNOWN;
+  auto urRet =
+      umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
+  if (urRet)
+    return urRet;
 
   if (umfHandleSize != ipcMemHandleDataSize)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
   umf_ipc_handler_handle_t umfIPCHandler;
-  umfRet = umfPoolGetIPCHandler(umfPool, &umfIPCHandler);
-  if (umfRet != UMF_RESULT_SUCCESS || !umfIPCHandler)
-    return UR_RESULT_ERROR_UNKNOWN;
+  urRet = umf::umf2urResult(umfPoolGetIPCHandler(umfPool, &umfIPCHandler));
+  if (urRet)
+    return urRet;
 
-  umfRet = umfOpenIPCHandle(
+  return umf::umf2urResult(umfOpenIPCHandle(
       umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
-      ppMem);
-  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
-                                      : UR_RESULT_ERROR_UNKNOWN;
+      ppMem));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
                                                            void *pMem) {
-  auto umfRet = umfCloseIPCHandle(pMem);
-  return umfRet == UMF_RESULT_SUCCESS ? UR_RESULT_SUCCESS
-                                      : UR_RESULT_ERROR_UNKNOWN;
+  return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }

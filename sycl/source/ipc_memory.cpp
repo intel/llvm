@@ -9,8 +9,8 @@
 #include <detail/adapter_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <sycl/context.hpp>
-#include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
 
 namespace sycl {
 inline namespace _V1 {
