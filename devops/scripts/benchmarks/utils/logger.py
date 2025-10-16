@@ -11,7 +11,6 @@ log = logging.getLogger("ur_benchmarks")
 
 def initialize_logger(verbose: bool = False, log_level: str = "info") -> None:
     """Configure the logger with the appropriate log level.
-    self._logger: logging.Logger = logging.getLogger("ur_benchmarks")
 
     Args:
         verbose: If True, sets the log level to DEBUG regardless of log_level
