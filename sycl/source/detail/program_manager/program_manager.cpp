@@ -1833,6 +1833,13 @@ ProgramManager::getDeviceKernelInfo(KernelNameStrRefT KernelName) {
   return It->second;
 }
 
+DeviceKernelInfo *
+ProgramManager::tryGetDeviceKernelInfo(KernelNameStrRefT KernelName) {
+  std::lock_guard<std::mutex> Guard(m_DeviceKernelInfoMapMutex);
+  auto It = m_DeviceKernelInfoMap.find(KernelName);
+  return It != m_DeviceKernelInfoMap.end() ? &It->second : nullptr;
+}
+
 static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
                                      uint32_t *LibVersion = nullptr) {
   sycl_device_binary_property_set ImgPS;

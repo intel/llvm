@@ -59,11 +59,11 @@ kernel_impl::kernel_impl(Managed<ur_kernel_handle_t> &&Kernel,
       MKernelBundleImpl(KernelBundleImpl.shared_from_this()),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex},
-      MOwnsDeviceKernelInfo(MDeviceImageImpl->getOriginMask() &
-                            ~ImageOriginSYCLOffline),
+      MOwnsDeviceKernelInfo(checkOwnsDeviceKernelInfo()),
       MDeviceKernelInfo(MOwnsDeviceKernelInfo
                             ? createCompileTimeKernelInfo(getName())
                             : createCompileTimeKernelInfo()) {
+
   // Enable USM indirect access for interop and non-sycl-jit source kernels.
   // sycl-jit kernels will enable this if needed through the regular kernel
   // path.
@@ -121,6 +121,17 @@ std::string_view kernel_impl::getName() const {
   if (MName.empty())
     MName = get_info<info::kernel::function_name>();
   return MName;
+}
+
+bool kernel_impl::checkOwnsDeviceKernelInfo() {
+  // If the image originates from something other than standard offline
+  // compilation, this kernel needs to own its info structure.
+  // We could also have a mixed origin image, in which case the device kernel
+  // info might reside in program manager.
+  return MDeviceImageImpl->getOriginMask() != ImageOriginSYCLOffline &&
+         (!(MDeviceImageImpl->getOriginMask() & ImageOriginSYCLOffline) ||
+          !ProgramManager::getInstance().tryGetDeviceKernelInfo(
+              static_cast<KernelNameStrT>(getName())));
 }
 
 bool kernel_impl::isBuiltInKernel(device_impl &Device) const {

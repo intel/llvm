@@ -239,6 +239,7 @@ public:
   std::mutex *getCacheMutex() const { return MCacheMutex; }
   std::string_view getName() const;
 
+  bool checkOwnsDeviceKernelInfo();
   DeviceKernelInfo &getDeviceKernelInfo() {
     return MOwnsDeviceKernelInfo
                ? MDeviceKernelInfo
