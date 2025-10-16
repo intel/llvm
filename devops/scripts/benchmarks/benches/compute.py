@@ -203,6 +203,8 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
+            # Non-sycl runtimes have to be run with emulated graphs,
+            # see: https://github.com/intel/compute-benchmarks/commit/d81d5d602739482b9070c872a28c0b5ebb41de70
             emulate_graphs = (
                 0 if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW) else 1
             )
