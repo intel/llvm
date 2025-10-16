@@ -319,8 +319,9 @@ void launch_task(handler &h, const KernelType &k) {
   h.single_task(k);
 }
 
-template <typename KernelType>
-void launch_task(const sycl::queue &q, const KernelType &k,
+template <typename KernelType, typename = typename std::enable_if_t<
+                                   enable_kernel_function_overload<KernelType>>>
+void launch_task(const sycl::queue &q, KernelType &&k,
                  const sycl::detail::code_location &codeLoc =
                      sycl::detail::code_location::current()) {
   // TODO The handler-less path does not support kernel function properties
@@ -331,7 +332,8 @@ void launch_task(const sycl::queue &q, const KernelType &k,
                 !(detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                            void>::value)) {
     detail::submit_kernel_direct_single_task(
-        q, ext::oneapi::experimental::empty_properties_t{}, k, codeLoc);
+        q, ext::oneapi::experimental::empty_properties_t{},
+        std::forward<KernelType>(k), codeLoc);
   } else {
     submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
   }
