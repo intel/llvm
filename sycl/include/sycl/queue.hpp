@@ -219,10 +219,10 @@ auto submit_kernel_direct_parallel_for(
 template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT, typename KernelTypeUniversalRef>
 auto submit_kernel_direct_single_task(
-    const queue &Queue, PropertiesT Props, KernelTypeUniversalRef &&KernelFunc,
+    const queue &Queue, [[maybe_unused]] PropertiesT Props,
+    KernelTypeUniversalRef &&KernelFunc,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
-  (void)Props;
   static_assert(
       std::is_same_v<PropertiesT,
                      ext::oneapi::experimental::empty_properties_t>,
@@ -244,7 +244,7 @@ auto submit_kernel_direct_single_task(
   // Instantiating the kernel on the host improves debugging.
   // Passing this pointer to another translation unit prevents optimization.
 #ifndef NDEBUG
-  // TODO: call library to prevent dropping call due to optimization
+  // TODO: call library to prevent dropping call due to optimization.
   (void)detail::GetInstantiateKernelOnHostPtr<KernelType, void, 1>();
 #endif
 
