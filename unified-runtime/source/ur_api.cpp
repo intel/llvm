@@ -8704,6 +8704,8 @@ ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 ///         + `count == 0`
 ///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
 ///         + If an error occurred while linking `phPrograms`.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urProgramDynamicLinkExp(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
