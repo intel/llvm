@@ -3,11 +3,11 @@
 // expected-error@sycl/group_algorithm.hpp:* 16 {{Result type of binary_op must match scan accumulation type}}
 // expected-error@sycl/group_algorithm.hpp:* 6 {{Result type of binary_op must match reduction accumulation type}}
 
-#include <sycl/queue.hpp>
+#include <sycl/functional.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
-#include <sycl/group_algorithm.hpp>
-#include <sycl/functional.hpp>
+#include <sycl/queue.hpp>
 
 using namespace sycl;
 
@@ -116,7 +116,6 @@ void TestJointInclusiveScan(sycl::queue &q) {
    }).wait();
 }
 
-
 void TestReduceOverGroup(sycl::queue &q) {
   q.submit([&](handler &cgh) {
     cgh.parallel_for<class ReduceOverGroup>(
@@ -160,7 +159,6 @@ void TestJointReduce(sycl::queue &q) {
          });
    }).wait();
 }
-
 
 int main() {
   sycl::queue q;
