@@ -152,7 +152,7 @@ class ComputeBench(Suite):
                         kernel_exec_time,
                     )
                 )
-                if runtime in (RUNTIMES.SYCL, RUNTIMES.UR):
+                if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW, RUNTIMES.UR):
                     # Create CPU count variant
                     benches.append(
                         SubmitKernel(
