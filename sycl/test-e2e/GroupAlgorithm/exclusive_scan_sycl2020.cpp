@@ -170,6 +170,10 @@ int main() {
   test<class KernelNameBitXorI>(input, sycl::bit_xor<int>(), 0);
   test<class KernelNameBitAndI>(input_small, sycl::bit_and<int>(), ~0);
 
+  std::array<bool, N> bool_input = {};
+  test<class LogicalOrBool>(bool_input, sycl::logical_or<bool>(), false);
+  test<class LogicalAndBool>(bool_input, sycl::logical_and<bool>(), true);
+
   std::array<int2, N> int2_input = {};
   std::iota(int2_input.begin(), int2_input.end(), 0);
   test<class PlusInt2>(int2_input, sycl::plus<int2>(), {0, 0});
