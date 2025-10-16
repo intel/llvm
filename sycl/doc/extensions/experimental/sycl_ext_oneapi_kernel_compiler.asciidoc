@@ -1198,6 +1198,14 @@ Some notes about the current behavior:
 * In the **very** unlikely event of a hash collision the precompiled preamble
   from the persistent cache is ignored and the source is compiled without it.
 
+* Unlike `--auto-pch`, the `--persistent-auto-pch` option indexes the
+  precompiled preamble by a hash of the preamble content/compilation options, as
+  opposed to using those directly as a key. As a result, there is a highly
+  unlikely possibility that two different preambles will produce the same hash
+  value. Even if this occurs, the compilation won't fail. However, a compilation
+  using the conflicting hash would proceed without pre-compiled preamble support
+  as if this option wasn't enabled.
+
 === Known issues and limitations when the language is `sycl`
 
 ==== Changing the compiler action or output
