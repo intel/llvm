@@ -14,6 +14,7 @@
 // number of sync points
 
 #include "Common.hpp"
+#include <optional>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
@@ -21,14 +22,18 @@ using namespace sycl::ext::oneapi::experimental::detail;
 
 // Helper to build a linear chain of N kernels on a queue inside graph capture.
 static void BuildLinearChain(queue &Queue, bool IsInOrderQueue, int N) {
-  sycl::event Event{};
+  std::optional<sycl::event> Event;
   for (int I = 0; I < N; ++I) {
-    Event = Queue.submit([&](handler &h) {
-      if (I > 0 && !IsInOrderQueue) {
-        h.depends_on(Event);
-      }
-      h.single_task<TestKernel>([] {});
-    });
+    if (IsInOrderQueue) {
+      experimental::single_task<TestKernel>(Queue, []() {});
+    } else {
+      Event = Queue.submit([&](handler &h) {
+        if (Event) {
+          h.depends_on(*Event);
+        }
+        h.single_task<TestKernel>([]() {});
+      });
+    }
   }
 }
 
