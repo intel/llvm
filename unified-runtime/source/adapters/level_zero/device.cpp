@@ -1306,6 +1306,8 @@ ur_result_t urDeviceGetInfo(
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 #endif
   }
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
