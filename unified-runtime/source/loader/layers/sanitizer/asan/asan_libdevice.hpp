@@ -59,6 +59,9 @@ struct AsanRuntimeData {
   uintptr_t GlobalShadowOffset = 0;
   uintptr_t GlobalShadowOffsetEnd = 0;
 
+  uintptr_t GlobalShadowLowerBound = 0;
+  uintptr_t GlobalShadowUpperBound = 0;
+
   uintptr_t *PrivateBase = nullptr;
   uintptr_t PrivateShadowOffset = 0;
   uintptr_t PrivateShadowOffsetEnd = 0;

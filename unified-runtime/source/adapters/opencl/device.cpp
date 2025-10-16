@@ -1368,6 +1368,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
                        UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
   }
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(hDevice->checkDeviceExtensions(
@@ -1767,6 +1769,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 
   // TODO: Cache OpenCL version for each device and platform
   auto RetErr = hDevice->getDeviceVersion(DevVer);
+
+  if (RetErr == CL_INVALID_OPERATION) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   CL_RETURN_ON_FAILURE(RetErr);
 
   RetErr = hDevice->Platform->getPlatformVersion(PlatVer);

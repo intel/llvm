@@ -64,6 +64,14 @@ def generate_function_type(
         etor["name"]: etor["value"] for etor in existing_function_type["etors"]
     }
     max_etor = get_max_enum(existing_function_type)
+    stored_max_etor = existing_function_type.get("max_id")
+    try:
+        stored_max_etor = int(stored_max_etor) if stored_max_etor is not None else None
+    except ValueError:
+        stored_max_etor = None
+    persistent_max = (
+        max_etor if stored_max_etor is None else max(max_etor, stored_max_etor)
+    )
     functions = [
         obj for s in specs for obj in s["objects"] if obj["type"] == "function"
     ]
@@ -73,8 +81,8 @@ def generate_function_type(
         etor_name = "$X_FUNCTION_" + util.to_snake_case(fname).upper()
         id = existing_etors.get(etor_name)
         if id is None:
-            max_etor += 1
-            id = max_etor
+            persistent_max += 1
+            id = persistent_max
         entry = {
             "name": etor_name,
             "desc": f"Enumerator for $x{fname}",
@@ -85,6 +93,7 @@ def generate_function_type(
         registry.append(entry)
     registry = sorted(registry, key=lambda x: int(x["value"]))
     existing_function_type["etors"] = registry
+    existing_function_type["max_id"] = str(persistent_max)
     update_fn(existing_function_type, meta)
 
     ## create a copy to write back to registry.yml

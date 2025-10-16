@@ -135,15 +135,14 @@ void ur_kernel_handle_t_::completeInitialization() {
   assert(nonEmptyKernelIt != deviceKernels.end());
   nonEmptyKernel = &nonEmptyKernelIt->value();
 
-  zeCommonProperties.Compute = [kernel = nonEmptyKernel](
-                                   common_properties_t &props) {
-    size_t size = 0;
-    ZE_CALL_NOCHECK(zeKernelGetName, (kernel->hKernel.get(), &size, nullptr));
-    props.name.resize(size);
-    ZE_CALL_NOCHECK(zeKernelGetName,
-                    (kernel->hKernel.get(), &size, props.name.data()));
-    props.numKernelArgs = kernel->zeKernelProperties->numKernelArgs;
-  };
+  size_t size = 0;
+  ZE_CALL_NOCHECK(zeKernelGetName,
+                  (nonEmptyKernel->hKernel.get(), &size, nullptr));
+  zeCommonProperties.name.resize(size);
+  ZE_CALL_NOCHECK(zeKernelGetName, (nonEmptyKernel->hKernel.get(), &size,
+                                    zeCommonProperties.name.data()));
+  zeCommonProperties.numKernelArgs =
+      nonEmptyKernel->zeKernelProperties->numKernelArgs;
 }
 
 size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
@@ -185,7 +184,7 @@ ur_kernel_handle_t_::getZeHandle(ur_device_handle_t hDevice) {
 
 ur_kernel_handle_t_::common_properties_t
 ur_kernel_handle_t_::getCommonProperties() const {
-  return zeCommonProperties.get();
+  return zeCommonProperties;
 }
 
 const ze_kernel_properties_t &
@@ -198,7 +197,7 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
     uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
-  if (argIndex > zeCommonProperties->numKernelArgs - 1) {
+  if (argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
@@ -315,7 +314,7 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
 
 ur_result_t ur_kernel_handle_t_::addPendingMemoryAllocation(
     pending_memory_allocation_t allocation) {
-  if (allocation.argIndex > zeCommonProperties->numKernelArgs - 1) {
+  if (allocation.argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
@@ -327,7 +326,7 @@ ur_result_t ur_kernel_handle_t_::addPendingMemoryAllocation(
 ur_result_t
 ur_kernel_handle_t_::addPendingPointerArgument(uint32_t argIndex,
                                                const void *pArgValue) {
-  if (argIndex > zeCommonProperties->numKernelArgs - 1) {
+  if (argIndex > zeCommonProperties.numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
