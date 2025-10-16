@@ -330,7 +330,7 @@ class ComputeBenchmark(Benchmark):
         return self.bench.project.build_dir / "bin" / self.bench_name
 
     def cpu_count_str(self, separator: str = "") -> str:
-        # Note: SYCL CI currently parses for on this "CPU count" value.
+        # Note: SYCL CI currently relies on this "CPU count" value.
         # Please update /devops/scripts/benchmarks/compare.py if this value
         # is changed. See compare.py usage (w.r.t. --regression-filter) in
         # /devops/actions/run-tests/benchmarks/action.yml.
