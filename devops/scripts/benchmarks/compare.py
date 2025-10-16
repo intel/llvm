@@ -362,7 +362,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    initialize_loger(args.verbose)
+    initialize_logger(args.verbose)
     log.info("-- Compare.py --")
 
     if args.operation == "to_hist":
