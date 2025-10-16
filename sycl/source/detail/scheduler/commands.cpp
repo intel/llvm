@@ -2413,12 +2413,13 @@ static ur_result_t SetKernelParamsAndLaunch(
         DeviceImageImpl ? DeviceImageImpl->get_spec_const_blob_ref() : Empty);
   }
 
-  std::vector<ur_exp_kernel_arg_properties_t> UrArgs;
+  // just a performance optimization - avoid heap allocations
+  static thread_local std::vector<ur_exp_kernel_arg_properties_t> UrArgs;
   UrArgs.reserve(Args.size());
+  UrArgs.clear();
 
   if (KernelFuncPtr && !DeviceKernelInfo.HasSpecialCaptures) {
-    auto setFunc = [&UrArgs,
-                    KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
+    auto setFunc = [KernelFuncPtr](const detail::kernel_param_desc_t &ParamDesc,
                                    size_t NextTrueIndex) {
       const void *ArgPtr = (const char *)KernelFuncPtr + ParamDesc.offset;
       switch (ParamDesc.kind) {
@@ -2448,8 +2449,8 @@ static ur_result_t SetKernelParamsAndLaunch(
     applyFuncOnFilteredArgs(EliminatedArgMask, DeviceKernelInfo.NumParams,
                             DeviceKernelInfo.ParamDescGetter, setFunc);
   } else {
-    auto setFunc = [&DeviceImageImpl, &getMemAllocationFunc, &Queue,
-                    &UrArgs](detail::ArgDesc &Arg, size_t NextTrueIndex) {
+    auto setFunc = [&DeviceImageImpl, &getMemAllocationFunc,
+                    &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
       GetUrArgsBasedOnType(DeviceImageImpl, getMemAllocationFunc,
                            Queue.getContextImpl(), Arg, NextTrueIndex, UrArgs);
     };
