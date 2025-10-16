@@ -1,7 +1,7 @@
 // Test -fsycl-allow-device-image-dependencies with a single dynamic library on Windows
 // and Linux.
 
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %clangxx -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \
 // RUN:    %S/Inputs/b.cpp                                                              \

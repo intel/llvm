@@ -3,7 +3,7 @@
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 
-// RUN: mkdir -p %t.dir
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/d.cpp                                    -o %t.dir/libdevice_d.%{dynamic_lib_suffix}
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/c.cpp %if windows %{%t.dir/libdevice_d.lib%} -o %t.dir/libdevice_c.%{dynamic_lib_suffix}
 // RUN: %clangxx --offload-new-driver %{dynamic_lib_options} %S/Inputs/b.cpp %if windows %{%t.dir/libdevice_c.lib%} -o %t.dir/libdevice_b.%{dynamic_lib_suffix}
