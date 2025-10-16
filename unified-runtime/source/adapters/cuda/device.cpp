@@ -1178,6 +1178,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES: {
@@ -1401,4 +1403,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+/// Synchronizes with all queues on the device.
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceWaitExp(ur_device_handle_t hDevice) {
+  ScopedContext Active(hDevice);
+  UR_CHECK_ERROR(cuCtxSynchronize());
+  return UR_RESULT_SUCCESS;
 }
