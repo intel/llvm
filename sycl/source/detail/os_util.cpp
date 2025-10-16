@@ -291,36 +291,44 @@ size_t getDirectorySize(const std::string &Path, bool ignoreErrors) {
   return DirSizeVar;
 }
 
-// Look up a function name that was dynamically linked
-// This is used by the runtime where it needs to manipulate native handles (e.g.
-// retaining OpenCL handles). On Windows, the symbol name is looked up in
-// `WinName`. In Linux, it uses `LinName`.
+// Look up a function name from the given list of shared libraries.
 //
-// The library must already have been loaded (perhaps by UR), otherwise this
+// These library must already have been loaded (perhaps by UR), otherwise this
 // function throws a SYCL runtime exception.
-void *dynLookup([[maybe_unused]] const char *WinName,
-                [[maybe_unused]] const char *LinName, const char *FunName) {
+void *dynLookup(const char *const *LibNames, size_t LibNameSizes,
+                const char *FunName) {
 #ifdef __SYCL_RT_OS_WINDOWS
-  auto handle = GetModuleHandleA(WinName);
-  if (!handle) {
-    throw sycl::exception(make_error_code(errc::runtime),
-                          std::string(WinName) + " library is not loaded");
-  }
-  auto *retVal = GetProcAddress(handle, FunName);
+  HMODULE handle = nullptr;
+  auto GetHandleF = [](const char *LibName) {
+    return GetModuleHandleA(LibName);
+  };
+  auto GetProcF = [&]() { return GetProcAddress(handle, FunName); };
 #else
-  auto handle = dlopen(LinName, RTLD_LAZY | RTLD_NOLOAD);
-  if (!handle) {
-    throw sycl::exception(make_error_code(errc::runtime),
-                          std::string(LinName) + " library is not loaded");
-  }
-  auto *retVal = dlsym(handle, FunName);
-  dlclose(handle);
+  void *handle = nullptr;
+  auto GetHandleF = [](const char *LibName) {
+    return dlopen(LibName, RTLD_LAZY | RTLD_NOLOAD);
+  };
+  auto GetProcF = [&]() {
+    auto *retVal = dlsym(handle, FunName);
+    dlclose(handle);
+    return retVal;
+  };
 #endif
-  if (!retVal) {
+
+  // Iterate over the list of libraries and try to find one that is loaded.
+  size_t LibNameIterator = 0;
+  while (!handle && LibNameIterator < LibNameSizes)
+    handle = GetHandleF(LibNames[LibNameIterator++]);
+  if (!handle)
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "Libraries could not be loaded");
+
+  // Look up the function in the loaded library.
+  auto *retVal = GetProcF();
+  if (!retVal)
     throw sycl::exception(make_error_code(errc::runtime),
                           "Symbol " + std::string(FunName) +
                               " could not be found");
-  }
   return reinterpret_cast<void *>(retVal);
 }
 
