@@ -3776,7 +3776,6 @@ void SPIRVInstructionSelector::decorateUsesAsNonUniform(
                       SPIRV::Decoration::NonUniformEXT, {});
     }
   }
-  return;
 }
 
 bool SPIRVInstructionSelector::extractSubvector(
