@@ -507,7 +507,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compare-max",
         type=int,
-        help="How many results to read for comparisions",
+        help="How many results to read for comparisons",
         default=options.compare_max,
     )
     parser.add_argument(

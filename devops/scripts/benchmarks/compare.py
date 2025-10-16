@@ -321,7 +321,7 @@ if __name__ == "__main__":
         "--compare-file",
         type=str,
         required=True,
-        help="Result file to compare against te historic average",
+        help="Result file to compare against the historic average",
     )
     parser_avg.add_argument(
         "--results-dir", type=str, required=True, help="Directory storing results"
