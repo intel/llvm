@@ -130,16 +130,16 @@ handle_data_t get(void *ptr, const sycl::context &ctx);
 
 handle_data_t get(void *ptr);
 
-void put(handle_data_t &handle_data, const sycl::context &ctx);
+void put(const handle_data_t &handle_data, const sycl::context &ctx);
 
-void put(handle_data_t &handle_data);
+void put(const handle_data_t &handle_data);
 
-void *open(handle_data_t &handle_data, const sycl::context &ctx,
+void *open(const handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev);
 
-void *open(handle_data_t &handle_data, const sycl::device &dev);
+void *open(const handle_data_t &handle_data, const sycl::device &dev);
 
-void *open(handle_data_t &handle_data);
+void *open(const handle_data_t &handle_data);
 
 void close(void *ptr, const sycl::context &ctx);
 
@@ -192,7 +192,7 @@ return ipc_memory::get(ptr, ctxt);
 a!
 [source]
 ----
-void put(handle_data_t &handle_data, const sycl::context &ctx)
+void put(const handle_data_t &handle_data, const sycl::context &ctx)
 ----
 !====
 
@@ -216,7 +216,7 @@ _{endnote}_]
 a!
 [source]
 ----
-void put(handle_data_t &handle_data)
+void put(const handle_data_t &handle_data)
 ----
 !====
 
@@ -233,7 +233,7 @@ ipc_memory::put(handle_data, ctxt);
 a!
 [source]
 ----
-void *open(handle_data_t &handle_data, const sycl::context &ctx,
+void *open(const handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev)
 ----
 !====
@@ -270,7 +270,7 @@ _Throws:_
 a!
 [source]
 ----
-void *open(handle_data_t &handle_data, const sycl::device &dev)
+void *open(const handle_data_t &handle_data, const sycl::device &dev)
 ----
 !====
 
@@ -286,7 +286,7 @@ return ipc_memory::put(handle_data, ctxt, dev);
 a!
 [source]
 ----
-void *open(handle_data_t &handle_data, const sycl::context &ctx,
+void *open(const handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev)
 ----
 !====

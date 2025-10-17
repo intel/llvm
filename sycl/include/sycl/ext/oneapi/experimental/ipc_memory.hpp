@@ -34,23 +34,24 @@ inline handle_data_t get(void *Ptr) {
   return ipc_memory::get(Ptr, Ctx);
 }
 
-__SYCL_EXPORT void put(handle_data_t &HandleData, const sycl::context &Ctx);
+__SYCL_EXPORT void put(const handle_data_t &HandleData,
+                       const sycl::context &Ctx);
 
-inline void put(handle_data_t &HandleData) {
+inline void put(const handle_data_t &HandleData) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   ipc_memory::put(HandleData, Ctx);
 }
 
-__SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
-                         const sycl::device &Dev);
+__SYCL_EXPORT void *open(const handle_data_t &HandleData,
+                         const sycl::context &Ctx, const sycl::device &Dev);
 
-inline void *open(handle_data_t &HandleData, const sycl::device &Dev) {
+inline void *open(const handle_data_t &HandleData, const sycl::device &Dev) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return ipc_memory::open(HandleData, Ctx, Dev);
 }
 
-inline void *open(handle_data_t &HandleData) {
+inline void *open(const handle_data_t &HandleData) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return ipc_memory::open(HandleData, Ctx, Dev);

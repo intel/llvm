@@ -49,15 +49,23 @@ __SYCL_EXPORT handle_data_t get(void *Ptr, const sycl::context &Ctx) {
   return Res;
 }
 
-__SYCL_EXPORT void put(handle_data_t &HandleData, const sycl::context &Ctx) {
+__SYCL_EXPORT void put(const handle_data_t &HandleData,
+                       const sycl::context &Ctx) {
+  // TODO: UMF and UR currently requires the handle data to be non-const, so we
+  //       need to make a copy of the data. Once this has been changed, the copy
+  //       can be removed.
+  //       CMPLRLLVM-71181
+  //       https://github.com/oneapi-src/unified-memory-framework/issues/1536
+  handle_data_t HandleDataCopy = HandleData;
+
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
   Adapter.call<sycl::detail::UrApiKind::urIPCPutMemHandleExp>(
-      CtxImpl->getHandleRef(), HandleData.data());
+      CtxImpl->getHandleRef(), HandleDataCopy.data());
 }
 
-__SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
-                         const sycl::device &Dev) {
+__SYCL_EXPORT void *open(const handle_data_t &HandleData,
+                         const sycl::context &Ctx, const sycl::device &Dev) {
   if (!Dev.has(aspect::ext_oneapi_ipc_memory))
     throw sycl::exception(
         sycl::make_error_code(errc::feature_not_supported),
@@ -66,11 +74,18 @@ __SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
   auto CtxImpl = sycl::detail::getSyclObjImpl(Ctx);
   sycl::detail::adapter_impl &Adapter = CtxImpl->getAdapter();
 
+  // TODO: UMF and UR currently requires the handle data to be non-const, so we
+  //       need to make a copy of the data. Once this has been changed, the copy
+  //       can be removed.
+  //       CMPLRLLVM-71181
+  //       https://github.com/oneapi-src/unified-memory-framework/issues/1536
+  handle_data_t HandleDataCopy = HandleData;
+
   void *Ptr = nullptr;
   ur_result_t UrRes =
       Adapter.call_nocheck<sycl::detail::UrApiKind::urIPCOpenMemHandleExp>(
           CtxImpl->getHandleRef(), getSyclObjImpl(Dev)->getHandleRef(),
-          HandleData.data(), HandleData.size(), &Ptr);
+          HandleDataCopy.data(), HandleDataCopy.size(), &Ptr);
   if (UrRes == UR_RESULT_ERROR_INVALID_VALUE)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "HandleData data size does not correspond "
