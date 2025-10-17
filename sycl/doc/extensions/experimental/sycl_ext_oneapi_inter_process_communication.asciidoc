@@ -202,7 +202,10 @@ the same system. The USM device memory has not yet been freed in this process.
 
 _Effects:_ Deallocates resources associated with the handle. These resources are
 automatically deallocated when the USM device memory is freed, so it is not
-strictly necessary to call the `put` function.
+strictly necessary to call the `put` function. After the resources associated
+with the handle have been deallocated, i.e. through a call to the `put` function
+or through freeing the USM device memory, the handle data is invalid and using
+it in the `put` and `open` functions will result in undefined behavior.
 
 !====
 a!
