@@ -57,7 +57,7 @@ int spawner(int argc, char *argv[]) {
                HandleDataSize);
     }
 
-    // Spawn other process with an arguement.
+    // Spawn other process with an argument.
     std::string Cmd = std::string{argv[0]} + " 1";
     std::cout << "Spawning: " << Cmd << std::endl;
     std::system(Cmd.c_str());
@@ -116,6 +116,5 @@ int consumer() {
 }
 
 int main(int argc, char *argv[]) {
-  // We either have the spawner (if no extra argument it provided) or
   return argc == 1 ? spawner(argc, argv) : consumer();
 }
