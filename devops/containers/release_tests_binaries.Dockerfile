@@ -1,4 +1,4 @@
-ARG base_tag=alldeps
+ARG base_tag=ba77ae465dcd64a61818d03691011a0c4e48326d5528f9a7238ea152d66fd1b1
 ARG base_image=ghcr.io/intel/llvm/ubuntu2404_intel_drivers
 
 FROM $base_image:$base_tag
