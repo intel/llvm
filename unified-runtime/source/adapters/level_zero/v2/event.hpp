@@ -9,7 +9,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <array>
+#include <optional>
 #include <stack>
+#include <vector>
 
 #include <ur/ur.hpp>
 #include <ur_api.h>
@@ -83,6 +86,12 @@ public:
   // deffered events list in the queue
   ur_result_t releaseDeferred();
 
+  // Store pattern data for USM fill commands to keep it alive
+  void retainFillPattern(const void *pPattern, size_t patternSize);
+
+  // Get pointer to the retained fill pattern data
+  const void *getFillPattern() const;
+
   // Tells if this event was created as a timestamp event, allowing profiling
   // info even if profiling is not enabled.
   bool isTimestamped() const;
@@ -135,4 +144,20 @@ protected:
 
   v2::event_flags_t flags;
   event_profiling_data_t profilingData;
+
+  // Storage for fill pattern to keep it alive during async execution
+  // Uses std::optional to avoid overhead for non-fill events
+  // Small buffer optimization: patterns ≤16 bytes use inline storage
+  struct FillPatternStorage {
+    static constexpr size_t INLINE_SIZE = 16;
+    std::array<uint8_t, INLINE_SIZE> inlineBuffer;
+    std::vector<uint8_t> heapBuffer;
+    size_t size = 0;
+    bool useHeap = false;
+    
+    const void* data() const {
+      return useHeap ? heapBuffer.data() : inlineBuffer.data();
+    }
+  };
+  std::optional<FillPatternStorage> fillPattern;
 };

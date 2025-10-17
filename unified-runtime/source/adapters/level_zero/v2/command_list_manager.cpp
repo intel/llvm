@@ -36,18 +36,26 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
       hDevice.get(), ur_mem_buffer_t::device_access_mode_t::read_only, offset,
       size, zeCommandList.get(), waitListView));
 
+  // Store pattern in event if this is an async operation
+  // This prevents use-after-return bug when pPattern points to stack memory
+  const void *patternPtr = pPattern;
+  if (phEvent && zeSignalEvent) {
+    phEvent->retainFillPattern(pPattern, patternSize);
+    patternPtr = phEvent->getFillPattern();
+  }
+
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
   // WORKAROUND: Level Zero driver rejects zeCommandListAppendMemoryFill when
   // patternSize == size, returning ZE_RESULT_ERROR_INVALID_SIZE (0x78000008).
   if (isPowerOf2(patternSize) && patternSize != size) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (zeCommandList.get(), pDst, pPattern, patternSize, size,
+               (zeCommandList.get(), pDst, patternPtr, patternSize, size,
                 zeSignalEvent, waitListView.num, waitListView.handles));
   } else {
     // Copy pattern into every entry in memory array pointed by Ptr.
     uint32_t numOfCopySteps = size / patternSize;
-    const void *src = pPattern;
+    const void *src = patternPtr;
 
     for (uint32_t step = 0; step < numOfCopySteps; ++step) {
       void *dst = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pDst) +
