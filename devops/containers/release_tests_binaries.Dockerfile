@@ -1,4 +1,4 @@
-ARG base_tag=ba77ae465dcd64a61818d03691011a0c4e48326d5528f9a7238ea152d66fd1b1
+ARG base_tag=1dcf3fd93f3c13b21e9931372fe405493f7e5a7bd5ba1fca192dece74f9b9188
 ARG base_image=ghcr.io/intel/llvm/ubuntu2404_intel_drivers
 
 # Remove @sha256 if replacing hash with label in base_tag
