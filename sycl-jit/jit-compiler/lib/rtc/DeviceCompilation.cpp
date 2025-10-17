@@ -433,6 +433,7 @@ class SYCLToolchain {
         if (!AddStreamOrErr) {
           // Not a hit, but we won't be able to store the data in the cache, so
           // no need to generate precompiled preamble.
+          consumeError(AddStreamOrErr.takeError());
           return RunWithoutPCH();
         }
         auto &AddStream = *AddStreamOrErr;
