@@ -159,9 +159,9 @@ handle_data_t get(void *ptr, const sycl::context &ctx)
 ----
 !====
 
-_Preconditions:_ `ptr` is a pointer to USM device memory on some device _D_ in
-context `ctx`. `ctx` is the same context as `ptr` was allocated against, using
-the USM device memory allocation routines.
+_Preconditions:_ `ptr` is a pointer to USM device memory on some device _D_, and
+`ctx` is the same context as `ptr` was allocated against, using the USM device
+memory allocation routines.
 
 _Returns:_ An IPC "handle" to this USM memory allocation. The bytes of this
 handle can be transferred to another process on the same system, and the other
@@ -236,9 +236,10 @@ other process on the same system. That USM device memory is accessible on device
 `dev`.
 
 _Returns:_ A pointer to the same USM device memory represented by `handle_data`.
-This pointer can be used in any API taking a USM device memory pointer, except
-it cannot be passed to `sycl::free`. Instead, use the `close` function to free
-this memory pointer.
+The returned pointer is associated with context `ctx`. It can be used wherever a
+USM device pointer for device `dev` and context `ctx` is expected, except it
+cannot be passed to `sycl::free`. Instead, use the `close` function to free this
+memory pointer.
 
 _Throws:_
 
@@ -288,6 +289,10 @@ a!
 static void close(void *ptr, const sycl::context &ctx)
 ----
 !====
+
+_Precondition:_ `ptr` was previously returned from a call to the `open` function
+in this same process, where `ctx` was passed as the context. This `ptr` value
+has not yet been closed by calling the `close` function.
 
 _Effects:_ Closes a device USM pointer previously returned by a call to
 the `open` function.
