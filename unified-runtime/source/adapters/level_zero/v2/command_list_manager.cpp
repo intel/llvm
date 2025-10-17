@@ -19,31 +19,31 @@
 
 thread_local std::vector<ze_event_handle_t> waitList;
 
-/*
-The wait_list_view is a wrapper for eventsWaitLists, which:
- -  enables passing a ze_event_handle_t buffer created from events as an
-argument for the driver API;
- - handles enqueueing operations associated with given events if these
-operations have not already been set for execution.
+// The wait_list_view is a wrapper for eventsWaitLists, which:
+// -  enables passing a ze_event_handle_t buffer created from events as an
+// argument for the driver API;
+// - handles enqueueing operations associated with given events if these
+// operations have not already been set for execution.
+//
+// Previously, it only stored the waitlist and the corresponding event count in
+// a single container. Currently, the constructor also ensures that all
+// associated operations will eventually be executed, which is required for
+// batched queues in L0v2.
+//
+// Wait events might have been created in batched queues, which use regular
+// command lists (batches). Since regular command lists are not executed
+// immediately, but only after enqueueing on immediate lists, it is necessary to
+// enqueue the regular command list associated with the given event. Otherwise,
+// the event would never be signalled. The enqueueing is performed in
+// onWaitListView().
+//
+// In the case of batched queues, the function onWaitListView() is not called if
+// the current queue created the given event. The operation associated with the
+// given wait_list_view is added to the current batch of the queue. The entire
+// batch is then enqueued for execution, i.e., as part of queueFinish or
+// queueFlush. For the same queue, events from the given eventsWaitList are
+// enqueued before the associated operation is executed.
 
-Previously, it only stored the waitlist and the corresponding event count in a
-single container. Currently, the constructor also ensures that all associated
-operations will eventually be executed, which is required for batched queues in
-L0v2.
-
-Wait events might have been created in batched queues, which use regular
-command lists (batches). Since regular command lists are not executed
-immediately, but only after enqueueing on immediate lists, it is necessary to
-enqueue the regular command list associated with the given event. Otherwise, the
-event would never be signalled. The enqueueing is performed in onWaitListView().
-
-In the case of batched queues, the function onWaitListView() is not called if
-the current queue created the given event. The operation associated with the
-given wait_list_view is added to the current batch of the queue. The entire
-batch is then enqueued for execution, i.e., as part of queueFinish or
-queueFlush. For the same queue, events from the given eventsWaitList are
-enqueued before the associated operation is executed.
-*/
 template <bool HasBatchedQueue>
 void getZeHandlesBuffer(const ur_event_handle_t *phWaitEvents,
                         uint32_t numWaitEvents,

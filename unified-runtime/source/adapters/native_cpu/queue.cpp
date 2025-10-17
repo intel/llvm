@@ -33,11 +33,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
   case UR_QUEUE_INFO_EMPTY:
     return ReturnValue(hQueue->isEmpty());
   case UR_QUEUE_INFO_FLAGS:
-    /*
-    Support for UR_QUEUE_INFO_FLAGS in urQueueGetInfo is required by the
-    enqueueTimestampRecording tests after introducing batched queues, since
-    batched queues do not support enqueueTimestampRecording.
-    */
+    // Support for UR_QUEUE_INFO_FLAGS in urQueueGetInfo is required by the
+    // enqueueTimestampRecording tests after introducing batched queues, since
+    // batched queues do not support enqueueTimestampRecording.
     if (!hQueue->isInOrder()) {
       flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }

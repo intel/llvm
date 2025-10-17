@@ -30,58 +30,53 @@
 #include "ur_api.h"
 #include "ze_api.h"
 
-/* Batched queues enable submission of operations to the driver in batches,
- * therefore reducing the overhead of submitting every single operation
- * individually. Similarly to command buffers in L0v2, they use regular command
- * lists (later referenced as 'batches'). Operations enqueued on regular command
- * lists are not executed immediately, but only after enqueueing the regular
- * command list on an immediate command list. However, in contrast to command
- * buffers, batched queues also handle submission of batches (regular command
- * lists) instead of only collecting enqueued operations, by using an internal
- * immediate command list. Command lists are managed by a batch_manager inside a
- * batched queue.
- *
- * Batched queues can be enabled by setting UR_QUEUE_FLAG_SUBMISSION_BATCHED in
- * ur_queue_flags_t or globally, through the environment variable
- * UR_L0_FORCE_BATCHED=1.
- */
+// Batched queues enable submission of operations to the driver in batches,
+// therefore reducing the overhead of submitting every single operation
+// individually. Similarly to command buffers in L0v2, they use regular command
+// lists (later referenced as 'batches'). Operations enqueued on regular command
+// lists are not executed immediately, but only after enqueueing the regular
+// command list on an immediate command list. However, in contrast to command
+// buffers, batched queues also handle submission of batches (regular command
+// lists) instead of only collecting enqueued operations, by using an internal
+// immediate command list. Command lists are managed by a batch_manager inside a
+// batched queue.
+//
+// Batched queues can be enabled by setting UR_QUEUE_FLAG_SUBMISSION_BATCHED in
+// ur_queue_flags_t or globally, through the environment variable
+// UR_L0_FORCE_BATCHED=1.
 
 namespace v2 {
 
 struct batch_manager {
 private:
-  /* The currently active regular command list, which may be replaced in the
-   * command list manager, submitted for execution on the immediate command list
-   * and stored in the vector of submitted batches while awaiting execution
-   * completion
-   */
+  // The currently active regular command list, which may be replaced in the
+  // command list manager, submitted for execution on the immediate command list
+  // and stored in the vector of submitted batches while awaiting execution
+  // completion
   ur_command_list_manager activeBatch;
   // An immediate command list for submission of batches
   ur_command_list_manager immediateList;
-  /* Submitted batches (regular command lists), stored for the completion of
-   * their execution. After queueFinish(), the vector is cleared - at this
-   * point, the destructor of command_list_handle adds the given command list to
-   * the command list cache, to the stack assigned to the description of the
-   * command list. When a new regular command list is requested after
-   * queueFinish(), it is popped from the available stack rather than retrieved
-   * through a driver call, which improves performance.
-   */
+  // Submitted batches (regular command lists), stored for the completion of
+  // their execution. After queueFinish(), the vector is cleared - at this
+  // point, the destructor of command_list_handle adds the given command list to
+  // the command list cache, to the stack assigned to the description of the
+  // command list. When a new regular command list is requested after
+  // queueFinish(), it is popped from the available stack rather than retrieved
+  // through a driver call, which improves performance.
   std::vector<v2::raii::command_list_unique_handle> runBatches;
-  /* The generation number of the current batch, assigned to events associated
-   * with operations enqueued on the given batch. It is incremented during every
-   * replacement of the current batch. When an event created by a batched queue
-   * appears in an eventWaitList, the batch assigned to the given event might
-   * not have been executed yet and the event might never be signalled.
-   * Comparing generation numbers enables determining whether the current batch
-   * should be submitted for execution. If the generation number of the current
-   * batch is higher than the number assigned to the given event, the batch
-   * associated with the event has already been submitted for execution and
-   * additional submission of the current batch is not needed.
-   */
+  // The generation number of the current batch, assigned to events associated
+  // with operations enqueued on the given batch. It is incremented during every
+  // replacement of the current batch. When an event created by a batched queue
+  // appears in an eventWaitList, the batch assigned to the given event might
+  // not have been executed yet and the event might never be signalled.
+  // Comparing generation numbers enables determining whether the current batch
+  // should be submitted for execution. If the generation number of the current
+  // batch is higher than the number assigned to the given event, the batch
+  // associated with the event has already been submitted for execution and
+  // additional submission of the current batch is not needed.
   ur_event_generation_t regularGenerationNumber;
-  /* The limit of regular command lists stored for execution; if exceeded, the
-   * vector is cleared as part of queueFinish and slots are renewed.
-   */
+  // The limit of regular command lists stored for execution; if exceeded, the
+  // vector is cleared as part of queueFinish and slots are renewed.
   static constexpr uint64_t initialSlotsForBatches = 10;
   // Whether any operation has been enqueued on the current batch
   bool isEmpty = true;
@@ -148,12 +143,12 @@ private:
 
   ur_queue_flags_t flags;
 
-  /* Regular command lists use the regular pool cache type, whereas immediate
-   * command lists use the immediate pool cache type. Since user-requested
-   * operations are enqueued on regular command lists and immediate command
-   * lists are only used internally by the batched queue implementation, events
-   * are not created for immediate command lists.
-   */
+  // Regular command lists use the regular pool cache type, whereas immediate
+  // command lists use the immediate pool cache type. Since user-requested
+  // operations are enqueued on regular command lists and immediate command
+  // lists are only used internally by the batched queue implementation, events
+  // are not created for immediate command lists.
+
   v2::raii::cache_borrowed_event_pool eventPoolRegular;
 
   v2::raii::command_list_unique_handle getNewRegularCmdList() {

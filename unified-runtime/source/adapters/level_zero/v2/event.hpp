@@ -71,8 +71,13 @@ public:
 
   // Set the queue and command that this event is associated with
   void setQueue(ur_queue_t_ *hQueue);
-  void setBatch(ur_event_generation_t batch_generation);
   void setCommandType(ur_command_t commandType);
+
+  // For batched queues
+  // Set the batch that this event is associated with
+  void setBatch(ur_event_generation_t batch_generation);
+  // Ensure that the batch associated with this event is submitted for
+  // execution, otherwise the event will never be signalled
   void onWaitListUse();
 
   void reset();

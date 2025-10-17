@@ -898,20 +898,18 @@ ur_result_t ur_queue_batched_t::bindlessImagesSignalExternalSemaphoreExp(
                                     lockedBatch->getCurrentGeneration()));
 }
 
-/*
-In case of queues with batched submissions, which use regular command lists
-(similarly to command buffers), the start timestamp would be recorded as the
-operation is submitted (event.recordStartTimestamp() in
-appendTimestampRecordingExp does not use the queue but directly the device), but
-the end timestamp would wait for the submission of the given regular command
-list. The difference between the start and end timestamps would reflect the
-delay in the batch submission, the difference between end timestamps would
-reflect the actual time of execution.
-
-TODO
-The version of timestampRecording for batched queues should be adjusted in order
-to reflect the idea behind the original function
-*/
+// In case of queues with batched submissions, which use regular command lists
+// (similarly to command buffers), the start timestamp would be recorded as the
+// operation is submitted (event.recordStartTimestamp() in
+// appendTimestampRecordingExp does not use the queue but directly the device),
+// but the end timestamp would wait for the submission of the given regular
+// command list. The difference between the start and end timestamps would
+// reflect the delay in the batch submission, the difference between end
+// timestamps would reflect the actual time of execution.
+//
+// TODO
+// The version of timestampRecording for batched queues should be adjusted in
+// order to reflect the idea behind the original function
 
 ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
     bool /* blocking */, uint32_t /* numEventsInWaitList */,
@@ -919,23 +917,23 @@ ur_result_t ur_queue_batched_t::enqueueTimestampRecordingExp(
     ur_event_handle_t * /* phEvent */) {
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  /*  wait_list_view waitListView =
-        wait_list_view(phEventWaitList, numEventsInWaitList, this);
+  // wait_list_view waitListView =
+  //     wait_list_view(phEventWaitList, numEventsInWaitList, this);
 
-    auto lockedBatch = currentCmdLists.lock();
+  // auto lockedBatch = currentCmdLists.lock();
 
-    lockedBatch->markIssuedCommand();
+  // lockedBatch->markIssuedCommand();
 
-    UR_CALL(lockedBatch->getActiveBatch().appendTimestampRecordingExp(
-        false, waitListView,
-        createEventIfRequestedRegular(phEvent,
-                                      lockedBatch->getCurrentGeneration())));
+  // UR_CALL(lockedBatch->getActiveBatch().appendTimestampRecordingExp(
+  //     false, waitListView,
+  //     createEventIfRequestedRegular(phEvent,
+  //                                   lockedBatch->getCurrentGeneration())));
 
-    if (blocking) {
-      UR_CALL(queueFinishUnlocked(lockedBatch));
-    }
+  // if (blocking) {
+  //   UR_CALL(queueFinishUnlocked(lockedBatch));
+  // }
 
-    return UR_RESULT_SUCCESS; */
+  // return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_batched_t::enqueueCommandBufferExp(
