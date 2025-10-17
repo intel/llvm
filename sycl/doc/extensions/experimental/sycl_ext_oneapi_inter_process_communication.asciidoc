@@ -208,8 +208,10 @@ or through freeing the USM device memory, the handle data is invalid and using
 it in the `put` and `open` functions will result in undefined behavior.
 
 [_Note:_ Any pointers retrieved through a call to the `open` function in any
-process on the system will still be valid and must still be freed through calls
-to the `close` function.
+process on the system will still be valid after a call to the `put` function and
+must still be freed through calls to the `close` function. They are however no
+longer valid if the associated memory USM device memory was freed through a call
+to the `sycl::free` function.
 _{endnote}_]
 
 !====
