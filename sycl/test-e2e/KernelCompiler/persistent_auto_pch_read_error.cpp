@@ -2,7 +2,10 @@
 // limited to SPIR-V target.
 // REQUIRES: target-spir
 
-// RUN: %{build} '-DPCH_DIR="%/t.dir"' -o %t.out
+// PCH_DIR needs to be the same between build/run, so use %{run-aux}
+// extensively.
+
+// RUN: %{run-aux} %{build} '-DPCH_DIR="%/t.dir"' -o %t.out
 // RUN: %{run-aux} rm -rf %t.dir
 
 // Generate:
@@ -12,7 +15,7 @@
 // RUN: %{run-unfiltered-devices} %t.out
 
 // File too small:
-// RUN: %{run-aux} echo "1" > %t.1.txt ; mv %t.1.txt %t.dir/*
+// RUN: %{run-aux} echo "1" > %t.dir/*
 // RUN: %{run-unfiltered-devices} %t.out
 
 // Cache file has garbage:
