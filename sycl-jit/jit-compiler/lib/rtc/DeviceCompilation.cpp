@@ -357,7 +357,7 @@ class SYCLToolchain {
         // `llvm::localCache`'s API uses a callback to process cached data and
         // the callback's return value (if any) is effectively ignored, so we
         // need this extra `Success` variable to be able to properly return
-        // compilatoin status.
+        // compilation status.
         bool Success = false;
         auto RunWithoutPCH = [&]() -> bool {
           // Run original invocation:
@@ -385,7 +385,7 @@ class SYCLToolchain {
         };
 
         // `llvm::localCache` calls the callback on either succesful cache read
-        // or duing "commit" if an entry is being created. The problem is that
+        // or during "commit" if an entry is being created. The problem is that
         // commit might fail and the callback won't be called at all. It's
         // easier to just don't rely on it on cache miss and perform compilation
         // with newly generated preamble ourselves.
