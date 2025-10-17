@@ -1,3 +1,5 @@
+# Freeze base image to avoid using newer GPU RT/IGC when updating 
+# the image due to changes in the release branch.
 ARG base_tag=1dcf3fd93f3c13b21e9931372fe405493f7e5a7bd5ba1fca192dece74f9b9188
 ARG base_image=ghcr.io/intel/llvm/ubuntu2404_intel_drivers
 
