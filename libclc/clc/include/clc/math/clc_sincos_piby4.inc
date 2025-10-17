@@ -9,6 +9,7 @@
 #if __CLC_FPSIZE == 32
 
 // Evaluate single precisions in and cos of value in interval [-pi/4, pi/4]
+static // INTEL
 _CLC_INLINE _CLC_OVERLOAD void
 __clc_sincos_piby4(__CLC_GENTYPE x, private __CLC_GENTYPE *sinval,
                    private __CLC_GENTYPE *cosval) {
@@ -47,6 +48,7 @@ __clc_sincos_piby4(__CLC_GENTYPE x, private __CLC_GENTYPE *sinval,
 
 #elif __CLC_FPSIZE == 64
 
+static // INTEL
 _CLC_INLINE _CLC_OVERLOAD void
 __clc_sincos_piby4(__CLC_GENTYPE x, __CLC_GENTYPE xx,
                    private __CLC_GENTYPE *sinval,
@@ -108,6 +110,7 @@ __clc_sincos_piby4(__CLC_GENTYPE x, __CLC_GENTYPE xx,
   *cosval = cp;
 }
 
+static // INTEL
 _CLC_INLINE _CLC_OVERLOAD void __clc_tan_piby4(__CLC_GENTYPE x,
                                                __CLC_GENTYPE xx,
                                                private __CLC_GENTYPE *leadval,
