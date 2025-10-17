@@ -77,8 +77,8 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
   }
 
   // TODO remove | this is just for tests in CI
-  // As of 16.10.205, I still remmeber about removal
-  // flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
+  // As of 17.10.205, I still remmeber about removal
+  flags |= UR_QUEUE_FLAG_SUBMISSION_BATCHED;
 
   auto zeIndex = v2::getZeIndex(pProperties);
 
