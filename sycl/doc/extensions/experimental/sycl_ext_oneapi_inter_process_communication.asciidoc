@@ -244,6 +244,11 @@ USM device pointer for device `dev` and context `ctx` is expected, except it
 cannot be passed to `sycl::free`. Instead, use the `close` function to free this
 memory pointer.
 
+[_Note:_ The `open` function can be called multiple times on the same handle
+within the same process. The number of calls to the `close` function must be
+equal to the number of calls to the `open` function to free the memory pointer.
+_{endnote}_]
+
 _Throws:_
 
  * An exception with the `errc::feature_not_supported` error code if device
