@@ -9,7 +9,8 @@ on:
 permissions: read-all
 
 jobs:
-  ubuntu2204_build:
+  ubuntu_build:
+    name: Build toolkit
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
@@ -21,9 +22,9 @@ jobs:
       toolchain_artifact: sycl_linux_default
       toolchain_artifact_filename: sycl_linux.tar.gz
 
-  run-sycl-benchmarks:
-    needs: [ubuntu2204_build]
-    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+  Benchmarks:
+    needs: [ubuntu_build]
+    if: ${{ always() && !cancelled() && needs.ubuntu_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +37,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: Run compute-benchmarks (${{ matrix.runner }}, ${{ matrix.backend }})
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ matrix.preset }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN

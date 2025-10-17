@@ -1,6 +1,7 @@
 name: Run Benchmarks
 
 on:
+  # XXX: is this workflow called anywhere?
   workflow_call:
     inputs:
       preset:
@@ -66,6 +67,8 @@ on:
           - Minimal
           - Normal
           - Test
+          - Gromacs
+          - OneDNN
         default: 'Minimal'  # Only compute-benchmarks
       pr_no:
         type: string
