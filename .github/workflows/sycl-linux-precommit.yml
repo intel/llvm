@@ -241,6 +241,7 @@ jobs:
       benchmark_upload_results: false
       benchmark_preset: 'Minimal'
       benchmark_dry_run: true
+      benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
