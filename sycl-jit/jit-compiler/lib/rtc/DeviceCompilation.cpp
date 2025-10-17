@@ -72,6 +72,12 @@ using namespace llvm::util;
 using namespace llvm::vfs;
 using namespace jit_compiler;
 
+#if defined(__linux__)
+#define PRETTY __PRETTY_FUNCTION__
+#else
+#define PRETTY __FUNCSIG__
+#endif
+
 namespace {
 struct AutoPCHError : public ErrorInfo<AutoPCHError> {
 public:
@@ -282,6 +288,7 @@ class SYCLToolchain {
         std::unique_ptr<MemoryBuffer> PrecompiledPreamble,
         const PreambleBounds &Bounds, CompilerInvocation &CI,
         IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS) {
+      std::cerr << PRETTY << "\n";
 
       // Processing similar to PrecompiledPreamble::configurePreamble.
 
@@ -361,7 +368,8 @@ class SYCLToolchain {
         // need this extra `Success` variable to be able to properly return
         // compilatoin status.
         bool Success = false;
-        auto RunWithoutPCH = [&]() -> bool {
+        auto RunWithoutPCH = [&](unsigned LINE = __builtin_LINE()) -> bool {
+          std::cerr << PRETTY << " " << LINE << "\n";
           // Run original invocation:
           Success =
               Action::runInvocation(std::move(Invocation), Files,
@@ -369,7 +377,9 @@ class SYCLToolchain {
           return Success;
         };
 
-        auto UseCachedPreamble = [&](StringRef PCHContent) {
+        auto UseCachedPreamble = [&](StringRef PCHContent,
+                                     unsigned LINE = __builtin_LINE()) {
+          std::cerr << PRETTY << " " << LINE << "\n";
           std::unique_ptr<MemoryBuffer> PCHMemBuf =
               MemoryBuffer::getMemBufferCopy(PCHContent);
 
@@ -395,6 +405,8 @@ class SYCLToolchain {
 
         auto CacheCallback = [&](size_t, const Twine &,
                                  std::unique_ptr<MemoryBuffer> MB) -> void {
+          std::cerr << PRETTY << " " << std::boolalpha << CacheHit
+                    << "\n";
           if (!CacheHit)
             return; // See above.
 
@@ -468,7 +480,11 @@ class SYCLToolchain {
 
         OS << NewPreamble->memoryContents();
 
-        consumeError(CFS->commit());
+        auto Err = CFS->commit();
+        if (Err) {
+          std::cerr << "Error in commit\n";
+        }
+        consumeError(std::move(Err));
 
         return Success;
       } else {

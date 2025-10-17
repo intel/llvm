@@ -19,8 +19,13 @@
 // RUN: %{run-aux} cp %s %t.dir/*
 // RUN: %{run-unfiltered-devices} %t.out
 
+// RUN: %{run-aux} false
+// RUN: false
+
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
+
+#include <iostream>
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
@@ -38,6 +43,7 @@ void foo(int *p) {
 )""";
 
 int main() {
+  std::cout << "PCH_DIR: " PCH_DIR << std::endl;
   sycl::queue q;
   auto kb_src = syclexp::create_kernel_bundle_from_source(
       q.get_context(), syclexp::source_language::sycl, src);
