@@ -37,9 +37,25 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
+:khr-default-context: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:khr-default-context
+
 This extension is written against the SYCL 2020 revision 10 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
+
+[_Note:_ The APIs in this extension uses the concept of a per-platform
+default context as specified in section 4.6.2 "Platform class" of the core SYCL
+specification.
+As a convenience, this extension specification describes the behavior of its
+APIs by using the `khr_get_default_context` function from {khr-default-context}[
+sycl_khr_default_context], however there is no true dependency on that
+extension.
+An implementation could still implement
+sycl_ext_oneapi_inter_process_communication even without implementing
+sycl_khr_default_context because the core SYCL specification still requires
+there to be a per-platform default context even if the core SYCL specification
+does not provide a convenient way to get it.
+_{endnote}_]
 
 
 == Status
@@ -56,7 +72,7 @@ specification.*
 
 This extension adds the ability for SYCL programs to share device USM memory
 allocations between processes. This is done by the allocating process creating
-a new IPC memory handle through the new free frunctions and transferring the
+a new IPC memory handle through the new free functions and transferring the
 returned handle data to the other processes. The other processes can use the
 handle data to retrieve the corresponding device USM memory.
 
@@ -112,12 +128,22 @@ using handle_data_t = std::vector<std::byte>;
 
 handle_data_t get(void *ptr, const sycl::context &ctx);
 
+handle_data_t get(void *ptr);
+
+void put(handle_data_t &handle_data, const sycl::context &ctx);
+
 void put(handle_data_t &handle_data, const sycl::context &ctx);
 
 static void *open(handle_data_t handle_data, const sycl::context &ctx,
                   const sycl::device &dev);
 
+static void *open(handle_data_t handle_data, const sycl::device &dev);
+
+static void *open(handle_data_t handle_data);
+
 static void close(void *ptr, const sycl::context &ctx);
+
+static void close(void *ptr);
 
 }
 ```
@@ -149,6 +175,23 @@ device _D_ does not have `aspect::ext_oneapi_ipc_memory`.
 a!
 [source]
 ----
+handle_data_t get(void *ptr)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::get(ptr, ctxt);
+----
+
+!====
+a!
+[source]
+----
 void put(handle_data_t &handle_data, const sycl::context &ctx)
 ----
 !====
@@ -160,6 +203,23 @@ the same system. The USM device memory has not yet been freed in this process.
 _Effects:_ Deallocates resources associated with the handle. These resources are
 automatically deallocated when the USM device memory is freed, so it is not
 strictly necessary to call the `put` function.
+
+!====
+a!
+[source]
+----
+void put(handle_data_t &handle_data)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::put(handle_data, ctxt);
+----
 
 !====
 a!
@@ -191,12 +251,63 @@ _Throws:_
 a!
 [source]
 ----
+static void *open(handle_data_t &handle_data, const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::contxt ctxt = dev.get_platform().khr_get_default_context();
+return ipc_memory::put(handle_data, ctxt, dev);
+----
+
+!====
+a!
+[source]
+----
+static void *open(handle_data_t &handle_data, const sycl::context &ctx,
+                  const sycl::device &dev)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::open(handle_data, ctxt, d);
+----
+
+!====
+a!
+[source]
+----
 static void close(void *ptr, const sycl::context &ctx)
 ----
 !====
 
 _Effects:_ Closes a device USM pointer previously returned by a call to
 the `open` function.
+
+!====
+a!
+[source]
+----
+static void close(void *ptr)
+----
+!====
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+return ipc_memory::close(ptr, ctxt);
+----
 
 |====
 
