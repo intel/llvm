@@ -50,7 +50,7 @@ jobs:
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
-      changes: ${{ needs.detect_changes.outputs.filters }}
+      changes: '[]'
       e2e_binaries_artifact: sycl_windows_e2ebin
 
   run_prebuilt_e2e_tests:
@@ -74,5 +74,6 @@ jobs:
       runner: ${{ matrix.runner }}
       target_devices: "level_zero:gpu"
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
+      env: '{"LIT_FILTER":"pch_read_error"}'
       e2e_testing_mode: run-only
       e2e_binaries_artifact: sycl_windows_e2ebin

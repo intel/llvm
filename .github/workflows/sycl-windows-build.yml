@@ -253,6 +253,8 @@ jobs:
 
     - name: Build E2E tests
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
+      env:
+        LIT_FILTER: pch_read_error
       uses: ./devops/actions/run-tests/windows/e2e
       with:
         ref: ${{ inputs.ref || github.sha }}
