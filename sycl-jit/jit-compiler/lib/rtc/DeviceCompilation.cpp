@@ -58,8 +58,6 @@
 #include <array>
 #include <sstream>
 
-#include <iostream>
-
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::driver;
