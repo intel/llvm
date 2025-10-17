@@ -132,18 +132,18 @@ handle_data_t get(void *ptr);
 
 void put(handle_data_t &handle_data, const sycl::context &ctx);
 
-void put(handle_data_t &handle_data, const sycl::context &ctx);
+void put(handle_data_t &handle_data);
 
-static void *open(handle_data_t handle_data, const sycl::context &ctx,
+void *open(handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev);
 
-static void *open(handle_data_t handle_data, const sycl::device &dev);
+void *open(handle_data_t &handle_data, const sycl::device &dev);
 
-static void *open(handle_data_t handle_data);
+void *open(handle_data_t &handle_data);
 
-static void close(void *ptr, const sycl::context &ctx);
+void close(void *ptr, const sycl::context &ctx);
 
-static void close(void *ptr);
+void close(void *ptr);
 
 }
 ```
@@ -184,7 +184,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return ipc_memory::get(ptr, ctxt);
 ----
 
@@ -209,9 +209,7 @@ it in the `put` and `open` functions will result in undefined behavior.
 
 [_Note:_ Any pointers retrieved through a call to the `open` function in any
 process on the system will still be valid after a call to the `put` function and
-must still be freed through calls to the `close` function. They are however no
-longer valid if the associated memory USM device memory was freed through a call
-to the `sycl::free` function.
+must still be freed through calls to the `close` function.
 _{endnote}_]
 
 !====
@@ -227,15 +225,15 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return ipc_memory::put(handle_data, ctxt);
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc_memory::put(handle_data, ctxt);
 ----
 
 !====
 a!
 [source]
 ----
-static void *open(handle_data_t &handle_data, const sycl::context &ctx,
+void *open(handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev)
 ----
 !====
@@ -256,6 +254,11 @@ within the same process. The number of calls to the `close` function must be
 equal to the number of calls to the `open` function to free the memory pointer.
 _{endnote}_]
 
+[_Note:_ The pointer returned from a call to the `open` function is no longer
+valid if the associated USM device memory is freed through a call to the
+`sycl::free` function.
+_{endnote}_]
+
 _Throws:_
 
  * An exception with the `errc::feature_not_supported` error code if device
@@ -267,7 +270,7 @@ _Throws:_
 a!
 [source]
 ----
-static void *open(handle_data_t &handle_data, const sycl::device &dev)
+void *open(handle_data_t &handle_data, const sycl::device &dev)
 ----
 !====
 
@@ -275,7 +278,7 @@ _Effects_: Equivalent to:
 
 [source,c++,indent=2]
 ----
-sycl::contxt ctxt = dev.get_platform().khr_get_default_context();
+sycl::context ctxt = dev.get_platform().khr_get_default_context();
 return ipc_memory::put(handle_data, ctxt, dev);
 ----
 
@@ -283,7 +286,7 @@ return ipc_memory::put(handle_data, ctxt, dev);
 a!
 [source]
 ----
-static void *open(handle_data_t &handle_data, const sycl::context &ctx,
+void *open(handle_data_t &handle_data, const sycl::context &ctx,
                   const sycl::device &dev)
 ----
 !====
@@ -293,7 +296,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return ipc_memory::open(handle_data, ctxt, d);
 ----
 
@@ -301,7 +304,7 @@ return ipc_memory::open(handle_data, ctxt, d);
 a!
 [source]
 ----
-static void close(void *ptr, const sycl::context &ctx)
+void close(void *ptr, const sycl::context &ctx)
 ----
 !====
 
@@ -316,7 +319,7 @@ the `open` function.
 a!
 [source]
 ----
-static void close(void *ptr)
+void close(void *ptr)
 ----
 !====
 
@@ -325,8 +328,8 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
-return ipc_memory::close(ptr, ctxt);
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+ipc_memory::close(ptr, ctxt);
 ----
 
 |====

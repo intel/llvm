@@ -10,8 +10,11 @@
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
+#include <sycl/context.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/platform.hpp>
 
 #include <cstddef>
 #include <vector>
@@ -19,21 +22,47 @@
 namespace sycl {
 inline namespace _V1 {
 
-class context;
-class device;
-
 namespace ext::oneapi::experimental::ipc_memory {
 
 using handle_data_t = std::vector<std::byte>;
 
 __SYCL_EXPORT handle_data_t get(void *Ptr, const sycl::context &Ctx);
 
+inline handle_data_t get(void *Ptr) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc_memory::get(Ptr, Ctx);
+}
+
 __SYCL_EXPORT void put(handle_data_t &HandleData, const sycl::context &Ctx);
+
+inline void put(handle_data_t &HandleData) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  ipc_memory::put(HandleData, Ctx);
+}
 
 __SYCL_EXPORT void *open(handle_data_t &HandleData, const sycl::context &Ctx,
                          const sycl::device &Dev);
 
+inline void *open(handle_data_t &HandleData, const sycl::device &Dev) {
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc_memory::open(HandleData, Ctx, Dev);
+}
+
+inline void *open(handle_data_t &HandleData) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  return ipc_memory::open(HandleData, Ctx, Dev);
+}
+
 __SYCL_EXPORT void close(void *Ptr, const sycl::context &Ctx);
+
+inline void close(void *Ptr) {
+  sycl::device Dev;
+  sycl::context Ctx = Dev.get_platform().khr_get_default_context();
+  ipc_memory::close(Ptr, Ctx);
+}
 
 } // namespace ext::oneapi::experimental::ipc_memory
 } // namespace _V1
