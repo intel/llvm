@@ -7,7 +7,7 @@
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
 
 // XFAIL: target-native_cpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
 
 // CPU AOT targets host isa, so we compile everything on the run system instead.
 //////////////////////  Compile device images
