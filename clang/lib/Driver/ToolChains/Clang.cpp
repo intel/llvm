@@ -10305,7 +10305,7 @@ void OffloadPackager::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs, Inputs, Output));
 }
 
-// Use the clang-offload-packager to extract binaries from a packaged
+// Use the llvm-offload-binary to extract binaries from a packaged
 // binary.  This currently only supports single input/single output.
 void OffloadPackagerExtract::ConstructJob(Compilation &C, const JobAction &JA,
                                           const InputInfo &Output,

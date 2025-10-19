@@ -28,7 +28,7 @@ in this section. The intention of defining a new format for these is to give
 the DPC++ implementation an extendable and lightweight wrapper around the
 multiple modules and corresponding metadata captured in the SYCLBIN file.
 The content of the SYCLBIN may be contained as an entry in the offloading binary
-format produced by the clang-offload-packager, as described in
+format produced by the llvm-offload-binary, as described in
 [ClangOffloadPackager.rst](https://github.com/intel/llvm/blob/sycl/clang/docs/ClangOffloadPackager.rst).
 
 The format of these files consist of a [file header](#file-header), containing
@@ -221,7 +221,7 @@ The clang driver needs to accept the following new flags:
 If this option is set, the output of the invocation is a SYCLBIN file with the
 .syclbin file extension. This skips the host-compilation invocation of the
 typical `-fsycl` pipeline, instead passing the output of the
-clang-offload-packager invocation to clang-linker-wrapper together with the new
+llvm-offload-binary invocation to clang-linker-wrapper together with the new
 `--syclbin` flag.
 
 Setting this option will override `-fsycl`. Passing`-fsycl-device-only` with
