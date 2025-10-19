@@ -839,6 +839,14 @@ tools = [
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="ignore"),
     ToolSubst("syclbin-dump", command=syclbin_dump, unresolved="ignore"),
+    ToolSubst("llvm-link", unresolved="fatal"),
+    ToolSubst("syclbin-dump", unresolved="fatal"),
+    ToolSubst("llvm-ar", unresolved="fatal"),
+    ToolSubst("clang-offload-bundler", unresolved="fatal"),
+    ToolSubst("clang-offload-wrapper", unresolved="fatal"),
+    ToolSubst("sycl-post-link", unresolved="fatal"),
+    ToolSubst("file-table-tform", unresolved="fatal"),
+    ToolSubst("llvm-foreach", unresolved="fatal"),
 ] + feature_tools
 
 # Try and find each of these tools in the DPC++ bin directory, in the llvm tools directory
