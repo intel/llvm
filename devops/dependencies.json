@@ -19,7 +19,7 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_commit": "5187acd1c0f34097658f6ed890f1e5a65bdc35b9",
+      "github_tag": "5187acd1c0f34097658f6ed890f1e5a65bdc35b9",
       "version": "v1.24.2",
       "url": "https://github.com/oneapi-src/level-zero/commit/5187acd1c0f34097658f6ed890f1e5a65bdc35b9",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
