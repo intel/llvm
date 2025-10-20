@@ -79,14 +79,14 @@ runs:
     shell: bash
     run: |
       # Compute the core range for the first NUMA node; second node is used by
-      # UMF. Skip the first 4 cores as the kernel is likely to schedule more
+      # UMF. Skip the first 3 cores as the kernel is likely to schedule more
       # work on these.
       CORES="$(lscpu | awk '
         /NUMA node0 CPU|On-line CPU/ {line=$0}
         END {
           split(line, a, " ")
           split(a[4], b, ",")
-          sub(/^0/, "4", b[1])
+          sub(/^0/, "3", b[1])
           print b[1]
         }')"
       echo "CPU core range to use: $CORES"
