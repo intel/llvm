@@ -10,13 +10,13 @@
 // RUN:    %S/Inputs/wrapper.cpp                                                        \
 // RUN:    -o %if windows %{%t.dir/device_single.dll%} %else %{%t.dir/libdevice_single.so%}
 
-// RUN: %{build} -I%S/Inputs -o %t.out           \
+// RUN: %{build} -I%S/Inputs -o %t.dir/%{t:stem}.out           \
 // RUN: %if windows                              \
 // RUN:   %{%t.dir/device_single.lib%}               \
 // RUN: %else                                    \
 // RUN:   %{-L%t.dir -ldevice_single -Wl,-rpath=%t.dir%}
 
-// RUN: %{run} %t.out
+// RUN: %{run} %t.dir/%{t:stem}.out
 
 // XFAIL: target-native_cpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
