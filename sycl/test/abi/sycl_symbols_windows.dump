@@ -4359,7 +4359,7 @@
 ?modf_impl@detail@_V1@sycl@@YANNPEAN@Z
 ?name@SYCLCategory@detail@_V1@sycl@@UEBAPEBDXZ
 ?native_specialization_constant@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
-?open@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXAEAV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@AEBVcontext@56@AEBVdevice@56@@Z
+?open@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXAEBV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@AEBVcontext@56@AEBVdevice@56@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$00@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$01@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$02@23@Vkernel@23@@Z
@@ -4379,7 +4379,7 @@
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEBAXVstring_view@267@_N@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
-?put@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXAEAV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@AEBVcontext@56@@Z
+?put@ipc_memory@experimental@oneapi@ext@_V1@sycl@@YAXAEBV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@AEBVcontext@56@@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIAEAVhandler@23@@Z
