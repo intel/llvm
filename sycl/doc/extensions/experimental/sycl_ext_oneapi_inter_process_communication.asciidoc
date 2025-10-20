@@ -250,8 +250,9 @@ cannot be passed to `sycl::free`. Instead, use the `close` function to free this
 memory pointer.
 
 [_Note:_ The `open` function can be called multiple times on the same handle
-within the same process. The number of calls to the `close` function must be
-equal to the number of calls to the `open` function to free the memory pointer.
+within the same process. Each call to the `open` function may return a unique
+pointer value even for the same handle, therefore each call to the `open`
+function must have a matching call to the `close` function.
 _{endnote}_]
 
 [_Note:_ The pointer returned from a call to the `open` function is no longer
