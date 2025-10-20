@@ -166,20 +166,30 @@ template <> struct std::hash<auto_pch_key> {
 
 namespace {
 class SYCLToolchain {
-  // TODO: For some reason, moving this to a data member of the single instance
-  // of SYCLToolchain results in some data races leading to memory corruption
-  // (e.g., ::free() report errors).
-  static auto getToolchainFS() {
-    llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
-        llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
-    using namespace jit_compiler::resource;
+  static auto &getToolchainFS() {
+    // TODO: For some reason, removing `thread_local` results in data races
+    // leading to memory corruption (e.g., ::free() report errors). I'm not sure
+    // if that's a bug somewhere in clang tooling/LLVMSupport or intentional
+    // limitation (or maybe a bug in this file, but I can't imagine how could
+    // that be).
+    //
+    // For single thread compilation this gives us [almost] the same performance
+    // as if there was no `thread_local` so performing very time-consuming
+    // investigation wouldn't give a justifiable ROI at this moment.
+    static thread_local const auto ToolchainFS = []() {
+      llvm::IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> ToolchainFS =
+          llvm::makeIntrusiveRefCnt<llvm::vfs::InMemoryFileSystem>();
+      using namespace jit_compiler::resource;
 
-    for (size_t i = 0; i < NumToolchainFiles; ++i) {
-      resource_file RF = ToolchainFiles[i];
-      std::string_view Path{RF.Path.S, RF.Path.Size};
-      std::string_view Content{RF.Content.S, RF.Content.Size};
-      ToolchainFS->addFile(Path, 0, llvm::MemoryBuffer::getMemBuffer(Content));
-    }
+      for (size_t i = 0; i < NumToolchainFiles; ++i) {
+        resource_file RF = ToolchainFiles[i];
+        std::string_view Path{RF.Path.S, RF.Path.Size};
+        std::string_view Content{RF.Content.S, RF.Content.Size};
+        ToolchainFS->addFile(Path, 0,
+                             llvm::MemoryBuffer::getMemBuffer(Content));
+      }
+      return ToolchainFS;
+    }();
     return ToolchainFS;
   }
 
