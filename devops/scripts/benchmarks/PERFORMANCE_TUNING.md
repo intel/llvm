@@ -64,6 +64,11 @@ Make sure that isolated CPUs are located on the same NUMA node as the GPU being 
 taskset -c 2-7 ./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/
 ```
 
+For more stable results, isolate CPU cores from the OS scheduler by adding the `isolcpus` kernel parameter to grub configuration, i.e.:
+```bash
+GRUB_CMDLINE_LINUX_DEFAULT="isolcpus=2-7"
+```
+
 ## GPU Configuration
 
 ### GPU Frequency Control
