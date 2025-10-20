@@ -1104,35 +1104,36 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t phEvent) {
 
-  // TODO: remove memory allocation
+  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
 
   // kernelMemObj contains kernel memory objects that
   // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
-  std::vector<void *> kernelMemObj(numArgs, nullptr);
-  std::vector<void *> kernelArgs(numArgs, nullptr);
-  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
+  hKernel->kernelMemObj.clear();
+  hKernel->kernelMemObj.resize(numArgs, 0);
+  hKernel->kernelArgs.clear();
+  hKernel->kernelArgs.resize(numArgs, 0);
 
   for (uint32_t argIndex = 0; argIndex < numArgs; argIndex++) {
     switch (pArgs[argIndex].type) {
     case UR_EXP_KERNEL_ARG_TYPE_LOCAL:
-      kernelArgs[argIndex] = (void *)&pArgs[argIndex].size;
+      hKernel->kernelArgs[argIndex] = (void *)&pArgs[argIndex].size;
       break;
     case UR_EXP_KERNEL_ARG_TYPE_VALUE:
-      kernelArgs[argIndex] = (void *)pArgs[argIndex].value.value;
+      hKernel->kernelArgs[argIndex] = (void *)pArgs[argIndex].value.value;
       break;
     case UR_EXP_KERNEL_ARG_TYPE_POINTER:
-      kernelArgs[argIndex] = (void *)&pArgs[argIndex].value.pointer;
+      hKernel->kernelArgs[argIndex] = (void *)&pArgs[argIndex].value.pointer;
       break;
     case UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ:
       // prepareForSubmission() will save zePtr in kernelMemObj[argIndex]
-      kernelArgs[argIndex] = &kernelMemObj[argIndex];
+      hKernel->kernelArgs[argIndex] = &hKernel->kernelMemObj[argIndex];
       UR_CALL(hKernel->addPendingMemoryAllocation(
           {pArgs[argIndex].value.memObjTuple.hMem,
            ur_mem_buffer_t::device_access_mode_t::read_write,
            pArgs[argIndex].index}));
       break;
     case UR_EXP_KERNEL_ARG_TYPE_SAMPLER: {
-      kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
+      hKernel->kernelArgs[argIndex] = &pArgs[argIndex].value.sampler->ZeSampler;
       break;
     }
     default:
@@ -1182,7 +1183,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
 
   UR_CALL(hKernel->prepareForSubmission(
       hContext.get(), hDevice.get(), pGlobalWorkOffset, workDim, WG[0], WG[1],
-      WG[2], getZeCommandList(), waitListView, &kernelArgs));
+      WG[2], getZeCommandList(), waitListView, &hKernel->kernelArgs));
 
   {
     TRACK_SCOPE_LATENCY("ur_command_list_manager::"
@@ -1191,7 +1192,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunchWithArgsExpNew(
                    ->ZeCommandListAppendLaunchKernelWithArgumentsExt
                    .zeCommandListAppendLaunchKernelWithArguments,
                (getZeCommandList(), hZeKernel, zeThreadGroupDimensions,
-                groupSize, kernelArgs.data(), pNext, zeSignalEvent,
+                groupSize, hKernel->kernelArgs.data(), pNext, zeSignalEvent,
                 waitListView.num, waitListView.handles));
   }
 

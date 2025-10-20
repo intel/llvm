@@ -112,6 +112,11 @@ public:
 
   ur::RefCount RefCount;
 
+  // kernelMemObj contains kernel memory objects that
+  // UR_EXP_KERNEL_ARG_TYPE_MEM_OBJ kernelArgs pointers point to
+  std::vector<void *> kernelMemObj;
+  std::vector<void *> kernelArgs;
+
 private:
   // Keep the program of the kernel.
   const ur_program_handle_t hProgram;
