@@ -104,6 +104,7 @@ else()
     get_host_tool_path( llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target )
     get_host_tool_path( opt OPT opt_exe opt_target )
   endif()
+  cmake_path( APPEND LIBCLC_INSTALL_DIR "lib" "libclc" )
 endif()
 
 if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
