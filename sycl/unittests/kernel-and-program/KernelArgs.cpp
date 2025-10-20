@@ -58,7 +58,6 @@ static sycl::unittest::MockDeviceImage Img =
 static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 static int ArgInt = 123;
-static void *ArgPointer = &ArgInt;
 
 ur_result_t redefined_urKernelSetArgValue(void *pParams) {
   auto params = *static_cast<ur_kernel_set_arg_value_params_t *>(pParams);
@@ -69,11 +68,11 @@ ur_result_t redefined_urKernelSetArgValue(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+static const int *ArgPointerVal = nullptr;
 ur_result_t redefined_urKernelSetArgPointer(void *pParams) {
   auto params = *static_cast<ur_kernel_set_arg_pointer_params_t *>(pParams);
 
-  int ArgValue = *static_cast<const int *>(*params.ppArgValue);
-  EXPECT_EQ(ArgValue, ArgInt);
+  ArgPointerVal = static_cast<const int *>(*params.ppArgValue);
 
   return UR_RESULT_SUCCESS;
 }
@@ -104,6 +103,7 @@ TEST(KernelArgsTest, KernelCopy) {
 
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v, property::queue::in_order()};
+  int *ArgPointer = (int *)sycl::malloc_device(sizeof(int), Queue);
 
   std::mutex CvMutex;
   std::condition_variable Cv;
@@ -130,4 +130,6 @@ TEST(KernelArgsTest, KernelCopy) {
   Cv.notify_one();
 
   Queue.wait();
+
+  ASSERT_EQ(ArgPointer, ArgPointerVal);
 }
