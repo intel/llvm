@@ -1,7 +1,10 @@
-ARG base_tag=alldeps
+# Freeze base image to avoid using newer GPU RT/IGC when updating 
+# the image due to changes in the release branch.
+ARG base_tag=1dcf3fd93f3c13b21e9931372fe405493f7e5a7bd5ba1fca192dece74f9b9188
 ARG base_image=ghcr.io/intel/llvm/ubuntu2404_intel_drivers
 
-FROM $base_image:$base_tag
+# Remove @sha256 if replacing hash with label in base_tag
+FROM $base_image@sha256:$base_tag
 
 # Actual CI maps volumes via something like "/runner/host/path":"/__w/", so
 # these won't be visible there. They can be used when manually reproducing
