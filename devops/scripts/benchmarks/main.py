@@ -27,7 +27,7 @@ from utils.utils import prepare_workdir
 from utils.compute_runtime import *
 from utils.validate import Validate
 from utils.detect_versions import DetectVersion
-from utils.logger import log
+from utils.logger import log, initialize_logger
 from presets import enabled_suites, presets
 
 # Update this if you are changing the layout of the results files
@@ -507,7 +507,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compare-max",
         type=int,
-        help="How many results to read for comparisions",
+        help="How many results to read for comparisons",
         default=options.compare_max,
     )
     parser.add_argument(
@@ -722,7 +722,7 @@ if __name__ == "__main__":
     options.flamegraph = args.flamegraph is not None
 
     # Initialize logger with command line arguments
-    log.initialize(args.verbose, args.log_level)
+    initialize_logger(args.verbose, args.log_level)
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
