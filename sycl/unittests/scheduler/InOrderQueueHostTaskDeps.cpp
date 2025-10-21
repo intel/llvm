@@ -92,6 +92,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
     });
   });
 
@@ -113,13 +114,15 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   InOrderQueue.wait();
 
-  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  ASSERT_EQ(ExecutedCommands.size(), 3u);
   EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
-            CommandType::MEMSET);
-  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+            CommandType::HOST_TASK);
   EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
-            CommandType::KERNEL);
+            CommandType::MEMSET);
   EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[2]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
@@ -143,6 +146,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
     });
   });
 
@@ -160,13 +164,15 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
 
   InOrderQueue.wait();
 
-  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  ASSERT_EQ(ExecutedCommands.size(), 3u);
   EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
-            CommandType::MEMSET);
-  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+            CommandType::HOST_TASK);
   EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
-            CommandType::KERNEL);
+            CommandType::MEMSET);
   EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[2]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
@@ -229,6 +235,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
       Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
     });
   });
 
@@ -246,13 +253,15 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
 
   InOrderQueue.wait();
 
-  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  ASSERT_EQ(ExecutedCommands.size(), 3u);
   EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
-            CommandType::KERNEL);
-  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
-  EXPECT_EQ(std::get<2>(ExecutedCommands[0]) /*GlobalWorkSize*/, 32u);
+            CommandType::HOST_TASK);
   EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
             CommandType::KERNEL);
   EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
-  EXPECT_EQ(std::get<2>(ExecutedCommands[1]) /*GlobalWorkSize*/, 64u);
+  EXPECT_EQ(std::get<2>(ExecutedCommands[1]) /*GlobalWorkSize*/, 32u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[2]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[2]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<2>(ExecutedCommands[2]) /*GlobalWorkSize*/, 64u);
 }
