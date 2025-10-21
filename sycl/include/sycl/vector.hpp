@@ -131,7 +131,7 @@ public:
 };
 
 template <typename T>
-inline constexpr bool is_fundamental_or_half_or_bfloat16 =
+inline constexpr bool is_supported_vector_elem_type =
     std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
     std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16> ||
     std::is_same_v<std::remove_const_t<T>, std::byte>;
@@ -586,7 +586,7 @@ public:
   // when NumElements == 1. The template prevents implicit conversion from
   // vec<_, 1> to DataT.
   template <typename Ty = DataT>
-  typename std::enable_if_t<detail::is_fundamental_or_half_or_bfloat16<Ty>,
+  typename std::enable_if_t<detail::is_supported_vector_elem_type<Ty>,
                             vec &>
   operator=(const DataT &Rhs) {
     *this = vec{Rhs};
@@ -919,12 +919,12 @@ private:
   template <typename T>
   using EnableIfScalarType =
       typename std::enable_if_t<std::is_convertible_v<DataT, T> &&
-                                detail::is_fundamental_or_half_or_bfloat16<T>>;
+                                detail::is_supported_vector_elem_type<T>>;
 
   template <typename T>
   using EnableIfNoScalarType =
       typename std::enable_if_t<!std::is_convertible_v<DataT, T> ||
-                                !detail::is_fundamental_or_half_or_bfloat16<T>>;
+                                !detail::is_supported_vector_elem_type<T>>;
 
   template <int... Indices>
   using Swizzle =
