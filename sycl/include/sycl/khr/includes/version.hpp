@@ -9,17 +9,13 @@
 #ifndef __SYCL_KHR_INCLUDES_VERSION
 #define __SYCL_KHR_INCLUDES_VERSION
 
-// SYCL_LANGUAGE_VERSION is currently defined by the compiler. If we ever change
-// that, then it must be defined in this header (directly, or indirectly)
-#ifndef SYCL_LANGUAGE_VERSION
-// Can't build sycl-ls - it seems like it uses sycl.hpp with a 3rd-party
-// compiler.
-// Ideally, this should be set by the compiler, because it allows to specify
-// a version.
-// However, we may need to have some fallback here if someone includes SYCL
-// headers into their host applications and use 3rd-party compilers.
-// #error "SYCL_LANGUAGE_VERSION is not defined, please report this as a bug"
-#endif
+// SYCL_LANGUAGE_VERSION is currently defined by the compiler.
+// We emit a warning if <sycl/sycl.hpp> is used without -fsycl flag, i.e. no
+// guarantees are provided about the completeness of the headers in this mode.
+// The same applies to the khr_includes implementation. If those headers are
+// used outside of the -fsycl mode, then no correctness guarantee is provided.
+// TODO: Implement a similar warning about using those headers outside of -fsycl
+//       mode.
 
 /// We support everything from the specification
 #define SYCL_FEATURE_SET_FULL 1
