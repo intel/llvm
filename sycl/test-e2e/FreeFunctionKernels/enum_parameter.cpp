@@ -49,7 +49,7 @@ int main() {
     Queue.submit([&](sycl::handler &Handler) {
       flagType flagAcc1{flagBuffer1, Handler};
       rAccType acc1;
-
+      Handler.require(acc1);
       Handler.set_args(acc1, rMode, flagAcc1);
       Handler.single_task(Kernel1);
     });
@@ -57,7 +57,7 @@ int main() {
     Queue.submit([&](sycl::handler &Handler) {
       flagType flagAcc2{flagBuffer2, Handler};
       wAccType acc2;
-
+      Handler.require(acc2);
       Handler.set_args(acc2, wMode, flagAcc2);
       Handler.single_task(Kernel2);
     });
@@ -65,7 +65,7 @@ int main() {
     Queue.submit([&](sycl::handler &Handler) {
       flagType flagAcc3{flagBuffer3, Handler};
       rwAccType acc3;
-
+      Handler.require(acc3);
       Handler.set_args(acc3, rwMode, flagAcc3);
       Handler.single_task(Kernel3);
     });
