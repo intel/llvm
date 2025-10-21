@@ -674,7 +674,10 @@ template <int NumElements>
 class vec_arith<std::byte, NumElements>
     : public VecOperators<vec<std::byte, NumElements>>::template CombineImpl<
           std::bit_or<void>, std::bit_and<void>, std::bit_xor<void>,
-          std::bit_not<void>> {
+          std::bit_not<void>, std::equal_to<void>, std::not_equal_to<void>,
+          std::less<void>, std::greater<void>, std::less_equal<void>,
+          std::greater_equal<void>, OpAssign<std::bit_or<void>>,
+          OpAssign<std::bit_and<void>>, OpAssign<std::bit_xor<void>>> {
 protected:
   // NumElements can never be zero. Still using the redundant check to avoid
   // incomplete type errors.
