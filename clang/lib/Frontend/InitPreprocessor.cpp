@@ -606,6 +606,12 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   if (LangOpts.HIP) {
     Builder.defineMacro("__HIP__");
     Builder.defineMacro("__HIPCC__");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_SINGLETHREAD", "1");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_WAVEFRONT", "2");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_CLUSTER", "6");
     if (LangOpts.HIPStdPar) {
       Builder.defineMacro("__HIPSTDPAR__");
       if (LangOpts.HIPStdParInterposeAlloc) {
@@ -901,6 +907,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   Builder.defineMacro("__MEMORY_SCOPE_WRKGRP", "2");
   Builder.defineMacro("__MEMORY_SCOPE_WVFRNT", "3");
   Builder.defineMacro("__MEMORY_SCOPE_SINGLE", "4");
+  Builder.defineMacro("__MEMORY_SCOPE_CLUSTR", "5");
 
   // Define macros for the OpenCL memory scope.
   // The values should match AtomicScopeOpenCLModel::ID enum.
