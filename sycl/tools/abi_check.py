@@ -137,7 +137,9 @@ def check_symbols(ref_path, target_path, ignore_new):
         symbols = parse_readobj_output(readobj_out)
         symbols.sort()
 
-        missing_symbols, new_symbols, is_order_incorrect = compare_results(ref_symbols, symbols)
+        missing_symbols, new_symbols, is_order_incorrect = compare_results(
+            ref_symbols, symbols
+        )
 
         correct_return = True
         if missing_symbols:
