@@ -286,7 +286,9 @@ jobs:
 
     - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      run: ./devops/scripts/install_test_utilities.sh
+      run: |
+        chmod +x $GITHUB_WORKSPACE/src/devops/scripts/install_test_utilities.sh
+        $GITHUB_WORKSPACE/src/devops/scripts/install_test_utilities.sh
 
     - name: Additional Install for "--shared-libs" build
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}

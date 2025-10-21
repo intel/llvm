@@ -221,7 +221,10 @@ jobs:
     - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
-      run: ./devops/scripts/install_test_utilities.sh
+      run: |
+        chmod +x $GITHUB_WORKSPACE/src/devops/scripts/install_test_utilities.sh
+        $GITHUB_WORKSPACE/src/devops/scripts/install_test_utilities.sh
+
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
