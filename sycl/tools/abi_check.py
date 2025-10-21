@@ -108,6 +108,11 @@ def compare_results(ref_records, records):
     missing_records = set(ref_records).difference(set(records))
     new_records = set(records).difference(set(ref_records))
 
+    # If missing_records and new_records is null, check the order of symbols.
+    if not missing_records and not new_records:
+        if ref_records != records:
+            print("The order of symbols has changed.")
+
     return (missing_records, new_records)
 
 
@@ -129,6 +134,7 @@ def check_symbols(ref_path, target_path, ignore_new):
             ]
         )
         symbols = parse_readobj_output(readobj_out)
+        symbols.sort()
 
         missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
 
