@@ -641,6 +641,8 @@ private:
       FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
       PointerTypeMap;
+  SmallDenseMap<std::pair<SPIRVType *, SPIRVWord>, SPIRVTypeVector *, 4>
+      VectorTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
@@ -1160,7 +1162,13 @@ void SPIRVModuleImpl::closeStructType(SPIRVTypeStruct *T, bool Packed) {
 
 SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
                                                 SPIRVWord CompCount) {
-  return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
+  auto Desc = std::make_pair(CompType, CompCount);
+  auto Loc = VectorTypeMap.find(Desc);
+  if (Loc != VectorTypeMap.end())
+    return Loc->second;
+  auto *Ty = new SPIRVTypeVector(this, getId(), CompType, CompCount);
+  VectorTypeMap[Desc] = Ty;
+  return addType(Ty);
 }
 
 SPIRVTypeJointMatrixINTEL *
