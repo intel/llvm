@@ -5210,10 +5210,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void handleMaskedGather(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
     Value *Ptrs = I.getArgOperand(0);
-    const Align Alignment(
-        cast<ConstantInt>(I.getArgOperand(1))->getZExtValue());
-    Value *Mask = I.getArgOperand(2);
-    Value *PassThru = I.getArgOperand(3);
+    const Align Alignment = I.getParamAlign(0).valueOrOne();
+    Value *Mask = I.getArgOperand(1);
+    Value *PassThru = I.getArgOperand(2);
 
     Type *PtrsShadowTy = getShadowTy(Ptrs);
     if (ClCheckAccessAddress) {
@@ -5249,9 +5248,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     Value *Values = I.getArgOperand(0);
     Value *Ptrs = I.getArgOperand(1);
-    const Align Alignment(
-        cast<ConstantInt>(I.getArgOperand(2))->getZExtValue());
-    Value *Mask = I.getArgOperand(3);
+    const Align Alignment = I.getParamAlign(1).valueOrOne();
+    Value *Mask = I.getArgOperand(2);
 
     Type *PtrsShadowTy = getShadowTy(Ptrs);
     if (ClCheckAccessAddress) {
@@ -5281,9 +5279,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     Value *V = I.getArgOperand(0);
     Value *Ptr = I.getArgOperand(1);
-    const Align Alignment(
-        cast<ConstantInt>(I.getArgOperand(2))->getZExtValue());
-    Value *Mask = I.getArgOperand(3);
+    const Align Alignment = I.getParamAlign(1).valueOrOne();
+    Value *Mask = I.getArgOperand(2);
     Value *Shadow = getShadow(V);
 
     if (ClCheckAccessAddress) {
@@ -5314,10 +5311,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   void handleMaskedLoad(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
     Value *Ptr = I.getArgOperand(0);
-    const Align Alignment(
-        cast<ConstantInt>(I.getArgOperand(1))->getZExtValue());
-    Value *Mask = I.getArgOperand(2);
-    Value *PassThru = I.getArgOperand(3);
+    const Align Alignment = I.getParamAlign(0).valueOrOne();
+    Value *Mask = I.getArgOperand(1);
+    Value *PassThru = I.getArgOperand(2);
 
     if (ClCheckAccessAddress) {
       insertCheckShadowOf(Ptr, &I);
