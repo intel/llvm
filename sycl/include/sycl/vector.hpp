@@ -133,7 +133,8 @@ public:
 template <typename T>
 inline constexpr bool is_fundamental_or_half_or_bfloat16 =
     std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
-    std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16>;
+    std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16> ||
+    std::is_same_v<std::remove_const_t<T>, std::byte>;
 
 // Per SYCL specification sycl::vec has different ctors available based on the
 // number of elements. Without C++20's concepts we'd have to use partial
@@ -1143,12 +1144,12 @@ public:
     return Tmp RELLOGOP Rhs;                                                   \
   }
 
-  __SYCL_RELLOGOP(==, (!detail::is_byte_v<T>))
-  __SYCL_RELLOGOP(!=, (!detail::is_byte_v<T>))
-  __SYCL_RELLOGOP(>, (!detail::is_byte_v<T>))
-  __SYCL_RELLOGOP(<, (!detail::is_byte_v<T>))
-  __SYCL_RELLOGOP(>=, (!detail::is_byte_v<T>))
-  __SYCL_RELLOGOP(<=, (!detail::is_byte_v<T>))
+  __SYCL_RELLOGOP(==, true)
+  __SYCL_RELLOGOP(!=, true)
+  __SYCL_RELLOGOP(>, true)
+  __SYCL_RELLOGOP(<, true)
+  __SYCL_RELLOGOP(>=, true)
+  __SYCL_RELLOGOP(<=, true)
   __SYCL_RELLOGOP(&&, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
   __SYCL_RELLOGOP(||, (!detail::is_byte_v<T> && !detail::is_vgenfloat_v<T>))
 #undef __SYCL_RELLOGOP
@@ -1527,8 +1528,8 @@ private:
         m_RightOperation(std::move(Rhs.m_RightOperation)) {}
 
   // Either performing CurrentOperation on results of left and right operands
-  // or reading values from actual vector. Perform implicit type conversion when
-  // the number of elements == 1
+  // or reading values from actual vector. Always perform explicit type conversion
+  // because std::byte operators are strongly typed.
 
   template <int IdxNum = size()>
   CommonDataT getValue(EnableIfOneIndex<IdxNum, size_t> Index) const {
@@ -1537,8 +1538,8 @@ private:
       return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<CommonDataT>();
-    return Op(m_LeftOperation.getValue(Index),
-              m_RightOperation.getValue(Index));
+    return Op(static_cast<DataT>(m_LeftOperation.getValue(Index)),
+              static_cast<DataT>(m_RightOperation.getValue(Index)));
   }
 
   template <int IdxNum = size()>
@@ -1548,8 +1549,8 @@ private:
       return (*m_Vector)[Idxs[Index]];
     }
     auto Op = OperationCurrentT<DataT>();
-    return Op(m_LeftOperation.getValue(Index),
-              m_RightOperation.getValue(Index));
+    return Op(static_cast<DataT>(m_LeftOperation.getValue(Index)),
+              static_cast<DataT>(m_RightOperation.getValue(Index)));
   }
 
   template <template <typename> class Operation, typename RhsOperation>
@@ -1557,7 +1558,8 @@ private:
     Operation<DataT> Op;
     std::array<int, size()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
-      DataT Res = Op((*m_Vector)[Idxs[I]], Rhs.getValue(I));
+      DataT Res =
+          Op((*m_Vector)[Idxs[I]], static_cast<DataT>(Rhs.getValue(I)));
       (*m_Vector)[Idxs[I]] = Res;
     }
   }
