@@ -210,10 +210,12 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
   InOrderQueue.wait();
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/, CommandType::HOST_TASK);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/,
+            CommandType::HOST_TASK);
   EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
-  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(std::get<1>(ExecutedCommands[1])/*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
+            CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {
