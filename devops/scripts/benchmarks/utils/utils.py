@@ -61,9 +61,9 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
-            env["PATH"] = sycl_bin_path + os.pathsep + env.get("PATH", "")
+            env_vars["PATH"] = sycl_bin_path + os.pathsep + env.get("PATH", "")
             sycl_lib_path = os.path.join(options.sycl, "lib")
-            env["LD_LIBRARY_PATH"] = (
+            env_vars["LD_LIBRARY_PATH"] = (
                 sycl_lib_path + os.pathsep + env.get("LD_LIBRARY_PATH", "")
             )
 
