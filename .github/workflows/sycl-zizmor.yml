@@ -1,0 +1,30 @@
+name: Zizmor
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/sycl-*.yml'
+      - '.github/workflows/ur-*.yml'
+      - 'devops/actions/*/action.yml'
+
+permissions: {}
+
+jobs:
+  zizmor:
+    name: Run zizmor
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/workflows/sycl-*
+            .github/workflows/ur-*
+            devops/actions/
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@e673c3917a1aef3c65c972347ed84ccd013ecda4 # v0.2.0
