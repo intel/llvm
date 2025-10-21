@@ -16,6 +16,7 @@ namespace detail {
 namespace free_function_info_map {
 
 __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId);
+__SYCL_EXPORT void remove(const void *DeviceGlobalPtr, const char *UniqueId);
 
 } // namespace free_function_info_map
 } // namespace detail

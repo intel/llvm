@@ -7313,6 +7313,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
       << KernelDescs.size() << ");\n";
     O << "  }\n";
+    O << "  ~GlobalMapUpdater() {\n";
+    O << "    sycl::detail::free_function_info_map::remove("
+      << "sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, "
+      << KernelDescs.size() << ");\n";
+    O << "  }\n";
     O << "};\n";
     O << "static GlobalMapUpdater updater;\n";
     O << "} // namespace detail\n";

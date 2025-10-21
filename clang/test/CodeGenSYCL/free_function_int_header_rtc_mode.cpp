@@ -82,6 +82,9 @@ int main(){
 // CHECK-NORTC-NEXT:   GlobalMapUpdater() {
 // CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 3);
 // CHECK-NORTC-NEXT:   }
+// CHECK-NORTC-NEXT:   ~GlobalMapUpdater() {
+// CHECK-NORTC-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 3);
+// CHECK-NORTC-NEXT:   }
 // CHECK-NORTC-NEXT: };
 // CHECK-NORTC-NEXT: static GlobalMapUpdater updater;
 // CHECK-NORTC-NEXT: } // namespace detail

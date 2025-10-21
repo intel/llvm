@@ -1574,6 +1574,9 @@ void ff_24(int arg) {
 // CHECK-NEXT:  GlobalMapUpdater() {
 // CHECK-NEXT:     sycl::detail::free_function_info_map::add(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 33);
 // CHECK-NEXT:   }
+// CHECK-NEXT:  ~GlobalMapUpdater() {
+// CHECK-NEXT:     sycl::detail::free_function_info_map::remove(sycl::detail::kernel_names, sycl::detail::kernel_args_sizes, 33);
+// CHECK-NEXT:   }
 // CHECK-NEXT: };
 // CHECK-NEXT: static GlobalMapUpdater updater;
 // CHECK-NEXT: } // namespace detail
