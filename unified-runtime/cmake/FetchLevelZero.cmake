@@ -12,8 +12,11 @@ find_package(PkgConfig QUIET)
 # LevelZero doesn't install a CMake config target, just PkgConfig,
 # so try using that to find the install and if it's not available
 # just try to search for the path.
-if(PkgConfig_FOUND)
-  pkg_check_modules(level-zero level-zero>=1.24.3)
+string(LENGTH "${UR_LEVEL_ZERO_LOADER_TAG}" TAG_LENGTH)
+string(REGEX MATCH "^[0-9a-fA-F]+$" IS_HEX "${UR_LEVEL_ZERO_LOADER_TAG}")
+
+if(PkgConfig_FOUND AND NOT (TAG_LENGTH EQUAL 40 AND IS_HEX))
+  pkg_check_modules(level-zero level-zero>1.24.3)
   if(level-zero_FOUND)
     set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
     set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
