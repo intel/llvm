@@ -106,13 +106,13 @@ entry:
 ; CHECK-SPIRV: Load [[IMAGE2D_ARRAY_DEPTH_T]] [[IMAGE2D_ARRAY_DEPTH:[0-9]+]] 
 ; CHECK-SPIRV: ImageQueryLevels [[INT]] {{[0-9]+}} [[IMAGE2D_ARRAY_DEPTH]]
 
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image2d_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image3d_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image1d_array_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_array_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(ptr addrspace(1)
-; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(ptr addrspace(1)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image2d_ro(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image3d_ro(target("spirv.Image", void, 2, 0, 0, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image1d_array_ro(target("spirv.Image", void, 0, 0, 1, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(target("spirv.Image", void, 1, 1, 0, 0, 0, 0, 0)
+; CHECK-LLVM: call spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(target("spirv.Image", void, 1, 1, 1, 0, 0, 0, 0)
 
 ; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_0_0_0_0_0_0_0(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 0)
 ; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 0)

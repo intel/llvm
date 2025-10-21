@@ -42,11 +42,11 @@ def parse_min_intel_driver_req(line_number, line, output):
         # Return "win" version as (101, 4502) to ease later comparison.
         output["win"] = tuple(map(int, win.group(1).split(".")))
 
-    cpu = re.search(r"cpu: *([0-9]{4})", line)
+    cpu = re.search(r"cpu:\s*([^\s]+)", line)
     if cpu:
         if "cpu" in output:
             raise ValueError('Multiple entries for "cpu" version')
-        output["cpu"] = int(cpu.group(1))
+        output["cpu"] = cpu.group(1)
 
     return output
 

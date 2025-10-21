@@ -1036,15 +1036,19 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "HintT must always be a recognized standard type");
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // Convert the raw handle to an image and use FETCH_UNSAMPLED_IMAGE since
+  // fetch_image should not use the sampler
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return FETCH_SAMPLED_IMAGE(
+    return FETCH_UNSAMPLED_IMAGE(
         DataT,
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
         coords);
   } else {
-    return sycl::bit_cast<DataT>(FETCH_SAMPLED_IMAGE(
+    return sycl::bit_cast<DataT>(FETCH_UNSAMPLED_IMAGE(
         HintT,
-        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        CONVERT_HANDLE_TO_IMAGE(imageHandle.raw_handle,
+                                detail::OCLImageTyRead<coordSize>),
         coords));
   }
 #else

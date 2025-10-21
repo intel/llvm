@@ -75,8 +75,8 @@ class BenchmarkMetadata:
     notes: str = None
     unstable: str = None
     tags: list[str] = field(default_factory=list)
-    range_min: float = None
-    range_max: float = None
+    range_min: float | None = None
+    range_max: float | None = None
     display_name: str = None
     explicit_group: str = None
 

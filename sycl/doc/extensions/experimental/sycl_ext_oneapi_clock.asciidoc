@@ -1,0 +1,193 @@
+= sycl_ext_oneapi_clock
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_clock_sub_group`, `aspect::ext_oneapi_clock_work_group` or
+`aspect::ext_oneapi_clock_device` accordingly. The application must check that
+the device has these aspects before submitting a kernel using a corresponding
+API in this extension.  If the application fails to do this, the implementation
+throws a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
+== Overview
+
+This extension introduces a new free function `clock<clock_scope>()`. This
+function allows the user to sample the value from one of three clocks provided
+by the compute units, depending on the value of the scope argument. The clocks
+in this extension do not necessarily count units of time. For example, they may
+count cycles instead. In addition, the cycle frequency may change as the kernel
+executes. As a result, there is no portable way to convert the values returned
+by these clocks into time durations.
+
+`scope` is an enumeration constant of the new `clock_scope` enum. It should be
+passed to the function to define the clock source; e.g.,
+`clock<clock_scope::sub_group>()` samples the value from a clock shared by all
+work-items executing in the same sub-group.
+
+This extension also adds new aspects: `ext_oneapi_clock_sub_group`,
+`ext_oneapi_clock_work_group` and `ext_oneapi_clock_device` indicating whether
+the device supports the corresponding clock scopes.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_CLOCK` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the feature-test
+ macro always has this value.
+|===
+
+=== New device aspects
+
+This extension adds new device aspects:
+
+```c++
+namespace sycl {
+
+enum class aspect : /*unspecified*/ {
+  ext_oneapi_clock_sub_group,
+  ext_oneapi_clock_work_group,
+  ext_oneapi_clock_device
+};
+
+} // namespace sycl
+```
+
+[width="100%",%header,cols="50%,50%"]
+|===
+|Aspect
+|Description
+
+|`ext_oneapi_clock_sub_group`
+|Indicates that the device supports the `sycl::ext::oneapi::experimental::clock<clock_scope::sub_group>()` call.
+|`ext_oneapi_clock_work_group`
+|Indicates that the device supports the `sycl::ext::oneapi::experimental::clock<clock_scope::work_group>()` call.
+|`ext_oneapi_clock_device`
+|Indicates that the device supports the `sycl::ext::oneapi::experimental::clock<clock_scope::device>()` call.
+|===
+
+=== New enum
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+enum class clock_scope : /* unspecified */ {
+  sub_group,
+  work_group,
+  device
+};
+
+}; // namespace sycl::ext::oneapi::experimental
+```
+An enumerator from `clock_scope` passed as a template parameter to the `clock()`
+function defines the clock source:
+
+[width="100%",%header,cols="50%,50%"]
+|===
+|Enumerator
+|Description
+
+|`sub_group`
+|`clock()` gets values shared by all work-items executing in the same sub-group.
+
+|`work_group`
+|`clock()` gets values shared by all work-items executing in the same work-group.
+
+|`device`
+|`clock()` gets values shared by all work-items executing on the device.
+|===
+
+=== New free function
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <clock_scope scope> uint64_t clock();
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+This function may only be called from within a SYCL kernel function.
+
+All work-items within the `scope` read from the same source clock. There is no
+guarantee that two work-items get the same value.
+
+_Returns:_ The sample value of a clock as seen by the work-item.
+The clock is defined as an unbounded, unsigned integer counter that
+monotonically increments over time. The rate at which the clock advances is not
+guaranteed to be constant: it may vary over the lifetime of a work-item, differ
+between separate executions of the program, and be affected by conditions
+outside the control of the programmer. The value returned by this instruction
+corresponds to the least significant bits of the clock counter at the time of
+execution. Consequently, the sampled value may wrap around zero.
+
+== Issues
+
+. How to convert the result of the function to seconds?
++
+*RESOLVED*: There is no portable way to convert the values returned by these
+clocks.

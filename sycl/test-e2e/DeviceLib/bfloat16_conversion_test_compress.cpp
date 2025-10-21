@@ -8,9 +8,13 @@
 
 // Check bfloat16 devicelib device image compression.
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
+
 // REQUIRES: linux, zstd
-// RUN: %{build} --offload-compress -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t_compress.so
-// RUN: %{build} --offload-compress -DBUILD_EXE -L%T -o %t1.out -l%basename_t_compress -Wl,-rpath=%T
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{build} --offload-compress -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t_compress.so
+// RUN: %{build} --offload-compress -DBUILD_EXE -L%t.dir -o %t1.out -l%basename_t_compress -Wl,-rpath=%t.dir
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd

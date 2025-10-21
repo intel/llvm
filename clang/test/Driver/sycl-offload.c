@@ -11,7 +11,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
 // RUN:   not %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
-// CHK-INVALID-TARGET: error: SYCL target is invalid: 'aaa-bbb-ccc-ddd'
+// CHK-INVALID-TARGET: error: invalid or unsupported offload target: 'aaa-bbb-ccc-ddd'
 
 /// ###########################################################################
 
@@ -20,7 +20,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-REAL-TARGET %s
 // RUN:   not %clang_cl -### -fsycl --offload-new-driver -fsycl-targets=x86_64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-REAL-TARGET %s
-// CHK-INVALID-REAL-TARGET: error: SYCL target is invalid: 'x86_64'
+// CHK-INVALID-REAL-TARGET: error: invalid or unsupported offload target: 'x86_64'
 
 /// ###########################################################################
 
@@ -81,17 +81,17 @@
 /// Check warning for duplicate offloading targets.
 // RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=spir64-unknown-unknown,spir64-unknown-unknown  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
-// CHK-DUPLICATES: warning: SYCL offloading target 'spir64-unknown-unknown' is similar to target 'spir64-unknown-unknown' already specified; will be ignored
+// CHK-DUPLICATES: warning: offloading target 'spir64-unknown-unknown' is similar to target 'spir64-unknown-unknown' already specified; will be ignored
 
 // RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_pvc  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES-GPU %s
-// CHK-DUPLICATES-GPU: warning: SYCL offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+// CHK-DUPLICATES-GPU: warning: offloading target 'intel_gpu_pvc' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// No duplicate warning should be emitted for 'like' triples but different
 /// arch targets.
 // RUN:   %clang -### -ccc-print-phases -fsycl --offload-new-driver -fsycl-targets=intel_gpu_pvc,intel_gpu_bdw  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DIFF-GPU %s
-// CHK-DIFF-GPU-NOT: warning: SYCL offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
+// CHK-DIFF-GPU-NOT: warning: offloading target 'intel_gpu_bdw' is similar to target 'intel_gpu_pvc' already specified; will be ignored
 
 /// ###########################################################################
 

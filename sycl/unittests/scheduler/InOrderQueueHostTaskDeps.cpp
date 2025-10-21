@@ -50,7 +50,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   EXPECT_EQ(GEventsWaitCounter, expectedCount);
 }
 
-enum class CommandType { KERNEL = 1, MEMSET = 2 };
+enum class CommandType { KERNEL = 1, MEMSET = 2, HOST_TASK = 3 };
 std::vector<std::tuple<CommandType, size_t, size_t>> ExecutedCommands;
 
 inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
@@ -167,6 +167,47 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/,
             CommandType::KERNEL);
   EXPECT_EQ(std::get<1>(ExecutedCommands[1]) /*EventsCount*/, 0u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncsParallelFor) {
+  ExecutedCommands.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+      ExecutedCommands.push_back({CommandType::HOST_TASK, 0, 0});
+    });
+  });
+
+  event Ev2 = InOrderQueue.parallel_for<TestKernel>(
+      nd_range<1>{range{32}, range{32}}, [](nd_item<1>) {});
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[0]) /*CommandType*/, CommandType::HOST_TASK);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[0]) /*EventsCount*/, 0u);
+  EXPECT_EQ(std::get<0>(ExecutedCommands[1]) /*CommandType*/, CommandType::KERNEL);
+  EXPECT_EQ(std::get<1>(ExecutedCommands[1])/*EventsCount*/, 0u);
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsEnqueueFunctions) {

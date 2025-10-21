@@ -1004,12 +1004,16 @@ ur_result_t setKernelPendingArguments(
     ze_kernel_handle_t ZeKernel) {
   // If there are any pending arguments set them now.
   for (auto &Arg : PendingArguments) {
-    // The ArgValue may be a NULL pointer in which case a NULL value is used for
-    // the kernel argument declared as a pointer to global or constant memory.
     char **ZeHandlePtr = nullptr;
-    if (Arg.Value) {
-      UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode, Device,
-                                        nullptr, 0u));
+    if (auto MemObjPtr = std::get_if<ur_mem_handle_t>(&Arg.Value)) {
+      ur_mem_handle_t MemObj = *MemObjPtr;
+      if (MemObj) {
+        UR_CALL(MemObj->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode, Device,
+                                       nullptr, 0u));
+      }
+    } else {
+      auto Ptr = const_cast<void **>(&std::get<const void *>(Arg.Value));
+      ZeHandlePtr = reinterpret_cast<char **>(Ptr);
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
                (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));

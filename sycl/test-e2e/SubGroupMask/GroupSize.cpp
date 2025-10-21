@@ -1,5 +1,8 @@
 // RUN: %{build} -Wno-error=incorrect-sub-group-size -fsycl-device-code-split=per_kernel -o %t.out
 
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // REQUIRES: gpu
 
 // GroupNonUniformBallot capability is supported on Intel GPU only

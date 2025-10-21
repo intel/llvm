@@ -123,13 +123,9 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
 
   SplitOccurred |= Result.size() > 1;
 
-  for (ModuleDesc &MD : Result) {
-#ifdef LLVM_ENABLE_DUMP
-    dumpEntryPoints(MD.entries(), MD.Name.c_str(), 4);
-#endif // LLVM_ENABLE_DUMP
+  for (ModuleDesc &MD : Result)
     if (Options.LowerESIMD && MD.isESIMD())
       Modified |= lowerESIMDConstructs(MD, Options);
-  }
 
   if (Options.SplitESIMD || Result.size() == 1)
     return std::move(Result);
@@ -155,9 +151,6 @@ llvm::sycl::handleESIMD(ModuleDesc MDesc,
   Linked.rebuildEntryPoints(Names);
   Result.clear();
   Result.emplace_back(std::move(Linked));
-#ifdef LLVM_ENABLE_DUMP
-  dumpEntryPoints(Result.back().entries(), Result.back().Name.c_str(), 4);
-#endif // LLVM_ENABLE_DUMP
   Modified = true;
 
   return std::move(Result);
