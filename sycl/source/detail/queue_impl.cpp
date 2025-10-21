@@ -572,12 +572,15 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
   KernelData KData;
 
   KData.setDeviceKernelInfoPtr(DeviceKernelInfo);
-  KData.setKernelFunc(HostKernel.getPtr());
   KData.setNDRDesc(NDRDesc);
 
   auto SubmitKernelFunc = [&](detail::CG::StorageInitHelper &CGData,
                               bool SchedulerBypass) -> EventImplPtr {
     if (SchedulerBypass) {
+      // No need to copy/move the kernel function, so we set
+      // the function pointer to the original function
+      KData.setKernelFunc(HostKernel.getPtr());
+
       return submit_kernel_scheduler_bypass(KData, CGData.MEvents,
                                             CallerNeedsEvent, nullptr, nullptr,
                                             CodeLoc, IsTopCodeLoc);
@@ -588,6 +591,10 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
     std::shared_ptr<detail::HostKernelBase> HostKernelPtr =
         HostKernel.takeOrCopyOwnership();
+
+    // When the kernel function is stored for future use,
+    // set the function pointer to the stored function
+    KData.setKernelFunc(HostKernelPtr->getPtr());
 
     KData.extractArgsAndReqsFromLambda();
 
