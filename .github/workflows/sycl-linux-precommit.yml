@@ -59,13 +59,16 @@ jobs:
       changes: ${{ needs.detect_changes.outputs.filters }}
 
       toolchain_artifact: sycl_linux_default
-      e2e_binaries_artifact: e2e_bin
-      e2e_binaries_preview_artifact: e2e_bin_preview
+      e2e_binaries_artifact: ${{ contains(needs.detect_changes.outputs.filters, 'non_benchmarks') && 'e2e_bin' || '' }}
+      e2e_binaries_preview_artifact: ${{ contains(needs.detect_changes.outputs.filters, 'non_benchmarks') && 'e2e_bin_preview' || '' }}
 
   # Build and run native cpu e2e tests separately as cannot currently
   # build all the e2e tests
   build_run_native_cpu_e2e_tests:
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}  
+    if: |
+      always() && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+      && contains(needs.detect_changes.outputs.filters, 'non_benchmarks')
     runs-on: [Linux, build]
     needs: [build]
     container:
@@ -138,7 +141,10 @@ jobs:
 
   E2E:
     needs: [build, detect_changes, compat_read_exclude]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    if: |
+      always() && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+      && contains(needs.detect_changes.outputs.filters, 'non_benchmarks')
     strategy:
       fail-fast: false
       matrix:

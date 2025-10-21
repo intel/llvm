@@ -46,7 +46,7 @@ jobs:
               - *llvm_spirv
               - *clang
               - 'libclc/**'
-            sycl: &sycl
+            sycl:
               - *clang
               - *sycl-jit
               - *llvm_spirv
@@ -67,6 +67,8 @@ jobs:
               - devops/dependencies-igc-dev.json
             benchmarks:
               - 'devops/scripts/benchmarks/**'
+            non_benchmarks:
+              - '!devops/scripts/benchmarks/**'
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
             esimd:
@@ -101,7 +103,6 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_jit", "xptifw", "libclc", "sycl", "ci", "esimd", "ur", "ur_cuda_adapter", "ur_offload_adapter"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_jit", "xptifw", "libclc", "sycl", "ci", "drivers", "devigccfg", "benchmarks", "non_benchmarks", "perf-tests", "esimd", "ur", "ur_cuda_adapter", "ur_offload_adapter"];
 
       - run: echo '${{ steps.result.outputs.result }}'
-     
