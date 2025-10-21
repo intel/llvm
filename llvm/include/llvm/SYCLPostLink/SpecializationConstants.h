@@ -16,6 +16,7 @@
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 
+#include <memory>
 #include <optional>
 
 namespace llvm {
@@ -31,9 +32,10 @@ namespace sycl {
 /// \returns Boolean value indicating whether the lowering has changed the input
 /// modules.
 bool handleSpecializationConstants(
-    llvm::SmallVectorImpl<module_split::ModuleDesc> &MDs,
+    llvm::SmallVectorImpl<std::unique_ptr<module_split::ModuleDesc>> &MDs,
     std::optional<SpecConstantsPass::HandlingMode> Mode,
-    llvm::SmallVectorImpl<module_split::ModuleDesc> &NewModuleDescs,
+    llvm::SmallVectorImpl<std::unique_ptr<module_split::ModuleDesc>>
+        &NewModuleDescs,
     bool GenerateModuleDescWithDefaultSpecConsts);
 
 } // namespace sycl
