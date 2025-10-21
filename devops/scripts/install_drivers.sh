@@ -1,5 +1,4 @@
 #!/bin/bash
-# UPDATED FOR LEVEL-ZERO COMMIT BUILD - $(date)
 set -e
 set -x
 set -o pipefail
@@ -48,18 +47,16 @@ function get_release() {
 function get_pre_release_igfx() {
     URL=$1
     HASH=$2
-    echo "*** USING UPDATED get_pre_release_igfx FUNCTION - COMMIT: $(date) ***"
+    # echo "*** USING UPDATED get_pre_release_igfx FUNCTION - COMMIT: $(date) ***"
     HEADER=""
     if [ "$GITHUB_TOKEN" != "" ]; then
        HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-    
-    # Ensure we're in a writable directory
+
     WORK_DIR="/tmp/igc-download"
     mkdir -p "$WORK_DIR"
     cd "$WORK_DIR"
-    
-    echo "=== NEW IGC DOWNLOAD FUNCTION - Downloading IGC dev package to $WORK_DIR ==="
+
     if ! curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" "$URL" -o "$HASH.zip"; then
         echo "ERROR: Failed to download IGC dev package"
         return 1
@@ -88,50 +85,11 @@ function get_pre_release_igfx() {
     rm -rf "$WORK_DIR"
 }
 
-# function get_commit_artifacts() {
-#     REPO=$1
-#     COMMIT=$2
-#     HEADER=""
-#     if [ "$GITHUB_TOKEN" != "" ]; then
-#         HEADER="Authorization: Bearer $GITHUB_TOKEN"
-#     fi
-#     # Get artifacts from GitHub Actions for the specific commit
-#     curl -s -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" \
-#         "https://api.github.com/repos/${REPO}/actions/runs?head_sha=${COMMIT}&status=completed&per_page=1" \
-#         | jq -r '.workflow_runs[0] | select(.conclusion == "success") | .id' \
-#         | head -1 \
-#         | xargs -I {} curl -s -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" \
-#             "https://api.github.com/repos/${REPO}/actions/runs/{}/artifacts" \
-#         | jq -r '.artifacts[] | select(.name | test(".*deb.*")) | .archive_download_url'
-# }
-
-# function download_commit_artifacts() {
-#     REPO=$1
-#     COMMIT=$2
-#     UBUNTU_VER=$3
-#     HEADER=""
-#     if [ "$GITHUB_TOKEN" != "" ]; then
-#         HEADER="Authorization: Bearer $GITHUB_TOKEN"
-#     fi
-    
-#     echo "Downloading artifacts for commit $COMMIT from $REPO"
-#     get_commit_artifacts $REPO $COMMIT | while read -r artifact_url; do
-#         if [ -n "$artifact_url" ]; then
-#             echo "Downloading artifact: $artifact_url"
-#             curl -L -H "$HEADER" "$artifact_url" -o "artifact-$(basename $artifact_url).zip"
-#             unzip -j "artifact-$(basename $artifact_url).zip" "*.deb" 2>/dev/null || true
-#             rm "artifact-$(basename $artifact_url).zip"
-#         fi
-#     done
-# }
-
 function build_level_zero_from_source() {
     COMMIT=$1
 
     echo "Building Level Zero from source at commit $COMMIT"
-
     # Install build dependencies if not already present
-    echo "Ensuring build dependencies are available..."
     apt-get update -qq
     apt-get install -y build-essential cmake git libc6-dev linux-libc-dev
     
@@ -139,32 +97,20 @@ function build_level_zero_from_source() {
     # CMAKE_VERSION=$(cmake --version | head -n1 | sed 's/.*cmake version \([0-9]\+\.[0-9]\+\).*/\1/')
     # echo "CMake version: $CMAKE_VERSION"
 
-    # Create temporary build directory
     BUILD_DIR="/tmp/level-zero-build"
     INSTALL_DIR="/tmp/level-zero-install"
     rm -rf $BUILD_DIR $INSTALL_DIR
     mkdir -p $BUILD_DIR $INSTALL_DIR
     cd $BUILD_DIR
 
-    # Clone and checkout specific commit
-    echo "Cloning Level Zero repository..."
-    if ! git clone https://github.com/oneapi-src/level-zero.git; then
-        echo "ERROR: Failed to clone Level Zero repository"
-        return 1
-    fi
+    git clone https://github.com/oneapi-src/level-zero.git
     
     cd level-zero
-    if ! git checkout $COMMIT; then
-        echo "ERROR: Failed to checkout commit $COMMIT"
-        return 1
-    fi
+    git checkout $COMMIT
 
-    # Create build directory
     mkdir build
     cd build
 
-    # Configure build
-    echo "Configuring Level Zero build..."
     cmake .. \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=/usr/local \
@@ -176,11 +122,8 @@ function build_level_zero_from_source() {
 
     cp -r $INSTALL_DIR/usr/local/* /usr/local/
 
-
-    # Update library cache
     ldconfig
 
-    # Clean up build and install directories
     rm -rf $BUILD_DIR $INSTALL_DIR
 
     echo "Level Zero built and installed successfully from commit $COMMIT"
@@ -228,7 +171,6 @@ CheckIGCdevTag() {
 
 CheckIfCommitHash() {
     local arg="$1"
-    # Check if it's a 40-character hex string (SHA-1 commit hash)
     if [[ $arg =~ ^[a-f0-9]{40}$ ]]; then
         echo "Yes"
     else
@@ -268,7 +210,6 @@ InstallIGFX () {
   if [ "$IS_L0_COMMIT" == "Yes" ]; then
     echo "Level Zero is using commit hash, building from source..."
     if ! build_level_zero_from_source $L0_TAG; then
-      echo "ERROR: Failed to build Level Zero from source"
       exit 1
     fi
     # Install other packages (Level Zero was already installed from source)
