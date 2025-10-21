@@ -1460,9 +1460,17 @@ ur_result_t urEnqueueKernelLaunchWithArgsExp(
 
   UR_CALL(getTsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+  /*
+    // TODO: revert to the correct call to pfnKernelLaunchWithArgsExp():
+    UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numArgs, pArgs, numPropsInLaunchPropList,
+    launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
+  */
+
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, 0, nullptr, numPropsInLaunchPropList, launchPropList,
+      pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
       numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getTsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));

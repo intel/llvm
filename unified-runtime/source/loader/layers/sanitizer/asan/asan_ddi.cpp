@@ -1774,10 +1774,19 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchWithArgsExp(
 
   UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
-  UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+  /*
+    // TODO: revert to the correct call to pfnKernelLaunchWithArgsExp():
+    UR_CALL(getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchWithArgsExp(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        LaunchInfo.LocalWorkSize.data(), numArgs, pArgs,
+    numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+    phEventWaitList, phEvent));
+  */
+
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      LaunchInfo.LocalWorkSize.data(), 0, nullptr, numPropsInLaunchPropList,
-      launchPropList, numEventsInWaitList, phEventWaitList, phEvent));
+      LaunchInfo.LocalWorkSize.data(), numPropsInLaunchPropList, launchPropList,
+      numEventsInWaitList, phEventWaitList, phEvent));
 
   UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue, LaunchInfo));
 
