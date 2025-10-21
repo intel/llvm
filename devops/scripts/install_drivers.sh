@@ -57,24 +57,21 @@ function get_pre_release_igfx() {
     mkdir -p "$WORK_DIR"
     cd "$WORK_DIR"
 
-    if ! curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" "$URL" -o "$HASH.zip"; then
-        echo "ERROR: Failed to download IGC dev package"
-        return 1
-    fi
+    curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" "$URL" -o "$HASH.zip"
     
-    if [ ! -f "$HASH.zip" ]; then
-        echo "ERROR: Downloaded file $HASH.zip not found"
-        return 1
-    fi
+    # if [ ! -f "$HASH.zip" ]; then
+    #     echo "ERROR: Downloaded file $HASH.zip not found"
+    #     return 1
+    # fi
     
-    echo "Extracting IGC dev package"
-    if ! unzip "$HASH.zip"; then
-        echo "ERROR: Failed to extract $HASH.zip"
-        return 1
-    fi
-    
+    unzip "$HASH.zip"
     rm "$HASH.zip"
     
+    if ls -d */ 1> /dev/null 2>&1; then
+        echo "Directories exist in current location"
+    else
+        echo "No directories found"
+    fi
     # Move deb files back to the calling directory if any exist
     if ls *.deb 1> /dev/null 2>&1; then
         mv *.deb /tmp/
