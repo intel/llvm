@@ -158,10 +158,6 @@ static SYCLBIN::BundleState SYCLBINState = SYCLBIN::BundleState::Input;
 
 static SmallString<128> OffloadImageDumpDir;
 
-static std::string SYCLCompileOptionsFromImage;
-
-static std::string SYCLLinkOptionsFromImage;
-
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
 namespace llvm {
@@ -766,7 +762,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
       return ImageFileOrErr.takeError();
 
     std::vector Modules = {module_split::SplitModule(
-        *ImageFileOrErr, util::PropertySetRegistry(), "")};
+        *ImageFileOrErr, util::PropertySetRegistry())};
     return Modules;
   }
 
@@ -795,7 +791,7 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
     errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
                       InputFilesStr, OutputFilePath);
-    SplitModules.emplace_back(OutputFilePath, util::PropertySetRegistry(), "");
+    SplitModules.emplace_back(OutputFilePath, util::PropertySetRegistry());
     return SplitModules;
   }
 
@@ -936,52 +932,41 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 }
 
 /// Adds all AOT backend options required for SYCL AOT compilation step to
-/// 'CmdArgs'.
-/// 'Args' encompasses all arguments required for linking and wrapping device
+/// \p CmdArgs.
+/// \p Args encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate backend options required to be passed
 /// into the SYCL AOT compilation step.
-/// IsCPU is a bool used to direct option generation. If IsCPU is false, then
+/// \p IsCPU is a bool used to direct option generation. If IsCPU is false, then
 /// options are generated for AOT compilation targeting Intel GPUs.
+/// \p CompileOptions are compilation options which are extracted from the
+/// image.
 static void addBackendOptions(const ArgList &Args,
-                              SmallVector<StringRef, 8> &CmdArgs, bool IsCPU) {
-  StringRef OptC = SYCLCompileOptionsFromImage;
-  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  OptC = Args.getLastArgValue(
-      OPT_sycl_backend_compile_options_EQ); // TODO: test this.
-  OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  StringRef OptL = SYCLLinkOptionsFromImage;
-  OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  OptL = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
-  
-  // StringRef OptC =
-  //     Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  // if (IsCPU) {
-  //   OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  // } else {
-  //   // ocloc -options args need to be comma separated, e.g. `-options
-  //   // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
-  //   // ocloc as an arg for -options, and the rest are processed as standalone
-  //   // flags, possibly leading to errors.
-  //   // split function here returns a pair with everything before the separator
-  //   // ("-options") in the first member of the pair, and everything after the
-  //   // separator in the second part of the pair. The separator is not included
-  //   // in any of them.
-  //   auto [BeforeOptions, AfterOptions] = OptC.split("-options ");
-  //   // Only add if not empty, an empty arg can lead to ocloc errors.
-  //   if (!BeforeOptions.empty())
-  //     CmdArgs.push_back(BeforeOptions);
-  //   if (!AfterOptions.empty()) {
-  //     // Separator not included by the split function, so explicitly added here.
-  //     CmdArgs.push_back("-options");
-  //     std::string Replace = AfterOptions.str();
-  //     std::replace(Replace.begin(), Replace.end(), ' ', ',');
-  //     CmdArgs.push_back(Args.MakeArgString(Replace));
-  //   }
-  // }
-  // StringRef OptL =
-  //     Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
+                              SmallVector<StringRef, 8> &CmdArgs, bool IsCPU,
+                              StringRef CompileOptions) {
+  if (IsCPU) {
+    CompileOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  } else {
+    // ocloc -options args need to be comma separated, e.g. `-options
+    // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
+    // ocloc as an arg for -options, and the rest are processed as standalone
+    // flags, possibly leading to errors.
+    // split function here returns a pair with everything before the separator
+    // ("-options") in the first member of the pair, and everything after the
+    // separator in the second part of the pair. The separator is not included
+    // in any of them.
+    auto [BeforeOptions, AfterOptions] = CompileOptions.split("-options ");
+    // Only add if not empty, an empty arg can lead to ocloc errors.
+    if (!BeforeOptions.empty())
+      CmdArgs.push_back(BeforeOptions);
+    if (!AfterOptions.empty()) {
+      // Separator not included by the split function, so explicitly added here.
+      CmdArgs.push_back("-options");
+      std::string Replace = AfterOptions.str();
+      std::replace(Replace.begin(), Replace.end(), ' ', ',');
+      CmdArgs.push_back(Args.MakeArgString(Replace));
+    }
+  }
 
-  OptL.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   StringRef OptTool = (IsCPU) ? Args.getLastArgValue(OPT_cpu_tool_arg_EQ)
                               : Args.getLastArgValue(OPT_gpu_tool_arg_EQ);
   OptTool.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
@@ -995,7 +980,8 @@ static void addBackendOptions(const ArgList &Args,
 /// code and will be parsed to generate options required to be passed into the
 /// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
-                                                 const ArgList &Args) {
+                                                 const ArgList &Args,
+                                                 StringRef CompileOptions) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OpenCLAOTPath =
@@ -1005,7 +991,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
-  addBackendOptions(Args, CmdArgs, /* IsCPU */ true);
+  addBackendOptions(Args, CmdArgs, /* IsCPU */ true, CompileOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1026,7 +1012,8 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 /// code and will be parsed to generate options required to be passed into the
 /// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
-                                                 const ArgList &Args) {
+                                                 const ArgList &Args,
+                                                 StringRef CompileOptions) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
@@ -1043,7 +1030,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  addBackendOptions(Args, CmdArgs, /* IsCPU */ false);
+  addBackendOptions(Args, CmdArgs, /* IsCPU */ false, CompileOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1064,13 +1051,14 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
 /// code and will be parsed to generate options required to be passed into the
 /// SYCL AOT compilation step.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
-                                         const ArgList &Args) {
+                                         const ArgList &Args,
+                                         StringRef CompileOptions) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   if (Triple.isSPIRAOT()) {
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen)
-      return runAOTCompileIntelGPU(InputFile, Args);
+      return runAOTCompileIntelGPU(InputFile, Args, CompileOptions);
     if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-      return runAOTCompileIntelCPU(InputFile, Args);
+      return runAOTCompileIntelCPU(InputFile, Args, CompileOptions);
   }
   return createStringError(inconvertibleErrorCode(),
                            "Unsupported SYCL Triple and Arch");
@@ -1088,50 +1076,36 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
+  StringRef OutputFilePath = *OutputFileOrErr;
+  if (Verbose || DryRun) {
+    std::string InputFiles;
+    SmallString<0> Msg;
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+      module_split::SplitModule &SM = SplitModules[I];
+      Msg.append(formatv(" input: {0}, compile-opts: {1}, link-opts: {2}",
+                         SM.ModuleFilePath, SM.CompileOptions, SM.LinkOptions)
+                     .sstr<128>());
+      if (I + 1 < E)
+        Msg.append(",");
+    }
+
+    errs() << formatv(" offload-wrapper: output: {0}, {1}\n", OutputFilePath,
+                      Msg);
+    if (DryRun)
+      return OutputFilePath;
+  }
+
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
   if (Target.empty())
     return createStringError(
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missed.");
 
+  SmallVector<llvm::offloading::SYCLImage> Images;
   // SYCL runtime currently works for spir64 target triple and not for
   // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
   // TODO: Fix SYCL runtime to accept other triples
   llvm::Triple T(Target);
-  bool isJIT = !(T.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                 T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
-  SmallString<0> CompileOptions;
-  SmallString<0> LinkOptions;
-  if (isJIT) {
-    CompileOptions =
-        StringRef(formatv("{0} {1}", SYCLCompileOptionsFromImage,
-                          Args.getLastArgValue(
-                              OPT_sycl_backend_compile_options_EQ, "")))
-            .trim();
-    LinkOptions =
-        StringRef(
-            formatv("{0} {1}", SYCLLinkOptionsFromImage,
-                    Args.getLastArgValue(OPT_sycl_target_link_options_EQ, "")))
-            .trim();
-  }
-
-  StringRef OutputFilePath = *OutputFileOrErr;
-  if (Verbose || DryRun) {
-    std::string InputFiles;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      InputFiles += SplitModules[I].ModuleFilePath;
-      if (I + 1 < E)
-        InputFiles += ',';
-    }
-
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}, "
-                      "compile-opts: {2}, link-opts: {3}\n",
-                      InputFiles, OutputFilePath, CompileOptions, LinkOptions);
-    if (DryRun)
-      return OutputFilePath;
-  }
-
-  SmallVector<llvm::offloading::SYCLImage> Images;
   std::string EmbeddedIRTarget("llvm_");
   EmbeddedIRTarget.append(T.getArchName());
   StringRef RegularTarget(T.getArchName());
@@ -1158,7 +1132,8 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     StringRef ImageTarget =
         IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
     Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
-                        ImageTarget);
+                        ImageTarget, std::move(SI.CompileOptions),
+                        std::move(SI.LinkOptions));
   }
 
   LLVMContext C;
@@ -1166,15 +1141,8 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   M.setTargetTriple(Triple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple())));
 
-  offloading::SYCLWrappingOptions WrappingOptions;
-  WrappingOptions.CompileOptions = std::string(CompileOptions);
-  WrappingOptions.LinkOptions = std::string(LinkOptions);
-  if (Verbose) {
-    errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
-                      CompileOptions, LinkOptions);
-  }
   if (Error E = offloading::wrapSYCLBinaries(
-          M, Images, WrappingOptions,
+          M, Images, offloading::SYCLWrappingOptions(),
           Args.hasArg(OPT_preview_breaking_changes)))
     return E;
 
@@ -1799,7 +1767,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 } // namespace generic
 
 Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                               const ArgList &Args, bool IsSYCLKind = false) {
+                               const ArgList &Args, bool IsSYCLKind = false,
+                               StringRef CompileOptions = StringRef()) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   switch (Triple.getArch()) {
   case Triple::nvptx:
@@ -1832,8 +1801,9 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       bool NeedAOTCompile =
           (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64);
-      auto AOTFile =
-          (NeedAOTCompile) ? sycl::runAOTCompile(*SPVFile, Args) : *SPVFile;
+      auto AOTFile = (NeedAOTCompile)
+                         ? sycl::runAOTCompile(*SPVFile, Args, CompileOptions)
+                         : *SPVFile;
       if (!AOTFile)
         return AOTFile.takeError();
       return NeedAOTCompile ? *AOTFile : *SPVFile;
@@ -2123,21 +2093,34 @@ Error handleOverrideImages(
   return Error::success();
 }
 
-/// Function looks for compile/link options encoded in SYCL images.
-/// If they are found then they are stored in global variables.
-void findAndSaveSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
-  for (const OffloadFile &File : OffloadFiles) {
-    const OffloadBinary &OB = *File.getBinary();
-    if (OB.getOffloadKind() != OFK_SYCL)
-      continue;
+/// Function looks for compile/link options encoded in SYCL images. If they are
+/// found, then they are returned. If it is found that images have different
+/// compile options or different link options, then an error is returned.
+Expected<std::pair<std::string, std::string>>
+extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
+  std::pair<std::string, std::string> Options;
+  if (OffloadFiles.size() == 0)
+    return std::move(Options);
 
-    StringRef CompileOptions = OB.getString("compile-opts");
-    StringRef LinkOptions = OB.getString("link-opts");
-    if (!CompileOptions.empty())
-      SYCLCompileOptionsFromImage = CompileOptions.str();
-    if (!LinkOptions.empty())
-      SYCLLinkOptionsFromImage = LinkOptions.str();
+  const OffloadBinary *OB = OffloadFiles[0].getBinary();
+  Options = std::make_pair(std::string(OB->getString("compile-opts")),
+                           std::string(OB->getString("link-opts")));
+
+  for (size_t I = 1, E = OffloadFiles.size(); I != E; ++I) {
+    OB = OffloadFiles[I].getBinary();
+    StringRef CompileOptions = OB->getString("compile-opts");
+    StringRef LinkOptions = OB->getString("link-opts");
+
+    if (CompileOptions != Options.first || LinkOptions != Options.second)
+      return createStringError(formatv(
+          "compile and link options are expected to be equal among input "
+          "images. "
+          "Input[0]: compile_options: {0}, link_options: {1}, "
+          "Input[{2}]: compile_options: {3}, link_options: {4}",
+          Options.first, Options.second, I, CompileOptions, LinkOptions));
   }
+
+  return std::move(Options);
 }
 
 /// Transforms all the extracted offloading input files into an image that can
@@ -2187,10 +2170,12 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
         HasNonSYCLOffloadKinds = true;
     }
 
-    if (HasSYCLOffloadKind)
-      findAndSaveSYCLCompileLinkOptions(Input);
-
     if (HasSYCLOffloadKind) {
+      Expected<std::pair<std::string, std::string>> CompileLinkOptionsOrErr =
+          extractSYCLCompileLinkOptions(Input);
+      if (!CompileLinkOptionsOrErr)
+        return CompileLinkOptionsOrErr.takeError();
+
       SmallVector<StringRef> InputFiles;
       // Write device inputs to an output file for the linker.
       for (const OffloadFile &File : Input) {
@@ -2216,6 +2201,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
 
       auto &SplitModules = *SplitModulesOrErr;
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      bool isJIT = Triple.isSPIROrSPIRV() &&
+                   Triple.getSubArch() == llvm::Triple::NoSubArch;
       if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
           LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
         // When compiling for Nvidia/AMD devices and the user requested the
@@ -2236,7 +2223,8 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           Arch = "native";
         SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
         auto ClangOutputOrErr =
-            linkDevice(Files, LinkerArgs, true /* IsSYCLKind */);
+            linkDevice(Files, LinkerArgs, true /* IsSYCLKind */,
+                       CompileLinkOptionsOrErr->first);
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX()) {
@@ -2262,6 +2250,11 @@ linkAndWrapDeviceFiles(ArrayRef<SmallVector<OffloadFile>> LinkerInputFiles,
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
         } else {
           SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
+          if (isJIT) {
+            SplitModules[I].CompileOptions = CompileLinkOptionsOrErr->first;
+            SplitModules[I].LinkOptions = CompileLinkOptionsOrErr->second;
+          }
+
           if (Triple.isNativeCPU()) {
             // Add to WrappedOutput directly rather than combining this with the
             // below because WrappedOutput holds references and
