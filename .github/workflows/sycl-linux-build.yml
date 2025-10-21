@@ -181,6 +181,8 @@ jobs:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
         cache_path: "/__w/repo_cache/"
+    - name: list devops
+      run: ls -R ./devops/
     - name: Setup oneAPI env
       if: ${{ inputs.cc == 'icx' || inputs.cxx == 'icpx' }}
       uses: ./devops/actions/setup_linux_oneapi_env
@@ -286,7 +288,7 @@ jobs:
 
     - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      run: ./devops/scripts/install_test_utilities.sh
+      run: $GITHUB_WORKSPACE/src/devops/scripts/install_test_utilities.sh
 
     - name: Additional Install for "--shared-libs" build
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') }}
