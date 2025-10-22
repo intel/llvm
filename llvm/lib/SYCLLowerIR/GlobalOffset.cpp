@@ -61,9 +61,9 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
 }
 
 // Helper function to collect all GEPs, PHIs and Loads in post-order.
-static void getLoads(Function *ImplicitOffsetIntrinsic,
-                     SmallVectorImpl<Instruction *> &Traversed,
-                     SmallVectorImpl<Instruction *> &Loads) {
+static void collectGlobalOffsetUses(Function *ImplicitOffsetIntrinsic,
+                                    SmallVectorImpl<Instruction *> &LoadPtrUses,
+                                    SmallVectorImpl<Instruction *> &Loads) {
   SmallVector<Instruction *, 4> WorkList;
   SmallPtrSet<Value *, 4> Visited;
 
@@ -101,7 +101,7 @@ static void getLoads(Function *ImplicitOffsetIntrinsic,
           Self(Self, Op);
       }
       if (!isa<CallInst>(I))
-        Traversed.push_back(I);
+        LoadPtrUses.push_back(I);
     };
     Visited.insert(LI);
     if (!Visited.contains(OpUse0->get()))
@@ -238,7 +238,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   SmallVector<Instruction *, 4> Loads;
   SmallVector<Instruction *, 4> PtrUses;
 
-  getLoads(ImplicitOffsetIntrinsic, PtrUses, Loads);
+  collectGlobalOffsetUses(ImplicitOffsetIntrinsic, PtrUses, Loads);
 
   // Replace each use of a collected Load with a Constant 0
   for (Instruction *L : Loads) {
@@ -247,7 +247,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   }
 
   // Remove all collected Loads and GEPs from the kernel.
-  // PtrUses is returned by `getLoads` in topological order.
+  // PtrUses is returned by `collectGlobalOffsetUses` in topological order.
   // Walk it backwards so we don't violate users.
   for (auto *I : reverse(PtrUses))
     I->eraseFromParent();

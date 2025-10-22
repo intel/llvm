@@ -5,16 +5,29 @@ target triple = "nvptx64-nvidia-cuda"
 
 declare ptr @llvm.nvvm.implicit.offset()
 
-define weak_odr dso_local ptx_kernel void @test() {
+define i32 @test_two_loads() {
+; CHECK-LABEL: define i32 @test_two_loads() {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[RES:%.*]] = add i32 0, 0
+; CHECK-NEXT:    ret i32 [[RES]]
+;
 entry:
-; CHECK-NOT: call ptr @llvm.nvvm.implicit.offset()
-
-  %0 = tail call ptr @llvm.nvvm.implicit.offset()
-  %1 = getelementptr inbounds nuw i8, ptr %0, i64 4
-  %2 = load i32, ptr %1, align 4
-  %3 = load i32, ptr %0, align 4
-  ret void
+  %offset = tail call ptr @llvm.nvvm.implicit.offset()
+  %gep = getelementptr inbounds nuw i8, ptr %offset, i64 4
+  %load1 = load i32, ptr %gep, align 4
+  %load2 = load i32, ptr %offset, align 4
+  %res = add i32 %load1, %load2
+  ret i32 %res
 }
+
+; CHECK-LABEL: define i32 @test_two_loads_with_offset(
+; CHECK-SAME: ptr [[PTR:%.*]]) {
+; CHECK-NEXT:  [[ENTRY:.*:]]
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds nuw i8, ptr [[PTR]], i64 4
+; CHECK-NEXT:    [[LOAD1:%.*]] = load i32, ptr [[GEP]], align 4
+; CHECK-NEXT:    [[LOAD2:%.*]] = load i32, ptr [[PTR]], align 4
+; CHECK-NEXT:    [[RES:%.*]] = add i32 [[LOAD1]], [[LOAD2]]
+; CHECK-NEXT:    ret i32 [[RES]]
 
 !llvm.module.flags = !{!0}
 
