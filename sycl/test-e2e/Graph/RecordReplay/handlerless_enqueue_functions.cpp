@@ -10,11 +10,8 @@
 // path. Recording is performed over a non-inlined function call.
 
 #include "../graph_common.hpp"
-#include <cstdint>
-#include <cstring>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
-#include <vector>
 
 // noinline is important as we have previously caught functional issues with
 // kernel argument capture only when the function being recorded is not inlined.
@@ -43,9 +40,9 @@ recordHandlerLessOps(sycl::queue &Q, uint32_t *A, uint32_t *B, uint32_t *C,
     auto e1 = Q.memset(A, Pattern, N * sizeof(uint32_t));
     auto e2 = Q.fill(D, FillValue, N);
     Q.copy(D, E, N, e2);
-    auto e4 = Q.memcpy(B, A, N * sizeof(uint32_t), e1);
-    auto e6 = Q.parallel_for(KernelRange, e4, DoubleKernelLambda);
-    Q.single_task(e6, SingleTaskKernel);
+    auto e3 = Q.memcpy(B, A, N * sizeof(uint32_t), e1);
+    auto e4 = Q.parallel_for(KernelRange, e3, DoubleKernelLambda);
+    Q.single_task(e4, SingleTaskKernel);
   }
 }
 
