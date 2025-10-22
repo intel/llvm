@@ -151,10 +151,11 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
   }
   pDdiTable->pfnBufferCreate = urMemBufferCreate;
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
-  pDdiTable->pfnBufferCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnBufferCreateWithNativeHandle =
+      urMemBufferCreateWithNativeHandle;
   pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urMemGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
   pDdiTable->pfnImageCreate = urMemImageCreate;
   pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
   pDdiTable->pfnRelease = urMemRelease;
@@ -388,6 +389,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    ur_api_version_t version, ur_ipc_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnGetMemHandleExp = urIPCGetMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = urIPCPutMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = urIPCCloseMemHandleExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -410,6 +426,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetContextProcAddrTable(version, &pDdiTable->Context);
   urGetEnqueueProcAddrTable(version, &pDdiTable->Enqueue);
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
+  urGetIPCExpProcAddrTable(version, &pDdiTable->IPCExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);

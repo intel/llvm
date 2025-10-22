@@ -1,6 +1,9 @@
 // REQUIRES: gpu, level_zero
 // UNSUPPORTED: ze_debug
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20385
+
 // RUN: %{build} -o %t.out
 // RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
 // RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s

@@ -15,8 +15,8 @@ on:
           PR no. to build SYCL from if specified: SYCL will be built from HEAD
           of incoming branch used by the specified PR no.
 
-          If both pr_no and commit_hash are empty, the latest SYCL nightly build
-          will be used.
+          If both pr_no and commit_hash are empty, the latest commit in
+          deployment branch will be used.
         required: false
         default: ''
       commit_hash:
@@ -64,33 +64,34 @@ on:
       pr_no:
         type: string
         description: |
-          PR no. to build SYCL from:
-            
-          SYCL will be built from HEAD of incoming branch.
+          PR no. to build SYCL from - it will be built from HEAD of incoming branch.
+
+          Leave both pr_no and commit_hash empty to use the latest commit from branch/tag this workflow started from.
         required: false
         default: ''
       commit_hash:
         type: string
         description: |
-          Commit hash (within intel/llvm) to build SYCL from:
+          Commit hash (within intel/llvm) to build SYCL from.
 
-          Leave both pr_no and commit_hash empty to use latest commit.
+          Leave both pr_no and commit_hash empty to use the latest commit from branch/tag this workflow started from.
         required: false
         default: ''
       save_name:
         type: string
         description: |
-          Name to use for the benchmark result:
+          Name to use for the benchmark result
         required: false
         default: ''
       upload_results:
-        description: 'Save and upload results (to https://intel.github.io/llvm/benchmarks)'
+        description: Save and upload results (to https://intel.github.io/llvm/benchmarks)
         type: choice
         options:
           - false
           - true
         default: true
       runner:
+        description: Self-hosted runner to use for the benchmarks
         type: choice
         options:
           - '["PVC_PERF"]'
