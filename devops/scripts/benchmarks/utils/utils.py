@@ -52,8 +52,8 @@ def run(
 
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
-                env["LD_LIBRARY_PATH"] = (
-                    ldlib + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+                env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                    filter(None, [ldlib, env_vars.get("LD_LIBRARY_PATH", "")])
                 )
             else:
                 log.warning(f"LD_LIBRARY_PATH component does not exist: {ldlib}")
@@ -61,18 +61,26 @@ def run(
         # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, "bin")
-            env_vars["PATH"] = sycl_bin_path + os.pathsep + env.get("PATH", "")
-            sycl_lib_path = os.path.join(options.sycl, "lib")
-            env_vars["LD_LIBRARY_PATH"] = (
-                sycl_lib_path + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+            env_vars["PATH"] = os.pathsep.join(
+                filter(None, [sycl_bin_path, env_vars.get("PATH", "")])
             )
-
-        env.update(env_vars)
+            sycl_lib_path = os.path.join(options.sycl, "lib")
+            env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
+                filter(None, [sycl_lib_path, env_vars.get("LD_LIBRARY_PATH", "")])
+            )
 
         command_str = " ".join(command)
         env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
         full_command_str = f"{env_str} {command_str}".strip()
         log.debug(f"Running: {full_command_str}")
+
+        # Prepend new value to existing env value
+        for key, value in env_vars.items():
+            old_value = env.get(key, "")
+            if old_value:
+                env[key] = os.pathsep.join([value, old_value])
+            else:
+                env[key] = value
 
         # Normalize input to bytes if it's a str
         if isinstance(input, str):
