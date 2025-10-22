@@ -3,14 +3,12 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import copy
 import csv
 import io
 import math
 from enum import Enum
 from itertools import product
 from pathlib import Path
-from psutil import Process
 
 from git_project import GitProject
 from options import options
@@ -417,24 +415,6 @@ class ComputeBenchmark(Benchmark):
         # iteration fields.
         command += self.bin_args(run_trace)
         env_vars.update(self.extra_env_vars())
-
-        # Pin compute benchmarks to a CPU cores set to ensure consistent results
-        # and non-zero CPU count measurements (e.g. avoid E-cores). 4 max freq cores
-        # are pinned by default to satisfy multiple threads benchmarks.
-        available_cores = Process().cpu_affinity()
-        # Get 4 cores with the highest available frequency.
-        core_frequencies = []
-        for core in available_cores:
-            with open(
-                f"/sys/devices/system/cpu/cpu{core}/cpufreq/cpuinfo_max_freq"
-            ) as f:
-                freq = int(f.read().strip())
-                core_frequencies.append((core, freq))
-        core_frequencies.sort(key=lambda x: x[1], reverse=True)
-        available_cores = [core for core, _ in core_frequencies[:4]]
-        cores_list = ",".join([str(core) for core in available_cores])
-
-        command = ["taskset", "-c", cores_list] + command
 
         result = self.run_bench(
             command, env_vars, run_trace=run_trace, force_trace=force_trace

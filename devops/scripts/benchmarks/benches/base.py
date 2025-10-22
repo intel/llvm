@@ -6,15 +6,18 @@
 import os
 import shutil
 import subprocess
-from pathlib import Path
-from enum import Enum
-from utils.result import BenchmarkMetadata, BenchmarkTag, Result
-from options import options
-from utils.utils import download, run
 from abc import ABC, abstractmethod
-from utils.unitrace import get_unitrace
+from enum import Enum
+from pathlib import Path
+
+from psutil import Process
+
+from options import options
 from utils.flamegraph import get_flamegraph
 from utils.logger import log
+from utils.result import BenchmarkMetadata, BenchmarkTag, Result
+from utils.unitrace import get_unitrace
+from utils.utils import download, run
 
 
 class TracingType(Enum):
@@ -167,6 +170,8 @@ class Benchmark(ABC):
             log.debug(f"FlameGraph perf data: {perf_data_file}")
             log.debug(f"FlameGraph command: {' '.join(command)}")
 
+        command = self.taskset_cmd() + command
+
         try:
             result = run(
                 command=command,
@@ -267,6 +272,24 @@ class Benchmark(ABC):
                 explicit_group=self.explicit_group(),
             )
         }
+
+    def taskset_cmd(self) -> list[str]:
+        """Returns a list of strings with taskset usage for core pinning.
+        Pin compute benchmarks to a CPU cores set to ensure consistent results
+        and non-zero CPU count measurements (e.g. avoid E-cores). Exactly 4 cores
+        with the maximum frequency are pinned by default to satisfy multiple threads benchmarks.
+        """
+        available_cores = Process().cpu_affinity()
+        core_frequencies = []
+        for core in available_cores:  # type: ignore
+            with open(
+                f"/sys/devices/system/cpu/cpu{core}/cpufreq/cpuinfo_max_freq"
+            ) as f:
+                freq = int(f.read().strip())
+                core_frequencies.append((core, freq))
+        core_frequencies.sort(key=lambda x: x[1], reverse=True)
+        cores_list = ",".join([str(core) for core, _ in core_frequencies[:4]])
+        return ["taskset", "-c", cores_list]
 
 
 class Suite(ABC):
