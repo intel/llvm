@@ -1,60 +1,6 @@
 name: Run Benchmarks
 
 on:
-  # XXX: is this workflow called anywhere?
-  workflow_call:
-    inputs:
-      preset:
-        type: string
-        description: |
-          Benchmark presets to run: See /devops/scripts/benchmarks/presets.py
-        required: false
-        default: 'Minimal'  # Only compute-benchmarks
-      pr_no:
-        type: string
-        description: |
-          PR no. to build SYCL from if specified: SYCL will be built from HEAD
-          of incoming branch used by the specified PR no.
-
-          If both pr_no and commit_hash are empty, the latest commit in
-          deployment branch will be used.
-        required: false
-        default: ''
-      commit_hash:
-        type: string
-        description: |
-          Commit hash (within intel/llvm) to build SYCL from if specified.
-
-          If both pr_no and commit_hash are empty, the latest commit in
-          deployment branch will be used.
-        required: false
-        default: ''
-      save_name:
-        type: string
-        description: |
-          Specify a custom name to use for the benchmark result: If uploading
-          results, this will be the name used to refer results from the current
-          run.
-        required: false
-        default: ''
-      upload_results:
-        type: string # true/false: workflow_dispatch does not support booleans
-        description: |
-          Upload results to https://intel.github.io/llvm/benchmarks/.
-        required: true
-      exit_on_failure:
-        type: string # true/false: workflow_dispatch does not support booleans
-        description: |
-          Fail benchmark script on any error. Limit number of iterations to just test correctness.
-        required: false
-        default: 'false'
-      runner:
-        type: string
-        required: true
-      backend:
-        type: string
-        required: true
-
   workflow_dispatch:
     inputs:
       preset:
