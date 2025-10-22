@@ -662,12 +662,6 @@ SPIRVModuleImpl::~SPIRVModuleImpl() {
   for (auto I : IdEntryMap)
     delete I.second;
 
-  for (auto C : CapMap)
-    delete C.second;
-
-  for (auto C : ConditionalCapMap)
-    delete C.second;
-
   for (auto *M : ModuleProcessedVec)
     delete M;
 }
@@ -786,10 +780,12 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
   addCapabilities(SPIRV::getCapability(Cap));
   SPIRVDBG(spvdbgs() << "addCapability: " << SPIRVCapabilityNameMap::map(Cap)
                      << '\n');
-  if (hasCapability(Cap))
+
+  auto [It, Inserted] = CapMap.try_emplace(Cap);
+  if (!Inserted)
     return;
 
-  auto *CapObj = new SPIRVCapability(this, Cap);
+  auto CapObj = std::make_unique<SPIRVCapability>(this, Cap);
   if (AutoAddExtensions) {
     // While we are reading existing SPIR-V we need to read it as-is and don't
     // add required extensions for each entry automatically
@@ -798,15 +794,16 @@ void SPIRVModuleImpl::addCapability(SPIRVCapabilityKind Cap) {
       addExtension(Ext.value());
   }
 
-  CapMap.insert(std::make_pair(Cap, CapObj));
+  It->second = std::move(CapObj);
 }
 
 void SPIRVModuleImpl::addCapabilityInternal(SPIRVCapabilityKind Cap) {
   if (AutoAddCapability) {
-    if (hasCapability(Cap))
+    auto [It, Inserted] = CapMap.try_emplace(Cap);
+    if (!Inserted)
       return;
 
-    CapMap.insert(std::make_pair(Cap, new SPIRVCapability(this, Cap)));
+    It->second = std::make_unique<SPIRVCapability>(this, Cap);
   }
 }
 
@@ -815,18 +812,19 @@ void SPIRVModuleImpl::addConditionalCapability(SPIRVId Condition,
   SPIRVDBG(spvdbgs() << "addConditionalCapability: "
                      << SPIRVCapabilityNameMap::map(Cap)
                      << ", condition: " << Condition << '\n');
-  if (ConditionalCapMap.find(std::make_pair(Condition, Cap)) !=
-      ConditionalCapMap.end()) {
+  auto Key = std::make_pair(Condition, Cap);
+  auto [It, Inserted] = ConditionalCapMap.try_emplace(Key);
+  if (!Inserted) {
     return;
   }
 
-  auto *CapObj = new SPIRVConditionalCapabilityINTEL(this, Condition, Cap);
+  auto CapObj =
+      std::make_unique<SPIRVConditionalCapabilityINTEL>(this, Condition, Cap);
   if (AutoAddExtensions) {
     assert(false && "Auto adding conditional extensions is not supported.");
   }
 
-  ConditionalCapMap.insert(
-      std::make_pair(std::make_pair(Condition, Cap), CapObj));
+  It->second = std::move(CapObj);
 }
 
 void SPIRVModuleImpl::eraseConditionalCapability(SPIRVId Condition,
