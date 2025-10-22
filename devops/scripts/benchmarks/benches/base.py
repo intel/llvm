@@ -287,8 +287,12 @@ class Benchmark(ABC):
             ) as f:
                 freq = int(f.read().strip())
                 core_frequencies.append((core, freq))
-        core_frequencies.sort(key=lambda x: x[1], reverse=True)
-        cores_list = ",".join([str(core) for core, _ in core_frequencies[:4]])
+        selected = core_frequencies[:4]  # first ones have highest frequency
+        if len({freq for _, freq in selected}) > 1:
+            log.warning(
+                f"Selected cores for pinning have differing max frequencies: {selected}"
+            )
+        cores_list = ",".join([str(core) for core, _ in selected])
         return ["taskset", "-c", cores_list]
 
 
