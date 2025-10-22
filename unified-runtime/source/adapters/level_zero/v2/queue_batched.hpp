@@ -108,6 +108,8 @@ public:
 
   ur_command_list_manager &getActiveBatch() { return activeBatch; }
 
+  ur_command_list_manager &getImmediateManager() { return immediateList; }
+
   ur_event_generation_t getCurrentGeneration() {
     return regularGenerationNumber;
   }
@@ -150,6 +152,8 @@ private:
   // are not created for immediate command lists.
 
   v2::raii::cache_borrowed_event_pool eventPoolRegular;
+
+  v2::raii::cache_borrowed_event_pool eventPoolImmediate;
 
   v2::raii::command_list_unique_handle getNewRegularCmdList() {
     TRACK_SCOPE_LATENCY("ur_queue_batched_t::getNewRegularCmdList");

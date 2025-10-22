@@ -37,7 +37,7 @@ namespace v2 {
 ur_queue_batched_t::ur_queue_batched_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint32_t ordinal,
     ze_command_queue_priority_t priority, std::optional<int32_t> index,
-    [[maybe_unused]] event_flags_t eventFlags, ur_queue_flags_t flags)
+    event_flags_t eventFlags, ur_queue_flags_t flags)
     : regularCmdListDesc(v2::command_list_desc_t{
           true /* isInOrder*/, ordinal /* Ordinal*/,
           true /* copyOffloadEnable*/, false /*isMutable*/}),
@@ -69,6 +69,9 @@ ur_queue_batched_t::ur_queue_batched_t(
 
   eventPoolRegular = hContext->getEventPoolCache(PoolCacheType::Regular)
                          .borrow(hDevice->Id.value(), v2::EVENT_FLAGS_COUNTER);
+
+  eventPoolImmediate = hContext->getEventPoolCache(PoolCacheType::Immediate)
+                           .borrow(hDevice->Id.value(), eventFlags);
 }
 
 ur_event_handle_t ur_queue_batched_t::createEventIfRequestedRegular(
@@ -229,9 +232,13 @@ ur_queue_batched_t::queueFinishUnlocked(locked<batch_manager> &batchLocked) {
   UR_CALL(batchLocked->enqueueCurrentBatchUnlocked());
   UR_CALL(batchLocked->hostSynchronize());
 
-  UR_CALL(queueFinishPoolsUnlocked());
+  // UR_CALL(queueFinishPoolsUnlocked());
 
-  return batchLocked->batchFinish();
+  // return batchLocked->batchFinish();
+
+  UR_CALL(batchLocked->batchFinish());
+
+  return queueFinishPoolsUnlocked();
 }
 
 ur_result_t ur_queue_batched_t::queueFinish() {
@@ -792,11 +799,20 @@ ur_result_t ur_queue_batched_t::enqueueUSMDeviceAllocExp(
 
   lockedBatch->markIssuedCommand();
 
-  return lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  // return lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  //     this, pPool, size, pProperties, waitListView, ppMem,
+  //     createEventIfRequestedRegular(phEvent,
+  //                                   lockedBatch->getCurrentGeneration()),
+  //     UR_USM_TYPE_DEVICE);
+  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_DEVICE);
+      // createEventAndRetainRegular(phEvent,
+      //                               lockedBatch->getCurrentGeneration()),
+      UR_USM_TYPE_DEVICE));
+
+  return queueFlushUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
@@ -812,11 +828,21 @@ ur_result_t ur_queue_batched_t::enqueueUSMSharedAllocExp(
 
   lockedBatch->markIssuedCommand();
 
-  return lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  // return lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  //     this, pPool, size, pProperties, waitListView, ppMem,
+  //     createEventIfRequestedRegular(phEvent,
+  //                                   lockedBatch->getCurrentGeneration()),
+  //     UR_USM_TYPE_SHARED);
+
+  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_SHARED);
+      // createEventAndRetainRegular(phEvent,
+      //                               lockedBatch->getCurrentGeneration()),
+      UR_USM_TYPE_SHARED));
+
+  return queueFlushUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
@@ -831,11 +857,21 @@ ur_result_t ur_queue_batched_t::enqueueUSMHostAllocExp(
 
   lockedBatch->markIssuedCommand();
 
-  return lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  // return lockedBatch->getActiveBatch().appendUSMAllocHelper(
+  //     this, pPool, size, pProperties, waitListView, ppMem,
+  //     createEventIfRequestedRegular(phEvent,
+  //                                   lockedBatch->getCurrentGeneration()),
+  //     UR_USM_TYPE_HOST);
+
+  UR_CALL(lockedBatch->getActiveBatch().appendUSMAllocHelper(
       this, pPool, size, pProperties, waitListView, ppMem,
       createEventIfRequestedRegular(phEvent,
                                     lockedBatch->getCurrentGeneration()),
-      UR_USM_TYPE_HOST);
+      // createEventAndRetainRegular(phEvent,
+      //                               lockedBatch->getCurrentGeneration()),
+      UR_USM_TYPE_HOST));
+
+  return queueFlushUnlocked(lockedBatch);
 }
 
 ur_result_t ur_queue_batched_t::bindlessImagesImageCopyExp(
@@ -944,12 +980,13 @@ ur_result_t ur_queue_batched_t::enqueueCommandBufferExp(
 
   auto lockedBatch = currentCmdLists.lock();
 
-  lockedBatch->markIssuedCommand();
+  if (!lockedBatch->isActiveBatchEmpty()) {
+    UR_CALL(queueFlushUnlocked(lockedBatch));
+  }
 
-  return lockedBatch->getActiveBatch().appendCommandBufferExp(
+  return lockedBatch->getImmediateManager().appendCommandBufferExp(
       hCommandBuffer, waitListView,
-      createEventAndRetainRegular(phEvent,
-                                  lockedBatch->getCurrentGeneration()));
+      createEventAndRetain(eventPoolImmediate.get(), phEvent, this));
 }
 
 ur_result_t ur_queue_batched_t::enqueueNativeCommandExp(
