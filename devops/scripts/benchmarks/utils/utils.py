@@ -49,7 +49,6 @@ def run(
             command = command.split()
 
         env = os.environ.copy()
-
         for ldlib in ld_library:
             if os.path.isdir(ldlib):
                 env_vars["LD_LIBRARY_PATH"] = os.pathsep.join(
@@ -74,11 +73,10 @@ def run(
         full_command_str = f"{env_str} {command_str}".strip()
         log.debug(f"Running: {full_command_str}")
 
-        # Prepend new value to existing env value
         for key, value in env_vars.items():
-            old_value = env.get(key, "")
-            if old_value:
-                env[key] = os.pathsep.join([value, old_value])
+            # Only PATH and LD_LIBRARY_PATH should be prepended to existing values
+            if key in ("PATH", "LD_LIBRARY_PATH") and (old := env.get(key)):
+                env[key] = os.pathsep.join([value, old])
             else:
                 env[key] = value
 
