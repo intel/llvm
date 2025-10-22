@@ -103,7 +103,7 @@ static void getLoads(Function *ImplicitOffsetIntrinsic,
       if (!isa<CallInst>(I))
         Traversed.push_back(I);
     };
-    Visited.insert(LI).second;
+    Visited.insert(LI);
     if (!Visited.contains(OpUse0->get()))
       PostOrderTraveral(PostOrderTraveral, *OpUse0);
   }
