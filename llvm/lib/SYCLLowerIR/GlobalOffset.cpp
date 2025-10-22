@@ -100,7 +100,8 @@ static void getLoads(Function *ImplicitOffsetIntrinsic,
         if (!Visited.contains(OpI))
           Self(Self, Op);
       }
-      Traversed.push_back(I);
+      if (!isa<CallInst>(I))
+        Traversed.push_back(I);
     };
     Visited.insert(LI).second;
     if (!Visited.contains(OpUse0->get()))
