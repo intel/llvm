@@ -1,7 +1,6 @@
 ; Confirm that we handle fpmath metadata correctly
 
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fp_max_error -o %t.spv
+; RUN: llvm-spirv %s --spirv-ext=+SPV_INTEL_fp_max_error -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
