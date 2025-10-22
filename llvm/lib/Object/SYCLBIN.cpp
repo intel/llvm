@@ -172,7 +172,7 @@ Expected<size_t> SYCLBIN::SYCLBINDesc::getBinaryTableByteSize() const {
   return BinaryTableSize;
 }
 
-Expected<size_t> SYCLBIN::SYCLBINDesc::getSYCLBINByteSite() const {
+Expected<size_t> SYCLBIN::SYCLBINDesc::getSYCLBINByteSize() const {
   size_t ByteSize = 0;
   ByteSize +=
       alignTo(sizeof(FileHeaderType), 8) +

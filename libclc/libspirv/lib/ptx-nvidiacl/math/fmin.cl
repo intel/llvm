@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 
-#define FUNCTION __spirv_ocl_fmin
+#define __CLC_FUNCTION __spirv_ocl_fmin
 
 extern int __clc_nvvm_reflect_arch();
 
@@ -17,10 +17,10 @@ _CLC_DEF _CLC_OVERLOAD float __spirv_ocl_fmin(float x, float y) {
   return __nvvm_fmin_f(x, y);
 }
 
-#define __FLOAT_ONLY
+#define __CLC_FLOAT_ONLY
 #define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
 #include <clc/math/gentype.inc>
-#undef __FLOAT_ONLY
+#undef __CLC_FLOAT_ONLY
 
 #ifdef cl_khr_fp64
 
@@ -30,10 +30,10 @@ _CLC_DEF _CLC_OVERLOAD double __spirv_ocl_fmin(double x, double y) {
   return __nvvm_fmin_d(x, y);
 }
 
-#define __DOUBLE_ONLY
+#define __CLC_DOUBLE_ONLY
 #define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
 #include <clc/math/gentype.inc>
-#undef __DOUBLE_ONLY
+#undef __CLC_DOUBLE_ONLY
 
 #endif
 
@@ -56,16 +56,16 @@ _CLC_DEF _CLC_OVERLOAD half2 __spirv_ocl_fmin(half2 x, half2 y) {
 
 #undef __CLC_MIN_VECSIZE
 #define __CLC_MIN_VECSIZE 3
-#define __HALF_ONLY
+#define __CLC_HALF_ONLY
 #define __CLC_BODY <clc/shared/binary_def_scalarize.inc>
 #include <clc/math/gentype.inc>
-#undef __HALF_ONLY
+#undef __CLC_HALF_ONLY
 #undef __CLC_MIN_VECSIZE
 
 #endif
 
-#undef FUNCTION
-#define FUNCTION __clc_fmin
+#undef __CLC_FUNCTION
+#define __CLC_FUNCTION __clc_fmin
 #define __CLC_SCALAR
 
 // Requires at least sm_80
@@ -91,4 +91,4 @@ _CLC_DEF _CLC_OVERLOAD uint __clc_fmin(uint x, uint y) {
 #undef __CLC_GENTYPE
 
 #undef __CLC_SCALAR
-#undef FUNCTION
+#undef __CLC_FUNCTION

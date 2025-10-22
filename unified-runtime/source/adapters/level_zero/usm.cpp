@@ -45,23 +45,23 @@ usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
     InitializeDisjointPoolConfig();
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig() {
-  const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
-  const char *PoolPiTraceVal =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
-  const char *PoolTraceVal = PoolUrTraceVal
-                                 ? PoolUrTraceVal
-                                 : (PoolPiTraceVal ? PoolPiTraceVal : nullptr);
+  // Prefer the UR-specific env var, fall back to the PI-specific one.
+  const char *PoolTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
+  if (!PoolTraceVal) {
+    PoolTraceVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR_TRACE");
+  }
 
+  // Parse integer value, defaulting to 0 on missing/invalid input.
   int PoolTrace = 0;
-  if (PoolTraceVal != nullptr) {
+  if (PoolTraceVal) {
     PoolTrace = std::atoi(PoolTraceVal);
   }
 
-  const char *PoolUrConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
-  const char *PoolPiConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
-  const char *PoolConfigVal =
-      PoolUrConfigVal ? PoolUrConfigVal : PoolPiConfigVal;
-  if (PoolConfigVal == nullptr) {
+  const char *PoolConfigVal = std::getenv("UR_L0_USM_ALLOCATOR");
+  if (!PoolConfigVal) {
+    PoolConfigVal = std::getenv("SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR");
+  }
+  if (!PoolConfigVal) {
     return usm::DisjointPoolAllConfigs(PoolTrace);
   }
 

@@ -1653,6 +1653,9 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       } else {
         BOC = OpCrossWorkgroupCastToPtrINTEL;
       }
+    } else if (isa<ConstantPointerNull>(Cast->getPointerOperand())) {
+      SPIRVType *TransTy = transScavengedType(U);
+      return BM->addNullConstant(bcast<SPIRVTypePointer>(TransTy));
     } else {
       getErrorLog().checkError(
           SrcAddrSpace == SPIRAS_Generic, SPIRVEC_InvalidModule, U,
@@ -4013,6 +4016,8 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fpbuiltin_sqrt:
   case Intrinsic::fpbuiltin_ldexp:
     // INTEL_CUSTOMIZATION end
+  case Intrinsic::stacksave:
+  case Intrinsic::stackrestore:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4220,6 +4225,20 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // also must be registered at isKnownIntrinsic function in order to make
   // -spirv-allow-unknown-intrinsics work correctly.
   auto IID = II->getIntrinsicID();
+  switch (IID) {
+  case Intrinsic::fabs:
+  case Intrinsic::fma:
+  case Intrinsic::maxnum:
+  case Intrinsic::minnum:
+  case Intrinsic::fmuladd: {
+    Type *Ty = II->getType();
+    if (Ty->isBFloatTy())
+      BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    break;
+  }
+  default:
+    break;
+  }
   switch (IID) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within
@@ -4845,14 +4864,24 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     Op OC = (II->getIntrinsicID() == Intrinsic::lifetime_start)
                 ? OpLifetimeStart
                 : OpLifetimeStop;
-    int64_t Size = dyn_cast<ConstantInt>(II->getOperand(0))->getSExtValue();
-    if (Size == -1)
-      Size = 0;
-    Value *LLVMPtrOp = II->getOperand(1);
+    int64_t Size = 0;
+    Value *LLVMPtrOp = II->getOperand(0);
+    auto *Alloca = cast<AllocaInst>(LLVMPtrOp);
+    if (Alloca->getAllocatedType()->isSized())
+      Size = M->getDataLayout().getTypeAllocSize(Alloca->getAllocatedType());
+
     unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
     auto *PtrOp = transValue(LLVMPtrOp, BB);
-    if (PtrAS == SPIRAS_Private)
+    // INTEL_CUSTOMIZATION begin
+    // Workaround to make older versions of SPIRVReader working with new
+    // rules of LLVM lifetime intrinsics.
+    // TODO: to remove the W/A.
+    if (PtrAS == SPIRAS_Private) {
+      auto *Int8PtrTy =
+          transPointerType(Type::getInt8Ty(M->getContext()), SPIRAS_Private);
+      PtrOp = BM->addUnaryInst(OpBitcast, Int8PtrTy, PtrOp, BB);
       return BM->addLifetimeInst(OC, PtrOp, Size, BB);
+    }
     // If pointer address space is Generic - use original allocation.
     BM->getErrorLog().checkError(
         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
@@ -4860,7 +4889,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     if (PtrOp->getOpCode() == OpPtrCastToGeneric) {
       auto *UI = static_cast<SPIRVUnary *>(PtrOp);
       PtrOp = UI->getOperand(0);
+      auto *Int8PtrTy =
+          transPointerType(Type::getInt8Ty(M->getContext()), SPIRAS_Private);
+      PtrOp = BM->addUnaryInst(OpBitcast, Int8PtrTy, PtrOp, BB);
     }
+    // INTEL_CUSTOMIZATION end
     return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
@@ -5501,6 +5534,11 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
   SmallVector<std::string, 2> Dec;
   if (isBuiltinTransToExtInst(CI->getCalledFunction(), &ExtSetKind, &ExtOp,
                               &Dec)) {
+    if (const auto *FirstArg = F->getArg(0)) {
+      const auto *Type = FirstArg->getType();
+      if (Type->isBFloatTy())
+        BM->addCapability(internal::CapabilityBFloat16ArithmeticINTEL);
+    }
     if (DemangledName.find("__spirv_ocl_printf") != StringRef::npos) {
       auto *FormatStrPtr = cast<PointerType>(CI->getArgOperand(0)->getType());
       if (FormatStrPtr->getAddressSpace() !=

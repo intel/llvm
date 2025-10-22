@@ -111,7 +111,7 @@ jobs:
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         sparse-checkout: |
           devops/actions
@@ -147,7 +147,7 @@ jobs:
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
         python.exe src/buildbot/configure.py -o build ^
-          --ci-defaults %ARGS% ^
+          --ci-defaults --use-zstd %ARGS% ^
           "-DCMAKE_C_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_CXX_COMPILER=${{inputs.cxx}}" ^
           "-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
