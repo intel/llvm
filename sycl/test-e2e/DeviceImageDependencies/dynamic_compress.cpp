@@ -3,6 +3,9 @@
 
 // REQUIRES: zstd
 
+// XFAIL: (windows && run-mode) || target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
+
 // DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-image-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
 // DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
 
