@@ -1368,6 +1368,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
                        UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
   }
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(hDevice->checkDeviceExtensions(
@@ -1509,6 +1511,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         Supported = true;
     }
     return ReturnValue(Supported);
+  }
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU: {
+    cl_bool CLValue;
+
+    // TODO: use stable API instead of deprecated CL_DEVICE_HOST_UNIFIED_MEMORY.
+    // Currently CL_DEVICE_HOST_UNIFIED_MEMORY is deprecated by OpenCL 2.0, but
+    // still was not removed even from Intel implementations of OpenCL 3.0.
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(hDevice->CLDevice,
+                                         CL_DEVICE_HOST_UNIFIED_MEMORY,
+                                         sizeof(cl_bool), &CLValue, nullptr));
+
+    return ReturnValue(static_cast<ur_bool_t>(CLValue));
   }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
@@ -1755,6 +1769,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
 
   // TODO: Cache OpenCL version for each device and platform
   auto RetErr = hDevice->getDeviceVersion(DevVer);
+
+  if (RetErr == CL_INVALID_OPERATION) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
   CL_RETURN_ON_FAILURE(RetErr);
 
   RetErr = hDevice->Platform->getPlatformVersion(PlatVer);

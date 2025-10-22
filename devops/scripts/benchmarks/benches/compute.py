@@ -3,19 +3,20 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from itertools import product
-import os
+import copy
 import csv
 import io
-import copy
 import math
 from enum import Enum
+from itertools import product
+from pathlib import Path
 
-from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite, TracingType
-from utils.result import BenchmarkMetadata, Result
-from .base import Benchmark, Suite
+from git_project import GitProject
 from options import options
+from utils.result import BenchmarkMetadata, Result
+
+from .base import Benchmark, Suite, TracingType
+from .compute_metadata import ComputeMetadataGenerator
 
 
 class RUNTIMES(Enum):
@@ -49,9 +50,9 @@ def runtime_to_tag_name(runtime: RUNTIMES) -> str:
 
 
 class ComputeBench(Suite):
-    def __init__(self, directory):
-        self.directory = directory
+    def __init__(self):
         self.submit_graph_num_kernels = [4, 10, 32]
+        self.project = None
 
     def name(self) -> str:
         return "Compute Benchmarks"
@@ -60,119 +61,59 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "4995560017559849a519e58978a0afdd55903e15"
+        # Oct 9, 2025
+        return "32805b4b6f8dafb4a97f21c4c85bb2f6963f8dbb"
 
     def setup(self) -> None:
         if options.sycl is None:
             return
 
-        repo_path = git_clone(
-            self.directory,
-            "compute-benchmarks-repo",
-            self.git_url(),
-            self.git_hash(),
-        )
-        build_path = create_build_path(self.directory, "compute-benchmarks-build")
+        if self.project is None:
+            self.project = GitProject(
+                self.git_url(),
+                self.git_hash(),
+                Path(options.workdir),
+                "compute-benchmarks",
+                force_rebuild=True,
+            )
 
-        configure_command = [
-            "cmake",
-            f"-B {build_path}",
-            f"-S {repo_path}",
-            f"-DCMAKE_BUILD_TYPE=Release",
+        extra_args = [
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
             f"-DCMAKE_CXX_COMPILER=clang++",
             f"-DCMAKE_C_COMPILER=clang",
         ]
-
         if options.ur_adapter == "cuda":
-            configure_command += [
+            extra_args += [
                 "-DBUILD_SYCL_WITH_CUDA=ON",
                 "-DBUILD_L0=OFF",
                 "-DBUILD_OCL=OFF",
             ]
-
         if options.ur is not None:
-            configure_command += [
+            extra_args += [
                 f"-DBUILD_UR=ON",
                 f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
             ]
 
-        run(configure_command, add_sycl=True)
-
-        run(
-            f"cmake --build {build_path} -j {options.build_jobs}",
-            add_sycl=True,
-        )
-
-        self.built = True
+        self.project.configure(extra_args, install_prefix=False, add_sycl=True)
+        self.project.build(add_sycl=True)
 
     def additional_metadata(self) -> dict[str, BenchmarkMetadata]:
-        metadata = {
-            "SubmitKernel": BenchmarkMetadata(
-                type="group",
-                description="Measures CPU time overhead of submitting kernels through different APIs.",
-                notes="Each layer builds on top of the previous layer, adding functionality and overhead.\n"
-                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
-                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
-                "Work is ongoing to reduce the overhead of the SYCL API\n",
-                tags=["submit", "micro", "SYCL", "UR", "L0"],
-                range_min=0.0,
-            ),
-            "SinKernelGraph": BenchmarkMetadata(
-                type="group",
-                unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
-                tags=["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
-            ),
-            "SubmitGraph": BenchmarkMetadata(
-                type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
-            ),
-            "FinalizeGraph": BenchmarkMetadata(
-                type="group", tags=["finalize", "micro", "SYCL", "graph"]
-            ),
-        }
-
-        # Add metadata for all SubmitKernel group variants
-        base_metadata = metadata["SubmitKernel"]
-
-        for order in ["in order", "out of order"]:
-            for completion in ["", " with completion"]:
-                for events in ["", " using events"]:
-                    group_name = f"SubmitKernel {order}{completion}{events} long kernel"
-                    metadata[group_name] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
-                    )
-
-                    # CPU count variants
-                    cpu_count_group = f"{group_name}, CPU count"
-                    metadata[cpu_count_group] = BenchmarkMetadata(
-                        type="group",
-                        description=f"Measures CPU time overhead of submitting {order} kernels with longer execution times through different APIs.",
-                        notes=base_metadata.notes,
-                        tags=base_metadata.tags,
-                        range_min=base_metadata.range_min,
-                    )
-
-        # Add metadata for all SubmitGraph group variants
-        base_metadata = metadata["SubmitGraph"]
-        for order in ["in order", "out of order"]:
-            for completion in ["", " with completion"]:
-                for events in ["", " using events"]:
-                    for num_kernels in self.submit_graph_num_kernels:
-                        group_name = f"SubmitGraph {order}{completion}{events}, {num_kernels} kernels"
-                        metadata[group_name] = BenchmarkMetadata(
-                            type="group",
-                            tags=base_metadata.tags,
-                        )
-
-        return metadata
+        """
+        Returns:
+            Dictionary mapping group names to their metadata
+        """
+        # Generate metadata based on actual benchmark instances
+        generator = ComputeMetadataGenerator()
+        benchmarks = self.benchmarks()
+        return generator.generate_metadata_from_benchmarks(benchmarks)
 
     def benchmarks(self) -> list[Benchmark]:
+        """
+        Returns:
+            List of all possible benchmark instances
+        """
         benches = []
 
         # hand-picked value so that total execution time of the benchmark is
@@ -211,7 +152,7 @@ class ComputeBench(Suite):
                         kernel_exec_time,
                     )
                 )
-                if runtime == RUNTIMES.SYCL:
+                if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW, RUNTIMES.UR):
                     # Create CPU count variant
                     benches.append(
                         SubmitKernel(
@@ -262,6 +203,11 @@ class ComputeBench(Suite):
             measure_completion_time,
             use_events,
         ) in submit_graph_params:
+            # Non-sycl runtimes have to be run with emulated graphs,
+            # see: https://github.com/intel/compute-benchmarks/commit/d81d5d602739482b9070c872a28c0b5ebb41de70
+            emulate_graphs = (
+                0 if runtime in (RUNTIMES.SYCL, RUNTIMES.SYCL_PREVIEW) else 1
+            )
             benches.append(
                 GraphApiSubmitGraph(
                     self,
@@ -270,6 +216,7 @@ class ComputeBench(Suite):
                     num_kernels,
                     measure_completion_time,
                     use_events,
+                    emulate_graphs,
                     useHostTasks=0,
                 )
             )
@@ -283,6 +230,7 @@ class ComputeBench(Suite):
                         num_kernels,
                         measure_completion_time,
                         use_events,
+                        emulate_graphs,
                         useHostTasks=0,
                         profiler_type=PROFILERS.CPU_COUNTER,
                     )
@@ -353,14 +301,6 @@ class ComputeBench(Suite):
         return benches
 
 
-def parse_unit_type(compute_unit):
-    if "[count]" in compute_unit:
-        return "instr"
-    elif "[us]" in compute_unit:
-        return "μs"
-    return compute_unit.replace("[", "").replace("]", "")
-
-
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,
@@ -370,7 +310,7 @@ class ComputeBenchmark(Benchmark):
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench.directory, bench)
+        super().__init__(bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
@@ -383,6 +323,22 @@ class ComputeBenchmark(Benchmark):
 
         self._validate_attr("iterations_regular")
         self._validate_attr("iterations_trace")
+
+    @property
+    def benchmark_bin(self) -> Path:
+        """Returns the path to the benchmark binary"""
+        return self.bench.project.build_dir / "bin" / self.bench_name
+
+    def cpu_count_str(self, separator: str = "") -> str:
+        # Note: SYCL CI currently relies on this "CPU count" value.
+        # Please update /devops/scripts/benchmarks/compare.py if this value
+        # is changed. See compare.py usage (w.r.t. --regression-filter) in
+        # /devops/actions/run-tests/benchmarks/action.yml.
+        return (
+            f"{separator} CPU count"
+            if self.profiler_type == PROFILERS.CPU_COUNTER
+            else ""
+        )
 
     def get_iters(self, run_trace: TracingType):
         """Returns the number of iterations to run for the given tracing type."""
@@ -437,11 +393,6 @@ class ComputeBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
-    def setup(self):
-        self.benchmark_bin = os.path.join(
-            self.bench.directory, "compute-benchmarks-build", "bin", self.bench_name
-        )
-
     def explicit_group(self):
         return ""
 
@@ -455,7 +406,7 @@ class ComputeBenchmark(Benchmark):
         force_trace: bool = False,
     ) -> list[Result]:
         command = [
-            f"{self.benchmark_bin}",
+            str(self.benchmark_bin),
             f"--test={self.test}",
             "--csv",
             "--noHeaders",
@@ -471,23 +422,23 @@ class ComputeBenchmark(Benchmark):
         )
         parsed_results = self.parse_output(result)
         ret = []
-        for label, median, stddev, unit in parsed_results:
-            extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
+        for median, stddev in parsed_results:
+            unit = "instr" if self.profiler_type == PROFILERS.CPU_COUNTER else "μs"
             ret.append(
                 Result(
-                    label=self.name() + extra_label,
+                    label=self.name(),
                     value=median,
                     stddev=stddev,
                     command=command,
                     env=env_vars,
-                    unit=parse_unit_type(unit),
+                    unit=unit,
                     git_url=self.bench.git_url(),
                     git_hash=self.bench.git_hash(),
                 )
             )
         return ret
 
-    def parse_output(self, output):
+    def parse_output(self, output: str) -> list[tuple[float, float]]:
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
         next(reader, None)
@@ -497,7 +448,6 @@ class ComputeBenchmark(Benchmark):
             if data_row is None:
                 break
             try:
-                label = data_row[0]
                 mean = float(data_row[1])
                 median = float(data_row[2])
                 # compute benchmarks report stddev as %
@@ -505,8 +455,7 @@ class ComputeBenchmark(Benchmark):
                 if not math.isfinite(stddev):
                     stddev = 0.0  # Default to 0.0 if stddev is invalid
 
-                unit = data_row[7]
-                results.append((label, median, stddev, unit))
+                results.append((median, stddev))
             except (ValueError, IndexError) as e:
                 raise ValueError(f"Error parsing output: {e}")
         if len(results) == 0:
@@ -587,7 +536,7 @@ class SubmitKernel(ComputeBenchmark):
             f" KernelExecTime={self.KernelExecTime}" if self.KernelExecTime != 1 else ""
         )
 
-        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}"
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
         order = "in order" if self.ioq else "out of order"
@@ -599,7 +548,7 @@ class SubmitKernel(ComputeBenchmark):
         if self.KernelExecTime != 1:
             info.append(f"KernelExecTime={self.KernelExecTime}")
         additional_info = f" {' '.join(info)}" if info else ""
-        return f"{self.runtime.value.upper()} SubmitKernel {order}{additional_info}, NumKernels {self.NumKernels}"
+        return f"{self.runtime.value.upper()} SubmitKernel {order}{additional_info}, NumKernels {self.NumKernels}{self.cpu_count_str(separator=',')}"
 
     def explicit_group(self):
         order = "in order" if self.ioq else "out of order"
@@ -608,7 +557,7 @@ class SubmitKernel(ComputeBenchmark):
 
         kernel_exec_time_str = f" long kernel" if self.KernelExecTime != 1 else ""
 
-        return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}"
+        return f"SubmitKernel {order}{completion_str}{events_str}{kernel_exec_time_str}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -626,7 +575,7 @@ class SubmitKernel(ComputeBenchmark):
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         iters = self.get_iters(run_trace)
-        bin_args = [
+        return [
             f"--iterations={iters}",
             f"--Ioq={self.ioq}",
             f"--MeasureCompletion={self.MeasureCompletion}",
@@ -634,26 +583,8 @@ class SubmitKernel(ComputeBenchmark):
             f"--NumKernels={self.NumKernels}",
             f"--KernelExecTime={self.KernelExecTime}",
             f"--UseEvents={self.UseEvents}",
+            f"--profilerType={self.profiler_type.value}",
         ]
-        if self.runtime == RUNTIMES.SYCL:
-            bin_args.append(f"--profilerType={self.profiler_type.value}")
-        return bin_args
-
-    def get_metadata(self) -> dict[str, BenchmarkMetadata]:
-        metadata_dict = super().get_metadata()
-
-        # Create CPU count variant with modified display name and explicit_group
-        cpu_count_name = self.name() + " CPU count"
-        cpu_count_metadata = copy.deepcopy(metadata_dict[self.name()])
-        cpu_count_display_name = self.display_name() + ", CPU count"
-        cpu_count_explicit_group = (
-            self.explicit_group() + ", CPU count" if self.explicit_group() else ""
-        )
-        cpu_count_metadata.display_name = cpu_count_display_name
-        cpu_count_metadata.explicit_group = cpu_count_explicit_group
-        metadata_dict[cpu_count_name] = cpu_count_metadata
-
-        return metadata_dict
 
 
 class ExecImmediateCopyQueue(ComputeBenchmark):
@@ -677,11 +608,11 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
 
     def name(self):
         order = "in order" if self.ioq else "out of order"
-        return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}"
+        return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
         order = "in order" if self.ioq else "out of order"
-        return f"SYCL ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}"
+        return f"SYCL ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -726,10 +657,10 @@ class QueueInOrderMemcpy(ComputeBenchmark):
         )
 
     def name(self):
-        return f"memory_benchmark_sycl QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}"
+        return f"memory_benchmark_sycl QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"SYCL QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}"
+        return f"SYCL QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         operation = "copy-only" if self.isCopyOnly else "copy and command submission"
@@ -768,10 +699,10 @@ class QueueMemcpy(ComputeBenchmark):
         )
 
     def name(self):
-        return f"memory_benchmark_sycl QueueMemcpy from {self.source} to {self.destination}, size {self.size}"
+        return f"memory_benchmark_sycl QueueMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"SYCL QueueMemcpy from {self.source} to {self.destination}, size {self.size}"
+        return f"SYCL QueueMemcpy from {self.source} to {self.destination}, size {self.size}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
@@ -1029,6 +960,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         numKernels,
         measureCompletionTime,
         useEvents,
+        emulate_graphs,
         useHostTasks,
         profiler_type=PROFILERS.TIMER,
     ):
@@ -1037,6 +969,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         self.measureCompletionTime = measureCompletionTime
         self.useEvents = useEvents
         self.useHostTasks = useHostTasks
+        self.emulateGraphs = emulate_graphs
         self.ioq_str = "in order" if self.inOrderQueue else "out of order"
         self.measure_str = (
             " with measure completion" if self.measureCompletionTime else ""
@@ -1058,7 +991,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return super().supported_runtimes() + [RUNTIMES.SYCL_PREVIEW]
 
     def explicit_group(self):
-        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
+        return f"SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return (
@@ -1067,10 +1000,10 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         )
 
     def name(self):
-        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph{self.use_events_str}{self.host_tasks_str} numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels"
+        return f"{self.runtime.value.upper()} SubmitGraph {self.ioq_str}{self.measure_str}{self.use_events_str}{self.host_tasks_str}, {self.numKernels} kernels{self.cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return [
@@ -1083,7 +1016,7 @@ class GraphApiSubmitGraph(ComputeBenchmark):
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         iters = self.get_iters(run_trace)
-        bin_args = [
+        return [
             f"--iterations={iters}",
             f"--NumKernels={self.numKernels}",
             f"--MeasureCompletionTime={self.measureCompletionTime}",
@@ -1093,10 +1026,9 @@ class GraphApiSubmitGraph(ComputeBenchmark):
             f"--UseEvents={self.useEvents}",
             "--UseExplicit=0",
             f"--UseHostTasks={self.useHostTasks}",
+            f"--profilerType={self.profiler_type.value}",
+            f"--EmulateGraphs={self.emulateGraphs}",
         ]
-        if self.runtime == RUNTIMES.SYCL:
-            bin_args.append(f"--profilerType={self.profiler_type.value}")
-        return bin_args
 
 
 class UllsEmptyKernel(ComputeBenchmark):
@@ -1120,32 +1052,28 @@ class UllsEmptyKernel(ComputeBenchmark):
         return [RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]
 
     def explicit_group(self):
-        return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}"
+        return f"EmptyKernel, wgc: {self.wgc}, wgs: {self.wgs}{self.cpu_count_str(separator=',')}"
 
     def description(self) -> str:
         return ""
 
     def name(self):
-        return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}"
+        return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}{self.cpu_count_str()}"
 
     def display_name(self) -> str:
-        return (
-            f"{self.runtime.value.upper()} EmptyKernel, wgc {self.wgc}, wgs {self.wgs}"
-        )
+        return f"{self.runtime.value.upper()} EmptyKernel, wgc {self.wgc}, wgs {self.wgs}{self.cpu_count_str(separator=',')}"
 
     def get_tags(self):
         return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self, run_trace: TracingType = TracingType.NONE) -> list[str]:
         iters = self.get_iters(run_trace)
-        bin_args = [
+        return [
             f"--iterations={iters}",
             f"--wgs={self.wgs}",
             f"--wgc={self.wgc}",
+            f"--profilerType={self.profiler_type.value}",
         ]
-        if self.runtime == RUNTIMES.SYCL:
-            bin_args.append(f"--profilerType={self.profiler_type.value}")
-        return bin_args
 
 
 class UllsKernelSwitch(ComputeBenchmark):

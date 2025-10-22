@@ -247,9 +247,10 @@ private:
 class PrecompilePreambleAction : public ASTFrontendAction {
 public:
   PrecompilePreambleAction(std::shared_ptr<PCHBuffer> Buffer, bool WritePCHFile,
-                           PreambleCallbacks &Callbacks)
+                           PreambleCallbacks &Callbacks,
+                           bool AllowASTWithErrors = true)
       : Buffer(std::move(Buffer)), WritePCHFile(WritePCHFile),
-        Callbacks(Callbacks) {}
+        Callbacks(Callbacks), AllowASTWithErrors(AllowASTWithErrors) {}
 
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
@@ -285,6 +286,7 @@ private:
   bool WritePCHFile; // otherwise the PCH is written into the PCHBuffer only.
   std::unique_ptr<llvm::raw_pwrite_stream> FileOS; // null if in-memory
   PreambleCallbacks &Callbacks;
+  bool AllowASTWithErrors;
 };
 
 class PrecompilePreambleConsumer : public PCHGenerator {
@@ -292,10 +294,11 @@ public:
   PrecompilePreambleConsumer(PrecompilePreambleAction &Action, Preprocessor &PP,
                              ModuleCache &ModCache, StringRef isysroot,
                              std::shared_ptr<PCHBuffer> Buffer,
-                             const CodeGenOptions &CodeGenOpts)
+                             const CodeGenOptions &CodeGenOpts,
+                             bool AllowASTWithErrors = true)
       : PCHGenerator(PP, ModCache, "", isysroot, std::move(Buffer), CodeGenOpts,
                      ArrayRef<std::shared_ptr<ModuleFileExtension>>(),
-                     /*AllowASTWithErrors=*/true),
+                     AllowASTWithErrors),
         Action(Action) {}
 
   bool HandleTopLevelDecl(DeclGroupRef DG) override {
@@ -337,7 +340,7 @@ PrecompilePreambleAction::CreateASTConsumer(CompilerInstance &CI,
 
   return std::make_unique<PrecompilePreambleConsumer>(
       *this, CI.getPreprocessor(), CI.getModuleCache(), Sysroot, Buffer,
-      CI.getCodeGenOpts());
+      CI.getCodeGenOpts(), AllowASTWithErrors);
 }
 
 template <class T> bool moveOnNoError(llvm::ErrorOr<T> Val, T &Output) {
@@ -415,7 +418,8 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
     IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps, bool StoreInMemory,
-    StringRef StoragePath, PreambleCallbacks &Callbacks) {
+    StringRef StoragePath, PreambleCallbacks &Callbacks,
+    bool AllowASTWithErrors) {
   assert(VFS && "VFS is null");
 
   auto PreambleInvocation = std::make_shared<CompilerInvocation>(Invocation);
@@ -512,7 +516,7 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
   auto Act = std::make_unique<PrecompilePreambleAction>(
       std::move(Buffer),
       /*WritePCHFile=*/Storage->getKind() == PCHStorage::Kind::TempFile,
-      Callbacks);
+      Callbacks, AllowASTWithErrors);
   if (!Act->BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]))
     return BuildPreambleError::BeginSourceFileFailed;
 
@@ -721,6 +725,10 @@ void PrecompiledPreamble::OverridePreamble(
     llvm::MemoryBuffer *MainFileBuffer) const {
   auto Bounds = ComputePreambleBounds(CI.getLangOpts(), *MainFileBuffer, 0);
   configurePreamble(Bounds, CI, VFS, MainFileBuffer);
+}
+
+llvm::StringRef PrecompiledPreamble::memoryContents() const {
+  return Storage->memoryContents();
 }
 
 PrecompiledPreamble::PrecompiledPreamble(
