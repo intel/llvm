@@ -154,8 +154,8 @@ protected:
     std::vector<uint8_t> heapBuffer;
     size_t size = 0;
     bool useHeap = false;
-    
-    const void* data() const {
+
+    const void *data() const {
       return useHeap ? heapBuffer.data() : inlineBuffer.data();
     }
   };

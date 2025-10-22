@@ -8,11 +8,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "command_list_manager.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
 #include "../ur_interface_loader.hpp"
 #include "command_buffer.hpp"
+#include "command_list_manager.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
@@ -37,7 +37,6 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
       size, zeCommandList.get(), waitListView));
 
   // Store pattern in event if this is an async operation
-  // This prevents use-after-return bug when pPattern points to stack memory
   const void *patternPtr = pPattern;
   if (phEvent && zeSignalEvent) {
     phEvent->retainFillPattern(pPattern, patternSize);
@@ -46,8 +45,6 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
 
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
-  // WORKAROUND: Level Zero driver rejects zeCommandListAppendMemoryFill when
-  // patternSize == size, returning ZE_RESULT_ERROR_INVALID_SIZE (0x78000008).
   if (isPowerOf2(patternSize) && patternSize != size) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
                (zeCommandList.get(), pDst, patternPtr, patternSize, size,

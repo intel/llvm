@@ -141,14 +141,15 @@ uint64_t ur_event_handle_t_::getEventEndTimestamp() {
   return profilingData.getEventEndTimestamp();
 }
 
-void ur_event_handle_t_::retainFillPattern(const void *pPattern, size_t patternSize) {
+void ur_event_handle_t_::retainFillPattern(const void *pPattern,
+                                           size_t patternSize) {
   if (!fillPattern) {
     fillPattern.emplace();
   }
-  
+
   auto &storage = fillPattern.value();
   storage.size = patternSize;
-  
+
   // Small buffer optimization: use inline buffer for patterns <= 16 bytes
   if (patternSize <= FillPatternStorage::INLINE_SIZE) {
     std::memcpy(storage.inlineBuffer.data(), pPattern, patternSize);
