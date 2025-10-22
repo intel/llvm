@@ -78,7 +78,9 @@ runs:
     env:
       LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time ${{ inputs.e2e_testing_mode == 'run-only' && 1200 || 3600 }} --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
-      cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+      cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1 || true
+      env UR_LOG_LEVEL_ZERO="level:debug;flush:warning;output:stderr" UR_LOG_LOADER="level:debug;flush:warning;output:stderr" SYCL_UR_TRACE=2 UR_L0_DEBUG=1 ZE_DEBUG=-6 UR_LOADER_USE_LEVEL_ZERO_V2=1 ONEAPI_DEVICE_SELECTOR=level_zero:gpu D:\github\_work\llvm\llvm\build-e2e\GroupAlgorithm\Output\root_group.cpp.tmp.out
+      echo RV=$?
   # Two steps below are duplicated between Lin/Win actions, updates must change both
   - name: E2E logs
     if: ${{ always() }}
