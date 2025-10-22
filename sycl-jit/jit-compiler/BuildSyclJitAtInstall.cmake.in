@@ -1,0 +1,92 @@
+# BuildSyclJitAtInstall.cmake.in
+# This script is EXECUTED AT INSTALL TIME by 'ninja install'
+
+set(INSTALL_ROOT_DIR    "${CMAKE_INSTALL_PREFIX}")
+set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
+set(INSTALL_LIB_DIR     "${CMAKE_INSTALL_PREFIX}/lib")
+set(INSTALL_BIN_DIR     "${CMAKE_INSTALL_PREFIX}/bin")
+
+# These variables are baked in from configure_file
+set(PYTHON_EXE          "@PYTHON_EXE_FOR_INSTALL@")
+set(GENERATE_SCRIPT     "@GENERATE_SCRIPT_PATH@")
+set(SCRIPT_SOURCE_DIR   "@SCRIPT_SOURCE_DIR_FOR_INSTALL@")
+set(COMPILE_FLAGS_LIST  "@JIT_INSTALL_COMPILE_FLAGS@")
+set(LINK_FLAGS_LIST     "@JIT_INSTALL_LINK_FLAGS@")
+
+# We use the *installed* clang++, which must be present.
+set(COMPILER_EXE        "@COMPILER_PATH_FOR_INSTALL@")
+
+# Define a temporary build directory
+set(TEMP_BUILD_DIR "${CMAKE_BINARY_DIR}/sycl-jit-install-build")
+file(MAKE_DIRECTORY ${TEMP_BUILD_DIR})
+set(RESOURCE_CPP "${TEMP_BUILD_DIR}/resource.cpp")
+
+# Generate resource.cpp using generate.py
+if(NOT EXISTS ${PYTHON_EXE})
+    message(FATAL_ERROR "  -- Python executable not found at: ${PYTHON_EXE}")
+endif()
+if(NOT EXISTS ${GENERATE_SCRIPT})
+    message(FATAL_ERROR "  -- Generate script not found at: ${GENERATE_SCRIPT}")
+endif()
+
+# This is the key: We call the *same script* but change
+# --toolchain-dir from ${CMAKE_BINARY_DIR} to ${INSTALL_ROOT_DIR}
+execute_process(
+    COMMAND ${PYTHON_EXE} ${GENERATE_SCRIPT}
+            --toolchain-dir ${INSTALL_ROOT_DIR}
+            --output ${RESOURCE_CPP}
+            --prefix "/sycl-jit-toolchain/" 
+    RESULT_VARIABLE GEN_RESULT
+    OUTPUT_VARIABLE GEN_OUTPUT
+    ERROR_VARIABLE  GEN_OUTPUT
+)
+if(NOT GEN_RESULT EQUAL 0)
+    message(FATAL_ERROR "  Failed to generate resource.cpp at install time:\n  RESULT: ${GEN_RESULT}\n  OUTPUT: ${GEN_OUTPUT}")
+endif()
+
+# Compile and link the new, clean sycl-jit.so
+set(JIT_SOURCES "@JIT_SOURCES_STRING_LIST@")
+
+# Add our newly generated *clean* resource.cpp to the list
+list(APPEND JIT_SOURCES ${RESOURCE_CPP})
+set(OUTPUT_FILE "${INSTALL_LIB_DIR}/libsycl-jit.so")
+
+message(STATUS "  Compiling and linking ${OUTPUT_FILE}...")
+if(NOT EXISTS ${COMPILER_EXE})
+    message(FATAL_ERROR "  -- clang++ not found at expected install path: ${COMPILER_EXE}")
+endif()
+
+# Build include paths list
+set(INCLUDE_FLAGS_LIST "")
+list(APPEND INCLUDE_FLAGS_LIST "-I${INSTALL_INCLUDE_DIR}")
+list(APPEND INCLUDE_FLAGS_LIST "-I${INSTALL_INCLUDE_DIR}/LLVMSPIRVLib")
+list(APPEND INCLUDE_FLAGS_LIST "-I@LLVM_INCLUDE_DIR_FOR_INSTALL@")
+list(APPEND INCLUDE_FLAGS_LIST "-I@SPIRV_INCLUDE_DIRS_FOR_INSTALL@")
+list(APPEND INCLUDE_FLAGS_LIST "-I@CLANG_SOURCE_INCLUDE_DIR_FOR_INSTALL@")
+list(APPEND INCLUDE_FLAGS_LIST "-I@CLANG_BUILD_INCLUDE_DIR_FOR_INSTALL@")  
+list(APPEND INCLUDE_FLAGS_LIST "-I@LLVM_BUILD_INCLUDE_DIR_FOR_INSTALL@")   # Config
+list(APPEND INCLUDE_FLAGS_LIST "-I@SYCL_JIT_PASSES_DIR_FOR_INSTALL@")
+list(APPEND INCLUDE_FLAGS_LIST "-I@SYCL_JIT_LOCAL_INCLUDE_DIR_FOR_INSTALL@")
+list(APPEND INCLUDE_FLAGS_LIST "-I@SYCL_JIT_LOCAL_LIB_DIR_FOR_INSTALL@")
+
+set(JIT_LOCAL_SOURCE_DIRS "@JIT_INCLUDE_DIRS_STRING_LIST@")
+foreach(include_dir ${JIT_LOCAL_SOURCE_DIRS})
+  list(APPEND INCLUDE_FLAGS_LIST "-I${include_dir}")
+endforeach()
+
+
+execute_process(
+    COMMAND ${COMPILER_EXE}
+            ${COMPILE_FLAGS_LIST}
+            ${INCLUDE_FLAGS_LIST}   # <-- Use the new full list
+            -o ${OUTPUT_FILE}
+            ${JIT_SOURCES}
+            ${LINK_FLAGS_LIST}
+    RESULT_VARIABLE COMPILE_RESULT
+    OUTPUT_VARIABLE COMPILE_OUTPUT
+    ERROR_VARIABLE  COMPILE_OUTPUT
+)
+
+if(NOT COMPILE_RESULT EQUAL 0)
+    message(FATAL_ERROR "  Failed to build sycl-jit.so at install time:\n${COMPILE_OUTPUT}")
+endif()

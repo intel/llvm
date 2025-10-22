@@ -211,8 +211,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     add_dependencies(${LIB_NAME} sycl-jit)
     add_dependencies(${LIB_OBJ_NAME} sycl-jit)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
-    set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
-       sycl-jit)
     target_compile_definitions(${LIB_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)

@@ -636,6 +636,19 @@ install(
   DESTINATION ${header_install_dir}/zos_wrappers
   COMPONENT clang-resource-headers)
 
+
+# Install clang resource headers for the sycl-jit component
+install(
+  FILES ${files} ${generated_files}
+  DESTINATION ${header_install_dir}
+  COMPONENT sycl-jit-resources)
+
+install(
+  FILES ${llvm_offload_wrapper_files}
+  DESTINATION ${header_install_dir}/llvm_offload_wrappers
+  COMPONENT sycl-jit-resources)
+
+
 #############################################################
 # Install rules for separate header lists
 install(

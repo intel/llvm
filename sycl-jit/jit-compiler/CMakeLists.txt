@@ -10,8 +10,9 @@ set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
 set(SYCL_JIT_RESOURCE_DEPS
-  sycl-headers    # include/sycl
-  clang           # lib/clang/N/include
+  sycl-headers                # include/sycl
+  clang                       # lib/clang/N/include
+  opencl-resource-headers     # fixes build race. not actually used.
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
@@ -70,17 +71,21 @@ add_custom_command(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
 )
 
+set(SYCL_JIT_SOURCES_LIST
+  lib/translation/JITContext.cpp
+  lib/translation/SPIRVLLVMTranslation.cpp
+  lib/translation/Translation.cpp
+  lib/materializer/MaterializerPipeline.cpp
+  lib/materializer/Materializer.cpp
+  lib/rtc/DeviceCompilation.cpp
+  lib/rtc/ESIMD.cpp
+  lib/rtc/RTC.cpp
+  lib/helper/ConfigHelper.cpp
+  lib/helper/ErrorHelper.cpp
+)
+
 add_llvm_library(sycl-jit
-   lib/translation/JITContext.cpp
-   lib/translation/SPIRVLLVMTranslation.cpp
-   lib/translation/Translation.cpp
-   lib/materializer/MaterializerPipeline.cpp
-   lib/materializer/Materializer.cpp
-   lib/rtc/DeviceCompilation.cpp
-   lib/rtc/ESIMD.cpp
-   lib/rtc/RTC.cpp
-   lib/helper/ConfigHelper.cpp
-   lib/helper/ErrorHelper.cpp
+   ${SYCL_JIT_SOURCES_LIST}
 
    ${SYCL_JIT_RESOURCE_OBJ}
 
@@ -119,6 +124,8 @@ add_llvm_library(sycl-jit
    clangTooling
    clangSerialization
 )
+
+
 
 if(WIN32)
   target_link_libraries(sycl-jit PRIVATE Shlwapi)
@@ -170,3 +177,86 @@ if(NOT MSVC AND NOT APPLE)
     sycl-jit PRIVATE "-Wl,--version-script=${linker_script}")
   set_target_properties(sycl-jit PROPERTIES LINK_DEPENDS ${linker_script})
 endif()
+
+
+# These variables for the install script
+set(PYTHON_EXE_FOR_INSTALL "${Python3_EXECUTABLE}")
+set(GENERATE_SCRIPT_PATH "${CMAKE_CURRENT_LIST_DIR}/utils/generate.py")
+set(SCRIPT_SOURCE_DIR_FOR_INSTALL "${CMAKE_CURRENT_LIST_DIR}")
+set(COMPILER_PATH_FOR_INSTALL "${CMAKE_INSTALL_PREFIX}/bin/clang++")
+set(LLVM_INCLUDE_DIR_FOR_INSTALL ${LLVM_MAIN_INCLUDE_DIR})
+set(SPIRV_INCLUDE_DIRS_FOR_INSTALL ${LLVM_SPIRV_INCLUDE_DIRS})
+set(CLANG_SOURCE_INCLUDE_DIR_FOR_INSTALL "${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/include")
+set(CLANG_BUILD_INCLUDE_DIR_FOR_INSTALL "${CMAKE_BINARY_DIR}/tools/clang/include")
+set(SYCL_JIT_PASSES_DIR_FOR_INSTALL "${CMAKE_CURRENT_LIST_DIR}/../passes")
+set(SYCL_JIT_LOCAL_INCLUDE_DIR_FOR_INSTALL "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(SYCL_JIT_LOCAL_LIB_DIR_FOR_INSTALL "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+set(LLVM_BUILD_INCLUDE_DIR_FOR_INSTALL "${LLVM_BINARY_DIR}/include")
+set(JIT_INSTALL_COMPILE_FLAGS "-std=c++17;-fPIC;-Wno-c23-extensions") 
+set(JIT_INSTALL_LINK_FLAGS    "-shared") # Add other link flags
+
+# Create a new list  for the install script
+set(JIT_SOURCES_FOR_INSTALL "")
+foreach(src_file ${SYCL_JIT_SOURCES_LIST})
+  list(APPEND JIT_SOURCES_FOR_INSTALL "${CMAKE_CURRENT_LIST_DIR}/${src_file}")
+endforeach()
+
+# Create a list of local include paths based on the source list
+set(JIT_INCLUDE_DIRS_FOR_INSTALL "")
+foreach(src_file ${SYCL_JIT_SOURCES_LIST})
+  get_filename_component(src_dir "${CMAKE_CURRENT_LIST_DIR}/${src_file}" DIRECTORY)
+  list(APPEND JIT_INCLUDE_DIRS_FOR_INSTALL ${src_dir})
+endforeach()
+
+list(APPEND JIT_INCLUDE_DIRS_FOR_INSTALL "${CMAKE_CURRENT_LIST_DIR}/include")
+
+# Remove duplicates and pass to the script
+list(REMOVE_DUPLICATES JIT_INCLUDE_DIRS_FOR_INSTALL)
+set(JIT_INCLUDE_DIRS_STRING_LIST "${JIT_INCLUDE_DIRS_FOR_INSTALL}")
+set(JIT_SOURCES_STRING_LIST "${JIT_SOURCES_FOR_INSTALL}")
+
+set(INSTALL_SCRIPT_TEMPLATE "${CMAKE_CURRENT_LIST_DIR}/BuildSyclJitAtInstall.cmake.in")
+set(INSTALL_SCRIPT_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/BuildSyclJitAtInstall.cmake")
+
+# Use configure_file to pass the variables
+configure_file(
+  ${INSTALL_SCRIPT_TEMPLATE}
+  ${INSTALL_SCRIPT_GENERATED}
+  @ONLY
+)
+
+install(SCRIPT "${INSTALL_SCRIPT_GENERATED}" COMPONENT sycl-jit)
+set(CPACK_COMPONENT_SYCL_JIT_DEPENDS
+  "sycl-jit-resources"
+  # From LINK_COMPONENTS
+  "BitReader"
+  "BitWriter"
+  "Core"
+  "Support"
+  "Option"
+  "Analysis"
+  "IPO"
+  "TransformUtils"
+  "Passes"
+  "IRReader"
+  "Linker"
+  "ScalarOpts"
+  "InstCombine"
+  "Target"
+  "TargetParser"
+  "MC"
+  "SYCLLowerIR"
+  "SYCLPostLink"
+  "SPIRVLib"
+  ${LLVM_TARGETS_TO_BUILD}
+  # From LINK_LIBS
+  "clangBasic"
+  "clangDriver"
+  "clangFrontend"
+  "clangCodeGen"
+  "clangTooling"
+  "clangSerialization"
+  # Also add the main header component
+  "LLVMHeaders"
+  "clangHeaders"
+  )

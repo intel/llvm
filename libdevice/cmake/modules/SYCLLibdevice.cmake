@@ -173,6 +173,10 @@ function(compile_lib_ext filename)
   install( FILES ${devicelib-file}
            DESTINATION ${install_dest_${ARG_FILETYPE}}
            COMPONENT libsycldevice)
+  
+  install( FILES ${devicelib-file}
+           DESTINATION ${install_dest_${ARG_FILETYPE}}
+           COMPONENT sycl-jit-resources)
 endfunction()
 
 # Links together one or more bytecode files
