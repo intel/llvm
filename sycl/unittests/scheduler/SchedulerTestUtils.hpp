@@ -222,14 +222,16 @@ class MockHandler : public sycl::handler {
 public:
   MockHandler(sycl::detail::queue_impl &Queue, bool CallerNeedsEvent)
       : sycl::handler(std::make_unique<sycl::detail::handler_impl>(
-            Queue, nullptr, CallerNeedsEvent)) {}
+            Queue, CallerNeedsEvent)) {}
   // Methods
   using sycl::handler::addReduction;
   using sycl::handler::getType;
   using sycl::handler::impl;
   using sycl::handler::setNDRangeDescriptor;
 
-  sycl::detail::NDRDescT &getNDRDesc() { return impl->MNDRDesc; }
+  sycl::detail::NDRDescT &getNDRDesc() {
+    return impl->MKernelData.getNDRDesc();
+  }
   sycl::detail::code_location &getCodeLoc() { return MCodeLoc; }
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;
@@ -252,10 +254,10 @@ public:
   std::vector<sycl::detail::EventImplPtr> &getEvents() {
     return impl->CGData.MEvents;
   }
-  std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
-  sycl::detail::KernelNameStrT getKernelName() {
-    return toKernelNameStrT(MKernelName);
+  std::vector<sycl::detail::ArgDesc> &getArgs() {
+    return impl->MKernelData.getArgs();
   }
+  std::string_view getKernelName() { return impl->MKernelData.getKernelName(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
@@ -303,10 +305,11 @@ public:
       CommandGroup.reset(new sycl::detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(impl->MKernelBundle), std::move(CGData), getArgs(),
-          getKernelName(), impl->MKernelNameBasedCachePtr, getStreamStorage(),
-          impl->MAuxiliaryResources, getType(), {}, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-          getCodeLoc()));
+          *impl->MKernelData.getDeviceKernelInfoPtr(), getStreamStorage(),
+          impl->MAuxiliaryResources, getType(), {},
+          impl->MKernelData.isCooperative(),
+          impl->MKernelData.usesClusterLaunch(),
+          impl->MKernelData.getKernelWorkGroupMemorySize(), getCodeLoc()));
       break;
     }
     case sycl::detail::CGType::CodeplayHostTask: {

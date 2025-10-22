@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/__spirv/spirv_types.hpp>       // for Scope
-#include <sycl/__spirv/spirv_vars.hpp>        // for initLocalInvocationId
+#include <sycl/__spirv/spirv_vars.hpp> // for initBuiltInLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
@@ -17,7 +17,6 @@
 #include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
 #include <sycl/detail/type_traits.hpp>        // for is_bool, change_base_...
 #include <sycl/device_event.hpp>              // for device_event
-#include <sycl/exception.hpp> // for make_error_code, errc, exce...
 #include <sycl/group.hpp>     // for group
 #include <sycl/id.hpp>        // for id
 #include <sycl/item.hpp>      // for item

@@ -20,7 +20,7 @@
 struct fooA {
     int *p;
 
-// CHECK: define dso_local spir_kernel void @_ZTS4fooA(ptr addrspace(1) {{.*}}%[[ARG:.*]])
+// CHECK: define {{.*}}spir_kernel void @_ZTS4fooA(ptr addrspace(1) {{.*}}%[[ARG:.*]])
 // CHECK: %[[ARG_ADDR:.*]] = alloca ptr addrspace(1), align 8
 // CHECK: %[[ARG_ADDR_AS_CAST:.*]] = addrspacecast ptr %[[ARG_ADDR]] to ptr addrspace(4)
 // CHECK: store ptr addrspace(1) %[[ARG]], ptr addrspace(4) %[[ARG_ADDR_AS_CAST]], align 8
@@ -39,7 +39,7 @@ struct fooA {
 struct fooB {
     float f;
 
-// CHECK: define dso_local spir_kernel void @_ZTS4fooB({{.*}}%[[ARG:.*]])
+// CHECK: define {{.*}}spir_kernel void @_ZTS4fooB({{.*}}%[[ARG:.*]])
 // CHECK: %[[ARG_ADDR:.*]] = alloca float, align 4
 // CHECK: %[[ARG_ADDR_AS_CAST:.*]] = addrspacecast ptr %[[ARG_ADDR]] to ptr addrspace(4)
 // CHECK: store float %[[ARG]], ptr addrspace(4) %[[ARG_ADDR_AS_CAST]], align 4
@@ -58,7 +58,7 @@ struct bar {
 struct fooC {
     bar b;
 
-// CHECK: define dso_local spir_kernel void @_ZTS4fooC({{.*}}%[[ARG:.*]])
+// CHECK: define {{.*}}spir_kernel void @_ZTS4fooC({{.*}}%[[ARG:.*]])
 // CHECK: %[[ARG_AS_CAST:.*]] = addrspacecast ptr %[[ARG]] to ptr addrspace(4)
 // CHECK: %[[GEP:.*]] = getelementptr inbounds
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 1 %[[GEP]], ptr addrspace(4) align 1 %[[ARG_AS_CAST]], i64 1, i1 false)
@@ -71,7 +71,7 @@ struct fooD {
     [[clang::annotate("my_ann_1")]]
     int n;
 
-// CHECK: define dso_local spir_kernel void @_ZTS4fooD(i32 {{.*}}%[[ARG:.*]])
+// CHECK: define {{.*}}spir_kernel void @_ZTS4fooD(i32 {{.*}}%[[ARG:.*]])
 // CHECK: %[[ARG_ADDR:.*]] = alloca i32, align 4
 // CHECK: %[[ARG_ADDR_AS_CAST:.*]] = addrspacecast ptr %[[ARG_ADDR]] to ptr addrspace(4)
 // CHECK: store i32 %[[ARG]], ptr addrspace(4) %[[ARG_ADDR_AS_CAST]], align 4

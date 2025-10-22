@@ -1,24 +1,71 @@
+/* ========================================
+   CSS VARIABLES FOR CONSISTENT THEMING
+   ======================================== */
+:root {
+    /* Core Color Palette - only used colors from scripts.js */
+    /* Provide RGB component vars to allow reuse in rgba() backgrounds */
+    --color-red-rgb: 255, 50, 80;
+    --color-orange-rgb: 255, 145, 15;
+    --color-red: rgb(var(--color-red-rgb));
+    --color-orange: rgb(var(--color-orange-rgb));
+    --color-yellow: rgb(255, 220, 0);
+    --color-green: rgb(20, 200, 50);
+    --color-blue: rgb(0, 130, 255);
+    --color-purple: rgb(180, 60, 255);
+    --color-pink: rgb(255, 40, 200);
+    --color-teal: rgb(0, 210, 180);
+    --color-cyan: #00C7FD;
+
+    /* Text colors - consolidated similar shades */
+    --text-dark: #212529;
+    --text-muted: #555;        /* Replaces text-disabled, text-secondary, text-light */
+    --text-white: #333;
+    --text-info: #084298;
+    --text-danger: var(--color-red);    /* Use palette red for errors */
+    --text-warning: var(--color-orange); /* Use palette orange for warnings */
+
+    /* Backgrounds - consolidated similar grays */
+    --bg-body: #f8f9fa;       /* Replaces bg-lighter, bg-light-gray */
+    --bg-white: white;
+    --bg-hover: #f5f5f5; /* used for hover states (was fallback) */
+    --bg-light: #e9ecef;      /* Replaces bg-disabled */
+    --bg-summary: #dee2e6;
+    --bg-summary-hover: #ced4da;
+    --bg-info: #cfe2ff;
+    --bg-warning: rgba(var(--color-orange-rgb), 0.1);  /* Light orange background for warnings */
+    --bg-danger: rgba(var(--color-red-rgb), 0.1);       /* Light red background for errors */
+    background: var(--bg-white);
+
+    /* Borders - simplified */
+    --border-light: #ccc;
+    --border-medium: #ddd;    /* Replaces border-gray */
+
+    /* Shadows */
+    --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-dropdown: 0 2px 5px rgba(0,0,0,0.15);
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     margin: 0;
     padding: 16px;
-    background: #f8f9fa;
+    background: var(--bg-body);
 }
 .container {
     max-width: 1100px;
     margin: 0 auto;
 }
 h1, h2 {
-    color: #212529;
+    color: var(--text-dark);
     text-align: center;
     margin-bottom: 24px;
     font-weight: 500;
 }
 .chart-container {
-    background: white;
-    border-radius: 8px;
+    /* Removed direct literal 'white'; using themed hover background */
+    background: var(--bg-hover);
     padding: 24px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-subtle);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -57,7 +104,7 @@ h1, h2 {
 .filter-container input {
     padding: 8px;
     font-size: 16px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     width: 400px;
     max-width: 100%;
@@ -66,7 +113,7 @@ h1, h2 {
     text-align: center;
     margin-bottom: 24px;
     padding: 16px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 .suite-checkbox {
@@ -83,12 +130,12 @@ summary {
     font-weight: 500;
     cursor: pointer;
     padding: 12px 16px;
-    background: #dee2e6;
+    background: var(--bg-summary);
     border-radius: 8px;
     user-select: none;
 }
 summary:hover {
-    background: #ced4da;
+    background: var(--bg-summary-hover);
 }
 summary::marker {
     display: none;
@@ -107,7 +154,7 @@ details[open] summary::after {
 }
 .extra-info {
     padding: 8px;
-    background: #f8f9fa;
+    background: var(--bg-body);
     border-radius: 8px;
     margin-top: 8px;
 }
@@ -115,7 +162,7 @@ details[open] summary::after {
     text-align: center;
     margin-bottom: 24px;
     padding: 16px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 .run-selector select {
@@ -125,14 +172,14 @@ details[open] summary::after {
 }
 .run-selector button {
     padding: 8px 16px;
-    background: #0068B5;
-    color: white;
+    background: var(--color-blue);
+    color: var(--bg-white);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 .run-selector button:hover {
-    background: #00C7FD;
+    background: var(--color-cyan);
 }
 .selected-runs {
     margin-top: 12px;
@@ -141,7 +188,7 @@ details[open] summary::after {
     display: inline-block;
     padding: 4px 8px;
     margin: 4px;
-    background: #e2e6ea;
+    background: var(--bg-light);
     border-radius: 4px;
 }
 .selected-run button {
@@ -149,32 +196,77 @@ details[open] summary::after {
     padding: 0 4px;
     background: none;
     border: none;
-    color: #dc3545;
+    color: var(--color-red);
     cursor: pointer;
 }
 .download-button {
     background: none;
     border: none;
-    color: #0068B5;
+    color: var(--color-blue);
     cursor: pointer;
     font-size: 16px;
     padding: 4px;
     margin-left: 8px;
 }
 .download-button:hover {
-    color: #00C7FD;
+    color: var(--color-cyan);
+}
+
+.download-button:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.download-list {
+    position: absolute;
+    z-index: 1000;
+    background: var(--bg-white);
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    padding: 4px;
+    min-width: 200px;
+    max-width: 300px;
+    box-shadow: var(--shadow-dropdown);
+    font-size: 0.9rem;
+}
+
+/* Support both legacy .download-list-link and generic anchors inside list */
+.download-list a,
+.download-list-link {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-dark);
+    border-radius: 2px;
+    font-size: 14px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.download-list a:hover,
+.download-list a:focus,
+.download-list-link:hover,
+.download-list-link:focus {
+    background: var(--bg-light);
+    outline: none;
+}
+
+.chart-download-button {
+    margin-right: 8px;
 }
 .loading-indicator {
     text-align: center;
     font-size: 18px;
-    color: #0068B5;
+    color: var(--color-blue);
     margin-bottom: 20px;
 }
 .extra-info-entry {
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-medium);
     padding: 10px;
     margin-bottom: 10px;
-    background-color: #f9f9f9;
+    background-color: var(--bg-body);
     border-radius: 5px;
 }
 .extra-info-entry strong {
@@ -182,13 +274,13 @@ details[open] summary::after {
     margin-bottom: 5px;
 }
 .extra-info-entry em {
-    color: #555;
+    color: var(--text-muted);
 }
 .display-options-container {
     text-align: center;
     margin-bottom: 24px;
     padding: 16px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
 }
 .display-options-container label {
@@ -199,36 +291,36 @@ details[open] summary::after {
     margin-right: 8px;
 }
 .benchmark-note {
-    background-color: #cfe2ff;
-    color: #084298;
+    background-color: var(--bg-info);
+    color: var(--text-info);
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    border-left: 4px solid #084298;
+    border-left: 4px solid var(--text-info);
     white-space: pre-line;
 }
 .benchmark-unstable {
-    background-color: #f8d7da;
-    color: #842029;
+    background-color: var(--bg-warning);
+    color: var(--text-warning);
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    border-left: 4px solid #842029;
+    border-left: 4px solid var(--text-warning);
     white-space: pre-line;
 }
 .note-text {
-    color: #084298;
+    color: var(--text-info);
 }
 .unstable-warning {
-    color: #842029;
+    color: var(--text-warning);
     font-weight: bold;
 }
 .unstable-text {
-    color: #842029;
+    color: var(--text-warning);
 }
 .options-container {
     margin-bottom: 24px;
-    background: #e9ecef;
+    background: var(--bg-light);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -236,11 +328,11 @@ details[open] summary::after {
     padding: 12px 16px;
     font-weight: 500;
     cursor: pointer;
-    background: #dee2e6;
+    background: var(--bg-summary);
     user-select: none;
 }
 .options-container summary:hover {
-    background: #ced4da;
+    background: var(--bg-summary-hover);
 }
 .options-content {
     padding: 16px;
@@ -266,10 +358,10 @@ details[open] summary::after {
     flex-wrap: wrap;
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 8px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-body);
 }
 .display-options {
     display: flex;
@@ -285,12 +377,12 @@ details[open] summary::after {
     margin-right: 8px;
 }
 .benchmark-description {
-    background-color: #f2f2f2;
-    color: #333;
+    background-color: var(--bg-body);
+    color: var(--text-white);
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
-    border-left: 4px solid #6c757d;
+    border-left: 4px solid var(--text-muted);
     white-space: pre-line;
     font-style: italic;
 }
@@ -303,8 +395,8 @@ details[open] summary::after {
 }
 .tag {
     display: inline-block;
-    background-color: #e2e6ea;
-    color: #495057;
+    background-color: var(--bg-light);
+    color: var(--text-muted);
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 12px;
@@ -322,24 +414,66 @@ details[open] summary::after {
     align-items: center;
 }
 .tag-info {
-    color: #0068B5;
+    color: var(--color-blue);
     margin-left: 4px;
     cursor: help;
     font-size: 12px;
+}
+
+/* Flamegraph link area styles (used by scripts.js) */
+.chart-flamegraph-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    /* small margin below links to separate from any gray bar or footer */
+    margin-bottom: 6px;
+}
+.flamegraph-label {
+    color: var(--text-dark);
+    font-weight: 600;
+}
+.flamegraph-links-inline {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.flamegraph-link {
+    color: var(--text-warning);
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.flamegraph-link:hover {
+    text-decoration: underline;
+}
+.flame-icon {
+    font-size: 16px;
+    line-height: 1;
+    display: inline-block;
+}
+.flame-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+    display: inline-block;
 }
 #tag-filters {
     display: flex;
     flex-wrap: wrap;
     max-height: 200px;
     overflow-y: auto;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 8px;
-    background-color: #f8f9fa;
+    background-color: var(--bg-body);
 }
 .tag-action-button {
     padding: 2px 8px;
-    background: #e2e6ea;
+    background: var(--bg-light);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -348,29 +482,29 @@ details[open] summary::after {
     vertical-align: middle;
 }
 .tag-action-button:hover {
-    background: #ced4da;
+    background: var(--bg-summary-hover);
 }
 .remove-tag {
     background: none;
     border: none;
-    color: white;
+    color: var(--bg-white);
     margin-left: 4px;
     cursor: pointer;
     font-size: 16px;
     padding: 0 4px;
 }
 .remove-tag:hover {
-    color: #f8d7da;
+    color: var(--text-danger);
 }
 .platform {
     padding: 16px;
-    background: white;
+    background: var(--bg-white);
     border-radius: 8px;
     margin-top: 8px;
 }
 .platform-run-section {
-    background: #f8f9fa;
-    border: 1px solid #e9ecef;
+    background: var(--bg-body);
+    border: 1px solid var(--bg-light);
     border-radius: 8px;
     padding: 20px;
     margin-bottom: 24px;
@@ -379,11 +513,11 @@ details[open] summary::after {
     margin-bottom: 0;
 }
 .platform-run-title {
-    color: #495057;
+    color: var(--text-muted);
     font-size: 18px;
     margin: 0 0 16px 0;
     padding-bottom: 8px;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--bg-summary);
     font-weight: 600;
 }
 .platform-item {
@@ -396,14 +530,14 @@ details[open] summary::after {
 }
 .platform-label {
     font-weight: 500;
-    color: #495057;
+    color: var(--text-muted);
     min-width: 80px;
     flex-shrink: 0;
     margin-right: 8px;
     font-size: 12px;
 }
 .platform-value {
-    color: #212529;
+    color: var(--text-dark);
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 12px;
     line-height: 1.3;
@@ -440,3 +574,172 @@ details[open] summary::after {
         margin-top: 4px;
     }
 }
+/* FlameGraph specific styles */
+.flamegraph-error,
+.flamegraph-unavailable {
+    background-color: var(--bg-body);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 10px 0;
+}
+
+.flamegraph-error {
+    /* Repurposed to use dedicated danger background */
+    background-color: var(--bg-danger);
+    border-color: var(--text-danger);
+    color: var(--text-danger);
+}
+
+/* ========================================
+   CHART AND BENCHMARK CONTAINER STYLES
+   ======================================== */
+
+/* Consolidated margin styles for benchmark elements */
+.benchmark-description,
+.benchmark-note,
+.benchmark-unstable {
+    margin-bottom: 5px;
+}
+
+.benchmark-canvas {
+    width: 100%;
+    height: 1200px;
+    margin-bottom: 10px;
+}
+
+/* ========================================
+   FLAMEGRAPH STYLES
+   ======================================== */
+
+/* Flamegraph iframe base styles */
+.flamegraph-iframe {
+    width: 100%;
+    height: 500px;
+    min-height: 500px;
+    border: 1px solid var(--border-medium);
+    border-radius: 4px;
+    display: block;
+    margin: 0 0 10px 0;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    overflow: hidden;
+    /* Ensure maximum width utilization */
+    max-width: none;
+    min-width: 0;
+}
+
+/* Flamegraph container styles - gives each flamegraph its own space */
+.flamegraph-container {
+    margin-bottom: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background-color: transparent;
+    width: 100%;
+    /* Ensure no width constraints */
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.flamegraph-container:last-child {
+    margin-bottom: 0;
+}
+
+.flamegraph-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin: 0 0 10px 0;
+    padding: 8px 12px;
+    background-color: var(--bg-light);
+    border-radius: 4px;
+    border-left: 4px solid var(--color-blue);
+}
+
+/* Ensure flamegraph containers have proper spacing and fit within container */
+.chart-container .flamegraph-container {
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+/* Reduce padding for chart containers that contain flamegraphs to maximize space */
+.chart-container.flamegraph-chart {
+    padding: 8px;
+}
+
+/* Ensure chart content doesn't constrain flamegraphs */
+.chart-container.flamegraph-chart .chart-content {
+    padding: 0;
+}
+
+/* Handle multiple flamegraphs displayed vertically - now handled by container */
+.flamegraph-container:not(:last-child) {
+    margin-bottom: 20px;
+}
+
+/* Floating flamegraph download list */
+.flamegraph-download-list {
+    position: absolute;
+    z-index: 1000;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background-color: var(--bg-white);
+    box-shadow: var(--shadow-dropdown);
+    padding: 5px;
+    margin-top: 5px;
+}
+
+.flamegraph-download-list a {
+    display: block;
+    padding: 8px 12px;
+    text-decoration: none;
+    color: var(--text-white);
+    cursor: pointer;
+}
+
+.flamegraph-download-list a:hover {
+    background-color: var(--bg-body);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Show/hide utility classes */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+.disabled-text {
+    color: var(--text-muted) !important;
+}
+
+/* ========================================
+   COLOR UTILITY CLASSES
+   ======================================== */
+.color-red { color: var(--color-red) !important; }
+.color-orange { color: var(--color-orange) !important; }
+.color-yellow { color: var(--color-yellow) !important; }
+.color-green { color: var(--color-green) !important; }
+.color-blue { color: var(--color-blue) !important; }
+.color-purple { color: var(--color-purple) !important; }
+.color-pink { color: var(--color-pink) !important; }
+.color-teal { color: var(--color-teal) !important; }
+
+.bg-red { background-color: var(--color-red) !important; }
+.bg-orange { background-color: var(--color-orange) !important; }
+.bg-yellow { background-color: var(--color-yellow) !important; }
+.bg-green { background-color: var(--color-green) !important; }
+.bg-blue { background-color: var(--color-blue) !important; }
+.bg-purple { background-color: var(--color-purple) !important; }
+.bg-pink { background-color: var(--color-pink) !important; }
+.bg-teal { background-color: var(--color-teal) !important; }

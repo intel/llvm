@@ -62,25 +62,24 @@ protected:
       auto L = [&](handler &CGH) {
         CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
       };
-      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, nullptr,
-                                  {}, true);
+      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, {},
+                                  true);
     } else if (Type == TestCGType::KERNEL_TASK) {
       auto L = [&](handler &CGH) { CGH.single_task<TestKernel>([] {}); };
-      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, nullptr,
-                                  {}, true);
+      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, {},
+                                  true);
     } else // (Type == TestCGType::BARRIER)
     {
       auto L = [&](handler &CGH) { CGH.ext_oneapi_barrier(); };
-      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, nullptr,
-                                  {}, true);
+      return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, {},
+                                  true);
     }
   }
 
   sycl::event
   InsertBarrierWithWaitList(const std::vector<sycl::event> &WaitList) {
     auto L = [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); };
-    return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, nullptr,
-                                {}, true);
+    return QueueDevImpl->submit(sycl::detail::type_erased_cgfo_ty{L}, {}, true);
   }
 
   std::vector<event> BuildAndCheckInnerQueueState() {

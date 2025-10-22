@@ -536,7 +536,14 @@ def Dangling : DiagGroup<"dangling", [DanglingAssignment,
                                       DanglingGsl,
                                       ReturnStackAddress]>;
 
-def LifetimeSafety : DiagGroup<"experimental-lifetime-safety">;
+def LifetimeSafetyPermissive : DiagGroup<"experimental-lifetime-safety-permissive">;
+def LifetimeSafetyStrict : DiagGroup<"experimental-lifetime-safety-strict">;
+def LifetimeSafety : DiagGroup<"experimental-lifetime-safety",
+                               [LifetimeSafetyPermissive, LifetimeSafetyStrict]> {
+  code Documentation = [{
+    Experimental warnings to detect use-after-free and related temporal safety bugs based on lifetime safety analysis.
+  }];
+}
 
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
 def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
@@ -631,6 +638,7 @@ def ModuleConflict : DiagGroup<"module-conflict">;
 def ModuleFileExtension : DiagGroup<"module-file-extension">;
 def ModuleIncludeDirectiveTranslation : DiagGroup<"module-include-translation">;
 def ModuleMap : DiagGroup<"module-map">;
+def ModulesDriver : DiagGroup<"modules-driver">;
 def RoundTripCC1Args : DiagGroup<"round-trip-cc1-args">;
 def NewlineEOF : DiagGroup<"newline-eof">;
 def Nullability : DiagGroup<"nullability">;
@@ -647,6 +655,7 @@ def NonNull : DiagGroup<"nonnull">;
 def NonPODVarargs : DiagGroup<"non-pod-varargs">;
 def ClassVarargs : DiagGroup<"class-varargs", [NonPODVarargs]>;
 def : DiagGroup<"nonportable-cfstrings">;
+def NonPortableSYCL : DiagGroup<"nonportable-sycl">;
 def NonVirtualDtor : DiagGroup<"non-virtual-dtor">;
 def GNUNullPointerArithmetic : DiagGroup<"gnu-null-pointer-arithmetic">;
 def NullPointerArithmetic
@@ -1302,6 +1311,7 @@ def ThreadSafetyBeta : DiagGroup<"thread-safety-beta">;
 // Warnings and notes related to the function effects system which underlies
 // the nonblocking and nonallocating attributes.
 def FunctionEffects : DiagGroup<"function-effects">;
+def FunctionEffectRedeclarations : DiagGroup<"function-effect-redeclarations">;
 def PerfConstraintImpliesNoexcept : DiagGroup<"perf-constraint-implies-noexcept">;
 
 // Uniqueness Analysis warnings
@@ -1558,6 +1568,9 @@ def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
 def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 def SyclPrivateAllocaPositiveSize : DiagGroup<"sycl-private-alloca-positive-size">;
+
+// Common warnings for SYCL and OpenMP offloading
+def OffloadTarget : DiagGroup<"offload-target">;
 
 // OpenACC warnings.
 def SourceUsesOpenACC : DiagGroup<"source-uses-openacc">;

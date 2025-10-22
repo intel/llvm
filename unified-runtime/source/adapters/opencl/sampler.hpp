@@ -21,6 +21,9 @@ struct ur_sampler_handle_t_ : ur::opencl::handle_base {
   bool IsNativeHandleOwned = false;
   ur::RefCount RefCount;
 
+  ur_sampler_handle_t_(const ur_sampler_handle_t_ &) = delete;
+  ur_sampler_handle_t_ &operator=(const ur_sampler_handle_t_ &) = delete;
+
   ur_sampler_handle_t_(native_type Sampler, ur_context_handle_t Ctx)
       : handle_base(), CLSampler(Sampler), Context(Ctx) {
     urContextRetain(Context);

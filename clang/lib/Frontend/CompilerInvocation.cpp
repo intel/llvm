@@ -593,11 +593,11 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   CodeGenOpts.CodeModel = TargetOpts.CodeModel;
   CodeGenOpts.LargeDataThreshold = TargetOpts.LargeDataThreshold;
 
-  if (LangOpts.getExceptionHandling() !=
-          LangOptions::ExceptionHandlingKind::None &&
+  if (CodeGenOpts.getExceptionHandling() !=
+          CodeGenOptions::ExceptionHandlingKind::None &&
       T.isWindowsMSVCEnvironment())
     Diags.Report(diag::err_fe_invalid_exception_model)
-        << static_cast<unsigned>(LangOpts.getExceptionHandling()) << T.str();
+        << static_cast<unsigned>(CodeGenOpts.getExceptionHandling()) << T.str();
 
   if (LangOpts.AppleKext && !LangOpts.CPlusPlus)
     Diags.Report(diag::warn_c_kext);
@@ -623,6 +623,9 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.RawStringLiterals = true;
   }
 
+  LangOpts.NamedLoops =
+      Args.hasFlag(OPT_fnamed_loops, OPT_fno_named_loops, LangOpts.C2y);
+
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
@@ -646,6 +649,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   if (Args.hasArg(OPT_fdx_rootsignature_version) && !LangOpts.HLSL)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fdx-rootsignature-version" << GetInputKindName(IK);
+
+  if (Args.hasArg(OPT_fdx_rootsignature_define) && !LangOpts.HLSL)
+    Diags.Report(diag::err_drv_argument_not_allowed_with)
+        << "-fdx-rootsignature-define" << GetInputKindName(IK);
 
   if (Args.hasArg(OPT_fgpu_allow_device_init) && !LangOpts.HIP)
     Diags.Report(diag::warn_ignored_hip_only_option)
@@ -833,7 +840,7 @@ static bool RoundTrip(ParseFn Parse, GenerateFn Generate,
 
   // Setup a dummy DiagnosticsEngine.
   DiagnosticOptions DummyDiagOpts;
-  DiagnosticsEngine DummyDiags(new DiagnosticIDs(), DummyDiagOpts);
+  DiagnosticsEngine DummyDiags(DiagnosticIDs::create(), DummyDiagOpts);
   DummyDiags.setClient(new TextDiagnosticBuffer());
 
   // Run the first parse on the original arguments with the dummy invocation and
@@ -1322,15 +1329,6 @@ static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
   if (AnOpts.ShouldTrackConditionsDebug && !AnOpts.ShouldTrackConditions)
     Diags->Report(diag::err_analyzer_config_invalid_input)
         << "track-conditions-debug" << "'track-conditions' to also be enabled";
-
-  if (!AnOpts.CTUDir.empty() && !llvm::sys::fs::is_directory(AnOpts.CTUDir))
-    Diags->Report(diag::err_analyzer_config_invalid_input) << "ctu-dir"
-                                                           << "a filename";
-
-  if (!AnOpts.ModelPath.empty() &&
-      !llvm::sys::fs::is_directory(AnOpts.ModelPath))
-    Diags->Report(diag::err_analyzer_config_invalid_input) << "model-path"
-                                                           << "a filename";
 }
 
 /// Generate a remark argument. This is an inverse of `ParseOptimizationRemark`.
@@ -1548,6 +1546,17 @@ void CompilerInvocation::setDefaultPointerAuthOptions(
           Key::ASIA, LangOpts.PointerAuthInitFiniAddressDiscrimination,
           Discrimination::Constant, InitFiniPointerConstantDiscriminator);
     }
+
+    Opts.BlockInvocationFunctionPointers =
+        PointerAuthSchema(Key::ASIA, true, Discrimination::None);
+    Opts.BlockHelperFunctionPointers =
+        PointerAuthSchema(Key::ASIA, true, Discrimination::None);
+    Opts.BlockByrefHelperFunctionPointers =
+        PointerAuthSchema(Key::ASIA, true, Discrimination::None);
+    if (LangOpts.PointerAuthBlockDescriptorPointers)
+      Opts.BlockDescriptorPointers =
+          PointerAuthSchema(Key::ASDA, true, Discrimination::Constant,
+                            BlockDescriptorConstantDiscriminator);
 
     Opts.ObjCMethodListFunctionPointers =
         PointerAuthSchema(Key::ASIA, true, Discrimination::None);
@@ -2020,8 +2029,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
             : llvm::codegenoptions::DebugTemplateNamesKind::Mangled);
   }
 
-  if (const Arg *A = Args.getLastArg(OPT_ftime_report, OPT_ftime_report_EQ,
-                                     OPT_ftime_report_json)) {
+  if (Args.hasArg(OPT_ftime_report, OPT_ftime_report_EQ, OPT_ftime_report_json,
+                  OPT_stats_file_timers)) {
     Opts.TimePasses = true;
 
     // -ftime-report= is only for new pass manager.
@@ -2033,7 +2042,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
         Opts.TimePassesPerRun = true;
       else
         Diags.Report(diag::err_drv_invalid_value)
-            << A->getAsString(Args) << A->getValue();
+            << EQ->getAsString(Args) << EQ->getValue();
     }
 
     if (Args.getLastArg(OPT_ftime_report_json))
@@ -2701,7 +2710,7 @@ bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
   std::optional<DiagnosticsEngine> IgnoringDiags;
   if (!Diags) {
     IgnoringDiagOpts.emplace();
-    IgnoringDiags.emplace(new DiagnosticIDs(), *IgnoringDiagOpts,
+    IgnoringDiags.emplace(DiagnosticIDs::create(), *IgnoringDiagOpts,
                           new IgnoringDiagConsumer());
     Diags = &*IgnoringDiags;
   }
@@ -3322,9 +3331,6 @@ static void GenerateHeaderSearchArgs(const HeaderSearchOptions &Opts,
   if (Opts.UseLibcxx)
     GenerateArg(Consumer, OPT_stdlib_EQ, "libc++");
 
-  if (!Opts.ModuleCachePath.empty())
-    GenerateArg(Consumer, OPT_fmodules_cache_path, Opts.ModuleCachePath);
-
   for (const auto &File : Opts.PrebuiltModuleFiles)
     GenerateArg(Consumer, OPT_fmodule_file, File.first + "=" + File.second);
 
@@ -3427,8 +3433,7 @@ static void GenerateHeaderSearchArgs(const HeaderSearchOptions &Opts,
 }
 
 static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
-                                  DiagnosticsEngine &Diags,
-                                  const std::string &WorkingDir) {
+                                  DiagnosticsEngine &Diags) {
   unsigned NumErrorsBefore = Diags.getNumErrors();
 
   HeaderSearchOptions *HeaderSearchOpts = &Opts;
@@ -3440,17 +3445,6 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
 
   if (const Arg *A = Args.getLastArg(OPT_stdlib_EQ))
     Opts.UseLibcxx = (strcmp(A->getValue(), "libc++") == 0);
-
-  // Canonicalize -fmodules-cache-path before storing it.
-  SmallString<128> P(Args.getLastArgValue(OPT_fmodules_cache_path));
-  if (!(P.empty() || llvm::sys::path::is_absolute(P))) {
-    if (WorkingDir.empty())
-      llvm::sys::fs::make_absolute(P);
-    else
-      llvm::sys::fs::make_absolute(WorkingDir, P);
-  }
-  llvm::sys::path::remove_dots(P);
-  Opts.ModuleCachePath = std::string(P);
 
   // Only the -fmodule-file=<name>=<file> form.
   for (const auto *A : Args.filtered(OPT_fmodule_file)) {
@@ -3614,6 +3608,8 @@ static void GeneratePointerAuthArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_fptrauth_objc_interface_sel);
   if (Opts.PointerAuthObjcClassROPointers)
     GenerateArg(Consumer, OPT_fptrauth_objc_class_ro);
+  if (Opts.PointerAuthBlockDescriptorPointers)
+    GenerateArg(Consumer, OPT_fptrauth_block_descriptor_pointers);
 }
 
 static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
@@ -3637,7 +3633,8 @@ static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
   Opts.PointerAuthELFGOT = Args.hasArg(OPT_fptrauth_elf_got);
   Opts.AArch64JumpTableHardening =
       Args.hasArg(OPT_faarch64_jump_table_hardening);
-
+  Opts.PointerAuthBlockDescriptorPointers =
+      Args.hasArg(OPT_fptrauth_block_descriptor_pointers);
   Opts.PointerAuthObjcIsa = Args.hasArg(OPT_fptrauth_objc_isa);
   Opts.PointerAuthObjcClassROPointers = Args.hasArg(OPT_fptrauth_objc_class_ro);
   Opts.PointerAuthObjcInterfaceSel =
@@ -3729,23 +3726,6 @@ static StringRef GetInputKindName(InputKind IK) {
   llvm_unreachable("unknown input language");
 }
 
-static StringRef getExceptionHandlingName(unsigned EHK) {
-  switch (static_cast<LangOptions::ExceptionHandlingKind>(EHK)) {
-  case LangOptions::ExceptionHandlingKind::None:
-    return "none";
-  case LangOptions::ExceptionHandlingKind::DwarfCFI:
-    return "dwarf";
-  case LangOptions::ExceptionHandlingKind::SjLj:
-    return "sjlj";
-  case LangOptions::ExceptionHandlingKind::WinEH:
-    return "seh";
-  case LangOptions::ExceptionHandlingKind::Wasm:
-    return "wasm";
-  }
-
-  llvm_unreachable("covered switch");
-}
-
 void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
                                               ArgumentConsumer Consumer,
                                               const llvm::Triple &T,
@@ -3763,10 +3743,6 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
       GenerateArg(Consumer, OPT_fsanitize_EQ, Sanitizer);
     if (!Opts.OptRecordFile.empty())
       GenerateArg(Consumer, OPT_opt_record_file, Opts.OptRecordFile);
-    if (Opts.ExceptionHandling) {
-      GenerateArg(Consumer, OPT_exception_model,
-                  getExceptionHandlingName(Opts.ExceptionHandling));
-    }
 
     return;
   }
@@ -3953,18 +3929,11 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_offload_targets_EQ, Targets);
   }
 
-  if (!Opts.OMPHostIRFile.empty())
-    GenerateArg(Consumer, OPT_fopenmp_host_ir_file_path, Opts.OMPHostIRFile);
-
   if (Opts.OpenMPCUDAMode)
     GenerateArg(Consumer, OPT_fopenmp_cuda_mode);
 
-  if (Opts.OpenACC) {
+  if (Opts.OpenACC)
     GenerateArg(Consumer, OPT_fopenacc);
-    if (!Opts.OpenACCMacroOverride.empty())
-      GenerateArg(Consumer, OPT_openacc_macro_override,
-                  Opts.OpenACCMacroOverride);
-  }
 
   // The arguments used to set Optimize, OptimizeSize and NoInlineDefine are
   // generated from CodeGenOptions.
@@ -3986,47 +3955,18 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_fsanitize_ignorelist_EQ, F);
 
   switch (Opts.getClangABICompat()) {
-  case LangOptions::ClangABI::Ver3_8:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "3.8");
+#define ABI_VER_MAJOR_MINOR(Major, Minor)                                      \
+  case LangOptions::ClangABI::Ver##Major##_##Minor:                            \
+    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, #Major "." #Minor);        \
     break;
-  case LangOptions::ClangABI::Ver4:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "4.0");
+#define ABI_VER_MAJOR(Major)                                                   \
+  case LangOptions::ClangABI::Ver##Major:                                      \
+    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, #Major ".0");              \
     break;
-  case LangOptions::ClangABI::Ver6:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "6.0");
+#define ABI_VER_LATEST(Latest)                                                 \
+  case LangOptions::ClangABI::Latest:                                          \
     break;
-  case LangOptions::ClangABI::Ver7:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "7.0");
-    break;
-  case LangOptions::ClangABI::Ver9:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "9.0");
-    break;
-  case LangOptions::ClangABI::Ver11:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "11.0");
-    break;
-  case LangOptions::ClangABI::Ver12:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "12.0");
-    break;
-  case LangOptions::ClangABI::Ver14:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "14.0");
-    break;
-  case LangOptions::ClangABI::Ver15:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "15.0");
-    break;
-  case LangOptions::ClangABI::Ver17:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "17.0");
-    break;
-  case LangOptions::ClangABI::Ver18:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "18.0");
-    break;
-  case LangOptions::ClangABI::Ver19:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "19.0");
-    break;
-  case LangOptions::ClangABI::Ver20:
-    GenerateArg(Consumer, OPT_fclang_abi_compat_EQ, "20.0");
-    break;
-  case LangOptions::ClangABI::Latest:
-    break;
+#include "clang/Basic/ABIVersions.def"
   }
 
   if (Opts.getSignReturnAddressScope() ==
@@ -4192,24 +4132,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (Args.hasArg(OPT_opt_record_file))
       Opts.OptRecordFile =
           std::string(Args.getLastArgValue(OPT_opt_record_file));
-
-    if (const Arg *A = Args.getLastArg(options::OPT_exception_model)) {
-      std::optional<LangOptions::ExceptionHandlingKind> EMValue =
-          llvm::StringSwitch<std::optional<LangOptions::ExceptionHandlingKind>>(
-              A->getValue())
-              .Case("dwarf", LangOptions::ExceptionHandlingKind::DwarfCFI)
-              .Case("sjlj", LangOptions::ExceptionHandlingKind::SjLj)
-              .Case("seh", LangOptions::ExceptionHandlingKind::WinEH)
-              .Case("wasm", LangOptions::ExceptionHandlingKind::Wasm)
-              .Case("none", LangOptions::ExceptionHandlingKind::None)
-              .Default(std::nullopt);
-      if (EMValue) {
-        Opts.ExceptionHandling = static_cast<unsigned>(*EMValue);
-      } else {
-        Diags.Report(diag::err_drv_invalid_value)
-            << A->getAsString(Args) << A->getValue();
-      }
-    }
 
     return Diags.getNumErrors() == NumErrorsBefore;
   }
@@ -4617,8 +4539,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
       if (TT.getArch() == llvm::Triple::UnknownArch ||
           !(TT.getArch() == llvm::Triple::aarch64 || TT.isPPC() ||
-            TT.getArch() == llvm::Triple::spirv64 ||
-            TT.getArch() == llvm::Triple::systemz ||
+            TT.isSPIROrSPIRV() || TT.getArch() == llvm::Triple::systemz ||
             TT.getArch() == llvm::Triple::loongarch64 ||
             TT.getArch() == llvm::Triple::nvptx ||
             TT.getArch() == llvm::Triple::nvptx64 || TT.isAMDGCN() ||
@@ -4633,43 +4554,14 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     }
   }
 
-  // Get OpenMP host file path if any and report if a non existent file is
-  // found
-  if (Arg *A = Args.getLastArg(options::OPT_fopenmp_host_ir_file_path)) {
-    Opts.OMPHostIRFile = A->getValue();
-    if (!llvm::sys::fs::exists(Opts.OMPHostIRFile))
-      Diags.Report(diag::err_drv_omp_host_ir_file_not_found)
-          << Opts.OMPHostIRFile;
-  }
-
   // Set CUDA mode for OpenMP target NVPTX/AMDGCN if specified in options
   Opts.OpenMPCUDAMode = Opts.OpenMPIsTargetDevice &&
                         (T.isNVPTX() || T.isAMDGCN()) &&
                         Args.hasArg(options::OPT_fopenmp_cuda_mode);
 
   // OpenACC Configuration.
-  if (Args.hasArg(options::OPT_fopenacc)) {
+  if (Args.hasArg(options::OPT_fopenacc))
     Opts.OpenACC = true;
-
-    if (Arg *A = Args.getLastArg(options::OPT_openacc_macro_override))
-      Opts.OpenACCMacroOverride = A->getValue();
-  }
-
-  // FIXME: Eliminate this dependency.
-  unsigned Opt = getOptimizationLevel(Args, IK, Diags),
-       OptSize = getOptimizationLevelSize(Args);
-  Opts.Optimize = Opt != 0;
-  Opts.OptimizeSize = OptSize != 0;
-
-  // This is the __NO_INLINE__ define, which just depends on things like the
-  // optimization level and -fno-inline, not actually whether the backend has
-  // inlining enabled.
-  Opts.NoInlineDefine = !Opts.Optimize;
-  if (Arg *InlineArg = Args.getLastArg(
-          options::OPT_finline_functions, options::OPT_finline_hint_functions,
-          options::OPT_fno_inline_functions, options::OPT_fno_inline))
-    if (InlineArg->getOption().matches(options::OPT_fno_inline))
-      Opts.NoInlineDefine = true;
 
   if (Arg *A = Args.getLastArg(OPT_ffp_contract)) {
     StringRef Val = A->getValue();
@@ -4718,7 +4610,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
     StringRef Ver = A->getValue();
     std::pair<StringRef, StringRef> VerParts = Ver.split('.');
-    unsigned Major, Minor = 0;
+    int Major, Minor = 0;
 
     // Check the version number is valid: either 3.x (0 <= x <= 9) or
     // y or y.0 (4 <= y <= current version).
@@ -4730,32 +4622,18 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                    !VerParts.second.getAsInteger(10, Minor)
              : VerParts.first.size() == Ver.size() || VerParts.second == "0")) {
       // Got a valid version number.
-      if (Major == 3 && Minor <= 8)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver3_8);
-      else if (Major <= 4)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver4);
-      else if (Major <= 6)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver6);
-      else if (Major <= 7)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver7);
-      else if (Major <= 9)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver9);
-      else if (Major <= 11)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver11);
-      else if (Major <= 12)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver12);
-      else if (Major <= 14)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver14);
-      else if (Major <= 15)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver15);
-      else if (Major <= 17)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver17);
-      else if (Major <= 18)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver18);
-      else if (Major <= 19)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver19);
-      else if (Major <= 20)
-        Opts.setClangABICompat(LangOptions::ClangABI::Ver20);
+#define ABI_VER_MAJOR_MINOR(Major_, Minor_)                                    \
+  if (std::tuple(Major, Minor) <= std::tuple(Major_, Minor_))                  \
+    Opts.setClangABICompat(LangOptions::ClangABI::Ver##Major_##_##Minor_);     \
+  else
+#define ABI_VER_MAJOR(Major_)                                                  \
+  if (Major <= Major_)                                                         \
+    Opts.setClangABICompat(LangOptions::ClangABI::Ver##Major_);                \
+  else
+#define ABI_VER_LATEST(Latest)                                                 \
+  { /* Equivalent to latest version - do nothing */                            \
+  }
+#include "clang/Basic/ABIVersions.def"
     } else if (Ver != "latest") {
       Diags.Report(diag::err_drv_invalid_value)
           << A->getAsString(Args) << A->getValue();
@@ -5333,8 +5211,7 @@ bool CompilerInvocation::CreateFromArgsImpl(
   InputKind DashX = Res.getFrontendOpts().DashX;
   ParseTargetArgs(Res.getTargetOpts(), Args, Diags);
   llvm::Triple T(Res.getTargetOpts().Triple);
-  ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args, Diags,
-                        Res.getFileSystemOpts().WorkingDir);
+  ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args, Diags);
   if (Res.getFrontendOpts().GenReducedBMI ||
       Res.getFrontendOpts().ProgramAction ==
           frontend::GenerateReducedModuleInterface ||
@@ -5549,6 +5426,21 @@ std::string CompilerInvocation::getModuleHash() const {
       HBuilder.add(*Build);
   }
 
+  // Extend the signature with affecting codegen options.
+  {
+    using CK = CodeGenOptions::CompatibilityKind;
+#define CODEGENOPT(Name, Bits, Default, Compatibility)                         \
+  if constexpr (CK::Compatibility != CK::Benign)                               \
+    HBuilder.add(CodeGenOpts->Name);
+#define ENUM_CODEGENOPT(Name, Type, Bits, Default, Compatibility)              \
+  if constexpr (CK::Compatibility != CK::Benign)                               \
+    HBuilder.add(static_cast<unsigned>(CodeGenOpts->get##Name()));
+#define DEBUGOPT(Name, Bits, Default, Compatibility)
+#define VALUE_DEBUGOPT(Name, Bits, Default, Compatibility)
+#define ENUM_DEBUGOPT(Name, Type, Bits, Default, Compatibility)
+#include "clang/Basic/CodeGenOptions.def"
+  }
+
   // When compiling with -gmodules, also hash -fdebug-prefix-map as it
   // affects the debug info in the PCM.
   if (getCodeGenOpts().DebugTypeExtRefs)
@@ -5559,13 +5451,13 @@ std::string CompilerInvocation::getModuleHash() const {
     // FIXME: Replace with C++20 `using enum CodeGenOptions::CompatibilityKind`.
     using CK = CodeGenOptions::CompatibilityKind;
 #define DEBUGOPT(Name, Bits, Default, Compatibility)                           \
-  if constexpr (CK::Compatibility == CK::Affecting)                            \
+  if constexpr (CK::Compatibility != CK::Benign)                               \
     HBuilder.add(CodeGenOpts->Name);
 #define VALUE_DEBUGOPT(Name, Bits, Default, Compatibility)                     \
-  if constexpr (CK::Compatibility == CK::Affecting)                            \
+  if constexpr (CK::Compatibility != CK::Benign)                               \
     HBuilder.add(CodeGenOpts->Name);
 #define ENUM_DEBUGOPT(Name, Type, Bits, Default, Compatibility)                \
-  if constexpr (CK::Compatibility == CK::Affecting)                            \
+  if constexpr (CK::Compatibility != CK::Benign)                               \
     HBuilder.add(static_cast<unsigned>(CodeGenOpts->get##Name()));
 #include "clang/Basic/DebugOptions.def"
   }

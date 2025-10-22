@@ -88,7 +88,6 @@ struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
 
     auto entry_points =
         uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
-    std::cout << entry_points[0];
 
     ASSERT_SUCCESS(urKernelCreate(program, "_ZTS3Add", &add_kernel));
     ASSERT_SUCCESS(urKernelCreate(program, "_ZTS3Mul", &mul_kernel));

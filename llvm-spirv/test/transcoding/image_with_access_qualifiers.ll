@@ -12,7 +12,7 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; NOTE: access qualifier infomation is not preserved after round-trip conversion to LLVM
-; CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image1d_rw11ocl_sampleri(ptr
+; CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image1d_rw11ocl_sampleri(target("spirv.Image", void, 0, 0, 0, 0, 0, 0, 2)
 
 ; CHECK-SPIRV-DAG: 2 Capability ImageBasic
 ; CHECK-SPIRV-DAG: 2 Capability ImageReadWrite

@@ -73,6 +73,7 @@ if(LLVM_LIBCXX_USED)
 endif()
 
 if (WIN32)
+  list(APPEND compile_opts "-std=c++17")
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)
 endif()
@@ -319,7 +320,7 @@ function(add_devicelibs filename)
       FILETYPE ${filetype}
       SRC ${ARG_SRC}
       DEPENDENCIES ${ARG_DEPENDENCIES}
-      EXTRA_OPTS ${ARG_EXTRA_OPTS} ${${filetype}_device_compile_opts})
+      EXTRA_OPTS ${ARG_EXTRA_OPTS})
   endforeach()
 
   foreach(arch IN LISTS ARG_BUILD_ARCHS)
@@ -616,12 +617,10 @@ add_devicelibs(libsycl-fallback-cmath-fp64
   DEPENDENCIES ${cmath_obj_deps})
 add_devicelibs(libsycl-fallback-bfloat16
   SRC fallback-bfloat16.cpp
-  FILETYPES "${filetypes_no_spv}"
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
-  FILETYPES "${filetypes_no_spv}"
   BUILD_ARCHS ${full_build_archs}
   DEPENDENCIES ${bfloat16_obj_deps})
 
@@ -657,6 +656,10 @@ set(imf_host_cxx_flags -c
 
 if(LLVM_LIBCXX_USED)
   list(APPEND  imf_host_cxx_flags "-stdlib=libc++")
+endif()
+
+if (WIN32)
+  list(APPEND imf_host_cxx_flags "-std=c++17")
 endif()
 
 macro(mangle_name str output)

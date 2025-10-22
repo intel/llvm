@@ -51,6 +51,9 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
+   design/SYCLNativeCPUPipeline
+   design/SYCLNativeCPUPipelinePasses
+   design/SYCLNativeCPUVecz
    design/CommandGraph
    design/OffloadDesign
    design/PrivateAlloca
@@ -67,6 +70,7 @@ Developer Documentation
 .. toctree::
    :maxdepth: 1
 
+   developer/Debugging
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP

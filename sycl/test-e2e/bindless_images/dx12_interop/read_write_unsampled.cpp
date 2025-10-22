@@ -5,6 +5,9 @@
 // UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
 //                       when importing memory
 
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -522,6 +525,14 @@ template <int NDims, typename DType, int NChannels>
 static bool
 runTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
         sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
+
+  // Skip unorm_int8 tests for Level Zero backend
+  if (channelType == sycl::image_channel_type::unorm_int8 &&
+      device.getSyclQueue().get_device().get_backend() ==
+          sycl::backend::ext_oneapi_level_zero) {
+    std::cout << "Skipping unorm_int8 test for Level Zero backend.\n";
+    return true;
+  }
 
   syclexp::image_descriptor syclImageDesc{globalSize, NChannels, channelType};
 

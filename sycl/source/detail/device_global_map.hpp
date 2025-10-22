@@ -27,10 +27,17 @@ public:
   DeviceGlobalMap(bool OwnerControlledCleanup)
       : MOwnerControlledCleanup{OwnerControlledCleanup} {}
 
+  DeviceGlobalMap(const DeviceGlobalMap &) = delete;
+  DeviceGlobalMap &operator=(const DeviceGlobalMap &) = delete;
+
   ~DeviceGlobalMap() {
-    if (!MOwnerControlledCleanup)
-      for (auto &DeviceGlobalIt : MDeviceGlobals)
-        DeviceGlobalIt.second->cleanup();
+    try {
+      if (!MOwnerControlledCleanup)
+        for (auto &DeviceGlobalIt : MDeviceGlobals)
+          DeviceGlobalIt.second->cleanup();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~DeviceGlobalMap", e);
+    }
   }
 
   void initializeEntries(const RTDeviceBinaryImage *Img) {
@@ -87,6 +94,7 @@ public:
             });
         if (findDevGlobalByValue != MPtr2DeviceGlobal.end())
           MPtr2DeviceGlobal.erase(findDevGlobalByValue);
+
         MDeviceGlobals.erase(DevGlobalIt);
       }
     }
@@ -112,8 +120,7 @@ public:
   DeviceGlobalMapEntry *getEntry(const void *DeviceGlobalPtr) {
     std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
     auto Entry = MPtr2DeviceGlobal.find(DeviceGlobalPtr);
-    assert(Entry != MPtr2DeviceGlobal.end() && "Device global entry not found");
-    return Entry->second;
+    return (Entry != MPtr2DeviceGlobal.end()) ? Entry->second : nullptr;
   }
 
   DeviceGlobalMapEntry *

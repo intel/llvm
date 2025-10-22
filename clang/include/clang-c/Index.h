@@ -6967,6 +6967,21 @@ clang_getCursorUnaryOperatorKind(CXCursor cursor);
  * @}
  */
 
+/* CINDEX_DEPRECATED - disabled to silence MSVC deprecation warnings */
+typedef void *CXRemapping;
+
+CINDEX_DEPRECATED CINDEX_LINKAGE CXRemapping clang_getRemappings(const char *);
+
+CINDEX_DEPRECATED CINDEX_LINKAGE CXRemapping
+clang_getRemappingsFromFileList(const char **, unsigned);
+
+CINDEX_DEPRECATED CINDEX_LINKAGE unsigned clang_remap_getNumFiles(CXRemapping);
+
+CINDEX_DEPRECATED CINDEX_LINKAGE void
+clang_remap_getFilenames(CXRemapping, unsigned, CXString *, CXString *);
+
+CINDEX_DEPRECATED CINDEX_LINKAGE void clang_remap_dispose(CXRemapping);
+
 LLVM_CLANG_C_EXTERN_C_END
 
 #endif

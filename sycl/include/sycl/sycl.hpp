@@ -113,6 +113,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/chunk.hpp>
+#include <sycl/ext/oneapi/experimental/clock.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>

@@ -250,7 +250,15 @@ device_family_arch_map = {
         "intel_gpu_dg2_g10",
     },
     # Gen12
-    "gpu-intel-gen12": {"intel_gpu_tgllp", "intel_gpu_tgl"},
+    "gpu-intel-gen12": {
+        "intel_gpu_tgllp",
+        "intel_gpu_tgl",
+        "intel_gpu_rkl",
+        "intel_gpu_adl_s",
+        "intel_gpu_rpl_s",
+        "intel_gpu_adl_p",
+        "intel_gpu_adl_n",
+    },
     # Gen11
     "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
 }
@@ -821,7 +829,6 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
 # Tools for which we add a corresponding feature when available.
 feature_tools = [
     ToolSubst("llvm-spirv", unresolved="ignore"),
-    ToolSubst("llvm-link", unresolved="ignore"),
     ToolSubst("opencl-aot", unresolved="ignore"),
     ToolSubst("ocloc", unresolved="ignore"),
 ]
@@ -834,6 +841,7 @@ tools = [
         r"\| \bnot\b", command=FindTool("not"), verbatim=True, unresolved="ignore"
     ),
     ToolSubst("sycl-ls", command=sycl_ls, unresolved="fatal"),
+    ToolSubst("llvm-link", unresolved="fatal"),
     ToolSubst("syclbin-dump", unresolved="fatal"),
     ToolSubst("llvm-ar", unresolved="fatal"),
     ToolSubst("clang-offload-bundler", unresolved="fatal"),
@@ -963,6 +971,19 @@ elif os.path.exists(f"{config.sycl_include}/llvm/SYCLLowerIR/DeviceConfigFile.hp
     config.available_features.add("device-config-file")
     config.substitutions.append(("%device_config_file_include_flag", ""))
 
+# Check for sycl-jit library
+if config.test_mode != "build-only":
+    if platform.system() == "Linux":
+        if os.path.exists(os.path.join(config.sycl_libs_dir, "libsycl-jit.so")):
+            config.available_features.add("sycl-jit")
+    elif platform.system() == "Windows":
+        if os.path.exists(os.path.join(config.dpcpp_bin_dir, "sycl-jit.dll")):
+            config.available_features.add("sycl-jit")
+    if "sycl-jit" not in config.available_features:
+        lit_config.note(
+            "sycl-jit was not found. Tests requiring sycl-jit will be skipped."
+        )
+
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
@@ -992,14 +1013,17 @@ for full_name, sycl_device in zip(
         if re.match(r" *Driver *:", line):
             _, driver_str = line.split(":", 1)
             driver_str = driver_str.strip()
-            lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
-            if lin:
-                intel_driver_ver["lin"] = int(lin.group(1))
-            win = re.match(
-                r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
-            )
-            if win:
-                intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            if sycl_device.endswith("gpu"):
+                lin = re.match(r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})", driver_str)
+                if lin:
+                    intel_driver_ver["lin"] = int(lin.group(1))
+                win = re.match(
+                    r"[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})", driver_str
+                )
+                if win:
+                    intel_driver_ver["win"] = (int(win.group(1)), int(win.group(2)))
+            elif sycl_device.endswith("cpu"):
+                intel_driver_ver["cpu"] = driver_str
         if re.match(r" *Aspects *:", line):
             _, aspects_str = line.split(":", 1)
             dev_aspects.append(aspects_str.strip().split(" "))
@@ -1126,7 +1150,7 @@ if lit_config.params.get("compatibility_testing", "False") != "False":
     config.substitutions.append(("%clangxx", " true "))
     config.substitutions.append(("%clang", " true "))
 else:
-    clangxx = " " + config.dpcpp_compiler + " "
+    clangxx = " " + config.dpcpp_compiler + " -Werror "
     if "preview-mode" in config.available_features:
         # Technically, `-fpreview-breaking-changes` is reported as unused option
         # if used without `-fsycl`. However, we have far less tests compiling

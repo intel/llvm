@@ -212,6 +212,7 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   case UR_DEVICE_INFO_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
+  case UR_DEVICE_INFO_IS_INTEGRATED_GPU:
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = true;
@@ -596,6 +597,16 @@ public:
 
     sycl::detail::ur::initializeUr(UrLoaderConfig);
     urLoaderConfigRelease(UrLoaderConfig);
+
+    // We clear platform cache for each test run, so that tests can have a
+    // different backend. This forces platforms to be reconstructed (and thus
+    // queries about UR backend info to be called again) This also erases each
+    // platform's devices (normally done in the library shutdown) so that
+    // platforms/devices' lifetimes could work in unittests scenario. In SYCL,
+    // this is normally done at shutdown, but between Win/Lin and static/shared
+    // differences, there is no correct parallel in the ~UrMock destructor.
+    // Instead we do it here. Simple and clean.
+    detail::GlobalHandler::instance().getPlatformCache().clear();
   }
 
   UrMock(UrMock<Backend> &&Other) = delete;
@@ -606,14 +617,8 @@ public:
     // these between tests
     detail::GlobalHandler::instance().prepareSchedulerToRelease(true);
     detail::GlobalHandler::instance().releaseDefaultContexts();
-    // clear platform cache in case subsequent tests want a different backend,
-    // this forces platforms to be reconstructed (and thus queries about UR
-    // backend info to be called again)
-    //
-    // This also erases each platform's devices (normally done in the library
-    // shutdown) so that platforms/devices' lifetimes could work in unittests
-    // scenario.
-    detail::GlobalHandler::instance().getPlatformCache().clear();
+    // the platform cache is cleared at the BEGINING of the mock.
+
     mock::getCallbacks().resetCallbacks();
   }
 

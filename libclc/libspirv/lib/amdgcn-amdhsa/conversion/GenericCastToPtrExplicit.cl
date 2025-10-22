@@ -20,16 +20,15 @@ _CLC_DEF static bool __clc_amdgcn_is_global(generic void *ptr) {
 }
 
 #define GenericCastToPtrExplicit_To(ADDRSPACE, NAME)                           \
-  _CLC_DECL _CLC_OVERLOAD                                                      \
-      ADDRSPACE void *__spirv_GenericCastToPtrExplicit_To##NAME(               \
-          generic void *ptr, int unused) {                                     \
+  _CLC_OVERLOAD _CLC_DEF ADDRSPACE void *                                      \
+  __spirv_GenericCastToPtrExplicit_To##NAME(generic void *ptr, int unused) {   \
     if (__clc_amdgcn_is_##ADDRSPACE(ptr))                                      \
       return (ADDRSPACE void *)ptr;                                            \
     return 0;                                                                  \
   }                                                                            \
-  _CLC_DECL _CLC_OVERLOAD                                                      \
-      ADDRSPACE const void *__spirv_GenericCastToPtrExplicit_To##NAME(         \
-          generic const void *ptr, int unused) {                               \
+  _CLC_OVERLOAD _CLC_DEF ADDRSPACE const void *                                \
+  __spirv_GenericCastToPtrExplicit_To##NAME(generic const void *ptr,           \
+                                            int unused) {                      \
     return __spirv_GenericCastToPtrExplicit_To##NAME((generic void *)ptr,      \
                                                      unused);                  \
   }

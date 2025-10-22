@@ -70,9 +70,13 @@ struct SYCLWrappingOptions {
 /// Wraps the input bundled images and accompanied data into the module \p M
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Settings that allows to turn on optional data and settings.
+/// \param _PreviewBreakingChanges Enable preview breaking changes that are not
+///        backward compatible with the existing SYCL Runtime.
+/// \returns Error if wrapping fails, success otherwise.
 llvm::Error
 wrapSYCLBinaries(llvm::Module &M, const llvm::SmallVector<SYCLImage> &Images,
-                 SYCLWrappingOptions Options = SYCLWrappingOptions());
+                 SYCLWrappingOptions Options = SYCLWrappingOptions(),
+                 bool _PreviewBreakingChanges = false);
 
 } // namespace offloading
 } // namespace llvm

@@ -5,5 +5,8 @@
 // RUN:          -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: target-native_cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20142
+
 // This test checks correctness of SYCL2020 non-native specialization constants
 // on CPU device

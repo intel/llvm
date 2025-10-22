@@ -31,6 +31,14 @@ inline ur_result_t redefined_urEnqueueKernelLaunch(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+static thread_local size_t counter_urEnqueueKernelLaunchWithEvent = 0;
+inline ur_result_t redefined_urEnqueueKernelLaunchWithEvent(void *pParams) {
+  ++counter_urEnqueueKernelLaunchWithEvent;
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  EXPECT_NE(*params.pphEvent, nullptr);
+  return UR_RESULT_SUCCESS;
+}
+
 static thread_local size_t counter_urUSMEnqueueMemcpy = 0;
 inline ur_result_t redefined_urUSMEnqueueMemcpy(void *pParams) {
   ++counter_urUSMEnqueueMemcpy;

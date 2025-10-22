@@ -166,6 +166,7 @@ private:
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
   mutable std::unique_ptr<Tool> OffloadPackager;
+  mutable std::unique_ptr<Tool> OffloadPackagerExtract;
   mutable std::unique_ptr<Tool> OffloadDeps;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SYCLPostLink;
@@ -185,6 +186,7 @@ private:
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
   Tool *getOffloadPackager() const;
+  Tool *getOffloadPackagerExtract() const;
   Tool *getOffloadDeps() const;
   Tool *getSPIRVTranslator() const;
   Tool *getSYCLPostLink() const;
@@ -218,10 +220,6 @@ protected:
   ToolChain(const Driver &D, const llvm::Triple &T,
             const llvm::opt::ArgList &Args);
 
-  /// Executes the given \p Executable and returns the stdout.
-  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
-  executeToolChainProgram(StringRef Executable) const;
-
   void setTripleEnvironment(llvm::Triple::EnvironmentType Env);
 
   virtual Tool *buildAssembler() const;
@@ -245,9 +243,6 @@ protected:
   static void addSystemFrameworkInclude(const llvm::opt::ArgList &DriverArgs,
                                         llvm::opt::ArgStringList &CC1Args,
                                         const Twine &Path);
-  static void addSystemInclude(const llvm::opt::ArgList &DriverArgs,
-                               llvm::opt::ArgStringList &CC1Args,
-                               const Twine &Path);
   static void addExternCSystemInclude(const llvm::opt::ArgList &DriverArgs,
                                       llvm::opt::ArgStringList &CC1Args,
                                       const Twine &Path);
@@ -267,6 +262,9 @@ protected:
   ///@}
 
 public:
+  static void addSystemInclude(const llvm::opt::ArgList &DriverArgs,
+                               llvm::opt::ArgStringList &CC1Args,
+                               const Twine &Path);
   virtual ~ToolChain();
 
   // Accessors

@@ -162,18 +162,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     flags = UR_MEM_FLAG_READ_WRITE;
   }
 
-  UR_ASSERT(!(flags &
-              (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER |
-               UR_MEM_FLAG_ALLOC_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)),
+  UR_ASSERT(subBufferFlagsAreLegal(hBuffer->MemFlags, flags),
             UR_RESULT_ERROR_INVALID_VALUE);
-  if (hBuffer->MemFlags & UR_MEM_FLAG_WRITE_ONLY) {
-    UR_ASSERT(!(flags & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_READ_ONLY)),
-              UR_RESULT_ERROR_INVALID_VALUE);
-  }
-  if (hBuffer->MemFlags & UR_MEM_FLAG_READ_ONLY) {
-    UR_ASSERT(!(flags & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)),
-              UR_RESULT_ERROR_INVALID_VALUE);
-  }
 
   auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
   UR_ASSERT(((pRegion->origin + pRegion->size) <= BufferImpl.getSize()),
@@ -649,4 +639,27 @@ hipSurfaceObject_t SurfaceMem::getSurface(const ur_device_handle_t Device) {
     throw Err;
   }
   return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
+                                                         void *, void *,
+                                                         size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(ur_context_handle_t,
+                                                         void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(ur_context_handle_t,
+                                                          ur_device_handle_t,
+                                                          void *, size_t,
+                                                          void **) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
+                                                           void *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

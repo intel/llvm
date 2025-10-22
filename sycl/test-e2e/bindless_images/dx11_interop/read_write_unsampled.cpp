@@ -5,6 +5,9 @@
 // UNSUPPORTED-INTENDED: Unknown issue with integrated GPU failing
 //                       when importing memory
 
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20384
+
 // RUN: %{build} %link-directx -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
@@ -213,7 +216,10 @@ int runTest(D3D11ProgramState &d3d11ProgramState, sycl::queue syclQueue,
   // E.g. LevelZero does not support `unorm` channel types.
   if (!bindless_helpers::memoryAllocationSupported(
           syclImageDesc, syclexp::image_memory_handle_type::opaque_handle,
-          syclQueue)) {
+          syclQueue) ||
+      (channelType == sycl::image_channel_type::unorm_int8 &&
+       syclQueue.get_device().get_backend() ==
+           sycl::backend::ext_oneapi_level_zero)) {
     // We cannot allocate the image memory, skip the test.
 #ifdef VERBOSE_PRINT
     std::cout << "Memory allocation unsupported. Skipping test.\n";

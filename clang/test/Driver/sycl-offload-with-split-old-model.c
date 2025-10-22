@@ -311,7 +311,7 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-OFF
 // RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-DEFAULT
-// RUN:   %clang -### -fsycl --no-offload-new-driver -nocudalib -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN:   %clang -### -fsycl --no-offload-new-driver -fno-sycl-libspirv -nocudalib -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-NON-SPIRV
 // CHK-ESIMD-SPLIT-ON: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-o"{{.*}}
 // CHK-ESIMD-SPLIT-OFF-NOT: sycl-post-link{{.*}} "-split-esimd"{{.*}}

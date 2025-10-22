@@ -42,6 +42,12 @@ def parse_min_intel_driver_req(line_number, line, output):
         # Return "win" version as (101, 4502) to ease later comparison.
         output["win"] = tuple(map(int, win.group(1).split(".")))
 
+    cpu = re.search(r"cpu:\s*([^\s]+)", line)
+    if cpu:
+        if "cpu" in output:
+            raise ValueError('Multiple entries for "cpu" version')
+        output["cpu"] = cpu.group(1)
+
     return output
 
 
@@ -165,7 +171,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
             driver_ok = True
             if test.intel_driver_req:
-                for fmt in ["lin", "win"]:
+                for fmt in ["lin", "win", "cpu"]:
                     if (
                         fmt in test.intel_driver_req
                         and fmt in test.config.intel_driver_ver[full_name]

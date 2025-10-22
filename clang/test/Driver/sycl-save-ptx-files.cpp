@@ -4,14 +4,14 @@
 // while targeting CUDA enabled GPUs.
 
 // Linux
-// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -save-offload-code=/user/input/path %s 2>&1 \
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -save-offload-code=/user/input/path -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES,CHECK-SPIRV-FILES
 
 // clang --driver-mode=g++
-// RUN: %clangxx -### -fsycl  -fsycl-targets=nvptx64-nvidia-cuda -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -save-offload-code=/user/input/path %s 2>&1 \
+// RUN: %clangxx -### -fsycl  -fsycl-targets=nvptx64-nvidia-cuda -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -save-offload-code=/user/input/path -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES
 
-// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -save-offload-code= %s 2>&1 \
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -save-offload-code= -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES-CWD,CHECK-SPIRV-FILES-CWD
 
 // CHECK-PTX-FILES: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang{{.*}}" {{.*}} "-fsycl-is-device" {{.*}}.s{{.*}}
@@ -22,20 +22,20 @@
 // Windows - Check if PTX files are saved in the user provided path.
 // RUN: %clang_cl -### -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
-// RUN: -Qsave-offload-code=/user/input/path %s 2>&1 \
+// RUN: -Qsave-offload-code=/user/input/path -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-PTX-WIN %s
 
 // Windows - Check if PTX and SPV files are saved in user provided path.
 // RUN: %clang_cl -### -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
-// RUN: -Qsave-offload-code=/user/input/path %s 2>&1 \
+// RUN: -Qsave-offload-code=/user/input/path -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-PTX-WIN,CHECK-SPV-WIN %s
 
 // Windows - Check PTX files saved in current working directory when -save-offload-code
 // is empty. 
 // RUN: %clang_cl -### -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda \
-// RUN: -Qsave-offload-code= %s 2>&1 \
+// RUN: -Qsave-offload-code= -fno-sycl-libspirv %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-PTX-WIN-CWD %s
 
 // CHECK-PTX-WIN: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang{{.*}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}

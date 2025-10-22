@@ -40,6 +40,7 @@
 #include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLPostLink/ESIMDPostSplitProcessing.h"
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/SpecializationConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 
 #include <algorithm>
 #include <memory>
@@ -58,8 +58,6 @@
 
 using namespace llvm;
 using namespace llvm::sycl;
-
-using string_vector = std::vector<std::string>;
 
 namespace {
 
@@ -263,6 +261,19 @@ struct IrPropSymFilenameTriple {
   std::string Sym;
 };
 
+unsigned getOptLevel() {
+  if (OptLevelO3)
+    return 3;
+  if (OptLevelO2 || OptLevelOs || OptLevelOz)
+    return 2;
+  if (OptLevelO1)
+    return 1;
+  if (OptLevelO0)
+    return 0;
+
+  return 2; // default value
+}
+
 static void writeToFile(const StringRef Filename, const StringRef Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
@@ -418,73 +429,6 @@ void saveDeviceLibModule(
   saveModule(OutTables, DeviceLibMD, I, OutputPrefix, "");
 }
 
-module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
-                              module_split::ModuleDesc &&MD2) {
-  std::vector<std::string> Names;
-  MD1.saveEntryPointNames(Names);
-  MD2.saveEntryPointNames(Names);
-  bool LinkError =
-      llvm::Linker::linkModules(MD1.getModule(), MD2.releaseModulePtr());
-
-  if (LinkError) {
-    error(" error when linking SYCL and ESIMD modules");
-  }
-  module_split::ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
-  Res.assignMergedProperties(MD1, MD2);
-  Res.Name = "linked[" + MD1.Name + "," + MD2.Name + "]";
-  return Res;
-}
-
-bool processSpecConstants(module_split::ModuleDesc &MD) {
-  MD.Props.SpecConstsMet = false;
-
-  if (SpecConstLower.getNumOccurrences() == 0)
-    return false;
-
-  ModulePassManager RunSpecConst;
-  ModuleAnalysisManager MAM;
-  SpecConstantsPass SCP(SpecConstLower == SC_NATIVE_MODE
-                            ? SpecConstantsPass::HandlingMode::native
-                            : SpecConstantsPass::HandlingMode::emulation);
-  // Register required analysis
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  RunSpecConst.addPass(std::move(SCP));
-
-  // Perform the spec constant intrinsics transformation on resulting module
-  PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
-  MD.Props.SpecConstsMet = !Res.areAllPreserved();
-  return MD.Props.SpecConstsMet;
-}
-
-/// Function generates the copy of the given ModuleDesc where all uses of
-/// Specialization Constants are replaced by corresponding default values.
-/// If the Module in MD doesn't contain specialization constants then
-/// std::nullopt is returned.
-std::optional<module_split::ModuleDesc>
-processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
-  std::optional<module_split::ModuleDesc> NewModuleDesc;
-  if (!checkModuleContainsSpecConsts(MD.getModule()))
-    return NewModuleDesc;
-
-  NewModuleDesc = MD.clone();
-  NewModuleDesc->setSpecConstantDefault(true);
-
-  ModulePassManager MPM;
-  ModuleAnalysisManager MAM;
-  SpecConstantsPass SCP(SpecConstantsPass::HandlingMode::default_values);
-  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-  MPM.addPass(std::move(SCP));
-  MPM.addPass(StripDeadPrototypesPass());
-
-  PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
-  NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
-  assert(NewModuleDesc->Props.SpecConstsMet &&
-         "This property should be true since the presence of SpecConsts "
-         "has been checked before the run of the pass");
-  NewModuleDesc->rebuildEntryPoints();
-  return NewModuleDesc;
-}
-
 constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
 
 void addTableRow(util::SimpleTable &Table,
@@ -498,65 +442,6 @@ void addTableRow(util::SimpleTable &Table,
   }
   assert(static_cast<size_t>(Table.getNumColumns()) == Row.size());
   Table.addRow(Row);
-}
-
-SmallVector<module_split::ModuleDesc, 2>
-handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
-            bool &SplitOccurred) {
-  // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
-  // undergo different set of LLVMIR passes. After this they are linked back
-  // together to form single module with disjoint SYCL and ESIMD call graphs
-  // unless -split-esimd option is specified. The graphs become disjoint
-  // when linked back because functions shared between graphs are cloned and
-  // renamed.
-  SmallVector<module_split::ModuleDesc, 2> Result =
-      module_split::splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
-                                 AllowDeviceImageDependencies);
-
-  if (Result.size() > 1 && SplitOccurred &&
-      (SplitMode == module_split::SPLIT_PER_KERNEL) && !SplitEsimd) {
-    // Controversial state reached - SYCL and ESIMD entry points resulting
-    // from SYCL/ESIMD split (which is done always) are linked back, since
-    // -split-esimd is not specified, but per-kernel split is requested.
-    warning("SYCL and ESIMD entry points detected and split mode is "
-            "per-kernel, so " +
-            SplitEsimd.ValueStr + " must also be specified");
-  }
-  SplitOccurred |= Result.size() > 1;
-
-  for (auto &MD : Result) {
-    DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
-    if (LowerEsimd && MD.isESIMD())
-      Modified |=
-          sycl::lowerESIMDConstructs(MD, ForceDisableESIMDOpt, SplitEsimd);
-  }
-
-  if (!SplitEsimd && Result.size() > 1) {
-    // SYCL/ESIMD splitting is not requested, link back into single module.
-    assert(Result.size() == 2 &&
-           "Unexpected number of modules as results of ESIMD split");
-    int ESIMDInd = Result[0].isESIMD() ? 0 : 1;
-    int SYCLInd = 1 - ESIMDInd;
-    assert(Result[SYCLInd].isSYCL() &&
-           "no non-ESIMD module as a result ESIMD split?");
-
-    // ... but before that, make sure no link conflicts will occur.
-    Result[ESIMDInd].renameDuplicatesOf(Result[SYCLInd].getModule(), ".esimd");
-    module_split::ModuleDesc Linked =
-        link(std::move(Result[0]), std::move(Result[1]));
-    Linked.restoreLinkageOfDirectInvokeSimdTargets();
-    string_vector Names;
-    Linked.saveEntryPointNames(Names);
-    // cleanup may remove some entry points, need to save/rebuild
-    Linked.cleanup(AllowDeviceImageDependencies);
-    Linked.rebuildEntryPoints(Names);
-    Result.clear();
-    Result.emplace_back(std::move(Linked));
-    DUMP_ENTRY_POINTS(Result.back().entries(), Result.back().Name.c_str(), 3);
-    Modified = true;
-  }
-
-  return Result;
 }
 
 // Checks if the given target and module are compatible.
@@ -655,8 +540,9 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
 
   std::unique_ptr<module_split::ModuleSplitterBase> Splitter =
       module_split::getDeviceCodeSplitter(
-          module_split::ModuleDesc{std::move(M)}, SplitMode, IROutputOnly,
-          EmitOnlyKernelsAsEntryPoints, AllowDeviceImageDependencies);
+          std::make_unique<module_split::ModuleDesc>(std::move(M)), SplitMode,
+          IROutputOnly, EmitOnlyKernelsAsEntryPoints,
+          AllowDeviceImageDependencies);
   bool SplitOccurred = Splitter->remainingSplits() > 1;
   Modified |= SplitOccurred;
 
@@ -667,38 +553,47 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
       error(toString(std::move(E)));
   }
 
+  std::optional<SpecConstantsPass::HandlingMode> SCMode;
+  if (SpecConstLower.getNumOccurrences() > 0)
+    SCMode = SpecConstLower == SC_NATIVE_MODE
+                 ? SpecConstantsPass::HandlingMode::native
+                 : SpecConstantsPass::HandlingMode::emulation;
+
   // It is important that we *DO NOT* preserve all the splits in memory at the
   // same time, because it leads to a huge RAM consumption by the tool on bigger
   // inputs.
   while (Splitter->hasMoreSplits()) {
-    module_split::ModuleDesc MDesc = Splitter->nextSplit();
-    DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
+    std::unique_ptr<module_split::ModuleDesc> MDesc = Splitter->nextSplit();
+    DUMP_ENTRY_POINTS(MDesc->entries(), MDesc->Name.c_str(), 1);
 
-    MDesc.fixupLinkageOfDirectInvokeSimdTargets();
+    MDesc->fixupLinkageOfDirectInvokeSimdTargets();
 
-    SmallVector<module_split::ModuleDesc, 2> MMs =
-        handleESIMD(std::move(MDesc), Modified, SplitOccurred);
+    ESIMDProcessingOptions Options = {SplitMode,
+                                      EmitOnlyKernelsAsEntryPoints,
+                                      AllowDeviceImageDependencies,
+                                      LowerEsimd,
+                                      SplitEsimd,
+                                      getOptLevel(),
+                                      ForceDisableESIMDOpt};
+    auto ModulesOrErr =
+        handleESIMD(std::move(MDesc), Options, Modified, SplitOccurred);
+    CHECK_AND_EXIT(ModulesOrErr.takeError());
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2> &MMs =
+        *ModulesOrErr;
     assert(MMs.size() && "at least one module is expected after ESIMD split");
-
-    SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
-    for (size_t I = 0; I != MMs.size(); ++I) {
-      if (GenerateDeviceImageWithDefaultSpecConsts) {
-        std::optional<module_split::ModuleDesc> NewMD =
-            processSpecConstantsWithDefaultValues(MMs[I]);
-        if (NewMD)
-          MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
-      }
-
-      Modified |= processSpecConstants(MMs[I]);
-    }
+    SmallVector<std::unique_ptr<module_split::ModuleDesc>, 2>
+        MMsWithDefaultSpecConsts;
+    Modified |=
+        handleSpecializationConstants(MMs, SCMode, MMsWithDefaultSpecConsts,
+                                      GenerateDeviceImageWithDefaultSpecConsts);
 
     if (IROutputOnly) {
       if (SplitOccurred) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
-      MMs.front().cleanup(AllowDeviceImageDependencies);
-      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
+      MMs.front()->cleanup(AllowDeviceImageDependencies);
+      saveModuleIR(MMs.front()->getModule(), OutputFiles[0].Filename);
       return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
@@ -711,18 +606,19 @@ processInputModule(std::unique_ptr<Module> M, const StringRef OutputPrefix) {
       errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
                 "have been made\n";
     }
-    for (module_split::ModuleDesc &IrMD : MMs) {
-      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-      saveModule(Tables, IrMD, ID, OutputPrefix, OutIRFileName);
+    for (const std::unique_ptr<module_split::ModuleDesc> &IrMD : MMs) {
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
+      saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
     }
 
     ++ID;
 
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
-        module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
-        IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-        saveModule(Tables, IrMD, ID, OutputPrefix, OutIRFileName);
+        const std::unique_ptr<module_split::ModuleDesc> &IrMD =
+            MMsWithDefaultSpecConsts[i];
+        IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD->getModule());
+        saveModule(Tables, *IrMD, ID, OutputPrefix, OutIRFileName);
       }
 
       ++ID;

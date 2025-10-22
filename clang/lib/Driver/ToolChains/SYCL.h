@@ -9,8 +9,7 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
-#include "clang/Basic/Cuda.h"
-#include "clang/Driver/Options.h"
+#include "clang/Driver/SyclInstallationDetector.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 
@@ -21,36 +20,6 @@ namespace driver {
 // GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
 // AOT compiler).
 StringRef mapIntelGPUArchName(StringRef ArchName);
-
-class SYCLInstallationDetector {
-public:
-  SYCLInstallationDetector(const Driver &D);
-  SYCLInstallationDetector(const Driver &D, const llvm::Triple &HostTriple,
-                           const llvm::opt::ArgList &Args);
-
-  /// \brief Find and return the path to the libspirv library for the target
-  /// \return The path to the libspirv library if found, otherwise nullptr.
-  /// The lifetime of the returned string is managed by \p Args.
-  const char *findLibspirvPath(const llvm::Triple &DeviceTriple,
-                               const llvm::opt::ArgList &Args,
-                               const llvm::Triple &HostTriple) const;
-
-  void addLibspirvLinkArgs(const llvm::Triple &DeviceTriple,
-                           const llvm::opt::ArgList &DriverArgs,
-                           const llvm::Triple &HostTriple,
-                           llvm::opt::ArgStringList &CC1Args) const;
-
-  void getSYCLDeviceLibPath(
-      llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
-  void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
-                          llvm::opt::ArgStringList &CC1Args) const;
-  void print(llvm::raw_ostream &OS) const;
-
-private:
-  const Driver &D;
-  llvm::SmallVector<llvm::SmallString<128>, 4> InstallationCandidates;
-};
-
 
 class Command;
 
@@ -151,7 +120,6 @@ public:
 };
 
 } // end namespace x86_64
-
 } // end namespace SYCL
 } // end namespace tools
 

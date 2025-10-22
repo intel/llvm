@@ -13,4 +13,5 @@ add_sycl_unittest(CommandGraphExtensionTests OBJECT
   TopologicalSort.cpp
   Update.cpp
   Properties.cpp
+  LinearGraphOptimization.cpp
 )

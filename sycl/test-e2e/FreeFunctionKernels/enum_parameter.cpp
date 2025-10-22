@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: linux && arch-intel_gpu_bmg_g21 && level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/20225
+
 // This test verifies that we can use scoped enum types as arguments in free
 // function kernels.
 

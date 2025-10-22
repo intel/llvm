@@ -19,16 +19,16 @@ _CLC_OVERLOAD _CLC_DEF uint __spirv_ocl_u_mul24(uint x, uint y) {
 
 #define __CLC_SCALAR
 
-#define FUNCTION __spirv_ocl_s_mul24
+#define __CLC_FUNCTION __spirv_ocl_s_mul24
 #define __CLC_GENTYPE int
 #include <clc/shared/binary_def_scalarize.inc>
 #undef __CLC_GENTYPE
-#undef FUNCTION
+#undef __CLC_FUNCTION
 
-#define FUNCTION __spirv_ocl_u_mul24
+#define __CLC_FUNCTION __spirv_ocl_u_mul24
 #define __CLC_GENTYPE uint
 #include <clc/shared/binary_def_scalarize.inc>
 #undef __CLC_GENTYPE
-#undef FUNCTION
+#undef __CLC_FUNCTION
 
 #undef __CLC_SCALAR

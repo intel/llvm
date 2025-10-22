@@ -1265,7 +1265,7 @@ ur_result_t urEnqueueUSMPrefetch(
     /// [in] size in bytes to be fetched
     size_t Size,
     /// [in] USM prefetch flags
-    ur_usm_migration_flags_t /*Flags*/,
+    ur_usm_migration_flags_t Flags,
     /// [in] size of the event wait list
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -1276,6 +1276,18 @@ ur_result_t urEnqueueUSMPrefetch(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
+  switch (Flags) {
+  case UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE:
+    break;
+  case UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST:
+    UR_LOG(WARN,
+           "enqueueUSMPrefetch: L0 does not support prefetch to host yet");
+    break;
+  default:
+    UR_LOG(ERR, "enqueueUSMPrefetch: invalid USM migration flag");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -1315,8 +1327,10 @@ ur_result_t urEnqueueUSMPrefetch(
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
   }
-  // TODO: figure out how to translate "flags"
-  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch, (ZeCommandList, Mem, Size));
+  // TODO: Support migration flags after L0 backend support is added
+  if (Flags == UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE) {
+    ZE2UR_CALL(zeCommandListAppendMemoryPrefetch, (ZeCommandList, Mem, Size));
+  }
 
   // TODO: Level Zero does not have a completion "event" with the prefetch API,
   // so manually add command to signal our event.
@@ -1936,6 +1950,69 @@ ur_result_t urEnqueueWriteHostPipe(
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
+                                 void *pIPCMemHandleData,
+                                 size_t *pIPCMemHandleDataSizeRet) {
+  umf_memory_pool_handle_t umfPool;
+  auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
+  if (urRet)
+    return urRet;
+
+  // Fast path for returning the size of the handle only.
+  if (!pIPCMemHandleData)
+    return umf::umf2urResult(
+        umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
+
+  size_t fallbackUMFHandleSize = 0;
+  size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
+                              ? pIPCMemHandleDataSizeRet
+                              : &fallbackUMFHandleSize;
+  umf_ipc_handle_t umfHandle;
+  urRet = umf::umf2urResult(umfGetIPCHandle(pMem, &umfHandle, umfHandleSize));
+  if (urRet)
+    return urRet;
+  std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
+  return umf::umf2urResult(
+      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData)));
+}
+
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
+                                  ur_device_handle_t hDevice,
+                                  void *pIPCMemHandleData,
+                                  size_t ipcMemHandleDataSize, void **ppMem) {
+  auto *pool = hContext->DefaultPool.getPool(usm::pool_descriptor{
+      &hContext->DefaultPool, hContext, hDevice, UR_USM_TYPE_DEVICE, false});
+  if (!pool)
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  umf_memory_pool_handle_t umfPool = pool->UmfPool.get();
+
+  size_t umfHandleSize = 0;
+  auto urRet =
+      umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
+  if (urRet)
+    return urRet;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  umf_ipc_handler_handle_t umfIPCHandler;
+  urRet = umf::umf2urResult(umfPoolGetIPCHandler(umfPool, &umfIPCHandler));
+  if (urRet)
+    return urRet;
+
+  return umf::umf2urResult(umfOpenIPCHandle(
+      umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
+      ppMem));
+}
+
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
+  return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }
 
 } // namespace ur::level_zero

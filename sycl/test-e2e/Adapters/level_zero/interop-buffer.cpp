@@ -45,13 +45,11 @@ int main() {
     auto ZeContext = get_native<backend::ext_oneapi_level_zero>(Context);
     auto ZeDevice = get_native<backend::ext_oneapi_level_zero>(Device);
 
-    // Initialize Level Zero driver is required if this test is linked
-    // statically with Level Zero loader, the driver will not be init otherwise.
+    // Initializing Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, otherwise the driver will not be
+    // initialized.
     ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
-    if (result != ZE_RESULT_SUCCESS) {
-      std::cout << "zeInit failed\n";
-      return 1;
-    }
+    assert(result == ZE_RESULT_SUCCESS);
 
     ze_host_mem_alloc_desc_t HostDesc = {};
     HostDesc.stype = ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;

@@ -24,6 +24,10 @@
 #include <memory>
 #include <mutex>
 
+#define __SYCL_UR_ERROR_REPORT(backend)                                        \
+  std::string(sycl::detail::get_backend_name_no_vendor(backend)) +             \
+      " backend failed with error: "
+
 #define __SYCL_CHECK_UR_CODE_NO_EXC(expr, backend)                             \
   {                                                                            \
     auto code = expr;                                                          \
@@ -264,11 +268,12 @@ public:
   }
   Managed &operator=(const Managed &) = delete;
   Managed &operator=(Managed &&Other) {
+    URResource Temp = Other.R;
+    Other.R = nullptr;
     if (R)
       Adapter->call<Release>(R);
+    R = Temp;
 
-    R = Other.R;
-    Other.R = nullptr;
     Adapter = Other.Adapter;
     return *this;
   }

@@ -5,11 +5,19 @@
 import os
 import shutil
 
-from options import options
-from utils.utils import run, git_clone
-from utils.logger import log
-
 from datetime import datetime, timezone
+from pathlib import Path
+
+from options import options
+from utils.utils import (
+    run,
+    prune_old_files,
+    remove_by_prefix,
+    remove_by_extension,
+    sanitize_filename,
+)
+from utils.logger import log
+from git_project import GitProject
 
 
 class Unitrace:
@@ -23,14 +31,14 @@ class Unitrace:
         )
 
         log.info("Downloading and building Unitrace...")
-        repo_dir = git_clone(
-            options.workdir,
-            "pti-gpu-repo",
+        self.project = GitProject(
             "https://github.com/intel/pti-gpu.git",
-            "master",
+            "pti-0.12.4",
+            Path(options.workdir),
+            "pti-gpu",
         )
         build_dir = os.path.join(options.workdir, "unitrace-build")
-        unitrace_src = os.path.join(repo_dir, "tools", "unitrace")
+        unitrace_src = self.project.src_dir / "tools" / "unitrace"
         os.makedirs(build_dir, exist_ok=True)
 
         unitrace_exe = os.path.join(build_dir, "unitrace")
@@ -59,20 +67,13 @@ class Unitrace:
         if options.results_directory_override == None:
             self.traces_dir = os.path.join(options.workdir, "results", "traces")
         else:
-            self.traces_dir = os.path.join(options.results_directory_override, "traces")
+            self.traces_dir = os.path.join(
+                options.results_directory_override, "results", "traces"
+            )
 
     def _prune_unitrace_dirs(self, res_dir: str, FILECNT: int = 10):
         """Keep only the last FILECNT files in the traces directory."""
-        files = os.listdir(res_dir)
-        files.sort()  # Lexicographical sort matches timestamp order
-        if len(files) > 2 * FILECNT:
-            for f in files[: len(files) - 2 * FILECNT]:
-                full_path = os.path.join(res_dir, f)
-                if os.path.isdir(full_path):
-                    shutil.rmtree(full_path)
-                else:
-                    os.remove(full_path)
-                    log.debug(f"Removing old unitrace file: {full_path}")
+        prune_old_files(res_dir, FILECNT)
 
     def cleanup(self, bench_cwd: str, unitrace_output: str):
         """
@@ -80,15 +81,8 @@ class Unitrace:
         """
         unitrace_dir = os.path.dirname(unitrace_output)
         unitrace_base = os.path.basename(unitrace_output)
-        for f in os.listdir(unitrace_dir):
-            if f.startswith(unitrace_base + "."):
-                os.remove(os.path.join(unitrace_dir, f))
-                log.debug(f"Cleanup: Removed {f} from {unitrace_dir}")
-        if os.path.exists(bench_cwd):
-            for f in os.listdir(bench_cwd):
-                if f.endswith(".json"):
-                    os.remove(os.path.join(bench_cwd, f))
-                    log.debug(f"Cleanup: Removed {f} from {bench_cwd}")
+        remove_by_prefix(unitrace_dir, unitrace_base)
+        remove_by_extension(bench_cwd, ".json")
 
     def setup(
         self, bench_name: str, command: list[str], extra_unitrace_opt: list[str] = None
@@ -101,7 +95,8 @@ class Unitrace:
         if not os.path.exists(unitrace_bin):
             raise FileNotFoundError(f"Unitrace binary not found: {unitrace_bin}. ")
         os.makedirs(self.traces_dir, exist_ok=True)
-        bench_dir = os.path.join(f"{self.traces_dir}", f"{bench_name}")
+        sanitized_bench_name = sanitize_filename(bench_name)
+        bench_dir = os.path.join(f"{self.traces_dir}", f"{sanitized_bench_name}")
 
         os.makedirs(bench_dir, exist_ok=True)
 
@@ -171,6 +166,8 @@ class Unitrace:
         # even if the pid_json_files contains more entries, only the last one is valid
         shutil.move(os.path.join(options.benchmark_cwd, pid_json_files[-1]), json_name)
         log.debug(f"Moved {pid_json_files[-1]} to {json_name}")
+
+        log.info(f"Unitrace output files: {unitrace_output}, {json_name}")
 
         # Prune old unitrace directories
         self._prune_unitrace_dirs(os.path.dirname(unitrace_output))

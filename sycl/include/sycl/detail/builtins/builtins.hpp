@@ -63,11 +63,13 @@
 
 #pragma once
 
+#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 #include <sycl/detail/vector_convert.hpp>
-#include <sycl/marray.hpp> // for marray
-#include <sycl/vector.hpp> // for vec
+#include <sycl/marray.hpp>
+#include <sycl/multi_ptr.hpp>
+#include <sycl/vector.hpp>
 
 namespace sycl {
 inline namespace _V1 {
