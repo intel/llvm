@@ -1,6 +1,6 @@
 ; RUN: opt -bugpoint-enable-legacy-pm -globaloffset %s -S -o - | FileCheck %s
 
-; Check that phi is correct handled in load's defs collection.
+; Check that phi is correctly handled in load's defs collection.
 
 ; CHECK-NOT: call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 
