@@ -9,8 +9,8 @@
 #include <clc/integer/clc_ctz.h>
 #include <libspirv/spirv.h>
 
-#define FUNCTION __spirv_ocl_ctz
-#define __IMPL_FUNCTION(x) __clc_ctz
+#define __CLC_FUNCTION __spirv_ocl_ctz
+#define __CLC_IMPL_FUNCTION(x) __clc_ctz
 #define __CLC_BODY <clc/shared/unary_def.inc>
 
 #include <clc/integer/gentype.inc>

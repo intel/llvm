@@ -302,6 +302,7 @@ static void migrateMemory(ze_command_list_handle_t cmdList, void *src,
                           void *dst, size_t size,
                           wait_list_view &waitListView) {
   if (!cmdList) {
+    UR_DFAILURE("invalid handle in migrateMemory");
     throw UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
@@ -356,6 +357,7 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(void *pMappedPtr,
                    });
 
   if (hostAlloc == hostAllocations.end()) {
+    UR_DFAILURE("could not find pMappedPtr:" << pMappedPtr);
     throw UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
 
@@ -507,11 +509,15 @@ static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16 &&
          rowPitch == 4 * 2 * zeRegion.width) ||
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
-         rowPitch == 4 * zeRegion.width)))
+         rowPitch == 4 * zeRegion.width))) {
+    UR_DFAILURE("image size is invalid");
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
+  }
 #endif
-  if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height))
+  if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height)) {
+    UR_DFAILURE("image size is invalid");
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
+  }
 }
 
 std::pair<ze_image_handle_t, ze_image_region_t>
@@ -773,6 +779,70 @@ ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
   UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
+                                 void *pIPCMemHandleData,
+                                 size_t *pIPCMemHandleDataSizeRet) {
+  umf_memory_pool_handle_t umfPool;
+  auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
+  if (urRet)
+    return urRet;
+
+  // Fast path for returning the size of the handle only.
+  if (!pIPCMemHandleData)
+    return umf::umf2urResult(
+        umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
+
+  size_t fallbackUMFHandleSize = 0;
+  size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
+                              ? pIPCMemHandleDataSizeRet
+                              : &fallbackUMFHandleSize;
+  umf_ipc_handle_t umfHandle;
+  urRet = umf::umf2urResult(umfGetIPCHandle(pMem, &umfHandle, umfHandleSize));
+  if (urRet)
+    return urRet;
+  std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
+  return umf::umf2urResult(
+      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData)));
+}
+
+ur_result_t urIPCOpenMemHandleExp(ur_context_handle_t hContext,
+                                  ur_device_handle_t hDevice,
+                                  void *pIPCMemHandleData,
+                                  size_t ipcMemHandleDataSize, void **ppMem) {
+  auto *pool = hContext->getDefaultUSMPool()->getPool(
+      usm::pool_descriptor{hContext->getDefaultUSMPool(), hContext, hDevice,
+                           UR_USM_TYPE_DEVICE, false});
+  if (!pool)
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  umf_memory_pool_handle_t umfPool = pool->umfPool.get();
+
+  size_t umfHandleSize = 0;
+  auto urRet =
+      umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
+  if (urRet)
+    return urRet;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  umf_ipc_handler_handle_t umfIPCHandler;
+  urRet = umf::umf2urResult(umfPoolGetIPCHandler(umfPool, &umfIPCHandler));
+  if (urRet)
+    return urRet;
+
+  return umf::umf2urResult(umfOpenIPCHandle(
+      umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
+      ppMem));
+}
+
+ur_result_t urIPCCloseMemHandleExp(ur_context_handle_t, void *pMem) {
+  return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }
 
 } // namespace ur::level_zero

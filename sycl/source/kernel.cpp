@@ -253,9 +253,9 @@ kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 ur_native_handle_t kernel::getNative() const { return impl->getNative(); }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 ur_native_handle_t kernel::getNativeImpl() const { return impl->getNative(); }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // The following query was deprecated since it doesn't include a way to specify
 // the invdividual dimensions of the work group. All of the contents of this
 // #ifndef block should be removed during the next ABI breaking window.

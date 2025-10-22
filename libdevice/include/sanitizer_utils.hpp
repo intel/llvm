@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "sanitizer_common/sanitizer_libdevice.hpp"
 #include "sanitizer_defs.hpp"
+#include "spirv_vars.h"
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
@@ -47,11 +47,6 @@ inline __SYCL_LOCAL__ void *ToLocal(void *ptr) {
 }
 inline __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
-}
-
-inline DeviceType GetDeviceTy() {
-  return static_cast<DeviceType>(
-      __spirv_SpecConstant(SPEC_CONSTANT_DEVICE_TYPE_ID, 0));
 }
 
 template <typename T> T Memset(T ptr, int value, size_t size) {

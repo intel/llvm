@@ -965,6 +965,15 @@ ur_result_t urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintExpImageCopyInputTypes(enum ur_exp_image_copy_input_types_t value,
+                              char *buffer, const size_t buff_size,
+                              size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpSamplerCubemapFilterMode(
     enum ur_exp_sampler_cubemap_filter_mode_t value, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -1994,6 +2003,38 @@ ur_result_t urPrintEventCreateWithNativeHandleParams(
 
 ur_result_t urPrintEventSetCallbackParams(
     const struct ur_event_set_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcGetMemHandleExpParams(
+    const struct ur_ipc_get_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcPutMemHandleExpParams(
+    const struct ur_ipc_put_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcOpenMemHandleExpParams(
+    const struct ur_ipc_open_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcCloseMemHandleExpParams(
+    const struct ur_ipc_close_mem_handle_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

@@ -93,6 +93,7 @@ static const char *PrimitiveNames[PRIMITIVE_NUM] = {
     "intel_sub_group_avc_ime_result_dual_reference_streamin_t"
 };
 
+// clang-format off
 const char *MangledTypes[PRIMITIVE_NUM] = {
     "b",                                 // BOOL
     "h",                                 // UCHAR
@@ -106,7 +107,7 @@ const char *MangledTypes[PRIMITIVE_NUM] = {
     "Dh",                                // HALF
     "f",                                 // FLOAT
     "d",                                 // DOUBLE
-    "u6__bf16",                          // __BF16
+    "DF16b",                             // __BF16
     "v",                                 // VOID
     "z",                                 // VarArg
     "14ocl_image1d_ro",                  // PRIMITIVE_IMAGE1D_RO_T
@@ -175,6 +176,7 @@ const char *MangledTypes[PRIMITIVE_NUM] = {
     "55ocl_intel_sub_group_avc_ime_single_reference_streamin_t",          // PRIMITIVE_SUB_GROUP_AVC_IME_SINGLE_REF_STREAMIN_T
     "53ocl_intel_sub_group_avc_ime_dual_reference_streamin_t"             // PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMIN_T
 };
+// clang-format on
 
 const char *ReadableAttribute[ATTR_NUM] = {
     "restrict", "volatile",   "const",   "__private",

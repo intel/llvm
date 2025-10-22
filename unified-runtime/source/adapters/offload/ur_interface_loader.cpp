@@ -90,12 +90,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
   pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
-  pDdiTable->pfnGetBuildInfo = nullptr;
+  pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
   pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
   pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
-  pDdiTable->pfnLink = nullptr;
+  pDdiTable->pfnLink = urProgramLink;
   pDdiTable->pfnRelease = urProgramRelease;
   pDdiTable->pfnRetain = urProgramRetain;
   pDdiTable->pfnSetSpecializationConstants =
@@ -120,7 +120,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgLocal = nullptr;
   pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
-  pDdiTable->pfnSetArgSampler = nullptr;
+  pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
   pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
@@ -134,12 +134,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
+  pDdiTable->pfnCreate = urSamplerCreate;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
+  pDdiTable->pfnGetInfo = urSamplerGetInfo;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
+  pDdiTable->pfnRelease = urSamplerRelease;
+  pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
 }
 
@@ -151,12 +151,13 @@ urGetMemProcAddrTable(ur_api_version_t version, ur_mem_dditable_t *pDdiTable) {
   }
   pDdiTable->pfnBufferCreate = urMemBufferCreate;
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
-  pDdiTable->pfnBufferCreateWithNativeHandle = nullptr;
-  pDdiTable->pfnImageCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnBufferCreateWithNativeHandle =
+      urMemBufferCreateWithNativeHandle;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urMemGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
-  pDdiTable->pfnImageCreate = nullptr;
-  pDdiTable->pfnImageGetInfo = nullptr;
+  pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
+  pDdiTable->pfnImageCreate = urMemImageCreate;
+  pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
   pDdiTable->pfnRelease = urMemRelease;
   pDdiTable->pfnRetain = urMemRetain;
   return UR_RESULT_SUCCESS;
@@ -388,6 +389,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    ur_api_version_t version, ur_ipc_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnGetMemHandleExp = urIPCGetMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = urIPCPutMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = urIPCCloseMemHandleExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -410,6 +426,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetContextProcAddrTable(version, &pDdiTable->Context);
   urGetEnqueueProcAddrTable(version, &pDdiTable->Enqueue);
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
+  urGetIPCExpProcAddrTable(version, &pDdiTable->IPCExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);

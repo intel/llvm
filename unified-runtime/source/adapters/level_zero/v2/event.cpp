@@ -73,6 +73,7 @@ void event_profiling_data_t::reset() {
   // possible.
   adjustedEventStartTimestamp = 0;
   adjustedEventEndTimestamp = 0;
+  timestampRecorded = false;
 }
 
 void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
@@ -85,18 +86,15 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
 
   assert(adjustedEventStartTimestamp == 0);
   adjustedEventStartTimestamp = deviceStartTimestamp;
+  timestampRecorded = true;
 }
 
 uint64_t event_profiling_data_t::getEventStartTimestmap() const {
   return adjustedEventStartTimestamp;
 }
 
-bool event_profiling_data_t::recordingEnded() const {
-  return adjustedEventEndTimestamp != 0;
-}
-
 bool event_profiling_data_t::recordingStarted() const {
-  return adjustedEventStartTimestamp != 0;
+  return timestampRecorded;
 }
 
 uint64_t *event_profiling_data_t::eventEndTimestampAddr() {
