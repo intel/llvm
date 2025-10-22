@@ -10,8 +10,9 @@ set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
 set(SYCL_JIT_RESOURCE_DEPS
-  sycl-headers    # include/sycl
-  clang           # lib/clang/N/include
+  sycl-headers                # include/sycl
+  clang                       # lib/clang/N/include
+  opencl-resource-headers     # fixes build race. not actually used.
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
