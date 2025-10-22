@@ -12,9 +12,9 @@
 #include "../graph_common.hpp"
 #include <cstdint>
 #include <cstring>
-#include <vector>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/properties/all_properties.hpp>
+#include <vector>
 
 // noinline is important as we have previously caught functional issues with
 // kernel argument capture only when the function being recorded is not inlined.
