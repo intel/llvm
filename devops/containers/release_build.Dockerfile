@@ -23,7 +23,7 @@ RUN dnf -y install https://repo.radeon.com/amdgpu-install/6.4.1/rhel/8.10/amdgpu
 # Build zstd static library from sources
 RUN git clone https://github.com/facebook/zstd.git /tmp/zstd && \
     cd /tmp/zstd && \
-    make && \
+    CFLAGS="-fPIE" make && \
     make install && \
     rm -rf /tmp/zstd
 
