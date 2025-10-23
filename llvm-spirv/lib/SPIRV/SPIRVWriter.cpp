@@ -5369,16 +5369,16 @@ LLVMToSPIRVBase::getFPBuiltinType(IntrinsicInst *II, StringRef &OpName) {
   OpName = Name.split('.').first;
   FPBuiltinType Type =
       StringSwitch<FPBuiltinType>(OpName)
-          .Cases("fadd", "fsub", "fmul", "fdiv", "frem",
+          .Cases({"fadd", "fsub", "fmul", "fdiv", "frem"},
                  FPBuiltinType::REGULAR_MATH)
-          .Cases("sin", "cos", "tan", FPBuiltinType::EXT_1OPS)
-          .Cases("sinh", "cosh", "tanh", FPBuiltinType::EXT_1OPS)
-          .Cases("asin", "acos", "atan", FPBuiltinType::EXT_1OPS)
-          .Cases("asinh", "acosh", "atanh", FPBuiltinType::EXT_1OPS)
-          .Cases("exp", "exp2", "exp10", "expm1", FPBuiltinType::EXT_1OPS)
-          .Cases("log", "log2", "log10", "log1p", FPBuiltinType::EXT_1OPS)
-          .Cases("sqrt", "rsqrt", "erf", "erfc", FPBuiltinType::EXT_1OPS)
-          .Cases("atan2", "pow", "hypot", "ldexp", FPBuiltinType::EXT_2OPS)
+          .Cases({"sin", "cos", "tan"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"sinh", "cosh", "tanh"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"asin", "acos", "atan"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"asinh", "acosh", "atanh"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"exp", "exp2", "exp10", "expm1"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"log", "log2", "log10", "log1p"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"sqrt", "rsqrt", "erf", "erfc"}, FPBuiltinType::EXT_1OPS)
+          .Cases({"atan2", "pow", "hypot", "ldexp"}, FPBuiltinType::EXT_2OPS)
           .Case("sincos", FPBuiltinType::EXT_3OPS)
           .Default(FPBuiltinType::UNKNOWN);
   return Type;

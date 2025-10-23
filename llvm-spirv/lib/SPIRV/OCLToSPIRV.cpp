@@ -64,8 +64,8 @@ using namespace OCLUtil;
 namespace SPIRV {
 static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
   return StringSwitch<size_t>(Name)
-      .Cases("load", "flag_test_and_set", "flag_clear", 3)
-      .Cases("store", "exchange", 4)
+      .Cases({"load", "flag_test_and_set", "flag_clear"}, 3)
+      .Cases({"store", "exchange"}, 4)
       .StartsWith("compare_exchange", 6)
       .StartsWith("fetch", 4)
       .Default(0);

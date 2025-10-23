@@ -622,11 +622,11 @@ static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
 /// floating point type.
 static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
   return StringSwitch<Type *>(Name)
-      .Cases("char", "signed char", "unsigned char", Type::getInt8Ty(Ctx))
-      .Cases("short", "unsigned short", Type::getInt16Ty(Ctx))
-      .Cases("int", "unsigned int", Type::getInt32Ty(Ctx))
-      .Cases("long", "unsigned long", Type::getInt64Ty(Ctx))
-      .Cases("long long", "unsigned long long", Type::getInt64Ty(Ctx))
+      .Cases({"char", "signed char", "unsigned char"}, Type::getInt8Ty(Ctx))
+      .Cases({"short", "unsigned short"}, Type::getInt16Ty(Ctx))
+      .Cases({"int", "unsigned int"}, Type::getInt32Ty(Ctx))
+      .Cases({"long", "unsigned long"}, Type::getInt64Ty(Ctx))
+      .Cases({"long long", "unsigned long long"}, Type::getInt64Ty(Ctx))
       .Case("half", Type::getHalfTy(Ctx))
       .Case("float", Type::getFloatTy(Ctx))
       .Case("double", Type::getDoubleTy(Ctx))
