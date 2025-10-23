@@ -117,7 +117,7 @@ struct auto_pch_key {
   Error read(llvm::BinaryStreamReader &Reader) {
     (void)AutoPCHError::ID;
     auto ReadStr = [&](std::string &Out) -> Error {
-      std::string::size_type StrLen;
+      std::string::size_type StrLen = 0;
 
       if (auto Err = Reader.readInteger(StrLen))
         return Err;
