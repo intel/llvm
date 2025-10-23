@@ -246,7 +246,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     L->eraseFromParent();
   }
 
-  // Trey to remove all collected Loads and their Defs from the kernel.
+  // Try to remove all collected Loads and their Defs from the kernel.
   // PtrUses is returned by `collectGlobalOffsetUses` in topological order.
   // Walk it backwards so we don't violate users.
   for (auto *I : reverse(PtrUses)) {
