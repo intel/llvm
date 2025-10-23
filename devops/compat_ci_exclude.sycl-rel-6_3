@@ -42,3 +42,6 @@ Basic/device_config_file_consistency.cpp
 AddressSanitizer/*
 MemorySanitizer/*
 ThreadSanitizer/*
+
+# Upstreaming of SYCL llvm/llvm-project@65d730b4a5aae changed IMG_SYCLBIN enum value
+SYCLBIN/*
