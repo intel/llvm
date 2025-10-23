@@ -1385,11 +1385,7 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fno_profile_generate, // -f[no-]profile-generate
       options::OPT_ftest_coverage,
       options::OPT_fno_test_coverage, // -f[no-]test-coverage
-      options::OPT_fcoverage_mapping,
-      options::OPT_coverage,             // --coverage
-      options::OPT_fno_coverage_mapping, // -f[no-]coverage-mapping
-      options::OPT_fprofile_instr_generate,
-      options::OPT_fprofile_instr_generate_EQ,
+      options::OPT_coverage,          // --coverage
       options::OPT_fprofile_arcs,
       options::OPT_fno_profile_arcs,           // -f[no-]profile-arcs
       options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
