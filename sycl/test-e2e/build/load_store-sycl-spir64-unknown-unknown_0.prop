@@ -1,0 +1,9 @@
+[SYCL/devicelib req mask]
+DeviceLibReqMask=1|0
+[SYCL/device requirements]
+aspects=2|gAAAAAAAAAgBAAAA
+[SYCL/kernel param opt]
+_ZTSZZ7RunTestIN4sycl3_V13vecIdLi4EEEEiRNS1_5queueEENKUlRNS1_7handlerEE0_clES7_EUlNS1_7nd_itemILi1EEEE_=2|KAAAAAAAAAAjDA
+_ZTSZZ7RunTestIN4sycl3_V13vecIdLi4EEEEiRNS1_5queueEENKUlRNS1_7handlerEE_clES7_EUlNS1_7nd_itemILi1EEEE_=2|NAAAAAAAAAQyNA
+[SYCL/misc properties]
+optLevel=1|2

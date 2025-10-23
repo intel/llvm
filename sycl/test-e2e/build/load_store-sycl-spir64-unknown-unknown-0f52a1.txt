@@ -1,0 +1,5 @@
+/tmp/load_store-sycl-spir64-unknown-unknown-0f52a1-31c8b7.spv
+/tmp/load_store-sycl-spir64-unknown-unknown-0f52a1-3bfdc0.spv
+/tmp/load_store-sycl-spir64-unknown-unknown-0f52a1-3c4438.spv
+/tmp/load_store-sycl-spir64-unknown-unknown-0f52a1-e008da.spv
+/tmp/load_store-sycl-spir64-unknown-unknown-0f52a1-775821.spv

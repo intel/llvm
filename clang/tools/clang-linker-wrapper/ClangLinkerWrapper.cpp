@@ -1099,7 +1099,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (Target.empty())
     return createStringError(
         inconvertibleErrorCode(),
-        "can't wrap SYCL image. -triple argument is missed.");
+        "can't wrap SYCL image. -triple argument is missing.");
 
   SmallVector<llvm::offloading::SYCLImage> Images;
   // SYCL runtime currently works for spir64 target triple and not for

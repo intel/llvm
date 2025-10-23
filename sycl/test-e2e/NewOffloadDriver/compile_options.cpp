@@ -1,4 +1,4 @@
-// Test checks that compile options are transfared to backend in the New
+// Test checks that compile options are transferred to backend in the New
 // Offloading Model. We use -ftarget-register-alloc-mode and
 // -ftarget-compile-fast clang options for the testing here.
 

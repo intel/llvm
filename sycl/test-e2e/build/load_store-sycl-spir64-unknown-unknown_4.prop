@@ -1,0 +1,17 @@
+[SYCL/exported symbols]
+__devicelib_ConvertFToBF16INTEL=1|1
+__devicelib_ConvertBF16ToFINTEL=1|1
+__devicelib_ConvertFToBF16INTELVec1=1|1
+__devicelib_ConvertBF16ToFINTELVec1=1|1
+__devicelib_ConvertFToBF16INTELVec2=1|1
+__devicelib_ConvertBF16ToFINTELVec2=1|1
+__devicelib_ConvertFToBF16INTELVec3=1|1
+__devicelib_ConvertBF16ToFINTELVec3=1|1
+__devicelib_ConvertFToBF16INTELVec4=1|1
+__devicelib_ConvertBF16ToFINTELVec4=1|1
+__devicelib_ConvertFToBF16INTELVec8=1|1
+__devicelib_ConvertBF16ToFINTELVec8=1|1
+__devicelib_ConvertFToBF16INTELVec16=1|1
+__devicelib_ConvertBF16ToFINTELVec16=1|1
+[SYCL/devicelib metadata]
+bfloat16=1|1
