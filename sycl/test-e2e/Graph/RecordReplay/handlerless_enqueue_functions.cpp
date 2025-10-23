@@ -31,18 +31,20 @@ recordHandlerLessOps(sycl::queue &Q, uint32_t *A, uint32_t *B, uint32_t *C,
   // with out-of-order queue.
   if (InOrderQueue) {
     exp_ext::memset(Q, A, Pattern, N * sizeof(uint32_t));
-    exp_ext::fill(Q, D, FillValue, N);
-    exp_ext::copy(Q, D, E, N);
     exp_ext::memcpy(Q, B, A, N * sizeof(uint32_t));
     exp_ext::nd_launch(Q, KernelRange, DoubleKernelLambda);
     exp_ext::single_task(Q, SingleTaskKernel);
+
+    exp_ext::fill(Q, D, FillValue, N);
+    exp_ext::copy(Q, D, E, N);
   } else {
     auto e1 = Q.memset(A, Pattern, N * sizeof(uint32_t));
-    auto e2 = Q.fill(D, FillValue, N);
-    Q.copy(D, E, N, e2);
-    auto e3 = Q.memcpy(B, A, N * sizeof(uint32_t), e1);
-    auto e4 = Q.parallel_for(KernelRange, e3, DoubleKernelLambda);
-    Q.single_task(e4, SingleTaskKernel);
+    auto e2 = Q.memcpy(B, A, N * sizeof(uint32_t), e1);
+    auto e3 = Q.parallel_for(KernelRange, e2, DoubleKernelLambda);
+    Q.single_task(e3, SingleTaskKernel);
+
+    auto e4 = Q.fill(D, FillValue, N);
+    Q.copy(D, E, N, e4);
   }
 }
 
@@ -90,14 +92,9 @@ int main() {
     Q.wait_and_throw();
 
     // Copy device memory to host for verification
-    Q.memcpy(E_host.data(), E, N * sizeof(uint32_t));
     Q.memcpy(C_host.data(), C, N * sizeof(uint32_t));
+    Q.memcpy(E_host.data(), E, N * sizeof(uint32_t));
     Q.wait_and_throw();
-
-    // Validate copy from D -> E
-    for (size_t i = 0; i < N; ++i) {
-      assert(check_value(i, FillValue, E_host[i], "E"));
-    }
 
     // Validate final values in C
     assert(check_value(0, static_cast<uint32_t>(999), C_host[0], "C"));
@@ -106,6 +103,11 @@ int main() {
     uint32_t DoublePatternUintDoubled = DoublePatternUint * 2;
     for (size_t i = 1; i < N; ++i) {
       assert(check_value(i, DoublePatternUintDoubled, C_host[i], "C"));
+    }
+
+    // Validate copy from D -> E
+    for (size_t i = 0; i < N; ++i) {
+      assert(check_value(i, FillValue, E_host[i], "E"));
     }
 
     sycl::free(A, Q);
