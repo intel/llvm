@@ -19,6 +19,13 @@
 // RUN:    -DOPT_CC1=-debug-info-kind=line-tables-only \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 
+// RUN: %clangxx -fsycl -fprofile-instr-generate -### %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fprofile-instr-generate \
+// RUN:    -DOPT_CC1=-fprofile-instrument=clang \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+// RUN: %clangxx -fsycl -fcoverage-mapping \
+// RUN:          -fprofile-instr-generate -### %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcoverage-mapping
 // RUN: %clangxx -fsycl -ftest-coverage -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-ftest-coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
@@ -41,6 +48,12 @@
 // RUN: %clang_cl -fsycl --coverage -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+// Check to make sure our '-fsanitize=address' exception isn't triggered by a
+// different option
+// RUN: %clangxx -fsycl -fprofile-instr-generate=address -### %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fprofile-instr-generate=address \
+// RUN:    -DOPT_CC1=-fprofile-instrument=clang \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 
 // CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}'; only supported for host compilation [-Woption-ignored]
