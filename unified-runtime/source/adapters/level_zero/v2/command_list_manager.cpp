@@ -8,11 +8,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "command_list_manager.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
 #include "../ur_interface_loader.hpp"
 #include "command_buffer.hpp"
+#include "command_list_manager.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
@@ -36,16 +36,23 @@ ur_result_t ur_command_list_manager::appendGenericFillUnlocked(
       hDevice.get(), ur_mem_buffer_t::device_access_mode_t::read_only, offset,
       size, zeCommandList.get(), waitListView));
 
+  // Store pattern in event if this is an async operation
+  const void *patternPtr = pPattern;
+  if (phEvent && zeSignalEvent) {
+    phEvent->retainFillPattern(pPattern, patternSize);
+    patternPtr = phEvent->getFillPattern();
+  }
+
   // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
-  if (isPowerOf2(patternSize)) {
+  if (isPowerOf2(patternSize) && patternSize != size) {
     ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (zeCommandList.get(), pDst, pPattern, patternSize, size,
+               (zeCommandList.get(), pDst, patternPtr, patternSize, size,
                 zeSignalEvent, waitListView.num, waitListView.handles));
   } else {
     // Copy pattern into every entry in memory array pointed by Ptr.
     uint32_t numOfCopySteps = size / patternSize;
-    const void *src = pPattern;
+    const void *src = patternPtr;
 
     for (uint32_t step = 0; step < numOfCopySteps; ++step) {
       void *dst = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pDst) +
