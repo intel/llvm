@@ -42,6 +42,9 @@ template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_graph_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_executable_graph_handle_t> : std::true_type {};
 template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T>
 inline ur_result_t printPtr(std::ostream &os, const T *ptr);
@@ -1275,6 +1278,24 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP:
     os << "UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP:
+    os << "UR_FUNCTION_GRAPH_CREATE_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP:
+    os << "UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_COMMAND_LIST_IS_GRAPH_CAPTURE_ENABLED_EXP:
+    os << "UR_FUNCTION_COMMAND_LIST_IS_GRAPH_CAPTURE_ENABLED_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP:
+    os << "UR_FUNCTION_GRAPH_IS_EMPTY_EXP";
+    break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP:
+    os << "UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -20355,6 +20376,119 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_create_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_graph_create_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".phGraph = ";
+
+  ur::details::printPtr(os, *(params->pphGraph));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_destroy_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_destroy_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_executable_graph_destroy_exp_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_executable_graph_destroy_exp_params_t
+        *params) {
+
+  os << ".hExecutableGraph = ";
+
+  ur::details::printPtr(os, *(params->phExecutableGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_is_empty_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_is_empty_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_graph_dump_contents_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_graph_dump_contents_exp_params_t *params) {
+
+  os << ".hGraph = ";
+
+  ur::details::printPtr(os, *(params->phGraph));
+
+  os << ", ";
+  os << ".filePath = ";
+
+  ur::details::printPtr(os, *(params->pfilePath));
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, *(params->ppNext));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_command_list_is_graph_capture_enabled_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_list_is_graph_capture_enabled_exp_params_t *params) {
+
+  os << ".hCommandList = ";
+
+  ur::details::printPtr(os, *(params->phCommandList));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_memory_export_alloc_exportable_memory_exp_params_t type
 /// @returns
@@ -21816,6 +21950,25 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
     os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_GRAPH_CREATE_EXP: {
+    os << (const struct ur_graph_create_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP: {
+    os << (const struct ur_graph_executable_graph_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_IS_EMPTY_EXP: {
+    os << (const struct ur_graph_is_empty_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_GRAPH_DUMP_CONTENTS_EXP: {
+    os << (const struct ur_graph_dump_contents_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_COMMAND_LIST_IS_GRAPH_CAPTURE_ENABLED_EXP: {
+    os << (const struct ur_command_list_is_graph_capture_enabled_exp_params_t *)
             params;
   } break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP: {

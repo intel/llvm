@@ -1788,6 +1788,91 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetCommandBufferExpProcAddrTable_t)(
     ur_api_version_t, ur_command_buffer_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphCreateExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphCreateExp_t)(ur_context_handle_t,
+                                                        ur_exp_graph_handle_t *,
+                                                        void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphDestroyExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphDestroyExp_t)(ur_exp_graph_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphExecutableGraphDestroyExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphExecutableGraphDestroyExp_t)(
+    ur_exp_executable_graph_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphIsEmptyExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphIsEmptyExp_t)(ur_exp_graph_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGraphDumpContentsExp
+typedef ur_result_t(UR_APICALL *ur_pfnGraphDumpContentsExp_t)(
+    ur_exp_graph_handle_t, const char *, void *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of GraphExp functions pointers
+typedef struct ur_graph_exp_dditable_t {
+  ur_pfnGraphCreateExp_t pfnCreateExp;
+  ur_pfnGraphDestroyExp_t pfnDestroyExp;
+  ur_pfnGraphExecutableGraphDestroyExp_t pfnExecutableGraphDestroyExp;
+  ur_pfnGraphIsEmptyExp_t pfnIsEmptyExp;
+  ur_pfnGraphDumpContentsExp_t pfnDumpContentsExp;
+} ur_graph_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's GraphExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetGraphExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_graph_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetGraphExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetGraphExpProcAddrTable_t)(
+    ur_api_version_t, ur_graph_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandListIsGraphCaptureEnabledExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandListIsGraphCaptureEnabledExp_t)(
+    ur_command_list_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of CommandListExp functions pointers
+typedef struct ur_command_list_exp_dditable_t {
+  ur_pfnCommandListIsGraphCaptureEnabledExp_t pfnIsGraphCaptureEnabledExp;
+} ur_command_list_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's CommandListExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandListExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_command_list_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetCommandListExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetCommandListExpProcAddrTable_t)(
+    ur_api_version_t, ur_command_list_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urMemoryExportAllocExportableMemoryExp
 typedef ur_result_t(UR_APICALL *ur_pfnMemoryExportAllocExportableMemoryExp_t)(
     ur_context_handle_t, ur_device_handle_t, size_t, size_t,
@@ -2049,6 +2134,8 @@ typedef struct ur_dditable_t {
   ur_usm_exp_dditable_t USMExp;
   ur_bindless_images_exp_dditable_t BindlessImagesExp;
   ur_command_buffer_exp_dditable_t CommandBufferExp;
+  ur_graph_exp_dditable_t GraphExp;
+  ur_command_list_exp_dditable_t CommandListExp;
   ur_memory_export_exp_dditable_t MemoryExportExp;
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;
