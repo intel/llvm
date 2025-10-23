@@ -475,6 +475,14 @@ typedef enum ur_function_t {
   UR_FUNCTION_MEMORY_EXPORT_EXPORT_MEMORY_HANDLE_EXP = 287,
   /// Enumerator for ::urBindlessImagesSupportsImportingHandleTypeExp
   UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP = 288,
+  /// Enumerator for ::urIPCGetMemHandleExp
+  UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP = 289,
+  /// Enumerator for ::urIPCPutMemHandleExp
+  UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP = 290,
+  /// Enumerator for ::urIPCOpenMemHandleExp
+  UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP = 291,
+  /// Enumerator for ::urIPCCloseMemHandleExp
+  UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP = 292,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2426,6 +2434,9 @@ typedef enum ur_device_info_t {
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
+  /// [::ur_bool_t] returns true if the device supports inter-process
+  /// communicable memory handles
+  UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP = 0x2023,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
@@ -12396,6 +12407,117 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for Inter Process
+// Communication
+#if !defined(__GNUC__)
+#pragma region inter_process_communication_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Gets an inter-process memory handle for a pointer to device USM
+/// memory
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCMemHandleData`
+///         + `NULL == pIPCMemHandleDataSizeRet`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases an inter-process memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCMemHandleData`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Opens an inter-process memory handle to get the corresponding pointer
+///        to device USM memory
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pIPCMemHandleData`
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + ipcMemHandleDataSize is not the same as the size of IPC memory
+///         handle data
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Closes an inter-process memory handle
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Memory Export Extension APIs
 #if !defined(__GNUC__)
 #pragma region memory_export_(experimental)
@@ -15468,6 +15590,47 @@ typedef struct ur_command_buffer_get_native_handle_exp_params_t {
   ur_exp_command_buffer_handle_t *phCommandBuffer;
   ur_native_handle_t **pphNativeCommandBuffer;
 } ur_command_buffer_get_native_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCGetMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_get_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppMem;
+  void **ppIPCMemHandleData;
+  size_t **ppIPCMemHandleDataSizeRet;
+} ur_ipc_get_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCPutMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_put_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppIPCMemHandleData;
+} ur_ipc_put_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCOpenMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_open_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  void **ppIPCMemHandleData;
+  size_t *pipcMemHandleDataSize;
+  void ***pppMem;
+} ur_ipc_open_mem_handle_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urIPCCloseMemHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_ipc_close_mem_handle_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppMem;
+} ur_ipc_close_mem_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urMemoryExportAllocExportableMemoryExp

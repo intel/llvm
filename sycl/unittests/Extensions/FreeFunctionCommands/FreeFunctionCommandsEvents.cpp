@@ -78,6 +78,7 @@ public:
 protected:
   void SetUp() override {
     counter_urEnqueueKernelLaunch = 0;
+    counter_urEnqueueKernelLaunchWithEvent = 0;
     counter_urUSMEnqueueMemcpy = 0;
     counter_urUSMEnqueueFill = 0;
     counter_urUSMEnqueuePrefetch = 0;
@@ -227,7 +228,6 @@ TEST_F(FreeFunctionCommandsEventsTests, LaunchGroupedShortcutNoEvent) {
   ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
 }
 
-#if __DPCPP_ENABLE_UNFINISHED_NO_CGH_SUBMIT
 TEST_F(FreeFunctionCommandsEventsTests,
        LaunchGroupedShortcutMoveKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
@@ -252,6 +252,11 @@ TEST_F(FreeFunctionCommandsEventsTests,
   // to force the scheduler-based submission. In this case, the HostKernel
   // should be constructed.
 
+  // Replace the callback with an event based one, since the scheduler
+  // needs to create an event internally
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunch", &redefined_urEnqueueKernelLaunchWithEvent);
+
   Queue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
       std::unique_lock<std::mutex> lk(CvMutex);
@@ -274,9 +279,59 @@ TEST_F(FreeFunctionCommandsEventsTests,
   // HostKernel. Copy ctor is called by InstantiateKernelOnHost, can't delete
   // it.
   ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 1);
-  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{2});
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithEvent, size_t{1});
 }
-#endif
+
+TEST_F(FreeFunctionCommandsEventsTests, LaunchTaskShortcutMoveKernel) {
+  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
+                                            &redefined_urEnqueueKernelLaunch);
+
+  TestMoveFunctor::MoveCtorCalls = 0;
+  TestMoveFunctor MoveOnly;
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  // This kernel submission uses scheduler-bypass path, so the HostKernel
+  // shouldn't be constructed.
+
+  sycl::khr::launch_task(Queue, std::move(MoveOnly));
+
+  ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 0);
+  ASSERT_EQ(counter_urEnqueueKernelLaunch, size_t{1});
+
+  // Another kernel submission is queued behind a host task,
+  // to force the scheduler-based submission. In this case, the HostKernel
+  // should be constructed.
+
+  // Replace the callback with an event based one, since the scheduler
+  // needs to create an event internally
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunch", &redefined_urEnqueueKernelLaunchWithEvent);
+
+  Queue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock<std::mutex> lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  sycl::khr::launch_task(Queue, std::move(MoveOnly));
+
+  {
+    std::unique_lock<std::mutex> lk(CvMutex);
+    ready = true;
+  }
+  Cv.notify_one();
+
+  Queue.wait();
+
+  // Move ctor for TestMoveFunctor is called during move construction of
+  // HostKernel. Copy ctor is called by InstantiateKernelOnHost, can't delete
+  // it.
+  ASSERT_EQ(TestMoveFunctor::MoveCtorCalls, 1);
+  ASSERT_EQ(counter_urEnqueueKernelLaunchWithEvent, size_t{1});
+}
 
 TEST_F(FreeFunctionCommandsEventsTests, SubmitLaunchGroupedKernelNoEvent) {
   mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
