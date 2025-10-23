@@ -1550,10 +1550,6 @@ void SemaSYCL::addSYCLAddIRAttributesFunctionAttr(
     // exit.
     if (!Attr)
       return;
-
-    // Otherwise, drop the old attribute so the new attribute can take its
-    // place.
-    D->dropAttr<SYCLAddIRAttributesFunctionAttr>();
   }
   D->addAttr(Attr);
 
@@ -1605,10 +1601,6 @@ void SemaSYCL::addSYCLAddIRAttributesKernelParameterAttr(
     // exit.
     if (!Attr)
       return;
-
-    // Otherwise, drop the old attribute so the new attribute can take its
-    // place.
-    D->dropAttr<SYCLAddIRAttributesKernelParameterAttr>();
   }
   D->addAttr(Attr);
 }
@@ -1634,10 +1626,6 @@ void SemaSYCL::addSYCLAddIRAttributesGlobalVariableAttr(
     // exit.
     if (!Attr)
       return;
-
-    // Otherwise, drop the old attribute so the new attribute can take its
-    // place.
-    D->dropAttr<SYCLAddIRAttributesGlobalVariableAttr>();
   }
   D->addAttr(Attr);
 }
