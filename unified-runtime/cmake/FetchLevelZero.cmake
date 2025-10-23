@@ -12,11 +12,8 @@ find_package(PkgConfig QUIET)
 # LevelZero doesn't install a CMake config target, just PkgConfig,
 # so try using that to find the install and if it's not available
 # just try to search for the path.
-string(LENGTH "${UR_LEVEL_ZERO_LOADER_TAG}" TAG_LENGTH)
-string(REGEX MATCH "^[0-9a-fA-F]+$" IS_HEX "${UR_LEVEL_ZERO_LOADER_TAG}")
-
-if(PkgConfig_FOUND AND NOT (TAG_LENGTH EQUAL 40 AND IS_HEX))
-  pkg_check_modules(level-zero level-zero>1.24.3)
+if(PkgConfig_FOUND)
+  pkg_check_modules(level-zero level-zero>=1.25.0)
   if(level-zero_FOUND)
     set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
     set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
@@ -53,7 +50,7 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
   set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
   # Remember to update the pkg_check_modules minimum version above when updating the
   # clone tag
-  set(UR_LEVEL_ZERO_LOADER_TAG v1.24.3)
+  set(UR_LEVEL_ZERO_LOADER_TAG v1.25.0)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)

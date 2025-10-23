@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -e
 set -x
 set -o pipefail
@@ -51,62 +52,8 @@ function get_pre_release_igfx() {
     if [ "$GITHUB_TOKEN" != "" ]; then
        HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-
-    WORK_DIR="/tmp/igc-download"
-    mkdir -p "$WORK_DIR"
-    cd "$WORK_DIR"
-
-    curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" "$URL" -o "$HASH.zip"
-    
-    unzip "$HASH.zip"
-    rm "$HASH.zip"
-    
-    # Move deb files back to the calling directory if any exist
-    if ls *.deb 1> /dev/null 2>&1; then
-        mv *.deb /tmp/
-        cd /tmp/
-    fi
-    
-    # Clean up work directory
-    rm -rf "$WORK_DIR"
-}
-
-function build_level_zero_from_source() {
-    COMMIT=$1
-
-    apt-get update -qq
-    apt-get install -y build-essential cmake git libc6-dev linux-libc-dev
-
-    BUILD_DIR="/tmp/level-zero-build"
-    INSTALL_DIR="/tmp/level-zero-install"
-    rm -rf $BUILD_DIR $INSTALL_DIR
-    mkdir -p $BUILD_DIR $INSTALL_DIR
-    cd $BUILD_DIR
-
-    git clone https://github.com/oneapi-src/level-zero.git
-    
-    cd level-zero
-    git checkout $COMMIT
-
-    mkdir build
-    cd build
-
-    cmake .. \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX=/usr/local \
-      -DLEVEL_ZERO_BUILD_TESTS=OFF \
-      -DLEVEL_ZERO_BUILD_SAMPLES=OFF
-
-    make -j$(nproc)
-    make install DESTDIR=$INSTALL_DIR
-
-    cp -r $INSTALL_DIR/usr/local/* /usr/local/
-
-    ldconfig
-
-    rm -rf $BUILD_DIR $INSTALL_DIR
-
-    echo "Level Zero built and installed successfully from commit $COMMIT"
+    curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" $URL -o $HASH.zip
+    unzip $HASH.zip && rm $HASH.zip
 }
 
 TBB_INSTALLED=false
@@ -149,15 +96,6 @@ CheckIGCdevTag() {
     fi
 }
 
-CheckIfCommitHash() {
-    local arg="$1"
-    if [[ $arg =~ ^[a-f0-9]{40}$ ]]; then
-        echo "Yes"
-    else
-        echo "No"
-    fi
-}
-
 InstallIGFX () {
   echo "Installing Intel Graphics driver..."
   echo "Compute Runtime version $CR_TAG"
@@ -184,28 +122,10 @@ InstallIGFX () {
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
-  
-  # Check if L0_TAG is a commit hash or a regular tag
-  IS_L0_COMMIT=$(CheckIfCommitHash $L0_TAG)
-  if [ "$IS_L0_COMMIT" == "Yes" ]; then
-    echo "Level Zero is using commit hash, building from source..."
-    if ! build_level_zero_from_source $L0_TAG; then
-      exit 1
-    fi
-    # Install other packages (Level Zero was already installed from source)
-    if ls *.deb 1> /dev/null 2>&1; then
-      dpkg -i --force-all *.deb && rm *.deb
-    fi
-    if ls *.sum 1> /dev/null 2>&1; then
-      rm *.sum
-    fi
-  else
-    get_release oneapi-src/level-zero $L0_TAG \
-      | grep ".*$UBUNTU_VER.*deb$" \
-      | wget -qi -
-    # Install all packages including Level Zero
-    dpkg -i --force-all *.deb && rm *.deb *.sum
-  fi
+  get_release oneapi-src/level-zero $L0_TAG \
+    | grep ".*$UBUNTU_VER.*deb$" \
+    | wget -qi -
+  dpkg -i --force-all *.deb && rm *.deb *.sum
   mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
@@ -214,50 +134,22 @@ InstallIGFX () {
     # Backup and install it from release igc as a temporarily workaround
     # while we working to resolve the issue.
     echo "Backup libopencl-clang"
-    
-    # Ensure we're in a writable directory for backup operations
-    BACKUP_DIR="/tmp/igc-backup"
-    mkdir -p "$BACKUP_DIR"
-    cd "$BACKUP_DIR"
-    echo "Working in backup directory: $BACKUP_DIR"
-    
-    if ls /usr/local/lib/libopencl-clang2.so.15* 1> /dev/null 2>&1; then
-      cp -d /usr/local/lib/libopencl-clang2.so.15*  .
-      LIBOPENCL_BACKED_UP=true
-      echo "Successfully backed up libopencl-clang files"
-    else
-      echo "Warning: libopencl-clang2.so.15* not found, skipping backup"
-      LIBOPENCL_BACKED_UP=false
-    fi
+    cp -d /usr/local/lib/libopencl-clang2.so.15*  .
+    echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
     # New dev IGC packaged iga64 conflicting with iga64 from intel-igc-media
     # force overwrite to workaround it first.
-    if ls *.deb 1> /dev/null 2>&1; then
-      dpkg -i --force-all *.deb
-    fi
-    if [ "$LIBOPENCL_BACKED_UP" == "true" ]; then
-      echo "Install libopencl-clang"
-      # Workaround only, will download deb and install with dpkg once fixed.
-      echo "Copying backed up libopencl-clang files from $BACKUP_DIR"
-      cp -d "$BACKUP_DIR"/libopencl-clang2.so.15*  /usr/local/lib/
-    fi
-    if [ -f /usr/local/lib/libigc.so.2 ]; then
-      rm -f /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
-         ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
-         ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
-    fi
+    dpkg -i --force-all *.deb
+    echo "Install libopencl-clang"
+    # Workaround only, will download deb and install with dpkg once fixed.
+    cp -d libopencl-clang2.so.15*  /usr/local/lib/
+    rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
     echo "Clean up"
-    if ls *.deb 1> /dev/null 2>&1; then
-      rm *.deb
-    fi
+    rm *.deb libopencl-clang2.so.15*
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
-    
-    # Clean up backup directory (this also removes the backed up libopencl-clang files)
-    if [ -d "$BACKUP_DIR" ]; then
-      echo "Cleaning up backup directory: $BACKUP_DIR"
-      rm -rf "$BACKUP_DIR"
-    fi
   fi
 }
 
@@ -277,7 +169,6 @@ InstallCPURT () {
   if [ -e $INSTALL_LOCATION/oclcpu/install.sh ]; then \
     bash -x $INSTALL_LOCATION/oclcpu/install.sh
   else
-    mkdir -p /etc/OpenCL/vendors
     echo  $INSTALL_LOCATION/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
   fi
 }
