@@ -62,6 +62,9 @@ Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
 
 // spell-checker: disable
 Ben Ashbaugh, Intel +
+Filip Hazubski, Intel +
+Kacper Kasper, Intel +
+Kacper Nowak, Intel +
 // spell-checker: enable
 
 == Notice
