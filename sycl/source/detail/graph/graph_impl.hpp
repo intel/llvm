@@ -581,6 +581,10 @@ private:
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
 
+  /// Controls whether native recording is enabled for improved performance.
+  /// Set by the presence of the enable_native_recording property.
+  bool MEnableNativeRecording = false;
+
   /// Mapping from queues to barrier nodes. For each queue the last barrier
   /// node recorded to the graph from the queue is stored.
   std::map<std::weak_ptr<sycl::detail::queue_impl>, node_impl *,

@@ -313,6 +313,9 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
   if (PropList.has_property<property::graph::assume_buffer_outlives_graph>()) {
     MAllowBuffers = true;
   }
+  if (PropList.has_property<property::graph::enable_native_recording>()) {
+    MEnableNativeRecording = true;
+  }
 
   if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
       !SyclDevice.has(aspect::ext_oneapi_graph)) {
