@@ -75,10 +75,7 @@ public:
         //       cannot be set until registration happens.
         auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
             DeviceGlobal->Name, Img, TypeSize, DeviceImageScopeDecorated);
-        auto NewEntry =
-            MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
-        if (NewEntry.first->second->isProfileCounter())
-          MProfileCounterDeviceGlobals.push_back(NewEntry.first->second.get());
+        MDeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
       }
     }
   }
@@ -117,8 +114,6 @@ public:
     auto EntryUPtr =
         std::make_unique<DeviceGlobalMapEntry>(UniqueId, DeviceGlobalPtr);
     auto NewEntry = MDeviceGlobals.emplace(UniqueId, std::move(EntryUPtr));
-    if (NewEntry.first->second->isProfileCounter())
-      MProfileCounterDeviceGlobals.push_back(NewEntry.first->second.get());
     MPtr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
   }
 
@@ -159,11 +154,6 @@ public:
     }
   }
 
-  std::vector<DeviceGlobalMapEntry *> getProfileCounterEntries() {
-    std::lock_guard<std::mutex> DeviceGlobalsGuard(MDeviceGlobalsMutex);
-    return MProfileCounterDeviceGlobals;
-  }
-
   const std::unordered_map<const void *, DeviceGlobalMapEntry *>
   getPointerMap() const {
     return MPtr2DeviceGlobal;
@@ -186,9 +176,6 @@ private:
   std::unordered_map<KernelNameStrT, std::unique_ptr<DeviceGlobalMapEntry>>
       MDeviceGlobals;
   std::unordered_map<const void *, DeviceGlobalMapEntry *> MPtr2DeviceGlobal;
-
-  // List of profile counter device globals.
-  std::vector<DeviceGlobalMapEntry *> MProfileCounterDeviceGlobals;
 
   /// Protects MDeviceGlobals and MPtr2DeviceGlobal.
   std::mutex MDeviceGlobalsMutex;
