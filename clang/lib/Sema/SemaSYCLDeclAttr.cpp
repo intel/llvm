@@ -2640,7 +2640,7 @@ static bool checkSYCLAddIRAttributesMergeability(const AddIRAttrT &NewAttr,
       S.hasDependentExpr(ExistingAttr.args_begin(), ExistingAttr.args_size()))
     return true;
 
-  // If the filters differ or the attributes are conflict, then fail due to
+  // If the filters differ or the attributes are conflicting, then fail due to
   // differing duplicates.
   if (NewAttr.getAttributeFilter() != ExistingAttr.getAttributeFilter() ||
       hasConflictingSYCLAddIRAttributes(

@@ -338,8 +338,8 @@ void FunctionRedecl4();
 // CHECK-NEXT:       IntegerLiteral {{.*}} 'int' 1
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]]
-[[__sycl_detail__::add_ir_attributes_function("Attr2", "Attr1", true, 1)]]  // expected-error {{attribute '__sycl_detail__::add_ir_attributes_function' is already applied with different arguments}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, false)]] // expected-note {{conflicting attribute is here}}
+[[__sycl_detail__::add_ir_attributes_function("Attr2", "Attr1", true, 1)]]
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, false)]]
 [[__sycl_detail__::add_ir_attributes_function("Attr3", false)]]
 void FunctionDecl1(){};
 
@@ -364,10 +364,10 @@ void FunctionDecl1(){};
 [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr2", "Attr1", true, 1)]]
-[[__sycl_detail__::add_ir_attributes_function({"Attr3", "Attr1"}, "Attr1", "Attr2", 1, true)]]  // expected-error 3{{attribute '__sycl_detail__::add_ir_attributes_function' is already applied with different arguments}}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, false)]] // expected-note {{conflicting attribute is here}}
-[[__sycl_detail__::add_ir_attributes_function({"Attr1"}, "Attr1", "Attr2", 1, true)]]           // expected-note {{conflicting attribute is here}}
-[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]]                      // expected-note {{conflicting attribute is here}}
+[[__sycl_detail__::add_ir_attributes_function({"Attr3", "Attr1"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_function({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, false)]]
+[[__sycl_detail__::add_ir_attributes_function({"Attr1"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", 1, true)]]
 void FunctionDecl2(){};
 
 // CHECK:      FunctionDecl {{.*}} FunctionDecl3 'void ()'
@@ -761,8 +761,8 @@ struct [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]] Gl
 struct
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]]
-[[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]]  // expected-error {{attribute '__sycl_detail__::add_ir_attributes_global_variable' is already applied with different arguments}}
-[[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, false)]] // expected-note {{conflicting attribute is here}}
+[[__sycl_detail__::add_ir_attributes_global_variable("Attr2", "Attr1", true, 1)]]
+[[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, false)]]
 [[__sycl_detail__::add_ir_attributes_global_variable("Attr3", false)]]
 GlobalVarStructDecl1{};
 
@@ -795,10 +795,10 @@ struct
 [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
 [[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr2", "Attr1", true, 1)]]
-[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]  // expected-error 3{{attribute '__sycl_detail__::add_ir_attributes_global_variable' is already applied with different arguments}}
-[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, false)]] // expected-note {{conflicting attribute is here}}
-[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1"}, "Attr1", "Attr2", 1, true)]]           // expected-note {{conflicting attribute is here}}
-[[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]]                      // expected-note {{conflicting attribute is here}}
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1", "Attr3"}, "Attr1", "Attr2", 1, false)]]
+[[__sycl_detail__::add_ir_attributes_global_variable({"Attr1"}, "Attr1", "Attr2", 1, true)]]
+[[__sycl_detail__::add_ir_attributes_global_variable("Attr1", "Attr2", 1, true)]]
 GlobalVarStructDecl2{};
 
 // CHECK:      CXXRecordDecl {{.*}} struct GlobalVarStructDecl3 definition
@@ -1030,8 +1030,8 @@ struct __attribute__((sycl_special_class)) SpecialClassStructInherit2 : SpecialC
 struct __attribute__((sycl_special_class)) SpecialClassStruct1 {
   virtual void __init(
     [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", 1, true)]]
-    [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr2", "Attr1", true, 1)]]  // expected-error {{attribute '__sycl_detail__::add_ir_attributes_kernel_parameter' is already applied with different arguments}}
-    [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", 1, false)]] // expected-note {{conflicting attribute is here}}
+    [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr2", "Attr1", true, 1)]]
+    [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr1", "Attr2", 1, false)]]
     [[__sycl_detail__::add_ir_attributes_kernel_parameter("Attr3", false)]]
     int x) {}
 };
