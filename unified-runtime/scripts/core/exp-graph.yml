@@ -1,0 +1,109 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for Graph Record and Replay"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of record & replay graph object"
+class: $xGraph
+name: "$x_exp_graph_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of record & replay executable graph object"
+class: $xGraph
+name: "$x_exp_executable_graph_handle_t"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Create a new record & replay graph instance explicitly."
+class: $xGraph
+name: CreateExp
+decl: static
+details:
+    - "Create a new record & replay graph instance explicitly."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] Handle of the context object."
+    - type: $x_exp_graph_handle_t*
+      name: phGraph
+      desc: "[out] Pointer to the handle of the created graph object."
+    - type: void*
+      name: pNext
+      desc: "[out] pointer to extension-specific structure."
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy a recorded graph object."
+class: $xGraph
+name: DestroyExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph object to destroy."
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Destroy an instantiated executable graph object."
+class: $xGraph
+name: ExecutableGraphDestroyExp
+params:
+    - type: $x_exp_executable_graph_handle_t
+      name: hExecutableGraph
+      desc: "[in] Handle of the executable graph object to destroy."
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query whether graph capture is currently enabled on the given command-list."
+class: $xCommandList
+name: IsGraphCaptureEnabledExp
+params:
+    - type: $x_command_list_handle_t
+      name: hCommandList
+      desc: "[in] Native command list to query."
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Return whether the given recorded graph contains any nodes."
+class: $xGraph
+name: IsEmptyExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to query."
+returns:
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Dump the contents of the recorded graph to the provided file path."
+class: $xGraph
+name: DumpContentsExp
+params:
+    - type: $x_exp_graph_handle_t
+      name: hGraph
+      desc: "[in] Handle of the graph to dump."
+    - type: const char*
+      name: filePath
+      desc: "[in] Path to the file to write the dumped graph contents."
+    - type: void*
+      name: pNext
+      desc: "[in][optional] pointer to extension-specific structure."
+returns:
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
