@@ -9518,6 +9518,39 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+  auto pfnWaitExp = getContext()->urDdiTable.DeviceExp.pfnWaitExp;
+
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_device_wait_exp_params_t params = {&hDevice};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_WAIT_EXP,
+                                                 "urDeviceWaitExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urDeviceWaitExp\n");
+
+  ur_result_t result = pfnWaitExp(hDevice);
+
+  getContext()->notify_end(UR_FUNCTION_DEVICE_WAIT_EXP, "urDeviceWaitExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_WAIT_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urDeviceWaitExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -11741,6 +11774,37 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.DeviceExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnWaitExp = pDdiTable->pfnWaitExp;
+  pDdiTable->pfnWaitExp = ur_tracing_layer::urDeviceWaitExp;
+
+  return result;
+}
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames,
@@ -11865,6 +11929,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetDeviceExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->DeviceExp);
   }
 
   return result;

@@ -483,6 +483,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP = 291,
   /// Enumerator for ::urIPCCloseMemHandleExp
   UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP = 292,
+  /// Enumerator for ::urDeviceWaitExp
+  UR_FUNCTION_DEVICE_WAIT_EXP = 293,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2457,6 +2459,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports the multi device
   /// compile experimental feature.
   UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
+  /// [::ur_bool_t] Returns true if the device supports the device-wide
+  /// synchronization experimental feature.
+  UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP = 0x6002,
   /// [::ur_bool_t] returns true if the device supports
   /// ::urUSMContextMemcpyExp
   UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP = 0x7000,
@@ -12358,6 +12363,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for device-wide
+// synchronization
+#if !defined(__GNUC__)
+#pragma region device_wait_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Synchronizes with all queues on the device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///         + `hDevice == nullptr`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for enqueuing timestamp
 // recordings
 #if !defined(__GNUC__)
@@ -15894,6 +15923,14 @@ typedef struct ur_device_get_global_timestamps_params_t {
   uint64_t **ppDeviceTimestamp;
   uint64_t **ppHostTimestamp;
 } ur_device_get_global_timestamps_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urDeviceWaitExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_device_wait_exp_params_t {
+  ur_device_handle_t *phDevice;
+} ur_device_wait_exp_params_t;
 
 #if !defined(__GNUC__)
 #pragma endregion
