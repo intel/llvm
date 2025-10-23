@@ -1,5 +1,0 @@
-load_store-sycl-spir64-unknown-unknown_0.bc
-load_store-sycl-spir64-unknown-unknown_1.bc
-load_store-sycl-spir64-unknown-unknown_2.bc
-load_store-sycl-spir64-unknown-unknown_3.bc
-load_store-sycl-spir64-unknown-unknown_4.bc

@@ -1,7 +1,0 @@
-/iusers/msabiani/llvm/sycl/test-e2e/build/CMakeFiles/check-sycl-e2e.dir
-/iusers/msabiani/llvm/sycl/test-e2e/build/CMakeFiles/edit_cache.dir
-/iusers/msabiani/llvm/sycl/test-e2e/build/CMakeFiles/rebuild_cache.dir
-/iusers/msabiani/llvm/sycl/test-e2e/build/External/CMakeFiles/edit_cache.dir
-/iusers/msabiani/llvm/sycl/test-e2e/build/External/CMakeFiles/rebuild_cache.dir
-/iusers/msabiani/llvm/sycl/test-e2e/build/ExtraTests/CMakeFiles/edit_cache.dir
-/iusers/msabiani/llvm/sycl/test-e2e/build/ExtraTests/CMakeFiles/rebuild_cache.dir

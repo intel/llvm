@@ -1,9 +1,0 @@
-[SYCL/devicelib req mask]
-DeviceLibReqMask=1|0
-[SYCL/device requirements]
-aspects=2|AAAAAAAAAAA
-[SYCL/kernel param opt]
-_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E10FillBuffer=2|EAAAAAAAAAgB
-_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E10FillBufferEE=2|FAAAAAAAAAAD
-[SYCL/misc properties]
-optLevel=1|2

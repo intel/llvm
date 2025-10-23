@@ -1,3 +1,0 @@
-create /localdisk2/msabiani/llvm/sycl/test-e2e/build/SeparateCompile/Output/sycl-external-within-staticlib.cpp.tmp_repacked.a
-addlib /localdisk2/msabiani/llvm/sycl/test-e2e/build/SeparateCompile/Output/sycl-external-within-staticlib.cpp.tmp.a
-save
