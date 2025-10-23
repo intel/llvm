@@ -389,6 +389,7 @@ add_custom_target(sycl-compiler
           clang-offload-extract
           clang-offload-packager
           clang-linker-wrapper
+          compiler-rt
           file-table-tform
           llc
           llvm-ar
@@ -396,6 +397,8 @@ add_custom_target(sycl-compiler
           llvm-spirv
           llvm-link
           llvm-objcopy
+          llvm-profdata
+          llvm-cov
           spirv-to-ir-wrapper
           sycl-post-link
           opencl-aot
