@@ -288,10 +288,10 @@
 ??$is_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$submit_kernel_direct_with_event_impl@$00@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$00@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
 ??$submit_kernel_direct_with_event_impl@$01@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$01@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
-??$submit_kernel_direct_without_event_impl@$02@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
+??$submit_kernel_direct_with_event_impl@$02@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
 ??$submit_kernel_direct_without_event_impl@$00@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$00@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
 ??$submit_kernel_direct_without_event_impl@$01@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$01@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
-??$submit_kernel_direct_with_event_impl@$02@_V1@sycl@@YA?AVevent@01@AEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@601@AEBUcode_location@601@_N@Z
+??$submit_kernel_direct_without_event_impl@$02@_V1@sycl@@YAXAEBVqueue@01@AEBV?$nd_range@$02@01@AEAVHostKernelRefBase@detail@01@PEAVDeviceKernelInfo@501@AEBUcode_location@501@_N@Z
 ??$update_nd_range@$00@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$00@45@@Z
 ??$update_nd_range@$01@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$01@45@@Z
 ??$update_nd_range@$02@node@experimental@oneapi@ext@_V1@sycl@@QEAAXV?$nd_range@$02@45@@Z
@@ -4425,8 +4425,8 @@
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$01@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@@Z
 ?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
-?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
+?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
