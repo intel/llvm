@@ -31,7 +31,7 @@
 // RUN:   -fsycl-allow-device-image-dependencies -fsycl-device-code-split=per_kernel      \
 // RUN:   %S/Inputs/basic.cpp -o %t.out                                                   \
 // RUN:   %if windows                                                                     \
-// RUN:     %{%t.dir/libdevicecompress_a.lib%} %{%t.dir/libdevicecompress_b.lib%} %{%t.dir/libdevicecompress_c.lib%} %{%t.dir/libdevicecompress_d.lib%} \
+// RUN:     %{%t.dir/libdevicecompress_a.lib %t.dir/libdevicecompress_b.lib %t.dir/libdevicecompress_c.lib %t.dir/libdevicecompress_d.lib%} \
 // RUN:   %else                                                                           \
 // RUN:     %{-L%t.dir -ldevicecompress_a -ldevicecompress_b -ldevicecompress_c -ldevicecompress_d -Wl,-rpath=%t.dir%}
 
