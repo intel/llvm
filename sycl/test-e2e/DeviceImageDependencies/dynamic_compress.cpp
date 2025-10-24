@@ -35,4 +35,4 @@
 // RUN:   %else                                                                           \
 // RUN:     %{-L%t.dir -ldevicecompress_a -ldevicecompress_b -ldevicecompress_c -ldevicecompress_d -Wl,-rpath=%t.dir%}
 
-// RUN: %if windows %{env PATH=%t.dir;%PATH% %{run} %t.out%} %else %{ %{run} %t.out %}
+// RUN: %if windows %{ cmd /c "set PATH=%t.dir;%PATH% && %{run} %t.out" %} %else %{ %{run} %t.out %}
