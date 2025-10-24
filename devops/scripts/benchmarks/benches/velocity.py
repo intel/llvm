@@ -107,7 +107,7 @@ class VelocityBase(Benchmark):
 
     def setup(self):
         self.download_deps()
-        if not self.benchmark_bin().is_file():
+        if not self.benchmark_bin.is_file():
             self.configure()
             self.build()
         else:
