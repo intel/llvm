@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_usm_shortcuts
+= sycl_ext_oneapi_usm_default_device_shortcuts
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -88,12 +88,13 @@ and `cudaMallocHost`) also do not take a device or context parameter.
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
-specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_USM_SHORTCUTS` to one of the values defined in the table
-below.  Applications can test for the existence of this macro to determine if
-the implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's features the implementation
-supports.
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_USM_DEFAULT_DEVICE_SHORTCUTS` to one of the values defined in
+the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
 
 [%header,cols="1,5"]
 |===
@@ -125,7 +126,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::malloc_device(numBytes, d, ctxt, propList);
 ----
 
@@ -146,7 +147,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::malloc_device<T>(count, d, ctxt, propList);
 ----
 
@@ -167,7 +168,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::aligned_alloc_device(alignment, numBytes, d, ctxt, propList);
 ----
 
@@ -189,7 +190,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::aligned_alloc_device<T>(alignment, count, d, ctxt, propList);
 ----
 
@@ -215,7 +216,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::malloc_host(numBytes, ctxt, propList);
 ----
 
@@ -236,7 +237,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::malloc_host<T>(count, ctxt, propList);
 ----
 
@@ -257,7 +258,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::aligned_alloc_host(alignment, numBytes, ctxt, propList);
 ----
 
@@ -279,7 +280,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::aligned_alloc_host<T>(alignment, count, ctxt, propList);
 ----
 
@@ -305,7 +306,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::malloc_shared(numBytes, d, ctxt, propList);
 ----
 
@@ -326,7 +327,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::malloc_shared<T>(count, d, ctxt, propList);
 ----
 
@@ -347,7 +348,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::aligned_alloc_shared(alignment, numBytes, d, ctxt, propList);
 ----
 
@@ -369,8 +370,101 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::aligned_alloc_shared<T>(alignment, count, d, ctxt, propList);
+----
+
+'''
+
+=== New USM parameterized allocation functions
+
+This extension adds the following functions which allocate USM memory whose type
+is determined at runtime.
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void* malloc(size_t numBytes, usm::alloc kind,
+             const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return sycl::malloc(numBytes, d, ctxt, kind, propList);
+----
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+T* malloc(size_t count, usm::alloc kind,
+          const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return sycl::malloc_shared<T>(count, d, ctxt, kind, propList);
+----
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void* aligned_alloc(size_t alignment, size_t numBytes, usm::alloc kind,
+                    const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return sycl::aligned_alloc(alignment, numBytes, d, ctxt, kind, propList);
+----
+
+'''
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+T* aligned_alloc(size_t alignment, size_t count, usm::alloc kind,
+                 const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+sycl::device d;
+sycl::context ctxt = d.get_platform().khr_get_default_context();
+return sycl::aligned_alloc<T>(alignment, count, d, ctxt, kind, propList);
 ----
 
 '''
@@ -395,7 +489,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 sycl::free(ptr, ctxt);
 ----
 
@@ -421,7 +515,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::get_pointer_type(ptr, ctxt);
 ----
 
@@ -441,7 +535,7 @@ _Effects_: Equivalent to:
 [source,c++,indent=2]
 ----
 sycl::device d;
-sycl::contxt ctxt = d.get_platform().khr_get_default_context();
+sycl::context ctxt = d.get_platform().khr_get_default_context();
 return sycl::get_pointer_device(ptr, ctxt);
 ----
 
