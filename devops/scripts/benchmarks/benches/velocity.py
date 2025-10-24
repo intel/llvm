@@ -46,7 +46,7 @@ class VelocityBench(Suite):
         return [
             Hashtable(self),
             Bitcracker(self),
-            CudaSift(self),
+            # CudaSift(self), # FIXME: configure fails, OpenCV not present
             Easywave(self),
             QuickSilver(self),
             SobelFilter(self),
