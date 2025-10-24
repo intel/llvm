@@ -270,7 +270,8 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const size_t *pGlobalWorkOffset, uint32_t workDim, uint32_t groupSizeX,
     uint32_t groupSizeY, uint32_t groupSizeZ,
-    ze_command_list_handle_t commandList, wait_list_view &waitListView) {
+    ze_command_list_handle_t commandList, wait_list_view &waitListView,
+    std::vector<void *> *kernelArgs) {
   auto &deviceKernelOpt = deviceKernels[deviceIndex(hDevice)];
   if (!deviceKernelOpt.has_value())
     return UR_RESULT_ERROR_INVALID_KERNEL;
@@ -298,8 +299,25 @@ ur_result_t ur_kernel_handle_t_::prepareForSubmission(
         zePtr = reinterpret_cast<void *>(hImage->getZeImage());
       }
     }
-    // Set the argument only on this device's kernel.
-    UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
+
+    // kernelArgs must be non-nullptr in the path of
+    // zeCommandListAppendLaunchKernelWithArguments()
+    if (kernelArgs) {
+      // zeCommandListAppendLaunchKernelWithArguments()
+      // (==CommandListCoreFamily<gfxCoreFamily>::appendLaunchKernelWithArguments())
+      // calls setArgumentValue(i, argSize, argValue) for all arguments on its
+      // own so do not call it here, but save the zePtr pointer in kernelArgs
+      // for this future call.
+      if (pending.argIndex > kernelArgs->size() - 1) {
+        return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+      }
+      UR_ASSERT((*kernelArgs)[pending.argIndex] != nullptr,
+                UR_RESULT_ERROR_INVALID_NULL_POINTER);
+      *((void **)(*kernelArgs)[pending.argIndex]) = zePtr;
+    } else {
+      // Set the argument only on this device's kernel.
+      UR_CALL(deviceKernel.setArgPointer(pending.argIndex, zePtr));
+    }
   }
   pending_allocations.clear();
 
