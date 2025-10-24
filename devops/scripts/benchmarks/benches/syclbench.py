@@ -24,6 +24,7 @@ class SyclBench(Suite):
         return "https://github.com/unisa-hpc/sycl-bench.git"
 
     def git_hash(self) -> str:
+        # 21 Feb, 2025
         return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
 
     def setup(self) -> None:
