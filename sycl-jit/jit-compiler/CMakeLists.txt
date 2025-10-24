@@ -35,7 +35,6 @@ endforeach()
 add_custom_target(rtc-prepare-resources
   DEPENDS ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}
-  COMMAND_EXPAND_LISTS
 )
 
 add_custom_command(
