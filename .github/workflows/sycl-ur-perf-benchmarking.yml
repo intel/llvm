@@ -41,6 +41,12 @@ on:
         description: |
           Upload results to https://intel.github.io/llvm/benchmarks/.
         required: true
+      exit_on_failure:
+        type: string # true/false: workflow_dispatch does not support booleans
+        description: |
+          Fail benchmark script on any error. Limit number of iterations to just test correctness.
+        required: false
+        default: 'false'
       runner:
         type: string
         required: true
@@ -90,6 +96,13 @@ on:
           - false
           - true
         default: true
+      exit_on_failure:
+        description: Fail benchmark script on any error. Limit number of iterations to just test correctness.
+        type: choice
+        options:
+          - false
+          - true
+        default: false
       runner:
         description: Self-hosted runner to use for the benchmarks
         type: choice
@@ -193,6 +206,7 @@ jobs:
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_save_name: ${{ needs.sanitize_inputs.outputs.benchmark_save_name }}
       benchmark_preset: ${{ inputs.preset }}
+      benchmark_exit_on_failure: ${{ inputs.exit_on_failure }}
       repo_ref: ${{ needs.sanitize_inputs.outputs.build_ref }}
       toolchain_artifact: ${{ needs.build_sycl.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build_sycl.outputs.toolchain_artifact_filename }}
