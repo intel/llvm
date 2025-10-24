@@ -5395,7 +5395,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5408,7 +5408,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-    case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
