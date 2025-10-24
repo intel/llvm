@@ -977,15 +977,15 @@ public:
     if (!SelectedImage)
       return nullptr;
 
+    auto UrProgram = get_ur_program();
     auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
-            SelectedImage->get_ur_program());
+            UrProgram);
 
     return std::make_shared<kernel_impl>(
         std::move(Kernel), *detail::getSyclObjImpl(MContext),
-        std::move(SelectedImage), *this, ArgMask,
-        SelectedImage->get_ur_program(), CacheMutex);
+        std::move(SelectedImage), *this, ArgMask, UrProgram, CacheMutex);
   }
 
   std::shared_ptr<kernel_impl>
