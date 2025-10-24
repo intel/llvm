@@ -166,7 +166,7 @@ void launch_grouped(const queue &q, range<1> r, range<1> size, KernelType &&k,
                     KernelType, sycl::nd_item<1>>::value)) {
     detail::submit_kernel_direct_parallel_for(
         q, ext::oneapi::experimental::empty_properties_t{},
-        nd_range<1>(r, size), std::forward<KernelType>(k));
+        nd_range<1>(r, size), std::forward<KernelType>(k), {});
   } else {
     submit(
         q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -187,7 +187,7 @@ void launch_grouped(const queue &q, range<2> r, range<2> size, KernelType &&k,
                     KernelType, sycl::nd_item<2>>::value)) {
     detail::submit_kernel_direct_parallel_for(
         q, ext::oneapi::experimental::empty_properties_t{},
-        nd_range<2>(r, size), std::forward<KernelType>(k));
+        nd_range<2>(r, size), std::forward<KernelType>(k), {});
   } else {
     submit(
         q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -208,7 +208,7 @@ void launch_grouped(const queue &q, range<3> r, range<3> size, KernelType &&k,
                     KernelType, sycl::nd_item<3>>::value)) {
     detail::submit_kernel_direct_parallel_for(
         q, ext::oneapi::experimental::empty_properties_t{},
-        nd_range<3>(r, size), std::forward<KernelType>(k));
+        nd_range<3>(r, size), std::forward<KernelType>(k), {});
   } else {
     submit(
         q, [&](handler &h) { launch_grouped<KernelType>(h, r, size, k); },
@@ -333,7 +333,7 @@ void launch_task(const sycl::queue &q, KernelType &&k,
                                                            void>::value)) {
     detail::submit_kernel_direct_single_task(
         q, ext::oneapi::experimental::empty_properties_t{},
-        std::forward<KernelType>(k), codeLoc);
+        std::forward<KernelType>(k), {}, codeLoc);
   } else {
     submit(q, [&](handler &h) { launch_task<KernelType>(h, k); }, codeLoc);
   }

@@ -10,6 +10,7 @@
 
 #include <detail/adapter_impl.hpp>
 #include <detail/helpers.hpp>
+#include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -473,6 +474,15 @@ private:
 public:
   using Base::Base;
 };
+
+void registerEventDependency(
+    const detail::EventImplPtr &EventToRegister,
+    std::vector<detail::EventImplPtr> &EventsRegistered,
+    detail::queue_impl *QueueImpl, const detail::context_impl &ContextImpl,
+    const detail::device_impl &DeviceImpl,
+    const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> &Graph,
+    sycl::detail::CGType CommandGroupType);
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

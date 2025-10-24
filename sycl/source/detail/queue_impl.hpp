@@ -362,21 +362,21 @@ public:
   template <int Dims>
   event submit_kernel_direct_with_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
+      detail::DeviceKernelInfo *DeviceKernelInfo, sycl::span<event> DepEvents,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
         submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                                  true, CodeLoc, IsTopCodeLoc);
+                                  true, DepEvents, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
   template <int Dims>
   void submit_kernel_direct_without_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo,
+      detail::DeviceKernelInfo *DeviceKernelInfo, sycl::span<event> DepEvents,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, CodeLoc, IsTopCodeLoc);
+                              false, DepEvents, CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
@@ -929,10 +929,11 @@ protected:
   EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+      sycl::span<event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc);
 
   template <typename SubmitCommandFuncType>
-  EventImplPtr submit_direct(bool CallerNeedsEvent,
+  EventImplPtr submit_direct(bool CallerNeedsEvent, sycl::span<event> DepEvents,
                              SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.
