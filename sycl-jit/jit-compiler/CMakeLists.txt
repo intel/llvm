@@ -23,10 +23,12 @@ if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libsycldevice)
 endif()
 
+set(SYCL_JIT_RESOURCE_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install)
+
 set(ALL_RTC_PREPARE_RESOURCES_COMMANDS)
 foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
   list(APPEND ALL_RTC_PREPARE_RESOURCES_COMMANDS
-    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --component "${component}"
+    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
   )
 endforeach()
 
@@ -38,7 +40,7 @@ add_custom_target(rtc-prepare-resources
 
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
   DEPENDS
   rtc-prepare-resources
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
