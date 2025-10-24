@@ -178,9 +178,6 @@ class VelocityBase(Benchmark):
             )
         ]
 
-    def teardown(self):
-        return
-
 
 class Hashtable(VelocityBase):
     def __init__(self, vb: VelocityBench):

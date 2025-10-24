@@ -100,6 +100,3 @@ class TestBench(Benchmark):
                 unit="ms",
             )
         ]
-
-    def teardown(self):
-        return

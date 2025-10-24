@@ -20,7 +20,6 @@ The suite is structured around four main components: Suites, Benchmarks, Results
     * **Required Methods:**
         * `setup()`: Initializes the benchmark (e.g., build, download data). Use `self.download()` for data dependencies. **Do not** perform setup in `__init__`.
         * `run(env_vars)`: Executes the benchmark binary (use `self.run_bench()`) and returns a list of `Result` objects. Can be called multiple times, must produce consistent results.
-        * `teardown()`: Cleans up resources. Can be empty. No need to remove build artifacts or downloaded datasets.
         * `name()`: Returns a unique identifier string for the benchmark across *all* suites. If a benchmark class is instantiated multiple times with different parameters (e.g., "Submit In Order", "Submit Out Of Order"), the `name()` must reflect this uniqueness.
     * **Optional Methods:**
         * `lower_is_better()`: Returns `True` if lower result values are better (default: `True`).
@@ -165,7 +164,7 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
 
 ## Adding New Benchmarks
 
-1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`setup`, `run`, `teardown`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed.
+1. **Create Benchmark Class:** Implement a new class inheriting from `benches.base.Benchmark`. Implement required methods (`run`, `name`) and optional ones (`description`, `get_tags`, etc.) as needed.
 2. **Add to Suite:**
     * If adding to an existing category, modify the corresponding `Suite` class (e.g., `benches/compute.py`) to instantiate and return your new benchmark in its `benchmarks()` method.
     * If creating a new category, create a new `Suite` class inheriting from `benches.base.Suite`. Implement `name()` and `benchmarks()`. Add necessary `setup()` if the suite requires shared setup. Add group metadata via `additional_metadata()` if needed.

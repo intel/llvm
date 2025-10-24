@@ -462,9 +462,6 @@ class ComputeBenchmark(Benchmark):
             raise ValueError("Benchmark output does not contain data.")
         return results
 
-    def teardown(self):
-        return
-
     def _validate_attr(self, attr_name: str):
         if (
             not hasattr(self, attr_name)

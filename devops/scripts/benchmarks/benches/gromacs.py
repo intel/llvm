@@ -93,9 +93,6 @@ class GromacsBench(Suite):
             untar=True,
         )
 
-    def teardown(self):
-        pass
-
 
 class GromacsBenchmark(Benchmark):
     def __init__(self, suite, model, type, option):
@@ -274,6 +271,3 @@ class GromacsBenchmark(Benchmark):
                         )
 
         raise ValueError(f"Conserved Energy Drift not found in log file: {log_file}")
-
-    def teardown(self):
-        pass
