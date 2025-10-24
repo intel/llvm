@@ -9,25 +9,39 @@ else()
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
-set(SYCL_JIT_RESOURCE_DEPS
-  sycl-headers    # include/sycl
-  clang           # lib/clang/N/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py)
+set(SYCL_JIT_RESOURCE_DEPS sycl-headers clang)
+set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS sycl-headers OpenCL-Headers clang-resource-headers)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
   list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins) # lib/clc/*.bc
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
 endif()
 
 if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
+  list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libsycldevice)
 endif()
+
+set(ALL_RTC_PREPARE_RESOURCES_COMMANDS)
+foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
+  list(APPEND ALL_RTC_PREPARE_RESOURCES_COMMANDS
+    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --component "${component}"
+  )
+endforeach()
+
+add_custom_target(rtc-prepare-resources
+  DEPENDS ${SYCL_JIT_RESOURCE_DEPS}
+  ${ALL_RTC_PREPARE_RESOURCES_COMMANDS}
+  COMMAND_EXPAND_LISTS
+)
 
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_BINARY_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
   DEPENDS
-  ${SYCL_JIT_RESOURCE_DEPS}
+  rtc-prepare-resources
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
 )
 
 # We use C23/C++26's `#embed` to implement this resource creation, and "current"
