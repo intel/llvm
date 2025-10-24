@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: spirv-backend && gpu-intel-dg2
+// XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/160589
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
