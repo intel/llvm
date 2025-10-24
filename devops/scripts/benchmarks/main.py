@@ -720,6 +720,8 @@ if __name__ == "__main__":
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
     options.flamegraph = args.flamegraph is not None
+    options.archive_baseline_days = args.archive_baseline_after
+    options.archive_pr_days = args.archive_pr_after
 
     # Initialize logger with command line arguments
     initialize_logger(args.verbose, args.log_level)
