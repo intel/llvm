@@ -599,3 +599,18 @@ add_custom_target(deploy-sycl-toolchain
 add_subdirectory(doc)
 # SYCL End-to-End tests
 add_subdirectory(test-e2e)
+
+add_custom_target(install-test-utilities ALL
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target utils/FileCheck/install
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target utils/count/install
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target utils/not/install
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target utils/lit/install
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target utils/llvm-lit/install
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target install-llvm-size
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target install-llvm-cov
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target install-llvm-profdata
+  COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target install-compiler-rt
+  # This is required to perform the DeviceConfigFile consistency test, see
+  # sycl/test-e2e/Basic/device_config_file_consistency.cpp.
+  COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --component DeviceConfigFile
+)

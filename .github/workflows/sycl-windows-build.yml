@@ -222,7 +222,7 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
-        $GITHUB_WORKSPACE/src/devops/scripts/install_test_utilities.sh
+        cmake --build $GITHUB_WORKSPACE/build --target install-test-utilities
 
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
