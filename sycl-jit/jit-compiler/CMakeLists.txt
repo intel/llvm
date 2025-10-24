@@ -14,12 +14,12 @@ set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS sycl-headers OpenCL-Headers clang-resou
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins) # lib/clc/*.bc
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins)
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
 endif()
 
 if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice) # lib/*.bc
+  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice)
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libsycldevice)
 endif()
 
