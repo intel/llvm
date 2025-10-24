@@ -14,10 +14,6 @@ on:
       - 'devops/scripts/install_drivers.sh'
       - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl-containers.yaml'
-    # These containers are created by another workflows.
-    paths-ignore:
-      - 'devops/containers/release_build.Dockerfile'
-      - 'devops/containers/release_tests_binaries.Dockerfile'
   pull_request:
     paths:
       - 'devops/actions/build_container/**'
@@ -26,10 +22,6 @@ on:
       - 'devops/scripts/install_drivers.sh'
       - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl-containers.yaml'
-    # These containers are created by another workflows.
-    paths-ignore:
-      - 'devops/containers/release_build.Dockerfile'
-      - 'devops/containers/release_tests_binaries.Dockerfile'
 
 permissions: read-all
 
