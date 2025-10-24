@@ -21,10 +21,8 @@ RUN dnf -y install https://repo.radeon.com/amdgpu-install/6.4.1/rhel/8.10/amdgpu
     dnf clean all && rm -rf /var/cache/dnf
 
 # Build zstd static library from sources
-RUN git clone https://github.com/facebook/zstd.git /tmp/zstd && \
-    make -C /tmp/zstd && \
-    make -C /tmp/zstd install && \
-    rm -rf /tmp/zstd
+COPY scripts/build_zstd.sh /build_zstd.sh
+RUN /build_zstd.sh
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
