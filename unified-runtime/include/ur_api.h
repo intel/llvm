@@ -12388,6 +12388,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(
     /// [in] handle of the device instance.
     ur_device_handle_t hDevice);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for dynamic linking
 #if !defined(__GNUC__)
 #pragma region dynamic_link_(experimental)
@@ -12401,7 +12405,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(
 ///     - Following a successful call to this entry point the programs in
 ///       `phPrograms` will have all external symbols resolved and kernels
 ///       inside these programs would be ready for use.
-
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -12428,6 +12431,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramDynamicLinkExp(
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
     const ur_program_handle_t *phPrograms);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
