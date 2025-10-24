@@ -620,8 +620,9 @@ _{endnote}_]
 
 === New free function for linking
 
-This extension adds the following new free functions to create and build a
-kernel bundle in `ext_oneapi_source` state.
+This extension adds the following new free functions to link kernel bundles in
+`object` state. This differs from the regular `sycl::link` function the
+additional property list argument.
 
 |====
 a|
