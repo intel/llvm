@@ -49,7 +49,7 @@ class VelocityBench(Suite):
             # CudaSift(self), # FIXME: configure fails, OpenCV not present
             Easywave(self),
             QuickSilver(self),
-            SobelFilter(self),
+            # SobelFilter(self), # FIXME: configure fails, OpenCV not present
             DLCifar(self),
             DLMnist(self),
             SVM(self),
