@@ -39,6 +39,7 @@ geometric/scale.cl
 integer/abs.cl
 integer/abs_diff.cl
 integer/add_sat.cl
+integer/bit_reverse.cl
 integer/clamp.cl
 integer/clz.cl
 integer/ctz.cl
