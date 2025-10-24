@@ -1,7 +1,7 @@
 # A combined workflow for all benchmarks-related jobs for SYCL and UR.
 # Supports both manual triggering (dispatch) and nightly runs.
 # It also tests changes to benchmark scripts/framework in PR, if modified.
-name: Run Benchmarks
+name: SYCL Run Benchmarks
 
 on:
   schedule:
