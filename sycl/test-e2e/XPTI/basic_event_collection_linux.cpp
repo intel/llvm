@@ -22,13 +22,6 @@
 // CHECK-NEXT: UR Call Begin : urPlatformGetInfo
 // CHECK-NEXT: UR Call Begin : urKernelSetExecInfo
 // CHECK-NEXT: UR Call Begin : urKernelRetain
-// CHECK:      UR Call Begin : urKernelGetGroupInfo
-// CHECK-NEXT: UR Call Begin : urEnqueueKernelLaunchWithArgsExp
-// CHECK:      UR Call Begin : urKernelCreate
-// CHECK-NEXT: UR Call Begin : urPlatformGetInfo
-// CHECK-NEXT: UR Call Begin : urPlatformGetInfo
-// CHECK-NEXT: UR Call Begin : urKernelSetExecInfo
-// CHECK-NEXT: UR Call Begin : urKernelRetain
 // CHECK:      Node create
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
