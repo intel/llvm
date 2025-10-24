@@ -1043,6 +1043,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
@@ -1242,4 +1244,8 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
             .count();
   }
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

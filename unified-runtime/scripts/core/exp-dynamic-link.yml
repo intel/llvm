@@ -19,7 +19,7 @@ desc: "Extension enums for $x_device_info_t to support dynamic linking."
 name: $x_device_info_t
 etors:
     - name: DYNAMIC_LINK_SUPPORT_EXP
-      value: "0x6001"
+      value: "0x6003"
       desc: "[$x_bool_t] Returns true if the device supports the dynamic linking experimental feature."
 --- #--------------------------------------------------------------------------
 type: function
