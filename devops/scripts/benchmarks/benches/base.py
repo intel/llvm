@@ -277,23 +277,22 @@ class Benchmark(ABC):
         """Returns a list of strings with taskset usage for core pinning.
         Pin compute benchmarks to a CPU cores set to ensure consistent results
         and non-zero CPU count measurements (e.g. avoid E-cores). Exactly 4 cores
-        with the maximum frequency are pinned by default to satisfy multiple threads benchmarks.
+        are pinned by default to satisfy multiple threads benchmarks. It is assumed
+        that they have the maximum, or at least the same, frequency.
         """
-        available_cores = Process().cpu_affinity()
-        core_frequencies = []
-        for core in available_cores:  # type: ignore
-            with open(
-                f"/sys/devices/system/cpu/cpu{core}/cpufreq/cpuinfo_max_freq"
-            ) as f:
-                freq = int(f.read().strip())
-                core_frequencies.append((core, freq))
-        selected = core_frequencies[:4]  # first ones have highest frequency
-        if len({freq for _, freq in selected}) > 1:
-            log.warning(
-                f"Selected cores for pinning have differing max frequencies: {selected}"
+        get_core_frequency = (
+            lambda num: open(
+                f"/sys/devices/system/cpu/cpu{num}/cpufreq/cpuinfo_max_freq"
             )
-        cores_list = ",".join([str(core) for core, _ in selected])
-        return ["taskset", "-c", cores_list]
+            .read()
+            .strip()
+        )
+        selected_cores = [str(core) for core in Process().cpu_affinity()[:4]]  # type: ignore
+        if len({get_core_frequency(core) for core in selected_cores}) > 1:
+            log.warning(
+                f"Selected cores for pinning have differing max frequencies: {selected_cores}"
+            )
+        return ["taskset", "-c", ",".join(selected_cores)]
 
 
 class Suite(ABC):
