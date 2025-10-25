@@ -1583,7 +1583,7 @@ bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
 
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (const char *Val : A->getValues()) {
-      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
       if ((!TT.isSPIROrSPIRV()) || TT.isSPIRAOT())
         return false;
     }

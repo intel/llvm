@@ -961,7 +961,10 @@ static void addSYCLBackendOptions(const ArgList &Args,
     }
     if (!AfterOptions.empty()) {
       CmdArgs.push_back("-options");
+<<<<<<< HEAD
       // Split the options string by spaces and rejoin to normalize whitespace
+=======
+>>>>>>> a5578409559c (got the fp64-conv-emu-1.cpp test to pass)
       SmallVector<StringRef, 8> AfterArgs;
       AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
       std::string JoinedOptions = llvm::join(AfterArgs, " ");
