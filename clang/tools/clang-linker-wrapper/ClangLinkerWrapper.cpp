@@ -965,9 +965,10 @@ static void addBackendOptions(const ArgList &Args,
     if (!AfterOptions.empty()) {
       // Separator not included by the split function, so explicitly added here.
       CmdArgs.push_back("-options");
-      std::string Replace = AfterOptions.str();
-      std::replace(Replace.begin(), Replace.end(), ' ', ',');
-      CmdArgs.push_back(Args.MakeArgString(Replace));
+      SmallVector<StringRef, 8> AfterArgs;
+      AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      std::string JoinedOptions = llvm::join(AfterArgs, " ");
+      CmdArgs.push_back(Args.MakeArgString(JoinedOptions));
     }
   }
   StringRef OptL =
