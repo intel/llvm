@@ -348,6 +348,28 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
   return Result;
 }
 
+/// Collects aspects from all instructions in a function.
+/// Applies FP64 conversion emulation filtering per-instruction.
+AspectsSetTy getAspectsFromInstructions(Function &F,
+                                        TypeToAspectsMapTy &TypesWithAspects,
+                                        int FP64Aspect, bool FP64ConvEmu) {
+  AspectsSetTy Result;
+
+  for (Instruction &I : instructions(F)) {
+    bool IsFP64Conversion = FP64ConvEmu && isFP64ConversionInstruction(I);
+    bool HasDouble = hasDoubleType(I);
+
+    const AspectsSetTy Aspects = getAspectsUsedByInstruction(I, TypesWithAspects);
+
+    for (int Aspect : Aspects) {
+      if (!FP64ConvEmu || Aspect != FP64Aspect || !HasDouble || !IsFP64Conversion)
+        Result.insert(Aspect);
+    }
+  }
+
+  return Result;
+}
+
 using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
 using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
 
@@ -511,7 +533,54 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
   }
 }
 
+/// Computes topological order of functions in the call graph.
+/// Returns functions in reverse topological order.
+/// This allows single-pass bottom-up propagation.
+std::vector<Function *>
+getTopologicalOrder(const CallGraphTy &CG,
+                    const std::vector<Function *> &EntryPoints) {
+  std::vector<Function *> Result;
+  DenseMap<const Function *, unsigned> InDegree;
+
+  // Build reverse call graph and compute in-degrees.
+  DenseMap<Function *, SmallVector<Function *, 4>> ReverseCG;
+  SmallPtrSet<Function *, 32> AllFunctions;
+  for (const auto &[Caller, Callees] : CG) {
+    AllFunctions.insert(Caller);
+    for (Function *Callee : Callees) {
+      AllFunctions.insert(Callee);
+      ReverseCG[Callee].push_back(Caller);
+      InDegree[Caller]++;
+    }
+  }
+
+  // Start with leaf functions.
+  std::queue<Function *> Worklist;
+  for (Function *F : AllFunctions) {
+    if (InDegree[F] == 0)
+      Worklist.push(F);
+  }
+
+  // Kahn's algorithm for topological sort.
+  while (!Worklist.empty()) {
+    Function *F = Worklist.front();
+    Worklist.pop();
+    Result.push_back(F);
+
+    auto It = ReverseCG.find(F);
+    if (It != ReverseCG.end()) {
+      for (Function *Caller : It->second) {
+        if (--InDegree[Caller] == 0)
+          Worklist.push(Caller);
+      }
+    }
+  }
+
+  return Result;
+}
+
 /// Propagates aspects from leaves up to the top of call graph.
+/// Uses topological sort for efficient single-pass propagation.
 /// NB! Call graph corresponds to call graph of SYCL code which
 /// can't contain recursive calls. So there can't be loops in
 /// a call graph. But there can be path's intersections.
@@ -532,6 +601,24 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
   }
 
   AspectsMap[F].insert(LocalAspects.begin(), LocalAspects.end());
+}
+
+/// Processes each function exactly once in bottom-up order.
+void propagateAspectsThroughCGOptimized(
+    const std::vector<Function *> &TopoOrder, const CallGraphTy &CG,
+    FunctionToAspectsMapTy &AspectsMap) {
+  // Process in topological order.
+  for (Function *F : TopoOrder) {
+    auto It = CG.find(F);
+    if (It == CG.end())
+      continue;
+
+    // Merge aspects from all callees.
+    for (Function *Callee : It->second) {
+      const auto &CalleeAspects = AspectsMap[Callee];
+      AspectsMap[F].insert(CalleeAspects.begin(), CalleeAspects.end());
+    }
+  }
 }
 
 /// Processes a function:
@@ -564,19 +651,19 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
         FunctionToUsedAspects[&F].insert(Aspect);
   }
 
+  const AspectsSetTy InstrAspects =
+      getAspectsFromInstructions(F, TypesWithAspects, FP64Aspect, FP64ConvEmu);
+  FunctionToUsedAspects[&F].insert(InstrAspects.begin(), InstrAspects.end());
+
+  // Build call graph.
   for (Instruction &I : instructions(F)) {
-    const AspectsSetTy Aspects =
-        getAspectsUsedByInstruction(I, TypesWithAspects);
-    for (const auto &Aspect : Aspects)
-      if (!FP64ConvEmu || (Aspect != FP64Aspect) || !hasDoubleType(I) ||
-          !isFP64ConversionInstruction(I))
-        FunctionToUsedAspects[&F].insert(Aspect);
     if (const auto *CI = dyn_cast<CallInst>(&I)) {
       if (!CI->isIndirectCall() && CI->getCalledFunction())
         CG[&F].insert(CI->getCalledFunction());
     }
   }
 
+  // Collect aspects from metadata (combined to reduce lookups).
   auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
     if (const MDNode *MD = F.getMetadata(MDName)) {
       AspectsSetTy Aspects;
@@ -696,23 +783,25 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
     collectVirtualFunctionSetInfo(F, VirtualFunctionSets);
   }
 
+  // Compute topological order once for both propagation passes.
+  std::vector<Function *> TopoOrder = getTopologicalOrder(CG, EntryPoints);
+
+  // Handle virtual function sets (still needs old recursive propagation)
   SmallPtrSet<const Function *, 16> Visited;
   for (Function *F : EntryPoints) {
-    propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
     processDeclaredVirtualFunctionSets(F, CG, FunctionToUsedAspects, Visited,
                                        VirtualFunctionSets);
   }
+
+  // Optimized single-pass propagation for used aspects.
+  propagateAspectsThroughCGOptimized(TopoOrder, CG, FunctionToUsedAspects);
 
   if (ValidateAspects)
     validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
                                     EntryPoints, CG);
 
-  // The set of aspects from FunctionToDeclaredAspects should be merged to the
-  // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
-  // avoid errors during validation.
-  Visited.clear();
-  for (Function *F : EntryPoints)
-    propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
+  // Optimized single-pass propagation for declared aspects.
+  propagateAspectsThroughCGOptimized(TopoOrder, CG, FunctionToDeclaredAspects);
 
   return {std::move(FunctionToUsedAspects),
           std::move(FunctionToDeclaredAspects)};
