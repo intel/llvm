@@ -219,6 +219,7 @@ class SYCLToolchain {
       // Create a compiler instance to handle the actual work.
       CompilerInstance Compiler(std::move(Invocation),
                                 std::move(PCHContainerOps));
+      Compiler.setVirtualFileSystem(Files->getVirtualFileSystemPtr());
       Compiler.setFileManager(Files);
       // Suppress summary with number of warnings and errors being printed to
       // stdout.
