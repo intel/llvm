@@ -31,7 +31,7 @@
 // CHK-SPLIT-CMDS-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o [[SPIRVOUT:.*]].spv [[SYCLMODULESPLITOUT]].bc
 // LLVM-SPIRV is not called in dry-run
 // CHK-SPLIT-CMDS-NEXT: offload-wrapper: input: [[SPIRVOUT]].spv, output: [[WRAPPEROUT:.*]].bc
-// CHK-SPLIT-CMDS-NEXT: clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
+// CHK-SPLIT-CMDS-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
 // CHK-SPLIT-CMDS-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 // Check errors with -[no-]use-sycl-post-link-tool.
@@ -224,7 +224,7 @@
 // CHK-DEVLINK-CMDS-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-DEVLINK-CMDS-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
 // CHK-DEVLINK-CMDS-NEXT: clang{{.*}} -c -o [[CLANGOUT:.*]] [[WRAPPEROUT]].bc
-// CHK-DEVLINK-CMDS-NEXT: "{{.*}}cp|copy"{{.*}} [[CLANGOUT]] a.out
+// CHK-DEVLINK-CMDS-NEXT: "({{.*}}cp|copy)" [[CLANGOUT]] a.out
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
 
 // Verify list of commands when syclbin is used
@@ -236,5 +236,5 @@
 // CHK-SYCLBIN-CMDS-NEXT: llvm-spirv{{.*}} -o {{.*}}
 // CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: input
 // CHK-SYCLBIN-CMDS-NOT:  clang
-// CHK-SYCLBIN-CMDS-NEXT: "{{.*}}cp|copy" {{.*}}.syclbin a.out
+// CHK-SYCLBIN-CMDS-NEXT: "({{.*}}cp|copy)" {{.*}}.syclbin a.out
 // CHK-SYCLBIN-CMDS-NOT: "{{.*}}ld"
