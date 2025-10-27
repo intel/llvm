@@ -32,9 +32,17 @@ set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
   # OpenCL-Headers doesn't have a corresponding build target:
 list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 
+# This is very hacky and I don't quite know what I'm doing, but it's necessary
+# to have `resource.cpp` re-generated/re-built when some SYCL header changes.
+#
+# Inspired by the way `sycl-headers` target is created.
+file(GLOB_RECURSE SYCL_JIT_RESOURCE_FILES CONFIGURE_DEPENDS "${SYCL_JIT_RESOURCE_INSTALL_DIR}/*" )
+
 add_custom_target(rtc-prepare-resources
   DEPENDS ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_PREPARE_RESOURCE_COMMANDS}
+  BYPRODUCTS
+  ${SYCL_JIT_RESOURCE_FILES}
 )
 
 add_custom_command(
@@ -42,6 +50,8 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
   DEPENDS
   rtc-prepare-resources
+  ${SYCL_JIT_RESOURCE_DEPS}
+  ${SYCL_JIT_RESOURCE_FILES}
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
 )
 
@@ -82,6 +92,8 @@ add_custom_command(
   ${clang_exe} --target=${LLVM_HOST_TRIPLE} ${SYCL_JIT_RESOURCE_CPP} -I ${CMAKE_CURRENT_SOURCE_DIR}/include -c -o ${SYCL_JIT_RESOURCE_OBJ} ${SYCL_JIT_RESOURCE_CXX_FLAGS}
   DEPENDS
   ${SYCL_JIT_RESOURCE_CPP}
+  ${SYCL_JIT_RESOURCE_DEPS}
+  ${SYCL_JIT_RESOURCE_FILES}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
 )
 
