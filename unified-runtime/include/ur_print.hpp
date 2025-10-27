@@ -1276,6 +1276,21 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP:
     os << "UR_FUNCTION_BINDLESS_IMAGES_SUPPORTS_IMPORTING_HANDLE_TYPE_EXP";
     break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP:
+    os << "UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_DEVICE_WAIT_EXP:
+    os << "UR_FUNCTION_DEVICE_WAIT_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -3118,6 +3133,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
     break;
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP";
+    break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
     break;
@@ -3138,6 +3156,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP";
@@ -5258,6 +5279,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -5337,6 +5371,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -20355,6 +20402,112 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_get_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_get_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  os << ", ";
+  os << ".pIPCMemHandleData = ";
+
+  ur::details::printPtr(os, *(params->ppIPCMemHandleData));
+
+  os << ", ";
+  os << ".pIPCMemHandleDataSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppIPCMemHandleDataSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_put_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_put_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pIPCMemHandleData = ";
+
+  ur::details::printPtr(os, *(params->ppIPCMemHandleData));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_open_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_ipc_open_mem_handle_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pIPCMemHandleData = ";
+
+  os << *(params->ppIPCMemHandleData);
+
+  os << ", ";
+  os << ".ipcMemHandleDataSize = ";
+
+  os << *(params->pipcMemHandleDataSize);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  os << *(params->pppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_ipc_close_mem_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_ipc_close_mem_handle_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  os << *(params->ppMem);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_memory_export_alloc_exportable_memory_exp_params_t type
 /// @returns
@@ -21129,6 +21282,21 @@ inline std::ostream &operator<<(
   return os;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_wait_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_wait_exp_params_t *params) {
+
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  return os;
+}
+
 inline std::ostream &operator<<(std::ostream &os,
                                 [[maybe_unused]] const ur_bool_t value) {
   os << (value ? "true" : "false");
@@ -21818,6 +21986,18 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
             params;
   } break;
+  case UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_get_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_put_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_open_mem_handle_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP: {
+    os << (const struct ur_ipc_close_mem_handle_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_MEMORY_EXPORT_ALLOC_EXPORTABLE_MEMORY_EXP: {
     os << (const struct ur_memory_export_alloc_exportable_memory_exp_params_t *)
             params;
@@ -21895,6 +22075,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS: {
     os << (const struct ur_device_get_global_timestamps_params_t *)params;
+  } break;
+  case UR_FUNCTION_DEVICE_WAIT_EXP: {
+    os << (const struct ur_device_wait_exp_params_t *)params;
   } break;
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

@@ -32,6 +32,9 @@ inputs:
   dry_run:
     type: string
     required: False
+  exit_on_failure:
+    type: string
+    required: False
 
 runs:
   using: "composite"
@@ -192,8 +195,10 @@ runs:
       sycl-ls
       echo "-----"
 
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
-        "$(realpath ./llvm_test_workdir)" \
+      WORKDIR="$(realpath ./llvm_test_workdir)"
+      if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
+
+      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
@@ -204,7 +209,8 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        --flamegraph inclusive
+        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
+      # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
@@ -213,8 +219,8 @@ runs:
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/" \
-        --regression-filter '^[a-z_]+_sycl ' \
-        --regression-filter-type 'SYCL' \
+        --regression-filter '^[a-z_]+_sycl .* CPU count' \
+        --regression-filter-type 'SYCL benchmark (measured using CPU cycle count)' \
         --verbose \
         --produce-github-summary \
         ${{ inputs.dry_run == 'true' && '--dry-run' || '' }} \

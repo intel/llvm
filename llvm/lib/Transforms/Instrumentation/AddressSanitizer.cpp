@@ -441,27 +441,35 @@ static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
     cl::init(AsanDtorKind::Invalid), cl::Hidden);
 
 // SYCL flags
-static cl::opt<bool>
-    ClSpirOffloadPrivates("asan-spir-privates",
-                          cl::desc("instrument private pointer"), cl::Hidden,
-                          cl::init(true));
-
-static cl::opt<bool> ClSpirOffloadGlobals("asan-spir-globals",
-                                          cl::desc("instrument global pointer"),
-                                          cl::Hidden, cl::init(true));
-
-static cl::opt<bool> ClSpirOffloadLocals("asan-spir-locals",
-                                         cl::desc("instrument local pointer"),
-                                         cl::Hidden, cl::init(true));
+static cl::opt<bool> ClSpirOffloadPrivates(
+    "asan-spir-privates",
+    cl::desc("Instrument private pointer on SPIR-V target"), cl::Hidden,
+    cl::init(true));
 
 static cl::opt<bool>
-    ClSpirOffloadGenerics("asan-spir-generics",
-                          cl::desc("instrument generic pointer"), cl::Hidden,
-                          cl::init(true));
+    ClSpirOffloadGlobals("asan-spir-globals",
+                         cl::desc("Instrument global pointer on SPIR-V target"),
+                         cl::Hidden, cl::init(true));
 
-static cl::opt<bool> ClDeviceGlobals("asan-device-globals",
-                                     cl::desc("instrument device globals"),
-                                     cl::Hidden, cl::init(true));
+static cl::opt<bool>
+    ClSpirOffloadLocals("asan-spir-locals",
+                        cl::desc("Instrument local pointer on SPIR-V target"),
+                        cl::Hidden, cl::init(true));
+
+static cl::opt<bool> ClSpirOffloadGenerics(
+    "asan-spir-generics",
+    cl::desc("Instrument generic pointer on SPIR-V target"), cl::Hidden,
+    cl::init(true));
+
+static cl::opt<bool>
+    ClDeviceGlobals("asan-device-globals",
+                    cl::desc("Instrument device globals on SPIR-V target"),
+                    cl::Hidden, cl::init(true));
+
+static cl::opt<bool> ClSpirCheckShadowBounds(
+    "asan-spir-shadow-bounds",
+    cl::desc("Enable checking shadow bounds on SPIR-V target"), cl::Hidden,
+    cl::init(false));
 
 // Debug flags.
 
@@ -1394,7 +1402,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
   // following structure:
   //  uptr unmangled_kernel_name
   //  uptr unmangled_kernel_name_size
-  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+  //  uptr sanitized_flags
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   if (!HasESIMD)
     for (Function &F : M) {
@@ -1425,9 +1434,21 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       KernelNamesBytes.append(KernelName.begin(), KernelName.end());
       auto *KernelNameGV = GetOrCreateGlobalString(
           M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
+
+      uintptr_t SanitizerFlags = 0;
+      SanitizerFlags |= ClSpirOffloadLocals ? SanitizedKernelFlags::CHECK_LOCALS
+                                            : SanitizedKernelFlags::NO_CHECK;
+      SanitizerFlags |= ClSpirOffloadPrivates
+                            ? SanitizedKernelFlags::CHECK_PRIVATES
+                            : SanitizedKernelFlags::NO_CHECK;
+      SanitizerFlags |= ClSpirCheckShadowBounds != 0
+                            ? SanitizedKernelFlags::ASAN_CHECK_SHADOW_BOUNDS
+                            : SanitizedKernelFlags::NO_CHECK;
+
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-          ConstantInt::get(IntptrTy, KernelName.size())));
+          ConstantInt::get(IntptrTy, KernelName.size()),
+          ConstantInt::get(IntptrTy, SanitizerFlags)));
     }
 
   // Create global variable to record spirv kernels' information
@@ -1603,17 +1624,22 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
     AsanSpirv->initializeCallbacks();
 
     // FIXME: W/A skip instrumentation if this module has ESIMD
-    bool HasESIMD = false;
-    for (auto &F : M) {
-      if (F.hasMetadata("sycl_explicit_simd")) {
-        HasESIMD = true;
-        break;
-      }
-    }
+    bool HasESIMD = hasESIMDKernel(M);
 
     // Make sure "__AsanKernelMetadata" always exists
     ExtendSpirKernelArgs(M, FAM, HasESIMD);
     Modified = true;
+
+    {
+      IRBuilder<> IRB(M.getContext());
+      M.getOrInsertGlobal("__asan_check_shadow_bounds", IRB.getInt32Ty(), [&] {
+        return new GlobalVariable(
+            M, IRB.getInt32Ty(), true, GlobalValue::WeakODRLinkage,
+            ConstantInt::get(IRB.getInt32Ty(), ClSpirCheckShadowBounds),
+            "__asan_check_shadow_bounds", nullptr,
+            llvm::GlobalValue::NotThreadLocal, kSpirOffloadGlobalAS);
+      });
+    }
 
     if (HasESIMD) {
       GlobalStringMap.clear();
@@ -1693,19 +1719,21 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 }
 
 static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
-  // Non image scope device globals are implemented by device USM, and the
-  // out-of-bounds check for them will be done by sanitizer USM part. So we
-  // exclude them here.
-  if (!G->hasAttribute("sycl-device-image-scope"))
-    return true;
-
   // Skip instrumenting on "__AsanKernelMetadata" etc.
-  if (G->getName().starts_with("__Asan"))
+  if (G->getName().starts_with("__Asan") || G->getName().starts_with("__asan"))
     return true;
 
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
     return !ClSpirOffloadLocals;
 
+  // When shadow bounds check is enabled, we need to instrument all global
+  // variables that user code can access
+  if (ClSpirCheckShadowBounds)
+    return false;
+
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }

@@ -223,6 +223,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
   // TODO: Atomic queries in Offload
   case UR_DEVICE_INFO_ATOMIC_64:
   case UR_DEVICE_INFO_IMAGE_SRGB:
@@ -279,6 +281,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_LOCAL_MEM_SIZE: {
     return ReturnValue(size_t{0});
+  }
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
+    return ReturnValue(ur_bool_t{false});
   }
 
   // The following properties are lifted from the minimum supported
@@ -493,5 +498,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetGlobalTimestamps(ur_device_handle_t, uint64_t *, uint64_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

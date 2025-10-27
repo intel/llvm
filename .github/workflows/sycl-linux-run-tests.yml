@@ -140,6 +140,12 @@ on:
         type: string
         default: 'false'
         required: False
+      benchmark_exit_on_failure:
+        description: |
+          Whether or not to fail the workflow upon a failure.
+        type: string
+        default: 'false'
+        required: False
 
   workflow_dispatch:
     inputs:
@@ -210,6 +216,12 @@ on:
           - "full"
           - "build-only"
           - "run-only"
+
+      benchmark_exit_on_failure:
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
   contents: read
@@ -358,6 +370,7 @@ jobs:
         save_name: ${{ inputs.benchmark_save_name }}
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
+        exit_on_failure: ${{ inputs.benchmark_exit_on_failure }}
         build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
