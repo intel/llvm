@@ -1673,7 +1673,8 @@ SPIRVValue *LLVMToSPIRVBase::transUnaryInst(UnaryInstruction *U,
       } else {
         BOC = OpCrossWorkgroupCastToPtrINTEL;
       }
-    } else if (isa<ConstantPointerNull>(Cast->getPointerOperand())) {
+    } else if (isa<ConstantPointerNull>(Cast->getPointerOperand()) &&
+               SrcAddrSpace != SPIRAS_Generic) {
       SPIRVType *TransTy = transScavengedType(U);
       return BM->addNullConstant(bcast<SPIRVTypePointer>(TransTy));
     } else {
