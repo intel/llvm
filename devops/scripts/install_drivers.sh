@@ -56,6 +56,38 @@ function get_pre_release_igfx() {
     unzip $HASH.zip && rm $HASH.zip
 }
 
+function build_level_zero_from_source() {
+    COMMIT=$1
+
+    apt-get update -qq
+    apt-get install -y build-essential cmake git libc6-dev linux-libc-dev
+
+    BUILD_DIR="/tmp/level-zero-build"
+    mkdir -p $BUILD_DIR && cd $BUILD_DIR
+
+    git clone https://github.com/oneapi-src/level-zero.git
+    
+    cd level-zero
+    git checkout $COMMIT
+
+    mkdir build && cd build
+
+    cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DLEVEL_ZERO_BUILD_TESTS=OFF \
+      -DLEVEL_ZERO_BUILD_SAMPLES=OFF
+
+    make -j$(nproc)
+    make install
+
+    ldconfig
+
+    rm -rf $BUILD_DIR
+
+    echo "Level Zero built and installed successfully from commit $COMMIT"
+}
+
 TBB_INSTALLED=false
 
 if [[ -v INSTALL_LOCATION ]]; then
@@ -96,6 +128,15 @@ CheckIGCdevTag() {
     fi
 }
 
+CheckIfCommitHash() {
+    local arg="$1"
+    if [[ $arg =~ ^[a-f0-9]{40}$ ]]; then
+        echo "Yes"
+    else
+        echo "No"
+    fi
+}
+
 InstallIGFX () {
   echo "Installing Intel Graphics driver..."
   echo "Compute Runtime version $CR_TAG"
@@ -122,10 +163,28 @@ InstallIGFX () {
     | grep ".*deb" \
     | grep -v "u18" \
     | wget -qi -
-  get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*$UBUNTU_VER.*deb$" \
-    | wget -qi -
-  dpkg -i --force-all *.deb && rm *.deb *.sum
+  
+  # Check if L0_TAG is a commit hash or a regular tag
+  IS_L0_COMMIT=$(CheckIfCommitHash $L0_TAG)
+  if [ "$IS_L0_COMMIT" == "Yes" ]; then
+    echo "Level Zero is using commit hash, building from source..."
+    if ! build_level_zero_from_source $L0_TAG; then
+      exit 1
+    fi
+    # Install other packages (Level Zero was already installed from source)
+    if ls *.deb 1> /dev/null 2>&1; then
+      dpkg -i --force-all *.deb && rm *.deb
+    fi
+    if ls *.sum 1> /dev/null 2>&1; then
+      rm *.sum
+    fi
+  else
+    get_release oneapi-src/level-zero $L0_TAG \
+      | grep ".*$UBUNTU_VER.*deb$" \
+      | wget -qi -
+    # Install all packages including Level Zero
+    dpkg -i --force-all *.deb && rm *.deb *.sum
+  fi
   mkdir -p /usr/local/lib/igc/
   echo "$IGC_TAG" > /usr/local/lib/igc/IGCTAG.txt
   if [ "$IS_IGC_DEV" == "Yes" ]; then
@@ -169,6 +228,7 @@ InstallCPURT () {
   if [ -e $INSTALL_LOCATION/oclcpu/install.sh ]; then \
     bash -x $INSTALL_LOCATION/oclcpu/install.sh
   else
+    mkdir -p /etc/OpenCL/vendors
     echo  $INSTALL_LOCATION/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
   fi
 }
