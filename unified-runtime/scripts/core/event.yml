@@ -77,6 +77,8 @@ etors:
       desc: Event created by $xEnqueueReadHostPipe
     - name: WRITE_HOST_PIPE
       desc: Event created by $xEnqueueWriteHostPipe
+    - name: FROM_NATIVE
+      desc: Command type used by events created by $xEventCreateWithNativeHandle
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Event Status"
@@ -101,7 +103,7 @@ name: $x_event_info_t
 typed_etors: True
 etors:
     - name: COMMAND_QUEUE
-      desc: "[$x_queue_handle_t] Command queue information of an event object"
+      desc: "[$x_queue_handle_t] Command queue information of an event object. This may be NULL if the event was created via $xEventCreateWithNativeHandle and the adapter has no associated UR queue"
     - name: CONTEXT
       desc: "[$x_context_handle_t] Context information of an event object"
     - name: COMMAND_TYPE
