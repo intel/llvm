@@ -334,7 +334,7 @@ def main():
         "-t",
         "--build-type",
         metavar="BUILD_TYPE",
-        default="Release",
+        default="Debug",
         help="build type: Debug, Release",
     )
     parser.add_argument(
