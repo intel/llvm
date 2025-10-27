@@ -67,13 +67,14 @@ int main() {
   nfail += test<Increment<long>>(q);
   nfail += test<Increment<float>>(q);
 
-  // This test is currently disabled because it requires the -ze-fp64-gen-emu IGC option 
-  // to run FP64 arithmetic operations. The -fsycl-fp64-conv-emu flag only enables the
-  // -ze-fp64-gen-conv-emu IGC option, which provides partial FP64 emulation limited to
-  // kernels with FP64 conversions but no FP64 computations.
-  // TODO: Implement support for a new flag, -fsycl-fp64-gen-emu, which will enable 
-  // the use of the -ze-fp64-gen-emu IGC option.
-  // if (q.get_device().has(aspect::fp64)) {
+  // This test is currently disabled because it requires the -ze-fp64-gen-emu
+  // IGC option to run FP64 arithmetic operations. The -fsycl-fp64-conv-emu flag
+  // only enables the -ze-fp64-gen-conv-emu IGC option, which provides partial
+  // FP64 emulation limited to kernels with FP64 conversions but no FP64
+  // computations.
+  // TODO: Implement support for a new flag, -fsycl-fp64-gen-emu, which will
+  // enable the use of the -ze-fp64-gen-emu IGC option. if
+  // (q.get_device().has(aspect::fp64)) {
   //   nfail += test<Increment<double>>(q);
   // }
 
