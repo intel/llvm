@@ -164,8 +164,8 @@ template <detail::WrapAs WrapAs, typename LambdaArgType,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t,
           typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct(
-    const queue &Queue,
-    const nd_range<Dims> &Range, KernelTypeUniversalRef &&KernelFunc,
+    const queue &Queue, const nd_range<Dims> &Range,
+    KernelTypeUniversalRef &&KernelFunc,
     PropertiesT ExtraProps = ext::oneapi::experimental::empty_properties_t{},
     const detail::code_location &CodeLoc = detail::code_location::current()) {
 
@@ -3385,8 +3385,7 @@ public:
                   !(detail::KernelLambdaHasKernelHandlerArgT<
                       KernelType, sycl::nd_item<Dims>>::value)) {
       return detail::submit_kernel_direct_parallel_for<KernelName, true>(
-          *this, Range,
-          Rest...,
+          *this, Range, Rest...,
           ext::oneapi::experimental::empty_properties_t{},
           TlsCodeLocCapture.query());
     } else {

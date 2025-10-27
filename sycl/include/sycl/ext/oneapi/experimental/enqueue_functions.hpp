@@ -276,8 +276,8 @@ void nd_launch(queue Q, nd_range<Dimensions> Range, const KernelType &KernelObj,
   if constexpr (sizeof...(ReductionsT) == 0 &&
                 !(detail::KernelLambdaHasKernelHandlerArgT<
                     KernelType, sycl::nd_item<Dimensions>>::value)) {
-    detail::submit_kernel_direct_parallel_for<KernelName>(
-        std::move(Q), Range, KernelObj);
+    detail::submit_kernel_direct_parallel_for<KernelName>(std::move(Q), Range,
+                                                          KernelObj);
   } else {
     submit(std::move(Q), [&](handler &CGH) {
       nd_launch<KernelName>(CGH, Range, KernelObj,
