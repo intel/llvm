@@ -1143,19 +1143,31 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
   DenseMap<const Argument *, MDNode *> NewScopes;
   MDBuilder MDB(CalledFunc->getContext());
 
+  // For spir/spirv targets, disable function name encoding
+  // in alias metadata to reduce metadata bloat and improve compilation
+  // performance.
+  const Module *M = CalledFunc->getParent();
+  const auto Arch = M->getTargetTriple().getArch();
+  const bool IsSPIRModule =
+      Arch == Triple::ArchType::spir || Arch == Triple::ArchType::spir64 ||
+      Arch == Triple::ArchType::spirv || Arch == Triple::ArchType::spirv64;
+
   // Create a new scope domain for this function.
-  MDNode *NewDomain =
-    MDB.createAnonymousAliasScopeDomain(CalledFunc->getName());
+  MDNode *NewDomain = MDB.createAnonymousAliasScopeDomain(
+      IsSPIRModule ? StringRef() : CalledFunc->getName());
   for (unsigned i = 0, e = NoAliasArgs.size(); i != e; ++i) {
     const Argument *A = NoAliasArgs[i];
 
-    std::string Name = std::string(CalledFunc->getName());
-    if (A->hasName()) {
-      Name += ": %";
-      Name += A->getName();
-    } else {
-      Name += ": argument ";
-      Name += utostr(i);
+    std::string Name;
+    if (!IsSPIRModule) {
+      Name = std::string(CalledFunc->getName());
+      if (A->hasName()) {
+        Name += ": %";
+        Name += A->getName();
+      } else {
+        Name += ": argument ";
+        Name += utostr(i);
+      }
     }
 
     // Note: We always create a new anonymous root here. This is true regardless
