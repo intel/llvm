@@ -3,10 +3,10 @@
 // RUN: bash %S/deps_known.sh sycl/khr/includes/byte.hpp | FileCheck %s
 
 // CHECK-LABEL: Dependencies for <sycl/khr/includes/byte.hpp>:
+// CHECK-NEXT: aliases.hpp
+// CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: /dev/null: /dev/null
+// CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: khr/includes/byte.hpp
 // CHECK-NEXT: khr/includes/version.hpp
-// CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: feature_test.hpp
-// CHECK-NEXT: aliases.hpp
 // CHECK-EMPTY:

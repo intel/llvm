@@ -17,7 +17,8 @@ function deps() {
         | sed 's@.*/include/sycl/@@' \
         | sed 's@.*/include/CL/@CL/@' \
         | sed 's@.*/include/ur_@ur_@' \
-        | sed 's/ \\//'
+        | sed 's/ \\//' \
+        | sort
 }
 
 deps $1
