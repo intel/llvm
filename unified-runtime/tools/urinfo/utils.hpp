@@ -26,7 +26,7 @@
 
 #define UR_CHECK_WEAK(ACTION)                                                  \
   if (auto error = ACTION) {                                                   \
-    std::cout << error << "\n";                                                \
+    std::cout << "!!!" << "\n";                                                \
     return;                                                                    \
   }                                                                            \
   (void)0
@@ -213,6 +213,7 @@ inline void printDeviceInfo<ur_bool_t>(ur_device_handle_t device,
   ur_bool_t value;
   UR_CHECK_WEAK(
       urDeviceGetInfo(device, info, sizeof(ur_bool_t), &value, nullptr));
+  std::cout << ".. value get\n";
   std::string result = value ? "true" : "false";
   std::cout << result << "\n";
 }
