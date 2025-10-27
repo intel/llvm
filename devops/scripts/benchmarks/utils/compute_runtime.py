@@ -7,6 +7,7 @@ import os
 import re
 import yaml
 
+from .logger import log
 from .utils import *
 from options import options
 from git_project import GitProject
@@ -54,8 +55,8 @@ class ComputeRuntime:
         log.info("Building GMMLib...")
         project = GitProject(repo, commit, Path(options.workdir), "gmmlib")
         rebuilt = False
-        if project.needs_rebuild(check_install=True):
-            project.configure(install_prefix=True)
+        if project.needs_rebuild():
+            project.configure()
             project.build()
             project.install()
             rebuilt = True
@@ -74,8 +75,8 @@ class ComputeRuntime:
         )
 
         rebuilt = False
-        if project.needs_rebuild(check_install=True):
-            project.configure(install_prefix=True)
+        if project.needs_rebuild():
+            project.configure()
             project.build()
             project.install()
             rebuilt = True
@@ -88,7 +89,7 @@ class ComputeRuntime:
         log.info("Building IGC...")
         igc_project = GitProject(repo, commit, Path(options.workdir), "igc")
         rebuilt = False
-        if igc_project.needs_rebuild(check_install=True):
+        if igc_project.needs_rebuild():
             # Clone igc dependencies by creating a GitProject instance for each dependency.
             # Repos with commit hashes as refs can't be cloned shallowly.
             GitProject(
@@ -142,7 +143,7 @@ class ComputeRuntime:
                 "-DCMAKE_C_FLAGS=-Wno-error",
                 "-DCMAKE_CXX_FLAGS=-Wno-error",
             ]
-            igc_project.configure(extra_args=configure_args, install_prefix=True)
+            igc_project.configure(extra_args=configure_args)
             # set timeout to 2h. IGC takes A LONG time to build if building from scratch.
             igc_project.build(timeout=60 * 60 * 2)
             # cmake --install doesn't work...
@@ -172,6 +173,7 @@ class ComputeRuntime:
             options.compute_runtime_tag,
             Path(options.workdir),
             "compute-runtime",
+            use_installdir=False,
         )
 
         manifest_path = project.src_dir / "manifests" / "manifest.yml"
@@ -190,7 +192,7 @@ class ComputeRuntime:
             self.igc, self.igc_rebuilt = self.build_igc(igc_repo, igc_commit)
 
         if (
-            project.needs_rebuild(check_build=True)
+            project.needs_rebuild()
             or self.level_zero_rebuilt
             or self.gmmlib_rebuilt
             or (options.build_igc and self.igc_rebuilt)

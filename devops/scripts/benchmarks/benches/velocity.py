@@ -14,6 +14,7 @@ from utils.utils import run
 from options import options
 from utils.oneapi import get_oneapi
 from git_project import GitProject
+from utils.logger import log
 
 
 class VelocityBench(Suite):
@@ -45,10 +46,10 @@ class VelocityBench(Suite):
         return [
             Hashtable(self),
             Bitcracker(self),
-            CudaSift(self),
+            # CudaSift(self), # FIXME: configure fails, OpenCV not present
             Easywave(self),
             QuickSilver(self),
-            SobelFilter(self),
+            # SobelFilter(self), # FIXME: configure fails, OpenCV not present
             DLCifar(self),
             DLMnist(self),
             SVM(self),
@@ -106,13 +107,16 @@ class VelocityBase(Benchmark):
 
     def setup(self):
         self.download_deps()
-        self.configure()
-        self.build()
+        if not self.benchmark_bin.is_file():
+            self.configure()
+            self.build()
+        else:
+            log.info(f"Skipping {self.bench_name} rebuild")
 
     def configure(self) -> None:
-        if options.rebuild and self.build_dir.exists():
+        if self.build_dir.exists():
             shutil.rmtree(self.build_dir)
-        self.build_dir.mkdir(parents=True, exist_ok=True)
+        self.build_dir.mkdir(parents=True)
 
         cmd = [
             "cmake",
