@@ -2080,6 +2080,36 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetDeviceProcAddrTable_t)(
     ur_api_version_t, ur_device_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urDeviceWaitExp
+typedef ur_result_t(UR_APICALL *ur_pfnDeviceWaitExp_t)(ur_device_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of DeviceExp functions pointers
+typedef struct ur_device_exp_dditable_t {
+  ur_pfnDeviceWaitExp_t pfnWaitExp;
+} ur_device_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetDeviceExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetDeviceExpProcAddrTable_t)(
+    ur_api_version_t, ur_device_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
 typedef struct ur_dditable_t {
   ur_adapter_dditable_t Adapter;
@@ -2104,6 +2134,7 @@ typedef struct ur_dditable_t {
   ur_usm_p2p_exp_dditable_t UsmP2PExp;
   ur_virtual_mem_dditable_t VirtualMem;
   ur_device_dditable_t Device;
+  ur_device_exp_dditable_t DeviceExp;
 } ur_dditable_t;
 
 #if defined(__cplusplus)

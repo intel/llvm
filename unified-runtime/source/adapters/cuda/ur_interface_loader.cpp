@@ -270,6 +270,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    ur_api_version_t version, ur_device_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnWaitExp = urDeviceWaitExp;
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     /// [in] API version requested
     ur_api_version_t version,
@@ -510,6 +520,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);
   urGetVirtualMemProcAddrTable(version, &pDdiTable->VirtualMem);
   urGetDeviceProcAddrTable(version, &pDdiTable->Device);
+  urGetDeviceExpProcAddrTable(version, &pDdiTable->DeviceExp);
   urGetMemoryExportExpProcAddrTable(version, &pDdiTable->MemoryExportExp);
 
   return UR_RESULT_SUCCESS;

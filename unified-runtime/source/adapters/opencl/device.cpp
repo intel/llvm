@@ -1427,6 +1427,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_LUID: {
@@ -1861,4 +1863,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
     return UR_RESULT_SUCCESS;
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceWaitExp(ur_device_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
