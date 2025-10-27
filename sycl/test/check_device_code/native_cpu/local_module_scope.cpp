@@ -7,7 +7,7 @@
 // find the original function after this pass is run
 
 // CHECK: %localVarTypes = type { ptr addrspace(1) }
-// CHECK: define void @_ZTS4TestILi1ELi4EiE.NativeCPUKernel{{.*}} #[[ATTR:[0-9]*]]
+// CHECK: define linkonce_odr void @_ZTS4TestILi1ELi4EiE.NativeCPUKernel{{.*}} #[[ATTR:[0-9]*]]
 // CHECK: alloca %localVarTypes
 // CHECK: attributes #[[ATTR]] = {{.*}} "mux-orig-fn"="_ZTS4TestILi1ELi4EiE"
 
