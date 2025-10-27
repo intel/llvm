@@ -50,10 +50,11 @@ As a convenience, this extension specification describes the behavior of its
 APIs by using the `khr_get_default_context` function from {khr-default-context}[
 sycl_khr_default_context], however there is no true dependency on that
 extension.
-An implementation could still implement sycl_ext_oneapi_usm_shortcuts even
-without implementing sycl_khr_default_context because the core SYCL
-specification still requires there to be a per-platform default context even if
-the core SYCL specification does not provide a convenient way to get it.
+An implementation could still implement
+sycl_ext_oneapi_usm_default_device_shortcuts even without implementing
+sycl_khr_default_context because the core SYCL specification still requires
+there to be a per-platform default context even if the core SYCL specification
+does not provide a convenient way to get it.
 _{endnote}_]
 
 
