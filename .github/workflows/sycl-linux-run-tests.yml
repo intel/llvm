@@ -246,6 +246,9 @@ jobs:
       uses: ./devops/actions/cleanup
     - name: Reset Intel GPU
       uses: ./devops/actions/reset_gpu
+    - name: Set Max GPU Frequency
+      if: inputs.tests_selector == 'benchmarks'
+      uses: ./devops/actions/set_max_gpu_freq
     - name: Install drivers
       if: inputs.e2e_binaries_artifact != 'in-container' && (inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true')
       env:

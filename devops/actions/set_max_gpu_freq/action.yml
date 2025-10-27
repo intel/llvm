@@ -1,0 +1,23 @@
+# Set the GPU to maximum frequency for better benchmarking performance.
+name: Set Max GPU Frequency
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set Max GPU Frequency
+      shell: bash
+      run: |
+        # Find all Intel BMG devices and set their frequency to maximum.
+        for device in /sys/class/drm/card*/device; do
+          if [ -f "$device"/vendor ] && grep -qx "0x8086" "$device"/vendor; then
+            if [ -f "$device"/device ] && grep -qx "0xe20b" "$device"/device; then
+              max_freq_path="$device/tile0/gt0/freq0/max_freq"
+              min_freq_path="$device/tile0/gt0/freq0/min_freq"
+              if [ -f "$max_freq_path" ]; then
+                max_freq=$(cat "$max_freq_path")
+                sudo bash -c 'echo $0 > $1' $max_freq $min_freq_path
+                echo "Set max frequency $max_freq on $(basename $(dirname $device))"
+              fi
+            fi
+          fi
+        done
