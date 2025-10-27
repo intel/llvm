@@ -362,8 +362,9 @@ public:
   template <int Dims>
   event submit_kernel_direct_with_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo, sycl::span<event> DepEvents,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
         submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
                                   true, DepEvents, CodeLoc, IsTopCodeLoc);
@@ -373,8 +374,9 @@ public:
   template <int Dims>
   void submit_kernel_direct_without_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
-      detail::DeviceKernelInfo *DeviceKernelInfo, sycl::span<event> DepEvents,
-      const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
+      detail::DeviceKernelInfo *DeviceKernelInfo,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+      bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
                               false, DepEvents, CodeLoc, IsTopCodeLoc);
   }
@@ -934,11 +936,12 @@ protected:
   EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-      sycl::span<event> DepEvents, const detail::code_location &CodeLoc,
+      sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
       bool IsTopCodeLoc);
 
   template <typename SubmitCommandFuncType>
-  EventImplPtr submit_direct(bool CallerNeedsEvent, sycl::span<event> DepEvents,
+  EventImplPtr submit_direct(bool CallerNeedsEvent,
+                             sycl::span<const event> DepEvents,
                              SubmitCommandFuncType &SubmitCommandFunc);
 
   /// Helper function for submitting a memory operation with a handler.

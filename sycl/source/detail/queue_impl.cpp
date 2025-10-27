@@ -567,7 +567,7 @@ EventImplPtr queue_impl::submit_command_to_graph(
 EventImplPtr queue_impl::submit_kernel_direct_impl(
     const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-    sycl::span<event> DepEvents, const detail::code_location &CodeLoc,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
     bool IsTopCodeLoc) {
 
   KernelData KData;
@@ -625,7 +625,8 @@ EventImplPtr queue_impl::submit_kernel_direct_impl(
 
 template <typename SubmitCommandFuncType>
 detail::EventImplPtr
-queue_impl::submit_direct(bool CallerNeedsEvent, sycl::span<event> DepEvents,
+queue_impl::submit_direct(bool CallerNeedsEvent,
+                          sycl::span<const event> DepEvents,
                           SubmitCommandFuncType &SubmitCommandFunc) {
   detail::CG::StorageInitHelper CGData;
   std::unique_lock<std::mutex> Lock(MMutex);

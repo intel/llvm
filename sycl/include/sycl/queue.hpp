@@ -68,15 +68,17 @@ template <int Dims>
 event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo, sycl::span<event> DepEvents,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc);
 
 template <int Dims>
 void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
-    detail::DeviceKernelInfo *DeviceKernelInfo, sycl::span<event> DepEvents,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
+    detail::DeviceKernelInfo *DeviceKernelInfo,
+    sycl::span<const event> DepEvents, const detail::code_location &CodeLoc,
+    bool IsTopCodeLoc);
 
 namespace detail {
 class queue_impl;
@@ -164,7 +166,7 @@ template <detail::WrapAs WrapAs, typename LambdaArgType,
 auto submit_kernel_direct(
     const queue &Queue, [[maybe_unused]] PropertiesT Props,
     const nd_range<Dims> &Range, KernelTypeUniversalRef &&KernelFunc,
-    sycl::span<event> DepEvents,
+    sycl::span<const event> DepEvents,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
   // TODO Properties not supported yet
   static_assert(
@@ -227,7 +229,7 @@ template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT, typename KernelTypeUniversalRef, int Dims>
 auto submit_kernel_direct_parallel_for(
     const queue &Queue, PropertiesT Props, const nd_range<Dims> &Range,
-    KernelTypeUniversalRef &&KernelFunc, sycl::span<event> DepEvents,
+    KernelTypeUniversalRef &&KernelFunc, sycl::span<const event> DepEvents,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
 
   using KernelType =
@@ -256,7 +258,7 @@ template <typename KernelName = detail::auto_name, bool EventNeeded = false,
           typename PropertiesT, typename KernelTypeUniversalRef>
 auto submit_kernel_direct_single_task(
     const queue &Queue, PropertiesT Props, KernelTypeUniversalRef &&KernelFunc,
-    sycl::span<event> DepEvents,
+    sycl::span<const event> DepEvents,
     const detail::code_location &CodeLoc = detail::code_location::current()) {
 
   return submit_kernel_direct<detail::WrapAs::single_task, void, KernelName,
