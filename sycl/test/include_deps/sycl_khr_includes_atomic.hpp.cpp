@@ -29,7 +29,6 @@
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/address_space_cast.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/memcpy.hpp
 // CHECK-NEXT: atomic_ref.hpp
 // CHECK-NEXT: aspects.hpp

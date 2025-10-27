@@ -10,7 +10,6 @@
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
@@ -56,8 +55,6 @@
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: detail/owner_less_base.hpp
 // CHECK-NEXT: detail/impl_utils.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: ext/oneapi/weak_object_base.hpp
 // CHECK-NEXT: property_list.hpp
