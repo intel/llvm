@@ -3055,6 +3055,15 @@ ur_result_t urPrintDeviceGetGlobalTimestampsParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintDeviceWaitExpParams(const struct ur_device_wait_exp_params_t *params,
+                           char *buffer, const size_t buff_size,
+                           size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintFunctionParams(enum ur_function_t function,
                                   const void *params, char *buffer,
                                   const size_t buff_size, size_t *out_size) {

@@ -69,6 +69,7 @@ EXPORTS
 	urDeviceRelease
 	urDeviceRetain
 	urDeviceSelectBinary
+	urDeviceWaitExp
 	urEnqueueCommandBufferExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
@@ -114,6 +115,7 @@ EXPORTS
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
+	urGetDeviceExpProcAddrTable
 	urGetDeviceProcAddrTable
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
@@ -286,6 +288,7 @@ EXPORTS
 	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
+	urPrintDeviceWaitExpParams
 	urPrintEnqueueCommandBufferExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
