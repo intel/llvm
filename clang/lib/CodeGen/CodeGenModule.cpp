@@ -157,8 +157,6 @@ createTargetCodeGenInfo(CodeGenModule &CGM, const TargetInfo &Target,
       return createWindowsAArch64TargetCodeGenInfo(CGM, AArch64ABIKind::Win64);
     else if (Target.getABI() == "aapcs-soft")
       Kind = AArch64ABIKind::AAPCSSoft;
-    else if (Target.getABI() == "pauthtest")
-      Kind = AArch64ABIKind::PAuthTest;
 
     return createAArch64TargetCodeGenInfo(CGM, Kind);
   }
