@@ -9,17 +9,13 @@ else()
 set(SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT "/sycl-jit-toolchain/")
 endif()
 
-set(SYCL_JIT_RESOURCE_DEPS sycl-headers clang)
 set(SYCL_JIT_RESOURCE_INSTALL_COMPONENTS sycl-headers OpenCL-Headers clang-resource-headers)
 
 if ("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
-  # Somehow just "libclc" doesn't build "remangled-*" (and maybe whatever else).
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libclc libspirv-builtins)
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libspirv-builtins)
 endif()
 
 if ("libdevice" IN_LIST LLVM_ENABLE_PROJECTS)
-  list(APPEND SYCL_JIT_RESOURCE_DEPS libsycldevice)
   list(APPEND SYCL_JIT_RESOURCE_INSTALL_COMPONENTS libsycldevice)
 endif()
 
@@ -31,6 +27,10 @@ foreach(component IN LISTS SYCL_JIT_RESOURCE_INSTALL_COMPONENTS)
     COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR} --prefix ${SYCL_JIT_RESOURCE_INSTALL_DIR} --component "${component}"
   )
 endforeach()
+
+set(SYCL_JIT_RESOURCE_DEPS ${SYCL_JIT_RESOURCE_INSTALL_COMPONENTS})
+  # OpenCL-Headers doesn't have a corresponding build target:
+list(FILTER SYCL_JIT_RESOURCE_DEPS EXCLUDE REGEX "^OpenCL-Headers$")
 
 add_custom_target(rtc-prepare-resources
   DEPENDS ${SYCL_JIT_RESOURCE_DEPS}
