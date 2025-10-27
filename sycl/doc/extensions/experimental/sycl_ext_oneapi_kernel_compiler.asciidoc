@@ -618,6 +618,151 @@ property, but the duplicates have no effect.
 _{endnote}_]
 |====
 
+=== New free function for linking
+
+This extension adds the following new free functions to link kernel bundles in
+`object` state. This differs from the regular `sycl::link` function the
+additional property list argument.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>>& objectBundles,
+     const std::vector<device>& devs, PropertyListT props = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ Available only when `PropertyListT` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "New properties for the
+`link` function".
+
+_Effects:_ Duplicate device images from `objectBundles` are eliminated as though
+they were joined via `join()`, then the remaining device images are translated
+into one or more new device images of state `bundle_state::executable`, and a
+new kernel bundle is created to contain these new device images. The new bundle
+represents all of the kernels in `objectBundles` that are compatible with at
+least one of the devices in `devs`. Any remaining kernels (those that are not
+compatible with any of the devices in `devs`) are not linked and not represented
+in the new bundle.
+
+The new bundle has the same associated context as those in `objectBundles`, and
+the new bundle’s set of associated devices is `devs` (with duplicate devices
+removed).
+
+_Returns:_ The new kernel bundle.
+
+_Throws:_ 
+
+* An `exception` with the `errc::invalid` error code if the bundles in
+`objectBundles` do not all have the same associated context.
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+`devs` are not in the set of associated devices for any of the bundles in
+`objectBundles` (as defined by `kernel_bundle::get_devices()`) or if the `devs`
+vector is empty.
+
+* An `exception` with the `errc::build` error code if the online link operation
+fails.
+
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+
+namespace sycl::ext::oneapi::experimental {
+
+template<typename PropertyListT = empty_properties_t>                        (1)
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object>& objectBundle,
+     const std::vector<device>& devs, PropertyListT props = {});
+
+template<typename PropertyListT = empty_properties_t>                        (2)
+kernel_bundle<bundle_state::executable>
+link(const std::vector<kernel_bundle<bundle_state::object>>& objectBundles,
+     PropertyListT props = {});
+
+template<typename PropertyListT = empty_properties_t>                        (3)
+kernel_bundle<bundle_state::executable>
+link(const kernel_bundle<bundle_state::object>& objectBundle,
+     PropertyListT props = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Effects (1):_ Equivalent to `link({objectBundle}, devs, props)`.
+
+_Effects (2):_ Equivalent to `link(objectBundles, devs, props)`, where `devs` is
+the intersection of associated devices in common for all bundles in
+`objectBundles`.
+
+_Effects (3):_ Equivalent to
+`link({objectBundle}, objectBundle.get_devices(), props)`.
+
+
+|====
+
+=== New properties for the `link` function
+
+This extension adds the following properties, which can be used in conjunction
+with the `link` function that is defined above:
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct fast_link {
+  fast_link(bool do_fast_link = true);  (1)
+
+  bool value;
+};
+using fast_link_key = fast_link;
+
+template<> struct is_property_key<fast_link_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+This property instructs the `link` operation to do "fast linking". Enabling this
+instructs the implementation to use device binary images that have been
+pre-compiled.
+
+Fast linking offers potentially faster link times, at the potential cost of
+slower kernel execution time. The latter effect would mainly be due to link-time
+optimizations the device compiler could have done during regular linking, that
+cannot be done when doing fast linking.
+
+For example, the binaries produced may contain ahead-of-time compiled binary
+images together with just-in-time compiled binary images, with the kernels and
+exported functions potentially overlapping. When fast-linking is enabled, the
+implementation will try to use the ahead-of-time compiled binary images over
+their just-in-time compiled counterparts.
+
+_Effects (1):_ Creates a new `fast_link` property with a boolean value
+indicating whether the `link` operation should do fast-linking.
+
+|====
+
 === New constraint for kernel bundle member functions
 
 This extension adds the following constraint to some of the `kernel_bundle`

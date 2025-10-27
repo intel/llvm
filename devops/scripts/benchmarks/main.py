@@ -215,6 +215,10 @@ def main(directory, additional_env_vars, compare_names, filter):
     benchmarks = []
     failures = {}
 
+    # TODO: rename "s", rename setup in suite to suite_setup, rename setup in benchmark to benchmark_setup
+    # TODO: do not add benchmarks whose suite setup failed
+    # TODO: add a mode where we fail etire script in case of setup (or other) failures and use in CI
+
     for s in suites:
         if s.name() not in enabled_suites(options.preset):
             continue
@@ -405,6 +409,10 @@ def main(directory, additional_env_vars, compare_names, filter):
         generate_html(history, compare_names, html_path, metadata)
         log.info(f"HTML with benchmark results has been generated")
 
+    if options.exit_on_failure and failures:
+        # just in case code missed to raise earlier
+        raise RuntimeError(str(failures))
+
 
 def validate_and_parse_env_args(env_args):
     env_vars = {}
@@ -433,11 +441,6 @@ if __name__ == "__main__":
         type=str,
         help="Unified Runtime adapter to use.",
         default="level_zero",
-    )
-    parser.add_argument(
-        "--no-rebuild",
-        help="Do not rebuild the benchmarks from scratch.",
-        action="store_true",
     )
     parser.add_argument(
         "--redownload",
@@ -694,7 +697,6 @@ if __name__ == "__main__":
     additional_env_vars = validate_and_parse_env_args(args.env)
 
     options.workdir = args.benchmark_directory
-    options.rebuild = not args.no_rebuild
     options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
@@ -720,6 +722,8 @@ if __name__ == "__main__":
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
     options.flamegraph = args.flamegraph is not None
+    options.archive_baseline_days = args.archive_baseline_after
+    options.archive_pr_days = args.archive_pr_after
 
     # Initialize logger with command line arguments
     initialize_logger(args.verbose, args.log_level)
