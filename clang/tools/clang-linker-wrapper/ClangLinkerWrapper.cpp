@@ -953,18 +953,27 @@ static void addSYCLBackendOptions(const ArgList &Args,
     // Only add if not empty, an empty arg can lead to ocloc errors.
     if (!BeforeOptions.empty()) {
       SmallVector<StringRef, 8> BeforeArgs;
+<<<<<<< HEAD
       BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1,
                           /*KeepEmpty=*/false);
       for (const auto &string : BeforeArgs) {
+=======
+      BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (const auto & : BeforeArgs) {
+>>>>>>> 0150642919ad (code clean up)
         CmdArgs.push_back(string);
       }
     }
     if (!AfterOptions.empty()) {
       CmdArgs.push_back("-options");
 <<<<<<< HEAD
+<<<<<<< HEAD
       // Split the options string by spaces and rejoin to normalize whitespace
 =======
 >>>>>>> a5578409559c (got the fp64-conv-emu-1.cpp test to pass)
+=======
+      // Split the options string by spaces and rejoin to normalize whitespace
+>>>>>>> 0150642919ad (code clean up)
       SmallVector<StringRef, 8> AfterArgs;
       AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
       std::string JoinedOptions = llvm::join(AfterArgs, " ");
