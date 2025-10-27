@@ -767,6 +767,7 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer);
+ur_result_t urDeviceWaitExp(ur_device_handle_t hDevice);
 ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);

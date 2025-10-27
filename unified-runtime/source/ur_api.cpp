@@ -8679,6 +8679,25 @@ ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Synchronizes with all queues on the device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///         + `hDevice == nullptr`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
 ///
 /// @returns

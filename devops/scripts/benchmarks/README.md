@@ -36,6 +36,10 @@ using the built compiler located in `~/llvm/build/` and
 installed Unified Runtime in directory `~/ur_install`,
 and then **run** the benchmarks for `adapter_name` adapter.
 
+The scripts will try to reuse the files stored in `~/benchmarks_workdir/`. 
+If any dependant projects binaries are already built, they will not be rebuilt
+again if their tags match tags specified by benchmarks source code.
+
 >NOTE: By default `level_zero` adapter is used.
 
 >NOTE: Pay attention to the `--ur` parameter. It points directly to the directory where UR is installed.  
@@ -47,10 +51,6 @@ $ cmake -DCMAKE_BUILD_TYPE=Release -S~/llvm/unified-runtime -B~/ur_build -DCMAKE
 $ cmake --build ~/ur_build -j $(nproc)
 $ cmake --install ~/ur_build
 ```
-
-### Rebuild
-The scripts will try to reuse the files stored in `~/benchmarks_workdir/`, but the benchmarks will be rebuilt every time.  
-To avoid that, use `--no-rebuild` option.
 
 ## Results
 
