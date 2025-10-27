@@ -22,8 +22,7 @@ jobs:
         with:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
-            .github/workflows/sycl-*
-            .github/workflows/ur-*
+            .github/workflows/
             devops/actions/
 
       - name: Run zizmor
