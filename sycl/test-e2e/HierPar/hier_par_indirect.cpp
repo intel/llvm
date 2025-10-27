@@ -20,7 +20,7 @@ void __attribute__((noinline)) foo(sycl::group<1> work_group) {
 }
 
 void __attribute__((noinline)) bar(sycl::group<1> work_group) {
-  work_group.parallel_for_work_item([&](sycl::h_item<1> index) {});
+  foo(work_group);
 }
 
 int main(int argc, char **argv) {
@@ -34,11 +34,11 @@ int main(int argc, char **argv) {
                                  ([=](sycl::group<1> wGroup) { foo(wGroup); }));
    }).wait();
   q.submit([&](sycl::handler &cgh) {
-     cgh.parallel_for_work_group(sycl::range<1>{1}, sycl::range<1>{128},
-                                 ([=](sycl::group<1> wGroup) {
-                                   foo(wGroup);
-                                   bar(wGroup);
-                                 }));
+     cgh.parallel_for_work_group(
+         sycl::range<1>{1}, sycl::range<1>{128}, ([=](sycl::group<1> wGroup) {
+           foo(wGroup); // 1-layer indirect call
+           bar(wGroup); // 2-layer indirect call since bar calls foo
+         }));
    }).wait();
   q.submit([&](sycl::handler &cgh) {
      cgh.parallel_for_work_group(
