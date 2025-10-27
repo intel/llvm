@@ -902,7 +902,7 @@ private:
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
   void processLaunchProperties(PropertiesT Props) {
-    detail::KernelLaunchPropertiesTy ParsedProp =
+    detail::KernelPropertyHolderStructTy ParsedProp =
         detail::processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
   }
@@ -919,7 +919,7 @@ private:
       bool IsESIMDKernel,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
-    detail::KernelLaunchPropertiesTy ParsedProp =
+    detail::KernelPropertyHolderStructTy ParsedProp =
         detail::processKernelProperties<IsESIMDKernel>(Props);
     setKernelLaunchProperties(ParsedProp);
   }
@@ -1264,7 +1264,7 @@ private:
       }
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
-      detail::KernelLaunchPropertiesTy ProcessedProps =
+      detail::KernelPropertyHolderStructTy ProcessedProps =
           detail::processKernelProperties<Info.IsESIMD, PropertiesT>(Props);
       setKernelLaunchProperties(ProcessedProps);
       detail::checkValueRange<Dims>(UserRange);
@@ -1295,7 +1295,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
-    detail::KernelLaunchPropertiesTy ParsedProp =
+    detail::KernelPropertyHolderStructTy ParsedProp =
         detail::processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     extractArgsAndReqs();
@@ -1320,7 +1320,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
-    detail::KernelLaunchPropertiesTy ParsedProp =
+    detail::KernelPropertyHolderStructTy ParsedProp =
         detail::processKernelLaunchProperties<PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     extractArgsAndReqs();
@@ -1361,7 +1361,7 @@ private:
     }
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    detail::KernelLaunchPropertiesTy ProcessedProps =
+    detail::KernelPropertyHolderStructTy ProcessedProps =
         detail::processKernelProperties<Info.IsESIMD, PropertiesT>(Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
@@ -1415,7 +1415,7 @@ private:
           "the kernel name must match the name of the lambda");
     }
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
-    detail::KernelLaunchPropertiesTy ProcessedProps =
+    detail::KernelPropertyHolderStructTy ProcessedProps =
         detail::processKernelProperties<Info.IsESIMD, PropertiesT>(Props);
     setKernelLaunchProperties(ProcessedProps);
 #endif
@@ -3465,7 +3465,7 @@ private:
 #endif
 
   void setKernelLaunchProperties(
-      const detail::KernelLaunchPropertiesTy &KernelLaunchProperties);
+      const detail::KernelPropertyHolderStructTy &KernelLaunchProperties);
 
   // Various checks that are only meaningful for host compilation, because they
   // result in runtime errors (i.e. exceptions being thrown). To save time

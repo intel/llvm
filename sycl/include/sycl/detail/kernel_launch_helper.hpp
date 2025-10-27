@@ -260,17 +260,49 @@ struct KernelWrapper<
 // properties.
 inline namespace kernel_launch_properties_v1 {
 
-// This struct is used to store kernel launch properties.
-// std::optional is used to indicate that the property is not set.
-// This struct is used to pass kernel launch properties across the ABI
-// boundary.
-struct KernelLaunchPropertiesTy {
-  // Modeled after ur_kernel_cache_config_t
-  enum class StableKernelCacheConfig : int32_t {
-    Default = 0,
-    LargeSLM = 1,
-    LargeData = 2
-  };
+template <typename key, typename = void> struct MarshalledProperty;
+
+// Generic implementation for runtime properties.
+template <typename PropertyTy>
+struct MarshalledProperty<PropertyTy,
+                          std::enable_if_t<!std::is_empty_v<PropertyTy>>> {
+  std::optional<PropertyTy> property;
+
+  template <typename InputPropertyTy>
+  MarshalledProperty([[maybe_unused]] const InputPropertyTy &InputProperties) {
+    if constexpr (ext::oneapi::experimental::is_property_list_v<
+                      InputPropertyTy>)
+      if constexpr (InputPropertyTy::template has_property<PropertyTy>()) {
+        std::cout << "Got property: " << typeid(PropertyTy).name() << "\n";
+        property = InputProperties.template get_property<PropertyTy>();
+      }
+  }
+
+  MarshalledProperty() = default;
+};
+
+// Specialization for use_root_sync_key property.
+template <>
+struct MarshalledProperty<sycl::ext::oneapi::experimental::use_root_sync_key> {
+
+  bool isRootSyncPropPresent = false;
+
+  template <typename InputPropertyTy>
+  MarshalledProperty([[maybe_unused]] const InputPropertyTy &Props) {
+    using namespace sycl::ext::oneapi::experimental;
+    if constexpr (ext::oneapi::experimental::is_property_list_v<
+                      InputPropertyTy>)
+      if constexpr (InputPropertyTy::template has_property<use_root_sync_key>())
+        isRootSyncPropPresent = true;
+  }
+
+  MarshalledProperty() = default;
+};
+
+// Specialization for work group progress property.
+template <>
+struct MarshalledProperty<
+    sycl::ext::oneapi::experimental::work_group_progress_key> {
 
   struct ScopeForwardProgressProperty {
     std::optional<sycl::ext::oneapi::experimental::forward_progress_guarantee>
@@ -280,110 +312,69 @@ struct KernelLaunchPropertiesTy {
         CoordinationScope;
   };
 
-  std::optional<StableKernelCacheConfig> MCacheConfig = std::nullopt;
-  std::optional<bool> MIsCooperative = std::nullopt;
-  std::optional<uint32_t> MWorkGroupMemorySize = std::nullopt;
-  std::optional<bool> MUsesClusterLaunch = std::nullopt;
-  size_t MClusterDims = 0;
-  std::array<size_t, 3> MClusterSize = {0, 0, 0};
-
   // Forward progress guarantee properties for work_item, sub_group and
   // work_group scopes. We need to store them for validation later.
   std::array<ScopeForwardProgressProperty, 3> MForwardProgressProperties;
+
+  template <typename InputPropertyTy,
+            class = typename std::enable_if_t<
+                ext::oneapi::experimental::is_property_list_v<InputPropertyTy>>>
+  MarshalledProperty([[maybe_unused]] const InputPropertyTy &Props) {
+    using namespace sycl::ext::oneapi::experimental;
+
+    if constexpr (ext::oneapi::experimental::is_property_list_v<
+                      InputPropertyTy>) {
+      if constexpr (InputPropertyTy::template has_property<
+                        work_group_progress_key>()) {
+        auto prop = Props.template get_property<work_group_progress_key>();
+        MForwardProgressProperties[0].Guarantee = prop.guarantee;
+        MForwardProgressProperties[0].ExecScope = execution_scope::work_group;
+        MForwardProgressProperties[0].CoordinationScope =
+            prop.coordinationScope;
+      }
+      if constexpr (InputPropertyTy::template has_property<
+                        sub_group_progress_key>()) {
+        auto prop = Props.template get_property<sub_group_progress_key>();
+        MForwardProgressProperties[1].Guarantee = prop.guarantee;
+        MForwardProgressProperties[1].ExecScope = execution_scope::sub_group;
+        MForwardProgressProperties[1].CoordinationScope =
+            prop.coordinationScope;
+      }
+      if constexpr (InputPropertyTy::template has_property<
+                        work_item_progress_key>()) {
+        auto prop = Props.template get_property<work_item_progress_key>();
+        MForwardProgressProperties[2].Guarantee = prop.guarantee;
+        MForwardProgressProperties[2].ExecScope = execution_scope::work_item;
+        MForwardProgressProperties[2].CoordinationScope =
+            prop.coordinationScope;
+      }
+    }
+  }
+
+  MarshalledProperty() = default;
 };
 
+template <typename... keys> struct PropsHolder : MarshalledProperty<keys>... {
+
+  template <typename PropertiesT>
+  PropsHolder(PropertiesT Props) : MarshalledProperty<keys>(Props)... {}
+
+  PropsHolder() = default;
+};
+
+using KernelPropertyHolderStructTy =
+    PropsHolder<sycl::ext::oneapi::experimental::work_group_scratch_size,
+                sycl::ext::intel::experimental::cache_config_key,
+                sycl::ext::oneapi::experimental::use_root_sync_key,
+                sycl::ext::oneapi::experimental::work_group_progress_key,
+                sycl::ext::oneapi::experimental::cuda::cluster_size_key<1>,
+                sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>,
+                sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>;
+
 template <typename PropertiesT>
-constexpr KernelLaunchPropertiesTy
-processKernelLaunchProperties(PropertiesT Props) {
-  using namespace sycl::ext::oneapi::experimental;
-  using namespace sycl::ext::oneapi::experimental::detail;
-  KernelLaunchPropertiesTy retval;
-
-  // Process Kernel cache configuration property.
-  {
-    if constexpr (PropertiesT::template has_property<
-                      sycl::ext::intel::experimental::cache_config_key>()) {
-      auto Config = Props.template get_property<
-          sycl::ext::intel::experimental::cache_config_key>();
-      if (Config == sycl::ext::intel::experimental::large_slm) {
-        retval.MCacheConfig =
-            KernelLaunchPropertiesTy::StableKernelCacheConfig::LargeSLM;
-      } else if (Config == sycl::ext::intel::experimental::large_data) {
-        retval.MCacheConfig =
-            KernelLaunchPropertiesTy::StableKernelCacheConfig::LargeData;
-      }
-    } else {
-      std::ignore = Props;
-    }
-  }
-
-  // Process Kernel cooperative property.
-  {
-    if constexpr (PropertiesT::template has_property<use_root_sync_key>())
-      retval.MIsCooperative = true;
-  }
-
-  // Process device progress properties.
-  {
-    if constexpr (PropertiesT::template has_property<
-                      work_group_progress_key>()) {
-      auto prop = Props.template get_property<work_group_progress_key>();
-      retval.MForwardProgressProperties[0].Guarantee = prop.guarantee;
-      retval.MForwardProgressProperties[0].ExecScope =
-          execution_scope::work_group;
-      retval.MForwardProgressProperties[0].CoordinationScope =
-          prop.coordinationScope;
-    }
-    if constexpr (PropertiesT::template has_property<
-                      sub_group_progress_key>()) {
-      auto prop = Props.template get_property<sub_group_progress_key>();
-      retval.MForwardProgressProperties[1].Guarantee = prop.guarantee;
-      retval.MForwardProgressProperties[1].ExecScope =
-          execution_scope::sub_group;
-      retval.MForwardProgressProperties[1].CoordinationScope =
-          prop.coordinationScope;
-    }
-    if constexpr (PropertiesT::template has_property<
-                      work_item_progress_key>()) {
-      auto prop = Props.template get_property<work_item_progress_key>();
-      retval.MForwardProgressProperties[2].Guarantee = prop.guarantee;
-      retval.MForwardProgressProperties[2].ExecScope =
-          execution_scope::work_item;
-      retval.MForwardProgressProperties[2].CoordinationScope =
-          prop.coordinationScope;
-    }
-  }
-
-  // Process work group scratch memory property.
-  {
-    if constexpr (PropertiesT::template has_property<
-                      work_group_scratch_size>()) {
-      auto WorkGroupMemSize =
-          Props.template get_property<work_group_scratch_size>();
-      retval.MWorkGroupMemorySize = WorkGroupMemSize.size;
-    }
-  }
-
-  // Parse cluster properties.
-  {
-    constexpr std::size_t ClusterDim = getClusterDim<PropertiesT>();
-    if constexpr (ClusterDim > 0) {
-      static_assert(ClusterDim <= 3,
-                    "Only 1D, 2D, and 3D cluster launch is supported.");
-
-      auto ClusterSize =
-          Props.template get_property<cuda::cluster_size_key<ClusterDim>>()
-              .get_cluster_size();
-
-      retval.MUsesClusterLaunch = true;
-      retval.MClusterDims = ClusterDim;
-
-      for (size_t dim = 0; dim < ClusterDim; dim++)
-        retval.MClusterSize[dim] = ClusterSize[dim];
-    }
-  }
-
-  return retval;
+constexpr auto processKernelLaunchProperties(PropertiesT Props) {
+  KernelPropertyHolderStructTy prop(Props);
+  return prop;
 }
 
 /// Note: it is important that this function *does not* depend on kernel
@@ -392,7 +383,7 @@ processKernelLaunchProperties(PropertiesT Props) {
 /// the same, thus unnecessary increasing compilation time.
 template <bool IsESIMDKernel,
           typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-constexpr KernelLaunchPropertiesTy processKernelProperties(PropertiesT Props) {
+constexpr auto processKernelProperties(PropertiesT Props) {
   static_assert(ext::oneapi::experimental::is_property_list<PropertiesT>::value,
                 "Template type is not a property list.");
   static_assert(
@@ -413,7 +404,7 @@ constexpr KernelLaunchPropertiesTy processKernelProperties(PropertiesT Props) {
 // Returns KernelLaunchPropertiesTy or std::nullopt based on whether the
 // kernel functor has a get method that returns properties.
 template <typename KernelName, bool isESIMD, typename KernelType>
-constexpr std::optional<KernelLaunchPropertiesTy>
+constexpr std::optional<KernelPropertyHolderStructTy>
 parseProperties([[maybe_unused]] const KernelType &KernelFunc) {
 #ifndef __SYCL_DEVICE_ONLY__
   // If there are properties provided by get method then process them.

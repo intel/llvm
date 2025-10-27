@@ -68,7 +68,7 @@ event __SYCL_EXPORT submit_kernel_direct_with_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::KernelLaunchPropertiesTy &Props,
+    const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 template <int Dims>
@@ -76,7 +76,7 @@ void __SYCL_EXPORT submit_kernel_direct_without_event_impl(
     const queue &Queue, const nd_range<Dims> &Range,
     detail::HostKernelRefBase &HostKernel,
     detail::DeviceKernelInfo *DeviceKernelInfo,
-    const detail::KernelLaunchPropertiesTy &Props,
+    const detail::KernelPropertyHolderStructTy &Props,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
 namespace detail {
@@ -200,7 +200,7 @@ auto submit_kernel_direct(
 
   // Assumption: If user specify properties via launch_config or explicitly
   // then we don't check for properties specified via get() method.
-  KernelLaunchPropertiesTy parsedProps;
+  KernelPropertyHolderStructTy parsedProps;
   if constexpr (std::is_same_v<PropertiesT,
                                ext::oneapi::experimental::empty_properties_t>) {
     // Use properties passed via. get() method.
