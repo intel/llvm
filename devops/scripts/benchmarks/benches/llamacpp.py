@@ -14,6 +14,7 @@ from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
 from git_project import GitProject
+from utils.logger import log
 
 
 class LlamaCppBench(Suite):
@@ -39,7 +40,6 @@ class LlamaCppBench(Suite):
                 self.git_hash(),
                 Path(options.workdir),
                 "llamacpp",
-                force_rebuild=True,
             )
 
         models_dir = Path(options.workdir, "llamacpp-models")
@@ -53,6 +53,10 @@ class LlamaCppBench(Suite):
         )
 
         self.oneapi = get_oneapi()
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_args = [
             f"-DGGML_SYCL=ON",
