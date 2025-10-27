@@ -955,10 +955,11 @@ static void addBackendOptions(const ArgList &Args,
     // in any of them.
     auto [BeforeOptions, AfterOptions] = OptC.split("-options ");
     // Only add if not empty, an empty arg can lead to ocloc errors.
-    if (!BeforeOptions.empty()){
+    if (!BeforeOptions.empty()) {
       SmallVector<StringRef, 8> BeforeArgs;
-      BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      for (const auto & : BeforeArgs) {
+      BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1,
+                          /*KeepEmpty=*/false);
+      for (const auto &string : BeforeArgs) {
         CmdArgs.push_back(string);
       }
     }

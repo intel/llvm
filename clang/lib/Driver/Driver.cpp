@@ -1556,9 +1556,9 @@ static void appendOneArg(InputArgList &Args, const Arg *Opt) {
   }
 }
 
-  /// Utility function to parse all devices passed via -fsycl-targets.
-  /// Return 'true' for JIT, AOT Intel CPU/GPUs and NVidia/AMD targets.
-  /// Otherwise return 'false'.
+// Utility function to parse all devices passed via -fsycl-targets.
+// Return 'true' for JIT, AOT Intel CPU/GPUs and NVidia/AMD targets.
+// Otherwise return 'false'.
 bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
                                                   const ArgList &Args) const {
   // Check only if enabled with -fsycl
@@ -1581,7 +1581,6 @@ bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
   }
   return true;
 }
-
 
 bool Driver::readConfigFile(StringRef FileName,
                             llvm::cl::ExpansionContext &ExpCtx) {
