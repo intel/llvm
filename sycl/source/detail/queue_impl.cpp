@@ -636,10 +636,10 @@ queue_impl::submit_direct(bool CallerNeedsEvent, sycl::span<event> DepEvents,
   // Sync with an external event
   std::optional<event> ExternalEvent = popExternalEvent();
   if (ExternalEvent) {
-    registerEventDependency(getSyclObjImpl(*ExternalEvent), CGData.MEvents,
-                            this, getContextImpl(), getDeviceImpl(),
-                            hasCommandGraph() ? getCommandGraph() : nullptr,
-                            detail::CGType::Kernel);
+    registerEventDependency<false>(
+        getSyclObjImpl(*ExternalEvent), CGData.MEvents, this, getContextImpl(),
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph() : nullptr,
+        detail::CGType::Kernel);
   }
 
   auto &Deps = hasCommandGraph() ? MExtGraphDeps : MDefaultGraphDeps;
@@ -647,17 +647,17 @@ queue_impl::submit_direct(bool CallerNeedsEvent, sycl::span<event> DepEvents,
   // Sync with the last event for in order queue
   EventImplPtr &LastEvent = Deps.LastEventPtr;
   if (isInOrder() && LastEvent) {
-    registerEventDependency(LastEvent, CGData.MEvents, this, getContextImpl(),
-                            getDeviceImpl(),
-                            hasCommandGraph() ? getCommandGraph() : nullptr,
-                            detail::CGType::Kernel);
+    registerEventDependency<false>(
+        LastEvent, CGData.MEvents, this, getContextImpl(), getDeviceImpl(),
+        hasCommandGraph() ? getCommandGraph() : nullptr,
+        detail::CGType::Kernel);
   }
 
   for (event e : DepEvents) {
-    registerEventDependency(getSyclObjImpl(e), CGData.MEvents, this,
-                            getContextImpl(), getDeviceImpl(),
-                            hasCommandGraph() ? getCommandGraph() : nullptr,
-                            detail::CGType::Kernel);
+    registerEventDependency<false>(
+        getSyclObjImpl(e), CGData.MEvents, this, getContextImpl(),
+        getDeviceImpl(), hasCommandGraph() ? getCommandGraph() : nullptr,
+        detail::CGType::Kernel);
   }
 
   // Barrier and un-enqueued commands synchronization for out or order queue

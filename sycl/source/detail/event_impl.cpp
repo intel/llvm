@@ -611,6 +611,7 @@ bool event_impl::isCompleted() {
 
 void event_impl::setCommand(Command *Cmd) { MCommand = Cmd; }
 
+template <bool LockQueue>
 void registerEventDependency(
     const detail::EventImplPtr &EventImpl,
     std::vector<detail::EventImplPtr> &EventsRegistered,
@@ -664,7 +665,11 @@ void registerEventDependency(
     // we need to set it to recording (implements the transitive queue recording
     // feature).
     if (!QueueGraph) {
-      EventGraph->beginRecording(*QueueImpl);
+      if constexpr (LockQueue) {
+        EventGraph->beginRecording(*QueueImpl);
+      } else {
+        EventGraph->beginRecordingUnlockedQueue(*QueueImpl);
+      }
     }
   }
 
@@ -682,6 +687,22 @@ void registerEventDependency(
   }
   EventsRegistered.push_back(EventImpl);
 }
+
+template void registerEventDependency<true>(
+    const detail::EventImplPtr &EventImpl,
+    std::vector<detail::EventImplPtr> &EventsRegistered,
+    detail::queue_impl *QueueImpl, const detail::context_impl &ContextImpl,
+    const detail::device_impl &DeviceImpl,
+    const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> &Graph,
+    sycl::detail::CGType CommandGroupType);
+
+template void registerEventDependency<false>(
+    const detail::EventImplPtr &EventImpl,
+    std::vector<detail::EventImplPtr> &EventsRegistered,
+    detail::queue_impl *QueueImpl, const detail::context_impl &ContextImpl,
+    const detail::device_impl &DeviceImpl,
+    const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> &Graph,
+    sycl::detail::CGType CommandGroupType);
 
 } // namespace detail
 } // namespace _V1

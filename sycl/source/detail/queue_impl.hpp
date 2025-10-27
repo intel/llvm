@@ -622,9 +622,8 @@ public:
                                const std::vector<event> &DepEvents,
                                bool CallerNeedsEvent);
 
-  void setCommandGraph(
+  void setCommandGraphUnlocked(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
-    std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
     MExtGraphDeps.reset();
 
@@ -633,6 +632,12 @@ public:
     } else {
       trySwitchingToNoEventsMode();
     }
+  }
+
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    setCommandGraphUnlocked(Graph);
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>

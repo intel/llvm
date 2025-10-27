@@ -475,6 +475,7 @@ public:
   using Base::Base;
 };
 
+template <bool LockQueue = true>
 void registerEventDependency(
     const detail::EventImplPtr &EventToRegister,
     std::vector<detail::EventImplPtr> &EventsRegistered,
