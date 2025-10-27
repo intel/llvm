@@ -108,11 +108,14 @@ public:
   void setCompileTimeInfoIfNeeded(const CompileTimeKernelInfoTy &Info);
 
   FastKernelSubcacheT &getKernelSubcache();
-  bool usesAssert();
-  const std::optional<int> &getImplicitLocalArgPos();
+  bool usesAssert() const;
+  const std::optional<int> &getImplicitLocalArgPos() const;
+
+  void setUsesAssert();
+  void setImplicitLocalArgPos(int Pos);
 
 private:
-  void assertInitialized();
+  void assertInitialized() const;
   bool isCompileTimeInfoSet() const;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

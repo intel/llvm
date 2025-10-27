@@ -567,7 +567,7 @@ event handler::finalize() {
       // Fetch the device kernel info pointer if it hasn't been set (e.g.
       // in kernel bundle or free function cases).
       impl->MKernelData.setDeviceKernelInfoPtr(
-          &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+          &detail::ProgramManager::getInstance().getDeviceKernelInfo(
               toKernelNameStrT(MKernelName)));
     }
     assert(impl->MKernelData.getKernelName() == MKernelName);
@@ -974,7 +974,7 @@ void handler::extractArgsAndReqs() {
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   if (impl->MKernelData.getDeviceKernelInfoPtr() == nullptr) {
     impl->MKernelData.setDeviceKernelInfoPtr(
-        &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
+        &detail::ProgramManager::getInstance().getDeviceKernelInfo(
             detail::toKernelNameStrT(MKernel->getName())));
   }
 #endif
@@ -2249,8 +2249,7 @@ void handler::setKernelNameBasedCachePtr(
   HandlerInfo.IsESIMD = impl->MKernelIsESIMD;
   HandlerInfo.HasSpecialCaptures = impl->MKernelHasSpecialCaptures;
   impl->MKernelData.setDeviceKernelInfoPtr(
-      &detail::ProgramManager::getInstance().getOrCreateDeviceKernelInfo(
-          HandlerInfo));
+      &detail::ProgramManager::getInstance().getDeviceKernelInfo(HandlerInfo));
 }
 
 void handler::setKernelInfo(
