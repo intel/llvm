@@ -1148,9 +1148,9 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
   // performance.
   const Module *M = CalledFunc->getParent();
   const auto Arch = M->getTargetTriple().getArch();
-  const bool IsSPIRModule = Arch == Triple::ArchType::spir
-    || Arch == Triple::ArchType::spir64 || Arch == Triple::ArchType::spirv
-    || Arch == Triple::ArchType::spirv64;
+  const bool IsSPIRModule =
+      Arch == Triple::ArchType::spir || Arch == Triple::ArchType::spir64 ||
+      Arch == Triple::ArchType::spirv || Arch == Triple::ArchType::spirv64;
 
   // Create a new scope domain for this function.
   MDNode *NewDomain = MDB.createAnonymousAliasScopeDomain(
