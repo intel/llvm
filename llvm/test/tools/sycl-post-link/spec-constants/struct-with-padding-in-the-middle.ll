@@ -43,7 +43,7 @@
 ; CHECK: %[[#SCV2:]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID2:]], i8 97)
 ; CHECK: %[[#SCV3:]] = call spir_func i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID3:]], i32 42)
 ; CHECK: %[[#SCV4:]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 8)
-; CHECK: call spir_func %struct.user_defined_type @_Z29__spirv_SpecConstantCompositefaA3_aiaA3_a_Rstruct.user_defined_type(float %[[#SCV1]], i8 %[[#SCV2]], [3 x i8] undef, i32 %[[#SCV3]], i8 %[[#SCV4]], [3 x i8] undef)
+; CHECK: call spir_func %struct.user_defined_type @_Z29__spirv_SpecConstantCompositefaA3_aiaA3_a_Rstruct.user_defined_type(float %[[#SCV1]], i8 %[[#SCV2]], [3 x i8] zeroinitializer, i32 %[[#SCV3]], i8 %[[#SCV4]], [3 x i8] zeroinitializer)
 
 ; CHECK: !sycl.specialization-constants = !{![[#SC:]]}
 ; CHECK: ![[#SC]] = !{!"uidc5885cee0b80ad9d____ZL7spec_id",
