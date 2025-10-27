@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/workflows/sycl-*.yml'
-      - '.github/workflows/ur-*.yml'
-      - 'devops/actions/*/action.yml'
+      - '.github/workflows/**
+      - 'devops/actions/**'
 
 permissions: {}
 
