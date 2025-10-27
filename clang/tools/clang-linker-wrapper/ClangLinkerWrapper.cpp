@@ -958,13 +958,13 @@ static void addBackendOptions(const ArgList &Args,
     if (!BeforeOptions.empty()){
       SmallVector<StringRef, 8> BeforeArgs;
       BeforeOptions.split(BeforeArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      for (auto string : BeforeArgs) {
+      for (const auto & : BeforeArgs) {
         CmdArgs.push_back(string);
       }
     }
     if (!AfterOptions.empty()) {
-      // Separator not included by the split function, so explicitly added here.
       CmdArgs.push_back("-options");
+      // Split the options string by spaces and rejoin to normalize whitespace
       SmallVector<StringRef, 8> AfterArgs;
       AfterOptions.split(AfterArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
       std::string JoinedOptions = llvm::join(AfterArgs, " ");
