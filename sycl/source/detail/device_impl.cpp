@@ -341,6 +341,18 @@ ur_native_handle_t device_impl::getNative() const {
   return Handle;
 }
 
+bool device_impl::isFp16Supported() const {
+  // If we don't get anything back from this we can assume the device doesn't
+  // support fp16.
+  return !get_info<info::device::half_fp_config>().empty();
+}
+
+bool device_impl::isFp64Supported() const {
+  // If we don't get anything back from this we can assume the device doesn't
+  // support fp64.
+  return !get_info<info::device::double_fp_config>().empty();
+}
+
 // On the first call this function queries for device timestamp
 // along with host synchronized timestamp and stores it in member variable
 // MDeviceHostBaseTime. Subsequent calls to this function would just retrieve

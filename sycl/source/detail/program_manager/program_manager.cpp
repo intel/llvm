@@ -1615,12 +1615,13 @@ getDeviceLibPrograms(context_impl &Context,
       {DeviceLibExt::cl_intel_devicelib_bfloat16, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
-  // one underlying device doesn't support cl_khr_fp64.
-  const bool fp64Support = std::all_of(
-      Devices.begin(), Devices.end(), [&Context](ur_device_handle_t Device) {
-        return Context.getPlatformImpl().getDeviceImpl(Device)->has_extension(
-            "cl_khr_fp64");
-      });
+  // one underlying device doesn't support doubles.
+  const bool fp64Support = std::all_of(Devices.begin(), Devices.end(),
+                                       [&Context](ur_device_handle_t Device) {
+                                         return Context.getPlatformImpl()
+                                             .getDeviceImpl(Device)
+                                             ->isFp64Supported();
+                                       });
 
   // Load a fallback library for an extension if the any device does not
   // support it.

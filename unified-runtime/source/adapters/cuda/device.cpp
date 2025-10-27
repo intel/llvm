@@ -139,6 +139,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF: {
+    int Major = 0;
+    int Minor = 0;
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
+
+    if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
+      return ReturnValue(1u);
+    }
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR: {
@@ -160,6 +171,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(1u);
   }
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF: {
+    int Major = 0;
+    int Minor = 0;
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
+
+    if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
+      return ReturnValue(1u);
+    }
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
@@ -434,8 +456,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(MemBaseAddrAlign);
   }
   case UR_DEVICE_INFO_HALF_FP_CONFIG: {
-    // TODO: is this config consistent across all NVIDIA GPUs?
-    return ReturnValue(0u);
+    int Major = 0;
+    int Minor = 0;
+
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
+
+    if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
+      // TODO: is this config consistent across all NVIDIA GPUs?
+      ur_device_fp_capability_flags_t Config =
+          UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+          UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+          UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+      return ReturnValue(Config);
+    } else {
+      return ReturnValue(0u);
+    }
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
@@ -608,21 +649,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(SS.str().c_str());
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
-    std::string SupportedExtensions = "cl_khr_fp64 ";
-
-    int Major = 0;
-    int Minor = 0;
-
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
-
-    if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
-      SupportedExtensions += "cl_khr_fp16 ";
-    }
-
-    return ReturnValue(SupportedExtensions.c_str());
+    return ReturnValue("");
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.

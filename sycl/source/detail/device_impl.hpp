@@ -1239,8 +1239,8 @@ public:
     }
     CASE(emulated) { return false; }
     CASE(host_debuggable) { return false; }
-    CASE(fp16) { return has_extension("cl_khr_fp16"); }
-    CASE(fp64) { return has_extension("cl_khr_fp64"); }
+    CASE(fp16) { return isFp16Supported(); }
+    CASE(fp64) { return isFp64Supported(); }
     CASE(int64_base_atomics) {
       return has_extension("cl_khr_int64_base_atomics");
     }
@@ -2266,6 +2266,12 @@ public:
     }
     return {};
   }
+
+  // Check if the device supports double precision floating point.
+  bool isFp64Supported() const;
+
+  // Check if the device supports half precision floating point.
+  bool isFp16Supported() const;
 
 private:
   ur_device_handle_t MDevice = 0;
