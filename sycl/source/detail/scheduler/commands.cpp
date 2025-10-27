@@ -1511,8 +1511,8 @@ MemCpyCommand::MemCpyCommand(const Requirement &SrcReq,
                              queue_impl *SrcQueue, queue_impl *DstQueue)
     : Command(CommandType::COPY_MEMORY, DstQueue),
       MSrcQueue(SrcQueue ? SrcQueue->shared_from_this() : nullptr),
-      MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAllocaCmd),
-      MDstReq(std::move(DstReq)), MDstAllocaCmd(DstAllocaCmd) {
+      MSrcReq(SrcReq), MSrcAllocaCmd(SrcAllocaCmd), MDstReq(DstReq),
+      MDstAllocaCmd(DstAllocaCmd) {
   if (MSrcQueue) {
     MEvent->setContextImpl(MSrcQueue->getContextImpl());
   }
