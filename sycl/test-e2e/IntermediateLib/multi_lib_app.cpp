@@ -23,9 +23,9 @@
 // RUN: rm -rf %t.dir ; mkdir -p %t.dir 
 // RUN: %{run-aux} %clangxx -fsycl  %{fPIC_flag} -DSO_PATH='R"(%t.dir)"' -o %t.out %s
 
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=1 -o %t.dir/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=2 -o %t.dir/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=4 -o %t.dir/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} %shared_lib -DINC=1 -o %t.dir/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} %shared_lib -DINC=2 -o %t.dir/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} %shared_lib -DINC=4 -o %t.dir/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
 
 // RUN:  env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
 
