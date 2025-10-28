@@ -945,9 +945,9 @@ static void addBackendOptions(const ArgList &Args,
   if (IsCPU) {
     OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
-    // ocloc -options takes arguments in the form of '-options "-g -cl-opt-disable"' 
-    // where each argument is separated with spaces
-    // split function here returns a pair with everything before the separator
+    // ocloc -options takes arguments in the form of '-options "-g
+    // -cl-opt-disable"' where each argument is separated with spaces split
+    // function here returns a pair with everything before the separator
     // ("-options") in the first member of the pair, and everything after the
     // separator in the second part of the pair. The separator is not included
     // in any of them.
