@@ -416,15 +416,12 @@ public:
     throw_asynchronous();
   }
 
-  
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then
   /// asynchronous exceptions will be passed to the async_handler associated
   /// with the context if present, or the default async_handler otherwise.
-  void throw_asynchronous() {
-    Scheduler::getInstance().flushAsyncExceptions();
-  }
+  void throw_asynchronous() { Scheduler::getInstance().flushAsyncExceptions(); }
 
   /// Creates UR properties array.
   ///
