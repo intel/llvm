@@ -10,8 +10,8 @@
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
-// CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: stl_wrappers/cstdlib
+// CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: detail/info_desc_helpers.hpp
 // CHECK-NEXT: aspects.hpp

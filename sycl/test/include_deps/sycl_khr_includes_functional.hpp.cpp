@@ -9,4 +9,5 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: functional.hpp
+// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-EMPTY:
