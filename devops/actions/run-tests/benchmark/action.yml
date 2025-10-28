@@ -140,6 +140,13 @@ runs:
     shell: bash
     run: |
       git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
+  # Linux tools installed during docker creation may not match the self-hosted
+  # kernel version, so we need to install the correct version here.
+  - name: Install perf in version matching the host kernel
+    shell: bash
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y linux-tools-$(uname -r)
   - name: Run compute-benchmarks
     env:
       # Need to append "_<device>_<backend>" to save name in order to follow

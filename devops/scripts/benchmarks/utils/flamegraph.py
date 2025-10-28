@@ -67,7 +67,7 @@ class FlameGraph:
         """
         if not shutil.which("perf"):
             raise FileNotFoundError(
-                "perf command not found. Please install linux-tools or perf package."
+                "perf command not found. Please install linux-tools-$(uname -r) or perf package."
             )
 
         sanitized_suite_name = sanitize_filename(suite_name)
