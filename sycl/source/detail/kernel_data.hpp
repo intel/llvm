@@ -210,31 +210,20 @@ public:
   }
 
   void validateAndSetKernelLaunchProperties(
-      const detail::KernelPropertyHolderStructTy Kprop, bool HasGraph,
+      const detail::KernelPropertyHolderStructTy &Kprop, bool HasGraph,
       const device_impl &dev) {
     using execScope = ext::oneapi::experimental::execution_scope;
     using namespace sycl::ext::oneapi::experimental;
     using namespace sycl::ext::oneapi::experimental::detail;
+    using namespace sycl::ext::intel::experimental;
 
-    const auto *WorkGroupMemSizeProp =
-        static_cast<const MarshalledProperty<work_group_scratch_size> *>(
-            &Kprop);
-    const auto *CacheConfigProp = static_cast<const MarshalledProperty<
-        sycl::ext::intel::experimental::cache_config_key> *>(&Kprop);
-    const auto *UseRootSyncProp =
-        static_cast<const MarshalledProperty<use_root_sync_key> *>(&Kprop);
-    const auto *ForwardProgressProp =
-        static_cast<const MarshalledProperty<work_group_progress_key> *>(
-            &Kprop);
-    const auto *ClusterLaunchPropDim1 =
-        static_cast<const MarshalledProperty<cuda::cluster_size_key<1>> *>(
-            &Kprop);
-    const auto *ClusterLaunchPropDim2 =
-        static_cast<const MarshalledProperty<cuda::cluster_size_key<2>> *>(
-            &Kprop);
-    const auto *ClusterLaunchPropDim3 =
-        static_cast<const MarshalledProperty<cuda::cluster_size_key<3>> *>(
-            &Kprop);
+    const auto *WorkGroupMemSizeProp = Kprop.get<work_group_scratch_size>();
+    const auto *CacheConfigProp = Kprop.get<cache_config_key>();
+    const auto *UseRootSyncProp = Kprop.get<use_root_sync_key>();
+    const auto *ForwardProgressProp = Kprop.get<work_group_progress_key>();
+    const auto *ClusterLaunchPropDim1 = Kprop.get<cuda::cluster_size_key<1>>();
+    const auto *ClusterLaunchPropDim2 = Kprop.get<cuda::cluster_size_key<2>>();
+    const auto *ClusterLaunchPropDim3 = Kprop.get<cuda::cluster_size_key<3>>();
 
     const bool isClusterDimPropPresent = ClusterLaunchPropDim1->property ||
                                          ClusterLaunchPropDim2->property ||
@@ -292,7 +281,7 @@ public:
       }
     }
 
-    if (UseRootSyncProp->isRootSyncPropPresent)
+    if (UseRootSyncProp->present)
       setCooperative(true);
 
     if (CacheConfigProp->property)

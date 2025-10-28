@@ -280,19 +280,19 @@ struct MarshalledProperty<
   MarshalledProperty() = default;
 };
 
-// Specialization for use_root_sync_key property.
-template <>
-struct MarshalledProperty<sycl::ext::oneapi::experimental::use_root_sync_key> {
+// Generic implementation for properties with non-template value_t.
+template <typename PropertyTy>
+struct MarshalledProperty<PropertyTy,
+                          std::void_t<typename PropertyTy::value_t>> {
 
-  bool isRootSyncPropPresent = false;
+  bool present = false;
 
   template <typename InputPropertyTy>
   MarshalledProperty(const InputPropertyTy &Props) {
     using namespace sycl::ext::oneapi::experimental;
-
     (void)Props;
-    isRootSyncPropPresent =
-        InputPropertyTy::template has_property<use_root_sync_key>();
+
+    present = InputPropertyTy::template has_property<PropertyTy>();
   }
 
   MarshalledProperty() = default;
@@ -314,9 +314,7 @@ struct MarshalledProperty<
   std::array<std::optional<ScopeForwardProgressProperty>, 3>
       MForwardProgressProperties;
 
-  template <typename InputPropertyTy,
-            class = typename std::enable_if_t<
-                ext::oneapi::experimental::is_property_list_v<InputPropertyTy>>>
+  template <typename InputPropertyTy>
   MarshalledProperty(const InputPropertyTy &Props) {
     using namespace sycl::ext::oneapi::experimental;
     (void)Props;
@@ -345,11 +343,22 @@ struct MarshalledProperty<
 };
 
 template <typename... keys> struct PropsHolder : MarshalledProperty<keys>... {
+  bool Empty = true;
 
-  template <typename PropertiesT>
-  PropsHolder(PropertiesT Props) : MarshalledProperty<keys>(Props)... {}
+  template <typename PropertiesT,
+            class = typename std::enable_if_t<
+                ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
+  PropsHolder(PropertiesT Props)
+      : MarshalledProperty<keys>(Props)...,
+        Empty(((!PropertiesT::template has_property<keys>() && ...))) {}
 
   PropsHolder() = default;
+
+  operator bool() const { return !Empty; }
+
+  template <typename PropertyCastKey> constexpr auto get() const {
+    return static_cast<const MarshalledProperty<PropertyCastKey> *>(this);
+  }
 };
 
 using KernelPropertyHolderStructTy =
@@ -368,7 +377,8 @@ using KernelPropertyHolderStructTy =
 template <bool IsESIMDKernel = false, typename PropertiesT,
           class = typename std::enable_if_t<
               ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
-constexpr auto processKernelProperties(PropertiesT Props) {
+constexpr KernelPropertyHolderStructTy
+processKernelProperties(PropertiesT Props) {
   static_assert(
       !PropertiesT::template has_property<
           sycl::ext::intel::experimental::fp_control_key>() ||
@@ -388,20 +398,20 @@ constexpr auto processKernelProperties(PropertiesT Props) {
 // Returns KernelLaunchPropertiesTy or std::nullopt based on whether the
 // kernel functor has a get method that returns properties.
 template <typename KernelName, bool isESIMD, typename KernelType>
-constexpr std::optional<KernelPropertyHolderStructTy>
+constexpr KernelPropertyHolderStructTy
 parseProperties([[maybe_unused]] const KernelType &KernelFunc) {
+
+  KernelPropertyHolderStructTy props;
 #ifndef __SYCL_DEVICE_ONLY__
   // If there are properties provided by get method then process them.
   if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
                     const KernelType &>::value) {
 
-    return processKernelProperties<isESIMD>(
+    props = processKernelProperties<isESIMD>(
         KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
   }
 #endif
-  // If there are no properties provided by get method then return empty
-  // optional.
-  return std::nullopt;
+  return props;
 }
 } // namespace kernel_launch_properties_v1
 
