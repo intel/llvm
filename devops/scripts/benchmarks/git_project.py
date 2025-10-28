@@ -3,13 +3,13 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 from pathlib import Path
 import shutil
 
 from utils.logger import log
 from utils.utils import run
 from options import options
-
 
 class GitProject:
     def __init__(
@@ -167,6 +167,11 @@ class GitProject:
         Returns:
             bool: True if the repository was cloned or updated, False if it was already up-to-date.
         """
+        if os.environ.get("LLVM_BENCHMARKS_UNIT_TESTING") == "1":
+            log.debug(
+                f"Skipping git operations during unit testing of {self._name} (LLVM_BENCHMARKS_UNIT_TESTING=1)."
+            )
+            return False
         if not self.src_dir.exists():
             self._git_clone()
             return True

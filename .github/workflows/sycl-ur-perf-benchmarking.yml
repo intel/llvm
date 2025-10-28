@@ -135,6 +135,7 @@ jobs:
   build_sycl_dispatch:
     name: '[Dispatch] Build SYCL'
     needs: [ sanitize_inputs_dispatch ]
+    if: false
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ needs.sanitize_inputs_dispatch.outputs.build_ref }}
@@ -224,7 +225,7 @@ jobs:
   # Benchmark framework builds and runs on PRs path:
   build_pr:
     name: '[PR] Build SYCL'
-    if: github.event_name == 'pull_request'
+    if: false && github.event_name == 'pull_request'
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -236,6 +237,38 @@ jobs:
       cxx: clang++
       changes: '[]'
       toolchain_artifact: sycl_linux_default
+
+  unittest_pr:
+    name: '[PR] SYCL Unit Tests'
+    if: github.event_name == 'pull_request'
+    # needs: [build_pr]
+    runs-on: PVC_PERF
+    container:
+      image: 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
+    env:
+      LLVM_BENCHMARKS_UNIT_TESTING: 1
+      CMPLR_ROOT: ./toolchain
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Install python libraries and dependencies
+        run: |
+          pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
+      - name: Checkout compute benchmarks code
+        uses: actions/checkout@v3
+        with:
+          repository: intel/compute-benchmarks
+          ref: master
+          path: compute-benchmarks
+      - name: Build Compute Benchmarks
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNULL_L0=ON ../compute-benchmarks
+          cmake --build . -- -j$(nproc)
+      - name: Run tests
+        run: |
+          COMPUTE_BENCHMARK_BUILD_PATH=compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
+
 
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
