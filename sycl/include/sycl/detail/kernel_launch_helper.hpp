@@ -271,9 +271,10 @@ struct MarshalledProperty<
   std::optional<PropertyTy> property;
 
   template <typename InputPropertyTy>
-  MarshalledProperty([[maybe_unused]] const InputPropertyTy &InputProperties) {
+  MarshalledProperty(const InputPropertyTy &Props) {
+    (void)Props;
     if constexpr (InputPropertyTy::template has_property<PropertyTy>())
-      property = InputProperties.template get_property<PropertyTy>();
+      property = Props.template get_property<PropertyTy>();
   }
 
   MarshalledProperty() = default;
@@ -286,8 +287,10 @@ struct MarshalledProperty<sycl::ext::oneapi::experimental::use_root_sync_key> {
   bool isRootSyncPropPresent = false;
 
   template <typename InputPropertyTy>
-  MarshalledProperty([[maybe_unused]] const InputPropertyTy &Props) {
+  MarshalledProperty(const InputPropertyTy &Props) {
     using namespace sycl::ext::oneapi::experimental;
+
+    (void)Props;
     isRootSyncPropPresent =
         InputPropertyTy::template has_property<use_root_sync_key>();
   }
@@ -314,8 +317,9 @@ struct MarshalledProperty<
   template <typename InputPropertyTy,
             class = typename std::enable_if_t<
                 ext::oneapi::experimental::is_property_list_v<InputPropertyTy>>>
-  MarshalledProperty([[maybe_unused]] const InputPropertyTy &Props) {
+  MarshalledProperty(const InputPropertyTy &Props) {
     using namespace sycl::ext::oneapi::experimental;
+    (void)Props;
 
     if constexpr (InputPropertyTy::template has_property<
                       work_group_progress_key>()) {
