@@ -363,11 +363,10 @@ public:
   event submit_kernel_direct_with_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     detail::EventImplPtr EventImpl =
         submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                                  true, Props, CodeLoc, IsTopCodeLoc);
+                                  true, CodeLoc, IsTopCodeLoc);
     return createSyclObjFromImpl<event>(EventImpl);
   }
 
@@ -375,10 +374,9 @@ public:
   void submit_kernel_direct_without_event(
       const nd_range<Dims> &Range, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo,
-      const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc) {
     submit_kernel_direct_impl(NDRDescT{Range}, HostKernel, DeviceKernelInfo,
-                              false, Props, CodeLoc, IsTopCodeLoc);
+                              false, CodeLoc, IsTopCodeLoc);
   }
 
   void submit_without_event(const detail::type_erased_cgfo_ty &CGF,
@@ -931,7 +929,6 @@ protected:
   EventImplPtr submit_kernel_direct_impl(
       const NDRDescT &NDRDesc, detail::HostKernelRefBase &HostKernel,
       detail::DeviceKernelInfo *DeviceKernelInfo, bool CallerNeedsEvent,
-      const detail::KernelPropertyHolderStructTy &Props,
       const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   template <typename SubmitCommandFuncType>
