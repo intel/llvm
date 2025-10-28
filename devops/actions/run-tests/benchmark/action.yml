@@ -29,6 +29,7 @@ inputs:
     type: string
     required: False
     default: ""
+  # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
   dry_run:
     type: string
     required: False
