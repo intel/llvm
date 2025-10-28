@@ -76,13 +76,13 @@ class LlamaCppBench(Suite):
 
 
 class LlamaBench(Benchmark):
-    def __init__(self, bench):
-        super().__init__(bench)
-        self.bench = bench
+    def __init__(self, suite: LlamaCppBench):
+        super().__init__(suite)
+        self.suite = suite
 
     @property
     def benchmark_bin(self) -> Path:
-        return self.bench.project.build_dir / "bin" / "llama-bench"
+        return self.suite.project.build_dir / "bin" / "llama-bench"
 
     def enabled(self):
         if options.sycl is None:
@@ -138,13 +138,13 @@ class LlamaBench(Benchmark):
             "--mmap",
             "0",
             "--model",
-            f"{self.bench.model}",
+            f"{self.suite.model}",
         ]
 
         result = self.run_bench(
             command,
             env_vars,
-            ld_library=self.bench.oneapi.ld_libraries(),
+            ld_library=self.suite.oneapi.ld_libraries(),
             run_trace=run_trace,
             force_trace=force_trace,
         )
@@ -160,8 +160,8 @@ class LlamaBench(Benchmark):
                     command=command,
                     env=env_vars,
                     unit="token/s",
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return results
