@@ -424,6 +424,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   pDdiTable->pfnBuildExp = urProgramBuildExp;
   pDdiTable->pfnCompileExp = nullptr;
   pDdiTable->pfnLinkExp = nullptr;
+  pDdiTable->pfnDynamicLinkExp = nullptr;
 
   return UR_RESULT_SUCCESS;
 }

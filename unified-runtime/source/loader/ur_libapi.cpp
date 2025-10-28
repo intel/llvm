@@ -9989,6 +9989,51 @@ ur_result_t UR_APICALL urDeviceWaitExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Creates dynamic links between exported and imported symbols in one or
+///        more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point the programs in
+///       `phPrograms` will have all external symbols resolved and kernels
+///       inside these programs would be ready for use.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phPrograms`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program
+///         object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
+ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) try {
+  auto pfnDynamicLinkExp =
+      ur_lib::getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnDynamicLinkExp(hContext, count, phPrograms);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
 ///
 /// @returns
@@ -10348,6 +10393,8 @@ ur_result_t UR_APICALL urMemoryExportExportMemoryHandleExp(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
@@ -10359,13 +10406,15 @@ ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) try {
   auto pfnBuildExp = ur_lib::getContext()->urDdiTable.ProgramExp.pfnBuildExp;
   if (nullptr == pfnBuildExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  return pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -10392,6 +10441,8 @@ ur_result_t UR_APICALL urProgramBuildExp(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If `hProgram` isn't a valid program object.
 ///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
@@ -10403,6 +10454,8 @@ ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) try {
   auto pfnCompileExp =
@@ -10410,7 +10463,7 @@ ur_result_t UR_APICALL urProgramCompileExp(
   if (nullptr == pfnCompileExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+  return pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -10445,6 +10498,8 @@ ur_result_t UR_APICALL urProgramCompileExp(
 ///         + `NULL == phDevices`
 ///         + `NULL == phPrograms`
 ///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_PROGRAM_FLAGS_MASK & flags`
 ///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
 ///         + If one of the programs in `phPrograms` isn't a valid program
 ///         object.
@@ -10459,6 +10514,8 @@ ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -10474,7 +10531,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
   if (nullptr == pfnLinkExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnLinkExp(hContext, numDevices, phDevices, count, phPrograms,
+  return pfnLinkExp(hContext, numDevices, phDevices, flags, count, phPrograms,
                     pOptions, phProgram);
 } catch (...) {
   return exceptionToResult(std::current_exception());
