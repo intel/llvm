@@ -945,10 +945,8 @@ static void addBackendOptions(const ArgList &Args,
   if (IsCPU) {
     OptC.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
-    // ocloc -options args need to be comma separated, e.g. `-options
-    // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
-    // ocloc as an arg for -options, and the rest are processed as standalone
-    // flags, possibly leading to errors.
+    // ocloc -options takes arguments in the form of '-options "-g -cl-opt-disable"' 
+    // where each argument is separated with spaces
     // split function here returns a pair with everything before the separator
     // ("-options") in the first member of the pair, and everything after the
     // separator in the second part of the pair. The separator is not included
