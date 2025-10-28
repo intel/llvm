@@ -903,7 +903,7 @@ private:
   template <typename PropertiesT>
   void processLaunchProperties(PropertiesT Props) {
     detail::KernelPropertyHolderStructTy ParsedProp =
-        detail::processKernelLaunchProperties<PropertiesT>(Props);
+        detail::processKernelProperties<false, PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
   }
 
@@ -1296,7 +1296,7 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
     detail::KernelPropertyHolderStructTy ParsedProp =
-        detail::processKernelLaunchProperties<PropertiesT>(Props);
+        detail::processKernelProperties<false, PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     extractArgsAndReqs();
 #endif
@@ -1321,7 +1321,7 @@ private:
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
     detail::KernelPropertyHolderStructTy ParsedProp =
-        detail::processKernelLaunchProperties<PropertiesT>(Props);
+        detail::processKernelProperties<false, PropertiesT>(Props);
     setKernelLaunchProperties(ParsedProp);
     extractArgsAndReqs();
 #endif

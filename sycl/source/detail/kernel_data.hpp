@@ -258,14 +258,13 @@ public:
 
     // Validate and set forward progress guarantees.
     for (int i = 0; i < 3; i++) {
-      if (ForwardProgressProp->MForwardProgressProperties[i]
-              .Guarantee.has_value()) {
+      if (ForwardProgressProp->MForwardProgressProperties[i].has_value()) {
 
         if (!dev.supportsForwardProgress(
-                *ForwardProgressProp->MForwardProgressProperties[i].Guarantee,
-                *ForwardProgressProp->MForwardProgressProperties[i].ExecScope,
-                *ForwardProgressProp->MForwardProgressProperties[i]
-                     .CoordinationScope)) {
+                ForwardProgressProp->MForwardProgressProperties[i]->Guarantee,
+                ForwardProgressProp->MForwardProgressProperties[i]->ExecScope,
+                ForwardProgressProp->MForwardProgressProperties[i]
+                    ->CoordinationScope)) {
           throw sycl::exception(
               sycl::make_error_code(errc::feature_not_supported),
               "The device associated with the queue does not support the "
@@ -273,7 +272,7 @@ public:
         }
 
         auto execScope =
-            *ForwardProgressProp->MForwardProgressProperties[i].ExecScope;
+            ForwardProgressProp->MForwardProgressProperties[i]->ExecScope;
         // If we are here, the device supports the guarantee required but
         // there is a caveat in that if the guarantee required is a concurrent
         // guarantee, then we most likely also need to enable cooperative
@@ -286,7 +285,7 @@ public:
         // behavior in Unified Runtime.
         if ((execScope == execScope::work_group ||
              execScope == execScope::sub_group) &&
-            (*ForwardProgressProp->MForwardProgressProperties[i].Guarantee ==
+            (ForwardProgressProp->MForwardProgressProperties[i]->Guarantee ==
              forward_progress_guarantee::concurrent)) {
           setCooperative(true);
         }

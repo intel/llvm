@@ -264,18 +264,16 @@ template <typename key, typename = void> struct MarshalledProperty;
 
 // Generic implementation for runtime properties.
 template <typename PropertyTy>
-struct MarshalledProperty<PropertyTy,
-                          std::enable_if_t<!std::is_empty_v<PropertyTy>>> {
+struct MarshalledProperty<
+    PropertyTy,
+    std::enable_if_t<!std::is_empty_v<PropertyTy> &&
+                     std::is_same_v<PropertyTy, typename PropertyTy::key_t>>> {
   std::optional<PropertyTy> property;
 
   template <typename InputPropertyTy>
   MarshalledProperty([[maybe_unused]] const InputPropertyTy &InputProperties) {
-    if constexpr (ext::oneapi::experimental::is_property_list_v<
-                      InputPropertyTy>)
-      if constexpr (InputPropertyTy::template has_property<PropertyTy>()) {
-        std::cout << "Got property: " << typeid(PropertyTy).name() << "\n";
-        property = InputProperties.template get_property<PropertyTy>();
-      }
+    if constexpr (InputPropertyTy::template has_property<PropertyTy>())
+      property = InputProperties.template get_property<PropertyTy>();
   }
 
   MarshalledProperty() = default;
@@ -290,10 +288,8 @@ struct MarshalledProperty<sycl::ext::oneapi::experimental::use_root_sync_key> {
   template <typename InputPropertyTy>
   MarshalledProperty([[maybe_unused]] const InputPropertyTy &Props) {
     using namespace sycl::ext::oneapi::experimental;
-    if constexpr (ext::oneapi::experimental::is_property_list_v<
-                      InputPropertyTy>)
-      if constexpr (InputPropertyTy::template has_property<use_root_sync_key>())
-        isRootSyncPropPresent = true;
+    isRootSyncPropPresent =
+        InputPropertyTy::template has_property<use_root_sync_key>();
   }
 
   MarshalledProperty() = default;
@@ -305,16 +301,15 @@ struct MarshalledProperty<
     sycl::ext::oneapi::experimental::work_group_progress_key> {
 
   struct ScopeForwardProgressProperty {
-    std::optional<sycl::ext::oneapi::experimental::forward_progress_guarantee>
-        Guarantee;
-    std::optional<sycl::ext::oneapi::experimental::execution_scope> ExecScope;
-    std::optional<sycl::ext::oneapi::experimental::execution_scope>
-        CoordinationScope;
+    sycl::ext::oneapi::experimental::forward_progress_guarantee Guarantee;
+    sycl::ext::oneapi::experimental::execution_scope ExecScope;
+    sycl::ext::oneapi::experimental::execution_scope CoordinationScope;
   };
 
   // Forward progress guarantee properties for work_item, sub_group and
   // work_group scopes. We need to store them for validation later.
-  std::array<ScopeForwardProgressProperty, 3> MForwardProgressProperties;
+  std::array<std::optional<ScopeForwardProgressProperty>, 3>
+      MForwardProgressProperties;
 
   template <typename InputPropertyTy,
             class = typename std::enable_if_t<
@@ -322,32 +317,23 @@ struct MarshalledProperty<
   MarshalledProperty([[maybe_unused]] const InputPropertyTy &Props) {
     using namespace sycl::ext::oneapi::experimental;
 
-    if constexpr (ext::oneapi::experimental::is_property_list_v<
-                      InputPropertyTy>) {
-      if constexpr (InputPropertyTy::template has_property<
-                        work_group_progress_key>()) {
-        auto prop = Props.template get_property<work_group_progress_key>();
-        MForwardProgressProperties[0].Guarantee = prop.guarantee;
-        MForwardProgressProperties[0].ExecScope = execution_scope::work_group;
-        MForwardProgressProperties[0].CoordinationScope =
-            prop.coordinationScope;
-      }
-      if constexpr (InputPropertyTy::template has_property<
-                        sub_group_progress_key>()) {
-        auto prop = Props.template get_property<sub_group_progress_key>();
-        MForwardProgressProperties[1].Guarantee = prop.guarantee;
-        MForwardProgressProperties[1].ExecScope = execution_scope::sub_group;
-        MForwardProgressProperties[1].CoordinationScope =
-            prop.coordinationScope;
-      }
-      if constexpr (InputPropertyTy::template has_property<
-                        work_item_progress_key>()) {
-        auto prop = Props.template get_property<work_item_progress_key>();
-        MForwardProgressProperties[2].Guarantee = prop.guarantee;
-        MForwardProgressProperties[2].ExecScope = execution_scope::work_item;
-        MForwardProgressProperties[2].CoordinationScope =
-            prop.coordinationScope;
-      }
+    if constexpr (InputPropertyTy::template has_property<
+                      work_group_progress_key>()) {
+      auto prop = Props.template get_property<work_group_progress_key>();
+      MForwardProgressProperties[0] = {
+          prop.guarantee, execution_scope::work_group, prop.coordinationScope};
+    }
+    if constexpr (InputPropertyTy::template has_property<
+                      sub_group_progress_key>()) {
+      auto prop = Props.template get_property<sub_group_progress_key>();
+      MForwardProgressProperties[1] = {
+          prop.guarantee, execution_scope::sub_group, prop.coordinationScope};
+    }
+    if constexpr (InputPropertyTy::template has_property<
+                      work_item_progress_key>()) {
+      auto prop = Props.template get_property<work_item_progress_key>();
+      MForwardProgressProperties[2] = {
+          prop.guarantee, execution_scope::work_item, prop.coordinationScope};
     }
   }
 
@@ -371,21 +357,14 @@ using KernelPropertyHolderStructTy =
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<2>,
                 sycl::ext::oneapi::experimental::cuda::cluster_size_key<3>>;
 
-template <typename PropertiesT>
-constexpr auto processKernelLaunchProperties(PropertiesT Props) {
-  KernelPropertyHolderStructTy prop(Props);
-  return prop;
-}
-
 /// Note: it is important that this function *does not* depend on kernel
 /// name or kernel type, because then it will be instantiated for every
 /// kernel, even though body of those instantiated functions could be almost
 /// the same, thus unnecessary increasing compilation time.
-template <bool IsESIMDKernel,
-          typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+template <bool IsESIMDKernel = false, typename PropertiesT,
+          class = typename std::enable_if_t<
+              ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
 constexpr auto processKernelProperties(PropertiesT Props) {
-  static_assert(ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-                "Template type is not a property list.");
   static_assert(
       !PropertiesT::template has_property<
           sycl::ext::intel::experimental::fp_control_key>() ||
@@ -398,7 +377,8 @@ constexpr auto processKernelProperties(PropertiesT Props) {
           sycl::ext::oneapi::experimental::indirectly_callable_key>(),
       "indirectly_callable property cannot be applied to SYCL kernels");
 
-  return processKernelLaunchProperties(Props);
+  KernelPropertyHolderStructTy prop(Props);
+  return prop;
 }
 
 // Returns KernelLaunchPropertiesTy or std::nullopt based on whether the
