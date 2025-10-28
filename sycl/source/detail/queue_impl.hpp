@@ -416,27 +416,14 @@ public:
     throw_asynchronous();
   }
 
-  /// Performs a blocking wait for the completion of all enqueued tasks in the
-  /// queue.
-  ///
+  
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then
   /// asynchronous exceptions will be passed to the async_handler associated
   /// with the context if present, or the default async_handler otherwise.
   void throw_asynchronous() {
-    exception_list Exceptions =
-        getDeviceImpl().flushAsyncExceptions(weak_from_this());
-    if (Exceptions.size() == 0)
-      return;
-
-    if (MAsyncHandler)
-      MAsyncHandler(std::move(Exceptions));
-    else if (const async_handler &CtxAsyncHandler =
-                 getContextImpl().get_async_handler())
-      CtxAsyncHandler(std::move(Exceptions));
-    else
-      defaultAsyncHandler(std::move(Exceptions));
+    Scheduler::getInstance().flushAsyncExceptions();
   }
 
   /// Creates UR properties array.
@@ -703,6 +690,11 @@ public:
     MInteropGraph = Graph;
   }
 #endif
+
+  /// Returns the async_handler associated with the queue.
+  const async_handler &getAsynchHandler() const noexcept {
+    return MAsyncHandler;
+  }
 
 protected:
   template <typename HandlerType = handler>

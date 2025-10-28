@@ -360,13 +360,13 @@ class DispatchHostTask {
                                                               RawEvents.data());
       } catch (const sycl::exception &) {
         auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
-        QueuePtr->getDeviceImpl().reportAsyncException(
-            QueuePtr, std::current_exception());
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       } catch (...) {
         auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
-        QueuePtr->getDeviceImpl().reportAsyncException(
-            QueuePtr, std::current_exception());
+        Scheduler::getInstance().reportAsyncException(QueuePtr,
+                                                      std::current_exception());
         return false;
       }
     }
@@ -410,10 +410,11 @@ public:
           std::string("Couldn't wait for host-task's dependencies")));
 
       auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
-      QueuePtr->getDeviceImpl().reportAsyncException(QueuePtr, EPtr);
+      auto &SchedulerInst = Scheduler::getInstance();
+      SchedulerInst.reportAsyncException(QueuePtr, EPtr);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
-      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+      SchedulerInst.NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -473,8 +474,7 @@ public:
       }
 #endif
       auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
-      QueuePtr->getDeviceImpl().reportAsyncException(QueuePtr,
-                                                     CurrentException);
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
 
     HostTask.MHostTask.reset();
@@ -492,8 +492,7 @@ public:
     } catch (...) {
       auto CurrentException = std::current_exception();
       auto QueuePtr = MThisCmd->MEvent->getSubmittedQueue();
-      QueuePtr->getDeviceImpl().reportAsyncException(QueuePtr,
-                                                     CurrentException);
+      Scheduler::getInstance().reportAsyncException(QueuePtr, CurrentException);
     }
   }
 };
