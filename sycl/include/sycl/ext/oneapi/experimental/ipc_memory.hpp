@@ -38,8 +38,8 @@ private:
   void *MData;
   size_t MSize;
 
-  friend handle get(void *Ptr, const sycl::context &Ctx);
-  friend void put(handle &HandleData, const sycl::context &Ctx);
+  friend __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
+  friend __SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 };
 
 __SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
