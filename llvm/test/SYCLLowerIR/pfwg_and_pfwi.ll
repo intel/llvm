@@ -4,7 +4,9 @@
 ; Check that allocas which correspond to PFWI lambda object and a local copy of the PFWG lambda object
 ; are properly handled by LowerWGScope pass. Check that WG-shared local "shadow" variables are created
 ; and before each PFWI invocation leader WI stores its private copy of the variable into the shadow,
-; then all WIs load the shadow value into their private copies ("materialize" the private copy).
+; then all WIs load the shadow value into their private copies ("materialize" the private copy). 
+; Also check that an indirect call to a function marked with parallel_for_work_item is treated 
+; the same as a direct call.
 
 %struct.bar = type { i8 }
 %struct.zot = type { %struct.widget, %struct.widget, %struct.widget, %struct.foo }
@@ -54,6 +56,7 @@ define internal spir_func void @wibble(ptr addrspace(4) %arg, ptr byval(%struct.
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[TMP9:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
 ; CHECK-NEXT:    call spir_func void @bar(ptr addrspace(4) [[TMP9]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
+; CHECK-NEXT:    call spir_func void @foo(ptr addrspace(4) [[TMP9]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
 ; CHECK-NEXT:    ret void
 ;
 bb:
@@ -62,12 +65,24 @@ bb:
   store ptr addrspace(4) %arg, ptr %0, align 8
   %2 = addrspacecast ptr %arg1 to ptr addrspace(4)
   call spir_func void @bar(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
+  call spir_func void @foo(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
   ret void
 }
 
 define internal spir_func void @bar(ptr addrspace(4) %arg, ptr byval(%struct.foo.0) align 1 %arg1) align 2 !work_item_scope !0 !parallel_for_work_item !0 {
 bb:
   ret void
+}
+
+define internal spir_func void @foo(ptr addrspace(4) %arg, ptr byval(%struct.foo.0) align 1 %arg1) align 2 !work_group_scope !0 {
+bb:
+  call spir_func void @baz(ptr addrspace(4) %arg, ptr byval(%struct.foo.0) align 1 %arg1)
+  ret void 
+}
+
+define internal spir_func void @baz(ptr addrspace(4) %arg, ptr byval(%struct.foo.0) align 1 %arg1) align 2 !work_item_scope !0 !parallel_for_work_item !0 {
+bb:
+  ret void 
 }
 
 !0 = !{}
