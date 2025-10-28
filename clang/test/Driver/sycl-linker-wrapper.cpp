@@ -65,7 +65,7 @@
 // CHK-CMDS-AOT-GEN-NEXT: llvm-link{{.*}} -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
 // CHK-CMDS-AOT-GEN-NEXT: sycl-post-link{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
-// CHK-CMDS-AOT-GEN-NEXT: ocloc{{.*}} -output_no_suffix -spirv_input -device pvc {{.*}} -output {{.*}} -file {{.*}}
+// CHK-CMDS-AOT-GEN-NEXT: ocloc{{.*}} -output_no_suffix -spirv_input -device pvc -output {{.*}} -file {{.*}}
 // CHK-CMDS-AOT-GEN-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-GEN-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-GEN-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
