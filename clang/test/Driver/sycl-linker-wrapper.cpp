@@ -24,7 +24,7 @@
 // Check sycl-module-split-mode command line option.
 // This option uses split library instead of sycl-post-link tool.
 // RUN: clang-linker-wrapper -no-use-sycl-post-link-tool -sycl-module-split-mode=auto -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPLIT-CMDS %s
-// CHK-SPLIT-CMDS: spirv-to-ir-wrapper{{.*}} {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-SPLIT-CMDS: spirv-to-ir-wrapper{{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-SPLIT-CMDS-NEXT: llvm-link{{.*}} --suppress-warnings [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc
 // CHK-SPLIT-CMDS-NEXT: llvm-link{{.*}} -only-needed --suppress-warnings [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc
 // CHK-SPLIT-CMDS-NEXT: sycl-module-split: input: [[SECONDLLVMLINKOUT]].bc, output: [[SYCLMODULESPLITOUT:.*]].bc
@@ -43,7 +43,7 @@
 
 /// check for PIC for device wrap compilation when using -shared
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" -shared "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SHARED %s
-// CHK-SHARED: "{{.*}}clang"{{.*}} -fPIC
+// CHK-SHARED: clang{{.*}} -fPIC
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel GPU)
 // -------
@@ -92,7 +92,7 @@
 // CHK-CMDS-AOT-CPU-NEXT: opencl-aot{{.*}} --device=cpu -o {{.*}}
 // CHK-CMDS-AOT-CPU-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-CPU-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
-// CHK-CMDS-AOT-CPU-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+// CHK-CMDS-AOT-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for NVPTX)
 // -------
@@ -117,7 +117,7 @@
 // CHK-CMDS-AOT-NV-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]]
 // CHK-CMDS-AOT-NV-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
-// CHK-CMDS-AOT-NV-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for AMD)
 // -------
@@ -135,7 +135,7 @@
 // CHK-CMDS-AOT-AMD-NEXT: clang-offload-bundler{{.*}} -targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa--gfx803 -input=/dev/null -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
 // CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]]
 // CHK-CMDS-AOT-AMD-NEXT: clang{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]]
-// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (NVPTX)
 // -------
@@ -162,7 +162,7 @@
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]]
 // CHK-CMDS-AOT-NV-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT]]
-// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+// CHK-CMDS-AOT-NV-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 /// Check for -sycl-embed-ir for standalone clang-linker-wrapper run for sycl (AMD)
 // -------
@@ -182,7 +182,7 @@
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang-offload-bundler{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT2:.*]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: clang{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]
-// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+// CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
 
 // Error handling when --linker-path is not provided for clang-linker-wrapper
 // RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
@@ -213,7 +213,7 @@
 // CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --no-default-config -o [[OUT1:.*\.img]] -dumpdir a.out.native_cpu..img. --target=x86_64-unknown-linux-gnu -Wno-override-module -mllvm -sycl-native-cpu-backend -c {{.*}} -Xclang -mlink-bitcode-file -Xclang {{.*}}/libsycl-nativecpu_utils.bc
 // CHK-CMDS-NATIVE-CPU-NEXT:  offload-wrapper: input: [[OUT1]], output: [[OUT2:.*\.bc]]
 // CHK-CMDS-NATIVE-CPU-NEXT: clang{{.*}} --target=x86_64-unknown-linux-gnu -c -o [[OUT3:.*\.o]] [[OUT2]]
-// CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[OUT1]] [[OUT3]] {{.*\.o}}
+// CHK-CMDS-NATIVE-CPU-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[OUT1]] [[OUT3]] {{.*\.o}}
 
 // Verify that host linker is not called when --sycl-device-link is passed to clang-linker-wrapper
 // RUN: clang-linker-wrapper --sycl-device-link -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-DEVLINK-CMDS %s
@@ -224,7 +224,7 @@
 // CHK-DEVLINK-CMDS-NEXT: llvm-spirv{{.*}} LLVM_SPIRV_OPTIONS -o {{.*}}
 // CHK-DEVLINK-CMDS-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
 // CHK-DEVLINK-CMDS-NEXT: clang{{.*}} -c -o [[CLANGOUT:.*]] [[WRAPPEROUT]].bc
-// CHK-DEVLINK-CMDS-NEXT: "({{.*}}cp|copy)" [[CLANGOUT]] a.out
+// CHK-DEVLINK-CMDS-NEXT: "{{.*cp|copy}}" [[CLANGOUT]] a.out
 // CHK-DEVLINK-CMDS-NOT: "{{.*}}/ld"
 
 // Verify list of commands when syclbin is used
@@ -236,5 +236,5 @@
 // CHK-SYCLBIN-CMDS-NEXT: llvm-spirv{{.*}} -o {{.*}}
 // CHK-SYCLBIN-CMDS-NOT:  offload-wrapper: input
 // CHK-SYCLBIN-CMDS-NOT:  clang
-// CHK-SYCLBIN-CMDS-NEXT: "({{.*}}cp|copy)" {{.*}}.syclbin a.out
-// CHK-SYCLBIN-CMDS-NOT: "{{.*}}ld"
+// CHK-SYCLBIN-CMDS-NEXT: "{{.*cp|copy}}" {{.*}}.syclbin a.out
+// CHK-SYCLBIN-CMDS-NOT: "{{.*}}/ld"
