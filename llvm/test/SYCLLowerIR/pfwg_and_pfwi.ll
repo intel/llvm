@@ -111,11 +111,11 @@ define internal spir_func void @foo(ptr addrspace(4) %arg, ptr byval(%struct.foo
 ; CHECK-NEXT:    ret void
 ;
 bb:
-  %0 = alloca ptr addrspace(4), align 8
-  %1 = alloca %struct.foo.0, align 1
-  store ptr addrspace(4) %arg, ptr %0, align 8
-  %2 = addrspacecast ptr %arg1 to ptr addrspace(4)
-  call spir_func void @bar(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
+  %1 = alloca ptr addrspace(4), align 8
+  %2 = alloca %struct.foo.0, align 1
+  store ptr addrspace(4) %arg, ptr %1, align 8
+  %3 = addrspacecast ptr %arg1 to ptr addrspace(4)
+  call spir_func void @bar(ptr addrspace(4) %3, ptr byval(%struct.foo.0) align 1 %2)
   ret void
 }
 
