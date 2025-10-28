@@ -378,7 +378,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
-  Q.wait();
+  Q.wait_and_throw();
 
   uint16_t TraceType = 0;
   std::string Message;
@@ -422,7 +422,7 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
       ExceptionCaught = true;
     }
     EXPECT_FALSE(ExceptionCaught);
-    Q.wait();
+    Q.wait_and_throw();
 
     uint16_t TraceType = 0;
     std::string Message;
@@ -499,7 +499,7 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
   }
 
   try {
-    Q.wait();
+    Q.wait_and_throw();
   } catch (...) {
     // kernel enqueue leads to exception throw
   }
