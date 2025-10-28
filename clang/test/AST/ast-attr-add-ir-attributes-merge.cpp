@@ -1,4 +1,4 @@
-// RUN: not %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -std=gnu++11 -ast-dump %s | FileCheck %s
 
 // Tests the AST produced from add_ir_attributes_* for valid and invalid
 // redeclarations.
