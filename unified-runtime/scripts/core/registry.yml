@@ -679,16 +679,31 @@ etors:
 - name: GRAPH_EXECUTABLE_GRAPH_DESTROY_EXP
   desc: Enumerator for $xGraphExecutableGraphDestroyExp
   value: '291'
-- name: COMMAND_LIST_IS_GRAPH_CAPTURE_ENABLED_EXP
-  desc: Enumerator for $xCommandListIsGraphCaptureEnabledExp
-  value: '292'
 - name: GRAPH_IS_EMPTY_EXP
   desc: Enumerator for $xGraphIsEmptyExp
   value: '293'
 - name: GRAPH_DUMP_CONTENTS_EXP
   desc: Enumerator for $xGraphDumpContentsExp
   value: '294'
-max_id: '294'
+- name: QUEUE_BEGIN_GRAPH_CAPTURE_EXP
+  desc: Enumerator for $xQueueBeginGraphCaptureExp
+  value: '296'
+- name: QUEUE_BEGIN_CAPTURE_INTO_GRAPH_EXP
+  desc: Enumerator for $xQueueBeginCaptureIntoGraphExp
+  value: '297'
+- name: QUEUE_END_GRAPH_CAPTURE_EXP
+  desc: Enumerator for $xQueueEndGraphCaptureExp
+  value: '298'
+- name: QUEUE_INSTANTIATE_GRAPH_EXP
+  desc: Enumerator for $xQueueInstantiateGraphExp
+  value: '299'
+- name: QUEUE_APPEND_GRAPH_EXP
+  desc: Enumerator for $xQueueAppendGraphExp
+  value: '300'
+- name: QUEUE_IS_GRAPH_CAPTURE_ENABLED_EXP
+  desc: Enumerator for $xQueueIsGraphCaptureEnabledExp
+  value: '301'
+max_id: '301'
 ---
 type: enum
 desc: Defines structure types

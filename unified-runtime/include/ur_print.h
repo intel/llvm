@@ -2242,6 +2242,66 @@ urPrintQueueFlushParams(const struct ur_queue_flush_params_t *params,
                         char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_begin_graph_capture_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueBeginGraphCaptureExpParams(
+    const struct ur_queue_begin_graph_capture_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_begin_capture_into_graph_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueBeginCaptureIntoGraphExpParams(
+    const struct ur_queue_begin_capture_into_graph_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_end_graph_capture_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueEndGraphCaptureExpParams(
+    const struct ur_queue_end_graph_capture_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_instantiate_graph_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueInstantiateGraphExpParams(
+    const struct ur_queue_instantiate_graph_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_append_graph_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueAppendGraphExpParams(
+    const struct ur_queue_append_graph_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_is_graph_capture_enabled_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueIsGraphCaptureEnabledExpParams(
+    const struct ur_queue_is_graph_capture_enabled_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_sampler_create_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3549,17 +3609,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphIsEmptyExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintGraphDumpContentsExpParams(
     const struct ur_graph_dump_contents_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_command_list_is_graph_capture_enabled_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPrintCommandListIsGraphCaptureEnabledExpParams(
-    const struct ur_command_list_is_graph_capture_enabled_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_memory_export_alloc_exportable_memory_exp_params_t struct
