@@ -9,8 +9,5 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-NEXT: sycl_span.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-EMPTY:
