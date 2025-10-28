@@ -761,7 +761,8 @@ public:
 
     std::string XsFlags = extractXsFlags(BuildOptions, MRTCBinInfo->MLanguage);
     auto Res = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+        UrProgram, DeviceVec.size(), DeviceVec.data(), ur_exp_program_flags_t{},
+        XsFlags.c_str());
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
           ContextImpl.getHandleRef(), UrProgram, XsFlags.c_str());

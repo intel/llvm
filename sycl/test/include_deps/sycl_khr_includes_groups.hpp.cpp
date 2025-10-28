@@ -14,8 +14,6 @@
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
@@ -36,7 +34,6 @@
 // CHECK-NEXT: group_algorithm.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: functional.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: aspects.hpp

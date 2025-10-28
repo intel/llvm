@@ -260,6 +260,10 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                size_t size);
 
 template <>
+inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
+                                                    uint32_t flag);
+
+template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr,
                                ur_exp_peer_info_t value, size_t size);
 
@@ -592,6 +596,8 @@ inline std::ostream &operator<<(
 inline std::ostream &
 operator<<(std::ostream &os, [[maybe_unused]] const struct
            ur_exp_command_buffer_update_kernel_launch_desc_t params);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_program_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_peer_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -1290,6 +1296,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_DEVICE_WAIT_EXP:
     os << "UR_FUNCTION_DEVICE_WAIT_EXP";
+    break;
+  case UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP:
+    os << "UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -3159,6 +3168,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP";
@@ -5384,6 +5396,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -12362,6 +12387,54 @@ inline std::ostream &operator<<(
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_program_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_program_flag_t value) {
+  switch (value) {
+  case UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS:
+    os << "UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_program_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_program_flag_t>(std::ostream &os,
+                                                    uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS) ==
+      (uint32_t)UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS) {
+    val ^= (uint32_t)UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_PROGRAM_FLAG_ALLOW_UNRESOLVED_SYMBOLS;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_peer_info_t type
 /// @returns
 ///     std::ostream &
@@ -13643,6 +13716,43 @@ operator<<(std::ostream &os,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_dynamic_link_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_dynamic_link_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".count = ";
+
+  os << *(params->pcount);
+
+  os << ", ";
+  os << ".phPrograms = ";
+  ur::details::printPtr(os,
+                        reinterpret_cast<const void *>(*(params->pphPrograms)));
+  if (*(params->pphPrograms) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pcount; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphPrograms))[i]);
+    }
+    os << "}";
+  }
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_build_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -13674,6 +13784,11 @@ inline std::ostream &operator<<(
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_program_flag_t>(os, *(params->pflags));
 
   os << ", ";
   os << ".pOptions = ";
@@ -13740,6 +13855,11 @@ inline std::ostream &operator<<(
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_program_flag_t>(os, *(params->pflags));
 
   os << ", ";
   os << ".pOptions = ";
@@ -13827,6 +13947,11 @@ operator<<(std::ostream &os,
     }
     os << "}";
   }
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_program_flag_t>(os, *(params->pflags));
 
   os << ", ";
   os << ".count = ";
@@ -21460,6 +21585,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_PROGRAM_BUILD: {
     os << (const struct ur_program_build_params_t *)params;
+  } break;
+  case UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP: {
+    os << (const struct ur_program_dynamic_link_exp_params_t *)params;
   } break;
   case UR_FUNCTION_PROGRAM_BUILD_EXP: {
     os << (const struct ur_program_build_exp_params_t *)params;

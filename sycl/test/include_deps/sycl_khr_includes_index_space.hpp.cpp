@@ -31,8 +31,6 @@
 // CHECK-NEXT: device_event.hpp
 // CHECK-NEXT: group.hpp
 // CHECK-NEXT: detail/common.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-EMPTY:

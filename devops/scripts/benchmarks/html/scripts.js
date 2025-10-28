@@ -1790,14 +1790,15 @@ function fetchAndProcessData(url, isArchived = false) {
                 window.benchmarkMetadata = data.benchmarkMetadata || data.metadata || {};
                 window.benchmarkTags = data.benchmarkTags || data.tags || {};
                 window.flamegraphData = (data.flamegraphData && data.flamegraphData.runs) ? data.flamegraphData : { runs: {} };
-                if (Array.isArray(data.defaultCompareNames)) {
+                if (Array.isArray(data.defaultCompareNames) && (!defaultCompareNames || defaultCompareNames.length === 0)) {
                     defaultCompareNames = data.defaultCompareNames;
                 }
                 console.log('Remote data loaded (normalized):', {
                     runs: runsArray.length,
                     metadata: Object.keys(window.benchmarkMetadata).length,
                     tags: Object.keys(window.benchmarkTags).length,
-                    flamegraphs: Object.keys(window.flamegraphData.runs).length
+                    flamegraphs: Object.keys(window.flamegraphData.runs).length,
+                    defaultCompareNames: defaultCompareNames
                 });
             }
 

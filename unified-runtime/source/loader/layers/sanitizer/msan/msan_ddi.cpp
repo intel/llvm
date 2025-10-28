@@ -329,13 +329,15 @@ ur_result_t urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
 
-  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
     PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
     return UrRes;
@@ -385,6 +387,8 @@ ur_result_t urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -397,7 +401,7 @@ ur_result_t urProgramLinkExp(
 
   UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLinkExp");
 
-  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
+  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, flags, count,
                                  phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
     PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
@@ -408,6 +412,23 @@ ur_result_t urProgramLinkExp(
   UR_CALL(getMsanInterceptor()->registerProgram(*phProgram));
 
   return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+ur_result_t urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  auto pfnProgramDynamicLinkExp =
+      getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
+
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramDynamicLinkExp");
+
+  return pfnProgramDynamicLinkExp(hContext, count, phPrograms);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1931,6 +1952,8 @@ ur_result_t urGetProgramExpProcAddrTable(
 
   pDdiTable->pfnBuildExp = ur_sanitizer_layer::msan::urProgramBuildExp;
   pDdiTable->pfnLinkExp = ur_sanitizer_layer::msan::urProgramLinkExp;
+  pDdiTable->pfnDynamicLinkExp =
+      ur_sanitizer_layer::msan::urProgramDynamicLinkExp;
 
   return result;
 }

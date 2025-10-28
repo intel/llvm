@@ -310,14 +310,14 @@ class ComputeBench(Suite):
 class ComputeBenchmark(Benchmark):
     def __init__(
         self,
-        bench,
-        name,
-        test,
+        suite: ComputeBench,
+        name: str,
+        test: str,
         runtime: RUNTIMES = None,
         profiler_type: PROFILERS = PROFILERS.TIMER,
     ):
-        super().__init__(bench)
-        self.bench = bench
+        super().__init__(suite)
+        self.suite = suite
         self.bench_name = name
         self.test = test
         self.runtime = runtime
@@ -333,7 +333,7 @@ class ComputeBenchmark(Benchmark):
     @property
     def benchmark_bin(self) -> Path:
         """Returns the path to the benchmark binary"""
-        return self.bench.project.build_dir / "bin" / self.bench_name
+        return self.suite.project.build_dir / "bin" / self.bench_name
 
     def cpu_count_str(self, separator: str = "") -> str:
         # Note: SYCL CI currently relies on this "CPU count" value.
@@ -439,8 +439,8 @@ class ComputeBenchmark(Benchmark):
                     command=command,
                     env=env_vars,
                     unit=unit,
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return ret

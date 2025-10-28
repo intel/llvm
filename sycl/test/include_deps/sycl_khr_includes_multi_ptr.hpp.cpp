@@ -18,5 +18,4 @@
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-EMPTY:
