@@ -10269,6 +10269,72 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+  auto pfnWaitExp = getContext()->urDdiTable.DeviceExp.pfnWaitExp;
+
+  if (nullptr == pfnWaitExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (hDevice == nullptr)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    URLOG_CTX_INVALID_REFERENCE(hDevice);
+  }
+
+  ur_result_t result = pfnWaitExp(hDevice);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  auto pfnDynamicLinkExp =
+      getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
+
+  if (nullptr == pfnDynamicLinkExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == phPrograms)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (count == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    URLOG_CTX_INVALID_REFERENCE(hContext);
+  }
+
+  ur_result_t result = pfnDynamicLinkExp(hContext, count, phPrograms);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -10663,6 +10729,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
@@ -10677,6 +10745,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 
     if (NULL == hProgram)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_PROGRAM_FLAGS_MASK & flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10684,7 +10755,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
-  ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  ur_result_t result =
+      pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
 
   return result;
 }
@@ -10698,6 +10770,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
@@ -10712,6 +10786,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
 
     if (NULL == hProgram)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_EXP_PROGRAM_FLAGS_MASK & flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10719,7 +10796,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     URLOG_CTX_INVALID_REFERENCE(hProgram);
   }
 
-  ur_result_t result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+  ur_result_t result =
+      pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
 
   return result;
 }
@@ -10733,6 +10811,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -10763,6 +10843,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
+    if (UR_EXP_PROGRAM_FLAGS_MASK & flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
   }
@@ -10772,7 +10855,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
+  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, flags, count,
                                   phPrograms, pOptions, phProgram);
 
   return result;
@@ -12168,6 +12251,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
   ur_result_t result = UR_RESULT_SUCCESS;
 
+  dditable.pfnDynamicLinkExp = pDdiTable->pfnDynamicLinkExp;
+  pDdiTable->pfnDynamicLinkExp = ur_validation_layer::urProgramDynamicLinkExp;
+
   dditable.pfnBuildExp = pDdiTable->pfnBuildExp;
   pDdiTable->pfnBuildExp = ur_validation_layer::urProgramBuildExp;
 
@@ -12557,6 +12643,38 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.DeviceExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnWaitExp = pDdiTable->pfnWaitExp;
+  pDdiTable->pfnWaitExp = ur_validation_layer::urDeviceWaitExp;
+
+  return result;
+}
+
 ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames,
                             codeloc_data) {
@@ -12697,6 +12815,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetDeviceProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetDeviceExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->DeviceExp);
   }
 
   return result;

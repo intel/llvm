@@ -69,6 +69,7 @@ EXPORTS
 	urDeviceRelease
 	urDeviceRetain
 	urDeviceSelectBinary
+	urDeviceWaitExp
 	urEnqueueCommandBufferExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
@@ -114,6 +115,7 @@ EXPORTS
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
+	urGetDeviceExpProcAddrTable
 	urGetDeviceProcAddrTable
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
@@ -286,6 +288,7 @@ EXPORTS
 	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
+	urPrintDeviceWaitExpParams
 	urPrintEnqueueCommandBufferExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
@@ -355,6 +358,7 @@ EXPORTS
 	urPrintExpImageCopyRegion
 	urPrintExpImageMemType
 	urPrintExpPeerInfo
+	urPrintExpProgramFlags
 	urPrintExpSamplerAddrModes
 	urPrintExpSamplerCubemapFilterMode
 	urPrintExpSamplerCubemapProperties
@@ -460,6 +464,7 @@ EXPORTS
 	urPrintProgramCreateWithBinaryParams
 	urPrintProgramCreateWithIlParams
 	urPrintProgramCreateWithNativeHandleParams
+	urPrintProgramDynamicLinkExpParams
 	urPrintProgramGetBuildInfoParams
 	urPrintProgramGetFunctionPointerParams
 	urPrintProgramGetGlobalVariablePointerParams
@@ -561,6 +566,7 @@ EXPORTS
 	urProgramCreateWithBinary
 	urProgramCreateWithIL
 	urProgramCreateWithNativeHandle
+	urProgramDynamicLinkExp
 	urProgramGetBuildInfo
 	urProgramGetFunctionPointer
 	urProgramGetGlobalVariablePointer

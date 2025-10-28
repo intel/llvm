@@ -413,6 +413,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnDynamicLinkExp = ur::level_zero::urProgramDynamicLinkExp;
   pDdiTable->pfnBuildExp = ur::level_zero::urProgramBuildExp;
   pDdiTable->pfnCompileExp = ur::level_zero::urProgramCompileExp;
   pDdiTable->pfnLinkExp = ur::level_zero::urProgramLinkExp;
@@ -562,6 +563,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    ur_api_version_t version, ur_device_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnWaitExp = ur::level_zero::urDeviceWaitExp;
+
+  return result;
+}
+
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
 } // namespace ur::level_zero
 #else
@@ -666,6 +679,10 @@ ur_result_t populateDdiTable(ur_dditable_t *ddi) {
     return result;
   result = NAMESPACE_::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
                                                 &ddi->Device);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = NAMESPACE_::urGetDeviceExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                   &ddi->DeviceExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
 

@@ -134,6 +134,7 @@ inline namespace _V1 {
 #define SYCL_KHR_WORK_ITEM_QUERIES 1
 #define SYCL_KHR_STATIC_ADDRSPACE_CAST 1
 #define SYCL_KHR_DYNAMIC_ADDRSPACE_CAST 1
+#define SYCL_KHR_INCLUDES 1
 #endif
 
 #ifndef __has_include
