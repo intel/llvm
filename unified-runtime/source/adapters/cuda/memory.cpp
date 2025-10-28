@@ -592,7 +592,7 @@ CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void *pIPCMemHandleData,
+urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void **ppIPCMemHandleData,
                      size_t *pIPCMemHandleDataSizeRet) {
   umf_memory_pool_handle_t umfPool;
   auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
@@ -600,7 +600,7 @@ urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void *pIPCMemHandleData,
     return urRet;
 
   // Fast path for returning the size of the handle only.
-  if (!pIPCMemHandleData)
+  if (!ppIPCMemHandleData)
     return umf::umf2urResult(
         umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
 
@@ -608,12 +608,9 @@ urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void *pIPCMemHandleData,
   size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
                               ? pIPCMemHandleDataSizeRet
                               : &fallbackUMFHandleSize;
-  umf_ipc_handle_t umfHandle;
-  urRet = umf::umf2urResult(umfGetIPCHandle(pMem, &umfHandle, umfHandleSize));
-  if (urRet)
-    return urRet;
-  std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
-  return UR_RESULT_SUCCESS;
+  return umf::umf2urResult(umfGetIPCHandle(
+      pMem, reinterpret_cast<umf_ipc_handle_t *>(ppIPCMemHandleData),
+      umfHandleSize));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

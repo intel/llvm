@@ -36,8 +36,8 @@ params:
     - type: void *
       name: pMem
       desc: "[in] pointer to device USM memory"
-    - type: void*
-      name: pIPCMemHandleData
+    - type: void**
+      name: ppIPCMemHandleData
       desc: "[out][optional] a pointer to the IPC memory handle data"
     - type: size_t*
       name: pIPCMemHandleDataSizeRet
@@ -47,7 +47,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
       - "`NULL == hContext`"
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-      - "`NULL == pIPCMemHandleData`"
+      - "`NULL == ppIPCMemHandleData`"
       - "`NULL == pIPCMemHandleDataSizeRet`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
