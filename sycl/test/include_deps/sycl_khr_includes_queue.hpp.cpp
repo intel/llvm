@@ -158,4 +158,5 @@
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: sampler.hpp
+// CHECK-NEXT: sycl_span.hpp
 // CHECK-EMPTY:
