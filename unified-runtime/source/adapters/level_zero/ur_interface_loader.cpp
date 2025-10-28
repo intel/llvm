@@ -413,6 +413,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnDynamicLinkExp = ur::level_zero::urProgramDynamicLinkExp;
   pDdiTable->pfnBuildExp = ur::level_zero::urProgramBuildExp;
   pDdiTable->pfnCompileExp = ur::level_zero::urProgramCompileExp;
   pDdiTable->pfnLinkExp = ur::level_zero::urProgramLinkExp;
