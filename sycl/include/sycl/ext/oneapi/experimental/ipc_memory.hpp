@@ -15,43 +15,58 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/platform.hpp>
+#include <sycl/sycl_span.hpp>
 
 #include <cstddef>
-#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
 
 namespace ext::oneapi::experimental::ipc_memory {
 
-using handle_data_t = std::vector<std::byte>;
+using handle_data_t = sycl::span<const std::byte, dynamic_extent>;
 
-__SYCL_EXPORT handle_data_t get(void *Ptr, const sycl::context &Ctx);
+struct handle {
+public:
+  handle_data_t data() const {
+    return {reinterpret_cast<std::byte *>(MData), MSize};
+  }
 
-inline handle_data_t get(void *Ptr) {
+private:
+  handle(void *Data, size_t Size) : MData{Data}, MSize{Size} {}
+
+  void *MData;
+  size_t MSize;
+
+  friend handle get(void *Ptr, const sycl::context &Ctx);
+  friend void put(handle &HandleData, const sycl::context &Ctx);
+};
+
+__SYCL_EXPORT handle get(void *Ptr, const sycl::context &Ctx);
+
+inline handle get(void *Ptr) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return ipc_memory::get(Ptr, Ctx);
 }
 
-__SYCL_EXPORT void put(const handle_data_t &HandleData,
-                       const sycl::context &Ctx);
+__SYCL_EXPORT void put(handle &HandleData, const sycl::context &Ctx);
 
-inline void put(const handle_data_t &HandleData) {
+inline void put(handle &HandleData) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   ipc_memory::put(HandleData, Ctx);
 }
 
-__SYCL_EXPORT void *open(const handle_data_t &HandleData,
-                         const sycl::context &Ctx, const sycl::device &Dev);
+__SYCL_EXPORT void *open(handle_data_t HandleData, const sycl::context &Ctx,
+                         const sycl::device &Dev);
 
-inline void *open(const handle_data_t &HandleData, const sycl::device &Dev) {
+inline void *open(handle_data_t HandleData, const sycl::device &Dev) {
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return ipc_memory::open(HandleData, Ctx, Dev);
 }
 
-inline void *open(const handle_data_t &HandleData) {
+inline void *open(handle_data_t HandleData) {
   sycl::device Dev;
   sycl::context Ctx = Dev.get_platform().khr_get_default_context();
   return ipc_memory::open(HandleData, Ctx, Dev);

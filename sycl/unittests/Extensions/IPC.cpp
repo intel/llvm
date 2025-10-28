@@ -37,18 +37,15 @@ ur_result_t replace_urIPCGetMemHandleExp(void *pParams) {
   EXPECT_EQ(*params.ppMem, DummyPtr);
   if (*params.ppIPCMemHandleDataSizeRet)
     **params.ppIPCMemHandleDataSizeRet = DummyHandleDataSize;
-  if (*params.ppIPCMemHandleData)
-    std::memcpy(*params.ppIPCMemHandleData, DummyHandleData,
-                DummyHandleDataSize);
+  if (*params.pppIPCMemHandleData)
+    **params.pppIPCMemHandleData = DummyHandleData;
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t replace_urIPCPutMemHandleExp(void *pParams) {
   ++urIPCPutMemHandleExp_counter;
   auto params = *static_cast<ur_ipc_put_mem_handle_exp_params_t *>(pParams);
-  EXPECT_EQ(
-      memcmp(*params.ppIPCMemHandleData, DummyHandleData, DummyHandleDataSize),
-      0);
+  EXPECT_EQ(*params.ppIPCMemHandleData, DummyHandleData);
   return UR_RESULT_SUCCESS;
 }
 
@@ -112,40 +109,36 @@ protected:
 };
 
 TEST_F(IPCTests, IPCGetPutImplicit) {
-  syclexp::ipc_memory::handle_data_t IPCMemHandleData =
+  syclexp::ipc_memory::handle IPCMemHandle =
       syclexp::ipc_memory::get(DummyPtr, Ctxt);
+  syclexp::ipc_memory::handle_data_t IPCMemHandleData = IPCMemHandle.data();
   EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
-  EXPECT_EQ(
-      memcmp(IPCMemHandleData.data(), DummyHandleData, IPCMemHandleData.size()),
-      0);
+  EXPECT_EQ(IPCMemHandleData.data(), DummyHandleData);
 
-  // Creating the IPC memory from a pointer should only call "get". It should be
-  // called twice: Once to get the size of the data and again to get the data.
-  EXPECT_EQ(urIPCGetMemHandleExp_counter, 2);
+  // Creating the IPC memory from a pointer should only call "get".
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
 }
 
 TEST_F(IPCTests, IPCGetPutExplicit) {
-  syclexp::ipc_memory::handle_data_t IPCMemHandleData =
+  syclexp::ipc_memory::handle IPCMemHandle =
       syclexp::ipc_memory::get(DummyPtr, Ctxt);
+  syclexp::ipc_memory::handle_data_t IPCMemHandleData = IPCMemHandle.data();
   EXPECT_EQ(IPCMemHandleData.size(), DummyHandleDataSize);
-  EXPECT_EQ(
-      memcmp(IPCMemHandleData.data(), DummyHandleData, IPCMemHandleData.size()),
-      0);
+  EXPECT_EQ(IPCMemHandleData.data(), DummyHandleData);
 
-  // Creating the IPC memory from a pointer should only call "get". It should be
-  // called twice: Once to get the size of the data and again to get the data.
-  EXPECT_EQ(urIPCGetMemHandleExp_counter, 2);
+  // Creating the IPC memory from a pointer should only call "get".
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCPutMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);
 
-  syclexp::ipc_memory::put(IPCMemHandleData, Ctxt);
+  syclexp::ipc_memory::put(IPCMemHandle, Ctxt);
 
   // Calling "put" explicitly should call the UR function.
-  EXPECT_EQ(urIPCGetMemHandleExp_counter, 2);
+  EXPECT_EQ(urIPCGetMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCPutMemHandleExp_counter, 1);
   EXPECT_EQ(urIPCOpenMemHandleExp_counter, 0);
   EXPECT_EQ(urIPCCloseMemHandleExp_counter, 0);

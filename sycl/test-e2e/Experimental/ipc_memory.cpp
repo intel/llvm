@@ -48,8 +48,9 @@ int spawner(int argc, char *argv[]) {
   {
     // Write handle data to file.
     {
-      syclexp::ipc_memory::handle_data_t HandleData =
+      syclexp::ipc_memory::handle Handle =
           syclexp::ipc_memory::get(DataPtr, Q.get_context());
+      syclexp::ipc_memory::handle_data_t HandleData = Handle.data();
       size_t HandleDataSize = HandleData.size();
       std::fstream FS(CommsFile, std::ios_base::out | std::ios_base::binary);
       FS.write(reinterpret_cast<const char *>(&HandleDataSize), sizeof(size_t));

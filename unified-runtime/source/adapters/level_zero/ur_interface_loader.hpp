@@ -775,7 +775,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
     ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t hContext, void *pMem,
-                                 void *pIPCMemHandleData,
+                                 void **ppIPCMemHandleData,
                                  size_t *pIPCMemHandleDataSizeRet);
 ur_result_t urIPCPutMemHandleExp(ur_context_handle_t hContext,
                                  void *pIPCMemHandleData);

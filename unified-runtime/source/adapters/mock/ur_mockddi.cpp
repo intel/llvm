@@ -11405,13 +11405,13 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
   ur_ipc_get_mem_handle_exp_params_t params = {
-      &hContext, &pMem, &pIPCMemHandleData, &pIPCMemHandleDataSizeRet};
+      &hContext, &pMem, &ppIPCMemHandleData, &pIPCMemHandleDataSizeRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urIPCGetMemHandleExp"));

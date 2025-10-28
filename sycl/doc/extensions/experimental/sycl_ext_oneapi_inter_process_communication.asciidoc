@@ -117,25 +117,57 @@ functions specified in the following section.
 
 === Inter-process communicable memory
 
-
-This extension adds new free functions under the `ipc_memory` experimental
-namespace.
+This extension adds a new type alias `handle_data_t` and a new IPC memory handle
+type `handle` under the `ipc_memory` experimental namespace.
 
 ```
 namespace sycl::ext::oneapi::experimental::ipc_memory {
 
-using handle_data_t = std::vector<std::byte>;
+using handle_data_t = sycl::span<const std::byte, dynamic_extent>;
 
-handle_data_t get(void *ptr, const sycl::context &ctx);
+struct handle {
+  handle_data_t data() const;
+};
 
-handle_data_t get(void *ptr);
+}
+```
 
-void put(const handle_data_t &handle_data, const sycl::context &ctx);
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+handle_data_t data() const;
+----
+!====
 
-void put(const handle_data_t &handle_data);
+_Preconditions:_ The `put` function has not previously been called with this
+handle and the USM device memory associated with this handle has not been freed.
+
+_Returns:_ The handle data associated with the IPC handle object. This data can
+be transferred to other processes, but cannot be used to recreate a `handle`
+object.
+
+!====
+
+Additionally, this extension adds new free functions under the `ipc_memory`
+experimental namespace.
+
+```
+namespace sycl::ext::oneapi::experimental::ipc_memory {
+
+handle get(void *ptr, const sycl::context &ctx);
+
+handle get(void *ptr);
+
+void put(handle &ipc_handle, const sycl::context &ctx);
+
+void put(handle &ipc_handle);
 
 void *open(const handle_data_t &handle_data, const sycl::context &ctx,
-                  const sycl::device &dev);
+           const sycl::device &dev);
 
 void *open(const handle_data_t &handle_data, const sycl::device &dev);
 
@@ -155,7 +187,7 @@ a|
 a!
 [source]
 ----
-handle_data_t get(void *ptr, const sycl::context &ctx)
+handle get(void *ptr, const sycl::context &ctx)
 ----
 !====
 
@@ -175,7 +207,7 @@ device _D_ does not have `aspect::ext_oneapi_ipc_memory`.
 a!
 [source]
 ----
-handle_data_t get(void *ptr)
+handle get(void *ptr)
 ----
 !====
 
@@ -192,13 +224,14 @@ return ipc_memory::get(ptr, ctxt);
 a!
 [source]
 ----
-void put(const handle_data_t &handle_data, const sycl::context &ctx)
+void put(handle &ipc_handle, const sycl::context &ctx)
 ----
 !====
 
-_Preconditions:_ `handle_data` is the IPC "handle" to USM device memory that was
+_Preconditions:_ `ipc_handle` is the IPC "handle" to USM device memory that was
 returned from a call to `get` either in this process or in some other process on
-the same system. The USM device memory has not yet been freed in this process.
+the same system. The `put` function has not been previously called on the
+handle.
 
 _Effects:_ Deallocates resources associated with the handle. These resources are
 automatically deallocated when the USM device memory is freed, so it is not
@@ -216,7 +249,7 @@ _{endnote}_]
 a!
 [source]
 ----
-void put(const handle_data_t &handle_data)
+void put(handle &ipc_handle)
 ----
 !====
 

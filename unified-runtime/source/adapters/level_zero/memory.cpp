@@ -1953,7 +1953,7 @@ ur_result_t urEnqueueWriteHostPipe(
 }
 
 ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
-                                 void *pIPCMemHandleData,
+                                 void **ppIPCMemHandleData,
                                  size_t *pIPCMemHandleDataSizeRet) {
   umf_memory_pool_handle_t umfPool;
   auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
@@ -1961,7 +1961,7 @@ ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
     return urRet;
 
   // Fast path for returning the size of the handle only.
-  if (!pIPCMemHandleData)
+  if (!ppIPCMemHandleData)
     return umf::umf2urResult(
         umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
 
@@ -1969,12 +1969,9 @@ ur_result_t urIPCGetMemHandleExp(ur_context_handle_t, void *pMem,
   size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
                               ? pIPCMemHandleDataSizeRet
                               : &fallbackUMFHandleSize;
-  umf_ipc_handle_t umfHandle;
-  urRet = umf::umf2urResult(umfGetIPCHandle(pMem, &umfHandle, umfHandleSize));
-  if (urRet)
-    return urRet;
-  std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
-  return UR_RESULT_SUCCESS;
+  return umf::umf2urResult(umfGetIPCHandle(
+      pMem, reinterpret_cast<umf_ipc_handle_t *>(ppIPCMemHandleData),
+      umfHandleSize));
 }
 
 ur_result_t urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {

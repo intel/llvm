@@ -8793,7 +8793,7 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pIPCMemHandleData`
+///         + `NULL == ppIPCMemHandleData`
 ///         + `NULL == pIPCMemHandleDataSizeRet`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -8803,7 +8803,7 @@ ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) {
   ur_result_t result = UR_RESULT_SUCCESS;
