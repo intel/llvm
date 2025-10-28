@@ -102,15 +102,15 @@ class SyclBench(Suite):
 
 
 class SyclBenchmark(Benchmark):
-    def __init__(self, bench, name, test):
-        super().__init__(bench)
-        self.bench = bench
+    def __init__(self, suite: SyclBench, name: str, test: str):
+        super().__init__(suite)
+        self.suite = suite
         self.bench_name = name
         self.test = test
 
     @property
     def benchmark_bin(self) -> Path:
-        return self.bench.project.build_dir / self.bench_name
+        return self.suite.project.build_dir / self.bench_name
 
     def enabled(self) -> bool:
         return options.sycl is not None
@@ -169,8 +169,8 @@ class SyclBenchmark(Benchmark):
                             command=command,
                             env=env_vars,
                             unit="ms",
-                            git_url=self.bench.git_url(),
-                            git_hash=self.bench.git_hash(),
+                            git_url=self.suite.git_url(),
+                            git_hash=self.suite.git_hash(),
                         )
                     )
 
@@ -179,7 +179,7 @@ class SyclBenchmark(Benchmark):
         return res_list
 
     def name(self):
-        return f"{self.bench.name()} {self.test}"
+        return f"{self.suite.name()} {self.test}"
 
     def teardown(self):
         return

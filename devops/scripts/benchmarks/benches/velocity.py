@@ -57,20 +57,20 @@ class VelocityBench(Suite):
 
 
 class VelocityBase(Benchmark):
-    def __init__(self, name: str, bin_name: str, vb: VelocityBench, unit: str):
-        super().__init__(vb)
-        self.vb = vb
+    def __init__(self, suite: VelocityBench, name: str, bin_name: str, unit: str):
+        super().__init__(suite)
+        self.suite = suite
         self.bench_name = name
         self.bin_name = bin_name
         self.unit = unit
 
     @property
     def src_dir(self) -> Path:
-        return self.vb.project.src_dir / self.bench_name / "SYCL"
+        return self.suite.project.src_dir / self.bench_name / "SYCL"
 
     @property
     def build_dir(self) -> Path:
-        return self.vb.project.build_dir / self.bench_name
+        return self.suite.project.build_dir / self.bench_name
 
     @property
     def benchmark_bin(self) -> Path:
@@ -177,8 +177,8 @@ class VelocityBase(Benchmark):
                 command=command,
                 env=env_vars,
                 unit=self.unit,
-                git_url=self.vb.git_url(),
-                git_hash=self.vb.git_hash(),
+                git_url=self.suite.git_url(),
+                git_hash=self.suite.git_hash(),
             )
         ]
 
@@ -187,8 +187,8 @@ class VelocityBase(Benchmark):
 
 
 class Hashtable(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("hashtable", "hashtable_sycl", vb, "M keys/sec")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "hashtable", "hashtable_sycl", "M keys/sec")
 
     def name(self):
         return "Velocity-Bench Hashtable"
@@ -219,8 +219,8 @@ class Hashtable(VelocityBase):
 
 
 class Bitcracker(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("bitcracker", "bitcracker", vb, "s")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "bitcracker", "bitcracker", "s")
 
     def name(self):
         return "Velocity-Bench Bitcracker"
@@ -234,7 +234,7 @@ class Bitcracker(VelocityBase):
 
     def bin_args(self) -> list[str]:
         self.data_path = os.path.join(
-            self.vb.project.src_dir, "bitcracker", "hash_pass"
+            self.suite.project.src_dir, "bitcracker", "hash_pass"
         )
 
         return [
@@ -262,8 +262,8 @@ class Bitcracker(VelocityBase):
 
 
 class SobelFilter(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("sobel_filter", "sobel_filter", vb, "ms")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "sobel_filter", "sobel_filter", "ms")
 
     def download_deps(self):
         self.download(
@@ -311,8 +311,8 @@ class SobelFilter(VelocityBase):
 
 
 class QuickSilver(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "QuickSilver", "qs", "MMS/CTT")
 
     def run(
         self,
@@ -344,7 +344,7 @@ class QuickSilver(VelocityBase):
 
     def bin_args(self) -> list[str]:
         self.data_path = os.path.join(
-            self.vb.project.src_dir, "QuickSilver", "Examples", "AllScattering"
+            self.suite.project.src_dir, "QuickSilver", "Examples", "AllScattering"
         )
 
         return ["-i", f"{self.data_path}/scatteringOnly.inp"]
@@ -366,8 +366,8 @@ class QuickSilver(VelocityBase):
 
 
 class Easywave(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("easywave", "easyWave_sycl", vb, "ms")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "easywave", "easyWave_sycl", "ms")
 
     def download_deps(self):
         self.download(
@@ -433,11 +433,11 @@ class Easywave(VelocityBase):
 
 
 class CudaSift(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("cudaSift", "cudaSift", vb, "ms")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "cudaSift", "cudaSift", "ms")
 
     def download_deps(self):
-        images = os.path.join(self.vb.project.src_dir, self.bench_name, "inputData")
+        images = os.path.join(self.suite.project.src_dir, self.bench_name, "inputData")
         dest = os.path.join(options.workdir, "inputData")
         if not os.path.exists(dest):
             shutil.copytree(images, dest)
@@ -464,8 +464,8 @@ class CudaSift(VelocityBase):
 
 
 class DLCifar(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("dl-cifar", "dl-cifar_sycl", vb, "s")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "dl-cifar", "dl-cifar_sycl", "s")
 
     def ld_libraries(self):
         return get_oneapi().ld_libraries()
@@ -518,8 +518,8 @@ class DLCifar(VelocityBase):
 
 
 class DLMnist(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("dl-mnist", "dl-mnist-sycl", vb, "s")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "dl-mnist", "dl-mnist-sycl", "s")
 
     def ld_libraries(self):
         return get_oneapi().ld_libraries()
@@ -606,8 +606,8 @@ class DLMnist(VelocityBase):
 
 
 class SVM(VelocityBase):
-    def __init__(self, vb: VelocityBench):
-        super().__init__("svm", "svm_sycl", vb, "s")
+    def __init__(self, suite: VelocityBench):
+        super().__init__(suite, "svm", "svm_sycl", "s")
 
     def ld_libraries(self):
         return get_oneapi().ld_libraries()
