@@ -231,7 +231,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
     case (UR_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object) {
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramCompileExp>(
-            UrProgram, 1u, &Dev, nullptr);
+            UrProgram, 1u, &Dev, ur_exp_program_flags_t{}, nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramCompile>(
               ContextImpl.getHandleRef(), UrProgram, nullptr);
@@ -241,7 +241,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
 
       else if (State == bundle_state::executable) {
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramBuildExp>(
-            UrProgram, 1u, &Dev, nullptr);
+            UrProgram, 1u, &Dev, ur_exp_program_flags_t{}, nullptr);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramBuild>(
               ContextImpl.getHandleRef(), UrProgram, nullptr);
@@ -261,8 +261,8 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         Managed<ur_program_handle_t> UrLinkedProgram{Adapter};
         ur_program_handle_t ProgramsToLink[] = {UrProgram};
         auto Res = Adapter.call_nocheck<UrApiKind::urProgramLinkExp>(
-            ContextImpl.getHandleRef(), 1u, &Dev, 1u, ProgramsToLink, nullptr,
-            &UrLinkedProgram);
+            ContextImpl.getHandleRef(), 1u, &Dev, ur_exp_program_flags_t{}, 1u,
+            ProgramsToLink, nullptr, &UrLinkedProgram);
         if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
           Res = Adapter.call_nocheck<UrApiKind::urProgramLink>(
               ContextImpl.getHandleRef(), 1u, ProgramsToLink, nullptr,

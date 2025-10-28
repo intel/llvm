@@ -23,7 +23,8 @@ on:
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
     - '.github/workflows/sycl-rel-nightly-launch.yml'
-    - '.github/workflows/trivy.yml'
+    - '.github/workflows/sycl-trivy.yml'
+    - '.github/workflows/sycl-coverity.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
     - 'unified-runtime/examples/**'
@@ -241,6 +242,7 @@ jobs:
       benchmark_upload_results: false
       benchmark_preset: 'Minimal'
       benchmark_dry_run: true
+      benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}
       toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
       toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}

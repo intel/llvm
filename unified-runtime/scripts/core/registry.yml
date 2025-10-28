@@ -682,7 +682,13 @@ etors:
 - name: IPC_CLOSE_MEM_HANDLE_EXP
   desc: Enumerator for $xIPCCloseMemHandleExp
   value: '292'
-max_id: '292'
+- name: DEVICE_WAIT_EXP
+  desc: Enumerator for $xDeviceWaitExp
+  value: '293'
+- name: PROGRAM_DYNAMIC_LINK_EXP
+  desc: Enumerator for $xProgramDynamicLinkExp
+  value: '294'
+max_id: '294'
 ---
 type: enum
 desc: Defines structure types
