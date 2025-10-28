@@ -902,7 +902,7 @@ private:
   /// Stores information about kernel properties into the handler.
   template <typename PropertiesT>
   void processLaunchProperties(PropertiesT Props) {
-    CheckAndSetKernelLaunchProperties(detail::processKernelProperties(Props));
+    CheckAndSetKernelLaunchProperties(detail::extractKernelProperties(Props));
   }
 
   /// Process kernel properties.
@@ -918,7 +918,7 @@ private:
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
     detail::KernelPropertyHolderStructTy ParsedProp =
-        detail::processKernelProperties<IsESIMDKernel>(Props);
+        detail::extractKernelProperties<IsESIMDKernel>(Props);
     CheckAndSetKernelLaunchProperties(ParsedProp);
   }
 #endif // INTEL_PREVIEW_BREAKING_CHANGES
@@ -1259,7 +1259,7 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
       verifyUsedKernelBundleInternal(Info.Name);
       CheckAndSetKernelLaunchProperties(
-          detail::processKernelProperties<Info.IsESIMD>(Props));
+          detail::extractKernelProperties<Info.IsESIMD>(Props));
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1288,7 +1288,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
-    CheckAndSetKernelLaunchProperties(detail::processKernelProperties(Props));
+    CheckAndSetKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -1311,7 +1311,7 @@ private:
     setDeviceKernelInfo(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     setNDRangeDescriptor(std::move(NDRange));
-    CheckAndSetKernelLaunchProperties(detail::processKernelProperties(Props));
+    CheckAndSetKernelLaunchProperties(detail::extractKernelProperties(Props));
     extractArgsAndReqs();
 #endif
   }
@@ -1350,7 +1350,7 @@ private:
 
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     CheckAndSetKernelLaunchProperties(
-        detail::processKernelProperties<Info.IsESIMD>(Props));
+        detail::extractKernelProperties<Info.IsESIMD>(Props));
 #endif
   }
 
@@ -1402,7 +1402,7 @@ private:
     }
     StoreLambda<NameT, KernelType, Dims, ElementType>(std::move(KernelFunc));
     CheckAndSetKernelLaunchProperties(
-        detail::processKernelProperties<Info.IsESIMD>(Props));
+        detail::extractKernelProperties<Info.IsESIMD>(Props));
 #endif
   }
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -3454,9 +3454,12 @@ private:
 
   inline void CheckAndSetKernelLaunchProperties(
       const detail::KernelPropertyHolderStructTy &KernelLaunchProperties) {
+    (void)KernelLaunchProperties;
 
-    if (KernelLaunchProperties)
+#ifndef __SYCL_DEVICE_ONLY__
+    if (!KernelLaunchProperties.isEmpty())
       setKernelLaunchProperties(KernelLaunchProperties);
+#endif
   }
 
   // Various checks that are only meaningful for host compilation, because they

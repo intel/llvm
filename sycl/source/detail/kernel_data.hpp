@@ -183,7 +183,9 @@ public:
     } else if (prop == large_data) {
       CacheConfig = ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
     } else
-      assert(false && "unknown cache property type");
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Unknown cache property type encountered in "
+                            "parseAndSetCacheConfigProperty.");
 
     MKernelCacheConfig = CacheConfig;
   }
@@ -191,110 +193,119 @@ public:
   template <int ClusterDims>
   void parseAndSetClusterDimProperty(
       const std::optional<cluster_size_key<ClusterDims>> &prop) {
-    if (prop) {
-      static_assert(ClusterDims < 4 && ClusterDims > 0,
-                    "Invalid cluster dimensions");
+    static_assert(ClusterDims < 4 && ClusterDims > 0,
+                  "ClusterDims must be 1, 2, or 3");
 
-      auto ClusterSize = prop->get_cluster_size();
-      MKernelUsesClusterLaunch = true;
+    auto ClusterSize = prop->get_cluster_size();
+    MKernelUsesClusterLaunch = true;
 
-      if constexpr (ClusterDims == 1)
-        MNDRDesc.setClusterDimensions(sycl::range<1>{ClusterSize[0]});
-      else if constexpr (ClusterDims == 2)
-        MNDRDesc.setClusterDimensions(
-            sycl::range<2>{ClusterSize[0], ClusterSize[1]});
-      else if constexpr (ClusterDims == 3)
-        MNDRDesc.setClusterDimensions(
-            sycl::range<3>{ClusterSize[0], ClusterSize[1], ClusterSize[2]});
-    }
+    if constexpr (ClusterDims == 1)
+      MNDRDesc.setClusterDimensions(sycl::range<1>{ClusterSize[0]});
+    else if constexpr (ClusterDims == 2)
+      MNDRDesc.setClusterDimensions(
+          sycl::range<2>{ClusterSize[0], ClusterSize[1]});
+    else if constexpr (ClusterDims == 3)
+      MNDRDesc.setClusterDimensions(
+          sycl::range<3>{ClusterSize[0], ClusterSize[1], ClusterSize[2]});
   }
 
-  void validateAndSetKernelLaunchProperties(
-      const detail::KernelPropertyHolderStructTy &Kprop, bool HasGraph,
-      const device_impl &dev) {
-    using execScope = ext::oneapi::experimental::execution_scope;
+  void validateProperties(const detail::KernelPropertyHolderStructTy &Kprop,
+                          bool HasGraph, const device_impl &dev) const {
+    using ExecScopeTy = ext::oneapi::experimental::execution_scope;
     using namespace sycl::ext::oneapi::experimental;
     using namespace sycl::ext::oneapi::experimental::detail;
     using namespace sycl::ext::intel::experimental;
 
-    const auto *WorkGroupMemSizeProp = Kprop.get<work_group_scratch_size>();
-    const auto *CacheConfigProp = Kprop.get<cache_config_key>();
-    const auto *UseRootSyncProp = Kprop.get<use_root_sync_key>();
-    const auto *ForwardProgressProp = Kprop.get<work_group_progress_key>();
-    const auto *ClusterLaunchPropDim1 = Kprop.get<cuda::cluster_size_key<1>>();
-    const auto *ClusterLaunchPropDim2 = Kprop.get<cuda::cluster_size_key<2>>();
-    const auto *ClusterLaunchPropDim3 = Kprop.get<cuda::cluster_size_key<3>>();
-
-    const bool isClusterDimPropPresent = ClusterLaunchPropDim1->property ||
-                                         ClusterLaunchPropDim2->property ||
-                                         ClusterLaunchPropDim3->property;
-
     // Early validation for graph-incompatible properties
     if (HasGraph) {
-      if (WorkGroupMemSizeProp->property) {
+      if (Kprop.get<work_group_scratch_size>()->MProperty) {
         throw sycl::exception(
             sycl::make_error_code(errc::invalid),
             "Setting work group scratch memory size is not yet supported "
             "for use with the SYCL Graph extension.");
       }
 
-      if (isClusterDimPropPresent) {
+      if (Kprop.get<cuda::cluster_size_key<1>>()->MProperty ||
+          Kprop.get<cuda::cluster_size_key<2>>()->MProperty ||
+          Kprop.get<cuda::cluster_size_key<3>>()->MProperty) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Cluster launch is not yet supported "
                               "for use with the SYCL Graph extension.");
       }
     }
 
-    // Validate and set forward progress guarantees.
-    for (int i = 0; i < 3; i++) {
-      if (ForwardProgressProp->MForwardProgressProperties[i].has_value()) {
-
-        if (!dev.supportsForwardProgress(
-                ForwardProgressProp->MForwardProgressProperties[i]->Guarantee,
-                ForwardProgressProp->MForwardProgressProperties[i]->ExecScope,
-                ForwardProgressProp->MForwardProgressProperties[i]
-                    ->CoordinationScope)) {
-          throw sycl::exception(
-              sycl::make_error_code(errc::feature_not_supported),
-              "The device associated with the queue does not support the "
-              "requested forward progress guarantee.");
-        }
-
-        auto execScope =
-            ForwardProgressProp->MForwardProgressProperties[i]->ExecScope;
-        // If we are here, the device supports the guarantee required but
-        // there is a caveat in that if the guarantee required is a concurrent
-        // guarantee, then we most likely also need to enable cooperative
-        // launch of the kernel. That is, although the device supports the
-        // required guarantee, some setup work is needed to truly make the
-        // device provide that guarantee at runtime. Otherwise, we will get
-        // the default guarantee which is weaker than concurrent. Same
-        // reasoning applies for sub_group but not for work_item.
-        // TODO: Further design work is probably needed to reflect this
-        // behavior in Unified Runtime.
-        if ((execScope == execScope::work_group ||
-             execScope == execScope::sub_group) &&
-            (ForwardProgressProp->MForwardProgressProperties[i]->Guarantee ==
-             forward_progress_guarantee::concurrent)) {
-          setCooperative(true);
-        }
+    // Validate forward progress guarantees.
+    auto ForwardProgressPropValidator = [&](auto Guarantee, auto ExecScope,
+                                            auto CoordScope) {
+      if (Guarantee &&
+          !dev.supportsForwardProgress(*Guarantee, ExecScope, *CoordScope)) {
+        throw sycl::exception(
+            sycl::make_error_code(errc::feature_not_supported),
+            "The device associated with the queue does not support the "
+            "requested forward progress guarantee.");
       }
+    };
+
+    const auto *FPWorkGroupProp = Kprop.get<work_group_progress_key>();
+    const auto *FPSubGroupProp = Kprop.get<sub_group_progress_key>();
+    const auto *FPWorkItemProp = Kprop.get<work_item_progress_key>();
+
+    ForwardProgressPropValidator(FPWorkGroupProp->MFPGuarantee,
+                                 ExecScopeTy::work_group,
+                                 FPWorkGroupProp->MFPCoordinationScope);
+    ForwardProgressPropValidator(FPSubGroupProp->MFPGuarantee,
+                                 ExecScopeTy::sub_group,
+                                 FPSubGroupProp->MFPCoordinationScope);
+    ForwardProgressPropValidator(FPWorkItemProp->MFPGuarantee,
+                                 ExecScopeTy::work_item,
+                                 FPWorkItemProp->MFPCoordinationScope);
+  }
+
+  void validateAndSetKernelLaunchProperties(
+      const detail::KernelPropertyHolderStructTy &Kprop, bool HasGraph,
+      const device_impl &dev) {
+    using namespace sycl::ext::oneapi::experimental;
+    using namespace sycl::ext::oneapi::experimental::detail;
+    using namespace sycl::ext::intel::experimental;
+
+    validateProperties(Kprop, HasGraph, dev);
+
+    // If we are here, the device supports the guarantee required but
+    // there is a caveat in that if the guarantee required is a concurrent
+    // guarantee, then we most likely also need to enable cooperative
+    // launch of the kernel. That is, although the device supports the
+    // required guarantee, some setup work is needed to truly make the
+    // device provide that guarantee at runtime. Otherwise, we will get
+    // the default guarantee which is weaker than concurrent. Same
+    // reasoning applies for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this
+    // behavior in Unified Runtime.
+    const auto *FPWorkGroupProp = Kprop.get<work_group_progress_key>();
+    const auto *FPSubGroupProp = Kprop.get<sub_group_progress_key>();
+    if ((Kprop.get<work_group_progress_key>()->MFPGuarantee &&
+         *(FPWorkGroupProp->MFPGuarantee) ==
+             forward_progress_guarantee::concurrent) ||
+        (FPSubGroupProp->MFPGuarantee &&
+         *FPSubGroupProp->MFPGuarantee ==
+             forward_progress_guarantee::concurrent)) {
+      setCooperative(true);
     }
 
-    if (UseRootSyncProp->present)
+    if (Kprop.get<use_root_sync_key>()->MPresent)
       setCooperative(true);
 
-    if (CacheConfigProp->property)
-      parseAndSetCacheConfigProperty(*(CacheConfigProp->property));
+    if (auto prop = Kprop.get<cache_config_key>()->MProperty)
+      parseAndSetCacheConfigProperty(*prop);
 
-    if (WorkGroupMemSizeProp->property)
-      setKernelWorkGroupMemorySize((*WorkGroupMemSizeProp->property).size);
+    if (auto prop = Kprop.get<work_group_scratch_size>()->MProperty)
+      setKernelWorkGroupMemorySize(prop->size);
 
-    if (isClusterDimPropPresent) {
-      parseAndSetClusterDimProperty(ClusterLaunchPropDim1->property);
-      parseAndSetClusterDimProperty(ClusterLaunchPropDim2->property);
-      parseAndSetClusterDimProperty(ClusterLaunchPropDim3->property);
-    }
+    parseAndSetClusterDimProperty(
+        Kprop.get<cuda::cluster_size_key<1>>()->MProperty);
+    parseAndSetClusterDimProperty(
+        Kprop.get<cuda::cluster_size_key<2>>()->MProperty);
+    parseAndSetClusterDimProperty(
+        Kprop.get<cuda::cluster_size_key<3>>()->MProperty);
   }
 
   KernelNameStrRefT getKernelName() const {
