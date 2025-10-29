@@ -927,9 +927,8 @@ Command *Scheduler::GraphBuilder::addCG(
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
-                                                EventNeeded, CommandBuffer,
-                                                std::move(Dependencies));
+  auto NewCmd = std::make_unique<ExecCGCommand>(
+      std::move(CommandGroup), Queue, EventNeeded, CommandBuffer, Dependencies);
 
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),

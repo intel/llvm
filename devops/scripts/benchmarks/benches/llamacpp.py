@@ -14,6 +14,7 @@ from utils.result import Result
 from options import options
 from utils.oneapi import get_oneapi
 from git_project import GitProject
+from utils.logger import log
 
 
 class LlamaCppBench(Suite):
@@ -39,7 +40,6 @@ class LlamaCppBench(Suite):
                 self.git_hash(),
                 Path(options.workdir),
                 "llamacpp",
-                force_rebuild=True,
             )
 
         models_dir = Path(options.workdir, "llamacpp-models")
@@ -53,6 +53,10 @@ class LlamaCppBench(Suite):
         )
 
         self.oneapi = get_oneapi()
+
+        if not self.project.needs_rebuild():
+            log.info(f"Rebuilding {self.project.name} skipped")
+            return
 
         extra_args = [
             f"-DGGML_SYCL=ON",
@@ -72,13 +76,13 @@ class LlamaCppBench(Suite):
 
 
 class LlamaBench(Benchmark):
-    def __init__(self, bench):
-        super().__init__(bench)
-        self.bench = bench
+    def __init__(self, suite: LlamaCppBench):
+        super().__init__(suite)
+        self.suite = suite
 
     @property
     def benchmark_bin(self) -> Path:
-        return self.bench.project.build_dir / "bin" / "llama-bench"
+        return self.suite.project.build_dir / "bin" / "llama-bench"
 
     def enabled(self):
         if options.sycl is None:
@@ -134,13 +138,13 @@ class LlamaBench(Benchmark):
             "--mmap",
             "0",
             "--model",
-            f"{self.bench.model}",
+            f"{self.suite.model}",
         ]
 
         result = self.run_bench(
             command,
             env_vars,
-            ld_library=self.bench.oneapi.ld_libraries(),
+            ld_library=self.suite.oneapi.ld_libraries(),
             run_trace=run_trace,
             force_trace=force_trace,
         )
@@ -156,8 +160,8 @@ class LlamaBench(Benchmark):
                     command=command,
                     env=env_vars,
                     unit="token/s",
-                    git_url=self.bench.git_url(),
-                    git_hash=self.bench.git_hash(),
+                    git_url=self.suite.git_url(),
+                    git_hash=self.suite.git_hash(),
                 )
             )
         return results

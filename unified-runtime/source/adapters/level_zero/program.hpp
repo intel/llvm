@@ -113,11 +113,15 @@ struct ur_program_handle_t_ : ur_object {
     return DeviceDataMap[ZeDevice].State;
   }
 
-  ze_module_handle_t getZeModuleHandle(ze_device_handle_t ZeDevice) {
+  bool hasZeModuleForDevice(ze_device_handle_t ZeDevice) const {
+    return DeviceDataMap.find(ZeDevice) != DeviceDataMap.end();
+  }
+
+  ze_module_handle_t getZeModuleHandle(ze_device_handle_t ZeDevice) const {
     if (DeviceDataMap.find(ZeDevice) == DeviceDataMap.end())
       return InteropZeModule;
 
-    return DeviceDataMap[ZeDevice].ZeModule;
+    return DeviceDataMap.at(ZeDevice).ZeModule;
   }
 
   CodeFormat getCodeFormat(ze_device_handle_t ZeDevice = nullptr) const {
