@@ -111,7 +111,7 @@ static std::vector<StringRef>
 getKernelNamesUsingSpecialFunctions(const Module &M,
                                     const std::vector<StringRef> &FNames) {
   std::vector<Function *> SpecialFunctionVec;
-  for (auto Fn : FNames) {
+  for (const auto Fn : FNames) {
     Function *FPtr = M.getFunction(Fn);
     if (FPtr)
       SpecialFunctionVec.push_back(FPtr);
