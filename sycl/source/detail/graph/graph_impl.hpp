@@ -463,9 +463,10 @@ public:
 
   /// Sets the Queue state to queue_state::recording. Adds the queue to the list
   /// of recording queues associated with this graph.
-  /// Does not take the queue submission lock. Required for the cases,
-  /// when the recording is started direct from within the kernel submission
-  /// flow.
+  /// Does not take the queue submission lock.
+  ///
+  /// Required for the cases, when the recording is started directly
+  /// from within the kernel submission flow.
   /// @param[in] Queue The queue to be recorded from.
   void beginRecordingUnlockedQueue(sycl::detail::queue_impl &Queue);
 
