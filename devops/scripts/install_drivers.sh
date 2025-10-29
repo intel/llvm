@@ -51,24 +51,8 @@ function get_pre_release_igfx() {
     if [ "$GITHUB_TOKEN" != "" ]; then
        HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-
-    WORK_DIR="/tmp/igc-download"
-    mkdir -p "$WORK_DIR"
-    cd "$WORK_DIR"
-
-    curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" "$URL" -o "$HASH.zip"
-    
-    unzip "$HASH.zip"
-    rm "$HASH.zip"
-    
-    # Move deb files back to the calling directory if any exist
-    if ls *.deb 1> /dev/null 2>&1; then
-        mv *.deb /tmp/
-        cd /tmp/
-    fi
-    
-    # Clean up work directory
-    rm -rf "$WORK_DIR"
+    curl -L -H "$HEADER" -H "Accept: application/vnd.github.v3+json" $URL -o $HASH.zip
+    unzip $HASH.zip && rm $HASH.zip
 }
 
 function build_level_zero_from_source() {
@@ -214,56 +198,60 @@ InstallIGFX () {
     # Backup and install it from release igc as a temporarily workaround
     # while we working to resolve the issue.
     echo "Backup libopencl-clang"
-    
-    # Ensure we're in a writable directory for backup operations
-    BACKUP_DIR="/tmp/igc-backup"
-    mkdir -p "$BACKUP_DIR"
-    cd "$BACKUP_DIR"
-    echo "Working in backup directory: $BACKUP_DIR"
-    
-    if ls /usr/local/lib/libopencl-clang2.so.15* 1> /dev/null 2>&1; then
-      cp -d /usr/local/lib/libopencl-clang2.so.15*  .
-      LIBOPENCL_BACKED_UP=true
-      echo "Successfully backed up libopencl-clang files"
-    else
-      echo "Warning: libopencl-clang2.so.15* not found, skipping backup"
-      LIBOPENCL_BACKED_UP=false
-    fi
+    cp -d /usr/local/lib/libopencl-clang2.so.15*  .
     echo "Download IGC dev git hash $IGC_DEV_VER"
-    if ! get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER; then
-      echo "ERROR: Failed to download IGC dev package"
-      exit 1
-    fi
+    # # Ensure we're in a writable directory for backup operations
+    # BACKUP_DIR="/tmp/igc-backup"
+    # mkdir -p "$BACKUP_DIR"
+    # cd "$BACKUP_DIR"
+    # echo "Working in backup directory: $BACKUP_DIR"
+    
+    # if ls /usr/local/lib/libopencl-clang2.so.15* 1> /dev/null 2>&1; then
+    #   cp -d /usr/local/lib/libopencl-clang2.so.15*  .
+    #   LIBOPENCL_BACKED_UP=true
+    #   echo "Successfully backed up libopencl-clang files"
+    # else
+    #   echo "Warning: libopencl-clang2.so.15* not found, skipping backup"
+    #   LIBOPENCL_BACKED_UP=false
+    # fi
+    get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
     # New dev IGC packaged iga64 conflicting with iga64 from intel-igc-media
     # force overwrite to workaround it first.
-    if ls *.deb 1> /dev/null 2>&1; then
-      dpkg -i --force-all *.deb
-    else
-      echo "Warning: No IGC dev deb files found after download"
-    fi
-    if [ "$LIBOPENCL_BACKED_UP" == "true" ]; then
-      echo "Install libopencl-clang"
-      # Workaround only, will download deb and install with dpkg once fixed.
-      echo "Copying backed up libopencl-clang files from $BACKUP_DIR"
-      cp -d "$BACKUP_DIR"/libopencl-clang2.so.15*  /usr/local/lib/
-    fi
-    if [ -f /usr/local/lib/libigc.so.2 ]; then
-      rm -f /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
-         ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
-         ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
-    fi
+    # if ls *.deb 1> /dev/null 2>&1; then
+    #   dpkg -i --force-all *.deb
+    # fi
+    # if [ "$LIBOPENCL_BACKED_UP" == "true" ]; then
+    #   echo "Install libopencl-clang"
+    #   # Workaround only, will download deb and install with dpkg once fixed.
+    #   echo "Copying backed up libopencl-clang files from $BACKUP_DIR"
+    #   cp -d "$BACKUP_DIR"/libopencl-clang2.so.15*  /usr/local/lib/
+    # fi
+    # if [ -f /usr/local/lib/libigc.so.2 ]; then
+    #   rm -f /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
+    #      ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
+    #      ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
+    # fi
+    dpkg -i --force-all *.deb
+    echo "Install libopencl-clang"
+    # Workaround only, will download deb and install with dpkg once fixed.
+    cp -d libopencl-clang2.so.15*  /usr/local/lib/
+    rm /usr/local/lib/libigc.so /usr/local/lib/libigc.so.1* && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so && \
+       ln -s /usr/local/lib/libigc.so.2 /usr/local/lib/libigc.so.1
     echo "Clean up"
-    if ls *.deb 1> /dev/null 2>&1; then
-      rm *.deb
-    fi
+    rm *.deb libopencl-clang2.so.15*
     echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
+    # if ls *.deb 1> /dev/null 2>&1; then
+    #   rm *.deb
+    # fi
+    # echo "$IGC_DEV_TAG" > /usr/local/lib/igc/IGCTAG.txt
     
-    # Clean up backup directory (this also removes the backed up libopencl-clang files)
-    if [ -d "$BACKUP_DIR" ]; then
-      echo "Cleaning up backup directory: $BACKUP_DIR"
-      rm -rf "$BACKUP_DIR"
-    fi
+    # # Clean up backup directory (this also removes the backed up libopencl-clang files)
+    # if [ -d "$BACKUP_DIR" ]; then
+    #   echo "Cleaning up backup directory: $BACKUP_DIR"
+    #   rm -rf "$BACKUP_DIR"
+    # fi
   fi
 }
 
