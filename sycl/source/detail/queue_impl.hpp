@@ -241,8 +241,10 @@ public:
   // `std::shared_ptr` allocations.
   template <typename... Ts>
   static std::shared_ptr<queue_impl> create(Ts &&...args) {
-    return std::make_shared<queue_impl>(std::forward<Ts>(args)...,
-                                        private_tag{});
+    auto ImplPtr =
+        std::make_shared<queue_impl>(std::forward<Ts>(args)..., private_tag{});
+    ImplPtr->getDeviceImpl().registerQueue(ImplPtr);
+    return ImplPtr;
   }
 
   ~queue_impl() {
@@ -253,7 +255,7 @@ public:
       // notification and destroy the trace event for this queue.
       destructorNotification();
 #endif
-      throw_asynchronous();
+      MDevice.unregisterQueue(weak_from_this());
       auto status =
           getAdapter().call_nocheck<UrApiKind::urQueueRelease>(MQueue);
       // If loader is already closed, it'll return a not-initialized status
@@ -411,9 +413,6 @@ public:
   /// @param Loc is the code location of the submit call (default argument)
   void wait(const detail::code_location &Loc = {});
 
-  /// \return list of asynchronous exceptions occurred during execution.
-  exception_list getExceptionList() const { return MExceptions; }
-
   /// @param Loc is the code location of the submit call (default argument)
   void wait_and_throw(const detail::code_location &Loc = {}) {
     wait(Loc);
@@ -426,21 +425,21 @@ public:
   /// Synchronous errors will be reported through SYCL exceptions.
   /// Asynchronous errors will be passed to the async_handler passed to the
   /// queue on construction. If no async_handler was provided then
-  /// asynchronous exceptions will be lost.
+  /// asynchronous exceptions will be passed to the async_handler associated
+  /// with the context if present, or the default async_handler otherwise.
   void throw_asynchronous() {
-    if (!MAsyncHandler)
+    exception_list Exceptions =
+        getDeviceImpl().flushAsyncExceptions(weak_from_this());
+    if (Exceptions.size() == 0)
       return;
 
-    exception_list Exceptions;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-      std::swap(Exceptions, MExceptions);
-    }
-    // Unlock the mutex before calling user-provided handler to avoid
-    // potential deadlock if the same queue is somehow referenced in the
-    // handler.
-    if (Exceptions.size())
+    if (MAsyncHandler)
       MAsyncHandler(std::move(Exceptions));
+    else if (const async_handler &CtxAsyncHandler =
+                 getContextImpl().get_async_handler())
+      CtxAsyncHandler(std::move(Exceptions));
+    else
+      defaultAsyncHandler(std::move(Exceptions));
   }
 
   /// Creates UR properties array.
@@ -588,14 +587,6 @@ public:
   event mem_advise(const void *Ptr, size_t Length, ur_usm_advice_flags_t Advice,
                    const std::vector<event> &DepEvents, bool CallerNeedsEvent);
 
-  /// Puts exception to the list of asynchronous ecxeptions.
-  ///
-  /// \param ExceptionPtr is a pointer to exception to be put.
-  void reportAsyncException(const std::exception_ptr &ExceptionPtr) {
-    std::lock_guard<std::mutex> Lock(MMutex);
-    MExceptions.PushBack(ExceptionPtr);
-  }
-
   static ThreadPool &getThreadPool() {
     return GlobalHandler::instance().getHostTaskThreadPool();
   }
@@ -715,6 +706,17 @@ public:
     MInteropGraph = Graph;
   }
 #endif
+
+  /// Returns the async_handler associated with the queue.
+  const async_handler &getAsynchHandler() const noexcept {
+    return MAsyncHandler;
+  }
+
+  /// Waits for all not-yet-enqueued and host_task commands in the queue and
+  /// clears the events associated with the queue (if out-of-order.)
+  /// Note: This should only be called if the queue is guaranteed to be
+  /// synchronized by the caller.
+  void waitForRuntimeLevelCmdsAndClear();
 
 protected:
   template <typename HandlerType = handler>
@@ -1003,10 +1005,6 @@ protected:
   /// These events are tracked, but not owned, by the queue.
   std::vector<std::weak_ptr<event_impl>> MEventsWeak;
 
-  /// Events without data dependencies (such as USM) need an owner,
-  /// additionally, USM operations are not added to the scheduler command graph,
-  /// queue is the only owner on the runtime side.
-  exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
 

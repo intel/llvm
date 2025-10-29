@@ -24,6 +24,7 @@ inline namespace _V1 {
 // Forward declaration
 namespace detail {
 class queue_impl;
+class device_impl;
 }
 
 /// A list of asynchronous exceptions.
@@ -46,6 +47,7 @@ public:
 
 private:
   friend class detail::queue_impl;
+  friend class detail::device_impl;
   void PushBack(const_reference Value);
   void PushBack(value_type &&Value);
   void Clear() noexcept;

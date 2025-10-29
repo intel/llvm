@@ -1597,6 +1597,10 @@ public:
              get_info_impl_nocheck<UR_DEVICE_INFO_IS_INTEGRATED_GPU>().value_or(
                  0);
     }
+    CASE(ext_oneapi_device_wait) {
+      return get_info_impl_nocheck<UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP>()
+          .value_or(0);
+    }
     else {
       return false; // This device aspect has not been implemented yet.
     }
@@ -2267,6 +2271,47 @@ public:
     return {};
   }
 
+  /// Puts exception to the list of asynchronous ecxeptions.
+  ///
+  /// \param QueueWeakPtr is a weak pointer referring to the queue to report
+  ///   the asynchronous exceptions for.
+  /// \param ExceptionPtr is a pointer to exception to be put.
+  void reportAsyncException(std::weak_ptr<queue_impl> QueueWeakPtr,
+                            const std::exception_ptr &ExceptionPtr) {
+    std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
+    MAsyncExceptions[QueueWeakPtr].PushBack(ExceptionPtr);
+  }
+
+  /// Extracts all unconsumed asynchronous exceptions for a given queue.
+  ///
+  /// \param QueueWeakPtr is a weak pointer referring to the queue to extract
+  ///   unconsumed asynchronous exceptions for.
+  exception_list flushAsyncExceptions(std::weak_ptr<queue_impl> QueueWeakPtr) {
+    std::lock_guard<std::mutex> Lock(MAsyncExceptionsMutex);
+    auto ExceptionsEntryIt = MAsyncExceptions.find(QueueWeakPtr);
+    if (ExceptionsEntryIt == MAsyncExceptions.end())
+      return exception_list{};
+    exception_list Exceptions = std::move(ExceptionsEntryIt->second);
+    MAsyncExceptions.erase(ExceptionsEntryIt);
+    return Exceptions;
+  }
+
+  /// Synchronizes with all queues on the device.
+  void wait() const;
+
+  // Dispatch all unconsumed asynchronous exception to the appropriate handlers.
+  void throwAsynchronous();
+
+  void registerQueue(const std::weak_ptr<queue_impl> &Q) {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    MQueues.insert(Q);
+  }
+
+  void unregisterQueue(const std::weak_ptr<queue_impl> &Q) {
+    std::lock_guard<std::mutex> Lock(MQueuesMutex);
+    MQueues.erase(Q);
+  }
+
 private:
   ur_device_handle_t MDevice = 0;
   // This is used for getAdapter so should be above other properties.
@@ -2276,6 +2321,20 @@ private:
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 
   const ur_device_handle_t MRootDevice;
+
+  // Devices track a list of active queues on it, to allow for synchronization
+  // with host_task and not-yet-enqueued commands.
+  std::mutex MQueuesMutex;
+  std::set<std::weak_ptr<queue_impl>,
+           std::owner_less<std::weak_ptr<queue_impl>>>
+      MQueues;
+
+  // Asynchronous exceptions are captured at device-level until flushed, either
+  // by queues, events or a synchronization on the device itself.
+  std::mutex MAsyncExceptionsMutex;
+  std::map<std::weak_ptr<queue_impl>, exception_list,
+           std::owner_less<std::weak_ptr<queue_impl>>>
+      MAsyncExceptions;
 
   // Order of caches matters! UR must come before SYCL info descriptors (because
   // get_info calls get_info_impl but the opposite never happens) and both
