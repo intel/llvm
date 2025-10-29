@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl -Xclang -verify=expected -Xclang -verify-ignore-unexpected=note -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 %s
 
-
 #include <sycl/functional.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/handler.hpp>
@@ -47,7 +46,7 @@ void TestJointExclusiveScan(sycl::queue &q) {
            // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_exclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_and<int>{});
-           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}                     
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_exclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_or<int>{});
            // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
