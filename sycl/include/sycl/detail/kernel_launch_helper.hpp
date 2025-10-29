@@ -12,6 +12,7 @@
 #include <sycl/detail/compile_time_kernel_info.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
@@ -300,8 +301,10 @@ struct MarshalledProperty<PropertyTy,
 template <typename PropertyTy>
 struct MarshalledProperty<
     PropertyTy,
-    std::enable_if_t<sycl::ext::oneapi::experimental::detail::
-                         is_forward_progress_property<PropertyTy>::value>> {
+    std::enable_if_t<check_type_in_v<
+        PropertyTy, sycl::ext::oneapi::experimental::work_group_progress_key,
+        sycl::ext::oneapi::experimental::sub_group_progress_key,
+        sycl::ext::oneapi::experimental::work_item_progress_key>>> {
 
   using forward_progress_guarantee =
       sycl::ext::oneapi::experimental::forward_progress_guarantee;
@@ -376,21 +379,6 @@ extractKernelProperties(PropertiesT Props) {
       "indirectly_callable property cannot be applied to SYCL kernels");
 
   return KernelPropertyHolderStructTy(Props);
-}
-
-template <typename KernelName, bool isESIMD, typename KernelType>
-constexpr KernelPropertyHolderStructTy
-parseProperties([[maybe_unused]] const KernelType &KernelFunc) {
-
-  KernelPropertyHolderStructTy props;
-  // If there are properties provided by get method then process them.
-  if constexpr (ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
-                    const KernelType &>::value) {
-
-    props = extractKernelProperties<isESIMD>(
-        KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
-  }
-  return props;
 }
 } // namespace kernel_launch_properties_v1
 

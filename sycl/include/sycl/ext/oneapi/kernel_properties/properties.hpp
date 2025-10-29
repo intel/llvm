@@ -329,17 +329,6 @@ inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope>
 
 namespace detail {
 
-// Helper to identify if a property is a forward progress property.
-template <typename Prop>
-struct is_forward_progress_property : std::false_type {};
-template <>
-struct is_forward_progress_property<work_group_progress_key> : std::true_type {
-};
-template <>
-struct is_forward_progress_property<sub_group_progress_key> : std::true_type {};
-template <>
-struct is_forward_progress_property<work_item_progress_key> : std::true_type {};
-
 template <size_t... Dims>
 struct HasCompileTimeEffect<work_group_size_key::value_t<Dims...>>
     : std::true_type {};

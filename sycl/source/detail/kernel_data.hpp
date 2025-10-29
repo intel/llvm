@@ -196,6 +196,9 @@ public:
     static_assert(ClusterDims < 4 && ClusterDims > 0,
                   "ClusterDims must be 1, 2, or 3");
 
+    if (!prop.has_value())
+      return;
+
     auto ClusterSize = prop->get_cluster_size();
     MKernelUsesClusterLaunch = true;
 

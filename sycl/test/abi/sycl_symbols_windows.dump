@@ -716,6 +716,7 @@
 ??_Fcontext@_V1@sycl@@QEAAXXZ
 ??_Fqueue@_V1@sycl@@QEAAXXZ
 ?AccessTargetMask@handler@_V1@sycl@@0HB
+?CheckAndSetKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
@@ -4428,7 +4429,7 @@
 ?setKernelFunc@handler@_V1@sycl@@AEAAXPEAX@Z
 ?setKernelInfo@handler@_V1@sycl@@AEAAXPEAXHP6A?AUkernel_param_desc_t@detail@23@H@Z_N2@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
-?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
+?setKernelLaunchProperties@handler@_V1@sycl@@AEAAXAEBU?$PropsHolder@Uwork_group_scratch_size@experimental@oneapi@ext@_V1@sycl@@Ucache_config@2intel@456@Uuse_root_sync_key@23456@Uwork_group_progress_key@23456@Usub_group_progress_key@23456@Uwork_item_progress_key@23456@U?$cluster_size@$00@cuda@23456@U?$cluster_size@$01@cuda@23456@U?$cluster_size@$02@cuda@23456@@kernel_launch_properties_v1@detail@23@@Z
 ?setKernelNameBasedCachePtr@handler@_V1@sycl@@AEAAXPEAUKernelNameBasedCacheT@detail@23@@Z
 ?setKernelWorkGroupMem@handler@_V1@sycl@@AEAAX_K@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
