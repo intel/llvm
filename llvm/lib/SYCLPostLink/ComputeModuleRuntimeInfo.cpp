@@ -109,7 +109,7 @@ static std::optional<std::vector<StringRef>> traverseCGToFindSPIRKernels(
 
 static std::vector<StringRef>
 getKernelNamesUsingSpecialFunctions(const Module &M,
-                                    std::vector<StringRef> &FNames) {
+                                    const std::vector<StringRef> &FNames) {
   std::vector<Function *> SpecialFunctionVec;
   for (auto Fn : FNames) {
     Function *FPtr = M.getFunction(Fn);
