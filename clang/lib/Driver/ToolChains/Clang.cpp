@@ -10496,7 +10496,7 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
   std::string ExtArg("-spirv-ext=");
   // Enable only those we require.
   std::string DefaultExtArg =
-      ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
+      "+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
       ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
       ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
   std::string INTELExtArg = ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
