@@ -150,7 +150,7 @@ _Returns:_ The handle data associated with the IPC handle object. This data can
 be transferred to other processes, but cannot be used to recreate a `handle`
 object.
 
-!====
+|====
 
 Additionally, this extension adds new free functions under the `ipc_memory`
 experimental namespace.
