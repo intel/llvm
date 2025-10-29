@@ -144,50 +144,86 @@ public:
 
   // Kernel launch properties getter and setters.
   ur_kernel_cache_config_t getKernelCacheConfig() const {
-    return MKernelCacheConfig;
+    using namespace sycl::ext::oneapi::experimental;
+    using namespace sycl::ext::oneapi::experimental::detail;
+    using namespace sycl::ext::intel::experimental;
+
+    if (auto prop = MKernelProps.get<cache_config_key>()->MProperty) {
+      if (*prop == large_slm) {
+        return ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
+      } else if (*prop == large_data) {
+        return ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
+      } else
+        throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                              "Unknown cache property type encountered in "
+                              "parseAndSetCacheConfigProperty.");
+    }
+
+    return ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
   }
 
   void setKernelCacheConfig(ur_kernel_cache_config_t Config) {
-    MKernelCacheConfig = Config;
+    // FIXME: Why we need this?
   }
 
-  bool isCooperative() const { return MKernelIsCooperative; }
+  bool isCooperative() const {
+    using namespace sycl::ext::oneapi::experimental;
+    using namespace sycl::ext::oneapi::experimental::detail;
+    using namespace sycl::ext::intel::experimental;
+
+    // If we are here, the device supports the guarantee required but
+    // there is a caveat in that if the guarantee required is a concurrent
+    // guarantee, then we most likely also need to enable cooperative
+    // launch of the kernel. That is, although the device supports the
+    // required guarantee, some setup work is needed to truly make the
+    // device provide that guarantee at runtime. Otherwise, we will get
+    // the default guarantee which is weaker than concurrent. Same
+    // reasoning applies for sub_group but not for work_item.
+    // TODO: Further design work is probably needed to reflect this
+    // behavior in Unified Runtime.
+    const auto *FPWorkGroupProp = MKernelProps.get<work_group_progress_key>();
+    const auto *FPSubGroupProp = MKernelProps.get<sub_group_progress_key>();
+    if ((MKernelProps.get<work_group_progress_key>()->MFPGuarantee &&
+         *(FPWorkGroupProp->MFPGuarantee) ==
+             forward_progress_guarantee::concurrent) ||
+        (FPSubGroupProp->MFPGuarantee &&
+         *FPSubGroupProp->MFPGuarantee ==
+             forward_progress_guarantee::concurrent) ||
+        (MKernelProps.get<use_root_sync_key>()->MPresent)) {
+      return true;
+    }
+
+    return false;
+  }
 
   void setCooperative(bool IsCooperative) {
-    MKernelIsCooperative = IsCooperative;
+    // FIXME: Why we need this?
   }
 
-  bool usesClusterLaunch() const { return MKernelUsesClusterLaunch; }
+  bool usesClusterLaunch() const {
+    using namespace sycl::ext::oneapi::experimental;
+    using namespace sycl::ext::oneapi::experimental::detail;
+    using namespace sycl::ext::intel::experimental;
+    return MKernelProps.get<cuda::cluster_size_key<1>>()->MProperty ||
+           MKernelProps.get<cuda::cluster_size_key<2>>()->MProperty ||
+           MKernelProps.get<cuda::cluster_size_key<3>>()->MProperty;
+  }
 
   template <int Dims_> void setClusterDimensions(sycl::range<Dims_> N) {
-    MKernelUsesClusterLaunch = true;
     MNDRDesc.setClusterDimensions(N);
   }
 
   uint32_t getKernelWorkGroupMemorySize() const {
-    return MKernelWorkGroupMemorySize;
+    using namespace sycl::ext::oneapi::experimental;
+
+    if (auto prop = MKernelProps.get<work_group_scratch_size>()->MProperty)
+      return prop->size;
+
+    return 0;
   }
 
   void setKernelWorkGroupMemorySize(uint32_t Size) {
-    MKernelWorkGroupMemorySize = Size;
-  }
-
-  void parseAndSetCacheConfigProperty(
-      const sycl::ext::intel::experimental::cache_config_key &prop) {
-    using namespace sycl::ext::intel::experimental;
-
-    ur_kernel_cache_config_t CacheConfig =
-        ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_DEFAULT;
-    if (prop == large_slm) {
-      CacheConfig = ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_SLM;
-    } else if (prop == large_data) {
-      CacheConfig = ur_kernel_cache_config_t::UR_KERNEL_CACHE_CONFIG_LARGE_DATA;
-    } else
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Unknown cache property type encountered in "
-                            "parseAndSetCacheConfigProperty.");
-
-    MKernelCacheConfig = CacheConfig;
+    // FIXME: Why we need this?
   }
 
   template <int ClusterDims>
@@ -200,7 +236,6 @@ public:
       return;
 
     auto ClusterSize = prop->get_cluster_size();
-    MKernelUsesClusterLaunch = true;
 
     if constexpr (ClusterDims == 1)
       MNDRDesc.setClusterDimensions(sycl::range<1>{ClusterSize[0]});
@@ -273,35 +308,7 @@ public:
 
     validateProperties(Kprop, HasGraph, dev);
 
-    // If we are here, the device supports the guarantee required but
-    // there is a caveat in that if the guarantee required is a concurrent
-    // guarantee, then we most likely also need to enable cooperative
-    // launch of the kernel. That is, although the device supports the
-    // required guarantee, some setup work is needed to truly make the
-    // device provide that guarantee at runtime. Otherwise, we will get
-    // the default guarantee which is weaker than concurrent. Same
-    // reasoning applies for sub_group but not for work_item.
-    // TODO: Further design work is probably needed to reflect this
-    // behavior in Unified Runtime.
-    const auto *FPWorkGroupProp = Kprop.get<work_group_progress_key>();
-    const auto *FPSubGroupProp = Kprop.get<sub_group_progress_key>();
-    if ((Kprop.get<work_group_progress_key>()->MFPGuarantee &&
-         *(FPWorkGroupProp->MFPGuarantee) ==
-             forward_progress_guarantee::concurrent) ||
-        (FPSubGroupProp->MFPGuarantee &&
-         *FPSubGroupProp->MFPGuarantee ==
-             forward_progress_guarantee::concurrent)) {
-      setCooperative(true);
-    }
-
-    if (Kprop.get<use_root_sync_key>()->MPresent)
-      setCooperative(true);
-
-    if (auto prop = Kprop.get<cache_config_key>()->MProperty)
-      parseAndSetCacheConfigProperty(*prop);
-
-    if (auto prop = Kprop.get<work_group_scratch_size>()->MProperty)
-      setKernelWorkGroupMemorySize(prop->size);
+    MKernelProps = Kprop;
 
     parseAndSetClusterDimProperty(
         Kprop.get<cuda::cluster_size_key<1>>()->MProperty);
@@ -337,11 +344,7 @@ private:
   /// The list of arguments for the kernel.
   std::vector<detail::ArgDesc> MArgs;
 
-  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
-
-  bool MKernelIsCooperative = false;
-  bool MKernelUsesClusterLaunch = false;
-  uint32_t MKernelWorkGroupMemorySize = 0;
+  detail::KernelPropertyHolderStructTy MKernelProps;
 
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
