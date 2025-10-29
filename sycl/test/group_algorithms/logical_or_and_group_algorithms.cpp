@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl -Xclang -verify=expected -Xclang -verify-ignore-unexpected=note -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 %s
 
-// expected-error@sycl/group_algorithm.hpp:* 16 {{Result type of binary_op must match scan accumulation type}}
-// expected-error@sycl/group_algorithm.hpp:* 6 {{Result type of binary_op must match reduction accumulation type}}
 
 #include <sycl/functional.hpp>
 #include <sycl/group_algorithm.hpp>
@@ -16,9 +14,13 @@ void TestExclusiveScanOverGroup(sycl::queue &q) {
     cgh.parallel_for<class ExclusiveScanOverGroup>(
         nd_range<1>(1, 1), [=](nd_item<1> it) {
           group<1> g = it.get_group();
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           exclusive_scan_over_group(g, 0, sycl::logical_and<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           exclusive_scan_over_group(g, 0, 0, sycl::logical_and<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           exclusive_scan_over_group(g, 0, sycl::logical_or<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           exclusive_scan_over_group(g, 0, 0, sycl::logical_or<int>{});
         });
   });
@@ -42,12 +44,16 @@ void TestJointExclusiveScan(sycl::queue &q) {
            auto g = it.get_group();
            auto inPtr = in.get_multi_ptr<sycl::access::decorated::no>();
            auto outPtr = out.get_multi_ptr<sycl::access::decorated::no>();
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_exclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_and<int>{});
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}                     
            joint_exclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_or<int>{});
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_exclusive_scan(g, inPtr, inPtr + N, outPtr, 0,
                                 sycl::logical_and<int>{});
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_exclusive_scan(g, inPtr, inPtr + N, outPtr, 0,
                                 sycl::logical_or<int>{});
          });
@@ -59,9 +65,13 @@ void TestInclusiveScanOverGroup(sycl::queue &q) {
     cgh.parallel_for<class InclusiveScanOverGroup>(
         nd_range<1>(1, 1), [=](nd_item<1> it) {
           group<1> g = it.get_group();
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           inclusive_scan_over_group(g, 0, sycl::logical_and<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           inclusive_scan_over_group(g, 0, sycl::logical_and<int>{}, 0);
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           inclusive_scan_over_group(g, 0, sycl::logical_or<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
           inclusive_scan_over_group(g, 0, sycl::logical_or<int>{}, 0);
         });
   });
@@ -86,12 +96,16 @@ void TestJointInclusiveScan(sycl::queue &q) {
            auto inPtr = in.get_multi_ptr<sycl::access::decorated::no>();
            auto outPtr = out.get_multi_ptr<sycl::access::decorated::no>();
 
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_inclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_and<int>{});
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_inclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_or<int>{});
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_inclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_and<int>{}, 0);
+           // expected-error@sycl/group_algorithm.hpp:* {{static assertion failed}}{{Result type of binary_op must match scan accumulation type}}
            joint_inclusive_scan(g, inPtr, inPtr + N, outPtr,
                                 sycl::logical_or<int>{}, 0);
          });
@@ -103,9 +117,13 @@ void TestReduceOverGroup(sycl::queue &q) {
     cgh.parallel_for<class ReduceOverGroup>(
         nd_range<1>(1, 1), [=](nd_item<1> it) {
           group<1> g = it.get_group();
+          // expected-error@sycl/group_algorithm.hpp:* {{Result type of binary_op must match reduction accumulation type}}
           reduce_over_group(g, 0, sycl::logical_and<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{Result type of binary_op must match reduction accumulation type}}
           reduce_over_group(g, 0, 0, sycl::logical_and<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{Result type of binary_op must match reduction accumulation type}}
           reduce_over_group(g, 0, sycl::logical_or<int>{});
+          // expected-error@sycl/group_algorithm.hpp:* {{Result type of binary_op must match reduction accumulation type}}
           reduce_over_group(g, 0, 0, sycl::logical_or<int>{});
         });
   });
@@ -130,7 +148,9 @@ void TestJointReduce(sycl::queue &q) {
            auto inPtr = in.get_multi_ptr<sycl::access::decorated::no>();
            auto outPtr = out.get_multi_ptr<sycl::access::decorated::no>();
 
+           // expected-error@sycl/group_algorithm.hpp:* {{Result type of binary_op must match reduction accumulation type}}
            joint_reduce(g, inPtr, inPtr + N, 0, sycl::logical_and<int>{});
+           // expected-error@sycl/group_algorithm.hpp:* {{Result type of binary_op must match reduction accumulation type}}
            joint_reduce(g, inPtr, inPtr + N, 0, sycl::logical_or<int>{});
          });
    }).wait();
