@@ -141,12 +141,41 @@ uint64_t ur_event_handle_t_::getEventEndTimestamp() {
   return profilingData.getEventEndTimestamp();
 }
 
+void ur_event_handle_t_::retainFillPattern(const void *pPattern, size_t patternSize) {
+  if (!fillPattern) {
+    fillPattern.emplace();
+  }
+  
+  auto &storage = fillPattern.value();
+  storage.size = patternSize;
+  
+  // Small buffer optimization: use inline buffer for patterns <= 16 bytes
+  if (patternSize <= FillPatternStorage::INLINE_SIZE) {
+    std::memcpy(storage.inlineBuffer.data(), pPattern, patternSize);
+    storage.useHeap = false;
+  } else {
+    // Use heap buffer for larger patterns
+    storage.heapBuffer.resize(patternSize);
+    std::memcpy(storage.heapBuffer.data(), pPattern, patternSize);
+    storage.useHeap = true;
+  }
+}
+
+const void *ur_event_handle_t_::getFillPattern() const {
+  if (!fillPattern) {
+    return nullptr;
+  }
+  return fillPattern->data();
+}
+
 void ur_event_handle_t_::reset() {
   // consider make an abstraction for regular/counter based
   // events if there's more of this type of conditions
   if (!(flags & v2::EVENT_FLAGS_COUNTER)) {
     zeEventHostReset(getZeEvent());
   }
+  // Clear the fill pattern to avoid memory leak when event is reused from pool
+  fillPattern.reset();
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
