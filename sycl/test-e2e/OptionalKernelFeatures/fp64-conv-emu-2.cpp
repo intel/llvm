@@ -73,8 +73,8 @@ int main() {
   // FP64 emulation limited to kernels with FP64 conversions but no FP64
   // computations.
   // TODO: Implement support for a new flag, -fsycl-fp64-gen-emu, which will
-  // enable the use of the -ze-fp64-gen-emu IGC option. if
-  // (q.get_device().has(aspect::fp64)) {
+  // enable the use of the -ze-fp64-gen-emu IGC option.
+  // if (q.get_device().has(aspect::fp64)) {
   //   nfail += test<Increment<double>>(q);
   // }
 
