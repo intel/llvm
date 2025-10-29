@@ -29,7 +29,11 @@ inputs:
     type: string
     required: False
     default: ""
+  # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
   dry_run:
+    type: string
+    required: False
+  exit_on_failure:
     type: string
     required: False
 
@@ -192,8 +196,10 @@ runs:
       sycl-ls
       echo "-----"
 
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
-        "$(realpath ./llvm_test_workdir)" \
+      WORKDIR="$(realpath ./llvm_test_workdir)"
+      if [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && [[ "$WORKDIR" == *llvm_test_workdir* ]]; then rm -rf "$WORKDIR" ; fi
+
+      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$WORKDIR" \
         --sycl "$(realpath ./toolchain)" \
         --ur "$(realpath ./ur/install)" \
         --adapter "$FORCELOAD_ADAPTER" \
@@ -204,7 +210,8 @@ runs:
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
         --detect-version sycl,compute_runtime \
-        --flamegraph inclusive
+        ${{ inputs.exit_on_failure == 'true' && '--exit-on-failure --iterations 1' || '' }}
+      # TODO: add back: "--flamegraph inclusive" once works properly
 
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \

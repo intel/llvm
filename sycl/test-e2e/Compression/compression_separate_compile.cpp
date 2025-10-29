@@ -3,6 +3,12 @@
 
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
+// XFAIL: run-mode && preview-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
+
+// XFAIL: target-native_cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/20397
+
 // CPU AOT targets host isa, so we compile everything on the run system instead.
 //////////////////////  Compile device images
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o

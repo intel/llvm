@@ -128,6 +128,11 @@ __urdlllocal ur_result_t context_t::ddiInit() {
         urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Device);
   }
 
+  if (UR_RESULT_SUCCESS == result) {
+    result = urGetDeviceExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                         &urDdiTable.DeviceExp);
+  }
+
   return result;
 }
 
