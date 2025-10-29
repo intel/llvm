@@ -160,7 +160,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ matrix.preset }})"
+      name: "Benchmarks (${{ matrix.runner }}, ${{ matrix.backend }}, preset: ${{ inputs.preset }})"
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -234,7 +234,7 @@ jobs:
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
-      changes: ${{ needs.detect_changes.outputs.filters }}
+      changes: '[]'
       toolchain_artifact: sycl_linux_default
 
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
@@ -255,7 +255,7 @@ jobs:
       benchmark_dry_run: true
       benchmark_exit_on_failure: true
       repo_ref: ${{ github.sha }}
-      toolchain_artifact: ${{ needs.build.outputs.toolchain_artifact }}
-      toolchain_artifact_filename: ${{ needs.build.outputs.toolchain_artifact_filename }}
-      toolchain_decompress_command: ${{ needs.build.outputs.toolchain_decompress_command }}
+      toolchain_artifact: ${{ needs.build_pr.outputs.toolchain_artifact }}
+      toolchain_artifact_filename: ${{ needs.build_pr.outputs.toolchain_artifact_filename }}
+      toolchain_decompress_command: ${{ needs.build_pr.outputs.toolchain_decompress_command }}
   # END benchmark framework builds and runs on PRs path
