@@ -1,0 +1,125 @@
+= sycl_ext_oneapi_device_default_context
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2025 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 10 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+[_Note:_ The APIs in this extension depend on the concept of a per-platform
+default context as specified in section 4.6.2 "Platform class" of the core SYCL
+specification.
+As a convenience, this extension specification describes the behavior of its
+APIs by using the `khr_get_default_context` function from {khr-default-context}[
+sycl_khr_default_context], however there is no true dependency on that
+extension.
+An implementation could still implement sycl_ext_oneapi_device_default_context
+even without implementing sycl_khr_default_context because the core SYCL
+specification still requires there to be a per-platform default context even if
+the core SYCL specification does not provide a convenient way to get it.
+_{endnote}_]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be in
+a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension provides a shortcut to get the platform's default context from a
+`device` object.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_DEVICE_DEFAULT_CONTEXT` to one of the values defined in the
+table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New member function in the device class
+
+This extension adds the following new member function to the `device` class.
+
+[source,c++]
+----
+class device {
+  // ...
+  context ext_oneapi_get_default_context();
+};
+----
+
+'''
+
+[source,c++]
+----
+context ext_oneapi_get_default_context();
+----
+
+_Effects_: Equivalent to:
+
+[source,c++,indent=2]
+----
+return get_platform().khr_get_default_context();
+----
+
+'''

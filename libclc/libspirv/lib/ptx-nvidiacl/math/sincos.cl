@@ -9,7 +9,6 @@
 #include <libspirv/spirv.h>
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
-#include <clc/clcmacro.h>
 
 #define __CLC_SINCOS_IMPL(ADDRSPACE, BUILTIN, FP_TYPE, ARG_TYPE)               \
   _CLC_OVERLOAD _CLC_DEF ARG_TYPE __spirv_ocl_sincos(                          \
@@ -28,32 +27,28 @@
 
 __CLC_SINCOS(__nv_sincosf, float, float)
 
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sincos, float,
-                      private, float)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sincos, float,
-                      local, float)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sincos, float,
-                      global, float)
-
 #ifdef cl_khr_fp64
 __CLC_SINCOS(__nv_sincos, double, double)
-
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sincos,
-                      double, private, double)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sincos,
-                      double, local, double)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sincos,
-                      double, global, double)
 #endif
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 __CLC_SINCOS(__nv_sincosf, float, half)
-
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sincos, half,
-                      private, half)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sincos, half,
-                      local, half)
-_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sincos, half,
-                      global, half)
 #endif
+
+#define __CLC_FUNCTION __spirv_ocl_sincos
+
+#define __CLC_ADDRSPACE private
+#define __CLC_BODY <clc/shared/unary_def_with_ptr_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ADDRSPACE
+
+#define __CLC_ADDRSPACE local
+#define __CLC_BODY <clc/shared/unary_def_with_ptr_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ADDRSPACE
+
+#define __CLC_ADDRSPACE global
+#define __CLC_BODY <clc/shared/unary_def_with_ptr_scalarize.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ADDRSPACE

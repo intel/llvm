@@ -201,7 +201,7 @@ jobs:
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build \
           -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/toolchain \
           -t Release \
-          --ci-defaults ${{ inputs.build_configure_extra_args }} \
+          --ci-defaults --use-zstd ${{ inputs.build_configure_extra_args }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON

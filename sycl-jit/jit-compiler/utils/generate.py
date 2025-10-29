@@ -52,15 +52,7 @@ const resource_file ToolchainFiles[] = {"""
                     file_path = os.path.join(root, file)
                     process_file(file_path)
 
-        process_dir(os.path.join(args.toolchain_dir, "include/"))
-        process_dir(os.path.join(args.toolchain_dir, "lib/clang/"))
-        process_dir(os.path.join(args.toolchain_dir, "lib/clc/"))
-
-        for file in glob.iglob(
-            "*.bc", root_dir=os.path.join(args.toolchain_dir, "lib")
-        ):
-            file_path = os.path.join(args.toolchain_dir, "lib", file)
-            process_file(file_path)
+        process_dir(args.toolchain_dir)
 
         out.write(
             f"""

@@ -23,6 +23,9 @@
 #include <shared_mutex> // for shared_mutex
 #include <vector>       // for vector
 
+// For testing of graph internals
+class GraphImplTest;
+
 namespace sycl {
 inline namespace _V1 {
 // Forward declarations
@@ -732,6 +735,10 @@ public:
   }
 
 private:
+  // Test helper class for inspecting private graph internals to validate
+  // under-the-hood behavior and optimizations.
+  friend class ::GraphImplTest;
+
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
   /// @param CommandBuffer Command-buffer to add node to as a command.

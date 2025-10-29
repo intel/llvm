@@ -1146,6 +1146,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
+  case UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP: {
+    int IPCSupported = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(&IPCSupported,
+                                        CU_DEVICE_ATTRIBUTE_IPC_EVENT_SUPPORTED,
+                                        hDevice->get()));
+    return ReturnValue(static_cast<ur_bool_t>(IPCSupported));
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1170,6 +1177,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1394,4 +1405,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
 
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+/// Synchronizes with all queues on the device.
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceWaitExp(ur_device_handle_t hDevice) {
+  ScopedContext Active(hDevice);
+  UR_CHECK_ERROR(cuCtxSynchronize());
+  return UR_RESULT_SUCCESS;
 }

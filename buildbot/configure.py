@@ -64,7 +64,7 @@ def do_configure(args, passthrough_args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "OFF"
+    llvm_enable_zstd = "ON"
     spirv_enable_dis = "OFF"
 
     if sys.platform != "darwin":

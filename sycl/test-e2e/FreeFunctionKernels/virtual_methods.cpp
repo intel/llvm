@@ -6,6 +6,7 @@
  * kernel arguments.
  */
 
+#include <cmath>
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
@@ -52,9 +53,10 @@ void func_single(TestClass *acc, float *ptr) {
 }
 
 int check_result(float *ptr) {
+  constexpr float diff_cmp = 1e-4f;
   for (size_t i = 0; i < NUM; ++i) {
     const float expected = 3.14f + static_cast<float>(i) + offset;
-    if (ptr[i] != expected)
+    if (std::fabs(ptr[i] - expected) > diff_cmp)
       return 1;
   }
   return 0;

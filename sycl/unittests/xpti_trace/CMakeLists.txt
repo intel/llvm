@@ -8,4 +8,3 @@ add_sycl_unittest(XptiTraceTests OBJECT
 )
 target_link_libraries(XptiTraceTests_non_preview PRIVATE xpti xptitest_subscriber)
 target_link_libraries(XptiTraceTests_preview PRIVATE xpti xptitest_subscriber)
-target_link_libraries(XptiTraceTests_no_cgh PRIVATE xpti xptitest_subscriber)

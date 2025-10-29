@@ -134,9 +134,16 @@ on:
         type: string
         default: 'Minimal'
         required: False
+      # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
       benchmark_dry_run:
         description: |
           Whether or not to fail the workflow upon a regression.
+        type: string
+        default: 'false'
+        required: False
+      benchmark_exit_on_failure:
+        description: |
+          Whether or not to fail the workflow upon a failure.
         type: string
         default: 'false'
         required: False
@@ -210,6 +217,12 @@ on:
           - "full"
           - "build-only"
           - "run-only"
+
+      benchmark_exit_on_failure:
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
   contents: read
@@ -358,6 +371,7 @@ jobs:
         save_name: ${{ inputs.benchmark_save_name }}
         preset: ${{ inputs.benchmark_preset }}
         dry_run: ${{ inputs.benchmark_dry_run }}
+        exit_on_failure: ${{ inputs.benchmark_exit_on_failure }}
         build_ref: ${{ inputs.repo_ref }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <fmin_common.inc>

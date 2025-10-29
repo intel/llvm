@@ -117,7 +117,7 @@ private:
   std::vector<std::optional<ur_single_device_kernel_t>> deviceKernels;
 
   // Cache of the common kernel properties.
-  mutable ZeCache<common_properties_t> zeCommonProperties;
+  common_properties_t zeCommonProperties;
 
   // Index of the device in the deviceKernels vector.
   size_t deviceIndex(ur_device_handle_t hDevice) const;

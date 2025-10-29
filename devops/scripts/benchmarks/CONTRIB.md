@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The suite is structured around three main components: Suites, Benchmarks, and Results.
+The suite is structured around four main components: Suites, Benchmarks, Results, and BenchmarkMetadata.
 
 1. **Suites:**
     * Collections of related benchmarks (e.g., `ComputeBench`, `LlamaCppBench`).
@@ -170,7 +170,7 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
     * If adding to an existing category, modify the corresponding `Suite` class (e.g., `benches/compute.py`) to instantiate and return your new benchmark in its `benchmarks()` method.
     * If creating a new category, create a new `Suite` class inheriting from `benches.base.Suite`. Implement `name()` and `benchmarks()`. Add necessary `setup()` if the suite requires shared setup. Add group metadata via `additional_metadata()` if needed.
 3. **Register Suite:** Import and add your new `Suite` instance to the `suites` list in `main.py`.
-4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets.
+4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets. Update `README.md` and benchmarking workflow to include the new suite in presets' description/choices.
 
 ## Recommendations
 

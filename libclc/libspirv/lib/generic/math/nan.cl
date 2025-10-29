@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc_as_type.h>
-#include <clc/utils.h>
+#include <clc/math/clc_nan.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <nan.inc>

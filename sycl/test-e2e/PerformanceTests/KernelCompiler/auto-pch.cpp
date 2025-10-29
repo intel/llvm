@@ -1,4 +1,4 @@
-// RUN: %{build} -O3 -o %t.out
+// RUN: %{build} '-DPCH_DIR="%/t.dir"' -O3 -o %t.out
 // RUN: %if hip %{ env SYCL_JIT_AMDGCN_PTX_TARGET_CPU=%{amd_arch} %} %{run} %t.out
 
 // UNSUPPORTED: target-native_cpu
@@ -8,6 +8,7 @@
 #include <sycl/kernel_bundle.hpp>
 
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string_view>
@@ -77,14 +78,22 @@ void iota(float start, float *ptr) {
   std::cout << "| ";
   Run(syclexp::properties{
       syclexp::build_options{std::vector<std::string>{"--auto-pch"}}});
+  std::error_code ec;
+  std::filesystem::remove_all(PCH_DIR, ec);
+
+  std::cout << "| ";
+  Run(syclexp::properties{syclexp::build_options{
+      std::vector<std::string>{"--persistent-auto-pch=" PCH_DIR}}});
   std::cout << std::endl;
 }
 
 int main(int argc, char **argv) {
   // So that output could be copy-pasted into GH comments and rendered as a
   // table:
-  std::cout << "Extra Headers | Without PCH | With auto-PCH" << std::endl;
-  std::cout << "-|-|-" << std::endl;
+  std::cout << "Extra Headers | Without PCH | With Auto-PCH | With Persistent "
+               "Auto-PCH"
+            << std::endl;
+  std::cout << "-|-|-|-" << std::endl;
   run({});
   run({"sycl/half_type.hpp"});
   run({"sycl/ext/oneapi/bfloat16.hpp"});
@@ -92,4 +101,5 @@ int main(int argc, char **argv) {
   run({"sycl/vector.hpp"});
   run({"sycl/multi_ptr.hpp"});
   run({"sycl/builtins.hpp"});
+  run({"sycl/ext/oneapi/matrix/matrix.hpp"});
 }

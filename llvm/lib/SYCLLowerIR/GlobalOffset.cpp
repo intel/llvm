@@ -60,16 +60,52 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
-// Recursive helper function to collect Loads from GEPs in a BFS fashion.
-static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
-                     SmallVectorImpl<LoadInst *> &Loads) {
-  Traversed.push_back(P);
-  if (auto *L = dyn_cast<LoadInst>(P)) // Base case for recursion
-    Loads.push_back(L);
-  else {
-    assert(isa<GetElementPtrInst>(*P));
-    for (Value *V : P->users())
-      getLoads(cast<Instruction>(V), Traversed, Loads);
+// Helper function to collect all Uses of Load's pointer operand in post-order.
+static void collectGlobalOffsetUses(Function *ImplicitOffsetIntrinsic,
+                                    SmallVectorImpl<Instruction *> &LoadPtrUses,
+                                    SmallVectorImpl<Instruction *> &Loads) {
+  SmallVector<Instruction *, 4> WorkList;
+  SmallPtrSet<Value *, 4> Visited;
+
+  // Find load instructions.
+  for (auto *U : ImplicitOffsetIntrinsic->users()) {
+    for (auto *U2 : cast<CallInst>(U)->users()) {
+      auto *I = cast<Instruction>(U2);
+      WorkList.push_back(I);
+      Visited.insert(I);
+    }
+  }
+  while (!WorkList.empty()) {
+    Instruction *I = WorkList.pop_back_val();
+    if (isa<PHINode>(I) || isa<GetElementPtrInst>(I)) {
+      for (User *U : I->users())
+        if (Visited.insert(U).second)
+          WorkList.push_back(cast<Instruction>(U));
+    }
+    if (isa<LoadInst>(I))
+      Loads.push_back(I);
+  }
+
+  // For each load, find its defs by post-order walking operand use.
+  Visited.clear();
+  for (auto *LI : Loads) {
+    Use *OpUse0 = &LI->getOperandUse(0);
+    auto PostOrderTraveral = [&](auto &Self, Use &U) -> void {
+      auto *I = cast<Instruction>(U.get());
+      Visited.insert(I);
+      for (auto &Op : I->operands()) {
+        auto *OpI = dyn_cast<Instruction>(Op.get());
+        if (!OpI || isa<CallInst>(OpI))
+          continue;
+        if (!Visited.contains(OpI))
+          Self(Self, Op);
+      }
+      if (!isa<CallInst>(I))
+        LoadPtrUses.push_back(I);
+    };
+    Visited.insert(LI);
+    if (!Visited.contains(OpUse0->get()))
+      PostOrderTraveral(PostOrderTraveral, *OpUse0);
   }
 }
 
@@ -199,32 +235,29 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     // Add implicit parameters to all direct and indirect users of the offset
     addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr, KCache);
   }
-  SmallVector<CallInst *, 4> Worklist;
-  SmallVector<LoadInst *, 4> Loads;
+  SmallVector<Instruction *, 4> Loads;
   SmallVector<Instruction *, 4> PtrUses;
 
-  // Collect all GEPs and Loads from the intrinsic's CallInsts
-  for (Value *V : ImplicitOffsetIntrinsic->users()) {
-    Worklist.push_back(cast<CallInst>(V));
-    for (Value *V2 : V->users())
-      getLoads(cast<Instruction>(V2), PtrUses, Loads);
-  }
+  collectGlobalOffsetUses(ImplicitOffsetIntrinsic, PtrUses, Loads);
 
   // Replace each use of a collected Load with a Constant 0
-  for (LoadInst *L : Loads)
+  for (Instruction *L : Loads) {
     L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
+    L->eraseFromParent();
+  }
 
-  // Remove all collected Loads and GEPs from the kernel.
-  // PtrUses is returned by `getLoads` in topological order.
+  // Try to remove all collected Loads and their Defs from the kernel.
+  // PtrUses is returned by `collectGlobalOffsetUses` in topological order.
   // Walk it backwards so we don't violate users.
-  for (auto *I : reverse(PtrUses))
-    I->eraseFromParent();
+  for (auto *I : reverse(PtrUses)) {
+    // A Def might not be a GEP. Remove it if it has no use.
+    if (I->use_empty())
+      I->eraseFromParent();
+  }
 
   // Remove all collected CallInsts from the kernel.
-  for (CallInst *CI : Worklist) {
-    auto *I = cast<Instruction>(CI);
-    I->eraseFromParent();
-  }
+  for (auto *U : make_early_inc_range(ImplicitOffsetIntrinsic->users()))
+    cast<Instruction>(U)->eraseFromParent();
 
   // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
   // it.

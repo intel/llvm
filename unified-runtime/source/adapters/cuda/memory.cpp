@@ -15,6 +15,7 @@
 #include "enqueue.hpp"
 #include "memory.hpp"
 #include "umf_helpers.hpp"
+#include "usm.hpp"
 
 /// Creates a UR Memory object using a CUDA memory allocation.
 /// Can trigger a manual copy depending on the mode.
@@ -588,4 +589,64 @@ CUsurfObject SurfaceMem::getSurface(const ur_device_handle_t Device) {
     throw Err;
   }
   return SurfObjs[OuterMemStruct->getContext()->getDeviceIndex(Device)];
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCGetMemHandleExp(ur_context_handle_t, void *pMem, void *pIPCMemHandleData,
+                     size_t *pIPCMemHandleDataSizeRet) {
+  umf_memory_pool_handle_t umfPool;
+  auto urRet = umf::umf2urResult(umfPoolByPtr(pMem, &umfPool));
+  if (urRet)
+    return urRet;
+
+  // Fast path for returning the size of the handle only.
+  if (!pIPCMemHandleData)
+    return umf::umf2urResult(
+        umfPoolGetIPCHandleSize(umfPool, pIPCMemHandleDataSizeRet));
+
+  size_t fallbackUMFHandleSize = 0;
+  size_t *umfHandleSize = pIPCMemHandleDataSizeRet != nullptr
+                              ? pIPCMemHandleDataSizeRet
+                              : &fallbackUMFHandleSize;
+  umf_ipc_handle_t umfHandle;
+  urRet = umf::umf2urResult(umfGetIPCHandle(pMem, &umfHandle, umfHandleSize));
+  if (urRet)
+    return urRet;
+  std::memcpy(pIPCMemHandleData, umfHandle, *umfHandleSize);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urIPCPutMemHandleExp(ur_context_handle_t, void *pIPCMemHandleData) {
+  return umf::umf2urResult(
+      umfPutIPCHandle(reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData)));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    ur_context_handle_t, ur_device_handle_t hDevice, void *pIPCMemHandleData,
+    size_t ipcMemHandleDataSize, void **ppMem) {
+  umf_memory_pool_handle_t umfPool = hDevice->MemoryPoolDevice;
+
+  size_t umfHandleSize = 0;
+  auto urRet =
+      umf::umf2urResult(umfPoolGetIPCHandleSize(umfPool, &umfHandleSize));
+  if (urRet)
+    return urRet;
+
+  if (umfHandleSize != ipcMemHandleDataSize)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  umf_ipc_handler_handle_t umfIPCHandler;
+  urRet = umf::umf2urResult(umfPoolGetIPCHandler(umfPool, &umfIPCHandler));
+  if (urRet)
+    return urRet;
+
+  return umf::umf2urResult(umfOpenIPCHandle(
+      umfIPCHandler, reinterpret_cast<umf_ipc_handle_t>(pIPCMemHandleData),
+      ppMem));
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urIPCCloseMemHandleExp(ur_context_handle_t,
+                                                           void *pMem) {
+  return umf::umf2urResult(umfCloseIPCHandle(pMem));
 }

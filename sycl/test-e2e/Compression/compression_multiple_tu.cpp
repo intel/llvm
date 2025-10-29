@@ -2,10 +2,11 @@
 // translation units, one compressed and one not compressed.
 // REQUIRES: zstd, linux
 
-// RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %T/kernel1.so
-// RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %T/kernel2.so
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %t.dir/kernel1.so
+// RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %t.dir/kernel2.so
 
-// RUN: %{build} %T/kernel1.so %T/kernel2.so -o %t_compress.out
+// RUN: %{build} %t.dir/kernel1.so %t.dir/kernel2.so -o %t_compress.out
 // RUN: %{run} %t_compress.out
 #if defined(ENABLE_KERNEL1) || defined(ENABLE_KERNEL2)
 #include <sycl/builtins.hpp>

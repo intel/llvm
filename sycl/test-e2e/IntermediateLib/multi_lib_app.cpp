@@ -5,8 +5,8 @@
 // DEFINE: %{shared_lib_ext} = %if windows %{dll%} %else %{so%}
 
 // clang-format off
-// IMPORTANT   -DSO_PATH='R"(%T)"'
-//              We need to capture %T, the build directory, in a string
+// IMPORTANT   -DSO_PATH='R"(%t.dir)"'
+//              We need to capture %t.dir, the build directory, in a string
 //              and the normal STRINGIFY() macros hack won't work.
 //              Because on Windows, the path delimiters are \, 
 //              which C++ preprocessor converts to escape sequences, 
@@ -16,15 +16,16 @@
 // clang-format on 
 
 // On Windows, the CI sometimes builds on one machine and runs on another.
-// This means that %T might not be consistent between build and run.
+// This means that %t.dir might not be consistent between build and run.
 // So we use %{run-aux} to perform ALL actions on the run machine 
 // like we do for the AoT tests.
- 
-// RUN: %{run-aux} %clangxx -fsycl  %{fPIC_flag} -DSO_PATH='R"(%T)"' -o %t.out %s
 
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=1 -o %T/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=2 -o %T/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
-// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=4 -o %T/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN: rm -rf %t.dir ; mkdir -p %t.dir 
+// RUN: %{run-aux} %clangxx -fsycl  %{fPIC_flag} -DSO_PATH='R"(%t.dir)"' -o %t.out %s
+
+// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=1 -o %t.dir/lib_a.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=2 -o %t.dir/lib_b.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
+// RUN:  %{run-aux} %clangxx -fsycl %{fPIC_flag} -shared -DINC=4 -o %t.dir/lib_c.%{shared_lib_ext} %S/Inputs/incrementing_lib.cpp
 
 // RUN:  env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
 

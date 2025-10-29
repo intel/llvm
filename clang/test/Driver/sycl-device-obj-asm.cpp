@@ -30,10 +30,10 @@
 
 /// -fsycl-device-obj=asm should always be accompanied by -fsycl-device-only
 /// and -S, check that the compiler issues a correct warning message:
-// RUN:   %clang -nocudalib -fsycl-device-only -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -fsycl-device-obj=asm %s 2>&1 -o - | FileCheck %s --check-prefix=CHECK-NO-DEV-ONLY-NO-S
+// RUN:   %clang -### -nocudalib -fsycl-device-only -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -fsycl-device-obj=asm %s 2>&1 -o - -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc | FileCheck %s --check-prefix=CHECK-NO-DEV-ONLY-NO-S
 // CHECK-NO-DEV-ONLY-NO-S: warning: -fsycl-device-obj=asm flag has an effect only when compiling device code and emitting assembly, make sure both -fsycl-device-only and -S flags are present; will be ignored [-Wunused-command-line-argument]
 
 /// -fsycl-device-obj=asm will finish at generating assembly stage, hence
 /// inform users that generating library will not be possible (ignore -c)
-// RUN:   %clang -nocudalib -fsycl-device-only -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -fsycl-device-obj=asm %s 2>&1 -fsycl-device-only -S -c -o - | FileCheck %s --check-prefix=CHECK-DASH-C-IGNORE
+// RUN:   %clang -### -nocudalib -fsycl-device-only -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -fsycl-device-obj=asm %s 2>&1 -fsycl-device-only -S -c -o - -fsycl-libspirv-path=%S/Inputs/SYCL/share/clc/remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc | FileCheck %s --check-prefix=CHECK-DASH-C-IGNORE
 // CHECK-DASH-C-IGNORE: warning: argument unused during compilation: '-c' [-Wunused-command-line-argument]

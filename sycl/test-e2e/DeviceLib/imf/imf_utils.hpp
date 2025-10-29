@@ -14,6 +14,11 @@ typedef _Float16 _iml_half_internal;
 typedef uint16_t _iml_half_internal;
 #endif
 
+#define EXP_MASK32 0xFF
+#define EXP_MASK64 0x7FF
+#define FRA_MASK32 0x7FFFFF
+#define FRA_MASK64 0xFFFFFFFFFFFFF
+
 template <class Ty> class imf_utils_default_equ {
 public:
   bool operator()(Ty x, Ty y) {
@@ -22,6 +27,28 @@ public:
     } else
       return x == y;
   };
+};
+
+template <> class imf_utils_default_equ<uint32_t> {
+public:
+  bool operator()(uint32_t x, uint32_t y) {
+    bool x_is_nan =
+        (((x >> 23) & EXP_MASK32) == EXP_MASK32) && ((x & FRA_MASK32) != 0);
+    bool y_is_nan =
+        (((y >> 23) & EXP_MASK32) == EXP_MASK32) && ((y & FRA_MASK32) != 0);
+    return (x_is_nan && y_is_nan) || (x == y);
+  }
+};
+
+template <> class imf_utils_default_equ<uint64_t> {
+public:
+  bool operator()(uint64_t x, uint64_t y) {
+    bool x_is_nan =
+        (((x >> 52) & EXP_MASK64) == EXP_MASK64) && ((x & FRA_MASK64) != 0);
+    bool y_is_nan =
+        (((y >> 52) & EXP_MASK64) == EXP_MASK64) && ((y & FRA_MASK64) != 0);
+    return (x_is_nan && y_is_nan) || (x == y);
+  }
 };
 
 // Used to test half precision utils

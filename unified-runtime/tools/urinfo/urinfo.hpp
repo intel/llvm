@@ -445,6 +445,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_exp_device_2d_block_array_capability_flags_t>(
       hDevice, UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IPC_MEMORY_SUPPORT_EXP);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP);
   std::cout << prefix;
@@ -462,6 +464,10 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_DEVICE_WAIT_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP);

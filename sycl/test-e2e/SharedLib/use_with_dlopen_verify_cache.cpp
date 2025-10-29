@@ -1,8 +1,9 @@
 // REQUIRES: linux
 //
-// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t.so
 
-// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%T
+// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%t.dir
 
 // RUN: %{compile} -o %t1.out -DRUN_FIRST
 // RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild

@@ -1140,6 +1140,14 @@ ur_result_t urPrintExpCommandBufferUpdateKernelLaunchDesc(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpProgramFlags(enum ur_exp_program_flag_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
                                const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -2009,6 +2017,38 @@ ur_result_t urPrintEventSetCallbackParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintIpcGetMemHandleExpParams(
+    const struct ur_ipc_get_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcPutMemHandleExpParams(
+    const struct ur_ipc_put_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcOpenMemHandleExpParams(
+    const struct ur_ipc_open_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintIpcCloseMemHandleExpParams(
+    const struct ur_ipc_close_mem_handle_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintKernelCreateParams(const struct ur_kernel_create_params_t *params,
                           char *buffer, const size_t buff_size,
@@ -2433,6 +2473,14 @@ ur_result_t
 urPrintProgramBuildParams(const struct ur_program_build_params_t *params,
                           char *buffer, const size_t buff_size,
                           size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintProgramDynamicLinkExpParams(
+    const struct ur_program_dynamic_link_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -3018,6 +3066,15 @@ ur_result_t urPrintDeviceCreateWithNativeHandleParams(
 ur_result_t urPrintDeviceGetGlobalTimestampsParams(
     const struct ur_device_get_global_timestamps_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintDeviceWaitExpParams(const struct ur_device_wait_exp_params_t *params,
+                           char *buffer, const size_t buff_size,
+                           size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

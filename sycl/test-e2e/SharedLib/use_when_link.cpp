@@ -1,11 +1,12 @@
 // REQUIRES: linux
 //
-// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
+// RUN: rm -rf %t.dir; mkdir -p %t.dir
+// RUN: %{build} -DBUILD_LIB -fPIC -shared -o %t.dir/lib%basename_t.so
 
-// RUN: %{build} -DFOO_FIRST -L%T -o %t1.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{build} -DFOO_FIRST -L%t.dir -o %t1.out -l%basename_t -Wl,-rpath=%t.dir
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -L%T -o %t2.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{build} -L%t.dir -o %t2.out -l%basename_t -Wl,-rpath=%t.dir
 // RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>

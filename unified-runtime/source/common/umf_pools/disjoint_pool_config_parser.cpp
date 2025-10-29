@@ -267,4 +267,13 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
 
   return AllConfigs;
 }
+
+std::optional<DisjointPoolAllConfigs>
+parseDisjointPoolConfigOptional(const std::string &config, int trace) {
+  auto configs = parseDisjointPoolConfig(config, trace);
+  if (configs.EnableBuffers == 0) {
+    return std::nullopt;
+  }
+  return configs;
+}
 } // namespace usm

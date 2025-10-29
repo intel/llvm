@@ -57,7 +57,7 @@ class GromacsBench(Suite):
                 self.git_tag(),
                 Path(options.workdir),
                 "gromacs",
-                force_rebuild=True,
+                use_installdir=False,
             )
 
         # TODO: Detect the GPU architecture and set the appropriate flags
@@ -83,8 +83,12 @@ class GromacsBench(Suite):
         if options.unitrace:
             extra_args.append("-DGMX_USE_ITT=ON")
 
-        self.project.configure(extra_args, install_prefix=False, add_sycl=True)
-        self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())
+        if self.project.needs_rebuild():
+            self.project.configure(extra_args, add_sycl=True)
+            self.project.build(add_sycl=True, ld_library=self.oneapi.ld_libraries())
+        else:
+            log.info(f"Rebuilding {self.project.name} skipped")
+
         download(
             options.workdir,
             self.grappa_url(),

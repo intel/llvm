@@ -1,6 +1,6 @@
-# Unified Runtime Benchmark Runner
+# SYCL and Unified Runtime Benchmark Runner
 
-Scripts for running performance tests on SYCL and Unified Runtime.
+Scripts for running benchmarks on SYCL and Unified Runtime.
 
 ## Benchmarks
 
@@ -31,24 +31,26 @@ $ pip install -r requirements.txt
 $ ./main.py ~/benchmarks_workdir/ --sycl ~/llvm/build/ --ur ~/ur_install --adapter adapter_name
 ```
 
-This last command will **download and build** everything in `~/benchmarks_workdir/`  
-using the built compiler located in `~/llvm/build/`,  
-UR **install directory** from `~/ur`,  
+This last command will **download and build** everything in `~/benchmarks_workdir/`
+using the built compiler located in `~/llvm/build/` and
+installed Unified Runtime in directory `~/ur_install`,
 and then **run** the benchmarks for `adapter_name` adapter.
+
+The scripts will try to reuse the files stored in `~/benchmarks_workdir/`. 
+If any dependant projects binaries are already built, they will not be rebuilt
+again if their tags match tags specified by benchmarks source code.
 
 >NOTE: By default `level_zero` adapter is used.
 
 >NOTE: Pay attention to the `--ur` parameter. It points directly to the directory where UR is installed.  
 To install Unified Runtime in the predefined location, use the `-DCMAKE_INSTALL_PREFIX`.
 
-UR build example:
+UR build and install example:
 ```
 $ cmake -DCMAKE_BUILD_TYPE=Release -S~/llvm/unified-runtime -B~/ur_build -DCMAKE_INSTALL_PREFIX=~/ur_install -DUR_BUILD_ADAPTER_L0=ON -DUR_BUILD_ADAPTER_L0_V2=ON
+$ cmake --build ~/ur_build -j $(nproc)
+$ cmake --install ~/ur_build
 ```
-
-### Rebuild
-The scripts will try to reuse the files stored in `~/benchmarks_workdir/`, but the benchmarks will be rebuilt every time.  
-To avoid that, use `--no-rebuild` option.
 
 ## Results
 
@@ -95,11 +97,12 @@ In addition to the above parameters, there are also additional options that help
 `--preset <option>` - limits the types of benchmarks that are run.
 
 The available benchmarks options are:
-* `Full` (Compute, Gromacs, llama, SYCL, Velocity and UMF benchmarks)
+* `Full` (BenchDNN, Compute, Gromacs, llama, SYCL, Velocity and UMF benchmarks)
 * `SYCL` (Compute, llama, SYCL, Velocity)
 * `Minimal` (Compute)
-* `Normal` (Compute, Gromacs, llama, Velocity)
+* `Normal` (BenchDNN, Compute, Gromacs, llama, Velocity)
 * `Gromacs` (Gromacs)
+* `OneDNN` (BenchDNN)
 * `Test` (Test Suite)
 
 `--filter <regex>` - allows to set the regex pattern to filter benchmarks by name.
@@ -108,18 +111,17 @@ For example `--filter "graph_api_*"`
 
 ## Running in CI
 
-The benchmarks scripts are used in a GitHub Actions worflow, and can be automatically executed on a preconfigured system against any Pull Request.
+The benchmarks scripts are used in a GitHub Actions workflow, and can be automatically executed on a preconfigured system against any Pull Request.
 
 ![compute benchmarks](workflow.png "Compute Benchmarks CI job")
 
-To execute the benchmarks in CI, navigate to the `Actions` tab and then go to the `Compute Benchmarks` action. Here, you will find a list of previous runs and a "Run workflow" button. Upon clicking the button, you will be prompted to fill in a form to customize your benchmark run. The only mandatory field is the `PR number`, which is the identifier for the Pull Request against which you want the benchmarks to run.
+To execute the benchmarks in CI, navigate to the `Actions` tab and then go to the `SYCL Run Benchmarks` workflow. Here, you will find a list of previous runs and a "Run workflow" button. Upon clicking the button, you will be prompted to fill in a form to customize your benchmark run. Important field is the `PR number`, which is the identifier for the Pull Request against which you want the benchmarks to run. Instead, you can specify `Commit hash` from within intel/llvm repository, or leave both empty to run benchmarks against the branch/tag the workflow started from (the value from dropdown list at the top).
 
-You can also include additional benchmark parameters, such as environment variables or filters. For a complete list of options, refer to `$ ./main.py --help`.
-
-Once all the required information is entered, click the "Run workflow" button to initiate a new workflow run. This will execute the benchmarks and then post the results as a comment on the specified Pull Request.
+Once all the information is entered, click the "Run workflow" button to initiate a new workflow run. This will execute the benchmarks and then post the results as a comment on the specified Pull Request.
 
 >NOTE: You must be a member of the `oneapi-src` organization to access these features.
 
+## Requirements
 ### System
 
 Sobel Filter benchmark:

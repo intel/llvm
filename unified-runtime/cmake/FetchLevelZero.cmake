@@ -17,7 +17,7 @@ set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
 # Remember to update the pkg_check_modules ans UR_LEVEL_ZERO_LOADER_TAG minimum version 
 # below when updating the clone tag
 
-set(UR_LEVEL_ZERO_LOADER_TAG v1.25.0)
+set(UR_LEVEL_ZERO_LOADER_TAG 5187acd1c0f34097658f6ed890f1e5a65bdc35b9)
 
 string(LENGTH "${UR_LEVEL_ZERO_LOADER_TAG}" TAG_LENGTH)
 message("${UR_LEVEL_ZERO_LOADER_TAG}")

@@ -727,6 +727,10 @@ void PrecompiledPreamble::OverridePreamble(
   configurePreamble(Bounds, CI, VFS, MainFileBuffer);
 }
 
+llvm::StringRef PrecompiledPreamble::memoryContents() const {
+  return Storage->memoryContents();
+}
+
 PrecompiledPreamble::PrecompiledPreamble(
     std::unique_ptr<PCHStorage> Storage, std::vector<char> PreambleBytes,
     bool PreambleEndsAtStartOfLine,
