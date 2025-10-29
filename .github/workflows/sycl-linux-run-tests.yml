@@ -134,6 +134,7 @@ on:
         type: string
         default: 'Minimal'
         required: False
+      # dry-run is passed only to compare.py (to not fail on regression), not to main.py (where such flag would omit all benchmark runs)
       benchmark_dry_run:
         description: |
           Whether or not to fail the workflow upon a regression.
