@@ -36,15 +36,14 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 9 specification.  All
+This extension is written against the SYCL 2020 revision 10 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 The following extensions are required:
 
 - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-
-- link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+- link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
 
 
 == Status
@@ -112,9 +111,9 @@ in device local memory.
 
 === Kernel properties
 
-The `work_group_scratch_size` property must be passed to a kernel to determine
-the run-time size of the device local memory allocation associated with
-all `get_work_group_scratch_memory` calls.
+The `work_group_scratch_size` property must be passed as a kernel launch
+property to determine the run-time size of the device local memory allocation
+associated with all `get_work_group_scratch_memory` calls.
 
 [source,c++]
 ----
@@ -151,38 +150,33 @@ then the implementation must throw a synchronous exception with the
 local memory into account, whether via the `work_group_scratch_size` property
 or other APIs such as `local_accessor`.
 
+
 == Example
 
 [source,c++]
 ----
+#include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
-...
+constexpr size_t GLOBAL = 1024;
+constexpr size_t N = 256;
 
-q.parallel_for(sycl::nd_range<1>{N, M},
-  syclex::properties{syclex::work_group_scratch_size(M * sizeof(int))},
-  [=](sycl::nd_item<1> it) {
- auto ptr = syclex::get_work_group_scratch_memory();
- auto ptr2 = syclex::get_work_group_scratch_memory();
-});
+int main() {
+  sycl::queue q;
+
+  syclex::launch_config cfg{
+    sycl::nd_range{{GLOBAL}, {N}},
+    syclex::properties{
+      syclex::work_group_scratch_size{N * sizeof(int)}
+    }
+  };
+
+  syclex::nd_launch(q, cfg, [=](sycl::nd_item<> it) {
+    // Gets a pointer to N int's
+    int *ptr = static_cast<int *>(syclex::get_work_group_scratch_memory());
+
+    // Gets the same pointer to N int's
+    int *ptr2 = static_cast<int *>(syclex::get_work_group_scratch_memory());
+  });
+}
 ----
-
-
-== Implementation notes
-
-This non-normative section provides information about one possible
-implementation of this extension.  It is not part of the specification of the
-extension's API.
-
-For `get_work_group_scratch_memory`,
-the implementation may need to generate some additional code to
-appropriately initialize the pointer(s) returned by the call.
-Alternatively, it may be possible to initialize the pointer to the beginning
-of the device's local memory region (if that value is known). Either way, the
-implementation must account for the existence of one or more `local_accessor`
-objects (which themselves may allocate a dynamic amount of device local
-memory).
-
-
-== Issues
-
