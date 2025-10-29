@@ -29,7 +29,8 @@ define dso_local spir_func void @test_atomic_float(ptr addrspace(1) %a) local_un
 entry:
   ; CHECK-SPIRV: 7 AtomicFAddEXT [[TYPE_FLOAT_32]] 13 7 10 11 [[NEGATIVE_229]]
   ; CHECK-LLVM-CL20: call spir_func float @_Z25atomic_fetch_add_explicitPU3AS4VU7_Atomicff12memory_order12memory_scope(ptr addrspace(4) %a.as, float -2.290000e+02, i32 0, i32 1) #0
-  ; CHECK-LLVM-SPV: call spir_func float @_Z21__spirv_AtomicFAddEXTPU3AS1fiif(ptr addrspace(1) %a, i32 2, i32 0, float -2.290000e+02) #0
+  ; Memory semantics: 512 = CrossWorkgroupMemory (512) | Relaxed (0) for global AS
+  ; CHECK-LLVM-SPV: call spir_func float @_Z21__spirv_AtomicFAddEXTPU3AS1fiif(ptr addrspace(1) %a, i32 2, i32 512, float -2.290000e+02) #0
   %call2 = tail call spir_func float @_Z25atomic_fetch_sub_explicitPU3AS1VU7_Atomicff12memory_order12memory_scope(ptr addrspace(1) noundef %a, float noundef 2.290000e+02, i32 noundef 0, i32 noundef 1) #2
   ret void
 }
@@ -43,7 +44,8 @@ define dso_local spir_func void @test_atomic_double(ptr addrspace(1) %a) local_u
 entry:
   ; CHECK-SPIRV: 7 AtomicFAddEXT [[TYPE_FLOAT_64]] 21 18 10 11 [[NEGATIVE_334]]
   ; CHECK-LLVM-CL20: call spir_func double @_Z25atomic_fetch_add_explicitPU3AS4VU7_Atomicdd12memory_order12memory_scope(ptr addrspace(4) %a.as, double -3.340000e+02, i32 0, i32 1) #0
-  ; CHECK-LLVM-SPV: call spir_func double @_Z21__spirv_AtomicFAddEXTPU3AS1diid(ptr addrspace(1) %a, i32 2, i32 0, double -3.340000e+02) #0
+  ; Memory semantics: 512 = CrossWorkgroupMemory (512) | Relaxed (0) for global AS
+  ; CHECK-LLVM-SPV: call spir_func double @_Z21__spirv_AtomicFAddEXTPU3AS1diid(ptr addrspace(1) %a, i32 2, i32 512, double -3.340000e+02) #0
   %call = tail call spir_func double @_Z25atomic_fetch_sub_explicitPU3AS1VU7_Atomicdd12memory_order12memory_scope(ptr addrspace(1) noundef %a, double noundef 3.340000e+02, i32 noundef 0, i32 noundef 1) #2
   ret void
 }

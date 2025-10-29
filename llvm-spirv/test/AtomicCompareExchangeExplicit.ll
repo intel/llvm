@@ -8,7 +8,9 @@ target triple = "spir64"
 
 ; CHECK-DAG: 4 TypeInt [[#int:]] 32 0
 ; CHECK-DAG: Constant [[#int]] [[#DeviceScope:]] 4
-; CHECK-DAG: Constant [[#int]] [[#SequentiallyConsistent_MS:]] 0
+; Memory semantics: 256 = WorkgroupMemory (256) | SequentiallyConsistent (0)
+; Local address space (3) maps to WorkgroupMemory storage class
+; CHECK-DAG: Constant [[#int]] [[#SequentiallyConsistent_MS:]] 256
 ; CHECK-DAG: 4 TypePointer [[#int_ptr:]] 4 [[#int]]
 ; CHECK-DAG: 2 TypeBool [[#bool:]]
 
