@@ -10490,7 +10490,9 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
       TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
   BackendArgs.push_back(
       TCArgs.MakeArgString("--translator-compatibility-mode"));
-  // All the extensions disabled by default.
+  // All the extensions disabled by default. We do this because there are some
+  // extensions supported by the SPIR-V Backend that are not supported by our
+  // driver.
   std::string ExtArg("-spirv-ext=");
   // Enable only those we require.
   std::string DefaultExtArg =
