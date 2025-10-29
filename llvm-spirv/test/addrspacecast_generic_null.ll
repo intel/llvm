@@ -1,3 +1,4 @@
+; REQUIRES: spirv-dis
 ; RUN: llvm-spirv %s -o %t.spv
 ; RUN: spirv-dis %t.spv | FileCheck %s
 
