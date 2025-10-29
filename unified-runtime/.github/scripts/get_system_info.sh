@@ -29,6 +29,7 @@ function system_info {
 	echo "**********system_info**********"
 	cat /etc/os-release | grep -oP "PRETTY_NAME=\K.*"
 	cat /proc/version
+	df -h
 	echo "**********SYCL-LS**********"
 	source /opt/intel/oneapi/setvars.sh
 	sycl-ls
