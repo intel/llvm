@@ -284,6 +284,9 @@ etors:
       desc: "Device in question has `$X_DEVICE_INFO_AVAILABLE == false`"
     - name: ERROR_INVALID_SPEC_ID
       desc: "A specialization constant identifier is not valid."
+    - name: ERROR_INVALID_GRAPH
+      value: "0x7fff0002"
+      desc: "A graph object is not valid."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"
