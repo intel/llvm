@@ -262,6 +262,42 @@ class SYCLToolchain {
       DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_offload_arch_EQ), CPU);
     }
 
+    if (UserArgList.hasArg(OPT_sycl_rtc_exp_redist_mode)) {
+      DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_nostdlibinc));
+      auto AddInc = [&](auto RelPath) {
+        DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_isystem),
+                         (getPrefix() + RelPath).str());
+      };
+      AddInc("include/sycl/stl_wrappers");
+      // Contains modified `__config_site` for libc++, need to come earlier in
+      // the search path:
+      AddInc("include/sycl-rtc-standalone/");
+#if !defined(_WIN32)
+      // AFAIK, it only contains original `__config_site` that we don't use (see
+      // above), but it seems safer to add this path anyway, in case any extra
+      // files are added. On Windows `LIBCXX_GENERATED_INCLUDE_TARGET_DIR` is
+      // off and thus we don't need it.
+      AddInc("include/x86_64-unknown-linux-gnu/c++/v1");
+#endif
+      AddInc("include/c++/v1");
+      AddInc("include/libc");
+      AddInc("include/");
+      AddInc("include/lib/clang/22/include/");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_REMOVE_TRANSITIVE_INCLUDES");
+#if defined(_WIN32)
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_WCHAR_H_HAS_CONST_OVERLOADS");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_D),
+                       "_LIBCPP_NO_VCRUNTIME");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_U), "__ELF__");
+
+#endif
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "stdio.h");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "wchar.h");
+      DAL.AddJoinedArg(nullptr, OptTable.getOption(OPT_include), "time.h");
+    }
+
     ArgStringList ASL;
     for (Arg *A : DAL)
       A->render(DAL, ASL);
@@ -543,9 +579,15 @@ public:
     std::vector<std::string> CommandLine =
         createCommandLine(UserArgList, Format, SourceFilePath);
 
-    auto FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
-        llvm::vfs::getRealFileSystem());
-    FS->pushOverlay(getToolchainFS());
+    llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> FS;
+    if (UserArgList.hasArg(OPT_sycl_rtc_in_memory_fs_only)) {
+      FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+          getToolchainFS());
+    } else {
+      FS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
+          llvm::vfs::getRealFileSystem());
+      FS->pushOverlay(getToolchainFS());
+    }
     if (FSOverlay)
       FS->pushOverlay(std::move(FSOverlay));
 

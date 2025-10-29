@@ -27,8 +27,13 @@ extern __DPCPP_SYCL_EXTERNAL_LIBC char *strncpy(char *dest, const char *src,
 extern __DPCPP_SYCL_EXTERNAL_LIBC int strcmp(const char *s1, const char *s2);
 extern __DPCPP_SYCL_EXTERNAL_LIBC int strncmp(const char *s1, const char *s2,
                                               size_t n);
+#ifdef __LLVM_LIBC__
+extern __DPCPP_SYCL_EXTERNAL_LIBC int rand() noexcept;
+extern __DPCPP_SYCL_EXTERNAL_LIBC void srand(unsigned int seed) noexcept;
+#else
 extern __DPCPP_SYCL_EXTERNAL_LIBC int rand();
 extern __DPCPP_SYCL_EXTERNAL_LIBC void srand(unsigned int seed);
+#endif
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,

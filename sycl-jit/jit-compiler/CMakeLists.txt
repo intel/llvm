@@ -45,6 +45,41 @@ add_custom_target(rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_FILES}
 )
 
+set(SYCL_JIT_RUNTIME_RESOURCE_DEPS)
+set(SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS)
+
+if ("libcxx" IN_LIST LLVM_ENABLE_RUNTIMES)
+  list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS runtimes-configure)
+
+  if (WIN32)
+    set(SYCL_JIT_CXX_CONFIG_SITE ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/c++/v1/__config_site)
+  else()
+    set(SYCL_JIT_CXX_CONFIG_SITE ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/x86_64-unknown-linux-gnu/c++/v1/__config_site)
+  endif()
+
+  list(APPEND SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --target generate-cxx-headers
+    COMMAND ${CMAKE_COMMAND} --install ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --prefix ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install --component cxx-headers
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/sycl-rtc-standalone
+    COMMAND sed 's/_LIBCPP_HAS_THREAD_API_EXTERNAL 0/_LIBCPP_HAS_THREAD_API_EXTERNAL 1/' ${SYCL_JIT_CXX_CONFIG_SITE} > ${CMAKE_CURRENT_BINARY_DIR}/rtc-resources-install/include/sycl-rtc-standalone/__config_site
+  )
+endif()
+
+if ("libc" IN_LIST LLVM_ENABLE_RUNTIMES)
+  list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS runtimes-configure)
+  # list(APPEND SYCL_JIT_RUNTIME_RESOURCE_DEPS libc)
+
+  list(APPEND SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins --target generate-libc-headers
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/runtimes/runtimes-bins/libc/include ${SYCL_JIT_RESOURCE_INSTALL_DIR}/include/libc
+  )
+endif()
+
+add_custom_target(rtc-prepare-runtime-resources
+  DEPENDS ${SYCL_JIT_RUNTIME_RESOURCE_DEPS}
+  ${SYCL_JIT_PREPARE_RUNTIME_RESOURCE_COMMANDS}
+)
+
 add_custom_command(
   OUTPUT ${SYCL_JIT_RESOURCE_CPP}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py --toolchain-dir ${SYCL_JIT_RESOURCE_INSTALL_DIR} --output ${SYCL_JIT_RESOURCE_CPP} --prefix ${SYCL_JIT_VIRTUAL_TOOLCHAIN_ROOT}
@@ -52,6 +87,8 @@ add_custom_command(
   rtc-prepare-resources
   ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_RESOURCE_FILES}
+  rtc-prepare-runtime-resources
+  ${SYCL_JIT_RUNTIME_RESOURCE_DEPS}
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/generate.py
 )
 
@@ -94,6 +131,7 @@ add_custom_command(
   ${SYCL_JIT_RESOURCE_CPP}
   ${SYCL_JIT_RESOURCE_DEPS}
   ${SYCL_JIT_RESOURCE_FILES}
+  ${SYCL_JIT_RUNTIME_RESOURCE_DEPS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include/Resource.h
 )
 

@@ -1351,6 +1351,57 @@ Some notes about the current behavior:
   using the conflicting hash would proceed without pre-compiled preamble support
   as if this option wasn't enabled.
 
+==== `--sycl-rtc-experimental-redist-mode`
+
+Highly experimental option to facilitate distribution of applications that use
+SYCL RTC.
+
+While SYCL-specific header/bitcode files are embedded/distributed inside
+`sycl-jit` DSO we still have a dependency on the C/C++ compiler toolchain on the
+end-user system (header files only actually, but that's not too important). That
+requirement is troublesome for many of the SYCL RTC customers and this option
+tries to address that limitation.
+
+The main problem we face is that default host toolchain (MSVC/GCC on Win/Lin,
+respectively) has license requirements that prohibit distribution of necessary
+headers as part of SYCL redistributables. Instead, we embed LLVM's libc++ and
+libc headers into the `sycl-jit` DSO and provide this option to use those
+headers instead. This obviously comes with many limitations/obstacles. Using
+this options results in roughly following options being passed implicitly:
+
+* `--nostdlibinc`, effectively excluding CUDA/HIP SDKs, unless the application
+  deals with that somehow. The reason we need to do that is because having
+  different C library implementation in includes search path doesn't work.
+
+* Setup virtual file system include paths to enable the use of LLVM's
+  `libc++`/`libc` headers embedded into `sycl-jit` DSO.
+
+* Define/undefine some macros found by trial-and-error to make that fragile
+  configuration work, at least for some examples.
+
+* Add implicit `-include` directive to several C headers. Again, found by
+  trial-and-error to make things work for some of the examples we tried.
+
+This also comes with lots of limitations:
+
+* First, huge potential for ABI mismatch between host (SYCL app) ABI and the
+  device code (JIT-compiled via SYCL RTC). As such, it is recommended to limit
+  types passing the host/device boundary to:
+
+  - Fixed-width integer types
+  - `float`/`double`
+  - Aggregate types of the above.
+  - Anything else needs **very thorough** testing at the SYCL application side.
+
+  Using SYCL/STL types in the device code only, without passing host-device
+  boundary is expected to work.
+
+* CUDA/HIP aren't expected to work out-of-the-box, see above (`--nostdlibinc`).
+
+* Option is **highly** experimentall, **no** support is guaranteed and is
+  subject to change at **any** time, including the possibility of a complete
+  removal.
+
 === Known issues and limitations when the language is `sycl`
 
 ==== Changing the compiler action or output
