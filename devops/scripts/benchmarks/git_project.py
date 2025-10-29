@@ -18,16 +18,22 @@ class GitProject:
         ref: str,
         directory: Path,
         name: str,
-        force_rebuild: bool = False,
+        use_installdir: bool = True,
         no_suffix_src: bool = False,
+        shallow_clone: bool = True,
     ) -> None:
         self._url = url
         self._ref = ref
         self._directory = directory
         self._name = name
-        self._force_rebuild = force_rebuild
+        self._use_installdir = use_installdir
         self._no_suffix_src = no_suffix_src
-        self._rebuild_needed = self._git_clone()
+        self._shallow_clone = shallow_clone
+        self._rebuild_needed = self._setup_repo()
+
+    @property
+    def name(self):
+        return self._name
 
     @property
     def src_dir(self) -> Path:
@@ -42,56 +48,29 @@ class GitProject:
     def install_dir(self) -> Path:
         return self._directory / f"{self._name}-install"
 
-    def needs_rebuild(self, check_build=False, check_install=False) -> bool:
-        """Checks if the project needs to be rebuilt.
-
-        Args:
-            check_build (bool): If True, checks if the build directory exists and has some files.
-            check_install (bool): If True, checks if the install directory exists and has some files.
-
-        Returns:
-            bool: True if the project needs to be rebuilt, False otherwise.
-        """
-        log.debug(f"Checking if project {self._name} needs rebuild.")
-        if self._force_rebuild:
+    def needs_rebuild(self) -> bool:
+        if self._rebuild_needed:
             log.debug(
-                f"Force rebuild is enabled for project {self._name}, rebuild needed."
+                f"Rebuild needed because new sources were detected for project {self._name}."
             )
-            if Path(self.build_dir).exists():
-                shutil.rmtree(self.build_dir)
             return True
-        elif self._rebuild_needed:
+
+        dir_to_check = self.install_dir if self._use_installdir else self.build_dir
+
+        if not (
+            dir_to_check.exists()
+            and any(path.is_file() for path in dir_to_check.glob("**/*"))
+        ):
+            log.debug(
+                f"{dir_to_check} does not exist or does not contain any file, rebuild needed."
+            )
             return True
-        if check_build:
-            if self.build_dir.exists() and any(
-                path.is_file() for path in self.build_dir.glob("**/*")
-            ):
-                log.debug(
-                    f"Build directory {self.build_dir} exists and is not empty, no rebuild needed."
-                )
-            else:
-                log.debug(
-                    f"Build directory {self.build_dir} does not exist or does not contain any file, rebuild needed."
-                )
-                return True
-        if check_install:
-            if self.install_dir.exists() and any(
-                path.is_file() for path in self.install_dir.glob("**/*")
-            ):
-                log.debug(
-                    f"Install directory {self.install_dir} exists and is not empty, no rebuild needed."
-                )
-            else:
-                log.debug(
-                    f"Install directory {self.install_dir} does not exist or does not contain any file, rebuild needed."
-                )
-                return True
+        log.debug(f"{dir_to_check} exists and is not empty, no rebuild needed.")
         return False
 
     def configure(
         self,
         extra_args: list | None = None,
-        install_prefix=True,
         add_sycl: bool = False,
     ) -> None:
         """Configures the project."""
@@ -101,7 +80,7 @@ class GitProject:
             f"-B {self.build_dir}",
             f"-DCMAKE_BUILD_TYPE=Release",
         ]
-        if install_prefix:
+        if self._use_installdir:
             cmd.append(f"-DCMAKE_INSTALL_PREFIX={self.install_dir}")
         if extra_args:
             cmd.extend(extra_args)
@@ -128,42 +107,109 @@ class GitProject:
         """Installs the project."""
         run(f"cmake --install {self.build_dir}")
 
-    def _git_clone(self) -> bool:
+    def _can_shallow_clone_ref(self, ref: str) -> bool:
+        """Check if we can do a shallow clone with this ref using git ls-remote."""
+        try:
+            result = run(f"git ls-remote --heads --tags {self._url} {ref}")
+            output = result.stdout.decode().strip()
+
+            if output:
+                # Found the ref as a branch or tag
+                log.debug(
+                    f"Ref {ref} found as branch/tag via ls-remote, can shallow clone"
+                )
+                return True
+            else:
+                # Not found as branch/tag, likely a SHA commit
+                log.debug(
+                    f"Ref {ref} not found as branch/tag via ls-remote, likely SHA commit"
+                )
+                return False
+        except Exception as e:
+            log.debug(
+                f"Could not check ref {ref} via ls-remote: {e}, assuming SHA commit"
+            )
+            return False
+
+    def _git_clone(self) -> None:
+        """Clone the git repository."""
+        try:
+            log.debug(f"Cloning {self._url} into {self.src_dir} at commit {self._ref}")
+            git_clone_cmd = f"git clone --recursive {self._url} {self.src_dir}"
+            if self._shallow_clone:
+                if self._can_shallow_clone_ref(self._ref):
+                    # Shallow clone for branches and tags only
+                    git_clone_cmd = f"git clone --recursive --depth 1 --branch {self._ref} {self._url} {self.src_dir}"
+                else:
+                    log.debug(f"Cannot shallow clone SHA {self._ref}, using full clone")
+
+            run(git_clone_cmd)
+            run(f"git checkout {self._ref}", cwd=self.src_dir)
+            log.debug(f"Cloned {self._url} into {self.src_dir} at commit {self._ref}")
+        except Exception as e:
+            log.error(f"Failed to clone repository {self._url}: {e}")
+            raise
+
+    def _git_fetch(self) -> None:
+        """Fetch the latest changes from the remote repository."""
+        try:
+            log.debug(f"Fetching latest changes for {self._url} in {self.src_dir}")
+            run("git fetch", cwd=self.src_dir)
+            run("git reset --hard", cwd=self.src_dir)
+            run(f"git checkout {self._ref}", cwd=self.src_dir)
+            log.debug(f"Fetched latest changes for {self._url} in {self.src_dir}")
+        except Exception as e:
+            log.error(f"Failed to fetch updates for repository {self._url}: {e}")
+            raise
+
+    def _setup_repo(self) -> bool:
         """Clone a git repository into a specified directory at a specific commit.
         Returns:
             bool: True if the repository was cloned or updated, False if it was already up-to-date.
         """
-        log.debug(f"Cloning {self._url} into {self.src_dir} at commit {self._ref}")
-        if self.src_dir.exists() and Path(self.src_dir, ".git").exists():
+        if not self.src_dir.exists():
+            self._git_clone()
+            return True
+        elif Path(self.src_dir, ".git").exists():
             log.debug(
                 f"Repository {self._url} already exists at {self.src_dir}, checking for updates."
             )
-            run("git fetch", cwd=self.src_dir)
-            target_commit = (
-                run(f"git rev-parse {self._ref}", cwd=self.src_dir)
+            current_commit = (
+                run("git rev-parse HEAD^{commit}", cwd=self.src_dir)
                 .stdout.decode()
                 .strip()
             )
-            current_commit = (
-                run("git rev-parse HEAD", cwd=self.src_dir).stdout.decode().strip()
-            )
-            if current_commit != target_commit:
-                log.debug(
-                    f"Current commit {current_commit} does not match target {target_commit}, checking out {self._ref}."
+            try:
+                target_commit = (
+                    run(f"git rev-parse {self._ref}^{{commit}}", cwd=self.src_dir)
+                    .stdout.decode()
+                    .strip()
                 )
-                run("git reset --hard", cwd=self.src_dir)
-                run(f"git checkout {self._ref}", cwd=self.src_dir)
+                if current_commit != target_commit:
+                    log.debug(
+                        f"Current commit {current_commit} does not match target {target_commit}, checking out {self._ref}."
+                    )
+                    run("git reset --hard", cwd=self.src_dir)
+                    run(f"git checkout {self._ref}", cwd=self.src_dir)
+                    return True
+            except Exception:
+                log.error(
+                    f"Failed to resolve target commit {self._ref}. Fetching updates."
+                )
+                if self._shallow_clone:
+                    log.debug(f"Cloning a clean shallow copy.")
+                    shutil.rmtree(self.src_dir)
+                    self._git_clone()
+                    return True
+                else:
+                    self._git_fetch()
+                    return True
             else:
                 log.debug(
                     f"Current commit {current_commit} matches target {target_commit}, no update needed."
                 )
                 return False
-        elif not self.src_dir.exists():
-            run(f"git clone --recursive {self._url} {self.src_dir}")
-            run(f"git checkout {self._ref}", cwd=self.src_dir)
         else:
             raise Exception(
                 f"The directory {self.src_dir} exists but is not a git repository."
             )
-        log.debug(f"Cloned {self._url} into {self.src_dir} at commit {self._ref}")
-        return True

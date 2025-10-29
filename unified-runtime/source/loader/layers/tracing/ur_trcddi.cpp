@@ -8171,7 +8171,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_kernel_handle_t hKernel,
     /// [in] Dimension of the kernel execution.
     uint32_t workDim,
-    /// [in] Offset to use when executing kernel.
+    /// [in][optional] Offset to use when executing kernel.
     const size_t *pGlobalWorkOffset,
     /// [in] Global work size to use when executing kernel.
     const size_t *pGlobalWorkSize,
@@ -9518,6 +9518,79 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urDeviceWaitExp
+__urdlllocal ur_result_t UR_APICALL urDeviceWaitExp(
+    /// [in] handle of the device instance.
+    ur_device_handle_t hDevice) {
+  auto pfnWaitExp = getContext()->urDdiTable.DeviceExp.pfnWaitExp;
+
+  if (nullptr == pfnWaitExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_device_wait_exp_params_t params = {&hDevice};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_DEVICE_WAIT_EXP,
+                                                 "urDeviceWaitExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urDeviceWaitExp\n");
+
+  ur_result_t result = pfnWaitExp(hDevice);
+
+  getContext()->notify_end(UR_FUNCTION_DEVICE_WAIT_EXP, "urDeviceWaitExp",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_DEVICE_WAIT_EXP,
+                                    &params);
+    UR_LOG_L(logger, INFO, "   <--- urDeviceWaitExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramDynamicLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms) {
+  auto pfnDynamicLinkExp =
+      getContext()->urDdiTable.ProgramExp.pfnDynamicLinkExp;
+
+  if (nullptr == pfnDynamicLinkExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_program_dynamic_link_exp_params_t params = {&hContext, &count,
+                                                 &phPrograms};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, "urProgramDynamicLinkExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urProgramDynamicLinkExp\n");
+
+  ur_result_t result = pfnDynamicLinkExp(hContext, count, phPrograms);
+
+  getContext()->notify_end(UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP,
+                           "urProgramDynamicLinkExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_PROGRAM_DYNAMIC_LINK_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urProgramDynamicLinkExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueTimestampRecordingExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     /// [in] handle of the queue object
@@ -9572,6 +9645,164 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
         args_str, UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP, &params);
     UR_LOG_L(logger, INFO,
              "   <--- urEnqueueTimestampRecordingExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCGetMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory
+    void *pMem,
+    /// [out][optional] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [out][optional] size of the resulting IPC memory handle data
+    size_t *pIPCMemHandleDataSizeRet) {
+  auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
+
+  if (nullptr == pfnGetMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_get_mem_handle_exp_params_t params = {
+      &hContext, &pMem, &pIPCMemHandleData, &pIPCMemHandleDataSizeRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, "urIPCGetMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCGetMemHandleExp\n");
+
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+                                          pIPCMemHandleDataSizeRet);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP,
+                           "urIPCGetMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_GET_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCGetMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCPutMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCPutMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] a pointer to the IPC memory handle data
+    void *pIPCMemHandleData) {
+  auto pfnPutMemHandleExp = getContext()->urDdiTable.IPCExp.pfnPutMemHandleExp;
+
+  if (nullptr == pfnPutMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_put_mem_handle_exp_params_t params = {&hContext, &pIPCMemHandleData};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, "urIPCPutMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCPutMemHandleExp\n");
+
+  ur_result_t result = pfnPutMemHandleExp(hContext, pIPCMemHandleData);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP,
+                           "urIPCPutMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_PUT_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCPutMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCOpenMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCOpenMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object the corresponding USM device memory
+    /// was allocated on
+    ur_device_handle_t hDevice,
+    /// [in] the IPC memory handle data
+    void *pIPCMemHandleData,
+    /// [in] size of the IPC memory handle data
+    size_t ipcMemHandleDataSize,
+    /// [out] pointer to a pointer to device USM memory
+    void **ppMem) {
+  auto pfnOpenMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnOpenMemHandleExp;
+
+  if (nullptr == pfnOpenMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_open_mem_handle_exp_params_t params = {
+      &hContext, &hDevice, &pIPCMemHandleData, &ipcMemHandleDataSize, &ppMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, "urIPCOpenMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCOpenMemHandleExp\n");
+
+  ur_result_t result = pfnOpenMemHandleExp(hContext, hDevice, pIPCMemHandleData,
+                                           ipcMemHandleDataSize, ppMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP,
+                           "urIPCOpenMemHandleExp", &params, &result, instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_OPEN_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCOpenMemHandleExp({}) -> {};\n",
+             args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urIPCCloseMemHandleExp
+__urdlllocal ur_result_t UR_APICALL urIPCCloseMemHandleExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] pointer to device USM memory opened through urIPCOpenMemHandleExp
+    void *pMem) {
+  auto pfnCloseMemHandleExp =
+      getContext()->urDdiTable.IPCExp.pfnCloseMemHandleExp;
+
+  if (nullptr == pfnCloseMemHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_ipc_close_mem_handle_exp_params_t params = {&hContext, &pMem};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, "urIPCCloseMemHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  UR_LOG_L(logger, INFO, "   ---> urIPCCloseMemHandleExp\n");
+
+  ur_result_t result = pfnCloseMemHandleExp(hContext, pMem);
+
+  getContext()->notify_end(UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP,
+                           "urIPCCloseMemHandleExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_IPC_CLOSE_MEM_HANDLE_EXP, &params);
+    UR_LOG_L(logger, INFO, "   <--- urIPCCloseMemHandleExp({}) -> {};\n",
              args_str.str(), result);
   }
 
@@ -9729,6 +9960,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
@@ -9737,14 +9970,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                          &pOptions};
+                                          &flags, &pOptions};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_BUILD_EXP,
                                                  "urProgramBuildExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urProgramBuildExp\n");
 
-  ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  ur_result_t result =
+      pfnBuildExp(hProgram, numDevices, phDevices, flags, pOptions);
 
   getContext()->notify_end(UR_FUNCTION_PROGRAM_BUILD_EXP, "urProgramBuildExp",
                            &params, &result, instance);
@@ -9769,6 +10003,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
@@ -9777,14 +10013,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                            &pOptions};
+                                            &flags, &pOptions};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_PROGRAM_COMPILE_EXP, "urProgramCompileExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urProgramCompileExp\n");
 
-  ur_result_t result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+  ur_result_t result =
+      pfnCompileExp(hProgram, numDevices, phDevices, flags, pOptions);
 
   getContext()->notify_end(UR_FUNCTION_PROGRAM_COMPILE_EXP,
                            "urProgramCompileExp", &params, &result, instance);
@@ -9809,6 +10046,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
+    /// [in] program information flags
+    ur_exp_program_flags_t flags,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -9826,15 +10065,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
-                                         &count,    &phPrograms, &pOptions,
-                                         &phProgram};
+                                         &flags,    &count,      &phPrograms,
+                                         &pOptions, &phProgram};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PROGRAM_LINK_EXP,
                                                  "urProgramLinkExp", &params);
 
   auto &logger = getContext()->logger;
   UR_LOG_L(logger, INFO, "   ---> urProgramLinkExp\n");
 
-  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
+  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, flags, count,
                                   phPrograms, pOptions, phProgram);
 
   getContext()->notify_end(UR_FUNCTION_PROGRAM_LINK_EXP, "urProgramLinkExp",
@@ -10787,6 +11026,46 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
   return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's IPCExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_ipc_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.IPCExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnGetMemHandleExp = pDdiTable->pfnGetMemHandleExp;
+  pDdiTable->pfnGetMemHandleExp = ur_tracing_layer::urIPCGetMemHandleExp;
+
+  dditable.pfnPutMemHandleExp = pDdiTable->pfnPutMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = ur_tracing_layer::urIPCPutMemHandleExp;
+
+  dditable.pfnOpenMemHandleExp = pDdiTable->pfnOpenMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = ur_tracing_layer::urIPCOpenMemHandleExp;
+
+  dditable.pfnCloseMemHandleExp = pDdiTable->pfnCloseMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = ur_tracing_layer::urIPCCloseMemHandleExp;
+
+  return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Kernel table
 ///        with current process' addresses
 ///
@@ -11161,6 +11440,9 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnDynamicLinkExp = pDdiTable->pfnDynamicLinkExp;
+  pDdiTable->pfnDynamicLinkExp = ur_tracing_layer::urProgramDynamicLinkExp;
 
   dditable.pfnBuildExp = pDdiTable->pfnBuildExp;
   pDdiTable->pfnBuildExp = ur_tracing_layer::urProgramBuildExp;
@@ -11543,6 +11825,37 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
   return result;
 }
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's DeviceExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_device_exp_dditable_t *pDdiTable) {
+  auto &dditable = ur_tracing_layer::getContext()->urDdiTable.DeviceExp;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_tracing_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_tracing_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnWaitExp = pDdiTable->pfnWaitExp;
+  pDdiTable->pfnWaitExp = ur_tracing_layer::urDeviceWaitExp;
+
+  return result;
+}
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames,
@@ -11592,6 +11905,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetEventProcAddrTable(UR_API_VERSION_CURRENT,
                                                        &dditable->Event);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetIPCExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                                        &dditable->IPCExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
@@ -11662,6 +11980,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_tracing_layer::urGetDeviceProcAddrTable(UR_API_VERSION_CURRENT,
                                                         &dditable->Device);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_tracing_layer::urGetDeviceExpProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->DeviceExp);
   }
 
   return result;

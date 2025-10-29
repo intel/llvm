@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 
@@ -42,6 +43,8 @@ SmallString<128>
 computeKernelMetadataUniqueId(StringRef Prefix,
                               SmallVectorImpl<uint8_t> &KernelNamesBytes);
 
+bool hasESIMDKernel(Module &M);
+
 // Sync with sanitizer_common/sanitizer_common.hpp
 enum SanitizedKernelFlags : uint32_t {
   NO_CHECK = 0,
@@ -50,6 +53,7 @@ enum SanitizedKernelFlags : uint32_t {
   CHECK_PRIVATES = 1U << 3,
   CHECK_GENERICS = 1U << 4,
   MSAN_TRACK_ORIGINS = 1U << 5,
+  ASAN_CHECK_SHADOW_BOUNDS = 1U << 6,
 };
 
 } // namespace llvm

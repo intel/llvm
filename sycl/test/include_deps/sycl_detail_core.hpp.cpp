@@ -10,12 +10,9 @@
 // CHECK-NEXT: detail/defines_elementary.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
@@ -100,6 +97,7 @@
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
+// CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: detail/string_view.hpp
@@ -134,7 +132,6 @@
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/get_device_kernel_info.hpp
 // CHECK-NEXT: detail/compile_time_kernel_info.hpp
-// CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/kernel_launch_helper.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp

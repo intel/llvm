@@ -29,7 +29,7 @@ int foo() {
 }
 
 template <typename Name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
+[[clang::sycl_kernel_entry_point(Name)]] void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
@@ -38,16 +38,13 @@ int main() {
   return 0;
 }
 //.
-// CHECK: attributes #0 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}function-attrs.cpp" "uniform-work-group-size"="true" }
-// CHECK: attributes #1 = { alwaysinline convergent mustprogress norecurse nounwind "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-// CHECK: attributes #2 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-// CHECK: attributes #3 = { convergent nounwind }
+// CHECK: attributes #0 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
+// CHECK: attributes #1 = { convergent nounwind }
 //.
 // CHECK: !{{[0-9]+}} = !{i32 1, !"wchar_size", i32 4}
 // CHECK: !{{[0-9]+}} = !{i32 1, i32 2}
 // CHECK: !{{[0-9]+}} = !{i32 4, i32 100000}
 // CHECK: !{{[0-9]+}} = !{i32 {{.*}}}
-// CHECK: !{{[0-9]+}} = !{}
 // CHECK: ![[MD1]] = !{i32 {{.*}}}
 // CHECK: ![[MD2]] = !{i32 {{.*}}}
 //.

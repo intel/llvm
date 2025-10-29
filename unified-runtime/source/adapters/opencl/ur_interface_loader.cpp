@@ -284,6 +284,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceExpProcAddrTable(
+    ur_api_version_t version, ur_device_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnWaitExp = urDeviceWaitExp;
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     ur_api_version_t version, ur_command_buffer_exp_dditable_t *pDdiTable) {
   auto retVal = validateProcInputs(version, pDdiTable);
@@ -438,6 +448,21 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetIPCExpProcAddrTable(
+    ur_api_version_t version, ur_ipc_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnGetMemHandleExp = urIPCGetMemHandleExp;
+  pDdiTable->pfnPutMemHandleExp = urIPCPutMemHandleExp;
+  pDdiTable->pfnOpenMemHandleExp = urIPCOpenMemHandleExp;
+  pDdiTable->pfnCloseMemHandleExp = urIPCCloseMemHandleExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
     ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -448,6 +473,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   pDdiTable->pfnBuildExp = urProgramBuildExp;
   pDdiTable->pfnCompileExp = urProgramCompileExp;
   pDdiTable->pfnLinkExp = urProgramLinkExp;
+  pDdiTable->pfnDynamicLinkExp = urProgramDynamicLinkExp;
 
   return UR_RESULT_SUCCESS;
 }
@@ -460,6 +486,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetContextProcAddrTable(version, &pDdiTable->Context);
   urGetEnqueueProcAddrTable(version, &pDdiTable->Enqueue);
   urGetEnqueueExpProcAddrTable(version, &pDdiTable->EnqueueExp);
+  urGetIPCExpProcAddrTable(version, &pDdiTable->IPCExp);
   urGetEventProcAddrTable(version, &pDdiTable->Event);
   urGetKernelProcAddrTable(version, &pDdiTable->Kernel);
   urGetMemProcAddrTable(version, &pDdiTable->Mem);
@@ -474,6 +501,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urAllAddrTable(ur_api_version_t version,
   urGetUsmP2PExpProcAddrTable(version, &pDdiTable->UsmP2PExp);
   urGetVirtualMemProcAddrTable(version, &pDdiTable->VirtualMem);
   urGetDeviceProcAddrTable(version, &pDdiTable->Device);
+  urGetDeviceExpProcAddrTable(version, &pDdiTable->DeviceExp);
   urGetMemoryExportExpProcAddrTable(version, &pDdiTable->MemoryExportExp);
 
   return UR_RESULT_SUCCESS;

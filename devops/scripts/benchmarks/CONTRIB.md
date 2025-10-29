@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The suite is structured around three main components: Suites, Benchmarks, and Results.
+The suite is structured around four main components: Suites, Benchmarks, Results, and BenchmarkMetadata.
 
 1. **Suites:**
     * Collections of related benchmarks (e.g., `ComputeBench`, `LlamaCppBench`).
@@ -170,7 +170,7 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
     * If adding to an existing category, modify the corresponding `Suite` class (e.g., `benches/compute.py`) to instantiate and return your new benchmark in its `benchmarks()` method.
     * If creating a new category, create a new `Suite` class inheriting from `benches.base.Suite`. Implement `name()` and `benchmarks()`. Add necessary `setup()` if the suite requires shared setup. Add group metadata via `additional_metadata()` if needed.
 3. **Register Suite:** Import and add your new `Suite` instance to the `suites` list in `main.py`.
-4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets.
+4. **Add to Presets:** If adding a new suite, add its `name()` to the relevant lists in `presets.py` (e.g., "Full", "Normal") so it runs with those presets. Update `README.md` and benchmarking workflow to include the new suite in presets' description/choices.
 
 ## Recommendations
 
@@ -191,12 +191,17 @@ The benchmark suite generates an interactive HTML dashboard that visualizes `Res
 
 ## Utilities
 
+* **`git_project.GitProject`:** Manages git repository cloning, building, and installation for benchmark suites:
+    * Automatically clones repositories to a specified directory and checks out specific commits/refs.
+    * Provides standardized directory structure with `src_dir`, `build_dir`, and `install_dir` properties.
+    * Handles incremental updates - only re-clones if the target commit has changed.
+    * Supports force rebuilds and custom directory naming via constructor options.
+    * Provides `configure()`, `build()`, and `install()` methods for CMake-based projects.
+    * Use this for benchmark suites that need to build from external git repositories (e.g., `ComputeBench`, `VelocityBench`).
 * **`utils.utils`:** Provides common helper functions:
     * `run()`: Executes shell commands with environment setup (SYCL paths, LD_LIBRARY_PATH).
-    * `git_clone()`: Clones/updates Git repositories.
     * `download()`: Downloads files via HTTP, checks checksums, optionally extracts tar/gz archives.
     * `prepare_workdir()`: Sets up the main working directory.
-    * `create_build_path()`: Creates a clean build directory.
 * **`utils.oneapi`:** Provides the `OneAPI` singleton class (`get_oneapi()`). Downloads and installs specified oneAPI components (oneDNN, oneMKL) into the working directory if needed, providing access to their paths (libs, includes, CMake configs). Use this if your benchmark depends on these components instead of requiring a system-wide install.
 * **`options.py`:** Defines and holds global configuration options, populated by `argparse` in `main.py`. Use options instead of defining your own global variables.
 * **`presets.py`:** Defines named sets of suites (`enabled_suites()`) used by the `--preset` argument.

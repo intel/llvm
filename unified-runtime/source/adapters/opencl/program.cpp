@@ -294,6 +294,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
                                                         uint32_t,
                                                         ur_device_handle_t *,
+                                                        ur_exp_program_flags_t,
                                                         const char *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -301,16 +302,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
                                                       uint32_t,
                                                       ur_device_handle_t *,
+                                                      ur_exp_program_flags_t,
                                                       const char *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
-    ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramLinkExp(ur_context_handle_t, uint32_t, ur_device_handle_t *,
+                 ur_exp_program_flags_t, uint32_t, const ur_program_handle_t *,
+                 const char *, ur_program_handle_t *phProgram) {
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramDynamicLinkExp(
+    ur_context_handle_t, uint32_t, const ur_program_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

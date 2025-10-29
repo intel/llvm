@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clcmacro.h>
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 #include <libspirv/spirv.h>
 

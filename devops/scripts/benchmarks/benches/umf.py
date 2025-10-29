@@ -20,9 +20,6 @@ def isUMFAvailable():
 
 
 class UMFSuite(Suite):
-    def __init__(self, directory):
-        self.directory = directory
-
     def name(self) -> str:
         return "UMF"
 
@@ -43,10 +40,9 @@ class UMFSuite(Suite):
 
 
 class GBench(Benchmark):
-    def __init__(self, bench):
-        super().__init__(bench.directory, bench)
+    def __init__(self, suite: UMFSuite):
+        super().__init__(suite)
 
-        self.bench = bench
         self.bench_name = "umf-benchmark"
 
         self.fragmentation_prefix = "FRAGMENTATION_"

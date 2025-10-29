@@ -69,14 +69,14 @@ endif()
 
 # Do checks with _XOPEN_SOURCE and large-file API on AIX, because we will build
 # with those too.
-if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+if (UNIX AND "${CMAKE_SYSTEM_NAME}" MATCHES "AIX")
           list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_XOPEN_SOURCE=700")
           list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_LARGE_FILE_API")
 endif()
 
 # Do checks with _FILE_OFFSET_BITS=64 on Solaris, because we will build
 # with those too.
-if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+if (UNIX AND "${CMAKE_SYSTEM_NAME}" MATCHES "SunOS")
           list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_FILE_OFFSET_BITS=64")
 endif()
 
@@ -122,7 +122,7 @@ if(APPLE)
     HAVE_CRASHREPORTER_INFO)
 endif()
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
   check_include_file(linux/magic.h HAVE_LINUX_MAGIC_H)
   if(NOT HAVE_LINUX_MAGIC_H)
     # older kernels use split files
@@ -207,18 +207,6 @@ if(LLVM_ENABLE_ZSTD)
   else()
     set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
   endif()
-endif()
-
-# If LLVM_USE_STATIC_ZSTD is specified, make sure we enable zstd only if static
-# libraries are found.
-if(LLVM_USE_STATIC_ZSTD AND NOT TARGET zstd::libzstd_static)
-  # Fail if LLVM_ENABLE_ZSTD is FORCE_ON.
-  if(LLVM_ENABLE_ZSTD STREQUAL FORCE_ON)
-      message(FATAL_ERROR "Failed to find static zstd libraries, but LLVM_USE_STATIC_ZSTD=ON and LLVM_ENABLE_ZSTD=FORCE_ON.")
-  endif()
-set(LLVM_ENABLE_ZSTD OFF)
-else()
-set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
 endif()
 
 if(LLVM_ENABLE_LIBXML2)
@@ -423,7 +411,7 @@ endif()
 
 CHECK_STRUCT_HAS_MEMBER("struct stat" st_mtimespec.tv_nsec
     "sys/types.h;sys/stat.h" HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC)
-if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+if (UNIX AND "${CMAKE_SYSTEM_NAME}" MATCHES "AIX")
 # The st_mtim.tv_nsec member of a `stat` structure is not reliable on some AIX
 # environments.
   set(HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC 0)
