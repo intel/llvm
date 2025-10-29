@@ -296,7 +296,7 @@ public:
       KernelNameSetT &&KernelNames,
       KernelNameToArgMaskMap &&EliminatedKernelArgMasks,
       std::unique_ptr<DynRTDeviceBinaryImage> &&MergedImageStorage, private_tag)
-      : MBinImage(BinImage), MContext(std::move(Context)),
+      : MBinImage(BinImage), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
         MProgram(std::move(Program)), MKernelIDs(std::move(KernelIDs)),
         MKernelNames{std::move(KernelNames)},
@@ -315,7 +315,7 @@ public:
       MangledKernelNameMapT &&MangledKernelNames, std::string &&Prefix,
       std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry,
       private_tag)
-      : MBinImage(BinImage), MContext(std::move(Context)),
+      : MBinImage(BinImage), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
         MKernelIDs(std::move(KernelIDs)), MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
@@ -329,7 +329,7 @@ public:
   device_image_impl(const std::string &Src, context Context,
                     devices_range Devices, syclex::source_language Lang,
                     include_pairs_t &&IncludePairsVec, private_tag)
-      : MBinImage(Src), MContext(std::move(Context)),
+      : MBinImage(Src), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
@@ -342,7 +342,7 @@ public:
   device_image_impl(const std::vector<std::byte> &Bytes, const context &Context,
                     devices_range Devices, syclex::source_language Lang,
                     private_tag)
-      : MBinImage(Bytes), MContext(std::move(Context)),
+      : MBinImage(Bytes), MContext(Context),
         MDevices(Devices.to<std::vector<device_impl *>>()),
         MState(bundle_state::ext_oneapi_source),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
@@ -356,9 +356,9 @@ public:
                     syclex::source_language Lang, KernelNameSetT &&KernelNames,
                     private_tag)
       : MBinImage(static_cast<const RTDeviceBinaryImage *>(nullptr)),
-        MContext(std::move(Context)),
-        MDevices(Devices.to<std::vector<device_impl *>>()), MState(State),
-        MProgram(std::move(Program)), MKernelNames{std::move(KernelNames)},
+        MContext(Context), MDevices(Devices.to<std::vector<device_impl *>>()),
+        MState(State), MProgram(std::move(Program)),
+        MKernelNames{std::move(KernelNames)},
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
         MRTCBinInfo(KernelCompilerBinaryInfo{Lang}) {}
