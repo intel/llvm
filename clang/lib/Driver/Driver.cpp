@@ -1556,6 +1556,32 @@ static void appendOneArg(InputArgList &Args, const Arg *Opt) {
   }
 }
 
+  /// Utility function to parse all devices passed via -fsycl-targets.
+  /// Return 'true' for JIT, AOT Intel CPU/GPUs and NVidia/AMD targets.
+  /// Otherwise return 'false'.
+bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
+                                                  const ArgList &Args) const {
+  // Check only if enabled with -fsycl
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    return false;
+
+  if (Args.hasFlag(options::OPT_no_offload_new_driver,
+                   options::OPT_offload_new_driver, false))
+    return false;
+
+  if (Args.hasArg(options::OPT_fintelfpga))
+    return false;
+
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    for (const char *Val : A->getValues()) {
+      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
+      if ((!TT.isSPIROrSPIRV()) || TT.isSPIRAOT())
+        return false;
+    }
+  }
+  return true;
+}
+
 bool Driver::readConfigFile(StringRef FileName,
                             llvm::cl::ExpansionContext &ExpCtx) {
   // Try opening the given file.
@@ -2186,12 +2212,12 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Use new offloading path for OpenMP.  This is disabled as the SYCL
   // offloading path is not properly setup to use the updated device linking
   // scheme.
-  if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
-       TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
-                               options::OPT_no_offload_new_driver, true)) ||
+  if (C->isOffloadingHostKind(Action::OFK_OpenMP) ||
       TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
-                              options::OPT_no_offload_new_driver, false))
+                              options::OPT_no_offload_new_driver, false) ||
+      GetUseNewOffloadDriverForSYCLOffload(*C, *TranslatedArgs)) {
     setUseNewOffloadingDriver();
+  }
 
   // Construct the list of abstract actions to perform for this compilation. On
   // MachO targets this uses the driver-driver and universal actions.
@@ -7080,7 +7106,8 @@ void Driver::BuildDefaultActions(Compilation &C, DerivedArgList &Args,
                    options::OPT_fno_offload_via_llvm, false) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver,
-                   C.isOffloadingHostKind(Action::OFK_Cuda));
+                   C.isOffloadingHostKind(Action::OFK_Cuda)) ||
+      GetUseNewOffloadDriverForSYCLOffload(C, Args);
 
   bool HIPNoRDC =
       C.isOffloadingHostKind(Action::OFK_HIP) &&
