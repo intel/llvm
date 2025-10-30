@@ -4,12 +4,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "uur/checks.h"
+#include <gtest/gtest.h>
 #include <uur/fixtures.h>
 #include <uur/known_failure.h>
 
 struct urEnqueueTimestampRecordingExpTest : uur::urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+
+    SKIP_IF_BATCHED_QUEUE(queue);
     bool timestamp_recording_support = false;
     ASSERT_SUCCESS(
         uur::GetTimestampRecordingSupport(device, timestamp_recording_support));
