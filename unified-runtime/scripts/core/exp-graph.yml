@@ -39,16 +39,16 @@ params:
       desc: "[in] Handle of the context object."
     - type: $x_exp_graph_handle_t*
       name: phGraph
-      desc: "[out] Pointer to the handle of the created graph object."
+      desc: "[out][alloc] Pointer to the handle of the created graph object."
     - type: void*
       name: pNext
-      desc: "[out] pointer to extension-specific structure."
+      desc: "[out] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_INVALID_ARGUMENT
 --- #------------------------------------------k--------------------------------
 type: function
-desc: "Begin graph capture on the specified immediate command list."
+desc: "Begin graph capture on the specified immediate queue."
 class: $xQueue
 name: BeginGraphCaptureExp
 params:
@@ -57,13 +57,13 @@ params:
     desc: "[in] Handle of the queue on which to begin graph capture."
   - type: void*
     name: pNext
-    desc: "[in][optional] pointer to extension-specific structure."
+    desc: "[in][optional] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_INVALID_ARGUMENT
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Begin capturing commands into an existing graph on the specified immediate command list."
+desc: "Begin capturing commands into an existing graph on the specified immediate queue."
 class: $xQueue
 name: BeginCaptureIntoGraphExp
 params:
@@ -75,13 +75,13 @@ params:
     desc: "[in] Handle of the graph object to capture into."
   - type: void*
     name: pNext
-    desc: "[in][optional] pointer to extension-specific structure."
+    desc: "[in][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
 --- #--------------------------------------------------------------------------
 type: function
-desc: "End graph capture on the specified immediate command list."
+desc: "End graph capture on the specified immediate queue."
 class: $xQueue
 name: EndGraphCaptureExp
 params:
@@ -90,10 +90,11 @@ params:
     desc: "[in] Handle of the queue on which to end graph capture."
   - type: $x_exp_graph_handle_t*
     name: phGraph
-    desc: "[out] Pointer to the handle of the captured graph object."
+    desc: "[out] Pointer to the handle of the recorded graph object. If $xGraphBeginCaptureIntoGraphExp
+          was used to begin the capture, then phGraph will contain the same graph that was passed to it."
   - type: void*
     name: pNext
-    desc: "[out][optional] pointer to extension-specific structure."
+    desc: "[out][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -111,7 +112,7 @@ params:
     desc: "[out] Pointer to the handle of the instantiated executable graph."
   - type: void*
     name: pNext
-    desc: "[out][optional] pointer to extension-specific structure."
+    desc: "[out][optional] Pointer to extension-specific structure."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
@@ -129,7 +130,7 @@ params:
     desc: "[in] Handle of the executable graph to append."
   - type: void*
     name: pNext
-    desc: "[in][optional] pointer to extension-specific structure."
+    desc: "[in][optional] Pointer to extension-specific structure."
   - type: $x_event_handle_t
     name: hSignalEvent
     desc: "[in][optional] Event to be signaled on completion."
@@ -138,13 +139,13 @@ params:
     desc: "[in][optional] Number of events to wait on before executing."
   - type: $x_event_handle_t*
     name: phWaitEvents
-    desc: "[in][optional][range(0, numWaitEvents)] Pointer to an array of events to wait on."
+    desc: "[in][optional][range(0, numWaitEvents)] Handle of the events to wait on before launching."
 returns:
   - $X_RESULT_SUCCESS
   - $X_RESULT_ERROR_INVALID_ARGUMENT
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy a recorded graph object."
+desc: "Destroy a recorded graph object. All executable graph instances created from this recorded graph must be destroyed before calling this function."
 class: $xGraph
 name: DestroyExp
 params:
@@ -156,7 +157,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_ARGUMENT
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy an instantiated executable graph object."
+desc: "Destroy an instantiated executable graph object. The graph instance must not be executing on any queue."
 class: $xGraph
 name: ExecutableGraphDestroyExp
 params:
@@ -190,6 +191,9 @@ params:
     - type: $x_exp_graph_handle_t
       name: hGraph
       desc: "[in] Handle of the graph to query."
+    - type: bool*
+      name: hResult
+      desc: "[out] Pointer to a boolean where the result will be stored."
 returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -207,7 +211,7 @@ params:
       desc: "[in] Path to the file to write the dumped graph contents."
     - type: void*
       name: pNext
-      desc: "[in][optional] pointer to extension-specific structure."
+      desc: "[in][optional] Pointer to extension-specific structure."
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
