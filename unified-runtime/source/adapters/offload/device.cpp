@@ -241,6 +241,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         ur_queue_flags_t{UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE});
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
     return ReturnValue(0);
+  case UR_DEVICE_INFO_DYNAMIC_LINK_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_KERNEL_LAUNCH_CAPABILITIES:
     return ReturnValue(0);
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {

@@ -19,11 +19,8 @@
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/fwd/multi_ptr.hpp
-// CHECK-NEXT: stl_wrappers/cstdlib
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/export.hpp
-// CHECK-NEXT: stl_wrappers/cassert
-// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/fwd/accessor.hpp
 // CHECK-NEXT: detail/defines.hpp
