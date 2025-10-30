@@ -209,7 +209,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urIPCGetMemHandleExp(ur_context_handle_t,
-                                                         void *, void *,
+                                                         void *, void **,
                                                          size_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

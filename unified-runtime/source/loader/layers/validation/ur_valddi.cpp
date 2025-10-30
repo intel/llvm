@@ -10414,7 +10414,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     /// [in] pointer to device USM memory
     void *pMem,
     /// [out][optional] a pointer to the IPC memory handle data
-    void *pIPCMemHandleData,
+    void **ppIPCMemHandleData,
     /// [out][optional] size of the resulting IPC memory handle data
     size_t *pIPCMemHandleDataSizeRet) {
   auto pfnGetMemHandleExp = getContext()->urDdiTable.IPCExp.pfnGetMemHandleExp;
@@ -10424,7 +10424,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == pIPCMemHandleData)
+    if (NULL == ppIPCMemHandleData)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pIPCMemHandleDataSizeRet)
@@ -10439,7 +10439,7 @@ __urdlllocal ur_result_t UR_APICALL urIPCGetMemHandleExp(
     URLOG_CTX_INVALID_REFERENCE(hContext);
   }
 
-  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, pIPCMemHandleData,
+  ur_result_t result = pfnGetMemHandleExp(hContext, pMem, ppIPCMemHandleData,
                                           pIPCMemHandleDataSizeRet);
 
   return result;

@@ -131,6 +131,7 @@ can be disabled by setting SYCL_DISABLE_FSYCL_SYCLHPP_WARNING macro.")
 #include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/ext/oneapi/experimental/ipc_memory.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
