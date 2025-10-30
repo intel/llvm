@@ -10,15 +10,11 @@
 
 #include <sycl/detail/export.hpp>
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
+namespace {
 namespace free_function_info_map {
 
 __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId);
 __SYCL_EXPORT void remove(const void *DeviceGlobalPtr, const char *UniqueId);
 
 } // namespace free_function_info_map
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
+}

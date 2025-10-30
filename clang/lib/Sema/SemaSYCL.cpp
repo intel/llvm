@@ -7304,9 +7304,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   if (FreeFunctionCount > 0) {
     O << "\n#include <sycl/kernel_bundle.hpp>\n";
     O << "#include <sycl/detail/kernel_global_info.hpp>\n";
-    O << "namespace sycl {\n";
-    O << "inline namespace _V1 {\n";
-    O << "namespace detail {\n";
+    O << "namespace {\n";
     O << "struct GlobalMapUpdater {\n";
     O << "  GlobalMapUpdater() {\n";
     O << "    sycl::detail::free_function_info_map::add("
@@ -7320,9 +7318,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  }\n";
     O << "};\n";
     O << "static GlobalMapUpdater updater;\n";
-    O << "} // namespace detail\n";
-    O << "} // namespace _V1\n";
-    O << "} // namespace sycl\n";
+    O << "} //\n";
   }
 }
 
