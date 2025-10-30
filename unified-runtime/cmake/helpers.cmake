@@ -126,9 +126,6 @@ function(add_ur_target_compile_options name)
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /MD$<$<CONFIG:Debug>:d>
-
-            /W3
             /GS     # Enable: Buffer security check
             /Gy     # Enable: Function-level linking
 
@@ -203,8 +200,9 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
-    if(UR_USE_DEBUG_POSTFIX)
-        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+    if (CMAKE_SYSTEM_NAME STREQUAL Windows AND
+        (CMAKE_BUILD_TYPE STREQUAL Debug OR CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL MultiThreadedDebugDLL))
+        set_target_properties(${name} PROPERTIES OUTPUT_NAME "${name}d")
     endif()
     if(UR_EXTERNAL_DEPENDENCIES)
         add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})

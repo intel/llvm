@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx %fsycl %s -o %t.out
 // RUN: %t.out
 //
 // Checks that sycl::nextafter with sycl::half on host correctly converts based

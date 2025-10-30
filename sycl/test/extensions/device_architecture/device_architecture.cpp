@@ -3,7 +3,7 @@
 // During binary run there are some errors, this is expected, so there is no run
 // line yet for this test.
 
-// RUN: %clangxx -fsycl -DSYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL %s -o %t.out
+// RUN: %clangxx %fsycl -DSYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE_NEW_DESIGN_IMPL %s -o %t.out
 
 // XFAIL: libcxx
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/19616

@@ -333,6 +333,12 @@ _ = ps.communicate(input=b"int main(){}\n")
 if ps.wait() == 0:
     config.available_features.add("has_ndebug")
 
+# Check if the current build mode is debug.
+if config.use_debug_libs:
+    config.available_features.add("debug_sycl_library")
+    # Add /MDd to the build command to make it use the debug library.
+    config.cxx_flags += " /MDd" if cl_options else " -fms-runtime-lib=dll_dbg"
+
 # Check for Level Zero SDK
 check_l0_file = "l0_include.cpp"
 with open_check_file(check_l0_file) as fp:
@@ -576,7 +582,13 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
+            + os.path.normpath(
+                os.path.join(
+                    config.sycl_libs_dir
+                    + "/../lib/"
+                    + ("sycl8d.lib" if config.use_debug_libs else "sycl8.lib")
+                )
+            )
             + " -Xclang -isystem -Xclang "
             + config.sycl_include
             + " -Xclang -isystem -Xclang "
@@ -594,7 +606,11 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
+            (
+                (" -lsycl8d" if config.use_debug_libs else " -lsycl8")
+                if platform.system() == "Windows"
+                else " -lsycl"
+            )
             + " -isystem "
             + config.sycl_include
             + " -isystem "
@@ -794,9 +810,7 @@ if platform.system() == "Linux":
     xptifw_dispatcher = os.path.join(xptifw_lib_dir, "libxptifw.so")
 elif platform.system() == "Windows":
     # Use debug version of xptifw library if tests are built with \MDd.
-    xptifw_dispatcher_name = (
-        XPTIFW_DEBUG if "/MDd" in config.cxx_flags else XPTIFW_RELEASE
-    )
+    xptifw_dispatcher_name = XPTIFW_DEBUG if config.use_debug_libs else XPTIFW_RELEASE
     xptifw_dispatcher = os.path.join(
         config.dpcpp_root_dir, "bin", xptifw_dispatcher_name + ".dll"
     )
@@ -808,7 +822,7 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
         # Use debug version of xptifw library if tests are built with \MDd.
-        xptifw_lib_name = XPTIFW_DEBUG if "/MDd" in config.cxx_flags else XPTIFW_RELEASE
+        xptifw_lib_name = XPTIFW_DEBUG if config.use_debug_libs else XPTIFW_RELEASE
         xptifw_lib = os.path.normpath(
             os.path.join(xptifw_lib_dir, xptifw_lib_name + ".lib")
         )
