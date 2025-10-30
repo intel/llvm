@@ -246,9 +246,13 @@ jobs:
     container:
       image: 'ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest'
     env:
-      LLVM_BENCHMARKS_UNIT_TESTING: 1
       CMPLR_ROOT: ./toolchain
     steps:
+      - name: get some info
+        run: |
+          which clang++ || true
+          which sycl-ls || true
+          sycl-ls || true
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Install python libraries and dependencies
@@ -268,7 +272,7 @@ jobs:
           cmake --build compute-benchmarks/build -- -j$(nproc)
       - name: Run tests
         run: |
-          COMPUTE_BENCHMARK_BUILD_PATH=compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
+          LLVM_BENCHMARKS_UNIT_TESTING=1 COMPUTE_BENCHMARK_BUILD_PATH=$(pwd)/compute-benchmarks/build python3 ./devops/scripts/benchmarks/tests/test_integration.py
 
   # TODO: When we have stable BMG runner(s), consider moving this job to that runner.
   test_benchmark_framework:
