@@ -12,23 +12,36 @@ find_package(PkgConfig QUIET)
 # LevelZero doesn't install a CMake config target, just PkgConfig,
 # so try using that to find the install and if it's not available
 # just try to search for the path.
-if(PkgConfig_FOUND)
-  pkg_check_modules(level-zero level-zero>=1.25.0)
-  if(level-zero_FOUND)
-    set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
-    set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
-    set(LEVEL_ZERO_LIB_NAME "${level-zero_LIBRARIES}")
-    message(STATUS "Level Zero Adapter: Using preinstalled level zero loader at ${level-zero_LINK_LIBRARIES}")
-  endif()
-else()
-  set(L0_HEADER_PATH "loader/ze_loader.h")
-  find_path(L0_HEADER ${L0_HEADER_PATH} ${CMAKE_PREFIX_PATH} PATH_SUFFIXES "level_zero")
-  find_library(ZE_LOADER NAMES ze_loader HINTS /usr ${CMAKE_PREFIX_PATH})
-  if(L0_HEADER AND ZE_LOADER)
-    set(LEVEL_ZERO_INCLUDE_DIR "${L0_HEADER}")
-    set(LEVEL_ZERO_LIBRARY "${ZE_LOADER}")
-    message(STATUS "Level Zero Adapter: Using preinstalled level zero loader at ${LEVEL_ZERO_LIBRARY}")
-    add_library(ze_loader INTERFACE)
+
+set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
+# Remember to update the pkg_check_modules ans UR_LEVEL_ZERO_LOADER_TAG minimum version 
+# below when updating the clone tag
+
+set(UR_LEVEL_ZERO_LOADER_TAG v1.25.0)
+
+string(LENGTH "${UR_LEVEL_ZERO_LOADER_TAG}" TAG_LENGTH)
+message("${UR_LEVEL_ZERO_LOADER_TAG}")
+
+
+if (NOT (TAG_LENGTH EQUAL 40))
+  if(PkgConfig_FOUND)
+    pkg_check_modules(level-zero level-zero>=1.25.0)
+    if(level-zero_FOUND)
+      set(LEVEL_ZERO_INCLUDE_DIR "${level-zero_INCLUDEDIR}/level_zero")
+      set(LEVEL_ZERO_LIBRARY_SRC "${level-zero_LIBDIR}")
+      set(LEVEL_ZERO_LIB_NAME "${level-zero_LIBRARIES}")
+      message(STATUS "Level Zero Adapter: Using preinstalled level zero loader at ${level-zero_LINK_LIBRARIES}")
+    endif()
+  else()
+    set(L0_HEADER_PATH "loader/ze_loader.h")
+    find_path(L0_HEADER ${L0_HEADER_PATH} ${CMAKE_PREFIX_PATH} PATH_SUFFIXES "level_zero")
+    find_library(ZE_LOADER NAMES ze_loader HINTS /usr ${CMAKE_PREFIX_PATH})
+    if(L0_HEADER AND ZE_LOADER)
+      set(LEVEL_ZERO_INCLUDE_DIR "${L0_HEADER}")
+      set(LEVEL_ZERO_LIBRARY "${ZE_LOADER}")
+      message(STATUS "Level Zero Adapter: Using preinstalled level zero loader at ${LEVEL_ZERO_LIBRARY}")
+      add_library(ze_loader INTERFACE)
+    endif()
   endif()
 endif()
 
@@ -46,11 +59,6 @@ if(NOT LEVEL_ZERO_LIB_NAME AND NOT LEVEL_ZERO_LIBRARY)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
   endif()
   set(BUILD_STATIC ON)
-
-  set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-  # Remember to update the pkg_check_modules minimum version above when updating the
-  # clone tag
-  set(UR_LEVEL_ZERO_LOADER_TAG v1.25.0)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
