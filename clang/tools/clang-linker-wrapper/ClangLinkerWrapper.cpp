@@ -2110,12 +2110,13 @@ extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
     StringRef LinkOptions = OB->getString("link-opts");
 
     if (CompileOptions != RefCompileOpts || LinkOptions != RefLinkOpts)
-      return createStringError(formatv(
-          "compile and link options are expected to be equal among input "
-          "images. "
-          "Input[0]: compile_options: {0}, link_options: {1}, "
-          "Input[{2}]: compile_options: {3}, link_options: {4}",
-          RefCompileOpts, RefLinkOpts, I, CompileOptions, LinkOptions));
+      return createStringError(
+          formatv("compile and link options passed to the backend of the "
+                  "target device compiler must be identical for device images "
+                  "of the same target. Mismatched options:\n"
+                  "Input[0]: compile_options: {0}, link_options: {1}\n"
+                  "Input[{2}]: compile_options: {3}, link_options: {4}\n",
+                  RefCompileOpts, RefLinkOpts, I, CompileOptions, LinkOptions));
   }
 
   return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));

@@ -250,7 +250,9 @@
 // RUN: not clang-linker-wrapper -host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries=%t.devicelib.o \
 // RUN:                      %t.embeded.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=COMPILE-LINK-OPTIONS-DO-NOT-MATCH
 
-// COMPILE-LINK-OPTIONS-DO-NOT-MATCH: error: compile and link options are expected to be equal among input images. Input[0]: compile_options: aaa, link_options: bbb, Input[1]: compile_options: ccc, link_options: ddd
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH: error: compile and link options passed to the backend of the target device compiler must be identical for device images of the same target. Mismatched options:"
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH-NEXT: Input[0]: compile_options: aaa, link_options: bbb
+// COMPILE-LINK-OPTIONS-DO-NOT-MATCH-NEXT: Input[1]: compile_options: ccc, link_options: ddd
 
 // Check that clang-linker-wrapper recognizes compile/link options and passes them
 // over into offload wrapper and ocloc.
