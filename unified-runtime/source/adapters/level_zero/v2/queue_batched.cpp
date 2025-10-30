@@ -223,6 +223,7 @@ ur_result_t batch_manager::batchFinish() {
   }
 
   runBatches.clear();
+  setBatchEmpty();
 
   return UR_RESULT_SUCCESS;
 }
