@@ -247,8 +247,7 @@
 //
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.embeded.o -fembed-offload-object=%t.packaged_1.fat -fembed-offload-object=%t.packaged_2.fat
 //
-// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
-// RUN:                      -sycl-device-libraries=%t.devicelib.o \
+// RUN: not clang-linker-wrapper -host-triple=x86_64-unknown-linux-gnu -sycl-device-libraries=%t.devicelib.o \
 // RUN:                      %t.embeded.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=COMPILE-LINK-OPTIONS-DO-NOT-MATCH
 
 // COMPILE-LINK-OPTIONS-DO-NOT-MATCH: error: compile and link options are expected to be equal among input images. Input[0]: compile_options: aaa, link_options: bbb, Input[1]: compile_options: ccc, link_options: ddd

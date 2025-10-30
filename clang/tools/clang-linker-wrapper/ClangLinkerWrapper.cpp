@@ -934,17 +934,16 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
 /// Adds all AOT backend options required for SYCL AOT compilation step to
 /// \p CmdArgs.
 /// \p Args encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate backend options required to be passed
-/// into the SYCL AOT compilation step.
-/// \p IsCPU is a bool used to direct option generation. If IsCPU is false, then
-/// options are generated for AOT compilation targeting Intel GPUs.
-/// \p CompileOptions are compilation options which are extracted from the
-/// image.
-static void addBackendOptions(const ArgList &Args,
-                              SmallVector<StringRef, 8> &CmdArgs, bool IsCPU,
-                              StringRef CompileOptions) {
+/// code.
+/// \p IsCPU is a bool used to distinguish whether the target is an Intel GPU or
+/// Intel CPU.
+/// \p BackendOptions is a string containing options that are going to be parsed
+/// and inserted in \p CmdArgs.
+static void addSYCLBackendOptions(const ArgList &Args,
+                                  SmallVector<StringRef, 8> &CmdArgs,
+                                  bool IsCPU, StringRef BackendOptions) {
   if (IsCPU) {
-    CompileOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+    BackendOptions.split(CmdArgs, " ", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   } else {
     // ocloc -options args need to be comma separated, e.g. `-options
     // "-g,-cl-opt-disable"`. Otherwise, only the first arg is processed by
@@ -954,7 +953,7 @@ static void addBackendOptions(const ArgList &Args,
     // ("-options") in the first member of the pair, and everything after the
     // separator in the second part of the pair. The separator is not included
     // in any of them.
-    auto [BeforeOptions, AfterOptions] = CompileOptions.split("-options ");
+    auto [BeforeOptions, AfterOptions] = BackendOptions.split("-options ");
     // Only add if not empty, an empty arg can lead to ocloc errors.
     if (!BeforeOptions.empty())
       CmdArgs.push_back(BeforeOptions);
@@ -975,13 +974,13 @@ static void addBackendOptions(const ArgList &Args,
 
 /// Run AOT compilation for Intel CPU.
 /// Calls opencl-aot tool to generate device code for Intel CPU backend.
-/// 'InputFile' is the input SPIR-V file.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// SYCL AOT compilation step.
+/// \p InputFile is the input SPIR-V file.
+/// \p Args encompasses all arguments required for linking and wrapping device
+/// code.
+/// \p BackendOptions are used for AOT compilation.
 static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
                                                  const ArgList &Args,
-                                                 StringRef CompileOptions) {
+                                                 StringRef BackendOptions) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   SmallVector<StringRef, 8> CmdArgs;
   Expected<std::string> OpenCLAOTPath =
@@ -991,7 +990,7 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 
   CmdArgs.push_back(*OpenCLAOTPath);
   CmdArgs.push_back("--device=cpu");
-  addBackendOptions(Args, CmdArgs, /* IsCPU */ true, CompileOptions);
+  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ true, BackendOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1007,13 +1006,13 @@ static Expected<StringRef> runAOTCompileIntelCPU(StringRef InputFile,
 
 /// Run AOT compilation for Intel GPU
 /// Calls ocloc tool to generate device code for Intel GPU backend.
-/// 'InputFile' is the input SPIR-V file.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// SYCL AOT compilation step.
+/// \p InputFile is the input SPIR-V file.
+/// \p Args encompasses all arguments required for linking and wrapping device
+/// code.
+/// \p BackendOptions are used for AOT compilation.
 static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
                                                  const ArgList &Args,
-                                                 StringRef CompileOptions) {
+                                                 StringRef BackendOptions) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch(Args.getLastArgValue(OPT_arch_EQ));
   SmallVector<StringRef, 8> CmdArgs;
@@ -1030,7 +1029,7 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
     CmdArgs.push_back("-device");
     CmdArgs.push_back(Arch);
   }
-  addBackendOptions(Args, CmdArgs, /* IsCPU */ false, CompileOptions);
+  addSYCLBackendOptions(Args, CmdArgs, /* IsCPU */ false, BackendOptions);
   // Create a new file to write the translated file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "out");
@@ -1046,10 +1045,10 @@ static Expected<StringRef> runAOTCompileIntelGPU(StringRef InputFile,
 }
 
 /// Run AOT compilation for Intel CPU/GPU.
-/// 'InputFile' is the input SPIR-V file.
-/// 'Args' encompasses all arguments required for linking and wrapping device
-/// code and will be parsed to generate options required to be passed into the
-/// SYCL AOT compilation step.
+/// \p InputFile is the input SPIR-V file.
+/// \p Args encompasses all arguments required for linking and wrapping device
+/// code.
+/// \p CompileOptions are used for AOT compilation.
 static Expected<StringRef> runAOTCompile(StringRef InputFile,
                                          const ArgList &Args,
                                          StringRef CompileOptions) {
