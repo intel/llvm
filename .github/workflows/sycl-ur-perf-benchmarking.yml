@@ -259,7 +259,7 @@ jobs:
         with:
           repository: intel/compute-benchmarks
           ref: master
-          path: compute-benchmarks
+          path: ../compute-benchmarks
       - name: Configure Compute Benchmarks
         run: |
           cmake -B ../compute-benchmarks/build -S ../compute-benchmarks -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DNULL_L0=ON
