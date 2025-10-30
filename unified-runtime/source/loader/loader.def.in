@@ -121,6 +121,7 @@ EXPORTS
 	urGetEnqueueExpProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
+	urGetGraphExpProcAddrTable
 	urGetIPCExpProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
@@ -129,12 +130,18 @@ EXPORTS
 	urGetPlatformProcAddrTable
 	urGetProgramExpProcAddrTable
 	urGetProgramProcAddrTable
+	urGetQueueExpProcAddrTable
 	urGetQueueProcAddrTable
 	urGetSamplerProcAddrTable
 	urGetUSMExpProcAddrTable
 	urGetUSMProcAddrTable
 	urGetUsmP2PExpProcAddrTable
 	urGetVirtualMemProcAddrTable
+	urGraphCreateExp
+	urGraphDestroyExp
+	urGraphDumpContentsExp
+	urGraphExecutableGraphDestroyExp
+	urGraphIsEmptyExp
 	urIPCCloseMemHandleExp
 	urIPCGetMemHandleExp
 	urIPCOpenMemHandleExp
@@ -371,6 +378,11 @@ EXPORTS
 	urPrintExpWin32Handle
 	urPrintFunction
 	urPrintFunctionParams
+	urPrintGraphCreateExpParams
+	urPrintGraphDestroyExpParams
+	urPrintGraphDumpContentsExpParams
+	urPrintGraphExecutableGraphDestroyExpParams
+	urPrintGraphIsEmptyExpParams
 	urPrintImageChannelOrder
 	urPrintImageChannelType
 	urPrintImageDesc
@@ -485,8 +497,12 @@ EXPORTS
 	urPrintProgramReleaseParams
 	urPrintProgramRetainParams
 	urPrintProgramSetSpecializationConstantsParams
+	urPrintQueueAppendGraphExpParams
+	urPrintQueueBeginCaptureIntoGraphExpParams
+	urPrintQueueBeginGraphCaptureExpParams
 	urPrintQueueCreateParams
 	urPrintQueueCreateWithNativeHandleParams
+	urPrintQueueEndGraphCaptureExpParams
 	urPrintQueueFinishParams
 	urPrintQueueFlags
 	urPrintQueueFlushParams
@@ -494,6 +510,8 @@ EXPORTS
 	urPrintQueueGetNativeHandleParams
 	urPrintQueueIndexProperties
 	urPrintQueueInfo
+	urPrintQueueInstantiateGraphExpParams
+	urPrintQueueIsGraphCaptureEnabledExpParams
 	urPrintQueueNativeDesc
 	urPrintQueueNativeProperties
 	urPrintQueueProperties
@@ -582,12 +600,18 @@ EXPORTS
 	urProgramRelease
 	urProgramRetain
 	urProgramSetSpecializationConstants
+	urQueueAppendGraphExp
+	urQueueBeginCaptureIntoGraphExp
+	urQueueBeginGraphCaptureExp
 	urQueueCreate
 	urQueueCreateWithNativeHandle
+	urQueueEndGraphCaptureExp
 	urQueueFinish
 	urQueueFlush
 	urQueueGetInfo
 	urQueueGetNativeHandle
+	urQueueInstantiateGraphExp
+	urQueueIsGraphCaptureEnabledExp
 	urQueueRelease
 	urQueueRetain
 	urSamplerCreate
