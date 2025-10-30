@@ -1,18 +1,22 @@
 #!/bin/bash
 
-# The actual version of this script is build_zstd.sh.
-# This one is needed for jenkins precommit to pass, since jenkins still uses the
-# old name. Will be removed when Jenkins is updated.
-
-# Script to build and install zstd 1.5.6 on Ubuntu 24, with -fPIC flag.
+# Script to build and install zstd on Ubuntu 24, with -fPIC flag.
 # The default installation of zstd on Ubuntu 24 does not have -fPIC flag
 # enabled, which is required for building DPC++ in shared libraries mode.
 
-# Function to check if the OS is Ubuntu 24
+# OR on Rocky Linux 8.10 (used for nightly release builds). There is no static
+# library (libzstd.a) in available packages, therefore it is necessary to build
+# it from source.
+
+# Function to check OS
 check_os() {
+    local expected_name="$1"
+    local expected_version="$2"
     . /etc/os-release
-    if [[ "$NAME" != "Ubuntu" || "$VERSION_ID" != "24.04" ]]; then
-        echo "Warning: This script has only been tested with Ubuntu 24."
+    if [[ "$NAME" == "$expected_name" && "$VERSION_ID" == "$expected_version" ]]; then
+        return 0
+    else
+        return 1
     fi
 }
 
@@ -63,19 +67,21 @@ EOF
 }
 
 # Check the OS
-check_os
+if ! check_os "Ubuntu" "24.04" && ! check_os "Rocky Linux" "8.10"; then
+    echo "Warning: This script has only been tested with Ubuntu 24.04 and Rocky Linux 8.10."
+fi
 
 # Set USE_SUDO to true or false based on your preference
 USE_SUDO=true
 
-# Install necessary build tools
-install_packages
-
-# Uninstall libzstd-dev package if installed
-uninstall_libzstd_dev
+# Install necessary build tools & uninstall libzstd-dev package if installed
+if check_os "Ubuntu" "24.04"; then
+    install_packages
+    uninstall_libzstd_dev
+fi
 
 # Define the version and URL for zstd
-ZSTD_VERSION="1.5.6"
+ZSTD_VERSION="1.5.7"
 ZSTD_URL="https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz"
 
 # Create a directory for the source code
