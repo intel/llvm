@@ -284,3 +284,12 @@
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: aaa aaa, link-opts: bbb bbb
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: "{{.*}}ocloc"{{.*}} -device pvc ccc ccc
 // cHECK-COMPILE-LINK-OPTS-JIT-AND-AOT: offload-wrapper: {{.*}} compile-opts: , link-opts:
+
+// Check that missed triple in image causes an error.
+// RUN: clang-offload-packager -o %t.without_triple.fat "--image=file=%t.o,triple=,arch=pvc,kind=sycl"
+// RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.without_triple.o -fembed-offload-object=%t.without_triple.fat
+// RUN: not clang-linker-wrapper --verbose --dry-run -host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      -sycl-device-libraries=%t1.devicelib.o \
+// RUN:                      %t.without_triple.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-ERROR-WITH-NO-TRIPLE
+
+// CHECK-ERROR-WITH-NO-TRIPLE: linking is not supported

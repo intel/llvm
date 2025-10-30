@@ -2097,29 +2097,28 @@ Error handleOverrideImages(
 /// compile options or different link options, then an error is returned.
 Expected<std::pair<std::string, std::string>>
 extractSYCLCompileLinkOptions(ArrayRef<OffloadFile> OffloadFiles) {
-  std::pair<std::string, std::string> Options;
   if (OffloadFiles.size() == 0)
-    return std::move(Options);
+    return std::pair<std::string, std::string>{};
 
   const OffloadBinary *OB = OffloadFiles[0].getBinary();
-  Options = std::make_pair(std::string(OB->getString("compile-opts")),
-                           std::string(OB->getString("link-opts")));
+  StringRef RefCompileOpts = OB->getString("compile-opts");
+  StringRef RefLinkOpts = OB->getString("link-opts");
 
   for (size_t I = 1, E = OffloadFiles.size(); I != E; ++I) {
     OB = OffloadFiles[I].getBinary();
     StringRef CompileOptions = OB->getString("compile-opts");
     StringRef LinkOptions = OB->getString("link-opts");
 
-    if (CompileOptions != Options.first || LinkOptions != Options.second)
+    if (CompileOptions != RefCompileOpts || LinkOptions != RefLinkOpts)
       return createStringError(formatv(
           "compile and link options are expected to be equal among input "
           "images. "
           "Input[0]: compile_options: {0}, link_options: {1}, "
           "Input[{2}]: compile_options: {3}, link_options: {4}",
-          Options.first, Options.second, I, CompileOptions, LinkOptions));
+          RefCompileOpts, RefLinkOpts, I, CompileOptions, LinkOptions));
   }
 
-  return std::move(Options);
+  return std::make_pair(std::string(RefCompileOpts), std::string(RefLinkOpts));
 }
 
 /// Transforms all the extracted offloading input files into an image that can
