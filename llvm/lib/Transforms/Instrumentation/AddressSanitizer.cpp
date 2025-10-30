@@ -4566,6 +4566,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
     LocalStackBaseAlloca = LocalStackBase;
   }
 
+  const auto &TargetTriple = Triple(F.getParent()->getTargetTriple());
+
   // Replace Alloca instructions with base+offset.
   SmallVector<Value *> NewAllocaPtrs;
   for (const auto &Desc : SVD) {
@@ -4573,11 +4575,12 @@ void FunctionStackPoisoner::processStaticAllocas() {
     replaceDbgDeclare(AI, LocalStackBaseAlloca, DIB, DIExprFlags, Desc.Offset);
     Value *NewAllocaPtr = IRB.CreatePtrAdd(
         LocalStackBase, ConstantInt::get(IntptrTy, Desc.Offset));
+    NewAllocaPtr = TargetTriple.isSPIROrSPIRV()
+                       ? IRB.CreateAddrSpaceCast(NewAllocaPtr, AI->getType())
+                       : NewAllocaPtr;
     AI->replaceAllUsesWith(NewAllocaPtr);
     NewAllocaPtrs.push_back(NewAllocaPtr);
   }
-
-  const auto &TargetTriple = Triple(F.getParent()->getTargetTriple());
 
   // The left-most redzone has enough space for at least 4 pointers.
   // SPIRV doesn't use the following metadata
