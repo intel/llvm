@@ -150,6 +150,9 @@ jobs:
   benchmark_dispatch:
     name: '[Dispatch] Benchmarks'
     needs: [ build_sycl_dispatch, sanitize_inputs_dispatch ]
+    permissions:
+      contents: write
+      packages: read
     if: always() && !cancelled() && needs.build_sycl_dispatch.outputs.build_conclusion == 'success'
     strategy:
       matrix:
