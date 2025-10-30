@@ -10490,17 +10490,85 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
       TCArgs.MakeArgString("--avoid-spirv-capabilities=Shader"));
   BackendArgs.push_back(
       TCArgs.MakeArgString("--translator-compatibility-mode"));
-  // TODO: A list of SPIR-V extensions that are supported by the SPIR-V backend
-  // is growing. Let's postpone the decision on which extensions to enable until
-  // - the list is stable, and
-  // - we decide on a mapping of user requested extensions into backend's ones.
-  // Meanwhile we enable all the SPIR-V backend extensions.
-  BackendArgs.push_back(
-      TCArgs.MakeArgString("--spirv-ext=all,-SPV_KHR_float_controls2"));
-  // TODO:
-  // - handle -Xspirv-translator option to avoid "argument unused during
-  // compilation" error
-  // - handle --spirv-ext=+<extension> and --spirv-ext=-<extension> options
+
+  // SPIR-V backend recently started to support extensions not supported by
+  // drivers (e.g. SPV_KHR_float_controls2). At the same time, SPIR-V backend
+  // doesn't support the syntax for disabling specific extensions (i.e.
+  // --spirv-ext=-<extension>). We need to come up with a list of SPIR-V
+  // extensions that are supported by the backend, but also by the driver. While
+  // we work on that, let's manually do the equivalent of
+  // "--spirv-ext=+all,-SPV_KHR_float_controls2", which is the only unsupported
+  // extension by the driver so far.
+  std::string ExtArg("-spirv-ext=");
+  std::string DefaultExtArg = "+SPV_EXT_arithmetic_fence"
+                              ",+SPV_EXT_demote_to_helper_invocation"
+                              ",+SPV_EXT_descriptor_indexing"
+                              ",+SPV_EXT_fragment_fully_covered"
+                              ",+SPV_EXT_fragment_invocation_density"
+                              ",+SPV_EXT_fragment_shader_interlock"
+                              ",+SPV_EXT_mesh_shader"
+                              ",+SPV_EXT_optnone"
+                              ",+SPV_EXT_relaxed_printf_string_address_space"
+                              ",+SPV_EXT_shader_atomic_float16_add"
+                              ",+SPV_EXT_shader_atomic_float_add"
+                              ",+SPV_EXT_shader_atomic_float_min_max"
+                              ",+SPV_EXT_shader_image_int64"
+                              ",+SPV_EXT_shader_stencil_export"
+                              ",+SPV_EXT_shader_viewport_index_layer";
+  std::string GoogleExtArg = ",+SPV_GOOGLE_hlsl_functionality1"
+                             ",+SPV_GOOGLE_user_type";
+  std::string IntelExtArg = ",+SPV_INTEL_2d_block_io"
+                            ",+SPV_INTEL_arbitrary_precision_integers"
+                            ",+SPV_INTEL_bfloat16_conversion"
+                            ",+SPV_INTEL_bindless_images"
+                            ",+SPV_INTEL_cache_controls"
+                            ",+SPV_INTEL_float_controls2"
+                            ",+SPV_INTEL_fp_max_error"
+                            ",+SPV_INTEL_function_pointers"
+                            ",+SPV_INTEL_global_variable_fpga_decorations"
+                            ",+SPV_INTEL_global_variable_host_access"
+                            ",+SPV_INTEL_inline_assembly"
+                            ",+SPV_INTEL_int4"
+                            ",+SPV_INTEL_joint_matrix"
+                            ",+SPV_INTEL_long_composites"
+                            ",+SPV_INTEL_media_block_io"
+                            ",+SPV_INTEL_memory_access_aliasing"
+                            ",+SPV_INTEL_optnone"
+                            ",+SPV_INTEL_split_barrier"
+                            ",+SPV_INTEL_subgroup_matrix_multiply_accumulate"
+                            ",+SPV_INTEL_subgroups"
+                            ",+SPV_INTEL_tensor_float32_conversion"
+                            ",+SPV_INTEL_ternary_bitwise_function"
+                            ",+SPV_INTEL_usm_storage_classes"
+                            ",+SPV_INTEL_variable_length_array";
+  std::string KHRExtArg = ",+SPV_KHR_16bit_storage"
+                          ",+SPV_KHR_bfloat16"
+                          ",+SPV_KHR_bit_instructions"
+                          ",+SPV_KHR_cooperative_matrix"
+                          ",+SPV_KHR_device_group"
+                          ",+SPV_KHR_expect_assume"
+                          ",+SPV_KHR_float_controls"
+                          ",+SPV_KHR_float_controls2"
+                          ",+SPV_KHR_fragment_shader_barycentric"
+                          ",+SPV_KHR_fragment_shading_rate"
+                          ",+SPV_KHR_integer_dot_product"
+                          ",+SPV_KHR_linkonce_odr"
+                          ",+SPV_KHR_multiview"
+                          ",+SPV_KHR_no_integer_wrap_decoration"
+                          ",+SPV_KHR_non_semantic_info"
+                          ",+SPV_KHR_physical_storage_buffer"
+                          ",+SPV_KHR_post_depth_coverage"
+                          ",+SPV_KHR_ray_query"
+                          ",+SPV_KHR_ray_tracing"
+                          ",+SPV_KHR_shader_clock"
+                          ",+SPV_KHR_shader_draw_parameters"
+                          ",+SPV_KHR_subgroup_rotate"
+                          ",+SPV_KHR_uniform_group_instructions"
+                          ",+SPV_KHR_vulkan_memory_model";
+  std::string NVExtArg = ",+SPV_NV_shader_subgroup_partitioned";
+  ExtArg = ExtArg + DefaultExtArg + GoogleExtArg + IntelExtArg + KHRExtArg +
+           NVExtArg;
+  BackendArgs.push_back(TCArgs.MakeArgString(ExtArg));
 }
 
 // Utility function to gather all llvm-spirv options.
