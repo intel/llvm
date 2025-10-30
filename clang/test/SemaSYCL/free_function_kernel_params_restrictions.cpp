@@ -42,20 +42,3 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_5(A S1) {
 }
-
-
-
-struct StructWithAccessor {
-  sycl::accessor<char, 1, sycl::access::mode::read> acc;
-  int *ptr;
-};
-
-struct Wrapper {
-  StructWithAccessor SWA;
-
-};
-
-[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
-void ff_6(Wrapper S1) { // expected-error {{cannot be used as the type of a kernel parameter}}
-                        // expected-note@-1 {{'Wrapper' is not yet supported as a free function kernel parameter}}
-}

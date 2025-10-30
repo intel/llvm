@@ -4,9 +4,6 @@
 // This test verifies whether struct that contains either sycl::local_accesor or
 // sycl::accessor can be used with free function kernels extension.
 
-// XFAIL: *
-// XFAIL-TRACKER: CMPLRLLVM-67737
-
 #include <sycl/atomic_ref.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
