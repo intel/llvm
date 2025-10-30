@@ -10548,7 +10548,6 @@ static void getSPIRVBackendOpts(const llvm::opt::ArgList &TCArgs,
                           ",+SPV_KHR_device_group"
                           ",+SPV_KHR_expect_assume"
                           ",+SPV_KHR_float_controls"
-                          ",+SPV_KHR_float_controls2"
                           ",+SPV_KHR_fragment_shader_barycentric"
                           ",+SPV_KHR_fragment_shading_rate"
                           ",+SPV_KHR_integer_dot_product"
