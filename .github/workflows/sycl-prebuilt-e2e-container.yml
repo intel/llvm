@@ -52,7 +52,7 @@ jobs:
       # Date:   Thu Jul 10 16:45:48 2025 +0100
       # Merge pull request #1102 from steffenlarsen/steffen/remove_secondary_queue_exceptions
       # Remove expected exceptions for secondary queue
-      cts_binaries_ref: ${{ github.event_name == 'push' && '19e4ed34377c8a8a354d701772427be8c5430b0d' || inputs.cts_ref }}
+      cts_binaries_ref: ${{ inputs.cts_ref || '19e4ed34377c8a8a354d701772427be8c5430b0d' }}
 
   # Couldn't make it work from inside the container, so have to use an extra job
   # and pass an artifact.
